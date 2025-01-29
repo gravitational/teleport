@@ -42,6 +42,7 @@ import (
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -1784,6 +1785,37 @@ func (c *spiffeFederationCollection) writeText(w io.Writer, verbose bool) error 
 	return trace.Wrap(err)
 }
 
+type workloadIdentityCollection struct {
+	items []*workloadidentityv1pb.WorkloadIdentity
+}
+
+func (c *workloadIdentityCollection) resources() []types.Resource {
+	r := make([]types.Resource, 0, len(c.items))
+	for _, resource := range c.items {
+		r = append(r, types.ProtoResource153ToLegacy(resource))
+	}
+	return r
+}
+
+func (c *workloadIdentityCollection) writeText(w io.Writer, verbose bool) error {
+	headers := []string{"Name", "SPIFFE ID"}
+
+	var rows [][]string
+	for _, item := range c.items {
+		rows = append(rows, []string{
+			item.Metadata.Name,
+			item.GetSpec().GetSpiffe().GetId(),
+		})
+	}
+
+	t := asciitable.MakeTable(headers, rows...)
+
+	// stable sort by name.
+	t.SortRowsBy([]int{0}, true)
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
 type staticHostUserCollection struct {
 	items []*userprovisioningpb.StaticHostUser
 }
@@ -1876,7 +1908,7 @@ type autoUpdateConfigCollection struct {
 }
 
 func (c *autoUpdateConfigCollection) resources() []types.Resource {
-	return []types.Resource{types.Resource153ToLegacy(c.config)}
+	return []types.Resource{types.ProtoResource153ToLegacy(c.config)}
 }
 
 func (c *autoUpdateConfigCollection) writeText(w io.Writer, verbose bool) error {
@@ -1894,7 +1926,7 @@ type autoUpdateVersionCollection struct {
 }
 
 func (c *autoUpdateVersionCollection) resources() []types.Resource {
-	return []types.Resource{types.Resource153ToLegacy(c.version)}
+	return []types.Resource{types.ProtoResource153ToLegacy(c.version)}
 }
 
 func (c *autoUpdateVersionCollection) writeText(w io.Writer, verbose bool) error {
@@ -1902,6 +1934,28 @@ func (c *autoUpdateVersionCollection) writeText(w io.Writer, verbose bool) error
 	t.AddRow([]string{
 		c.version.GetMetadata().GetName(),
 		fmt.Sprintf("%v", c.version.GetSpec().GetTools().TargetVersion),
+	})
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type autoUpdateAgentRolloutCollection struct {
+	rollout *autoupdatev1pb.AutoUpdateAgentRollout
+}
+
+func (c *autoUpdateAgentRolloutCollection) resources() []types.Resource {
+	return []types.Resource{types.ProtoResource153ToLegacy(c.rollout)}
+}
+
+func (c *autoUpdateAgentRolloutCollection) writeText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"Name", "Start Version", "Target Version", "Mode", "Schedule", "Strategy"})
+	t.AddRow([]string{
+		c.rollout.GetMetadata().GetName(),
+		fmt.Sprintf("%v", c.rollout.GetSpec().GetStartVersion()),
+		fmt.Sprintf("%v", c.rollout.GetSpec().GetTargetVersion()),
+		fmt.Sprintf("%v", c.rollout.GetSpec().GetAutoupdateMode()),
+		fmt.Sprintf("%v", c.rollout.GetSpec().GetSchedule()),
+		fmt.Sprintf("%v", c.rollout.GetSpec().GetStrategy()),
 	})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)

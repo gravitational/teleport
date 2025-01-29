@@ -22,7 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -32,6 +32,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -43,6 +45,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -594,34 +597,88 @@ func generateEvent(sessionID session.ID, index int64, query string) apievents.Au
 	}
 }
 
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
 func randStringAlpha(n int) string {
-	b := make([]rune, n)
+	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	b := make([]byte, n)
 	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+		b[i] = letters[rand.N(len(letters))]
 	}
 	return string(b)
 }
 
-func TestCustomEndpoint(t *testing.T) {
-	ctx := context.Background()
-	t.Setenv("AWS_ACCESS_KEY", "llama")
-	t.Setenv("AWS_SECRET_KEY", "alpaca")
+func TestEndpoints(t *testing.T) {
+	tests := []struct {
+		name string
+		fips bool
+	}{
+		{
+			name: "fips",
+			fips: true,
+		},
+		{
+			name: "without fips",
+		},
+	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusTeapot)
-	})
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 
-	b, err := New(ctx, Config{
-		Tablename:    "teleport-test",
-		UIDGenerator: utils.NewFakeUID(),
-		Endpoint:     srv.URL,
-	})
-	assert.Error(t, err)
-	assert.Nil(t, b)
-	require.ErrorContains(t, err, fmt.Sprintf("StatusCode: %d", http.StatusTeapot))
+			fips := types.ClusterAuditConfigSpecV2_FIPS_DISABLED
+			if tt.fips {
+				fips = types.ClusterAuditConfigSpecV2_FIPS_ENABLED
+				modules.SetTestModules(t, &modules.TestModules{
+					FIPS: true,
+				})
+			}
+
+			mux := http.NewServeMux()
+			mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusTeapot)
+			}))
+
+			server := httptest.NewServer(mux)
+			t.Cleanup(server.Close)
+
+			b, err := New(context.Background(), Config{
+				Region:       "us-west-1",
+				Tablename:    "teleport-test",
+				UIDGenerator: utils.NewFakeUID(),
+				// The prefix is intentionally removed to validate that a scheme
+				// is applied automatically. This validates backwards compatible behavior
+				// with existing configurations and the behavior change from aws-sdk-go to aws-sdk-go-v2.
+				Endpoint:        strings.TrimPrefix(server.URL, "http://"),
+				Insecure:        true,
+				UseFIPSEndpoint: fips,
+				CredentialsProvider: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+					return aws.Credentials{}, nil
+				}),
+			})
+			// FIPS mode should fail because it is a violation to enable FIPS
+			// while also setting a custom endpoint.
+			if tt.fips {
+				assert.Error(t, err)
+				require.ErrorContains(t, err, "FIPS")
+				return
+			}
+
+			assert.Error(t, err)
+			assert.Nil(t, b)
+			require.ErrorContains(t, err, fmt.Sprintf("StatusCode: %d", http.StatusTeapot))
+		})
+	}
+}
+
+func TestStartKeyBackCompat(t *testing.T) {
+	const (
+		oldStartKey = `{"date":"2023-04-27","iterator":{"CreatedAt":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":"1682583778","NS":null,"NULL":null,"S":null,"SS":null},"CreatedAtDate":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":null,"NS":null,"NULL":null,"S":"2023-04-27","SS":null},"EventIndex":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":"0","NS":null,"NULL":null,"S":null,"SS":null},"SessionID":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":null,"NS":null,"NULL":null,"S":"4bc51fd7-4f0c-47ee-b9a5-da621fbdbabb","SS":null}}}`
+		newStartKey = `{"date":"2023-04-27","iterator":"{\"CreatedAt\":1682583778,\"CreatedAtDate\":\"2023-04-27\",\"EventIndex\":0,\"SessionID\":\"4bc51fd7-4f0c-47ee-b9a5-da621fbdbabb\"}"}`
+	)
+
+	oldCP, err := getCheckpointFromStartKey(oldStartKey)
+	require.NoError(t, err)
+
+	newCP, err := getCheckpointFromStartKey(newStartKey)
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff(oldCP, newCP))
 }

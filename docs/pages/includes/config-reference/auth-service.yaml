@@ -58,7 +58,7 @@ teleport:
         # consume the retention period via a query parameter in the audit_events_uri. See the examples below
         # for how to configure the retention period for other backends.
         # Firestore: firestore://events_table_name?eventRetentionPeriod=10d
-        # Postgres: postgresql://user_name@database-address/teleport_audit?retention_period=10d
+        # Postgres: postgresql://user_name@database-address/teleport_audit#retention_period=240h
         retention_period: 365d
 
         # minimum/maximum read capacity in units
@@ -156,11 +156,18 @@ auth_service:
         # Possible values: true, false, "hardware_key", "hardware_key_touch".
         # Defaults to false.
         require_session_mfa: false
+        
+        # second_factors is the list of allowed second factors for the cluster.
+        # Possible values: "otp", "webauthn", and "sso". Order does not matter.
+        # Defaults to ["otp"].
+        second_factors: ["webauthn", "otp"]
 
         # second_factor can be 'on', 'otp' or 'webauthn'.
         # - 'on' requires either otp or webauthn second factor.
         # - 'otp' and 'webauthn' require the corresponding second factor.
-        second_factor: otp
+        #
+        # Prefer setting second_factors instead.
+        #second_factor: otp
 
         # Sets whether passwordless authentication is allowed.
         # Passwordless requires WebAuthn.
@@ -342,8 +349,7 @@ auth_service:
     routing_strategy: unambiguous_match
 
     # License file to start auth server with. Note that this setting is ignored
-    # in the Teleport Community Edition and is required only for Teleport Pro, Business
-    # and Enterprise subscription plans.
+    # in the Teleport Community Edition and is required only for Teleport Enterprise.
     #
     # The path can be either absolute or relative to the configured `data_dir`
     # and should point to the license file obtained from Teleport Download

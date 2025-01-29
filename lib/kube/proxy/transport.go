@@ -23,7 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"time"
@@ -316,12 +316,9 @@ func (f *Forwarder) localClusterDialer(kubeClusterName string, opts ...contextDi
 		}
 		// Shuffle the list of servers to avoid always connecting to the same
 		// server.
-		rand.Shuffle(
-			len(kubeServers),
-			func(i, j int) {
-				kubeServers[i], kubeServers[j] = kubeServers[j], kubeServers[i]
-			},
-		)
+		rand.Shuffle(len(kubeServers), func(i, j int) {
+			kubeServers[i], kubeServers[j] = kubeServers[j], kubeServers[i]
+		})
 
 		var errs []error
 		// Validate that the requested kube cluster is registered.

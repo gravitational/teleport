@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function Server({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const Server = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-server"
       {...otherProps}
+      ref={ref}
     >
       <path d="M16.875 8.4375C17.3928 8.4375 17.8125 8.01777 17.8125 7.5C17.8125 6.98223 17.3928 6.5625 16.875 6.5625C16.3572 6.5625 15.9375 6.98223 15.9375 7.5C15.9375 8.01777 16.3572 8.4375 16.875 8.4375Z" />
       <path
@@ -71,5 +72,5 @@ export function Server({ size = 24, color, ...otherProps }: IconProps) {
         d="M4.5 12.75C3.67157 12.75 3 13.4216 3 14.25V18.75C3 19.5784 3.67157 20.25 4.5 20.25H19.5C20.3284 20.25 21 19.5784 21 18.75V14.25C21 13.4216 20.3284 12.75 19.5 12.75H4.5ZM4.5 14.25H19.5V18.75H4.5V14.25Z"
       />
     </Icon>
-  );
-}
+  )
+);

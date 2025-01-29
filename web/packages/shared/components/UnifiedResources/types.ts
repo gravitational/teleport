@@ -18,13 +18,13 @@
 
 import React from 'react';
 
-import { ResourceLabel } from 'teleport/services/agents';
-
-import { ResourceIconName } from 'design/ResourceIcon';
 import { Icon } from 'design/Icon';
-
-import { DbProtocol } from 'shared/services/databases';
+import { ResourceIconName } from 'design/ResourceIcon';
 import { NodeSubKind } from 'shared/services';
+import { DbProtocol } from 'shared/services/databases';
+
+import { ResourceLabel } from 'teleport/services/agents';
+import { AppSubKind, PermissionSet } from 'teleport/services/apps';
 
 export type UnifiedResourceApp = {
   kind: 'app';
@@ -37,6 +37,8 @@ export type UnifiedResourceApp = {
   friendlyName?: string;
   samlApp: boolean;
   requiresRequest?: boolean;
+  subKind?: AppSubKind;
+  permissionSets?: PermissionSet[];
 };
 
 export interface UnifiedResourceDatabase {
@@ -85,6 +87,19 @@ export type UnifiedResourceUserGroup = {
   requiresRequest?: boolean;
 };
 
+export interface UnifiedResourceGitServer {
+  kind: 'git_server';
+  id: string;
+  hostname: string;
+  labels: ResourceLabel[];
+  subKind: 'github';
+  github: {
+    organization: string;
+    integration: string;
+  };
+  requiresRequest?: boolean;
+}
+
 export type UnifiedResourceUi = {
   ActionButton: React.ReactElement;
 };
@@ -96,7 +111,8 @@ export type SharedUnifiedResource = {
     | UnifiedResourceNode
     | UnifiedResourceKube
     | UnifiedResourceDesktop
-    | UnifiedResourceUserGroup;
+    | UnifiedResourceUserGroup
+    | UnifiedResourceGitServer;
   ui: UnifiedResourceUi;
 };
 

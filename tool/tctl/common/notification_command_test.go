@@ -64,7 +64,11 @@ func TestNotificationCommmandCRUD(t *testing.T) {
 	require.Contains(t, buf.String(), "for user manager-user")
 
 	// Test creating a global notification for users with the test-1 role.
-	buf, err = runNotificationsCommand(t, clt, []string{"create", "--roles", "test-1", "--title", "test-1 notification", "--content", "This is a test notification."})
+	buf, err = runNotificationsCommand(t, clt, []string{
+		"create", "--roles", "test-1", "--title", "test-1 notification",
+		"--labels", "forrole=test-1",
+		"--content", "This is a test notification.",
+	})
 	require.NoError(t, err)
 	require.Contains(t, buf.String(), "for users with one or more of the following roles: [test-1]")
 	globalNotificationId := strings.Split(buf.String(), " ")[2]
@@ -86,6 +90,18 @@ func TestNotificationCommmandCRUD(t *testing.T) {
 		// List global notifications and verify that test-1 notification exists.
 		buf, err = runNotificationsCommand(t, clt, []string{"ls"})
 		assert.NoError(collectT, err)
+		assert.Contains(collectT, buf.String(), "test-1 notification")
+		assert.NotContains(collectT, buf.String(), "auditor notification")
+		assert.NotContains(collectT, buf.String(), "manager notification")
+
+		// Filter out notifications with a non-existent label and make sure nothing comes back.
+		buf, err = runNotificationsCommand(t, clt, []string{"ls", "--labels=thislabel=doesnotexist"})
+		assert.NotContains(collectT, buf.String(), "test-1 notification")
+		assert.NotContains(collectT, buf.String(), "auditor notification")
+		assert.NotContains(collectT, buf.String(), "manager notification")
+
+		// Filter out global notifications with a valid label.
+		buf, err = runNotificationsCommand(t, clt, []string{"ls", "--labels=forrole=test-1"})
 		assert.Contains(collectT, buf.String(), "test-1 notification")
 		assert.NotContains(collectT, buf.String(), "auditor notification")
 		assert.NotContains(collectT, buf.String(), "manager notification")

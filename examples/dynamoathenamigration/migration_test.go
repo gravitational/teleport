@@ -22,7 +22,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
+	"log/slog"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"sort"
@@ -39,7 +40,9 @@ import (
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/prompt"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func TestMigrateProcessDataObjects(t *testing.T) {
@@ -59,7 +62,7 @@ func TestMigrateProcessDataObjects(t *testing.T) {
 		},
 		eventsEmitter: emitter,
 		Config: Config{
-			Logger:          utils.NewLoggerForTests(),
+			Logger:          utils.NewSlogLoggerForTests(),
 			NoOfEmitWorkers: 5,
 			bufferSize:      10,
 			CheckpointPath:  filepath.Join(t.TempDir(), "migration-tests.json"),
@@ -130,7 +133,7 @@ func TestLargeEventsParse(t *testing.T) {
 		},
 		eventsEmitter: emitter,
 		Config: Config{
-			Logger:          utils.NewLoggerForTests(),
+			Logger:          utils.NewSlogLoggerForTests(),
 			NoOfEmitWorkers: 5,
 			bufferSize:      10,
 			CheckpointPath:  filepath.Join(t.TempDir(), "migration-tests.json"),
@@ -190,7 +193,7 @@ func (m *mockEmitter) EmitAuditEvent(ctx context.Context, in apievents.AuditEven
 	// Without it, in rare cases after 50 events still some worker were not able
 	// to read message because of other processing it immediately.
 	select {
-	case <-time.After(time.Duration(rand.Intn(50)+50) * time.Microsecond):
+	case <-time.After(retryutils.HalfJitter(100 * time.Microsecond)):
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
@@ -220,7 +223,7 @@ func TestMigrationCheckpoint(t *testing.T) {
 
 	noOfWorkers := 3
 	defaultConfig := Config{
-		Logger:          utils.NewLoggerForTests(),
+		Logger:          utils.NewSlogLoggerForTests(),
 		NoOfEmitWorkers: noOfWorkers,
 		bufferSize:      noOfWorkers * 5,
 		CheckpointPath:  filepath.Join(t.TempDir(), "migration-tests.json"),
@@ -548,7 +551,7 @@ func TestMigrationDryRunValidation(t *testing.T) {
 					validEvent(), eventWithoutTime,
 				}
 			},
-			wantLog: "is invalid: empty event time",
+			wantLog: "empty event time",
 			wantErr: "1 invalid",
 		},
 		{
@@ -560,7 +563,7 @@ func TestMigrationDryRunValidation(t *testing.T) {
 					validEvent(), eventWithInvalidUUID,
 				}
 			},
-			wantLog: "is invalid: invalid uid format: invalid UUID length",
+			wantLog: "invalid uid format: invalid UUID length",
 			wantErr: "1 invalid",
 		},
 	}
@@ -568,8 +571,9 @@ func TestMigrationDryRunValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Migration cli logs output from validation to logger.
 			var logBuffer bytes.Buffer
-			log := utils.NewLoggerForTests()
-			log.SetOutput(&logBuffer)
+			log := slog.New(logutils.NewSlogJSONHandler(&logBuffer, logutils.SlogJSONHandlerConfig{
+				Level: slog.LevelDebug,
+			}))
 
 			tr := &task{
 				Config: Config{
@@ -695,8 +699,6 @@ func generateExportFilesFromLines(t *testing.T, lines []string) (file *os.File, 
 }
 
 func generateExportFileOfSize(t *testing.T, wantSize int, minDate, maxDate string) (*os.File, int) {
-	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
-
 	f, err := os.CreateTemp(t.TempDir(), "*")
 	require.NoError(t, err)
 	require.NoError(t, err)
@@ -705,7 +707,7 @@ func generateExportFileOfSize(t *testing.T, wantSize int, minDate, maxDate strin
 	var noOfEvents, size int
 	for size < wantSize {
 		noOfEvents++
-		line := eventLineFromTime(randomTime(t, minDate, maxDate, rnd).Format(time.DateOnly))
+		line := eventLineFromTime(randomTime(t, minDate, maxDate).Format(time.DateOnly))
 		size += len(line)
 		_, err = zw.Write([]byte(line + "\n"))
 		require.NoError(t, err)
@@ -717,16 +719,12 @@ func generateExportFileOfSize(t *testing.T, wantSize int, minDate, maxDate strin
 	return f, noOfEvents
 }
 
-func randomTime(t *testing.T, minStr, maxStr string, rnd *rand.Rand) time.Time {
+func randomTime(t *testing.T, minStr, maxStr string) time.Time {
 	min, err := time.Parse(time.DateOnly, minStr)
 	require.NoError(t, err)
 	max, err := time.Parse(time.DateOnly, maxStr)
 	require.NoError(t, err)
-	minUnix := min.Unix()
-	maxUnix := max.Unix()
-	delta := maxUnix - minUnix
-	sec := rnd.Int63n(delta) + minUnix
-	return time.Unix(sec, 0)
+	return min.Add(rand.N(max.Sub(min)))
 }
 
 func eventLineFromTime(eventTime string) string {

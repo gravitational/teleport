@@ -17,10 +17,10 @@
  */
 
 import { FC, PropsWithChildren } from 'react';
+
 import Dialog from 'design/Dialog';
 
 import { dialogCss } from '../spacing';
-
 import { ClusterLoginPresentationProps } from './ClusterLogin';
 
 export const TestContainer: FC<PropsWithChildren> = ({ children }) => (

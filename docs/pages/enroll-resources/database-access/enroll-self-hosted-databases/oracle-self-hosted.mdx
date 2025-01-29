@@ -85,12 +85,10 @@ If your Oracle database presents TLS credentials signed by an existing
 certificate authority, take the following steps instead:
 
 1. Export a Teleport CA certificate for Oracle to authenticate traffic from the
-   Teleport Database Service. Replace <Var name="example.teleport.sh:443" />
-   with the host and web port of the Teleport Proxy Service in your cluster. Run
-   the following command on your workstation:
+   Teleport Database Service. Run the following command on your workstation:
 
    ```code
-   $ tctl auth export --type=db-client --auth-server=<Var name="example.teleport.sh:443" /> > server.ca-client.crt
+   $ tctl auth export --type=db-client --auth-server=<Var name="example.teleport.sh" />:443 > server.ca-client.crt
    ```
 
 1. Move `server.ca-client.crt` to a directory in your Oracle server you will use
@@ -227,7 +225,7 @@ Once the Database Service has joined the cluster, log in to see the available
 databases:
 
 ```code
-$ tsh login --proxy=<Var name="mytenant.teleport.sh" /> --user=alice
+$ tsh login --proxy=<Var name="example.teleport.sh" /> --user=alice
 $ tsh db ls
 # Name   Description    Allowed Users Labels  Connect
 # ------ -------------- ------------- ------- -------

@@ -16,11 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
+
 import { act, fireEvent, render, screen } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
+import cfg from 'teleport/config';
+import {
+  DatabaseEngine,
+  DatabaseLocation,
+} from 'teleport/Discover/SelectResource';
+import { ResourceKind } from 'teleport/Discover/Shared';
+import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
+import { SHOW_HINT_TIMEOUT } from 'teleport/Discover/Shared/useShowHint';
+import {
+  DbMeta,
+  DiscoverContextState,
+  DiscoverProvider,
+} from 'teleport/Discover/useDiscover';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   AwsRdsDatabase,
   Integration,
@@ -29,24 +44,8 @@ import {
   IntegrationStatusCode,
   Regions,
 } from 'teleport/services/integrations';
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import cfg from 'teleport/config';
-import TeleportContext from 'teleport/teleportContext';
-import {
-  DbMeta,
-  DiscoverContextState,
-  DiscoverProvider,
-} from 'teleport/Discover/useDiscover';
-import {
-  DatabaseEngine,
-  DatabaseLocation,
-} from 'teleport/Discover/SelectResource';
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
-import { ResourceKind } from 'teleport/Discover/Shared';
-import { SHOW_HINT_TIMEOUT } from 'teleport/Discover/Shared/useShowHint';
-
 import { userEventService } from 'teleport/services/userEvent';
+import TeleportContext from 'teleport/teleportContext';
 
 import { AutoDeploy } from './AutoDeploy';
 

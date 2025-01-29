@@ -17,13 +17,14 @@
  */
 
 import {
-  makeRootCluster,
+  makeApp,
   makeAppGateway,
+  makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
 import { getDefaultUnifiedResourcePreferences } from 'teleterm/ui/services/workspacesService';
 
-import { VnetClient, TshdClient } from '../createClient';
 import { MockedUnaryCall } from '../cloneableClient';
+import { TshdClient, VnetClient } from '../createClient';
 
 export class MockTshClient implements TshdClient {
   listRootClusters = () => new MockedUnaryCall({ clusters: [] });
@@ -101,8 +102,15 @@ export class MockTshClient implements TshdClient {
   getSuggestedAccessLists = () => new MockedUnaryCall({ accessLists: [] });
   promoteAccessRequest = () => new MockedUnaryCall({});
   updateTshdEventsServerAddress = () => new MockedUnaryCall({});
-  authenticateWebDevice = () => new MockedUnaryCall({});
+  authenticateWebDevice = () =>
+    new MockedUnaryCall({
+      confirmationToken: {
+        id: '123456789',
+        token: '7c8e7438-abe1-4cbc-b3e6-bd233bba967c',
+      },
+    });
   startHeadlessWatcher = () => new MockedUnaryCall({});
+  getApp = () => new MockedUnaryCall({ app: makeApp() });
 }
 
 export class MockVnetClient implements VnetClient {

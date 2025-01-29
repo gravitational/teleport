@@ -16,37 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { formatDistanceToNowStrict } from 'date-fns';
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { formatDistanceToNowStrict } from 'date-fns';
 
-import * as Icons from 'design/Icon';
-
-import Text, { P3 } from 'design/Text';
 import { ButtonSecondary } from 'design/Button';
-
-import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
-import { IGNORE_CLICK_CLASSNAME } from 'shared/hooks/useRefClickOutside/useRefClickOutside';
 import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
+import * as Icons from 'design/Icon';
+import Text, { P3 } from 'design/Text';
 import { Theme } from 'design/theme/themes/types';
-
+import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
 import { useAsync } from 'shared/hooks/useAsync';
+import { IGNORE_CLICK_CLASSNAME } from 'shared/hooks/useRefClickOutside/useRefClickOutside';
 
-import {
-  Notification as NotificationType,
-  NotificationState,
-} from 'teleport/services/notifications';
 import history from 'teleport/services/history';
-
+import {
+  NotificationState,
+  Notification as NotificationType,
+} from 'teleport/services/notifications';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { useTeleport } from '..';
-
 import { NotificationContent } from './notificationContentFactory';
 import { View } from './Notifications';
 

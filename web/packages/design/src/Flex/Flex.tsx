@@ -21,16 +21,16 @@ import styled from 'styled-components';
 import {
   alignItems,
   AlignItemsProps,
-  justifyContent,
-  JustifyContentProps,
   flexBasis,
   FlexBasisProps,
-  flexWrap,
-  FlexWrapProps,
   flexDirection,
   FlexDirectionProps,
+  flexWrap,
+  FlexWrapProps,
   gap,
   GapProps,
+  justifyContent,
+  JustifyContentProps,
 } from 'design/system';
 
 import Box, { BoxProps } from '../Box';
@@ -42,10 +42,15 @@ export interface FlexProps
     FlexWrapProps,
     FlexDirectionProps,
     FlexBasisProps,
-    GapProps {}
+    GapProps {
+  /**
+   * Uses inline-flex instead of just flex as the display property.
+   */
+  inline?: boolean;
+}
 
 const Flex = styled(Box)<FlexProps>`
-  display: flex;
+  display: ${props => (props.inline ? 'inline-flex' : 'flex')};
   ${alignItems}
   ${justifyContent}
   ${flexWrap}

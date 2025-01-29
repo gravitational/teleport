@@ -23,6 +23,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/url"
 	"slices"
 	"strings"
@@ -50,6 +51,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -72,8 +74,10 @@ const (
 	concurrentEKSEnrollingLimit = 5
 )
 
-var agentRepoURL = url.URL{Scheme: "https", Host: "charts.releases.teleport.dev"}
-var agentStagingRepoURL = url.URL{Scheme: "https", Host: "charts.releases.development.teleport.dev"}
+var (
+	agentRepoURL        = url.URL{Scheme: "https", Host: "charts.releases.teleport.dev"}
+	agentStagingRepoURL = url.URL{Scheme: "https", Host: "charts.releases.development.teleport.dev"}
+)
 
 // EnrollEKSClusterResult contains result for a single EKS cluster enrollment, if it was successful 'Error' will be nil
 // otherwise it will contain an error happened during enrollment.
@@ -84,6 +88,8 @@ type EnrollEKSClusterResult struct {
 	ResourceId string
 	// Error contains an error that happened during enrollment, if there was one.
 	Error error
+	// IssueType contains the UserTask issue type for well-known errors.
+	IssueType string
 }
 
 // EnrollEKSClusterResponse contains result for enrollment .
@@ -92,8 +98,8 @@ type EnrollEKSClusterResponse struct {
 	Results []EnrollEKSClusterResult
 }
 
-// EnrollEKSCLusterClient defines functions required for EKS cluster enrollment.
-type EnrollEKSCLusterClient interface {
+// EnrollEKSClusterClient defines functions required for EKS cluster enrollment.
+type EnrollEKSClusterClient interface {
 	// CreateAccessEntry creates an access entry. An access entry allows an IAM principal to access an EKS cluster.
 	CreateAccessEntry(ctx context.Context, params *eks.CreateAccessEntryInput, optFns ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error)
 
@@ -208,7 +214,7 @@ func (d *defaultEnrollEKSClustersClient) CreateToken(ctx context.Context, token 
 type TokenCreator func(ctx context.Context, token types.ProvisionToken) error
 
 // NewEnrollEKSClustersClient returns new client that can be used to enroll EKS clusters into Teleport.
-func NewEnrollEKSClustersClient(ctx context.Context, req *AWSClientRequest, tokenCreator TokenCreator) (EnrollEKSCLusterClient, error) {
+func NewEnrollEKSClustersClient(ctx context.Context, req *AWSClientRequest, tokenCreator TokenCreator) (EnrollEKSClusterClient, error) {
 	eksClient, err := newEKSClient(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -253,6 +259,9 @@ type EnrollEKSClustersRequest struct {
 
 	// AgentVersion specifies version of the Helm chart that will be installed during enrollment.
 	AgentVersion string
+
+	// ExtraLabels added to the enrolled clusters.
+	ExtraLabels map[string]string
 }
 
 // CheckAndSetDefaults checks if the required fields are present.
@@ -289,7 +298,7 @@ func (e *EnrollEKSClustersRequest) CheckAndSetDefaults() error {
 // During enrollment we create access entry for an EKS cluster if needed and cluster admin policy is associated with that entry,
 // so our AWS integration can access the target EKS cluster during the chart installation. After enrollment is done we remove
 // the access entry (if it was created by us), since we don't need it anymore.
-func EnrollEKSClusters(ctx context.Context, log *slog.Logger, clock clockwork.Clock, proxyAddr string, clt EnrollEKSCLusterClient, req EnrollEKSClustersRequest) (*EnrollEKSClusterResponse, error) {
+func EnrollEKSClusters(ctx context.Context, log *slog.Logger, clock clockwork.Clock, proxyAddr string, clt EnrollEKSClusterClient, req EnrollEKSClustersRequest) (*EnrollEKSClusterResponse, error) {
 	var mu sync.Mutex
 	var results []EnrollEKSClusterResult
 
@@ -304,17 +313,23 @@ func EnrollEKSClusters(ctx context.Context, log *slog.Logger, clock clockwork.Cl
 		eksClusterName := eksClusterName
 
 		group.Go(func() error {
-			resourceId, err := enrollEKSCluster(ctx, log, clock, clt, proxyAddr, eksClusterName, req)
+			resourceId, issueType, err := enrollEKSCluster(ctx, log, clock, clt, proxyAddr, eksClusterName, req)
 			if err != nil {
 				log.WarnContext(ctx, "Failed to enroll EKS cluster",
 					"error", err,
 					"cluster", eksClusterName,
+					"issue_type", issueType,
 				)
 			}
 
 			mu.Lock()
 			defer mu.Unlock()
-			results = append(results, EnrollEKSClusterResult{ClusterName: eksClusterName, ResourceId: resourceId, Error: trace.Wrap(err)})
+			results = append(results, EnrollEKSClusterResult{
+				ClusterName: eksClusterName,
+				ResourceId:  resourceId,
+				Error:       trace.Wrap(err),
+				IssueType:   issueType,
+			})
 
 			return nil
 		})
@@ -358,22 +373,28 @@ func presignCallerIdentityURL(ctx context.Context, stsClient *sts.Client, cluste
 	return presigned.URL, nil
 }
 
-func enrollEKSCluster(ctx context.Context, log *slog.Logger, clock clockwork.Clock, clt EnrollEKSCLusterClient, proxyAddr, clusterName string, req EnrollEKSClustersRequest) (string, error) {
+// enrollEKSCluster tries to enroll a single EKS cluster using the EnrollEKSClusterClient.
+// Returns the resource id or an error and an issue type which identifies the class of the error that occurred.
+func enrollEKSCluster(ctx context.Context, log *slog.Logger, clock clockwork.Clock, clt EnrollEKSClusterClient, proxyAddr, clusterName string, req EnrollEKSClustersRequest) (string, string, error) {
 	eksClusterInfo, err := clt.DescribeCluster(ctx, &eks.DescribeClusterInput{
 		Name: aws.String(clusterName),
 	})
 	if err != nil {
-		return "", trace.Wrap(err, "unable to describe EKS cluster")
+		return "", "", trace.Wrap(err, "unable to describe EKS cluster")
 	}
 	eksCluster := eksClusterInfo.Cluster
 
 	if eksCluster.Status != eksTypes.ClusterStatusActive {
-		return "", trace.BadParameter(`can't enroll EKS cluster %q - expected "ACTIVE" state, got %q.`, clusterName, eksCluster.Status)
+		return "",
+			usertasks.AutoDiscoverEKSIssueStatusNotActive,
+			trace.BadParameter(`can't enroll EKS cluster %q - expected "ACTIVE" state, got %q.`, clusterName, eksCluster.Status)
 	}
 
 	// We can't discover private EKS clusters for cloud clients, since we know that auth server is running in our VPC.
 	if req.IsCloud && !eksCluster.ResourcesVpcConfig.EndpointPublicAccess {
-		return "", trace.AccessDenied(`can't enroll %q because it is not accessible from Teleport Cloud, please enable endpoint public access in your EKS cluster and try again.`, clusterName)
+		return "",
+			usertasks.AutoDiscoverEKSIssueMissingEndpoingPublicAccess,
+			trace.AccessDenied(`can't enroll %q because it is not accessible from Teleport Cloud, please enable endpoint public access in your EKS cluster and try again.`, clusterName)
 	}
 
 	// When clusters are using CONFIG_MAP, API is not acessible and thus Teleport can't install the Teleport's Helm chart.
@@ -383,19 +404,21 @@ func enrollEKSCluster(ctx context.Context, log *slog.Logger, clock clockwork.Clo
 		eksTypes.AuthenticationModeApiAndConfigMap,
 	}
 	if !slices.Contains(allowedAuthModes, eksCluster.AccessConfig.AuthenticationMode) {
-		return "", trace.BadParameter("can't enroll %q because its access config's authentication mode is %q, only %v are supported", clusterName, eksCluster.AccessConfig.AuthenticationMode, allowedAuthModes)
+		return "",
+			usertasks.AutoDiscoverEKSIssueAuthenticationModeUnsupported,
+			trace.BadParameter("can't enroll %q because its access config's authentication mode is %q, only %v are supported", clusterName, eksCluster.AccessConfig.AuthenticationMode, allowedAuthModes)
 	}
 
 	principalArn, err := getAccessEntryPrincipalArn(ctx, clt.GetCallerIdentity)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", "", trace.Wrap(err)
 	}
 
 	ownershipTags := tags.DefaultResourceCreationTags(req.TeleportClusterName, req.IntegrationName)
 
 	wasAdded, err := maybeAddAccessEntry(ctx, log, clusterName, principalArn, clt, ownershipTags)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", "", trace.Wrap(err)
 	}
 	if wasAdded {
 		// If we added access entry, we'll clean it up when function stops executing.
@@ -423,37 +446,56 @@ func enrollEKSCluster(ctx context.Context, log *slog.Logger, clock clockwork.Clo
 		PrincipalArn: aws.String(principalArn),
 	})
 	if err != nil {
-		return "", trace.Wrap(err, "unable to associate EKS Access Policy to cluster %q", clusterName)
+		return "", "", trace.Wrap(err, "unable to associate EKS Access Policy to cluster %q", clusterName)
 	}
 
 	presignedURL, err := clt.PresignGetCallerIdentityURL(ctx, clusterName)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", "", trace.Wrap(err)
 	}
 
 	kubeClientGetter, err := getKubeClientGetter(presignedURL,
 		aws.ToString(eksCluster.CertificateAuthority.Data), aws.ToString(eksCluster.Endpoint))
 	if err != nil {
-		return "", trace.Wrap(err, "unable to build kubernetes client for EKS cluster %q", clusterName)
+		return "", "", trace.Wrap(err, "unable to build kubernetes client for EKS cluster %q", clusterName)
 	}
 
 	if alreadyInstalled, err := clt.CheckAgentAlreadyInstalled(ctx, kubeClientGetter, log); err != nil {
-		return "", trace.Wrap(err, "could not check if teleport-kube-agent is already installed.")
+		return "",
+			issueTypeFromCheckAgentInstalledError(err),
+			trace.Wrap(err, "could not check if teleport-kube-agent is already installed.")
 	} else if alreadyInstalled {
-		// Web UI relies on the text of this error message. If changed, sync with EnrollEksCluster.tsx
-		return "", trace.AlreadyExists("teleport-kube-agent is already installed on the cluster %q", clusterName)
+		return "",
+			// When using EKS Auto Discovery, after the Kube Agent connects to the Teleport cluster, it is ignored in next discovery iterations.
+			// Given that this iteration is still hitting this EKS Cluster, it means that the agent can't connect to the Teleport Cluster or is taking too long.
+			usertasks.AutoDiscoverEKSIssueAgentNotConnecting,
+			// Web UI relies on the text of this error message. If changed, sync with EnrollEksCluster.tsx
+			trace.AlreadyExists("teleport-kube-agent is already installed on the cluster %q", clusterName)
 	}
 
 	joinToken, resourceId, err := getToken(ctx, clock, clt.CreateToken)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", "", trace.Wrap(err)
 	}
 
 	if err := clt.InstallKubeAgent(ctx, eksCluster, proxyAddr, joinToken, resourceId, kubeClientGetter, log, req); err != nil {
-		return "", trace.Wrap(err)
+		return "", "", trace.Wrap(err)
 	}
 
-	return resourceId, nil
+	return resourceId, "", nil
+}
+
+func issueTypeFromCheckAgentInstalledError(checkErr error) string {
+	// When the Auth Service fails to reach the EKS Cluster, it usually means that, either:
+	// - EKS does not have EndpointPublicAccess
+	// - EKS is not reachable by the Teleport Auth Service
+	// In the first case, it should be handled in a pre-install check, however, for the second one, we'll get the following message:
+	// > Kubernetes cluster unreachable: Get \"https://<longid>.gr7.<region>.eks.amazonaws.com/version\": dial tcp: lookup <longid>.gr7.<region>.eks.amazonaws.com: no such host"
+	if strings.Contains(checkErr.Error(), "Kubernetes cluster unreachable: Get") && strings.Contains(checkErr.Error(), "eks.amazonaws.com: no such host") {
+		return usertasks.AutoDiscoverEKSIssueClusterUnreachable
+	}
+
+	return ""
 }
 
 // IdentityGetter returns AWS identity of the caller.
@@ -475,7 +517,7 @@ func getAccessEntryPrincipalArn(ctx context.Context, identityGetter IdentityGett
 
 // maybeAddAccessEntry checks list of access entries for the EKS cluster and adds one for Teleport if it's missing.
 // If access entry was added by this function it will return true as a first value.
-func maybeAddAccessEntry(ctx context.Context, log *slog.Logger, clusterName, roleArn string, clt EnrollEKSCLusterClient, ownershipTags tags.AWSTags) (bool, error) {
+func maybeAddAccessEntry(ctx context.Context, log *slog.Logger, clusterName, roleArn string, clt EnrollEKSClusterClient, ownershipTags tags.AWSTags) (bool, error) {
 	entries, err := clt.ListAccessEntries(ctx, &eks.ListAccessEntriesInput{
 		ClusterName: aws.String(clusterName),
 	})
@@ -497,7 +539,7 @@ func maybeAddAccessEntry(ctx context.Context, log *slog.Logger, clusterName, rol
 
 	_, err = clt.CreateAccessEntry(ctx, createAccessEntryReq)
 	if err != nil {
-		convertedError := awslib.ConvertIAMv2Error(err)
+		convertedError := awslib.ConvertRequestFailureErrorV2(err)
 		if !trace.IsAccessDenied(convertedError) {
 			return false, trace.Wrap(err)
 		}
@@ -549,8 +591,11 @@ func getHelmActionConfig(ctx context.Context, clientGetter genericclioptions.RES
 	// > func(format string, v ...interface{})
 	// slog.Log does not support it, so it must be added
 	debugLogWithFormat := func(format string, v ...interface{}) {
-		formatString := fmt.Sprintf(format, v...)
-		log.DebugContext(ctx, formatString) //nolint:sloglint // message should be a constant but in this case we are creating it at runtime.
+		if !log.Handler().Enabled(ctx, slog.LevelDebug) {
+			return
+		}
+		//nolint:sloglint // message should be a constant but in this case we are creating it at runtime.
+		log.DebugContext(ctx, fmt.Sprintf(format, v...))
 	}
 	if err := actionConfig.Init(clientGetter, agentNamespace, "secret", debugLogWithFormat); err != nil {
 		return nil, trace.Wrap(err)
@@ -565,13 +610,13 @@ func checkAgentAlreadyInstalled(ctx context.Context, actionConfig *action.Config
 	var err error
 	// We setup a little backoff loop because sometimes access entry auth needs a bit more time to propagate and take
 	// effect, so we could get errors when trying to access cluster right after giving us permissions to do so.
-	// From real scenarios, we've seen this taking as long as 20 seconds.
-	for attempt := 1; attempt <= 3; attempt++ {
+	// From real scenarios, we've seen this taking as long as 30 seconds.
+	for attempt := 1; attempt <= 6; attempt++ {
 		listCmd := action.NewList(actionConfig)
 		releases, err = listCmd.Run()
 		if err != nil {
 			select {
-			case <-time.After(time.Duration(attempt*5) * time.Second):
+			case <-time.After(10 * time.Second):
 			case <-ctx.Done():
 				return false, trace.NewAggregate(err, ctx.Err())
 			}
@@ -667,7 +712,8 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 	if cfg.req.IsCloud && cfg.req.EnableAutoUpgrades {
 		vals["updater"] = map[string]any{"enabled": true, "releaseChannel": "stable/cloud"}
 
-		vals["highAvailability"] = map[string]any{"replicaCount": 2,
+		vals["highAvailability"] = map[string]any{
+			"replicaCount":        2,
 			"podDisruptionBudget": map[string]any{"enabled": true, "minAvailable": 1},
 		}
 	}
@@ -675,11 +721,10 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 		vals["enterprise"] = true
 	}
 
-	eksTags := make(map[string]*string, len(cfg.eksCluster.Tags))
-	for k, v := range cfg.eksCluster.Tags {
-		eksTags[k] = aws.String(v)
-	}
-	eksTags[types.OriginLabel] = aws.String(types.OriginCloud)
+	eksTags := make(map[string]string, len(cfg.eksCluster.Tags))
+	maps.Copy(eksTags, cfg.eksCluster.Tags)
+	eksTags[types.OriginLabel] = types.OriginCloud
+
 	kubeCluster, err := common.NewKubeClusterFromAWSEKS(aws.ToString(cfg.eksCluster.Name), aws.ToString(cfg.eksCluster.Arn), eksTags)
 	if err != nil {
 		return trace.Wrap(err)
@@ -687,13 +732,20 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 	common.ApplyEKSNameSuffix(kubeCluster)
 	vals["kubeClusterName"] = kubeCluster.GetName()
 
-	labels := kubeCluster.GetStaticLabels()
-	labels[types.InternalResourceIDLabel] = cfg.resourceID
-	vals["labels"] = labels
+	vals["labels"] = kubeAgentLabels(kubeCluster, cfg.resourceID, cfg.req.ExtraLabels)
 
 	if _, err := installCmd.RunWithContext(ctx, agentChart, vals); err != nil {
 		return trace.Wrap(err, "could not install Helm chart.")
 	}
 
 	return nil
+}
+
+func kubeAgentLabels(kubeCluster types.KubeCluster, resourceID string, extraLabels map[string]string) map[string]string {
+	labels := make(map[string]string)
+	maps.Copy(labels, extraLabels)
+	maps.Copy(labels, kubeCluster.GetStaticLabels())
+	labels[types.InternalResourceIDLabel] = resourceID
+
+	return labels
 }

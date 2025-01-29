@@ -73,6 +73,10 @@ func onKubeCredentialsCommand(
 		return trace.Wrap(err)
 	}
 
+	if err = destination.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	idData, err := destination.Read(ctx, config.IdentityFilePath)
 	if err != nil {
 		return trace.Wrap(err)

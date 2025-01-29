@@ -4,14 +4,13 @@ description: This chapter explains how Teleport uses certificate authorities to 
 h1: Teleport Authentication with Certificates
 ---
 
-## Authentication
-
 Teleport handles both authentication and authorization.
 
 - Authentication is about proving an identity of a user or a service.
 - Authorization is proving access rights to something.
 
-This article covers authentication with short-lived certificates.
+This guide explains how Teleport handles authentication with short-lived
+certificates.
 
 ## Short-Lived Certificates
 
@@ -58,8 +57,9 @@ identity to the public key with a certificate authority's signature.
 
 </Figure>
 
-Teleport uses x.509 certificates for Kubernetes, databases, web services and its own internal
-components - proxies, auth services to establish mutually authenticated TLS connections - mTLS.
+Teleport uses x.509 certificates for Kubernetes clusters, databases, web
+services and its own internal components, such as the Proxy Service and Auth
+Service, to establish mutually authenticated TLS connections (mTLS).
 
 ### OpenSSH certificates
 
@@ -155,8 +155,10 @@ Take a look at the [Certificate Rotation Guide](../../admin-guides/management/op
 learn how to do certificate rotation in practice.
 
 <Notice type="tip">
-To quickly lock out the node, proxy or auth service that may be compromised without rotating the entire
-cluster certificates, use node [session and identity locking](../../admin-guides/access-controls/guides/locking.mdx).
+To quickly lock out a potentially compromised Auth Service instance, Proxy
+Service instance, or Teleport Agent without rotating the entire cluster
+certificates, use [session and identity
+locking](../../admin-guides/access-controls/guides/locking.mdx).
 </Notice>
 
 ## More concepts

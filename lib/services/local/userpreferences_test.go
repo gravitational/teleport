@@ -103,6 +103,7 @@ func TestUserPreferencesCRUD(t *testing.T) {
 				Theme:                      userpreferencesv1.Theme_THEME_DARK,
 				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
 				ClusterPreferences:         defaultPref.ClusterPreferences,
+				SideNavDrawerMode:          defaultPref.SideNavDrawerMode,
 			},
 		},
 		{
@@ -124,6 +125,7 @@ func TestUserPreferencesCRUD(t *testing.T) {
 					AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_ACCESSIBLE,
 				},
 				ClusterPreferences: defaultPref.ClusterPreferences,
+				SideNavDrawerMode:  defaultPref.SideNavDrawerMode,
 			},
 		},
 		{
@@ -145,6 +147,7 @@ func TestUserPreferencesCRUD(t *testing.T) {
 					AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_NONE,
 				},
 				ClusterPreferences: defaultPref.ClusterPreferences,
+				SideNavDrawerMode:  defaultPref.SideNavDrawerMode,
 			},
 		},
 		{
@@ -165,6 +168,7 @@ func TestUserPreferencesCRUD(t *testing.T) {
 			expected: &userpreferencesv1.UserPreferences{
 				Theme:                      defaultPref.Theme,
 				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
+				SideNavDrawerMode:          defaultPref.SideNavDrawerMode,
 				Onboard: &userpreferencesv1.OnboardUserPreferences{
 					PreferredResources: []userpreferencesv1.Resource{userpreferencesv1.Resource_RESOURCE_DATABASES},
 					MarketingParams: &userpreferencesv1.MarketingParams{
@@ -192,11 +196,27 @@ func TestUserPreferencesCRUD(t *testing.T) {
 				Theme:                      defaultPref.Theme,
 				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
 				Onboard:                    defaultPref.Onboard,
+				SideNavDrawerMode:          defaultPref.SideNavDrawerMode,
 				ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
 					PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{
 						ResourceIds: []string{"node1", "node2"},
 					},
 				},
+			},
+		},
+		{
+			name: "update sidenav preference only",
+			req: &userpreferencesv1.UpsertUserPreferencesRequest{
+				Preferences: &userpreferencesv1.UserPreferences{
+					SideNavDrawerMode: userpreferencesv1.SideNavDrawerMode_SIDE_NAV_DRAWER_MODE_STICKY,
+				},
+			},
+			expected: &userpreferencesv1.UserPreferences{
+				Theme:                      defaultPref.Theme,
+				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
+				Onboard:                    defaultPref.Onboard,
+				ClusterPreferences:         defaultPref.ClusterPreferences,
+				SideNavDrawerMode:          userpreferencesv1.SideNavDrawerMode_SIDE_NAV_DRAWER_MODE_STICKY,
 			},
 		},
 		{
@@ -210,6 +230,7 @@ func TestUserPreferencesCRUD(t *testing.T) {
 						LabelsViewMode:        userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
 						AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_NONE,
 					},
+					SideNavDrawerMode: userpreferencesv1.SideNavDrawerMode_SIDE_NAV_DRAWER_MODE_STICKY,
 					Onboard: &userpreferencesv1.OnboardUserPreferences{
 						PreferredResources: []userpreferencesv1.Resource{userpreferencesv1.Resource_RESOURCE_KUBERNETES},
 						MarketingParams: &userpreferencesv1.MarketingParams{
@@ -248,6 +269,7 @@ func TestUserPreferencesCRUD(t *testing.T) {
 						ResourceIds: []string{"node1", "node2"},
 					},
 				},
+				SideNavDrawerMode: userpreferencesv1.SideNavDrawerMode_SIDE_NAV_DRAWER_MODE_STICKY,
 			},
 		},
 	}

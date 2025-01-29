@@ -26,7 +26,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
 	"github.com/google/uuid"
@@ -290,7 +289,7 @@ func defaultKMSKeyID(secretARN string) (string, error) {
 	// arn:aws:kms:us-east-1:1234567890:alias/aws/secretsmanager
 	arn := arn.ARN{
 		Partition: parsed.Partition,
-		Service:   kms.ServiceName,
+		Service:   "kms",
 		Region:    parsed.Region,
 		AccountID: parsed.AccountID,
 		Resource:  "alias/aws/secretsmanager",

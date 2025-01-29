@@ -210,7 +210,7 @@ func (a *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 		return nil, trace.AccessDenied(verifyRecoveryBadAuthnErrMsg)
 	}
 
-	if err := a.verifyUserToken(startToken, authclient.UserTokenTypeRecoveryStart); err != nil {
+	if err := a.verifyUserToken(ctx, startToken, authclient.UserTokenTypeRecoveryStart); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -304,7 +304,7 @@ func (a *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 		return trace.AccessDenied(completeRecoveryGenericErrMsg)
 	}
 
-	if err := a.verifyUserToken(approvedToken, authclient.UserTokenTypeRecoveryApproved); err != nil {
+	if err := a.verifyUserToken(ctx, approvedToken, authclient.UserTokenTypeRecoveryApproved); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -403,7 +403,7 @@ func (a *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.Crea
 		return nil, trace.AccessDenied("only local users may create recovery codes")
 	}
 
-	if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryApproved, authclient.UserTokenTypePrivilege); err != nil {
+	if err := a.verifyUserToken(ctx, token, authclient.UserTokenTypeRecoveryApproved, authclient.UserTokenTypePrivilege); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -428,7 +428,7 @@ func (a *Server) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAcco
 		return nil, trace.AccessDenied("access denied")
 	}
 
-	if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryStart, authclient.UserTokenTypeRecoveryApproved); err != nil {
+	if err := a.verifyUserToken(ctx, token, authclient.UserTokenTypeRecoveryStart, authclient.UserTokenTypeRecoveryApproved); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -19,8 +19,10 @@
 package mysql
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
+	"log/slog"
 	"net"
 	"strings"
 	"sync"
@@ -30,7 +32,6 @@ import (
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/go-mysql-org/go-mysql/server"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -107,7 +108,7 @@ type TestServer struct {
 	listener      net.Listener
 	port          string
 	tlsConfig     *tls.Config
-	log           logrus.FieldLogger
+	log           *slog.Logger
 	handler       *testHandler
 	serverVersion string
 
@@ -150,10 +151,10 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 		listener = tls.NewListener(listener, tlsConfig)
 	}
 
-	log := logrus.WithFields(logrus.Fields{
-		teleport.ComponentKey: defaults.ProtocolMySQL,
-		"name":                config.Name,
-	})
+	log := utils.NewSlogLoggerForTests().With(
+		teleport.ComponentKey, defaults.ProtocolMySQL,
+		"name", config.Name,
+	)
 	server := &TestServer{
 		cfg:      config,
 		listener: listener,
@@ -178,25 +179,25 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 
 // Serve starts serving client connections.
 func (s *TestServer) Serve() error {
-	s.log.Debugf("Starting test MySQL server on %v.", s.listener.Addr())
-	defer s.log.Debug("Test MySQL server stopped.")
+	ctx := context.Background()
+	s.log.DebugContext(ctx, "Starting test MySQL server", "listen_addr", s.listener.Addr())
+	defer s.log.DebugContext(ctx, "Test MySQL server stopped")
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
 			if utils.IsOKNetworkError(err) {
 				return nil
 			}
-			s.log.WithError(err).Error("Failed to accept connection.")
+			s.log.ErrorContext(ctx, "Failed to accept connection", "error", err)
 			continue
 		}
-		s.log.Debug("Accepted connection.")
+		s.log.DebugContext(ctx, "Accepted connection")
 		go func() {
-			defer s.log.Debug("Connection done.")
+			defer s.log.DebugContext(ctx, "Connection done")
 			defer conn.Close()
 			err = s.handleConnection(conn)
 			if err != nil {
-				s.log.Errorf("Failed to handle connection: %v.",
-					trace.DebugReport(err))
+				s.log.ErrorContext(ctx, "Failed to handle connection", "error", err)
 			}
 		}()
 	}
@@ -294,7 +295,7 @@ func (s *TestServer) UserEventsCh() <-chan UserEvent {
 
 type testHandler struct {
 	server.EmptyHandler
-	log logrus.FieldLogger
+	log *slog.Logger
 	// queryCount keeps track of the number of queries the server has received.
 	queryCount uint32
 
@@ -305,7 +306,7 @@ type testHandler struct {
 }
 
 func (h *testHandler) HandleQuery(query string) (*mysql.Result, error) {
-	h.log.Debugf("Received query %q.", query)
+	h.log.DebugContext(context.Background(), "Received query", "query", query)
 	atomic.AddUint32(&h.queryCount, 1)
 
 	// When getting a "show tables" query, construct the response in a way
@@ -335,7 +336,7 @@ func (h *testHandler) HandleStmtPrepare(prepare string) (int, int, interface{}, 
 	return params, 0, nil, nil
 }
 func (h *testHandler) HandleStmtExecute(_ interface{}, query string, args []interface{}) (*mysql.Result, error) {
-	h.log.Debugf("Received execute %q with args %+v.", query, args)
+	h.log.DebugContext(context.Background(), "Received execute statement with args", "query", query, "args", args)
 	if strings.HasPrefix(query, "CALL ") {
 		return h.handleCallProcedure(query, args)
 	}

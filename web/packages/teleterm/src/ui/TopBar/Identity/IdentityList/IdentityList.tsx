@@ -16,16 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { JSX } from 'react';
 import styled from 'styled-components';
-import { Box, Flex, Text, Label } from 'design';
 
-import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+import { Box, Flex, Label, P3, Text } from 'design';
+import { ShieldCheck, ShieldWarning } from 'design/Icon';
+import Link from 'design/Link';
+
 import { LoggedInUser } from 'teleterm/services/tshd/types';
+import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+import { DeviceTrustStatus } from 'teleterm/ui/TopBar/Identity/Identity';
 
 import { IdentityRootCluster } from '../useIdentity';
-
-import { IdentityListItem } from './IdentityListItem';
 import { AddNewClusterItem } from './AddNewClusterItem';
+import { IdentityListItem } from './IdentityListItem';
 
 export function IdentityList(props: {
   loggedInUser: LoggedInUser;
@@ -33,13 +37,14 @@ export function IdentityList(props: {
   onSelectCluster(clusterUri: string): void;
   onAddCluster(): void;
   onLogout(clusterUri: string): void;
+  deviceTrustStatus: DeviceTrustStatus;
 }) {
   return (
     <Box minWidth="200px">
       {props.loggedInUser && (
         <>
           <Flex px={3} pt={2} pb={2} justifyContent="space-between">
-            <Box>
+            <Flex flexDirection="column" gap={2}>
               <Text bold>{props.loggedInUser.name}</Text>
               <Flex flexWrap="wrap" gap={1}>
                 {props.loggedInUser.roles.map(role => (
@@ -48,7 +53,8 @@ export function IdentityList(props: {
                   </Label>
                 ))}
               </Flex>
-            </Box>
+              <DeviceTrustMessage status={props.deviceTrustStatus} />
+            </Flex>
           </Flex>
           <Separator />
         </>
@@ -76,6 +82,48 @@ export function IdentityList(props: {
       </KeyboardArrowsNavigation>
     </Box>
   );
+}
+
+function DeviceTrustMessage(props: { status: DeviceTrustStatus }) {
+  let message: JSX.Element | undefined;
+  switch (props.status) {
+    case 'enrolled':
+      message = (
+        <>
+          <ShieldCheck color="success.main" size="small" mb="2px" />
+          <P3>Access secured with device trust.</P3>
+        </>
+      );
+      break;
+    case 'requires-enrollment':
+      message = (
+        <>
+          <ShieldWarning color="warning.main" size="small" mb="2px" />
+          <P3>
+            Full access requires a trusted device.{' '}
+            <Link
+              href="https://goteleport.com/docs/admin-guides/access-controls/device-trust/guide/#step-22-enroll-device"
+              target="_blank"
+            >
+              Learn how to enroll your device.
+            </Link>
+          </P3>
+        </>
+      );
+      break;
+    case 'none':
+      break;
+    default:
+      props.status satisfies never;
+  }
+
+  if (message) {
+    return (
+      <Flex gap={1} color="text.slightlyMuted">
+        {message}
+      </Flex>
+    );
+  }
 }
 
 // Hack - for some reason xterm.js doesn't allow moving a focus to the Identity popover

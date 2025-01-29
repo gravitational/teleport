@@ -126,13 +126,13 @@ func (m *mockHostSudoers) WriteSudoers(name string, sudoers []string) error {
 	return nil
 }
 
-type eventSender func(ctx context.Context, events *mockEvents, clock clockwork.FakeClock) error
+type eventSender func(ctx context.Context, events *mockEvents, clock *clockwork.FakeClock) error
 
 func TestStaticHostUserHandler(t *testing.T) {
 	t.Parallel()
 
 	sendEvents := func(eventList []types.Event) eventSender {
-		return func(ctx context.Context, events *mockEvents, clock clockwork.FakeClock) error {
+		return func(ctx context.Context, events *mockEvents, clock *clockwork.FakeClock) error {
 			for _, event := range eventList {
 				select {
 				case events.events <- event:
@@ -291,7 +291,7 @@ func TestStaticHostUserHandler(t *testing.T) {
 		},
 		{
 			name: "restart on watcher init failure",
-			sendEvents: func(ctx context.Context, events *mockEvents, clock clockwork.FakeClock) error {
+			sendEvents: func(ctx context.Context, events *mockEvents, clock *clockwork.FakeClock) error {
 				// Wait until the handler is waiting for an init event.
 				clock.BlockUntil(1)
 				// Send a wrong event type first, which will cause the handler to fail and restart.
@@ -342,7 +342,7 @@ func TestStaticHostUserHandler(t *testing.T) {
 		},
 		{
 			name: "restart on watcher timeout failure",
-			sendEvents: func(ctx context.Context, events *mockEvents, clock clockwork.FakeClock) error {
+			sendEvents: func(ctx context.Context, events *mockEvents, clock *clockwork.FakeClock) error {
 				// Force a timeout on waiting for the init event.
 				clock.BlockUntil(1)
 				clock.Advance(staticHostUserWatcherTimeout)

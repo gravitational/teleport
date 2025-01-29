@@ -29,7 +29,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -39,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -64,7 +63,7 @@ func TestServerKeyAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	s := &server{
-		log:    utils.NewLoggerForTests(),
+		logger: utils.NewSlogLoggerForTests(),
 		Config: Config{Clock: clockwork.NewRealClock()},
 		localAccessPoint: mockAccessPoint{
 			ca: ca,
@@ -80,13 +79,15 @@ func TestServerKeyAuth(t *testing.T) {
 		{
 			desc: "host cert",
 			key: func() ssh.PublicKey {
-				rawCert, err := ta.GenerateHostCert(services.HostCertParams{
+				rawCert, err := ta.GenerateHostCert(sshca.HostCertificateRequest{
 					CASigner:      caSigner,
 					PublicHostKey: pub,
 					HostID:        "host-id",
 					NodeName:      con.User(),
-					ClusterName:   "host-cluster-name",
-					Role:          types.RoleNode,
+					Identity: sshca.Identity{
+						ClusterName: "host-cluster-name",
+						SystemRole:  types.RoleNode,
+					},
 				})
 				require.NoError(t, err)
 				key, _, _, _, err := ssh.ParseAuthorizedKey(rawCert)
@@ -104,15 +105,17 @@ func TestServerKeyAuth(t *testing.T) {
 		{
 			desc: "user cert",
 			key: func() ssh.PublicKey {
-				rawCert, err := ta.GenerateUserCert(services.UserCertParams{
+				rawCert, err := ta.GenerateUserCert(sshca.UserCertificateRequest{
 					CASigner:          caSigner,
 					PublicUserKey:     pub,
-					Username:          con.User(),
-					AllowedLogins:     []string{con.User()},
-					Roles:             []string{"dev", "admin"},
-					RouteToCluster:    "user-cluster-name",
 					CertificateFormat: constants.CertificateFormatStandard,
 					TTL:               time.Minute,
+					Identity: sshca.Identity{
+						Username:       con.User(),
+						Principals:     []string{con.User()},
+						Roles:          []string{"dev", "admin"},
+						RouteToCluster: "user-cluster-name",
+					},
 				})
 				require.NoError(t, err)
 				key, _, _, _, err := ssh.ParseAuthorizedKey(rawCert)
@@ -204,8 +207,8 @@ func TestOnlyAuthDial(t *testing.T) {
 	badListenerAddr := acceptAndCloseListener(t, true)
 
 	srv := &server{
-		log: logrus.StandardLogger(),
-		ctx: ctx,
+		logger: utils.NewSlogLoggerForTests(),
+		ctx:    ctx,
 		Config: Config{
 			LocalAuthAddresses: []string{goodListenerAddr},
 		},

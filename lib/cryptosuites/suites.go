@@ -111,6 +111,13 @@ const (
 	// EC2InstanceConnect is a key used for the EC2 Instance Connect service.
 	EC2InstanceConnect
 
+	// GitHubProxyCASSH represents the SSH key for GitHub proxy CAs.
+	GitHubProxyCASSH
+
+	// GitClient represents a key used to forward Git commands to Git services
+	// like GitHub.
+	GitClient
+
 	// keyPurposeMax is 1 greater than the last valid key purpose, used to test that all values less than this
 	// are valid for each suite.
 	keyPurposeMax
@@ -152,7 +159,9 @@ func (a Algorithm) String() string {
 type suite map[KeyPurpose]Algorithm
 
 var (
-	// legacy is the original algorithm suite, which exclusively uses RSA2048.
+	// legacy is the original algorithm suite, which exclusively uses RSA2048
+	// for features developed before ECDSA and Ed25519 support were added. New
+	// features should always use the new algorithms.
 	legacy = suite{
 		UserCATLS:               RSA2048,
 		UserCASSH:               RSA2048,
@@ -182,6 +191,8 @@ var (
 		ProxyKubeClient:      RSA2048,
 		// EC2InstanceConnect has always used Ed25519 by default.
 		EC2InstanceConnect: Ed25519,
+		GitHubProxyCASSH:   Ed25519,
+		GitClient:          Ed25519,
 	}
 
 	// balancedV1 strikes a balance between security, compatibility, and
@@ -212,6 +223,8 @@ var (
 		ProxyToDatabaseAgent:    ECDSAP256,
 		ProxyKubeClient:         ECDSAP256,
 		EC2InstanceConnect:      Ed25519,
+		GitHubProxyCASSH:        Ed25519,
+		GitClient:               Ed25519,
 	}
 
 	// fipsv1 is an algorithm suite tailored for FIPS compliance. It is based on
@@ -242,6 +255,8 @@ var (
 		ProxyToDatabaseAgent:    ECDSAP256,
 		ProxyKubeClient:         ECDSAP256,
 		EC2InstanceConnect:      ECDSAP256,
+		GitHubProxyCASSH:        ECDSAP256,
+		GitClient:               ECDSAP256,
 	}
 
 	// hsmv1 in an algorithm suite tailored for clusters using an HSM or KMS
@@ -274,6 +289,8 @@ var (
 		ProxyToDatabaseAgent:    ECDSAP256,
 		ProxyKubeClient:         ECDSAP256,
 		EC2InstanceConnect:      Ed25519,
+		GitHubProxyCASSH:        ECDSAP256,
+		GitClient:               Ed25519,
 	}
 
 	allSuites = map[types.SignatureAlgorithmSuite]suite{

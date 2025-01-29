@@ -16,22 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import { Attempt } from 'shared/hooks/useAsync';
-
-import { AccessRequest } from 'shared/services/accessRequests';
 import { RequestFlags } from 'shared/components/AccessRequests/ReviewRequests';
+import { Attempt } from 'shared/hooks/useAsync';
+import { AccessRequest } from 'shared/services/accessRequests';
 
 import Document from 'teleterm/ui/Document';
 import * as types from 'teleterm/ui/services/workspacesService';
 
-import { useAssumeAccess } from './useAssumeAccess';
-
-import useAccessRequests from './useAccessRequests';
+import { NewRequest } from './NewRequest';
 import { RequestList } from './RequestList/RequestList';
 import { ReviewAccessRequest } from './ReviewAccessRequest';
-import { NewRequest } from './NewRequest';
+import useAccessRequests from './useAccessRequests';
+import { useAssumeAccess } from './useAssumeAccess';
 
 export function DocumentAccessRequests(props: DocumentProps) {
   const state = useAccessRequests(props.doc);

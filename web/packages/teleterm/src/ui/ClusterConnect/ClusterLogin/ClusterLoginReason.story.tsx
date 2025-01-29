@@ -16,13 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 import {
-  appUri,
+  makeApp,
   makeDatabaseGateway,
   makeKubeGateway,
 } from 'teleterm/services/tshd/testHelpers';
+import { routing } from 'teleterm/ui/uri';
 
-import { TestContainer, makeProps } from './storyHelpers';
 import { ClusterLoginPresentation } from './ClusterLogin';
+import { makeProps, TestContainer } from './storyHelpers';
 
 export default {
   title: 'Teleterm/ModalsHost/ClusterLogin/Reason',
@@ -77,12 +78,45 @@ export const GatewayCertExpiredWithoutGateway = () => {
 };
 
 export const VnetCertExpired = () => {
+  const app = makeApp();
   const props = makeProps();
   props.initAttempt.data.allowPasswordless = false;
   props.reason = {
     kind: 'reason.vnet-cert-expired',
-    targetUri: appUri,
-    publicAddr: 'tcp-app.teleport.example.com',
+    targetUri: app.uri,
+    routeToApp: {
+      name: 'tcp-app',
+      publicAddr: 'tcp-app.teleport.example.com',
+      clusterName: routing.parseAppUri(app.uri).params.rootClusterId,
+      uri: app.endpointUri,
+      targetPort: 0,
+    },
+  };
+
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
+export const VnetCertExpiredMultiPort = () => {
+  const app = makeApp({
+    endpointUri: 'tcp://localhost',
+    tcpPorts: [{ port: 1337, endPort: 0 }],
+  });
+  const props = makeProps();
+  props.initAttempt.data.allowPasswordless = false;
+  props.reason = {
+    kind: 'reason.vnet-cert-expired',
+    targetUri: app.uri,
+    routeToApp: {
+      name: 'tcp-app',
+      publicAddr: 'tcp-app.teleport.example.com',
+      clusterName: routing.parseAppUri(app.uri).params.rootClusterId,
+      uri: app.endpointUri,
+      targetPort: 1337,
+    },
   };
 
   return (

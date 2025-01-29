@@ -17,12 +17,23 @@
  */
 
 import styled from 'styled-components';
-import { Flex, Box, ButtonSecondary, ButtonIcon } from 'design';
-import FieldInput from 'shared/components/FieldInput';
-import { Validator, useValidation } from 'shared/components/Validation';
-import { requiredField } from 'shared/components/Validation/rules';
+
+import { Box, ButtonIcon, ButtonSecondary, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { inputGeometry } from 'design/Input/Input';
+import { IconTooltip } from 'design/Tooltip';
+import FieldInput from 'shared/components/FieldInput';
+import {
+  useRule,
+  useValidation,
+  Validator,
+} from 'shared/components/Validation';
+import {
+  precomputed,
+  requiredField,
+  Rule,
+  ValidationResult,
+} from 'shared/components/Validation/rules';
 
 export type Label = {
   name: string;
@@ -34,7 +45,27 @@ export type LabelInputTexts = {
   placeholder: string;
 };
 
+type LabelListValidationResult = ValidationResult & {
+  /**
+   * A list of validation results, one per label. Note: items are optional just
+   * because `useRule` by default returns only `ValidationResult`. For the
+   * actual validation, it's not optional; if it's undefined, or there are
+   * fewer items in this list than the labels, a default validation rule will
+   * be used instead.
+   */
+  results?: LabelValidationResult[];
+};
+
+type LabelValidationResult = {
+  name: ValidationResult;
+  value: ValidationResult;
+};
+
+export type LabelsRule = Rule<Label[], LabelListValidationResult>;
+
 export function LabelsInput({
+  legend,
+  tooltipContent,
   labels = [],
   setLabels,
   disableBtns = false,
@@ -44,7 +75,10 @@ export function LabelsInput({
   labelKey = { fieldName: 'Key', placeholder: 'label key' },
   labelVal = { fieldName: 'Value', placeholder: 'label value' },
   inputWidth = 200,
+  rule = defaultRule,
 }: {
+  legend?: string;
+  tooltipContent?: string;
   labels: Label[];
   setLabels(l: Label[]): void;
   disableBtns?: boolean;
@@ -57,8 +91,15 @@ export function LabelsInput({
    * Makes it so at least one label is required
    */
   areLabelsRequired?: boolean;
+  /**
+   * A rule for validating the list of labels as a whole. Note that contrary to
+   * other input fields, the labels input will default to validating every
+   * input as required if this property is undefined.
+   */
+  rule?: LabelsRule;
 }) {
   const validator = useValidation() as Validator;
+  const validationResult: LabelListValidationResult = useRule(rule(labels));
 
   function addLabel() {
     setLabels([...labels, { name: '', value: '' }]);
@@ -92,11 +133,8 @@ export function LabelsInput({
     setLabels(newList);
   };
 
-  const requiredUniqueKey = value => () => {
+  const requiredKey = value => () => {
     // Check for empty length and duplicate key.
-    // TODO(bl-nero): This function doesn't really check for uniqueness; it
-    // needs to be fixed. This control should probably be merged with
-    // `LabelsCreater`, which has this feature working correctly.
     let notValid = !value || value.length === 0;
 
     return {
@@ -108,25 +146,50 @@ export function LabelsInput({
   const width = `${inputWidth}px`;
   const inputSize = 'medium';
   return (
-    <>
+    <Fieldset>
+      {legend && (
+        <Legend>
+          {tooltipContent ? (
+            <>
+              <span
+                css={{
+                  marginRight: '4px',
+                  verticalAlign: 'middle',
+                }}
+              >
+                {legend}
+              </span>
+              <IconTooltip children={tooltipContent} />
+            </>
+          ) : (
+            legend
+          )}
+        </Legend>
+      )}
       {labels.length > 0 && (
-        <Flex mt={2}>
+        <Flex mt={legend ? 1 : 0} mb={1}>
           <Box width={width} mr="3">
-            {labelKey.fieldName} <SmallText>(required field)</SmallText>
+            <Text typography="body3">
+              {labelKey.fieldName} (required field)
+            </Text>
           </Box>
-          <Box>
-            {labelVal.fieldName} <SmallText>(required field)</SmallText>
-          </Box>
+          <Text typography="body3">{labelVal.fieldName} (required field)</Text>
         </Flex>
       )}
       <Box>
         {labels.map((label, index) => {
+          const validationItem: LabelValidationResult | undefined =
+            validationResult.results?.[index];
           return (
             <Box mb={2} key={index}>
               <Flex alignItems="start">
                 <FieldInput
                   size={inputSize}
-                  rule={requiredUniqueKey}
+                  rule={
+                    validationItem
+                      ? precomputed(validationItem.name)
+                      : requiredKey
+                  }
                   autoFocus={autoFocus}
                   value={label.name}
                   placeholder={labelKey.placeholder}
@@ -138,7 +201,11 @@ export function LabelsInput({
                 />
                 <FieldInput
                   size={inputSize}
-                  rule={requiredField('required')}
+                  rule={
+                    validationItem
+                      ? precomputed(validationItem.value)
+                      : requiredField('required')
+                  }
                   value={label.value}
                   placeholder={labelVal.placeholder}
                   width={width}
@@ -186,11 +253,31 @@ export function LabelsInput({
         <Icons.Add className="icon-add" disabled={disableBtns} size="small" />
         {labels.length > 0 ? `Add another ${adjective}` : `Add a ${adjective}`}
       </ButtonSecondary>
-    </>
+    </Fieldset>
   );
 }
 
-const SmallText = styled.span`
-  font-size: ${p => p.theme.fontSizes[1]}px;
-  font-weight: lighter;
+const defaultRule = () => () => ({ valid: true });
+
+export const nonEmptyLabels: LabelsRule = labels => () => {
+  const results = labels.map(label => ({
+    name: requiredField('required')(label.name)(),
+    value: requiredField('required')(label.value)(),
+  }));
+  return {
+    valid: results.every(r => r.name.valid && r.value.valid),
+    results: results,
+  };
+};
+
+const Fieldset = styled.fieldset`
+  border: none;
+  margin: 0;
+  padding: 0;
+`;
+
+const Legend = styled.legend`
+  margin: 0 0 ${props => props.theme.space[1]}px 0;
+  padding: 0;
+  ${props => props.theme.typography.body3}
 `;

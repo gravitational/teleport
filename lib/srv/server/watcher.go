@@ -20,10 +20,10 @@ package server
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -42,6 +42,12 @@ type Fetcher interface {
 	// GetMatchingInstances finds Instances from the list of nodes
 	// that the fetcher matches.
 	GetMatchingInstances(nodes []types.Server, rotation bool) ([]Instances, error)
+	// GetDiscoveryConfigName returns the DiscoveryConfig name that created this fetcher.
+	// Empty for Fetchers created from `teleport.yaml/discovery_service.aws.<Matcher>` matchers.
+	GetDiscoveryConfigName() string
+	// IntegrationName identifies the integration name whose credentials were used to fetch the resources.
+	// Might be empty when the fetcher is using ambient credentials.
+	IntegrationName() string
 }
 
 // WithTriggerFetchC sets a poll trigger to manual start a resource polling.
@@ -77,7 +83,7 @@ func (w *Watcher) sendInstancesOrLogError(instancesColl []Instances, err error) 
 		if trace.IsNotFound(err) {
 			return
 		}
-		log.WithError(err).Error("Failed to fetch instances")
+		slog.ErrorContext(context.Background(), "Failed to fetch instances", "error", err)
 		return
 	}
 	for _, inst := range instancesColl {

@@ -7,6 +7,12 @@
     "emitDeclarationOnly": true,
     "declarationMap": true,
     "strict": true,
-    "noImplicitReturns": true
+    "noImplicitReturns": true,
+    "paths": {
+      "design/*": ["web/packages/design/src/*"],
+      "design": ["web/packages/design/src/"],
+      "gen-proto-ts/*": ["gen/proto/ts/*"],
+    }
+
   }
 }

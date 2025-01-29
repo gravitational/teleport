@@ -16,40 +16,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
-import { isBefore, isAfter, formatDistanceToNowStrict } from 'date-fns';
+import { formatDistanceToNowStrict, isAfter, isBefore } from 'date-fns';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
+
 import { Alert, Box, Flex, Indicator, Text } from 'design';
-
-import { Notification as NotificationIcon, BellRinging } from 'design/Icon';
-import Logger from 'shared/libs/logger';
-import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
-import { HoverTooltip } from 'shared/components/ToolTip';
-
+import { BellRinging, Notification as NotificationIcon } from 'design/Icon';
+import { HoverTooltip } from 'design/Tooltip';
 import {
   useInfiniteScroll,
   useKeyBasedPagination,
 } from 'shared/hooks/useInfiniteScroll';
+import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 import { IGNORE_CLICK_CLASSNAME } from 'shared/hooks/useRefClickOutside/useRefClickOutside';
-
+import Logger from 'shared/libs/logger';
 import { useStore } from 'shared/libs/stores';
 
 import { useTeleport } from 'teleport';
-import useStickyClusterId from 'teleport/useStickyClusterId';
 import { Dropdown } from 'teleport/components/Dropdown';
-
-import { ButtonIconContainer } from 'teleport/TopBar/Shared';
-
 import {
   LocalNotificationGroupedKind,
   LocalNotificationKind,
   Notification as NotificationType,
 } from 'teleport/services/notifications';
-
 import {
   Notification as AccessListNotification,
   LocalNotificationStates,
 } from 'teleport/stores/storeNotifications';
+import { ButtonIconContainer } from 'teleport/TopBar/Shared';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { Notification } from './Notification';
 
@@ -351,6 +346,7 @@ function EmptyState() {
   );
 }
 
+//TODO(rudream): Delete local notifications
 /** accessListStoreNotificationsToNotifications converts a list of access list notifications from the notifications store into the primary
  * Notification type used by the notifications list.
  */

@@ -59,6 +59,8 @@ type User struct {
 	Mail                     *string `json:"mail,omitempty"`
 	OnPremisesSAMAccountName *string `json:"onPremisesSamAccountName,omitempty"`
 	UserPrincipalName        *string `json:"userPrincipalName,omitempty"`
+	Surname                  *string `json:"surname,omitempty"`
+	GivenName                *string `json:"givenName,omitempty"`
 }
 
 func (g *User) isGroupMember() {}
@@ -74,7 +76,26 @@ type Application struct {
 	OptionalClaims        *OptionalClaims `json:"optionalClaims,omitempty"`
 }
 
+const (
+	// OPTIONAL_CLAIM_GROUP_NAME is the group claim.
+	OPTIONAL_CLAIM_GROUP_NAME = "groups"
+)
+
+const (
+	// OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_SAM_ACCOUNT_NAME is the sAMAccountName claim.
+	OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_SAM_ACCOUNT_NAME = "sam_account_name"
+	// OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_DNS_DOMAIN_AND_SAM_ACCOUNT_NAME is the dnsDomainName\sAMAccountName claim.
+	OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_DNS_DOMAIN_AND_SAM_ACCOUNT_NAME = "dns_domain_and_sam_account_name"
+	// OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_NETBIOS_DOMAIN_AND_SAM_ACCOUNT_NAME is the netbiosDomainName\sAMAccountName claim.
+	OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_NETBIOS_DOMAIN_AND_SAM_ACCOUNT_NAME = "netbios_domain_and_sam_account_name"
+	// OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_EMIT_AS_ROLES is the emit_as_roles claim.
+	OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_EMIT_AS_ROLES = "emit_as_roles"
+	// OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_CLOUD_DISPLAYNAME is the cloud_displayname claim.
+	OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_CLOUD_DISPLAYNAME = "cloud_displayname"
+)
+
 // OptionalClaim represents an optional claim in a token.
+// https://learn.microsoft.com/en-us/entra/identity-platform/optional-claims?tabs=appui
 type OptionalClaim struct {
 	// AdditionalProperties is a list of additional properties.
 	// Possible values:
@@ -83,16 +104,17 @@ type OptionalClaim struct {
 	// - netbios_domain_and_sam_account_name: netbiosDomainName\sAMAccountName
 	// - emit_as_roles
 	// - cloud_displayname
-	AdditionalProperties *[]string `json:"additionalProperties,omitempty"`
-	Essential            *bool     `json:"essential,omitempty"`
-	Name                 *string   `json:"name,omitempty"`
-	Source               *string   `json:"source,omitempty"`
+	AdditionalProperties []string `json:"additionalProperties,omitempty"`
+	Essential            *bool    `json:"essential,omitempty"`
+	Name                 *string  `json:"name,omitempty"`
+	Source               *string  `json:"source,omitempty"`
 }
 
 // OptionalClaims represents optional claims in a token.
-// Currently, only SAML2 tokens are supported.
 type OptionalClaims struct {
-	SAML2Token []OptionalClaim `json:"saml2Token,omitempty"`
+	IDToken     []OptionalClaim `json:"idToken,omitempty"`
+	AccessToken []OptionalClaim `json:"accessToken,omitempty"`
+	SAML2Token  []OptionalClaim `json:"saml2Token,omitempty"`
 }
 
 type WebApplication struct {
@@ -101,9 +123,10 @@ type WebApplication struct {
 
 type ServicePrincipal struct {
 	DirectoryObject
-	AppRoleAssignmentRequired          *bool   `json:"appRoleAssignmentRequired,omitempty"`
-	PreferredSingleSignOnMode          *string `json:"preferredSingleSignOnMode,omitempty"`
-	PreferredTokenSigningKeyThumbprint *string `json:"preferredTokenSigningKeyThumbprint,omitempty"`
+	AppRoleAssignmentRequired          *bool      `json:"appRoleAssignmentRequired,omitempty"`
+	PreferredSingleSignOnMode          *string    `json:"preferredSingleSignOnMode,omitempty"`
+	PreferredTokenSigningKeyThumbprint *string    `json:"preferredTokenSigningKeyThumbprint,omitempty"`
+	AppRoles                           []*AppRole `json:"appRoles,omitempty"`
 }
 
 type ApplicationServicePrincipal struct {
@@ -120,6 +143,11 @@ type FederatedIdentityCredential struct {
 
 type SelfSignedCertificate struct {
 	Thumbprint *string `json:"thumbprint,omitempty"`
+}
+
+type AppRole struct {
+	ID    *string `json:"id,omitempty"`
+	Value *string `json:"value,omitempty"`
 }
 
 type AppRoleAssignment struct {

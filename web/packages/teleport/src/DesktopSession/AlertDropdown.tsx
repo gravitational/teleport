@@ -16,14 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useRef, useState } from 'react';
-import { Flex, Button, Card, ButtonIcon, H3 } from 'design';
+import { useRef, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
-import { Notification } from 'shared/components/Notification';
-import { Warning, Cross } from 'design/Icon';
-import { useClickOutside } from 'shared/hooks/useClickOutside';
 
-import type { NotificationItem } from 'shared/components/Notification';
+import { Button, ButtonIcon, Card, Flex, H3 } from 'design';
+import { Cross, Warning } from 'design/Icon';
+import {
+  Notification,
+  type NotificationItem,
+} from 'shared/components/Notification';
+import { useClickOutside } from 'shared/hooks/useClickOutside';
 
 export function AlertDropdown({ alerts, onRemoveAlert }: Props) {
   const [showDropdown, setShowDropdown] = useState(false);

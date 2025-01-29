@@ -16,13 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, fireEvent, screen } from 'design/utils/testing';
+import { act } from '@testing-library/react';
 
+import { fireEvent, render, screen } from 'design/utils/testing';
+import Validation, { Validator } from 'shared/components/Validation';
+
+import { Label, LabelsInput, LabelsRule, nonEmptyLabels } from './LabelsInput';
 import {
-  Default,
-  Custom,
-  Disabled,
   AtLeastOneRequired,
+  Custom,
+  Default,
+  Disabled,
 } from './LabelsInput.story';
 
 test('defaults, with empty labels', async () => {
@@ -101,4 +105,120 @@ test('removing last label is not possible due to requiring labels', async () => 
 
   expect(screen.getByPlaceholderText('label key')).toBeInTheDocument();
   expect(screen.getByPlaceholderText('label value')).toBeInTheDocument();
+});
+
+describe('validation rules', () => {
+  function setup(labels: Label[], rule: LabelsRule) {
+    let validator: Validator;
+    render(
+      <Validation>
+        {({ validator: v }) => {
+          validator = v;
+          return (
+            <LabelsInput labels={labels} setLabels={() => {}} rule={rule} />
+          );
+        }}
+      </Validation>
+    );
+    return { validator };
+  }
+
+  describe.each([
+    { name: 'explicitly enforced standard rule', rule: nonEmptyLabels },
+    { name: 'implicit standard rule', rule: undefined },
+  ])('$name', ({ rule }) => {
+    test('invalid', () => {
+      const { validator } = setup(
+        [
+          { name: '', value: 'foo' },
+          { name: 'bar', value: '' },
+          { name: 'asdf', value: 'qwer' },
+        ],
+        rule
+      );
+      act(() => validator.validate());
+      expect(validator.state.valid).toBe(false);
+      expect(screen.getAllByRole('textbox')[0]).toHaveAccessibleDescription(
+        'required'
+      ); // ''
+      expect(screen.getAllByRole('textbox')[1]).toHaveAccessibleDescription(''); // 'foo'
+      expect(screen.getAllByRole('textbox')[2]).toHaveAccessibleDescription(''); // 'bar'
+      expect(screen.getAllByRole('textbox')[3]).toHaveAccessibleDescription(
+        'required'
+      ); // ''
+      expect(screen.getAllByRole('textbox')[4]).toHaveAccessibleDescription(''); // 'asdf'
+      expect(screen.getAllByRole('textbox')[5]).toHaveAccessibleDescription(''); // 'qwer'
+    });
+
+    test('valid', () => {
+      const { validator } = setup(
+        [
+          { name: '', value: 'foo' },
+          { name: 'bar', value: '' },
+          { name: 'asdf', value: 'qwer' },
+        ],
+        rule
+      );
+      act(() => validator.validate());
+      expect(validator.state.valid).toBe(false);
+      expect(screen.getAllByRole('textbox')[0]).toHaveAccessibleDescription(
+        'required'
+      ); // ''
+      expect(screen.getAllByRole('textbox')[1]).toHaveAccessibleDescription(''); // 'foo'
+      expect(screen.getAllByRole('textbox')[2]).toHaveAccessibleDescription(''); // 'bar'
+      expect(screen.getAllByRole('textbox')[3]).toHaveAccessibleDescription(
+        'required'
+      ); // ''
+      expect(screen.getAllByRole('textbox')[4]).toHaveAccessibleDescription(''); // 'asdf'
+      expect(screen.getAllByRole('textbox')[5]).toHaveAccessibleDescription(''); // 'qwer'
+    });
+  });
+
+  const nameNotFoo: LabelsRule = (labels: Label[]) => () => {
+    const results = labels.map(label => ({
+      name:
+        label.name === 'foo'
+          ? { valid: false, message: 'no foo please' }
+          : { valid: true },
+      value: { valid: true },
+    }));
+    return {
+      valid: results.every(r => r.name.valid && r.value.valid),
+      results: results,
+    };
+  };
+
+  test('custom rule, invalid', async () => {
+    const { validator } = setup(
+      [
+        { name: 'foo', value: 'bar' },
+        { name: 'bar', value: 'foo' },
+      ],
+      nameNotFoo
+    );
+    act(() => validator.validate());
+    expect(validator.state.valid).toBe(false);
+    expect(screen.getAllByRole('textbox')[0]).toHaveAccessibleDescription(
+      'no foo please'
+    ); // 'foo' key
+    expect(screen.getAllByRole('textbox')[1]).toHaveAccessibleDescription('');
+    expect(screen.getAllByRole('textbox')[2]).toHaveAccessibleDescription('');
+    expect(screen.getAllByRole('textbox')[3]).toHaveAccessibleDescription('');
+  });
+
+  test('custom rule, valid', async () => {
+    const { validator } = setup(
+      [
+        { name: 'xyz', value: 'bar' },
+        { name: 'bar', value: 'foo' },
+      ],
+      nameNotFoo
+    );
+    act(() => validator.validate());
+    expect(validator.state.valid).toBe(true);
+    expect(screen.getAllByRole('textbox')[0]).toHaveAccessibleDescription('');
+    expect(screen.getAllByRole('textbox')[1]).toHaveAccessibleDescription('');
+    expect(screen.getAllByRole('textbox')[2]).toHaveAccessibleDescription('');
+    expect(screen.getAllByRole('textbox')[3]).toHaveAccessibleDescription('');
+  });
 });

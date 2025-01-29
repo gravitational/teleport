@@ -47,6 +47,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -266,11 +267,11 @@ func New(ctx context.Context, params backend.Params, opts ...Option) (*EtcdBacke
 	closeCtx, cancel := context.WithCancel(ctx)
 
 	leaseCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:             utils.SeventhJitter(time.Minute * 2),
+		TTL:             retryutils.SeventhJitter(time.Minute * 2),
 		Context:         closeCtx,
 		Clock:           options.clock,
 		ReloadOnErr:     true,
-		CleanupInterval: utils.SeventhJitter(time.Minute * 2),
+		CleanupInterval: retryutils.SeventhJitter(time.Minute * 2),
 	})
 	if err != nil {
 		cancel()
@@ -288,7 +289,7 @@ func New(ctx context.Context, params backend.Params, opts ...Option) (*EtcdBacke
 		ctx:         closeCtx,
 		watchDone:   make(chan struct{}),
 		buf:         buf,
-		leaseBucket: utils.SeventhJitter(options.leaseBucket),
+		leaseBucket: retryutils.SeventhJitter(options.leaseBucket),
 		leaseCache:  leaseCache,
 	}
 
@@ -513,7 +514,7 @@ WatchEvents:
 
 		// pause briefly to prevent excessive watcher creation attempts
 		select {
-		case <-time.After(utils.HalfJitter(time.Millisecond * 1500)):
+		case <-time.After(retryutils.HalfJitter(time.Millisecond * 1500)):
 		case <-b.ctx.Done():
 			break WatchEvents
 		}
@@ -536,7 +537,6 @@ type eventResult struct {
 // effective, this strategy still suffers from a "head of line blocking"-esque issue since event order
 // must be preserved.
 func (b *EtcdBackend) watchEvents(ctx context.Context) error {
-
 	// etcd watch client relies on context cancellation for cleanup,
 	// so create a new subscope for this function.
 	ctx, cancel := context.WithCancel(ctx)
@@ -657,7 +657,11 @@ func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey backend.Key
 	if endKey.IsZero() {
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
-	opts := []clientv3.OpOption{clientv3.WithRange(b.prependPrefix(endKey))}
+	// etcd's range query includes the start point and excludes the end point,
+	// but Backend.GetRange is supposed to be inclusive at both ends, so we
+	// query until the very next key in lexicographic order (i.e., the same key
+	// followed by a 0 byte)
+	opts := []clientv3.OpOption{clientv3.WithRange(b.prependPrefix(endKey) + "\x00")}
 	if limit > 0 {
 		opts = append(opts, clientv3.WithLimit(int64(limit)))
 	}

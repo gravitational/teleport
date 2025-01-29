@@ -112,6 +112,7 @@ func (t *StreamingUsageReporter) AnonymizeAndSubmit(events ...Anonymizable) {
 		req := e.Anonymize(t.anonymizer)
 		req.Timestamp = timestamppb.New(t.clock.Now())
 		req.ClusterName = t.anonymizer.AnonymizeString(t.clusterName.GetClusterName())
+		req.TeleportVersion = teleport.Version
 		t.usageReporter.AddEventsToQueue(&req)
 	}
 }

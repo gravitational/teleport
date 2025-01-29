@@ -17,11 +17,11 @@
  */
 
 import { useState } from 'react';
-import { Flex } from 'design';
 
-import { wait } from 'shared/utils/wait';
-import Validation from 'shared/components/Validation';
+import { Flex } from 'design';
 import { Option } from 'shared/components/Select';
+import Validation from 'shared/components/Validation';
+import { wait } from 'shared/utils/wait';
 
 import { FieldSelect, FieldSelectAsync } from './FieldSelect';
 import {
@@ -53,7 +53,10 @@ export function Default() {
   return (
     <Validation>
       {({ validator }) => {
-        validator.validate();
+        // Prevent rendering loop.
+        if (!validator.state.validating) {
+          validator.validate();
+        }
         return (
           <Flex flexDirection="column">
             <FieldSelect

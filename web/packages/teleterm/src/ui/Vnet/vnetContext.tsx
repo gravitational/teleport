@@ -17,22 +17,23 @@
  */
 
 import {
+  createContext,
   FC,
   PropsWithChildren,
-  createContext,
-  useContext,
-  useState,
   useCallback,
-  useMemo,
+  useContext,
   useEffect,
+  useMemo,
+  useState,
 } from 'react';
-import { useAsync, Attempt } from 'shared/hooks/useAsync';
-import { BackgroundItemStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 
+import { BackgroundItemStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
+import { Attempt, useAsync } from 'shared/hooks/useAsync';
+
+import { isTshdRpcError } from 'teleterm/services/tshd';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { usePersistedState } from 'teleterm/ui/hooks/usePersistedState';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
-import { isTshdRpcError } from 'teleterm/services/tshd';
 import { IAppContext } from 'teleterm/ui/types';
 
 /**
@@ -123,6 +124,8 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
       if (
         isSupported &&
         autoStart &&
+        // Accessing resources through VNet might trigger the MFA modal,
+        // so we have to wait for the tshd events service to be initialized.
         isWorkspaceStateInitialized &&
         startAttempt.status === ''
       ) {

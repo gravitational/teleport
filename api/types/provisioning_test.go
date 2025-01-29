@@ -1169,6 +1169,114 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			desc: "bitbucket only workspace",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodBitbucket,
+					Bitbucket: &ProvisionTokenSpecV2Bitbucket{
+						Audience:            "foo",
+						IdentityProviderURL: "https://example.com",
+						Allow: []*ProvisionTokenSpecV2Bitbucket_Rule{
+							{
+								WorkspaceUUID: "{foo}",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "bitbucket only repository",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodBitbucket,
+					Bitbucket: &ProvisionTokenSpecV2Bitbucket{
+						Audience:            "foo",
+						IdentityProviderURL: "https://example.com",
+						Allow: []*ProvisionTokenSpecV2Bitbucket_Rule{
+							{
+								RepositoryUUID: "{foo}",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "bitbucket missing audience",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodBitbucket,
+					Bitbucket: &ProvisionTokenSpecV2Bitbucket{
+						IdentityProviderURL: "https://example.com",
+						Allow: []*ProvisionTokenSpecV2Bitbucket_Rule{
+							{
+								WorkspaceUUID: "{foo}",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "bitbucket missing identity provider",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodBitbucket,
+					Bitbucket: &ProvisionTokenSpecV2Bitbucket{
+						Audience: "foo",
+						Allow: []*ProvisionTokenSpecV2Bitbucket_Rule{
+							{
+								WorkspaceUUID: "{foo}",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "bitbucket missing workspace or repository",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodBitbucket,
+					Bitbucket: &ProvisionTokenSpecV2Bitbucket{
+						Audience:            "foo",
+						IdentityProviderURL: "https://example.com",
+						Allow: []*ProvisionTokenSpecV2Bitbucket_Rule{
+							{
+								DeploymentEnvironmentUUID: "{foo}",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tc := range testcases {

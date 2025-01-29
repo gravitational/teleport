@@ -23,7 +23,6 @@ import {
 } from 'styled-components';
 
 import { Theme } from 'design/theme/themes/types';
-
 import { shouldForwardProp } from 'design/ThemeProvider';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';

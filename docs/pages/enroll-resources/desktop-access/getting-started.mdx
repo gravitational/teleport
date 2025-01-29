@@ -40,10 +40,12 @@ To prepare a Windows computer:
 1. Open a Command Prompt (`cmd.exe`) window on the Windows computer you want to enroll.
 
 {/*lint ignore ordered-list-marker-value*/}
-2. Export the Teleport user certificate authority by running the following command using your Teleport cluster address:
+2. Export the Teleport user certificate authority by running the following
+   command, assigning <Var name="teleport.example.com"/> to your
+   Teleport cluster address:
 
    ```code
-   $ curl.exe -fo teleport.cer <Var name="https://teleport.example.com"/>/webapi/auth/export?type=windows
+   $ curl.exe -fo teleport.cer https://<Var name="teleport.example.com"/>/webapi/auth/export?type=windows
    ```
 
 3. Download the Teleport Windows Auth setup program:
@@ -61,6 +63,10 @@ interactively and select the Teleport certificate that you exported when prompte
    - Installs the required dynamic link library (DLL) for Teleport to use.
    - Disables Network Level Authentication (NLA) for remote desktop services.
    - Enables RemoteFX compression, if using Teleport version 15 or newer.
+
+  Note: in order for the Windows Local Security Authority (LSA) to load the Teleport DLL,
+  [LSA protection](https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/configuring-additional-lsa-protection)
+  must be disabled.
 
 {/*lint ignore ordered-list-marker-value*/}
 5. Restart the computer.
@@ -122,8 +128,8 @@ following for the Windows Desktop Service:
    version: v3
    teleport:
      nodename: <Var name="windows.teleport.example.com" />
-     proxy_server: <Var name="teleport.example.com:443" />
-     auth_token: <Var name="/tmp/token" />
+     proxy_server: <Var name="teleport.example.com" />:443
+     auth_token: "/tmp/token"
    windows_desktop_service:
      enabled: yes
      static_hosts:
@@ -160,7 +166,7 @@ following for the Windows Desktop Service:
    ```diff
    version: v3
    teleport:
-     nodename: windows.teleport.example.com
+     nodename: <Var name="windows.teleport.example.com" />
      proxy_server: teleport.example.com:443
      auth_token: /tmp/token
    windows_desktop_service:
@@ -180,7 +186,7 @@ following for the Windows Desktop Service:
    ```diff
    version: v3
    teleport:
-     nodename: windows.teleport.example.com
+     nodename: <Var name="windows.teleport.example.com" />
      proxy_server: teleport-proxy.example.com:443
    windows_desktop_service:
      enabled: yes
@@ -238,6 +244,8 @@ To configure a role for desktop access:
    ```code
    $ tctl create -f windows-desktop-admins.yaml
    ```
+
+   (!docs/pages/includes/create-role-using-web.mdx!)
 
 1. (\!docs/pages/includes/add-role-to-user.mdx role="windows-desktop-admins" \!)
 

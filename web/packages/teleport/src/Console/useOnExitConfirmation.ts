@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useEffect } from 'react';
 
 import session from 'teleport/services/websession';
 
@@ -35,7 +35,7 @@ const TAB_MIN_AGE = 30000;
  * @param ctx data that is shared between Console related components.
  */
 function useOnExitConfirmation(ctx: ConsoleContext) {
-  React.useEffect(() => {
+  useEffect(() => {
     /**
      * handleBeforeUnload listens for browser closes and refreshes.
      * Checks if users need to be notified before closing based on type

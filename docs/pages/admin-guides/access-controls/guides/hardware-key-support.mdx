@@ -3,8 +3,6 @@ title: Hardware Key Support
 description: Hardware Key Support
 ---
 
-## Introduction
-
 <Admonition type="warning" title="Enterprise">
   Hardware Key Support requires Teleport Enterprise.
 </Admonition>
@@ -257,7 +255,7 @@ Make sure that the touch and PIN policy satisfy the hardware key requirement for
 
 ### `ERROR: private key policy not met`
 
-This error is returned by the Auth and Proxy services if a user does not meet the required private key policy.
+This error is returned by the Auth Service and Proxy Service if a user does not meet the required private key policy.
 Both `tsh` and Teleport Connect automatically catch these errors and require the user to sign in again with a valid hardware-based private key.
 
 ### `ERROR: authenticating with management key: auth challenge: smart card error 6982: security status not satisfied`
@@ -282,7 +280,7 @@ Yubikey for Hardware Key support, you might get an error on rare occasions.
 Depending on your settings, you might be asked to tap your Yubikey many times.
 Each tap is necessary to safely authenticate you.
 
-For example, if you have `second_factor: webauthn` set in your `cluster_auth_preference`,
+For example, if you have `second_factors: ["webauthn"]` set in your `cluster_auth_preference`,
 and `require_session_mfa: hardware_key_touch` set on your role,
 you'll see the following output when you first sign in:
 

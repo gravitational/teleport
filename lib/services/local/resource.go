@@ -30,8 +30,8 @@ import (
 )
 
 // CreateResources attempts to dynamically create the supplied resources.
-// This function returns `trace.AlreadyExistsError` if one or more resources
-// would be overwritten, and `trace.NotImplementedError` if any resources
+// If any resources already exist they are skipped and not overwritten.
+// This function returns a `trace.NotImplementedError` if any resources
 // are of an unsupported type (see `itemsFromResources(...)`).
 //
 // NOTE: This function is non-atomic and performs no internal synchronization;
@@ -41,20 +41,9 @@ func CreateResources(ctx context.Context, b backend.Backend, resources ...types.
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// ensure all items do not exist before continuing.
-	for _, item := range items {
-		_, err = b.Get(ctx, item.Key)
-		if !trace.IsNotFound(err) {
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			return trace.AlreadyExists("resource %q already exists", item.Key.String())
-		}
-	}
-	// create all items.
 	for _, item := range items {
 		_, err := b.Create(ctx, item)
-		if err != nil {
+		if !trace.IsAlreadyExists(err) && err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -350,11 +339,6 @@ func userFromUserItems(name string, items userItems) (*types.UserV2, error) {
 		return nil, trace.Wrap(err)
 	}
 	user.SetLocalAuth(auth)
-
-	if auth != nil {
-		// when reading with secrets, we can populate the data automatically.
-		user.SetWeakestDevice(getWeakestMFADeviceKind(auth.MFA))
-	}
 
 	return user, nil
 }

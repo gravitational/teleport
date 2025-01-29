@@ -1,0 +1,12 @@
+version: v1
+kind: update_config
+spec:
+    proxy: localhost
+    base_url: https://example.com
+    enabled: true
+    pinned: false
+status:
+    active:
+        version: 16.3.0
+    backup:
+        version: backup-version

@@ -20,8 +20,6 @@ import { formatDuration } from 'date-fns';
 
 import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
 
-import api from 'teleport/services/api';
-import cfg from 'teleport/config';
 import {
   AccessRequest,
   AccessRequestResource,
@@ -29,6 +27,8 @@ import {
   DurationOption,
 } from 'teleport/AccessRequests/types';
 import { middleValues } from 'teleport/AccessRequests/utils';
+import cfg from 'teleport/config';
+import api from 'teleport/services/api';
 
 export async function createAccessRequest(
   clusterId: string,

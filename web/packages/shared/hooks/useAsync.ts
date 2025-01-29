@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useState, useRef, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
  * `useAsync` lets you represent the state of an async operation as data. It accepts an async function
@@ -91,7 +91,7 @@ export function useAsync<Args extends unknown[], AttemptData>(
   const isMounted = useIsMounted();
   const asyncTask = useRef<Promise<AttemptData>>();
 
-  const run = useCallback(
+  const run: (...args: Args) => RunFuncReturnValue<AttemptData> = useCallback(
     (...args: Args) => {
       setState(prevState => ({
         status: 'processing',
@@ -311,3 +311,5 @@ export function useDelayedRepeatedAttempt<Data>(
 
   return currentAttempt;
 }
+
+export type RunFuncReturnValue<AttemptData> = Promise<[AttemptData, Error]>;

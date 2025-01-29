@@ -20,6 +20,7 @@ as well as an upgrade of the previous version of Teleport.
 - [ ] Labels
   - [ ] Static Labels
   - [ ] Dynamic Labels
+  - [ ] [Resource-based Labels](https://goteleport.com/docs/admin-guides/management/admin/labels/#apply-resource-based-labels) using `server_info`
 
 - [ ] Trusted Clusters
   - [ ] Adding Trusted Cluster Valid Static Token
@@ -267,7 +268,8 @@ as well as an upgrade of the previous version of Teleport.
     - [ ] `tsh ssh -X root@node xeyes`
   - [ ] Test untrusted vs trusted forwarding
     - [ ] `tsh ssh -Y server01 "echo Hello World | xclip -sel c && xclip -sel c -o"` should print "Hello World"
-    - [ ] `tsh ssh -X server01 "echo Hello World | xclip -sel c && xclip -sel c -o"` should fail with "BadAccess" X error
+    - [ ] (Linux) `tsh ssh -X server01 "echo Hello World | xclip -sel c && xclip -sel c -o"` should fail with "BadAccess" X error
+      - This test doesn't work with XQuartz as it doesn't seem to enable the X Security Extension.
 
 ### User accounting
 
@@ -812,8 +814,6 @@ Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in you
 Run the full test suite with each HSM/KMS:
 
 ```shell
-$ make run-etcd # in background shell
-$
 $ # test YubiHSM
 $ yubihsm-connector -d # in a background shell
 $ cat /etc/yubihsm_pkcs11.conf
@@ -821,23 +821,23 @@ $ cat /etc/yubihsm_pkcs11.conf
 connector = http://127.0.0.1:12345
 debug
 $ TELEPORT_TEST_YUBIHSM_PKCS11_PATH=/usr/local/lib/pkcs11/yubihsm_pkcs11.dylib TELEPORT_TEST_YUBIHSM_PIN=0001password YUBIHSM_PKCS11_CONF=/etc/yubihsm_pkcs11.conf go test ./lib/auth/keystore -v --count 1
-$ TELEPORT_TEST_YUBIHSM_PKCS11_PATH=/usr/local/lib/pkcs11/yubihsm_pkcs11.dylib TELEPORT_TEST_YUBIHSM_PIN=0001password YUBIHSM_PKCS11_CONF=/etc/yubihsm_pkcs11.conf TELEPORT_ETCD_TEST=1 go test ./integration/hsm -v --count 1 --timeout 20m # this takes ~12 minutes
+$ TELEPORT_TEST_YUBIHSM_PKCS11_PATH=/usr/local/lib/pkcs11/yubihsm_pkcs11.dylib TELEPORT_TEST_YUBIHSM_PIN=0001password YUBIHSM_PKCS11_CONF=/etc/yubihsm_pkcs11.conf go test ./integration/hsm -v --count 1 --timeout 20m # this takes ~12 minutes
 $
 $ # test AWS KMS
 $ # login in to AWS locally
 $ AWS_ACCOUNT="$(aws sts get-caller-identity | jq -r '.Account')"
 $ TELEPORT_TEST_AWS_KMS_ACCOUNT="${AWS_ACCOUNT}" TELEPORT_TEST_AWS_KMS_REGION=us-west-2 go test ./lib/auth/keystore -v --count 1
-$ TELEPORT_TEST_AWS_KMS_ACCOUNT="${AWS_ACCOUNT}" TELEPORT_TEST_AWS_KMS_REGION=us-west-2 TELEPORT_ETCD_TEST=1 go test ./integration/hsm -v --count 1
+$ TELEPORT_TEST_AWS_KMS_ACCOUNT="${AWS_ACCOUNT}" TELEPORT_TEST_AWS_KMS_REGION=us-west-2 go test ./integration/hsm -v --count 1
 $
 $ # test AWS CloudHSM
 $ # set up the CloudHSM cluster and run this on an EC2 that can reach it
 $ TELEPORT_TEST_CLOUDHSM_PIN="<CU_username>:<CU_password>" go test ./lib/auth/keystore -v --count 1
-$ TELEPORT_TEST_CLOUDHSM_PIN="<CU_username>:<CU_password>" TELEPORT_ETCD_TEST=1 go test ./integration/hsm -v --count 1
+$ TELEPORT_TEST_CLOUDHSM_PIN="<CU_username>:<CU_password>" go test ./integration/hsm -v --count 1
 $
 $ # test GCP KMS
 $ # login in to GCP locally
 $ TELEPORT_TEST_GCP_KMS_KEYRING=projects/<account>/locations/us-west3/keyRings/<keyring> go test ./lib/auth/keystore -v --count 1
-$ TELEPORT_TEST_GCP_KMS_KEYRING=projects/<account>/locations/us-west3/keyRings/<keyring> TELEPORT_ETCD_TEST=1 go test ./integration/hsm -v --count 1
+$ TELEPORT_TEST_GCP_KMS_KEYRING=projects/<account>/locations/us-west3/keyRings/<keyring> go test ./integration/hsm -v --count 1
 ```
 
 ## Moderated session
@@ -1187,21 +1187,20 @@ manualy testing.
 ## Desktop Access
 
 - Direct mode (set `listen_addr`):
-  - [ ] Can connect to AD desktop defined in static `hosts` section.
   - [ ] Can connect to AD desktop defined in static `static_hosts` section.
   - [ ] Can connect to non-AD desktop defined in static `static_hosts` section.
-  - [ ] Can connect to non-AD desktop defined in static `non_ad_hosts` section.
   - [ ] Can connect to desktop discovered via LDAP
 - IoT mode (reverse tunnel through proxy):
-  - [ ] Can connect to AD desktop defined in static `hosts` section.
   - [ ] Can connect to AD desktop defined in static `static_hosts` section.
   - [ ] Can connect to non-AD desktop defined in static `static_hosts` section.
-  - [ ] Can connect to non-AD desktop defined in static `non_ad_hosts` section.
   - [ ] Can connect to desktop discovered via LDAP
 - [ ] Connect multiple `windows_desktop_service`s to the same Teleport cluster,
   verify that connections to desktops on different AD domains works. (Attempt to
   connect several times to verify that you are routed to the correct
   `windows_desktop_service`)
+- [ ] Set `client_idle_timeout` to a small value and verify that idle sessions
+  are terminated (the session should end and an audit event will confirm it
+  was due to idle connection)
 - Verify user input
   - [ ] Download [Keyboard Key Info](https://dennisbabkin.com/kbdkeyinfo/) and
     verify all keys are processed correctly in each supported browser. Known
@@ -1217,11 +1216,8 @@ manualy testing.
   - [ ] Verify that placing a desktop lock terminates an active desktop session.
   - [ ] Verify that placing a role lock terminates an active desktop session.
 - Labeling
-  - [ ] Set `client_idle_timeout` to a small value and verify that idle sessions
-    are terminated (the session should end and an audit event will confirm it
-    was due to idle connection)
   - [ ] All desktops have `teleport.dev/origin` label.
-  - [ ] Dynamic desktops have additional `teleport.dev` labels for OS, OS
+  - [ ] Desktops discovered via LDAP have additional `teleport.dev` labels for OS, OS
     Version, DNS hostname.
   - [ ] Regexp-based host labeling applies across all desktops, regardless of
     origin.
@@ -1279,12 +1275,14 @@ manualy testing.
         - [ ] A file from inside the shared directory can be copy-pasted to another folder inside the shared directory
         - [ ] A folder from inside the shared directory can be copy-pasted to another folder inside shared directory (and its contents retained)
   - RBAC
-    - [ ] Give the user one role that explicitly disables directory sharing (`desktop_directory_sharing: false`) and confirm that the option to share a directory doesn't appear in the menu
+    - [ ] Give the user one role that explicitly disables directory sharing (`desktop_directory_sharing: false`)
+      and confirm that the option to share a directory doesn't appear in the menu and  that the directory sharing
+      icon is in a disabled state.
 - Per-Session MFA
-  - [ ] Attempting to start a session no keys registered shows an error message
-  - [ ] Attempting to start a session with a webauthn registered pops up the "Verify Your Identity" dialog
-    - [ ] Hitting "Cancel" shows an error message
-    - [ ] Hitting "Verify" causes your browser to prompt you for MFA
+  - [ ] Attempting to start a session with no keys registered shows an error message
+  - [ ] Attempting to start a session with a webauthn registered pops up the MFA dialog
+    - [ ] Canceling this dialog (clicking the X in the corner) shows an error
+    - [ ] Hitting "Passkey or MFA Device" causes your browser to prompt you for MFA
     - [ ] Cancelling that browser MFA prompt shows an error
     - [ ] Successful MFA verification allows you to connect
 - Session Recording
@@ -1293,8 +1291,8 @@ manualy testing.
   - [ ] Verify async recording (`mode: node` or `mode: proxy`)
   - [ ] Sessions show up in session recordings UI with desktop icon
   - [ ] Sessions can be played back, including play/pause functionality
-  - [ ] Sessions playback speed can be toggled while its playing
-  - [ ] Sessions playback speed can be toggled while its paused
+  - [ ] Sessions playback speed can be toggled while it's playing
+  - [ ] Sessions playback speed can be toggled while it's paused
   - [ ] A session that ends with a TDP error message can be played back, ends by displaying the error message,
         and the progress bar progresses to the end.
   - [ ] Attempting to play back a session that doesn't exist (i.e. by entering a non-existing session id in the url) shows
@@ -1339,8 +1337,6 @@ manualy testing.
 - Non-AD setup
   - [ ] Installer in GUI mode finishes successfully on instance that is not part of domain
   - [ ] Installer works correctly invoked from command line
-  - [ ] Non-AD instance can be added to `non_ad_hosts` section in config file and is visible in UI
-  - [ ] Non-AD can be added as dynamic resource and is visible in UI
   - [ ] Non-AD instance has label `teleport.dev/ad: false`
   - [ ] Connecting to non-AD instance works with OSS if there are no more than 5 non-AD desktops
   - [ ] Connecting to non-AD instance fails with OSS if there are more than 5 non-AD desktops
@@ -1354,7 +1350,7 @@ manualy testing.
   - [ ] `tctl get dynamic_windows_desktop` works with all supported formats
   - [ ] Adding dynamic Windows desktop that doesn't match labels for any Windows Desktop Service does not create any
       Windows desktop
-  - [ ] Adding dynamic Windows desktop that matches some `windows_desktop_services`s creates Windows desktops for each
+  - [ ] Adding dynamic Windows desktop that matches some `windows_desktop_service`s creates Windows desktops for each
       matching WDS
   - [ ] Updating dynamic Windows desktop updates corresponding Windows desktops
   - [ ] Updating dynamic Windows desktop's labels so it no longer matches `windows_desktop_services` deletes
@@ -1463,6 +1459,8 @@ also managed, but not considered for role-based host user creation.
   - [ ] `standby` phase: only the new certs remain in `active_keys`, nothing in `additional_trusted_keys`
   - [ ] `rollback` phase (second pass, after completing a regular rotation): same content as in the `init` phase
   - [ ] `standby` phase after `rollback`: same content as in the previous `standby` phase
+  - [ ] Changing `signature_algorithm_suite` should change the algorithm used by new CA issuers when entering `init` - only issued certificates change algorithm if the suite is changed at other times
+  - [ ] Even after changing `signature_algorithm_suite`, entering the `rollback` phase correctly restores the original issuer, no matter the algorithm
 - Verify functionality in all phases (clients might have to log in again in lieu of waiting for credentials to expire between phases)
   - [ ] SSH session in tsh from a previous phase
   - [ ] SSH session in web UI from a previous phase
@@ -1588,12 +1586,22 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
   - [ ] Verify that users can run custom audit queries.
   - [ ] Verify that the Privileged Access Report is generated and periodically refreshed.
 
+- [ ] Access Requests
+  - [ ] Verify when role.spec.allow.request.reason.mode: "required":
+    - [ ] CLI fails to create Access Request displaying a message that reason is required.
+    - [ ] Web UI fails to create Access Request displaying a message that reason is required.
+    - [ ] Other roles allowing requesting the same resources/roles without reason.mode set or with reason.mode: "optional" don't affect the behaviour.
+    - [ ] Non-affected resources/roles don't require reason.
+    - [ ] When there is a role with spec.options.request_access: always it effectively becomes role.spec.options.request_access: reason (i.e.) requires reason:
+      - [ ] For CLI.
+      - [ ] For Web UI.
+
 - [ ] Access Lists
   - [ ] Verify Access List membership/ownership/expiration date.
   - [ ] Verify permissions granted by Access List membership.
   - [ ] Verify permissions granted by Access List ownership.
   - [ ] Verify Access List Review.
-  - [ ] verify Access LIst Promotion.
+  - [ ] Verify Access List Promotion.
   - [ ] Verify that owners can only add/remove members and not change other properties.
   - [ ] Nested Access Lists
     - [ ] Verify that Access Lists can be added as members or owners of other Access Lists.
@@ -1636,6 +1644,35 @@ Verify SAML IdP service provider resource management.
   - [ ] Verify that when a SAML resource is created with preset value `preset: gcp-workforce`, Teleport adds
         relay state `relay_state: https://console.cloud.google/` value in the resulting resource spec.
 
+## SSO MFA
+
+Verify SSO MFA core functionality. The tests below should be performed once
+with OIDC and once with SAML.
+
+Configure both an OIDC connector and a SAML connector following the [Quick GitHub/SAML/OIDC Setup Tips]
+and [enable MFA on them](https://goteleport.com/docs/ver/17.x/admin-guides/access-controls/sso/#configuring-sso-for-mfa-checks).
+
+For simplicity, you can use the same IdP App (client id/secret or entity descriptor)
+for both login and MFA. This way, each Teleport MFA check will make you re-login via SSO.
+
+Ensure [SSO is allowed as a second factor](https://goteleport.com/docs/ver/17.x/admin-guides/access-controls/sso/#allowing-sso-as-an-mfa-method-in-your-cluster).
+e.g. `cap.second_factors: ['webauthn', 'sso']`.
+
+The following should work with SSO MFA, automatically opening the SSO MFA redirect URL:
+
+- [ ] `tsh mfa ls` should display the SSO MFA device.
+  - [ ] SSO MFA device cannot be deleted or added
+- [ ] Add another MFA device (`tsh mfa add`)
+- [ ] Delete the other MFA device (`tsh --mfa-mode=sso mfa rm`)
+- [ ] Moderated Sessions
+- [ ] Admin Actions (e.g. `tctl tokens ls`)
+- [ ] Per-session MFA
+  - [ ] Server Access
+  - [ ] File Transfers
+  - [ ] Kubernetes Access
+  - [ ] App Access
+  - [ ] Database Access
+  - [ ] Desktop Access
 
 ## Resources
 
@@ -1644,4 +1681,4 @@ Verify SAML IdP service provider resource management.
 <!---
 reference style links
 -->
-[Quick GitHub/SAML/OIDC Setup Tips]: https://gravitational.slab.com/posts/quick-git-hub-saml-oidc-setup-6dfp292a
+[Quick GitHub/SAML/OIDC Setup Tips]: https://www.notion.so/goteleport/Quick-SSO-setup-fb1a64504115414ca50a965390105bee

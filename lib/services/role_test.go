@@ -19,7 +19,6 @@
 package services
 
 import (
-	"bytes"
 	"cmp"
 	"context"
 	"encoding/json"
@@ -267,7 +266,6 @@ func TestRoleParse(t *testing.T) {
 					Options: types.RoleOptions{
 						CertificateFormat: constants.CertificateFormatStandard,
 						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
-						PortForwarding:    types.NewBoolOption(true),
 						RecordSession: &types.RecordSession{
 							Default: constants.SessionRecordingModeBestEffort,
 							Desktop: types.NewBoolOption(true),
@@ -321,7 +319,6 @@ func TestRoleParse(t *testing.T) {
 					Options: types.RoleOptions{
 						CertificateFormat: constants.CertificateFormatStandard,
 						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
-						PortForwarding:    types.NewBoolOption(true),
 						RecordSession: &types.RecordSession{
 							Default: constants.SessionRecordingModeBestEffort,
 							Desktop: types.NewBoolOption(true),
@@ -2182,27 +2179,13 @@ func makeAccessCheckerWithRoleSet(roleSet RoleSet) AccessChecker {
 	return NewAccessCheckerWithRoleSet(accessInfo, "clustername", roleSet)
 }
 
-// testContext overrides context and captures log writes in action
-type testContext struct {
-	Context
-	// Buffer captures log writes
-	buffer *bytes.Buffer
-}
-
-// Write is implemented explicitly to avoid collision
-// of String methods when embedding
-func (t *testContext) Write(data []byte) (int, error) {
-	return t.buffer.Write(data)
-}
-
 func TestCheckRuleAccess(t *testing.T) {
 	type check struct {
-		hasAccess   bool
-		verb        string
-		namespace   string
-		rule        string
-		context     testContext
-		matchBuffer string
+		hasAccess bool
+		verb      string
+		namespace string
+		rule      string
+		context   Context
 	}
 	testCases := []struct {
 		name   string
@@ -2322,9 +2305,6 @@ func TestCheckRuleAccess(t *testing.T) {
 									Resources: []string{types.KindSession},
 									Verbs:     []string{types.VerbRead},
 									Where:     `contains(user.spec.traits["group"], "prod")`,
-									Actions: []string{
-										`log("info", "4 - tc match for user %v", user.metadata.name)`,
-									},
 								},
 							},
 						},
@@ -2335,17 +2315,14 @@ func TestCheckRuleAccess(t *testing.T) {
 				{rule: types.KindSession, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: false},
 				{rule: types.KindSession, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: false},
 				{
-					context: testContext{
-						buffer: &bytes.Buffer{},
-						Context: Context{
-							User: &types.UserV2{
-								Metadata: types.Metadata{
-									Name: "bob",
-								},
-								Spec: types.UserSpecV2{
-									Traits: map[string][]string{
-										"group": {"dev", "prod"},
-									},
+					context: Context{
+						User: &types.UserV2{
+							Metadata: types.Metadata{
+								Name: "bob",
+							},
+							Spec: types.UserSpecV2{
+								Traits: map[string][]string{
+									"group": {"dev", "prod"},
 								},
 							},
 						},
@@ -2356,14 +2333,11 @@ func TestCheckRuleAccess(t *testing.T) {
 					hasAccess: true,
 				},
 				{
-					context: testContext{
-						buffer: &bytes.Buffer{},
-						Context: Context{
-							User: &types.UserV2{
-								Spec: types.UserSpecV2{
-									Traits: map[string][]string{
-										"group": {"dev"},
-									},
+					context: Context{
+						User: &types.UserV2{
+							Spec: types.UserSpecV2{
+								Traits: map[string][]string{
+									"group": {"dev"},
 								},
 							},
 						},
@@ -2391,9 +2365,6 @@ func TestCheckRuleAccess(t *testing.T) {
 									Resources: []string{types.KindRole},
 									Verbs:     []string{types.VerbRead},
 									Where:     `equals(resource.metadata.labels["team"], "dev")`,
-									Actions: []string{
-										`log("error", "4 - tc match")`,
-									},
 								},
 							},
 						},
@@ -2404,13 +2375,10 @@ func TestCheckRuleAccess(t *testing.T) {
 				{rule: types.KindRole, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: false},
 				{rule: types.KindRole, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: false},
 				{
-					context: testContext{
-						buffer: &bytes.Buffer{},
-						Context: Context{
-							Resource: &types.RoleV6{
-								Metadata: types.Metadata{
-									Labels: map[string]string{"team": "dev"},
-								},
+					context: Context{
+						Resource: &types.RoleV6{
+							Metadata: types.Metadata{
+								Labels: map[string]string{"team": "dev"},
 							},
 						},
 					},
@@ -2441,9 +2409,6 @@ func TestCheckRuleAccess(t *testing.T) {
 									Resources: []string{types.KindRole},
 									Verbs:     []string{types.VerbRead},
 									Where:     `equals(resource.metadata.labels["team"], "dev")`,
-									Actions: []string{
-										`log("info", "matched more specific rule")`,
-									},
 								},
 							},
 						},
@@ -2452,21 +2417,17 @@ func TestCheckRuleAccess(t *testing.T) {
 			},
 			checks: []check{
 				{
-					context: testContext{
-						buffer: &bytes.Buffer{},
-						Context: Context{
-							Resource: &types.RoleV6{
-								Metadata: types.Metadata{
-									Labels: map[string]string{"team": "dev"},
-								},
+					context: Context{
+						Resource: &types.RoleV6{
+							Metadata: types.Metadata{
+								Labels: map[string]string{"team": "dev"},
 							},
 						},
 					},
-					rule:        types.KindRole,
-					verb:        types.VerbRead,
-					namespace:   apidefaults.Namespace,
-					hasAccess:   true,
-					matchBuffer: "more specific rule",
+					rule:      types.KindRole,
+					verb:      types.VerbRead,
+					namespace: apidefaults.Namespace,
+					hasAccess: true,
 				},
 			},
 		},
@@ -2478,14 +2439,15 @@ func TestCheckRuleAccess(t *testing.T) {
 		}
 		for j, check := range tc.checks {
 			comment := fmt.Sprintf("test case %v '%v', check %v", i, tc.name, j)
-			result := set.CheckAccessToRule(&check.context, check.namespace, check.rule, check.verb)
+
+			// At least one scenario exercises "default" vs "system" namespaces.
+			namespace := check.namespace
+
+			result := set.CheckAccessToRule(&check.context, namespace, check.rule, check.verb)
 			if check.hasAccess {
 				require.NoError(t, result, comment)
 			} else {
 				require.True(t, trace.IsAccessDenied(result), comment)
-			}
-			if check.matchBuffer != "" {
-				require.Contains(t, check.context.buffer.String(), check.matchBuffer, comment)
 			}
 		}
 	}
@@ -2495,9 +2457,8 @@ func TestDefaultImplicitRules(t *testing.T) {
 	type check struct {
 		hasAccess bool
 		verb      string
-		namespace string
 		rule      string
-		context   testContext
+		context   Context
 	}
 	testCases := []struct {
 		name   string
@@ -2505,60 +2466,73 @@ func TestDefaultImplicitRules(t *testing.T) {
 		checks []check
 	}{
 		{
-			name: "KindIdentityCenterAccount with NewPresetAccessRole",
+			name: "KindIdentityCenter with NewPresetAccessRole",
 			role: NewPresetAccessRole(),
 			checks: []check{
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindIdentityCenter, verb: types.VerbRead, hasAccess: true},
+				{rule: types.KindIdentityCenter, verb: types.VerbList, hasAccess: true},
+				{rule: types.KindIdentityCenter, verb: types.VerbCreate, hasAccess: false},
+				{rule: types.KindIdentityCenter, verb: types.VerbUpdate, hasAccess: false},
+				{rule: types.KindIdentityCenter, verb: types.VerbDelete, hasAccess: false},
 			},
 		},
 		{
-			name: "KindIdentityCenterAccount with a custom role that does not explicitly target read and list verbs for KindIdentityCenterAccount",
+			name: "KindIdentityCenter with a custom role that does not explicitly target read and list verbs for KindIdentityCenterAccount",
 			role: newRole(func(r *types.RoleV6) {}),
 			checks: []check{
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
-				{rule: types.KindIdentityCenterAccount, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindIdentityCenter, verb: types.VerbRead, hasAccess: true},
+				{rule: types.KindIdentityCenter, verb: types.VerbList, hasAccess: true},
+				{rule: types.KindIdentityCenter, verb: types.VerbCreate, hasAccess: false},
+				{rule: types.KindIdentityCenter, verb: types.VerbUpdate, hasAccess: false},
+				{rule: types.KindIdentityCenter, verb: types.VerbDelete, hasAccess: false},
 			},
 		},
 		{
 			name: "KindSAMLIdPServiceProvider with NewPresetAccessRole",
 			role: NewPresetAccessRole(),
 			checks: []check{
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbRead, hasAccess: true},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbList, hasAccess: true},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbCreate, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbUpdate, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbDelete, hasAccess: false},
 			},
 		},
 		{
 			name: "KindSAMLIdPServiceProvider with a custom role that does not explicitly target read and list verbs for KindSAMLIdPServiceProvider",
 			role: newRole(func(r *types.RoleV6) {}),
 			checks: []check{
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbRead, hasAccess: true},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbList, hasAccess: true},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbCreate, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbUpdate, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbDelete, hasAccess: false},
+			},
+		},
+		{
+			name: "KindGitServer with empty rules",
+			role: newRole(func(r *types.RoleV6) {
+				r.Spec.Allow = types.RoleConditions{}
+				r.Spec.Deny = types.RoleConditions{}
+			}),
+			checks: []check{
+				{rule: types.KindGitServer, verb: types.VerbRead, hasAccess: true},
+				{rule: types.KindGitServer, verb: types.VerbList, hasAccess: true},
+				{rule: types.KindGitServer, verb: types.VerbCreate, hasAccess: false},
+				{rule: types.KindGitServer, verb: types.VerbUpdate, hasAccess: false},
+				{rule: types.KindGitServer, verb: types.VerbDelete, hasAccess: false},
 			},
 		},
 	}
 	for _, tc := range testCases {
 		roleSet := NewRoleSet(tc.role)
 		for _, check := range tc.checks {
-			result := roleSet.CheckAccessToRule(&check.context, check.namespace, check.rule, check.verb)
+			result := roleSet.CheckAccessToRule(&check.context, apidefaults.Namespace, check.rule, check.verb)
 			if check.hasAccess {
 				require.NoError(t, result)
 			} else {
 				require.True(t, trace.IsAccessDenied(result))
 			}
-
 		}
 	}
 }
@@ -2665,7 +2639,7 @@ func TestMFAVerificationInterval(t *testing.T) {
 }
 
 func TestGuessIfAccessIsPossible(t *testing.T) {
-	// Examples from https://goteleport.com/docs/access-controls/reference/#rbac-for-sessions.
+	// Examples from https://goteleport.com/docs/reference/access-controls/roles/#rbac-for-sessions.
 	ownSessions, err := types.NewRole("own-sessions", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
@@ -2735,10 +2709,9 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 	require.NoError(t, err)
 
 	type checkAccessParams struct {
-		ctx       Context
-		namespace string
-		resource  string
-		verbs     []string
+		ctx      Context
+		resource string
+		verbs    []string
 	}
 
 	tests := []struct {
@@ -2756,9 +2729,8 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 			name:  "global session list/read allowed",
 			roles: RoleSet{readAllSessions},
 			params: &checkAccessParams{
-				namespace: apidefaults.Namespace,
-				resource:  types.KindSession,
-				verbs:     []string{types.VerbList, types.VerbRead},
+				resource: types.KindSession,
+				verbs:    []string{types.VerbList, types.VerbRead},
 			},
 			wantRuleAccess:  true,
 			wantGuessAccess: true,
@@ -2767,9 +2739,8 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 			name:  "own session list/read allowed",
 			roles: RoleSet{ownSessions}, // allowed despite "where" clause in allow rules
 			params: &checkAccessParams{
-				namespace: apidefaults.Namespace,
-				resource:  types.KindSession,
-				verbs:     []string{types.VerbList, types.VerbRead},
+				resource: types.KindSession,
+				verbs:    []string{types.VerbList, types.VerbRead},
 			},
 			wantRuleAccess:  false, // where condition needs specific resource
 			wantGuessAccess: true,
@@ -2778,9 +2749,8 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 			name:  "session list/read denied",
 			roles: RoleSet{allowSSHSessions, denySSHSessions}, // none mention "session"
 			params: &checkAccessParams{
-				namespace: apidefaults.Namespace,
-				resource:  types.KindSession,
-				verbs:     []string{types.VerbList, types.VerbRead},
+				resource: types.KindSession,
+				verbs:    []string{types.VerbList, types.VerbRead},
 			},
 		},
 		{
@@ -2790,18 +2760,16 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 				allowSSHSessions, denySSHSessions, // none mention "session"
 			},
 			params: &checkAccessParams{
-				namespace: apidefaults.Namespace,
-				resource:  types.KindSession,
-				verbs:     []string{types.VerbUpdate, types.VerbDelete},
+				resource: types.KindSession,
+				verbs:    []string{types.VerbUpdate, types.VerbDelete},
 			},
 		},
 		{
 			name:  "global SSH session list/read allowed",
 			roles: RoleSet{allowSSHSessions},
 			params: &checkAccessParams{
-				namespace: apidefaults.Namespace,
-				resource:  types.KindSSHSession,
-				verbs:     []string{types.VerbList, types.VerbRead},
+				resource: types.KindSSHSession,
+				verbs:    []string{types.VerbList, types.VerbRead},
 			},
 			wantRuleAccess:  true,
 			wantGuessAccess: true,
@@ -2810,9 +2778,8 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 			name:  "own SSH session list/read allowed",
 			roles: RoleSet{ownSSHSessions}, // allowed despite "where" clause in deny rules
 			params: &checkAccessParams{
-				namespace: apidefaults.Namespace,
-				resource:  types.KindSSHSession,
-				verbs:     []string{types.VerbList, types.VerbRead},
+				resource: types.KindSSHSession,
+				verbs:    []string{types.VerbList, types.VerbRead},
 			},
 			wantRuleAccess:  false, // where condition needs specific resource
 			wantGuessAccess: true,
@@ -2824,9 +2791,8 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 				denySSHSessions, // unconditional deny, takes precedence
 			},
 			params: &checkAccessParams{
-				namespace: apidefaults.Namespace,
-				resource:  types.KindSSHSession,
-				verbs:     []string{types.VerbCreate, types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbDelete},
+				resource: types.KindSSHSession,
+				verbs:    []string{types.VerbCreate, types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbDelete},
 			},
 		},
 		{
@@ -2837,9 +2803,8 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 				ownSSHSessions,
 			},
 			params: &checkAccessParams{
-				namespace: apidefaults.Namespace,
-				resource:  types.KindSSHSession,
-				verbs:     []string{types.VerbCreate, types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbDelete},
+				resource: types.KindSSHSession,
+				verbs:    []string{types.VerbCreate, types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbDelete},
 			},
 		},
 	}
@@ -2847,12 +2812,12 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			params := test.params
 			for _, verb := range params.verbs {
-				err := test.roles.CheckAccessToRule(&params.ctx, params.namespace, params.resource, verb)
+				err := test.roles.CheckAccessToRule(&params.ctx, apidefaults.Namespace, params.resource, verb)
 				if gotAccess, wantAccess := err == nil, test.wantRuleAccess; gotAccess != wantAccess {
 					t.Errorf("CheckAccessToRule(verb=%q) returned err = %v=q, wantAccess = %v", verb, err, wantAccess)
 				}
 
-				err = test.roles.GuessIfAccessIsPossible(&params.ctx, params.namespace, params.resource, verb)
+				err = test.roles.GuessIfAccessIsPossible(&params.ctx, apidefaults.Namespace, params.resource, verb)
 				if gotAccess, wantAccess := err == nil, test.wantGuessAccess; gotAccess != wantAccess {
 					t.Errorf("GuessIfAccessIsPossible(verb=%q) returned err = %q, wantAccess = %v", verb, err, wantAccess)
 				}
@@ -2995,6 +2960,8 @@ func TestApplyTraits(t *testing.T) {
 		inSudoers               []string
 		outSudoers              []string
 		outKubeResources        []types.KubernetesResource
+		inGitHubPermissions     []types.GitHubPermission
+		outGitHubPermissions    []types.GitHubPermission
 	}
 	tests := []struct {
 		comment  string
@@ -3763,6 +3730,34 @@ func TestApplyTraits(t *testing.T) {
 				},
 			},
 		},
+		{
+			comment: "GitHub permissions in allow rule",
+			inTraits: map[string][]string{
+				"github_orgs": {"my-org1", "my-org2"},
+			},
+			allow: rule{
+				inGitHubPermissions: []types.GitHubPermission{{
+					Organizations: []string{"{{internal.github_orgs}}"},
+				}},
+				outGitHubPermissions: []types.GitHubPermission{{
+					Organizations: []string{"my-org1", "my-org2"},
+				}},
+			},
+		},
+		{
+			comment: "GitHub permissions in deny rule",
+			inTraits: map[string][]string{
+				"orgs": {"my-org1", "my-org2"},
+			},
+			deny: rule{
+				inGitHubPermissions: []types.GitHubPermission{{
+					Organizations: []string{"{{external.orgs}}"},
+				}},
+				outGitHubPermissions: []types.GitHubPermission{{
+					Organizations: []string{"my-org1", "my-org2"},
+				}},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
@@ -3794,6 +3789,7 @@ func TestApplyTraits(t *testing.T) {
 						Impersonate:          &tt.allow.inImpersonate,
 						HostSudoers:          tt.allow.inSudoers,
 						KubernetesResources:  tt.allow.inKubeResources,
+						GitHubPermissions:    tt.allow.inGitHubPermissions,
 					},
 					Deny: types.RoleConditions{
 						Logins:               tt.deny.inLogins,
@@ -3815,6 +3811,7 @@ func TestApplyTraits(t *testing.T) {
 						Impersonate:          &tt.deny.inImpersonate,
 						HostSudoers:          tt.deny.outSudoers,
 						KubernetesResources:  tt.deny.inKubeResources,
+						GitHubPermissions:    tt.deny.inGitHubPermissions,
 					},
 				},
 			}
@@ -3848,6 +3845,7 @@ func TestApplyTraits(t *testing.T) {
 				require.Equal(t, rule.spec.outImpersonate, outRole.GetImpersonateConditions(rule.condition))
 				require.Equal(t, rule.spec.outSudoers, outRole.GetHostSudoers(rule.condition))
 				require.Equal(t, rule.spec.outKubeResources, outRole.GetRoleConditions(rule.condition).KubernetesResources)
+				require.Equal(t, rule.spec.outGitHubPermissions, outRole.GetRoleConditions(rule.condition).GitHubPermissions)
 			}
 		})
 	}
@@ -9591,6 +9589,78 @@ func TestCheckSPIFFESVID(t *testing.T) {
 			accessChecker := makeAccessCheckerWithRoleSet(tt.roles)
 			err := accessChecker.CheckSPIFFESVID(tt.spiffeIDPath, tt.dnsSANs, tt.ipSANs)
 			tt.requireErr(t, err)
+		})
+	}
+}
+
+func TestCheckAccessToGitServer(t *testing.T) {
+	githubOrgServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
+		Integration:  "my-org",
+		Organization: "my-org",
+	})
+	require.NoError(t, err)
+
+	makeRole := func(t *testing.T, allowOrg, denyOrg string) types.Role {
+		spec := types.RoleSpecV6{}
+		if allowOrg != "" {
+			spec.Allow.GitHubPermissions = append(spec.Allow.GitHubPermissions, types.GitHubPermission{
+				Organizations: []string{allowOrg},
+			})
+		}
+		if denyOrg != "" {
+			spec.Deny.GitHubPermissions = append(spec.Deny.GitHubPermissions, types.GitHubPermission{
+				Organizations: []string{denyOrg},
+			})
+		}
+		role, err := types.NewRole(uuid.NewString(), spec)
+		require.NoError(t, err)
+		return role
+	}
+
+	tests := []struct {
+		name       string
+		roles      []types.Role
+		requireErr require.ErrorAssertionFunc
+	}{
+		{
+			name:       "no roles",
+			requireErr: requireAccessDenied,
+		},
+		{
+			name: "explicit allow",
+			roles: []types.Role{
+				makeRole(t, "my-org", ""),
+			},
+			requireErr: require.NoError,
+		},
+		{
+			name: "wildcard allow",
+			roles: []types.Role{
+				makeRole(t, "*", "some-other-org"),
+			},
+			requireErr: require.NoError,
+		},
+		{
+			name: "explicit deny",
+			roles: []types.Role{
+				makeRole(t, "*", "my-org"),
+			},
+			requireErr: requireAccessDenied,
+		},
+		{
+			name: "wildcard deny",
+			roles: []types.Role{
+				makeRole(t, "my-org", "*"),
+			},
+			requireErr: requireAccessDenied,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			accessChecker := makeAccessCheckerWithRoleSet(test.roles)
+			err := accessChecker.CheckAccess(githubOrgServer, AccessState{})
+			test.requireErr(t, err)
 		})
 	}
 }

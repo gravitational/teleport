@@ -170,7 +170,7 @@ func NewSPIFFEFederationSyncer(cfg SPIFFEFederationSyncerConfig) (*SPIFFEFederat
 func (s *SPIFFEFederationSyncer) Run(ctx context.Context) error {
 	// Loop to retry if acquiring lock fails, with some backoff to avoid pinning
 	// the CPU.
-	waitWithJitter := retryutils.NewSeventhJitter()(time.Second * 10)
+	waitWithJitter := retryutils.SeventhJitter(time.Second * 10)
 	for {
 		err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
 			LockConfiguration: backend.LockConfiguration{
@@ -385,7 +385,7 @@ func (s *SPIFFEFederationSyncer) syncTrustDomainLoop(
 		Step:   time.Second,
 		Max:    time.Second * 10,
 		Clock:  s.cfg.Clock,
-		Jitter: retryutils.NewSeventhJitter(),
+		Jitter: retryutils.SeventhJitter,
 	})
 	if err != nil {
 		log.ErrorContext(

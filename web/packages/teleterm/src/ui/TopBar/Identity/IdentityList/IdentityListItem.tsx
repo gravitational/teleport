@@ -17,13 +17,14 @@
  */
 
 import { useState } from 'react';
+
 import { ButtonIcon, Flex, Label, Text } from 'design';
 import { Logout } from 'design/Icon';
 
-import { ListItem } from 'teleterm/ui/components/ListItem';
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
-import { getUserWithClusterName } from 'teleterm/ui/utils';
+import { ListItem } from 'teleterm/ui/components/ListItem';
 import { ProfileStatusError } from 'teleterm/ui/components/ProfileStatusError';
+import { getUserWithClusterName } from 'teleterm/ui/utils';
 
 import { IdentityRootCluster } from '../useIdentity';
 
@@ -58,7 +59,7 @@ export function IdentityListItem(props: {
       }}
     >
       <Flex justifyContent="space-between" alignItems="center" width="100%">
-        <Flex flexDirection="column">
+        <Flex flexDirection="column" minWidth="0">
           <Text typography="body2" title={userWithClusterName}>
             {userWithClusterName}
           </Text>

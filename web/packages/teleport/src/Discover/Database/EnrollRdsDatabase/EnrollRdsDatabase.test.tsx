@@ -16,19 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { render, screen, fireEvent, act } from 'design/utils/testing';
+import { act, fireEvent, render, screen } from 'design/utils/testing';
 
+import cfg from 'teleport/config';
+import { ComponentWrapper } from 'teleport/Discover/Fixtures/databases';
+import DatabaseService from 'teleport/services/databases/databases';
+import * as discoveryService from 'teleport/services/discovery/discovery';
+import { DISCOVERY_GROUP_CLOUD } from 'teleport/services/discovery/discovery';
 import {
   AwsRdsDatabase,
   integrationService,
 } from 'teleport/services/integrations';
 import { userEventService } from 'teleport/services/userEvent';
-import DatabaseService from 'teleport/services/databases/databases';
-import * as discoveryService from 'teleport/services/discovery/discovery';
-import { ComponentWrapper } from 'teleport/Discover/Fixtures/databases';
-import cfg from 'teleport/config';
-import { DISCOVERY_GROUP_CLOUD } from 'teleport/services/discovery/discovery';
 
 import { EnrollRdsDatabase } from './EnrollRdsDatabase';
 
@@ -88,7 +87,7 @@ describe('test EnrollRdsDatabase.tsx', () => {
     fireEvent.keyDown(selectEl, { key: 'ArrowDown' });
     fireEvent.keyDown(selectEl, { key: 'Enter' });
 
-    await screen.findByText(/selected region/i);
+    await screen.findByText(/selected VPC/i);
   }
 
   test('without rds database result, does not attempt to fetch db servers', async () => {

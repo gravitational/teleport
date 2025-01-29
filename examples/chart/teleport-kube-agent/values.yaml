@@ -56,7 +56,7 @@ enterprise: false
 # roles `App` and `Kube`.
 authToken: ""
 
-# joinParams -- controls how the Teleport agent joins the Teleport cluster.
+# joinParams -- controls how the Teleport Agent joins the Teleport cluster.
 # These sub-values must be configured for the agent to connect to a cluster.
 #
 # This value serves the same purpose as [`authToken`](#authToken) but supports
@@ -98,7 +98,7 @@ joinParams:
 ################################################################
 
 # kubeClusterName(string) -- sets the name used for the Kubernetes cluster proxied by
-# the Teleport agent. This name will be shown to Teleport users connecting to
+# the Teleport Agent. This name will be shown to Teleport users connecting to
 # the cluster.
 #
 # This setting is required if the chart `roles` contains `kube`.
@@ -219,7 +219,7 @@ awsDatabases: []
 
 # azureDatabases(list) -- configures Azure database auto-discovery.
 # <Admonition type="note" title="Azure IAM">
-#   For Azure database auto-discovery to work, your Database Service pods will need to have appropriate IAM permissions as per the [database documentation](../../enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql.mdx#step-35-configure-iam-permissions-for-teleport).
+#   For Azure database auto-discovery to work, your Database Service pods will need to have appropriate IAM permissions as per the [database documentation](../../enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql.mdx#step-25-configure-iam-permissions-for-teleport).
 #
 #   After configuring a service principal with appropriate IAM permissions, you must pass credentials to the pods.
 #   The easiest way is to use an Azure client secret.
@@ -320,7 +320,7 @@ azureDatabases: []
 # ```
 #
 # <Admonition type="tip" title="Supported values">
-#   You can see a list of all the supported [values which can be used in a Teleport database service configuration here](../../reference/agent-services/database-access-reference/configuration.mdx).
+#   You can see a list of all the supported [values which can be used in a Teleport Database Service configuration here](../../reference/agent-services/database-access-reference/configuration.mdx).
 # </Admonition>
 #
 # <Admonition type="tip" title="Trusting Database CA">
@@ -538,6 +538,16 @@ insecureSkipProxyTLSVerify: false
 # ```
 teleportConfig: {}
 
+# terminationGracePeriodSeconds(integer) -- is the time the pod has to do a graceful shutdown.
+# If teleport has not existed after this delay, the process gets killed.
+# Teleport will wait until every connection backed by the agent is over before exiting.
+# If you want to reduce the disruption of rolling out agents at the price of a slower rollout, you can increase this
+# value to an hour.
+#
+# See the [Kubernetes Pod Lifecycle docs](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination)
+# for more details.
+terminationGracePeriodSeconds: 30
+
 # tls -- contains settings for mounting your own TLS material in the agent pod.
 # The agent does not expose a TLS server, so this is only used to trust CAs.
 tls:
@@ -566,8 +576,16 @@ tls:
 
 # updater -- controls whether the Kube Agent Updater should be deployed alongside
 # the `teleport-kube-agent`. The updater fetches the target version, validates the
-# image signature, and updates the teleport deployment. The `enterprise` value should
-# have been set to `true`.
+# image signature, and updates the teleport deployment.
+#
+# The updater can fetch the update information using two protocols:
+# - the webapi update protocol (in this case the Teleport Proxy Service is the one driving the version rollout)
+# - the version server protocol (this is an HTTP server serving static files specifying the version and if the update is critical).
+#
+# The webapi protocol takes precedence over the version server one if the Teleport Proxy Service supports it.
+# The version server protocol failover can be disabled by unsetting `updater.versionServer`.
+# The webapi protocol can be disabled by setting `updater.proxyAddr` to `""`.
+# For backward compatibility reasons, the webapi protocol is not enabled if a custom `updater.versionServer` is set.
 #
 # All Kubernetes-specific fields such as `tolerations`, `affinity`, `nodeSelector`,
 # ... default to the agent values. However, they can be overridden from the
@@ -616,9 +634,8 @@ updater:
   # ](#updaterreleasechannel).
   # This field supports gotemplate.
   #
-  # You must set this if the updater is enabled, and you are not a Teleport Cloud user.
-  #
-  # You must not change the default values if you are a Teleport Cloud user.
+  # Setting this field makes the updater fetch the version using the version server protocol.
+  # Setting this field to a custom value disables the webapi update protocol to ensure backward compatibility.
   versionServer: "https://{{ .Values.proxyAddr }}/v1/webapi/automaticupgrades/channel"
 
   # updater.releaseChannel(string) -- is the release channel the updater
@@ -629,9 +646,13 @@ updater:
   # You must not change the default value if you are a Teleport Cloud user unless
   # instructed by Teleport support.
   #
-  # You can change this value if the updater is enabled, you are not a Teleport
-  # Cloud user, and manage your own version server.
+  # This value is used when the updater is fetching the version using the version server protocol.
+  # It is also used as a failover when fetching the version using the webapi protocol if `updater.group` is unset.
   releaseChannel: "stable/cloud"
+
+  # updater.group(string) -- is the update group used when fetching the version using the webapi protocol.
+  # When unset, the group defaults to `update.releaseChannel`.
+  group: ""
 
   # updater.image(string) -- sets the container image used for Teleport updater
   # pods run when `updater.enabled` is true.
@@ -738,7 +759,7 @@ podSecurityPolicy:
 labels: {}
 
 # highAvailability -- contains settings controlling the availability of the
-# Teleport agent deployed by the chart.
+# Teleport Agent deployed by the chart.
 #
 # The availability can be increased by:
 # - running more replicas with `replicaCount`
@@ -866,25 +887,23 @@ adminClusterRoleBinding:
 # Values that you shouldn't need to change.
 ################################################################
 
-# image(string) -- sets the container image used for Teleport OSS agent pods
-# created by the chart.
+# image(string) -- sets the container image used for Teleport Community Edition
+# Agent pods created by the chart.
 #
-# You can override this to use your own Teleport image rather than a Teleport-published image.
+# You can override this to use your own Teleport image rather than a
+# Teleport-published image.
 #
-# <Admonition type="warning" title="Interaction with Teleport Kube Agent Updater">
-#   When using the Teleport Kube Agent Updater, you must ensure the image is
-#   available before the updater version target gets updated and Kubernetes tries
-#   to pull the image.
+# <Admonition type="warning" title="Interaction with Teleport Kube Agent Updater"> 
+# When using the Teleport Kube Agent Updater, you must ensure the
+# image is available before the updater version target gets updated and
+# Kubernetes tries to pull the image.
 #
-#   For this reason, it is strongly discouraged to set a custom image when
-#   using automatic updates. Teleport Cloud uses automatic updates by default.
+# For this reason, it is strongly discouraged to set a custom image when using
+# automatic updates. Teleport Cloud uses automatic updates by default.
 # </Admonition>
 #
-# Since version 13, hardened distroless images are used by default.
-# You can use the deprecated debian-based images by setting the value to
-# `public.ecr.aws/gravitational/teleport`. Those images will be
-# removed with teleport 15.
-#
+# By default, the image contains only the Teleport application and its runtime
+# dependencies, and does not contain a shell.
 # This setting only takes effect when [`enterprise`](#enterprise) is `false`.
 # When running an enterprise version, you must use
 # [`enterpriseImage`](#enterpriseImage) instead.
@@ -905,11 +924,8 @@ image: public.ecr.aws/gravitational/teleport-distroless
 #   using automatic updates. Teleport Cloud uses automatic updates by default.
 # </Admonition>
 #
-# Since version 13, hardened distroless images are used by default.
-# You can use the deprecated debian-based images by setting the value to
-# `public.ecr.aws/gravitational/teleport-ent`. Those images will be
-# removed with teleport 15.
-#
+# By default, the image contains only the Teleport application and its runtime
+# dependencies, and does not contain a shell.
 # This setting only takes effect when [`enterprise`](#enterprise) is `true`.
 # When running an enterprise version, you must use [`image`](#image) instead.
 enterpriseImage: public.ecr.aws/gravitational/teleport-ent-distroless

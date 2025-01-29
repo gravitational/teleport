@@ -16,8 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useRef, useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+
 import Flex from 'design/Flex';
+import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
 
 import {
   makeLoggedInUser,
@@ -33,7 +35,7 @@ export default {
 
 const makeTitle = (userWithClusterName: string) => userWithClusterName;
 const profileStatusError =
-  'No YubiKey device connected with serial number 14358031';
+  'No YubiKey device connected with serial number 14358031. Connect the device and try again.';
 
 const OpenedIdentity = (props: IdentityProps) => {
   const ref = useRef<IdentityHandler>();
@@ -325,6 +327,76 @@ export function LongNamesWithManyRoles() {
         identityRootCluster2,
         identityRootCluster3,
       ]}
+      changeRootCluster={() => Promise.resolve()}
+      logout={() => {}}
+      addCluster={() => {}}
+    />
+  );
+}
+
+export function TrustedDeviceEnrolled() {
+  const identityRootCluster: IdentityRootCluster = {
+    active: false,
+    clusterName: 'orange',
+    userName: 'bob',
+    uri: '/clusters/orange',
+    connected: true,
+    profileStatusError: '',
+  };
+
+  const activeIdentityRootCluster = identityRootCluster;
+  const activeCluster = makeRootCluster({
+    uri: activeIdentityRootCluster.uri,
+    name: activeIdentityRootCluster.clusterName,
+    proxyHost: 'localhost:3080',
+    loggedInUser: makeLoggedInUser({
+      isDeviceTrusted: true,
+      name: activeIdentityRootCluster.userName,
+      roles: ['circle-mark-app-access', 'grafana-lite-app-access'],
+      sshLogins: ['root'],
+    }),
+  });
+
+  return (
+    <OpenedIdentity
+      makeTitle={makeTitle}
+      activeRootCluster={activeCluster}
+      rootClusters={[identityRootCluster]}
+      changeRootCluster={() => Promise.resolve()}
+      logout={() => {}}
+      addCluster={() => {}}
+    />
+  );
+}
+
+export function TrustedDeviceRequiredButNotEnrolled() {
+  const identityRootCluster: IdentityRootCluster = {
+    active: false,
+    clusterName: 'orange',
+    userName: 'bob',
+    uri: '/clusters/orange',
+    connected: true,
+    profileStatusError: '',
+  };
+
+  const activeIdentityRootCluster = identityRootCluster;
+  const activeCluster = makeRootCluster({
+    uri: activeIdentityRootCluster.uri,
+    name: activeIdentityRootCluster.clusterName,
+    proxyHost: 'localhost:3080',
+    loggedInUser: makeLoggedInUser({
+      trustedDeviceRequirement: TrustedDeviceRequirement.REQUIRED,
+      name: activeIdentityRootCluster.userName,
+      roles: ['circle-mark-app-access'],
+      sshLogins: ['root'],
+    }),
+  });
+
+  return (
+    <OpenedIdentity
+      makeTitle={makeTitle}
+      activeRootCluster={activeCluster}
+      rootClusters={[identityRootCluster]}
       changeRootCluster={() => Promise.resolve()}
       logout={() => {}}
       addCluster={() => {}}

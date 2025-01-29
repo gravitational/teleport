@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,9 +50,15 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function Ruler({ size = 24, color, ...otherProps }: IconProps) {
-  return (
-    <Icon size={size} color={color} className="icon icon-ruler" {...otherProps}>
+export const Ruler = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
+    <Icon
+      size={size}
+      color={color}
+      className="icon icon-ruler"
+      {...otherProps}
+      ref={ref}
+    >
       <path
         d="M15.5305 2.46951L2.46978 15.5302C2.17689 15.8231 2.17689 16.298 2.46978 16.5909L7.40914 21.5302C7.70204 21.8231 8.17691 21.8231 8.46981 21.5302L21.5305 8.46953C21.8234 8.17664 21.8234 7.70177 21.5305 7.40887L16.5911 2.46951C16.2983 2.17662 15.8234 2.17662 15.5305 2.46951Z"
         stroke="black"
@@ -82,5 +88,5 @@ export function Ruler({ size = 24, color, ...otherProps }: IconProps) {
         strokeLinejoin="round"
       />
     </Icon>
-  );
-}
+  )
+);

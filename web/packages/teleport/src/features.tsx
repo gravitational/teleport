@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import {
   Bots as BotsIcon,
   CirclePlay,
@@ -38,39 +36,42 @@ import {
   User as UserIcon,
 } from 'design/Icon';
 
-import cfg from 'teleport/config';
-
+import { IntegrationEnroll } from '@gravitational/teleport/src/Integrations/Enroll';
+import cfg, { Cfg } from 'teleport/config';
+import { IntegrationStatus } from 'teleport/Integrations/IntegrationStatus';
 import {
   NavigationCategory,
-  ManagementSection,
+  NavigationCategory as SideNavigationCategory,
 } from 'teleport/Navigation/categories';
-import { NavigationCategory as SideNavigationCategory } from 'teleport/Navigation/SideNavigation/categories';
-import { IntegrationEnroll } from '@gravitational/teleport/src/Integrations/Enroll';
 
-import { NavTitle } from './types';
-
-import { AuditContainer as Audit } from './Audit';
-import { SessionsContainer as Sessions } from './Sessions';
-import { UnifiedResources } from './UnifiedResources';
-import { AccountPage } from './Account';
-import { Support } from './Support';
-import { Clusters } from './Clusters';
-import { TrustedClusters } from './TrustedClusters';
-import { Users } from './Users';
-import { RolesContainer as Roles } from './Roles';
-import { DeviceTrustLocked } from './DeviceTrust';
-import { RecordingsContainer as Recordings } from './Recordings';
-import { AuthConnectorsContainer as AuthConnectors } from './AuthConnectors';
-import { Locks } from './LocksV2/Locks';
-import { NewLockView } from './LocksV2/NewLock';
-import { Discover } from './Discover';
 import { LockedAccessRequests } from './AccessRequests';
-import { Integrations } from './Integrations';
+import { AccountPage } from './Account';
+import { AuditContainer as Audit } from './Audit';
+import { AuthConnectorsContainer as AuthConnectors } from './AuthConnectors';
 import { Bots } from './Bots';
 import { AddBots } from './Bots/Add';
+import { Clusters } from './Clusters';
+import { DeviceTrustLocked } from './DeviceTrust';
+import { Discover } from './Discover';
+import { Integrations } from './Integrations';
 import { JoinTokens } from './JoinTokens/JoinTokens';
+import { Locks } from './LocksV2/Locks';
+import { NewLockView } from './LocksV2/NewLock';
+import { RecordingsContainer as Recordings } from './Recordings';
+import { RolesContainer as Roles } from './Roles';
+import { SessionsContainer as Sessions } from './Sessions';
+import { Support } from './Support';
+import { TrustedClusters } from './TrustedClusters';
+import { NavTitle, type FeatureFlags, type TeleportFeature } from './types';
+import { UnifiedResources } from './UnifiedResources';
+import { Users } from './Users';
 
-import type { FeatureFlags, TeleportFeature } from './types';
+// to promote feature discoverability, most features should be visible in the navigation even if a user doesnt have access.
+// However, there are some cases where hiding the feature is explicitly requested. Use this as a backdoor to hide the features that
+// are usually "always visible"
+export function shouldHideFromNavigation(cfg: Cfg) {
+  return cfg.isDashboard || cfg.hideInaccessibleFeatures;
+}
 
 class AccessRequests implements TeleportFeature {
   category = NavigationCategory.Resources;
@@ -101,9 +102,8 @@ class AccessRequests implements TeleportFeature {
 }
 
 export class FeatureJoinTokens implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Access;
-  sideNavCategory = SideNavigationCategory.Access;
+  category = NavigationCategory.Access;
+
   navigationItem = {
     title: NavTitle.JoinTokens,
     icon: Key,
@@ -170,8 +170,7 @@ export class FeatureUnifiedResources implements TeleportFeature {
 }
 
 export class FeatureSessions implements TeleportFeature {
-  category = NavigationCategory.Resources;
-  sideNavCategory = SideNavigationCategory.Audit;
+  category = NavigationCategory.Audit;
 
   route = {
     title: 'Active Sessions',
@@ -203,9 +202,7 @@ export class FeatureSessions implements TeleportFeature {
 // - Access
 
 export class FeatureUsers implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Access;
-  sideNavCategory = SideNavigationCategory.Access;
+  category = NavigationCategory.Access;
 
   route = {
     title: 'Manage Users',
@@ -231,12 +228,12 @@ export class FeatureUsers implements TeleportFeature {
   getRoute() {
     return this.route;
   }
+
+  showInDashboard = true;
 }
 
 export class FeatureBots implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Access;
-  sideNavCategory = SideNavigationCategory.Access;
+  category = NavigationCategory.Access;
 
   route = {
     title: 'Manage Bots',
@@ -246,7 +243,12 @@ export class FeatureBots implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.listBots;
+    // if feature hiding is enabled, only show
+    // if the user has access
+    if (shouldHideFromNavigation(cfg)) {
+      return flags.listBots;
+    }
+    return true;
   }
 
   navigationItem = {
@@ -265,9 +267,7 @@ export class FeatureBots implements TeleportFeature {
 }
 
 export class FeatureAddBots implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Access;
-  sideNavCategory = SideNavigationCategory.AddNew;
+  category = NavigationCategory.AddNew;
 
   route = {
     title: 'Bot',
@@ -296,9 +296,7 @@ export class FeatureAddBots implements TeleportFeature {
 }
 
 export class FeatureRoles implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Permissions;
-  sideNavCategory = SideNavigationCategory.Access;
+  category = NavigationCategory.Access;
 
   route = {
     title: 'Manage User Roles',
@@ -320,12 +318,17 @@ export class FeatureRoles implements TeleportFeature {
     },
     searchableTags: ['roles', 'user roles'],
   };
+
+  showInDashboard = true;
+  // getRoute allows child class extending this
+  // parent class to refer to this parent's route.
+  getRoute() {
+    return this.route;
+  }
 }
 
 export class FeatureAuthConnectors implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Access;
-  sideNavCategory = SideNavigationCategory.Access;
+  category = NavigationCategory.Access;
 
   route = {
     title: 'Manage Auth Connectors',
@@ -339,7 +342,9 @@ export class FeatureAuthConnectors implements TeleportFeature {
   }
 
   navigationItem = {
-    title: NavTitle.AuthConnectors,
+    title: cfg.isDashboard
+      ? NavTitle.AuthConnectorsShortened
+      : NavTitle.AuthConnectors,
     icon: PlugsConnected,
     exact: false,
     getLink() {
@@ -347,12 +352,12 @@ export class FeatureAuthConnectors implements TeleportFeature {
     },
     searchableTags: ['auth connectors', 'saml', 'okta', 'oidc', 'github'],
   };
+
+  showInDashboard = true;
 }
 
 export class FeatureLocks implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Identity;
-  sideNavCategory = SideNavigationCategory.Identity;
+  category = NavigationCategory.Identity;
 
   route = {
     title: 'Session & Identity Locks',
@@ -396,9 +401,7 @@ export class FeatureNewLock implements TeleportFeature {
 }
 
 export class FeatureDiscover implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Access;
-  sideNavCategory = SideNavigationCategory.AddNew;
+  category = NavigationCategory.AddNew;
   standalone = true;
 
   route = {
@@ -428,12 +431,15 @@ export class FeatureDiscover implements TeleportFeature {
 }
 
 export class FeatureIntegrations implements TeleportFeature {
-  sideNavCategory = SideNavigationCategory.Access;
-  category = NavigationCategory.Management;
-  section = ManagementSection.Access;
+  category = NavigationCategory.Access;
 
   hasAccess(flags: FeatureFlags) {
-    return flags.integrations;
+    // if feature hiding is enabled, only show
+    // if the user has access
+    if (shouldHideFromNavigation(cfg)) {
+      return flags.integrations;
+    }
+    return true;
   }
 
   route = {
@@ -459,9 +465,7 @@ export class FeatureIntegrations implements TeleportFeature {
 }
 
 export class FeatureIntegrationEnroll implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Access;
-  sideNavCategory = SideNavigationCategory.AddNew;
+  category = NavigationCategory.AddNew;
 
   route = {
     title: 'Integration',
@@ -471,7 +475,10 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.enrollIntegrations;
+    if (shouldHideFromNavigation(cfg)) {
+      return flags.enrollIntegrations;
+    }
+    return true;
   }
 
   navigationItem = {
@@ -493,9 +500,7 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
 // - Activity
 
 export class FeatureRecordings implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Activity;
-  sideNavCategory = SideNavigationCategory.Audit;
+  category = NavigationCategory.Audit;
 
   route = {
     title: 'Session Recordings',
@@ -520,9 +525,7 @@ export class FeatureRecordings implements TeleportFeature {
 }
 
 export class FeatureAudit implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Activity;
-  sideNavCategory = SideNavigationCategory.Audit;
+  category = NavigationCategory.Audit;
 
   route = {
     title: 'Audit Log',
@@ -547,9 +550,7 @@ export class FeatureAudit implements TeleportFeature {
 // - Clusters
 
 export class FeatureClusters implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Clusters;
-  sideNavCategory = SideNavigationCategory.Access;
+  category = NavigationCategory.Access;
 
   route = {
     title: 'Clusters',
@@ -559,7 +560,7 @@ export class FeatureClusters implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.trustedClusters;
+    return cfg.isDashboard || flags.trustedClusters;
   }
 
   navigationItem = {
@@ -571,12 +572,14 @@ export class FeatureClusters implements TeleportFeature {
     },
     searchableTags: ['clusters', 'manage clusters'],
   };
+
+  getRoute() {
+    return this.route;
+  }
 }
 
 export class FeatureTrust implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Clusters;
-  sideNavCategory = SideNavigationCategory.Access;
+  category = NavigationCategory.Access;
 
   route = {
     title: 'Trusted Root Clusters',
@@ -599,9 +602,7 @@ export class FeatureTrust implements TeleportFeature {
 }
 
 class FeatureDeviceTrust implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Identity;
-  sideNavCategory = SideNavigationCategory.Identity;
+  category = NavigationCategory.Identity;
   route = {
     title: 'Trusted Devices',
     path: cfg.routes.deviceTrust,
@@ -610,7 +611,10 @@ class FeatureDeviceTrust implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.deviceTrust;
+    if (shouldHideFromNavigation(cfg)) {
+      return flags.deviceTrust;
+    }
+    return true;
   }
 
   navigationItem = {
@@ -622,6 +626,20 @@ class FeatureDeviceTrust implements TeleportFeature {
     },
     searchableTags: ['device trust', 'trusted devices', 'devices'],
   };
+}
+
+class FeatureIntegrationStatus implements TeleportFeature {
+  parent = FeatureIntegrations;
+
+  route = {
+    title: 'Integration Status',
+    path: cfg.routes.integrationStatus,
+    component: IntegrationStatus,
+  };
+
+  hasAccess() {
+    return true;
+  }
 }
 
 // ****************************
@@ -698,6 +716,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureIntegrations(),
     new FeatureClusters(),
     new FeatureTrust(),
+    new FeatureIntegrationStatus(),
 
     // - Identity
     new AccessRequests(),

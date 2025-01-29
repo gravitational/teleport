@@ -21,17 +21,15 @@ package cloud
 import (
 	"context"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/opensearchservice"
-	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
-	"github.com/aws/aws-sdk-go/service/redshiftserverless/redshiftserverlessiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	opensearch "github.com/aws/aws-sdk-go-v2/service/opensearch"
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/lib/cloud"
 	cloudaws "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -43,50 +41,61 @@ func (c *urlChecker) checkAWS(describeCheck, basicEndpointCheck checkDatabaseFun
 		// describes. Log a warning and permform a basic endpoint validation
 		// instead.
 		if trace.IsAccessDenied(err) {
-			c.logAWSAccessDeniedError(database, err)
+			c.logAWSAccessDeniedError(ctx, database, err)
 
 			if err := basicEndpointCheck(ctx, database); err != nil {
 				return trace.Wrap(err)
 			}
-			c.log.Debugf("AWS database %q URL validated by basic endpoint check.", database.GetName())
+			c.logger.DebugContext(ctx, "AWS database URL validated by basic endpoint check", "database", database.GetName())
 			return nil
 		}
 
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		c.log.Debugf("AWS database %q URL validated by describe check.", database.GetName())
+		c.logger.DebugContext(ctx, "AWS database URL validated by describe check", "database", database.GetName())
 		return nil
 	}
 }
 
-func (c *urlChecker) logAWSAccessDeniedError(database types.Database, accessDeniedError error) {
+const awsPermissionsErrMsg = "" +
+	"No permissions to describe AWS resource metadata that is needed for validating databases created by Discovery Service. " +
+	"Basic AWS endpoint validation will be performed instead. For best security, please provide the Database Service with the proper IAM permissions. " +
+	"Enable --debug mode to see details on which databases require more IAM permissions. See Database Access documentation for more details."
+
+func (c *urlChecker) logAWSAccessDeniedError(ctx context.Context, database types.Database, accessDeniedError error) {
 	c.warnAWSOnce.Do(func() {
 		// TODO(greedy52) add links to doc.
-		c.log.Warn("No permissions to describe AWS resource metadata that is needed for validating databases created by Discovery Service. Basic AWS endpoint validation will be performed instead. For best security, please provide the Database Service with the proper IAM permissions. Enable --debug mode to see details on which databases require more IAM permissions. See Database Access documentation for more details.")
+		c.logger.WarnContext(ctx, awsPermissionsErrMsg,
+			"error", accessDeniedError,
+		)
 	})
 
-	c.log.Debugf("No permissions to describe database %q for URL validation.", database.GetName())
+	c.logger.DebugContext(ctx, "No permissions to describe database for URL validation",
+		"database", database.GetName(),
+		"error", accessDeniedError,
+	)
 }
 
 func (c *urlChecker) checkRDS(ctx context.Context, database types.Database) error {
 	meta := database.GetAWS()
-	rdsClient, err := c.clients.GetAWSRDSClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := c.awsConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	clt := c.awsClients.getRDSClient(awsCfg)
 
 	if meta.RDS.ClusterID != "" {
-		return trace.Wrap(c.checkRDSCluster(ctx, database, rdsClient, meta.RDS.ClusterID))
+		return trace.Wrap(c.checkRDSCluster(ctx, database, clt, meta.RDS.ClusterID))
 	}
-	return trace.Wrap(c.checkRDSInstance(ctx, database, rdsClient, meta.RDS.InstanceID))
+	return trace.Wrap(c.checkRDSInstance(ctx, database, clt, meta.RDS.InstanceID))
 }
 
-func (c *urlChecker) checkRDSInstance(ctx context.Context, database types.Database, rdsClient rdsiface.RDSAPI, instanceID string) error {
-	rdsInstance, err := describeRDSInstance(ctx, rdsClient, instanceID)
+func (c *urlChecker) checkRDSInstance(ctx context.Context, database types.Database, clt rdsClient, instanceID string) error {
+	rdsInstance, err := describeRDSInstance(ctx, clt, instanceID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -96,15 +105,17 @@ func (c *urlChecker) checkRDSInstance(ctx context.Context, database types.Databa
 	return trace.Wrap(requireDatabaseAddressPort(database, rdsInstance.Endpoint.Address, rdsInstance.Endpoint.Port))
 }
 
-func (c *urlChecker) checkRDSCluster(ctx context.Context, database types.Database, rdsClient rdsiface.RDSAPI, clusterID string) error {
-	rdsCluster, err := describeRDSCluster(ctx, rdsClient, clusterID)
+func (c *urlChecker) checkRDSCluster(ctx context.Context, database types.Database, clt rdsClient, clusterID string) error {
+	rdsCluster, err := describeRDSCluster(ctx, clt, clusterID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	databases, err := common.NewDatabasesFromRDSCluster(rdsCluster, []*rds.DBInstance{})
+	databases, err := common.NewDatabasesFromRDSCluster(rdsCluster, []rdstypes.DBInstance{})
 	if err != nil {
-		c.log.Warnf("Could not convert RDS cluster %q to database resources: %v.",
-			aws.StringValue(rdsCluster.DBClusterIdentifier), err)
+		c.logger.WarnContext(ctx, "Could not convert RDS cluster to database resources",
+			"cluster", aws.ToString(rdsCluster.DBClusterIdentifier),
+			"error", err,
+		)
 
 		// common.NewDatabasesFromRDSCluster maybe partially successful so
 		// continue if at least one database is returned.
@@ -117,70 +128,73 @@ func (c *urlChecker) checkRDSCluster(ctx context.Context, database types.Databas
 
 func (c *urlChecker) checkRDSProxy(ctx context.Context, database types.Database) error {
 	meta := database.GetAWS()
-	rdsClient, err := c.clients.GetAWSRDSClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := c.awsConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	clt := c.awsClients.getRDSClient(awsCfg)
 	if meta.RDSProxy.CustomEndpointName != "" {
-		return trace.Wrap(c.checkRDSProxyCustomEndpoint(ctx, database, rdsClient, meta.RDSProxy.CustomEndpointName))
+		return trace.Wrap(c.checkRDSProxyCustomEndpoint(ctx, database, clt, meta.RDSProxy.CustomEndpointName))
 	}
-	return trace.Wrap(c.checkRDSProxyPrimaryEndpoint(ctx, database, rdsClient, meta.RDSProxy.Name))
+	return trace.Wrap(c.checkRDSProxyPrimaryEndpoint(ctx, database, clt, meta.RDSProxy.Name))
 }
 
-func (c *urlChecker) checkRDSProxyPrimaryEndpoint(ctx context.Context, database types.Database, rdsClient rdsiface.RDSAPI, proxyName string) error {
-	rdsProxy, err := describeRDSProxy(ctx, rdsClient, proxyName)
+func (c *urlChecker) checkRDSProxyPrimaryEndpoint(ctx context.Context, database types.Database, clt rdsClient, proxyName string) error {
+	rdsProxy, err := describeRDSProxy(ctx, clt, proxyName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// Port has to be fetched from a separate API. Instead of fetching that,
 	// just validate the host domain.
-	return requireDatabaseHost(database, aws.StringValue(rdsProxy.Endpoint))
+	return requireDatabaseHost(database, aws.ToString(rdsProxy.Endpoint))
 }
 
-func (c *urlChecker) checkRDSProxyCustomEndpoint(ctx context.Context, database types.Database, rdsClient rdsiface.RDSAPI, proxyEndpointName string) error {
-	_, err := describeRDSProxyCustomEndpointAndFindURI(ctx, rdsClient, proxyEndpointName, database.GetURI())
+func (c *urlChecker) checkRDSProxyCustomEndpoint(ctx context.Context, database types.Database, clt rdsClient, proxyEndpointName string) error {
+	_, err := describeRDSProxyCustomEndpointAndFindURI(ctx, clt, proxyEndpointName, database.GetURI())
 	return trace.Wrap(err)
 }
 
 func (c *urlChecker) checkRedshift(ctx context.Context, database types.Database) error {
 	meta := database.GetAWS()
-	redshift, err := c.clients.GetAWSRedshiftClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := c.awsConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	redshift := c.awsClients.getRedshiftClient(awsCfg)
 	cluster, err := describeRedshiftCluster(ctx, redshift, meta.Redshift.ClusterID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if cluster.Endpoint == nil {
-		return trace.BadParameter("missing endpoint in Redshift cluster %v", aws.StringValue(cluster.ClusterIdentifier))
+		return trace.BadParameter("missing endpoint in Redshift cluster %v", aws.ToString(cluster.ClusterIdentifier))
 	}
 	return trace.Wrap(requireDatabaseAddressPort(database, cluster.Endpoint.Address, cluster.Endpoint.Port))
 }
 
 func (c *urlChecker) checkRedshiftServerless(ctx context.Context, database types.Database) error {
 	meta := database.GetAWS()
-	client, err := c.clients.GetAWSRedshiftServerlessClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := c.awsConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	clt := c.awsClients.getRedshiftServerlessClient(awsCfg)
 
 	if meta.RedshiftServerless.EndpointName != "" {
-		return trace.Wrap(c.checkRedshiftServerlessVPCEndpoint(ctx, database, client, meta.RedshiftServerless.EndpointName))
+		return trace.Wrap(c.checkRedshiftServerlessVPCEndpoint(ctx, database, clt, meta.RedshiftServerless.EndpointName))
 	}
-	return trace.Wrap(c.checkRedshiftServerlessWorkgroup(ctx, database, client, meta.RedshiftServerless.WorkgroupName))
+	return trace.Wrap(c.checkRedshiftServerlessWorkgroup(ctx, database, clt, meta.RedshiftServerless.WorkgroupName))
 }
 
-func (c *urlChecker) checkRedshiftServerlessVPCEndpoint(ctx context.Context, database types.Database, client redshiftserverlessiface.RedshiftServerlessAPI, endpointName string) error {
+func (c *urlChecker) checkRedshiftServerlessVPCEndpoint(ctx context.Context, database types.Database, client rssClient, endpointName string) error {
 	endpoint, err := describeRedshiftServerlessVCPEndpoint(ctx, client, endpointName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -188,7 +202,7 @@ func (c *urlChecker) checkRedshiftServerlessVPCEndpoint(ctx context.Context, dat
 	return trace.Wrap(requireDatabaseAddressPort(database, endpoint.Address, endpoint.Port))
 }
 
-func (c *urlChecker) checkRedshiftServerlessWorkgroup(ctx context.Context, database types.Database, client redshiftserverlessiface.RedshiftServerlessAPI, workgroupName string) error {
+func (c *urlChecker) checkRedshiftServerlessWorkgroup(ctx context.Context, database types.Database, client rssClient, workgroupName string) error {
 	workgroup, err := describeRedshiftServerlessWorkgroup(ctx, client, workgroupName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -201,14 +215,15 @@ func (c *urlChecker) checkRedshiftServerlessWorkgroup(ctx context.Context, datab
 
 func (c *urlChecker) checkElastiCache(ctx context.Context, database types.Database) error {
 	meta := database.GetAWS()
-	elastiCacheClient, err := c.clients.GetAWSElastiCacheClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := c.awsConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cluster, err := describeElastiCacheCluster(ctx, elastiCacheClient, meta.ElastiCache.ReplicationGroupID)
+	clt := c.awsClients.getElastiCacheClient(awsCfg)
+	cluster, err := describeElastiCacheCluster(ctx, clt, meta.ElastiCache.ReplicationGroupID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -221,32 +236,34 @@ func (c *urlChecker) checkElastiCache(ctx context.Context, database types.Databa
 
 func (c *urlChecker) checkMemoryDB(ctx context.Context, database types.Database) error {
 	meta := database.GetAWS()
-	memoryDBClient, err := c.clients.GetAWSMemoryDBClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := c.awsConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cluster, err := describeMemoryDBCluster(ctx, memoryDBClient, meta.MemoryDB.ClusterName)
+	clt := c.awsClients.getMemoryDBClient(awsCfg)
+	cluster, err := describeMemoryDBCluster(ctx, clt, meta.MemoryDB.ClusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(requireDatabaseAddressPort(database, cluster.ClusterEndpoint.Address, cluster.ClusterEndpoint.Port))
+	return trace.Wrap(requireDatabaseAddressPort(database, cluster.ClusterEndpoint.Address, &cluster.ClusterEndpoint.Port))
 }
 
 func (c *urlChecker) checkOpenSearch(ctx context.Context, database types.Database) error {
 	meta := database.GetAWS()
-	client, err := c.clients.GetAWSOpenSearchClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := c.awsConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	clt := c.awsClients.getOpenSearchClient(awsCfg)
 
-	domains, err := client.DescribeDomainsWithContext(ctx, &opensearchservice.DescribeDomainsInput{
-		DomainNames: []*string{aws.String(meta.OpenSearch.DomainName)},
+	domains, err := clt.DescribeDomains(ctx, &opensearch.DescribeDomainsInput{
+		DomainNames: []string{meta.OpenSearch.DomainName},
 	})
 	if err != nil {
 		return trace.Wrap(cloudaws.ConvertRequestFailureError(err))
@@ -255,7 +272,7 @@ func (c *urlChecker) checkOpenSearch(ctx context.Context, database types.Databas
 		return trace.BadParameter("expect 1 domain but got %v", domains.DomainStatusList)
 	}
 
-	databases, err := common.NewDatabasesFromOpenSearchDomain(domains.DomainStatusList[0], nil)
+	databases, err := common.NewDatabasesFromOpenSearchDomain(&domains.DomainStatusList[0], nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -276,22 +293,25 @@ func (c *urlChecker) checkOpenSearchEndpoint(ctx context.Context, database types
 
 func (c *urlChecker) checkDocumentDB(ctx context.Context, database types.Database) error {
 	meta := database.GetAWS()
-	rdsClient, err := c.clients.GetAWSRDSClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := c.awsConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	clt := c.awsClients.getRDSClient(awsCfg)
 
-	cluster, err := describeRDSCluster(ctx, rdsClient, meta.DocumentDB.ClusterID)
+	cluster, err := describeRDSCluster(ctx, clt, meta.DocumentDB.ClusterID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	databases, err := common.NewDatabasesFromDocumentDBCluster(cluster)
 	if err != nil {
-		c.log.Warnf("Could not convert DocumentDB cluster %q to database resources: %v.",
-			aws.StringValue(cluster.DBClusterIdentifier), err)
+		c.logger.WarnContext(ctx, "Could not convert DocumentDB cluster to database resources",
+			"cluster", aws.ToString(cluster.DBClusterIdentifier),
+			"error", err,
+		)
 
 		// common.NewDatabasesFromDocumentDBCluster maybe partially successful
 		// so continue if at least one database is returned.

@@ -24,12 +24,12 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
+	"github.com/gravitational/teleport/api/trail"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -63,10 +63,8 @@ func (s *Service) NewMFAPrompt(resourceURI uri.ResourceURI, cfg *libmfa.PromptCo
 }
 
 func (s *Service) promptAppMFA(ctx context.Context, in *api.PromptMFARequest) (*api.PromptMFAResponse, error) {
-	if err := s.importantModalSemaphore.Acquire(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer s.importantModalSemaphore.Release()
+	s.mfaMu.Lock()
+	defer s.mfaMu.Unlock()
 
 	return s.tshdEventsClient.PromptMFA(ctx, in)
 }

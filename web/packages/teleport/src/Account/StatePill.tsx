@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled, { css } from 'styled-components';
 
 /** State of an authentication method (password, MFA method, or passkey). */

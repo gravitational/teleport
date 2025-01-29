@@ -118,13 +118,15 @@ run the Discovery Service.
 In order to enable EC2 instance discovery the `discovery_service.aws` section
 of `teleport.yaml` must include at least one entry:
 
+(!docs/pages/includes/discovery/discovery-group.mdx!)
+
 ```yaml
 version: v3
 teleport:
   join_params:
     token_name: "/tmp/token"
     method: token
-  proxy_server: "<Var name="teleport.example.com" />:443"
+  proxy_server: "<Var name="teleport.example.com:443" />"
 auth_service:
   enabled: off
 proxy_service:
@@ -133,6 +135,7 @@ ssh_service:
   enabled: off
 discovery_service:
   enabled: "yes"
+  discovery_group: "aws-prod"
   aws:
    - types: ["ec2"]
      regions: ["us-east-1","us-west-1"]
@@ -219,7 +222,7 @@ mainSteps:
     sourceType: "HTTP"
     destinationPath: "/tmp/installTeleport.sh"
     sourceInfo:
-      url: "https://teleport.example.com:443/webapi/scripts/installer/{{ scriptName }}"
+      url: "https://<Var name="teleport.example.com:443" />/webapi/scripts/installer/{{ scriptName }}"
 - action: aws:runShellScript
   name: runShellScript
   inputs:

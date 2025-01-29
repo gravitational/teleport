@@ -63,8 +63,8 @@ TARBALL_DIRECTORY="$s"
 GNUPG_DIR=${GNUPG_DIR:-/tmp/gnupg}
 
 # linux package configuration
-LINUX_BINARY_DIR=/usr/local/bin
-LINUX_SYSTEMD_DIR=/lib/systemd/system
+LINUX_BINARY_DIR=/opt/teleport/system/bin
+LINUX_SYSTEMD_DIR=/opt/teleport/system/lib/systemd/system
 LINUX_CONFIG_DIR=/etc
 LINUX_DATA_DIR=/var/lib/teleport
 
@@ -74,9 +74,9 @@ FPM_IMAGE_RPM="public.ecr.aws/gravitational/fpm:centos8-1.15.1-1"
 
 # extra package information for linux
 MAINTAINER="info@goteleport.com"
-LICENSE="Apache-2.0"
+LICENSE="Teleport Community Edition License"
 VENDOR="Gravitational"
-DESCRIPTION="Teleport is a gateway for managing access to clusters of Linux servers via SSH or the Kubernetes API"
+DESCRIPTION="Teleport provides on-demand, least-privileged access to your infrastructure, on a foundation of cryptographic identity and zero trust, with built-in identity and policy governance"
 DOCS_URL="https://goteleport.com/docs"
 
 # check that curl is installed
@@ -194,6 +194,7 @@ if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
     else
         TYPE_DESCRIPTION="[${TEXT_ARCH} Enterprise edition]"
     fi
+    LICENSE_STANZA=()
 else
     TARBALL_FILENAME="teleport-v${TELEPORT_VERSION}-${PLATFORM}-${TARBALL_ARCH}${OPTIONAL_TARBALL_SECTION}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
     TAR_PATH="teleport"
@@ -204,6 +205,8 @@ else
     else
         TYPE_DESCRIPTION="[${TEXT_ARCH} Open source edition]"
     fi
+    TYPE_DESCRIPTION="${TYPE_DESCRIPTION} Distributed under the ${LICENSE}"
+    LICENSE_STANZA=(--license "${LICENSE}")
 fi
 
 # set file list
@@ -226,8 +229,8 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
         PKG_FILENAME="teleport-bin-${TELEPORT_VERSION}${ARCH_TAG}.${PACKAGE_TYPE}"
     fi
 else
-    FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport ${TAR_PATH}/tbot ${TAR_PATH}/fdpass-teleport ${TAR_PATH}/examples/systemd/teleport.service ${TAR_PATH}/examples/systemd/post-upgrade"
-    LINUX_BINARY_FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/tbot ${TAR_PATH}/fdpass-teleport ${TAR_PATH}/teleport"
+    FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport ${TAR_PATH}/tbot ${TAR_PATH}/fdpass-teleport ${TAR_PATH}/teleport-update ${TAR_PATH}/examples/systemd/teleport.service ${TAR_PATH}/examples/systemd/post-install ${TAR_PATH}/examples/systemd/before-remove"
+    LINUX_BINARY_FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/tbot ${TAR_PATH}/fdpass-teleport ${TAR_PATH}/teleport ${TAR_PATH}/teleport-update"
     LINUX_SYSTEMD_FILE_LIST="${TAR_PATH}/examples/systemd/teleport.service"
     EXTRA_DOCKER_OPTIONS=""
     RPM_SIGN_STANZA=""
@@ -291,8 +294,12 @@ if [[ "${PACKAGE_TYPE}" != "pkg" ]]; then
         CONFIG_FILE_STANZA="--config-files /src/buildroot${LINUX_CONFIG_DIR}/${LINUX_CONFIG_FILE} "
     fi
 
-    # include post-upgrade script
-    mv -v ${TAR_PATH}/examples/systemd/post-upgrade ${PACKAGE_TEMPDIR}
+    # include post-install and before-remove script
+    mv -v ${TAR_PATH}/examples/systemd/post-install ${PACKAGE_TEMPDIR}
+    mv -v ${TAR_PATH}/examples/systemd/before-remove ${PACKAGE_TEMPDIR}
+
+    # create versions folder
+    mkdir -p ${PACKAGE_TEMPDIR}/buildroot${LINUX_DATA_DIR}/versions
 
     # /var/lib/teleport
     # shellcheck disable=SC2174
@@ -359,7 +366,6 @@ else
         --version "${TELEPORT_VERSION}" \
         --maintainer "${MAINTAINER}" \
         --url "${DOCS_URL}" \
-        --license "${LICENSE}" \
         --vendor "${VENDOR}" \
         --description "${DESCRIPTION} ${TYPE_DESCRIPTION}" \
         --architecture ${PACKAGE_ARCH} \
@@ -369,9 +375,11 @@ else
         --provides teleport \
         --prefix / \
         --verbose \
-        --after-upgrade /src/post-upgrade \
+        --after-install /src/post-install \
+        --before-remove /src/before-remove \
         ${CONFIG_FILE_STANZA} \
         ${FILE_PERMISSIONS_STANZA} \
+        "${LICENSE_STANZA[@]}" \
         ${RPM_SIGN_STANZA} .
 
     # copy created package back to current directory

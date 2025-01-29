@@ -16,20 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState, useMemo, Dispatch, SetStateAction } from 'react';
+import { Dispatch, SetStateAction, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router';
 
+import type { NotificationItem } from 'shared/components/Notification';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
+import type { UrlDesktopParams } from 'teleport/config';
 import { ButtonState } from 'teleport/lib/tdp';
-import { useMfa } from 'teleport/lib/useMfa';
+import { useMfaEmitter } from 'teleport/lib/useMfa';
 import desktopService from 'teleport/services/desktops';
 import userService from 'teleport/services/user';
 
 import useTdpClientCanvas from './useTdpClientCanvas';
-
-import type { UrlDesktopParams } from 'teleport/config';
-import type { NotificationItem } from 'shared/components/Notification';
 
 export default function useDesktopSession() {
   const { attempt: fetchAttempt, run } = useAttempt('processing');
@@ -130,7 +129,7 @@ export default function useDesktopSession() {
   });
   const tdpClient = clientCanvasProps.tdpClient;
 
-  const mfa = useMfa(tdpClient);
+  const mfa = useMfaEmitter(tdpClient);
 
   const onShareDirectory = () => {
     try {

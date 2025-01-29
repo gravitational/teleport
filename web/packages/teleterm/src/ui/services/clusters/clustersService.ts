@@ -16,33 +16,37 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useStore } from 'shared/libs/stores';
-import { pipe } from 'shared/utils/pipe';
-
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
-import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import {
   Cluster,
   ShowResources,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import {
   CreateAccessRequestRequest,
-  ReviewAccessRequestRequest,
-  PromoteAccessRequestRequest,
-  PasswordlessPrompt,
   CreateGatewayRequest,
+  PasswordlessPrompt,
+  PromoteAccessRequestRequest,
+  ReviewAccessRequestRequest,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
+import { useStore } from 'shared/libs/stores';
+import { isAbortError } from 'shared/utils/abortError';
+import { pipe } from 'shared/utils/pipe';
 
-import * as uri from 'teleterm/ui/uri';
-import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
-import { UsageService } from 'teleterm/ui/services/usage';
+import {
+  CloneableAbortSignal,
+  cloneAbortSignal,
+  TshdClient,
+} from 'teleterm/services/tshd';
+import { getGatewayTargetUriKind } from 'teleterm/services/tshd/gateway';
 import { AssumedRequest } from 'teleterm/services/tshd/types';
+import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { UsageService } from 'teleterm/ui/services/usage';
+import * as uri from 'teleterm/ui/uri';
 
 import { ImmutableStore } from '../immutableStore';
-
 import type * as types from './types';
-import type { TshdClient, CloneableAbortSignal } from 'teleterm/services/tshd';
 
 const { routing } = uri;
 
@@ -338,13 +342,20 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     ]);
   }
 
-  async syncRootClustersAndCatchErrors() {
+  async syncRootClustersAndCatchErrors(abortSignal?: AbortSignal) {
     let clusters: Cluster[];
 
     try {
-      const { response } = await this.client.listRootClusters({});
+      const { response } = await this.client.listRootClusters(
+        {},
+        { abortSignal: abortSignal && cloneAbortSignal(abortSignal) }
+      );
       clusters = response.clusters;
     } catch (error) {
+      if (isAbortError(error)) {
+        this.logger.info('Listing root clusters aborted');
+        return;
+      }
       const notificationId = this.notificationsService.notifyError({
         title: 'Could not fetch root clusters',
         description: error.message,
@@ -551,7 +562,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   // since we will no longer have to support old kube connections.
   // See call in `trackedConnectionOperationsFactory.ts` for more details.
   async removeKubeGateway(kubeUri: uri.KubeUri) {
-    const gateway = this.findGatewayByConnectionParams(kubeUri, '');
+    const gateway = this.findGatewayByConnectionParams({ targetUri: kubeUri });
     if (gateway) {
       await this.removeGateway(gateway.uri);
     }
@@ -603,23 +614,44 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return this.state.gateways.get(gatewayUri);
   }
 
-  findGatewayByConnectionParams(
-    targetUri: uri.GatewayTargetUri,
-    targetUser: string
-  ) {
-    let found: Gateway;
+  findGatewayByConnectionParams({
+    targetUri,
+    targetUser,
+    targetSubresourceName,
+  }: {
+    targetUri: uri.GatewayTargetUri;
+    targetUser?: string;
+    targetSubresourceName?: string;
+  }): Gateway | undefined {
+    const targetKind = getGatewayTargetUriKind(targetUri);
 
-    for (const [, gateway] of this.state.gateways) {
-      if (
-        gateway.targetUri === targetUri &&
-        gateway.targetUser === targetUser
-      ) {
-        found = gateway;
-        break;
+    for (const gateway of this.state.gateways.values()) {
+      if (gateway.targetUri !== targetUri) {
+        continue;
+      }
+
+      switch (targetKind) {
+        case 'db': {
+          if (gateway.targetUser === targetUser) {
+            return gateway;
+          }
+          break;
+        }
+        case 'kube': {
+          // Kube gateways match only on targetUri.
+          return gateway;
+        }
+        case 'app': {
+          if (gateway.targetSubresourceName === targetSubresourceName) {
+            return gateway;
+          }
+          break;
+        }
+        default: {
+          targetKind satisfies never;
+        }
       }
     }
-
-    return found;
   }
 
   /**

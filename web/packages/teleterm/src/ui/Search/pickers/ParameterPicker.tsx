@@ -16,23 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { ReactElement, useCallback, useEffect } from 'react';
+import { ReactElement, useCallback, useEffect } from 'react';
+
+import { Text } from 'design';
+import * as icons from 'design/Icon';
 import { Highlight } from 'shared/components/Highlight';
 import {
+  Attempt,
   makeSuccessAttempt,
   mapAttempt,
   useAsync,
-  Attempt,
 } from 'shared/hooks/useAsync';
-import { Text } from 'design';
-import * as icons from 'design/Icon';
 
+import { Parameter, ParametrizedAction } from '../actions';
 import { useSearchContext } from '../SearchContext';
-import { ParametrizedAction, Parameter } from '../actions';
-
-import { IconAndContent, NonInteractiveItem, ResultList } from './ResultList';
-import { actionPicker } from './pickers';
 import { PickerContainer } from './PickerContainer';
+import { actionPicker } from './pickers';
+import { IconAndContent, NonInteractiveItem, ResultList } from './ResultList';
 
 interface ParameterPickerProps {
   action: ParametrizedAction;

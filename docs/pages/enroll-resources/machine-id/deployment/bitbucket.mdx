@@ -1,0 +1,160 @@
+---
+title: Deploying Machine ID on Bitbucket Pipelines
+description: How to install and configure Machine ID on Bitbucket Pipelines
+---
+
+In this guide, you will configure Machine ID's agent, `tbot`, to run within a
+Bitbucket Pipelines workflow. The bot will be configured to use the `bitbucket`
+delegated joining method to eliminate the need for long-lived secrets.
+
+## How it works
+
+The `bitbucket` join method is a secure way for Machine ID bots to authenticate
+with the Teleport Auth Service without using any shared secrets. Instead, it
+makes use of an OpenID Connect token that Bitbucket Pipelines injects into the
+job environment.
+
+This token is sent to the Teleport Auth Service, and assuming it has been
+configured to trust Bitbucket's identity provider and all identity assertions
+match, the authentication attempt will succeed.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- A Bitbucket repository you can push to.
+
+## Step 1/4. Determine Bitbucket configuration
+
+Bitbucket joining requires a number of configuration parameters that can be
+found in your repository settings. From the Bitbucket repository, navigate to
+"Repository settings", then in the sidebar under "Pipelines" select "OpenID
+Connect".
+
+From this page, note the following values:
+- Identity provider URL (<Var name="identity-provider-url" />)
+- Audience (<Var name="audience" />)
+- Workspace UUID, including the braces (<Var name="workspace-uuid" />)
+- Repository UUID, including the braces (<Var name="repository-uuid" />)
+
+## Step 2/4. Create the Machine ID bot
+
+(!docs/pages/includes/machine-id/create-a-bot.mdx!)
+
+## Step 3/4. Create the join token for Bitbucket Pipelines
+
+In order to allow your Pipelines workflow to authenticate with your Teleport
+cluster, you'll first need to create a join token. These tokens set out criteria
+by which the Auth Service decides whether or not to allow a bot or node to join.
+
+Create a file named `bot-token.yaml`, ensuring that you replace the
+`identity_provider_url`, `audience`, `workspace_uuid`, and `repository_uuid`
+with the values from Step 1.
+
+```yaml
+kind: token
+version: v2
+metadata:
+  name: example-bot
+spec:
+  roles: [Bot]
+  join_method: bitbucket
+  bot_name: example
+  bitbucket:
+    identity_provider_url: <Var name="identity-provider-url" />
+    audience: <Var name="audience" />
+    # allow specifies the rules by which the Auth Service determines if `tbot`
+    # should be allowed to join.
+    allow:
+    - workspace_uuid: <Var name="workspace-uuid" />
+      repository_uuid: <Var name="repository-uuid" />
+```
+
+Let's go over the token resource's fields in more detail:
+
+- `metadata.name` defines the name of the token. Note that this value will need
+  to be used in other parts of the configuration later.
+- `spec.bot_name` is the name of the Machine ID bot that this token will grant
+  access to. Note that this value will need to be used in other parts of the
+  configuration later.
+- `spec.roles` defines which roles that this token will grant access to. The
+  value of `[Bot]` states that this token grants access to a Machine ID bot.
+- `spec.join_method` defines the join method the token is applicable for. Since
+  this guide only focuses on Bitbucket Pipelines, you will set this to to
+  `bitbucket`.
+- `spec.bitbucket.identity_provider_url` is the identity provider URL shown in
+  the Bitbucket repository settings, under Pipelines and OpenID Connect.
+- `spec.bitbucket.audience` is the audience value shown in the Bitbucket
+  repository settings, under Pipelines and OpenID connect.
+- `spec.bitbucket.allow` is used to set rules for what Bitbucket Pipelines runs
+   will be able to authenticate by using the token.
+
+Refer to the [token reference](../../../reference/join-methods.mdx#bitbucket-pipelines-bitbucket)
+for a full list of valid fields.
+
+Apply this to your Teleport cluster using `tctl`:
+
+```code
+$ tctl create -f bot-token.yaml
+```
+
+## Step 4/4. Configure a Bitbucket Pipelines workflow
+
+With the bot and join token created, you can now configure a workflow that can
+authenticate to Teleport.
+
+This example workflow defines a "custom" pipeline that can be triggered manually
+from "Pipelines" or "Branches" views:
+
+```yaml
+image: atlassian/default-image:3
+
+pipelines:
+  custom:
+    run-tbot:
+      - step:
+          oidc: true
+          script:
+            # Download and extract Teleport
+            - wget https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+            - tar -xvf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+
+            # Run `tbot` in identity mode for SSH access
+            - ./teleport/tbot start identity --destination=./tbot-user --join-method=bitbucket --proxy-server=example.teleport.sh:443 --token=bot-bitbucket --oneshot
+
+            # Make use of the generated SSH credentials
+            - ssh -F ./tbot-user/ssh_config user@node.example.teleport.sh echo "hello world"
+```
+
+This example will start `tbot` in identity mode to generate SSH credentials.
+Refer to the [`tbot start` documentation](../../../reference/cli/tbot.mdx#tbot-start)
+for details on using other modes such as database, application, and Kubernetes
+access.
+
+If you're adapting an existing workflow, note these steps:
+1. Set `oidc: true` on the step properties so that step will be issued a token
+1. Download and extract a `.tar.gz` Teleport build
+1. Run `tbot` with `--join-method=bitbucket`, `--token=example-bot` (or
+   whichever name was configured in Step 3), and `--oneshot`
+
+<Admonition type="warning" title="Sharing credentials between steps">
+Note that in Bitbucket Pipelines, outputs cannot be securely shared between
+steps as anything stored using `artifacts` will remain downloadable once the CI
+run has completed.
+
+Due to this limitation, all operations making use of Teleport credentials should
+be performed as part of the same step. If necessary, you can duplicate the
+script shown here to download and run `tbot` multiple times in a given run if
+credentials are needed in multiple steps.
+</Admonition>
+
+## Further steps
+
+- Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
+  your environment.
+- Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
+  all the available configuration options.
+- For more information about Bitbucket Pipelines itself, read
+  [their documentation](https://support.atlassian.com/bitbucket-cloud/docs/get-started-with-bitbucket-pipelines/).
+

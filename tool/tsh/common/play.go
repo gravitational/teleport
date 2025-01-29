@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/metadata"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
@@ -57,7 +58,7 @@ func onPlay(cf *CLIConf) error {
 		return playSession(cf)
 	}
 	if cf.PlaySpeed != "1x" {
-		log.Warn("--speed is not applicable for formats other than pty")
+		logger.WarnContext(cf.Context, "--speed is not applicable for formats other than pty")
 	}
 	return exportSession(cf)
 }
@@ -93,7 +94,7 @@ func playSession(cf *CLIConf) error {
 
 	if err := tc.Play(cf.Context, cf.SessionID, speed, cf.NoWait); err != nil {
 		if trace.IsNotFound(err) {
-			log.WithError(err).Debug("error playing session")
+			logger.DebugContext(cf.Context, "error playing session", "error", err)
 			return trace.NotFound("Recording for session %s not found.", cf.SessionID)
 		}
 		return trace.Wrap(err)
@@ -137,7 +138,7 @@ func exportSession(cf *CLIConf) error {
 	}
 	defer clusterClient.Close()
 
-	eventC, errC := clusterClient.AuthClient.StreamSessionEvents(cf.Context, *sid, 0)
+	eventC, errC := clusterClient.AuthClient.StreamSessionEvents(metadata.WithSessionRecordingFormatContext(cf.Context, format), *sid, 0)
 
 	var exporter sessionExporter
 	switch format {

@@ -31,7 +31,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -54,10 +53,6 @@ type signerHandler struct {
 
 // SignerHandlerConfig is the awsSignerHandler configuration.
 type SignerHandlerConfig struct {
-	// LegacyLogger is the old logger.
-	// Should be removed gradually.
-	// Deprecated: use Log instead.
-	LegacyLogger logrus.FieldLogger
 	// Log is a logger for the handler.
 	Log *slog.Logger
 	// RoundTripper is an http.RoundTripper instance used for requests.
@@ -81,9 +76,6 @@ func (cfg *SignerHandlerConfig) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 		cfg.RoundTripper = tr
-	}
-	if cfg.LegacyLogger == nil {
-		cfg.LegacyLogger = logrus.WithField(teleport.ComponentKey, "aws:signer")
 	}
 	if cfg.Log == nil {
 		cfg.Log = slog.With(teleport.ComponentKey, "aws:signer")
@@ -114,7 +106,7 @@ func NewAWSSignerHandler(ctx context.Context, config SignerHandlerConfig) (http.
 	var err error
 	handler.fwd, err = reverseproxy.New(
 		reverseproxy.WithRoundTripper(config.RoundTripper),
-		reverseproxy.WithLogger(config.LegacyLogger),
+		reverseproxy.WithLogger(config.Log),
 		reverseproxy.WithErrorHandler(handler.formatForwardResponseError),
 	)
 

@@ -52,13 +52,14 @@ import (
 
 	"github.com/gravitational/teleport"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/tbot/spiffe"
-	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 	"github.com/gravitational/teleport/lib/uds"
 )
 
@@ -79,7 +80,7 @@ type SPIFFEWorkloadAPIService struct {
 	cfg              *config.SPIFFEWorkloadAPIService
 	log              *slog.Logger
 	resolver         reversetunnelclient.Resolver
-	trustBundleCache *spiffe.TrustBundleCache
+	trustBundleCache *workloadidentity.TrustBundleCache
 
 	// client holds the impersonated client for the service
 	client           *authclient.Client
@@ -227,13 +228,27 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 	)
 	workloadpb.RegisterSpiffeWorkloadAPIServer(srv, s)
 	sdsHandler := &spiffeSDSHandler{
-		log:    s.log,
-		cfg:    s.cfg,
-		botCfg: s.botCfg,
-
-		trustBundleCache:    s.trustBundleCache,
-		clientAuthenticator: s.authenticateClient,
-		svidFetcher:         s.fetchX509SVIDs,
+		log:              s.log,
+		botCfg:           s.botCfg,
+		trustBundleCache: s.trustBundleCache,
+		clientAuthenticator: func(ctx context.Context) (*slog.Logger, svidFetcher, error) {
+			log, attrs, err := s.authenticateClient(ctx)
+			if err != nil {
+				return log, nil, trace.Wrap(err, "authenticating client")
+			}
+			fetchSVIDs := func(
+				ctx context.Context,
+				localBundle *spiffebundle.Bundle,
+			) ([]*workloadpb.X509SVID, error) {
+				return s.fetchX509SVIDs(
+					ctx,
+					log,
+					localBundle,
+					filterSVIDRequests(ctx, log, s.cfg.SVIDs, attrs),
+				)
+			}
+			return log, fetchSVIDs, nil
+		},
 	}
 	secretv3pb.RegisterSecretDiscoveryServiceServer(srv, sdsHandler)
 
@@ -320,7 +335,7 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 		return nil, trace.Wrap(err)
 	}
 
-	marshaledBundle := spiffe.MarshalX509Bundle(localBundle.X509Bundle())
+	marshaledBundle := workloadidentity.MarshalX509Bundle(localBundle.X509Bundle())
 
 	// Convert responses from the Teleport API to the SPIFFE Workload API
 	// format.
@@ -373,7 +388,7 @@ func filterSVIDRequests(
 	ctx context.Context,
 	log *slog.Logger,
 	svidRequests []config.SVIDRequestWithRules,
-	att workloadattest.Attestation,
+	att *workloadidentityv1pb.WorkloadAttrs,
 ) []config.SVIDRequest {
 	var filtered []config.SVIDRequest
 	for _, req := range svidRequests {
@@ -413,67 +428,67 @@ func filterSVIDRequests(
 				"Evaluating rule against workload attestation",
 			)
 			if rule.Unix.UID != nil {
-				if !att.Unix.Attested {
+				if !att.GetUnix().GetAttested() {
 					logNotAttested("unix")
 					continue
 				}
-				if *rule.Unix.UID != att.Unix.UID {
-					logMismatch("unix.uid", *rule.Unix.UID, att.Unix.UID)
+				if *rule.Unix.UID != int(att.GetUnix().GetUid()) {
+					logMismatch("unix.uid", *rule.Unix.UID, att.GetUnix().GetUid())
 					continue
 				}
 				// Rule field matched!
 			}
 			if rule.Unix.PID != nil {
-				if !att.Unix.Attested {
+				if !att.GetUnix().GetAttested() {
 					logNotAttested("unix")
 					continue
 				}
-				if *rule.Unix.PID != att.Unix.PID {
-					logMismatch("unix.pid", *rule.Unix.PID, att.Unix.PID)
+				if *rule.Unix.PID != int(att.GetUnix().GetPid()) {
+					logMismatch("unix.pid", *rule.Unix.PID, att.GetUnix().GetPid())
 					continue
 				}
 				// Rule field matched!
 			}
 			if rule.Unix.GID != nil {
-				if !att.Unix.Attested {
+				if !att.GetUnix().GetAttested() {
 					logNotAttested("unix")
 					continue
 				}
-				if *rule.Unix.GID != att.Unix.GID {
-					logMismatch("unix.gid", *rule.Unix.GID, att.Unix.GID)
+				if *rule.Unix.GID != int(att.GetUnix().GetGid()) {
+					logMismatch("unix.gid", *rule.Unix.GID, att.GetUnix().GetGid())
 					continue
 				}
 				// Rule field matched!
 			}
 			if rule.Kubernetes.Namespace != "" {
-				if !att.Kubernetes.Attested {
+				if !att.GetKubernetes().GetAttested() {
 					logNotAttested("kubernetes")
 					continue
 				}
-				if rule.Kubernetes.Namespace != att.Kubernetes.Namespace {
-					logMismatch("kubernetes.namespace", rule.Kubernetes.Namespace, att.Kubernetes.Namespace)
+				if rule.Kubernetes.Namespace != att.GetKubernetes().GetNamespace() {
+					logMismatch("kubernetes.namespace", rule.Kubernetes.Namespace, att.GetKubernetes().GetNamespace())
 					continue
 				}
 				// Rule field matched!
 			}
 			if rule.Kubernetes.PodName != "" {
-				if !att.Kubernetes.Attested {
+				if !att.GetKubernetes().GetAttested() {
 					logNotAttested("kubernetes")
 					continue
 				}
-				if rule.Kubernetes.PodName != att.Kubernetes.PodName {
-					logMismatch("kubernetes.pod_name", rule.Kubernetes.PodName, att.Kubernetes.PodName)
+				if rule.Kubernetes.PodName != att.GetKubernetes().GetPodName() {
+					logMismatch("kubernetes.pod_name", rule.Kubernetes.PodName, att.GetKubernetes().GetPodName())
 					continue
 				}
 				// Rule field matched!
 			}
 			if rule.Kubernetes.ServiceAccount != "" {
-				if !att.Kubernetes.Attested {
+				if !att.GetKubernetes().GetAttested() {
 					logNotAttested("kubernetes")
 					continue
 				}
-				if rule.Kubernetes.ServiceAccount != att.Kubernetes.ServiceAccount {
-					logMismatch("kubernetes.service_account", rule.Kubernetes.ServiceAccount, att.Kubernetes.ServiceAccount)
+				if rule.Kubernetes.ServiceAccount != att.GetKubernetes().GetServiceAccount() {
+					logMismatch("kubernetes.service_account", rule.Kubernetes.ServiceAccount, att.GetKubernetes().GetServiceAccount())
 					continue
 				}
 				// Rule field matched!
@@ -499,10 +514,10 @@ func filterSVIDRequests(
 
 func (s *SPIFFEWorkloadAPIService) authenticateClient(
 	ctx context.Context,
-) (*slog.Logger, workloadattest.Attestation, error) {
+) (*slog.Logger, *workloadidentityv1pb.WorkloadAttrs, error) {
 	p, ok := peer.FromContext(ctx)
 	if !ok {
-		return nil, workloadattest.Attestation{}, trace.BadParameter("peer not found in context")
+		return nil, nil, trace.BadParameter("peer not found in context")
 	}
 	log := s.log
 
@@ -516,7 +531,7 @@ func (s *SPIFFEWorkloadAPIService) authenticateClient(
 	// We expect Creds to be nil/unset if the client is connecting via TCP and
 	// therefore there is no workload attestation that can be completed.
 	if !ok || authInfo.Creds == nil {
-		return log, workloadattest.Attestation{}, nil
+		return log, nil, nil
 	}
 
 	// For a UDS, sometimes we are unable to determine the PID of the calling
@@ -528,7 +543,7 @@ func (s *SPIFFEWorkloadAPIService) authenticateClient(
 	if authInfo.Creds.PID == 0 {
 		log.DebugContext(
 			ctx, "Failed to determine the PID of the calling workload. TBot may be running in a different process namespace to the workload. Workload attestation will not be completed.")
-		return log, workloadattest.Attestation{}, nil
+		return log, nil, nil
 	}
 
 	att, err := s.attestor.Attest(ctx, authInfo.Creds.PID)
@@ -541,10 +556,10 @@ func (s *SPIFFEWorkloadAPIService) authenticateClient(
 			"error", err,
 			"pid", authInfo.Creds.PID,
 		)
-		return log, workloadattest.Attestation{}, nil
+		return log, nil, nil
 	}
 	log = log.With(
-		"workload", slog.LogValuer(att),
+		"workload", att,
 	)
 
 	return log, att, nil

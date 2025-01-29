@@ -18,9 +18,8 @@
 
 import { SharedUnifiedResource } from 'shared/components/UnifiedResources';
 
-import * as uri from 'teleterm/ui/uri';
-
 import type * as tsh from 'teleterm/services/tshd/types';
+import * as uri from 'teleterm/ui/uri';
 
 export type Kind = Document['kind'];
 
@@ -102,15 +101,47 @@ export interface DocumentTshKube extends DocumentBase {
   origin: DocumentOrigin;
 }
 
+/**
+ * DocumentGateway is used for database and app gateways. The two are distinguished by the kind of
+ * resource that targetUri points to.
+ */
 export interface DocumentGateway extends DocumentBase {
   kind: 'doc.gateway';
-  // status is used merely to show a progress bar when the gateway is being set up.
+  /** status is used merely to show a progress bar when the gateway is being set up. */
   status: '' | 'connecting' | 'connected' | 'error';
+  /**
+   * gatewayUri is not present until the gateway described by the document is created.
+   */
   gatewayUri?: uri.GatewayUri;
   targetUri: uri.DatabaseUri | uri.AppUri;
+  /**
+   * targetUser is used only for db gateways and must contain the db user. Connect allows only a
+   * single doc.gateway to exist per targetUri + targetUser combo.
+   */
   targetUser: string;
+  /**
+   * targetName contains the name of the target resource as shown in the UI. This field could be
+   * removed in favor of targetUri, which always includes the target name anyway.
+   */
   targetName: string;
-  targetSubresourceName?: string;
+  /**
+   * targetSubresourceName contains database name for db gateways and target port for TCP app
+   * gateways. A DocumentGateway created for a multi-port TCP app is expected to always have this
+   * field present.
+   *
+   * For app gateways, Connect allows only a single doc.gateway to exist per targetUri +
+   * targetSubresourceName combo.
+   *
+   * For db gateways, targetSubresourceName is not taken into account when considering document
+   * "uniqueness".
+   */
+  targetSubresourceName: string | undefined;
+  /**
+   * port is the local port on which the gateway accepts connections.
+   *
+   * If empty, tshd is going to created a listener on a random port and then this field will be
+   * updated to match that random port.
+   */
   port?: string;
   origin: DocumentOrigin;
 }
@@ -221,6 +252,26 @@ export interface DocumentConnectMyComputer extends DocumentBase {
   status: '' | 'connecting' | 'connected' | 'error';
 }
 
+/**
+ * Document to authorize a web session with device trust.
+ * Unlike other documents, it is not persisted on disk.
+ */
+export interface DocumentAuthorizeWebSession extends DocumentBase {
+  kind: 'doc.authorize_web_session';
+  // `DocumentAuthorizeWebSession` always operates on the root cluster, so in theory `rootClusterUri` is not needed.
+  // However, there are a few components in the system, such as `getResourceUri`, which need to determine the relation
+  // between a document and a cluster just by looking at the document fields.
+  rootClusterUri: uri.RootClusterUri;
+  webSessionRequest: WebSessionRequest;
+}
+
+export interface WebSessionRequest {
+  id: string;
+  token: string;
+  username: string;
+  redirectUri: string;
+}
+
 export type DocumentTerminal =
   | DocumentPtySession
   | DocumentGatewayCliClient
@@ -234,8 +285,13 @@ export type Document =
   | DocumentGateway
   | DocumentCluster
   | DocumentTerminal
-  | DocumentConnectMyComputer;
+  | DocumentConnectMyComputer
+  | DocumentAuthorizeWebSession;
 
+/**
+ * @deprecated DocumentTshNode is supposed to be simplified to just DocumentTshNodeWithServerId.
+ * See the comment for DocumentTshNodeWithLoginHost for more details.
+ */
 export function isDocumentTshNodeWithLoginHost(
   doc: Document
 ): doc is DocumentTshNodeWithLoginHost {
@@ -244,6 +300,10 @@ export function isDocumentTshNodeWithLoginHost(
   return doc.kind === 'doc.terminal_tsh_node' && !('serverId' in doc);
 }
 
+/**
+ * @deprecated DocumentTshNode is supposed to be simplified to just DocumentTshNodeWithServerId.
+ * See the comment for DocumentTshNodeWithLoginHost for more details.
+ */
 export function isDocumentTshNodeWithServerId(
   doc: Document
 ): doc is DocumentTshNodeWithServerId {

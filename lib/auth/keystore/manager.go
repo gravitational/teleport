@@ -31,13 +31,14 @@ import (
 	"encoding/pem"
 	"io"
 	"log/slog"
+	"maps"
+	"slices"
 
 	kms "cloud.google.com/go/kms/apiv1"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -107,6 +108,7 @@ type Manager struct {
 	usableSigningBackends []backend
 
 	currentSuiteGetter cryptosuites.GetSuiteFunc
+	logger             *slog.Logger
 }
 
 // backend is an interface that holds private keys and provides signing
@@ -214,8 +216,8 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 		}
 		backendForNewKeys = gcpBackend
 		usableSigningBackends = []backend{gcpBackend, softwareBackend}
-	case cfg.AWSKMS != (servicecfg.AWSKMSConfig{}):
-		awsBackend, err := newAWSKMSKeystore(ctx, &cfg.AWSKMS, opts)
+	case cfg.AWSKMS != nil:
+		awsBackend, err := newAWSKMSKeystore(ctx, cfg.AWSKMS, opts)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -227,6 +229,7 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 		backendForNewKeys:     backendForNewKeys,
 		usableSigningBackends: usableSigningBackends,
 		currentSuiteGetter:    cryptosuites.GetCurrentSuiteFromAuthPreference(opts.AuthPreferenceGetter),
+		logger:                opts.Logger,
 	}, nil
 }
 
@@ -249,18 +252,20 @@ func (s *cryptoCountSigner) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 // GetSSHSigner selects a usable SSH keypair from the given CA ActiveKeys and
 // returns an [ssh.Signer].
 func (m *Manager) GetSSHSigner(ctx context.Context, ca types.CertAuthority) (ssh.Signer, error) {
-	signer, err := m.getSSHSigner(ctx, ca.GetActiveKeys())
+	signer, err := m.GetSSHSignerFromKeySet(ctx, ca.GetActiveKeys())
 	return signer, trace.Wrap(err)
 }
 
 // GetSSHSigner selects a usable SSH keypair from the given CA
 // AdditionalTrustedKeys and returns an [ssh.Signer].
 func (m *Manager) GetAdditionalTrustedSSHSigner(ctx context.Context, ca types.CertAuthority) (ssh.Signer, error) {
-	signer, err := m.getSSHSigner(ctx, ca.GetAdditionalTrustedKeys())
+	signer, err := m.GetSSHSignerFromKeySet(ctx, ca.GetAdditionalTrustedKeys())
 	return signer, trace.Wrap(err)
 }
 
-func (m *Manager) getSSHSigner(ctx context.Context, keySet types.CAKeySet) (ssh.Signer, error) {
+// GetSSHSignerFromKeySet selects a usable SSH keypair from the provided key
+// set.
+func (m *Manager) GetSSHSignerFromKeySet(ctx context.Context, keySet types.CAKeySet) (ssh.Signer, error) {
 	for _, backend := range m.usableSigningBackends {
 		for _, keyPair := range keySet.SSH {
 			canSign, err := backend.canSignWithKey(ctx, keyPair.PrivateKey, keyPair.PrivateKeyType)
@@ -529,7 +534,29 @@ func (m *Manager) NewJWTKeyPair(ctx context.Context, purpose cryptosuites.KeyPur
 	key, err := m.newJWTKeyPair(ctx, alg)
 	if err != nil {
 		createErrorCounter.WithLabelValues(keyTypeJWT, m.backendForNewKeys.name(), alg.String()).Inc()
-		return nil, trace.Wrap(err)
+		if alg == cryptosuites.RSA2048 {
+			return nil, trace.Wrap(err)
+		}
+		// Try to fall back to RSA if using the legacy suite. The HSM/KMS
+		// credentials may not have permission to create ECDSA keys, especially
+		// if set up before ECDSA support was added.
+		origErr := trace.Wrap(err, "generating %s key in %s", alg.String(), m.backendForNewKeys.name())
+		m.logger.WarnContext(ctx, "Failed to generate key with default algorithm, falling back to RSA.", "error", origErr)
+		currentSuite, suiteErr := m.currentSuiteGetter(ctx)
+		if suiteErr != nil {
+			return nil, trace.NewAggregate(origErr, trace.Wrap(suiteErr, "finding current algorithm suite"))
+		}
+		switch currentSuite {
+		case types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY:
+		default:
+			// Not using the legacy suite, ECDSA key gen really should have
+			// worked, return the original error.
+			return nil, origErr
+		}
+		var rsaErr error
+		if key, rsaErr = m.newJWTKeyPair(ctx, cryptosuites.RSA2048); rsaErr != nil {
+			return nil, trace.NewAggregate(origErr, trace.Wrap(rsaErr, "attempting fallback to RSA key"))
+		}
 	}
 	return key, nil
 }
@@ -638,7 +665,7 @@ func (m *Manager) hasUsableKeys(ctx context.Context, keySet types.CAKeySet) (*Us
 		}
 		caKeyTypes[desc] = struct{}{}
 	}
-	result.CAKeyTypes = maps.Keys(caKeyTypes)
+	result.CAKeyTypes = slices.Collect(maps.Keys(caKeyTypes))
 	return result, nil
 }
 

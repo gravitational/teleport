@@ -19,8 +19,10 @@
 package authz
 
 import (
+	"context"
+	"log/slog"
+
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -45,8 +47,8 @@ func IsTLSDeviceVerified(ext *tlsca.DeviceExtensions) bool {
 
 // VerifyTLSUser verifies if the TLS identity has the required extensions to
 // fulfill the device trust configuration.
-func VerifyTLSUser(dt *types.DeviceTrust, identity tlsca.Identity) error {
-	return verifyDeviceExtensions(dt, identity.Username, IsTLSDeviceVerified(&identity.DeviceExtensions))
+func VerifyTLSUser(ctx context.Context, dt *types.DeviceTrust, identity tlsca.Identity) error {
+	return verifyDeviceExtensions(ctx, dt, identity.Username, IsTLSDeviceVerified(&identity.DeviceExtensions))
 }
 
 // IsSSHDeviceVerified returns true if cert contains all required device
@@ -59,26 +61,46 @@ func IsSSHDeviceVerified(cert *ssh.Certificate) bool {
 		cert.Extensions[teleport.CertExtensionDeviceCredentialID] != ""
 }
 
+// HasDeviceTrustExtensions returns true if the certificate's extension names
+// include all the required device-related extensions.
+// Unlike IsSSHDeviceVerified, this function operates on a list of extensions,
+// such as those in lib/client.ProfileStatus.Extensions.
+func HasDeviceTrustExtensions(extensions []string) bool {
+	hasCertExtensionDeviceID := false
+	hasCertExtensionDeviceAssetTag := false
+	hasCertExtensionDeviceCredentialID := false
+	for _, extension := range extensions {
+		switch extension {
+		case teleport.CertExtensionDeviceID:
+			hasCertExtensionDeviceID = true
+		case teleport.CertExtensionDeviceAssetTag:
+			hasCertExtensionDeviceAssetTag = true
+		case teleport.CertExtensionDeviceCredentialID:
+			hasCertExtensionDeviceCredentialID = true
+		}
+	}
+
+	return hasCertExtensionDeviceAssetTag && hasCertExtensionDeviceID && hasCertExtensionDeviceCredentialID
+}
+
 // VerifySSHUser verifies if the SSH certificate has the required extensions to
 // fulfill the device trust configuration.
-func VerifySSHUser(dt *types.DeviceTrust, cert *ssh.Certificate) error {
+func VerifySSHUser(ctx context.Context, dt *types.DeviceTrust, cert *ssh.Certificate) error {
 	if cert == nil {
 		return trace.BadParameter("cert required")
 	}
 
 	username := cert.KeyId
-	return verifyDeviceExtensions(dt, username, IsSSHDeviceVerified(cert))
+	return verifyDeviceExtensions(ctx, dt, username, IsSSHDeviceVerified(cert))
 }
 
-func verifyDeviceExtensions(dt *types.DeviceTrust, username string, verified bool) error {
+func verifyDeviceExtensions(ctx context.Context, dt *types.DeviceTrust, username string, verified bool) error {
 	mode := dtconfig.GetEnforcementMode(dt)
 	switch {
 	case mode != constants.DeviceTrustModeRequired:
 		return nil // OK, extensions not enforced.
 	case !verified:
-		log.
-			WithField("User", username).
-			Debug("Device Trust: denied access for unidentified device")
+		slog.DebugContext(ctx, "Device Trust: denied access for unidentified device", "user", username)
 		return trace.Wrap(ErrTrustedDeviceRequired)
 	default:
 		return nil

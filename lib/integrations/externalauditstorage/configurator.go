@@ -27,7 +27,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -218,6 +217,10 @@ func newConfigurator(ctx context.Context, spec *externalauditstorage.ExternalAud
 		RoleARN:     awsRoleARN,
 		STSClient:   options.stsClient,
 		Clock:       options.clock,
+		// SetGenerateOIDCTokenFn will be called later, until then we must allow
+		// credentialsCache.Retrieve to return errors instead of blocking auth
+		// startup.
+		AllowRetrieveBeforeInit: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -263,13 +266,6 @@ func (p *Configurator) CredentialsProvider() aws.CredentialsProvider {
 	return p.credentialsCache
 }
 
-// CredentialsProviderSDKV1 returns a credentials.ProviderWithContext that can be used to
-// authenticate with the customer AWS account via the configured AWS OIDC
-// integration with aws-sdk-go.
-func (p *Configurator) CredentialsProviderSDKV1() credentials.ProviderWithContext {
-	return &v1Adapter{cc: p.credentialsCache}
-}
-
 // WaitForFirstCredentials waits for the internal credentials cache to finish
 // fetching its first credentials (or getting an error attempting to do so).
 // This can be called after SetGenerateOIDCTokenFn to make sure any returned
@@ -277,38 +273,4 @@ func (p *Configurator) CredentialsProviderSDKV1() credentials.ProviderWithContex
 // ready yet.
 func (p *Configurator) WaitForFirstCredentials(ctx context.Context) {
 	p.credentialsCache.WaitForFirstCredsOrErr(ctx)
-}
-
-// v1Adapter wraps the credentialsCache to implement
-// [credentials.ProviderWithContext] used by aws-sdk-go (v1).
-type v1Adapter struct {
-	cc *credprovider.CredentialsCache
-}
-
-var _ credentials.ProviderWithContext = (*v1Adapter)(nil)
-
-// RetrieveWithContext returns cached credentials.
-func (a *v1Adapter) RetrieveWithContext(ctx context.Context) (credentials.Value, error) {
-	credsV2, err := a.cc.Retrieve(ctx)
-	if err != nil {
-		return credentials.Value{}, trace.Wrap(err)
-	}
-
-	return credentials.Value{
-		AccessKeyID:     credsV2.AccessKeyID,
-		SecretAccessKey: credsV2.SecretAccessKey,
-		SessionToken:    credsV2.SessionToken,
-		ProviderName:    credsV2.Source,
-	}, nil
-}
-
-// Retrieve returns cached credentials.
-func (a *v1Adapter) Retrieve() (credentials.Value, error) {
-	return a.RetrieveWithContext(context.Background())
-}
-
-// IsExpired always returns true in order to opt out of AWS SDK credential
-// caching. Retrieve(WithContext) already returns cached credentials.
-func (a *v1Adapter) IsExpired() bool {
-	return true
 }

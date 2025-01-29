@@ -46,7 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -108,11 +108,13 @@ func newClientKeyRing(t *testing.T, modifiers ...func(*tlsca.Identity)) *client.
 	caSigner, err := ssh.NewSignerFromKey(signer)
 	require.NoError(t, err)
 
-	certificate, err := keygen.GenerateUserCert(services.UserCertParams{
+	certificate, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
 		CASigner:      caSigner,
 		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
-		Username:      "testuser",
-		AllowedLogins: []string{"testuser"},
+		Identity: sshca.Identity{
+			Username:   "testuser",
+			Principals: []string{"testuser"},
+		},
 	})
 	require.NoError(t, err)
 

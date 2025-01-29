@@ -3,6 +3,9 @@ title: Machine ID Troubleshooting Guide
 description: Troubleshooting common issues with Machine ID
 ---
 
+This page provides resolution steps for issues that you may come across when
+setting up Machine ID.
+
 ## A bot failed to renew a certificate due to a "generation mismatch"
 
 ### Symptoms
@@ -279,6 +282,8 @@ $ tctl edit role/machine-id-db
 ```
 
 Edit the role, then save and close the file to apply your changes.
+
+(!docs/pages/includes/create-role-using-web.mdx!)
 
 <Notice type="note">
 By default, outputs (like `/opt/machine-id`) are granted all roles provided

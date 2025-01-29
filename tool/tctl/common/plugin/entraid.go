@@ -76,7 +76,7 @@ With the output of Step 1, please copy and paste the following information:
 
 ` + bold("Step 1: Input Tenant ID and Client ID") + `
 
-To finish the Entra ID integration, manually configure the Application in Azure Entra ID.
+To finish the Entra ID integration, manually configure the Application in Microsoft Entra ID.
 
 Follow the instructions provided in the Teleport documentation: [https://goteleport.com/docs/admin-guides/teleport-policy/integrations/entra-id/].
 
@@ -95,7 +95,7 @@ type entraArgs struct {
 }
 
 func (p *PluginsCommand) initInstallEntra(parent *kingpin.CmdClause) {
-	p.install.entraID.cmd = parent.Command("entraid", "Install an EntraId integration.")
+	p.install.entraID.cmd = parent.Command("entraid", "Install an Microsoft Entra ID integration.")
 	cmd := p.install.entraID.cmd
 	cmd.
 		Flag("name", "Name of the plugin resource to create").
@@ -346,6 +346,7 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args installPluginArg
 							SsoConnectorId:    inputs.entraID.authConnectorName,
 							CredentialsSource: credentialsSource,
 							TenantId:          settings.tenantID,
+							EntraAppId:        settings.clientID,
 						},
 						AccessGraphSettings: tagSyncSettings,
 					},

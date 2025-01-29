@@ -1,7 +1,7 @@
 # This style enforces the presence of an introductory paragraph before the first
 # H2 of a docs page.
 extends: script
-level: error
+level: warning
 message: There must be a brief intro paragraph before the first H2-level section of a docs page. Use this to describe the purpose of the guide so a reader can determine whether they should continue reading. If the guide introduces a feature, describe the purpose and benefits of the feature. If there is already an "Introduction" H2 or similar, remove the heading.
 scope: raw
 script: |

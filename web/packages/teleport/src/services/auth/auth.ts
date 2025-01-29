@@ -16,28 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
 import cfg from 'teleport/config';
-import { DeviceType } from 'teleport/services/mfa';
-
+import api from 'teleport/services/api';
+import {
+  DeviceType,
+  DeviceUsage,
+  MfaAuthenticateChallenge,
+  MfaChallengeResponse,
+  SsoChallenge,
+} from 'teleport/services/mfa';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
-import makePasswordToken from './makePasswordToken';
-import { makeChangedUserAuthn } from './make';
 import {
-  makeMfaAuthenticateChallenge,
-  makeMfaRegistrationChallenge,
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
-} from './makeMfa';
+  parseMfaChallengeJson,
+  parseMfaRegistrationChallengeJson,
+} from '../mfa/makeMfa';
+import { makeChangedUserAuthn } from './make';
+import makePasswordToken from './makePasswordToken';
 import {
+  ChangePasswordReq,
+  CreateAuthenticateChallengeRequest,
+  CreateNewHardwareDeviceRequest,
   ResetPasswordReqWithEvent,
   ResetPasswordWithWebauthnReqWithEvent,
   UserCredentials,
-  ChangePasswordReq,
-  CreateNewHardwareDeviceRequest,
-  DeviceUsage,
-  CreateAuthenticateChallengeRequest,
 } from './types';
 
 const auth = {
@@ -65,7 +69,7 @@ const auth = {
         deviceType,
         deviceUsage,
       })
-      .then(makeMfaRegistrationChallenge);
+      .then(parseMfaRegistrationChallengeJson);
   },
 
   /**
@@ -94,7 +98,7 @@ const auth = {
   createMfaAuthnChallengeWithToken(tokenId: string) {
     return api
       .post(cfg.getAuthnChallengeWithTokenUrl(tokenId))
-      .then(makeMfaAuthenticateChallenge);
+      .then(parseMfaChallengeJson);
   },
 
   // mfaLoginBegin retrieves users mfa challenges for their
@@ -107,7 +111,7 @@ const auth = {
         user: creds?.username,
         pass: creds?.password,
       })
-      .then(makeMfaAuthenticateChallenge);
+      .then(parseMfaChallengeJson);
   },
 
   login(userId: string, password: string, otpCode: string) {
@@ -203,18 +207,12 @@ const auth = {
     });
   },
 
-  changePassword({
-    oldPassword,
-    newPassword,
-    secondFactorToken,
-    credential,
-  }: ChangePasswordReq) {
+  changePassword({ oldPassword, newPassword, mfaResponse }: ChangePasswordReq) {
     const data = {
       old_password: base64EncodeUnicode(oldPassword),
       new_password: base64EncodeUnicode(newPassword),
-      second_factor_token: secondFactorToken,
-      webauthnAssertionResponse:
-        credential && makeWebauthnAssertionResponse(credential),
+      second_factor_token: mfaResponse.totp_code,
+      webauthnAssertionResponse: mfaResponse.webauthn_response,
     };
 
     return api.put(cfg.api.changeUserPasswordPath, data);
@@ -235,11 +233,12 @@ const auth = {
 
   headlessSSOAccept(transactionId: string) {
     return auth
-      .fetchWebAuthnChallenge({ scope: MfaChallengeScope.HEADLESS_LOGIN })
+      .getMfaChallenge({ scope: MfaChallengeScope.HEADLESS_LOGIN })
+      .then(challenge => auth.getMfaChallengeResponse(challenge, 'webauthn'))
       .then(res => {
         const request = {
           action: 'accept',
-          webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
+          webauthnAssertionResponse: res.webauthn_response,
         };
 
         return api.put(cfg.getHeadlessSsoPath(transactionId), request);
@@ -254,67 +253,157 @@ const auth = {
     return api.put(cfg.getHeadlessSsoPath(transactionId), request);
   },
 
-  createPrivilegeTokenWithTotp(secondFactorToken: string) {
-    return api.post(cfg.api.createPrivilegeTokenPath, { secondFactorToken });
-  },
-
-  async getChallenge(
+  // getChallenge gets an MFA challenge for the provided parameters. If is_mfa_required_req
+  // is provided and it is found that MFA is not required, returns undefined instead.
+  async getMfaChallenge(
     req: CreateAuthenticateChallengeRequest,
     abortSignal?: AbortSignal
-  ) {
+  ): Promise<MfaAuthenticateChallenge | undefined> {
     return api
       .post(
         cfg.api.mfaAuthnChallengePath,
         {
+          is_mfa_required_req: req.isMfaRequiredRequest,
           challenge_scope: req.scope,
+          challenge_allow_reuse: req.allowReuse,
+          user_verification_requirement: req.userVerificationRequirement,
         },
         abortSignal
       )
-      .then(makeMfaAuthenticateChallenge);
+      .then(parseMfaChallengeJson);
   },
 
-  async fetchWebAuthnChallenge(
-    req: CreateAuthenticateChallengeRequest,
-    abortSignal?: AbortSignal
+  // getChallengeResponse gets an MFA challenge response for the provided parameters.
+  // If challenge is undefined or has no viable challenge options, returns empty response.
+  async getMfaChallengeResponse(
+    challenge: MfaAuthenticateChallenge,
+    mfaType?: DeviceType,
+    totpCode?: string
+  ): Promise<MfaChallengeResponse> {
+    // No challenge, return empty response.
+    if (!challenge) return {};
+
+    // TODO(Joerger): If mfaType is not provided by a parent component, use some global context
+    // to display a component, similar to the one used in useMfa. For now we just default to
+    // whichever method we can succeed with first.
+    if (!mfaType) {
+      if (totpCode) {
+        mfaType = 'totp';
+      } else if (challenge.webauthnPublicKey) {
+        mfaType = 'webauthn';
+      } else if (challenge.ssoChallenge) {
+        mfaType = 'sso';
+      }
+    }
+
+    if (mfaType === 'webauthn') {
+      return auth.getWebAuthnChallengeResponse(challenge.webauthnPublicKey);
+    }
+
+    if (mfaType === 'sso') {
+      return auth.getSsoChallengeResponse(challenge.ssoChallenge);
+    }
+
+    if (mfaType === 'totp') {
+      return {
+        totp_code: totpCode,
+      };
+    }
+
+    // No viable challenge, return empty response.
+    return {};
+  },
+
+  async getWebAuthnChallengeResponse(
+    webauthnPublicKey: PublicKeyCredentialRequestOptions
+  ): Promise<MfaChallengeResponse> {
+    return auth.checkWebauthnSupport().then(() =>
+      navigator.credentials
+        .get({
+          publicKey: webauthnPublicKey,
+        })
+        .then(cred => {
+          return makeWebauthnAssertionResponse(cred);
+        })
+        .then(resp => {
+          return { webauthn_response: resp };
+        })
+    );
+  },
+
+  createPrivilegeToken(existingMfaResponse?: MfaChallengeResponse) {
+    return api.post(cfg.api.createPrivilegeTokenPath, {
+      existingMfaResponse,
+      // TODO(Joerger): DELETE IN v19.0.0
+      // Also provide totp/webauthn response in backwards compatible format.
+      secondFactorToken: existingMfaResponse?.totp_code,
+      webauthnAssertionResponse: existingMfaResponse?.webauthn_response,
+    });
+  },
+
+  // TODO(Joerger): Delete once no longer used by /e
+  async getSsoChallengeResponse(
+    challenge: SsoChallenge
+  ): Promise<MfaChallengeResponse> {
+    const abortController = new AbortController();
+
+    auth.openSsoChallengeRedirect(challenge, abortController);
+    return await auth.waitForSsoChallengeResponse(
+      challenge,
+      abortController.signal
+    );
+  },
+
+  openSsoChallengeRedirect(
+    { redirectUrl }: SsoChallenge,
+    abortController?: AbortController
   ) {
-    return auth
-      .checkWebauthnSupport()
-      .then(() =>
-        api
-          .post(
-            cfg.api.mfaAuthnChallengePath,
-            {
-              is_mfa_required_req: req.isMfaRequiredRequest,
-              challenge_scope: req.scope,
-              challenge_allow_reuse: req.allowReuse,
-              user_verification_requirement: req.userVerificationRequirement,
-            },
-            abortSignal
-          )
-          .then(makeMfaAuthenticateChallenge)
-      )
-      .then(res =>
-        navigator.credentials.get({
-          publicKey: res.webauthnPublicKey,
-        })
-      );
+    // try to center the screen
+    const width = 1045;
+    const height = 550;
+    const left = (screen.width - width) / 2;
+    const top = (screen.height - height) / 2;
+
+    // these params will open a tiny window.
+    const params = `width=${width},height=${height},left=${left},top=${top}`;
+    const w = window.open(redirectUrl, '_blank', params);
+
+    // If the redirect URL window is closed prematurely, abort.
+    w.onclose = abortController?.abort;
   },
 
+  async waitForSsoChallengeResponse(
+    { channelId, requestId }: SsoChallenge,
+    abortSignal: AbortSignal
+  ): Promise<MfaChallengeResponse> {
+    const channel = new BroadcastChannel(channelId);
+    const msg = await waitForMessage(channel, abortSignal);
+    return {
+      sso_response: {
+        requestId,
+        token: msg.data.mfaToken,
+      },
+    };
+  },
+
+  // TODO(Joerger): Delete once no longer used by /e
   createPrivilegeTokenWithWebauthn() {
-    // Creating privilege tokens always expects the MANAGE_DEVICES webauthn scope.
     return auth
-      .fetchWebAuthnChallenge({ scope: MfaChallengeScope.MANAGE_DEVICES })
-      .then(res =>
-        api.post(cfg.api.createPrivilegeTokenPath, {
-          webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
-        })
-      );
+      .getMfaChallenge({ scope: MfaChallengeScope.MANAGE_DEVICES })
+      .then(auth.getMfaChallengeResponse)
+      .then(mfaResp => auth.createPrivilegeToken(mfaResp));
+  },
+
+  // TODO(Joerger): Delete once no longer used by /e
+  createPrivilegeTokenWithTotp(secondFactorToken: string) {
+    return api.post(cfg.api.createPrivilegeTokenPath, { secondFactorToken });
   },
 
   createRestrictedPrivilegeToken() {
     return api.post(cfg.api.createPrivilegeTokenPath, {});
   },
 
+  // TODO(Joerger): Remove once /e is no longer using it.
   async getWebauthnResponse(
     scope: MfaChallengeScope,
     allowReuse?: boolean,
@@ -349,27 +438,32 @@ const auth = {
     }
 
     return auth
-      .fetchWebAuthnChallenge(
-        { scope, allowReuse, isMfaRequiredRequest },
-        abortSignal
-      )
-      .then(res => makeWebauthnAssertionResponse(res));
+      .getMfaChallenge({ scope, allowReuse, isMfaRequiredRequest }, abortSignal)
+      .then(challenge => auth.getMfaChallengeResponse(challenge, 'webauthn'))
+      .then(res => res.webauthn_response);
   },
 
-  getWebauthnResponseForAdminAction(allowReuse?: boolean) {
+  getMfaChallengeResponseForAdminAction(allowReuse?: boolean) {
     // If the client is checking if MFA is required for an admin action,
     // but we know admin action MFA is not enforced, return early.
     if (!cfg.isAdminActionMfaEnforced()) {
       return;
     }
 
-    return auth.getWebauthnResponse(
-      MfaChallengeScope.ADMIN_ACTION,
-      allowReuse,
-      {
-        admin_action: {},
-      }
-    );
+    return auth
+      .getMfaChallenge({
+        scope: MfaChallengeScope.ADMIN_ACTION,
+        allowReuse: allowReuse,
+        isMfaRequiredRequest: {
+          admin_action: {},
+        },
+      })
+      .then(auth.getMfaChallengeResponse);
+  },
+
+  // TODO(Joerger): Delete in favor of getMfaChallengeResponseForAdminAction once /e is updated.
+  getWebauthnResponseForAdminAction(allowReuse?: boolean) {
+    return auth.getMfaChallengeResponseForAdminAction(allowReuse);
   },
 };
 
@@ -387,6 +481,30 @@ function base64EncodeUnicode(str: string) {
       return String.fromCharCode(Number(hexadecimalStr));
     })
   );
+}
+
+function waitForMessage(
+  channel: BroadcastChannel,
+  abortSignal: AbortSignal
+): Promise<MessageEvent> {
+  return new Promise((resolve, reject) => {
+    // Create the event listener
+    function eventHandler(e: MessageEvent) {
+      // Remove the event listener after it triggers
+      channel.removeEventListener('message', eventHandler);
+      // Resolve the promise with the event object
+      resolve(e);
+    }
+
+    // Add the event listener
+    channel.addEventListener('message', eventHandler);
+
+    // Close the event listener early if aborted.
+    abortSignal.onabort = e => {
+      channel.removeEventListener('message', eventHandler);
+      reject(e);
+    };
+  });
 }
 
 export default auth;

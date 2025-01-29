@@ -26,6 +26,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -41,7 +42,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/http2"
@@ -105,7 +105,7 @@ type KubeSuite struct {
 	kubeConfig *rest.Config
 
 	// log defines the test-specific logger
-	log utils.Logger
+	log *slog.Logger
 }
 
 func newKubeSuite(t *testing.T) *KubeSuite {
@@ -168,7 +168,7 @@ type kubeIntegrationTest func(t *testing.T, suite *KubeSuite)
 
 func (s *KubeSuite) bind(test kubeIntegrationTest) func(t *testing.T) {
 	return func(t *testing.T) {
-		s.log = utils.NewLoggerForTests()
+		s.log = utils.NewSlogLoggerForTests()
 		os.RemoveAll(profile.FullProfilePath(""))
 		t.Cleanup(func() { s.log = nil })
 		test(t, s)
@@ -204,7 +204,7 @@ func testExec(t *testing.T, suite *KubeSuite, pinnedIP string, clientError strin
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	username := suite.me.Username
@@ -418,7 +418,7 @@ func testKubeDeny(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	username := suite.me.Username
@@ -475,7 +475,7 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	username := suite.me.Username
@@ -604,7 +604,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	// main cluster has a role and user called main-kube
@@ -635,7 +635,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	lib.SetInsecureDevMode(true)
@@ -694,11 +694,9 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	// try and upsert a trusted cluster
 	var upsertSuccess bool
 	for i := 0; i < 10; i++ {
-		log.Debugf("Will create trusted cluster %v, attempt %v", trustedCluster, i)
-		_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(ctx, trustedCluster)
+		_, err = aux.Process.GetAuthServer().UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
-				log.Debugf("retrying on connection problem: %v", err)
 				continue
 			}
 			t.Fatalf("got non connection problem %v", err)
@@ -876,7 +874,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	// main cluster has a role and user called main-kube
@@ -907,7 +905,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	lib.SetInsecureDevMode(true)
@@ -970,11 +968,9 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	// try and upsert a trusted cluster
 	var upsertSuccess bool
 	for i := 0; i < 10; i++ {
-		log.Debugf("Will create trusted cluster %v, attempt %v", trustedCluster, i)
-		_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(ctx, trustedCluster)
+		_, err = aux.Process.GetAuthServer().UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
-				log.Debugf("retrying on connection problem: %v", err)
 				continue
 			}
 			t.Fatalf("got non connection problem %v", err)
@@ -1144,6 +1140,7 @@ func testKubeDisconnect(t *testing.T, suite *KubeSuite) {
 				ClientIdleTimeout: types.NewDuration(500 * time.Millisecond),
 			},
 			disconnectTimeout: 2 * time.Second,
+			verifyError:       errorContains("Client exceeded idle timeout of"),
 		},
 		{
 			name: "expired cert",
@@ -1152,6 +1149,7 @@ func testKubeDisconnect(t *testing.T, suite *KubeSuite) {
 				MaxSessionTTL:         types.NewDuration(3 * time.Second),
 			},
 			disconnectTimeout: 6 * time.Second,
+			verifyError:       errorContains("client certificate expire"),
 		},
 	}
 
@@ -1176,7 +1174,7 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	username := suite.me.Username
@@ -1246,8 +1244,14 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 			tty:          true,
 			stdin:        term,
 		})
-		require.NoError(t, err)
+		require.NoError(t, tc.verifyError(err))
 	}()
+
+	require.Eventually(t, func() bool {
+		// wait for the shell prompt
+		return strings.Contains(term.AllOutput(), "#")
+	}, 5*time.Second, 10*time.Millisecond, "Failed to get shell prompt. "+
+		"If this fails, the exec command is likely hanging and never reaching the kind cluster")
 
 	// lets type something followed by "enter" and then hang the session
 	require.NoError(t, enterInput(sessionCtx, term, "echo boring platypus\r\n", ".*boring platypus.*"))
@@ -1270,7 +1274,7 @@ func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	username := suite.me.Username
@@ -1377,7 +1381,7 @@ func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	username := suite.me.Username
@@ -1653,7 +1657,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	// Setup user and role.
@@ -1768,7 +1772,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 
 		ws := openWebsocketAndReadSession(t, endpoint, req)
 
-		wsStream := terminal.NewWStream(context.Background(), ws, suite.log, nil)
+		wsStream := terminal.NewWStream(context.Background(), ws, utils.NewSlogLoggerForTests(), nil)
 
 		// Check for the expected string in the output.
 		findTextInReader(t, wsStream, testNamespace, time.Second*2)
@@ -1789,7 +1793,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 
 		ws := openWebsocketAndReadSession(t, endpoint, req)
 
-		wsStream := terminal.NewWStream(context.Background(), ws, suite.log, nil)
+		wsStream := terminal.NewWStream(context.Background(), ws, utils.NewSlogLoggerForTests(), nil)
 
 		// Read first prompt from the server.
 		readData := make([]byte, 255)
@@ -1837,8 +1841,7 @@ type sessionMetadataResponse struct {
 // teleKubeConfig sets up teleport with kubernetes turned on
 func (s *KubeSuite) teleKubeConfig(hostname string) *servicecfg.Config {
 	tconf := servicecfg.MakeDefaultConfig()
-	tconf.Console = nil
-	tconf.Log = s.log
+	tconf.Logger = s.log
 	tconf.SSH.Enabled = true
 	tconf.Proxy.DisableWebInterface = true
 	tconf.PollingPeriod = 500 * time.Millisecond
@@ -1858,8 +1861,7 @@ func (s *KubeSuite) teleKubeConfig(hostname string) *servicecfg.Config {
 // teleKubeConfig sets up teleport with kubernetes turned on
 func (s *KubeSuite) teleAuthConfig(hostname string) *servicecfg.Config {
 	tconf := servicecfg.MakeDefaultConfig()
-	tconf.Console = nil
-	tconf.Log = s.log
+	tconf.Logger = s.log
 	tconf.PollingPeriod = 500 * time.Millisecond
 	tconf.Testing.ClientTimeout = time.Second
 	tconf.Testing.ShutdownTimeout = 2 * tconf.Testing.ClientTimeout
@@ -2114,7 +2116,7 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	// fooey
@@ -2373,7 +2375,7 @@ func testExecNoAuth(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	adminUsername := "admin"

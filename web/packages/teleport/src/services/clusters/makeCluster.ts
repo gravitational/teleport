@@ -20,7 +20,7 @@ import { displayDate, displayDateTime } from 'design/datetime';
 
 import cfg from 'teleport/config';
 
-import { Cluster } from './types';
+import { Cluster, ClusterInfo } from './types';
 
 export function makeCluster(json): Cluster {
   const {
@@ -52,6 +52,12 @@ export function makeCluster(json): Cluster {
     proxyVersion,
     licenseExpiryDateText,
   };
+}
+
+export function makeClusterInfo(json): ClusterInfo {
+  const isCloud = json.isCloud;
+  const cluster = makeCluster(json);
+  return { ...cluster, isCloud };
 }
 
 export function makeClusterList(json: any): Cluster[] {

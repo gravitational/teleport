@@ -55,7 +55,8 @@ func TestService_GetUserPreferences(t *testing.T) {
 			req:      &userpreferencesv1.GetUserPreferencesRequest{},
 			want: &userpreferencesv1.GetUserPreferencesResponse{
 				Preferences: &userpreferencesv1.UserPreferences{
-					Theme: userpreferencesv1.Theme_THEME_UNSPECIFIED,
+					Theme:             userpreferencesv1.Theme_THEME_UNSPECIFIED,
+					SideNavDrawerMode: userpreferencesv1.SideNavDrawerMode_SIDE_NAV_DRAWER_MODE_COLLAPSED,
 					UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
 						DefaultTab:            userpreferencesv1.DefaultTab_DEFAULT_TAB_ALL,
 						ViewMode:              userpreferencesv1.ViewMode_VIEW_MODE_CARD,

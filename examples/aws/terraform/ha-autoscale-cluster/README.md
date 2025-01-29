@@ -20,7 +20,7 @@ the ports to the other parts.
 
 We recommend familiarizing yourself with the following resources prior to reviewing our Terraform examples:
 
-- [Teleport Architecture](https://goteleport.com/docs/architecture/overview/)
+- [Teleport Architecture](https://goteleport.com/docs/reference/architecture/)
 - [Admin Guide](https://goteleport.com/docs/management/admin/)
 - [Running Teleport Enterprise in High Availability mode on AWS](https://goteleport.com/docs/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/)
 
@@ -46,7 +46,7 @@ export TF_VAR_cluster_name="teleport.example.com"
 # OSS: aws ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-oss-*'
 # Enterprise: aws ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-ent-*'
 # FIPS 140-2 images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
-export TF_VAR_ami_name="teleport-ent-16.4.6-arm64"
+export TF_VAR_ami_name="teleport-ent-17.2.0-arm64"
 
 # Instance types used for authentication server auto scaling group
 # This should match to the AMI instance architecture type, ARM or x86

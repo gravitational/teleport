@@ -3,6 +3,29 @@ title: MySQL Automatic User Provisioning
 description: Configure automatic user provisioning for MySQL.
 ---
 
+Teleport can automatically create an account in your MySQL database when a
+Teleport user connects to the database, removing the need for creating
+individual user accounts in advance or using the same set of shared database
+accounts for all users. This guide shows you how to set up automatic user
+provisioning for MySQL.
+
+## How it works
+
+Before enrolling a MySQL database with Teleport, you set up an admin user on the
+database with permissions to manage users. You then enroll the database in your
+Teleport cluster with a configuration field that includes the name of the admin
+user. 
+
+When a Teleport user connects to the database with a role that enables automatic
+user provisioning, the Teleport Database Service first connects to the database
+as the admin user, creates a temporary user in the database, then initiates a
+database session for the Teleport user as the temporary database user. 
+
+When the Teleport user closes the session, the Teleport Database Service
+prevents the temporary database user from accessing the database by, depending
+on the configuration, either removing the database user or disabling it and
+stripping its privileges.
+
 ## Prerequisites
 
 - Teleport cluster v14.1 or higher with a configured [self-hosted

@@ -107,7 +107,7 @@ which could result in the error,
 
 ## tctl acl get
 
-Gets and displays information about a particular access list.
+Gets and displays information about a particular Access List.
 
 ```code
 $ tctl acl get <id>
@@ -123,7 +123,7 @@ $ tctl acl ls
 
 ## tctl acl users add
 
-Adds a user to an access list.
+Adds a user to an Access List.
 
 ```code
 $ tctl acl users add <access-list-name> <user> [<expires>] [<reason>]
@@ -131,7 +131,7 @@ $ tctl acl users add <access-list-name> <user> [<expires>] [<reason>]
 
 ## tctl acl users ls
 
-Lists the users in an access list.
+Lists the users in an Access List.
 
 ```code
 $ tctl acl users ls <access-list-name>
@@ -139,7 +139,7 @@ $ tctl acl users ls <access-list-name>
 
 ## tctl acl users rm
 
-Removes a user from an access list.
+Removes a user from an Access List.
 
 ```code
 $ tctl acl users rm <access-list-name> <user>
@@ -268,6 +268,7 @@ $ tctl auth export [<flags>]
 | `--fingerprint` | none | **string** e.g. `SHA256:<fingerprint>` | filter authority by fingerprint |
 | `--compat` | none | version number | export certificates compatible with specific version of Teleport |
 | `--type` | none | `user`, `host`, `tls-host`, `tls-user`, `tls-user-der`, `windows`, `db`, `openssh`, `saml-idp` | certificate type |
+| `--out` | none | filepath | if set writes exported authorities to files with the given path prefix |
 
 ### Global flags
 
@@ -1435,7 +1436,7 @@ Supported presets:
 |------------|--------------------------------------|-----------|
 | `okta`     | Okta                                 | Okta      |
 | `onelogin` | OneLogin                             | OneLogin  |
-| `ad`       | Azure Active Directory               | Microsoft |
+| `ad`       | Microsoft Entra ID                   | Microsoft |
 | `adfs`     | Active Directory Federation Services | ADFS      |
 
 ### Global flags
@@ -1745,7 +1746,7 @@ $ tctl users ls [<flags>]
 
 ## tctl users reset
 
-Reset local user account password and any associated second factor with expiring link to populate values. **Usage**: `tctl users reset <account>`
+Reset local user account password and any associated multi-factor devices with expiring link to populate values. **Usage**: `tctl users reset <account>`
 
 ### Arguments
 

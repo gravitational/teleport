@@ -18,25 +18,21 @@
 
 import React from 'react';
 
+import cfg from 'teleport/config';
 import { ResourceViewConfig } from 'teleport/Discover/flow';
 import { DownloadScript } from 'teleport/Discover/Server/DownloadScript';
 import { SetupAccess } from 'teleport/Discover/Server/SetupAccess';
 import { TestConnection } from 'teleport/Discover/Server/TestConnection';
-import { AwsAccount, ResourceKind, Finished } from 'teleport/Discover/Shared';
+import { AwsAccount, Finished, ResourceKind } from 'teleport/Discover/Shared';
 import {
   DiscoverDiscoveryConfigMethod,
   DiscoverEvent,
 } from 'teleport/services/userEvent';
-import cfg from 'teleport/config';
 
 import { ResourceSpec, ServerLocation } from '../SelectResource';
 import { ConfigureDiscoveryService } from '../Shared/ConfigureDiscoveryService';
-
-import { EnrollEc2Instance } from './EnrollEc2Instance/EnrollEc2Instance';
-import { CreateEc2Ice } from './CreateEc2Ice/CreateEc2Ice';
-
-import { ServerWrapper } from './ServerWrapper';
 import { DiscoveryConfigSsm } from './DiscoveryConfigSsm/DiscoveryConfigSsm';
+import { ServerWrapper } from './ServerWrapper';
 
 export const ServerResource: ResourceViewConfig<ResourceSpec> = {
   kind: ResourceKind.Server,
@@ -59,29 +55,6 @@ export const ServerResource: ResourceViewConfig<ResourceSpec> = {
     let configureResourceViews;
     const { nodeMeta } = resource;
     if (
-      nodeMeta?.location === ServerLocation.Aws &&
-      nodeMeta.discoveryConfigMethod ===
-        DiscoverDiscoveryConfigMethod.AwsEc2Eice
-    ) {
-      configureResourceViews = [
-        {
-          title: 'Connect AWS Account',
-          component: AwsAccount,
-          eventName: DiscoverEvent.IntegrationAWSOIDCConnectEvent,
-        },
-        {
-          title: 'Enroll EC2 Instance',
-          component: EnrollEc2Instance,
-          eventName: DiscoverEvent.EC2InstanceSelection,
-        },
-        {
-          title: 'Create EC2 Instance Connect Endpoint',
-          component: CreateEc2Ice,
-          eventName: DiscoverEvent.CreateNode,
-          manuallyEmitSuccessEvent: true,
-        },
-      ];
-    } else if (
       nodeMeta?.location === ServerLocation.Aws &&
       nodeMeta.discoveryConfigMethod === DiscoverDiscoveryConfigMethod.AwsEc2Ssm
     ) {

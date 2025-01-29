@@ -20,12 +20,12 @@ package services
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -200,10 +200,17 @@ func (l *SemaphoreLock) keepAlive(ctx context.Context) {
 			defer cancel()
 			err = l.cfg.Service.CancelSemaphoreLease(cancelContext, lease)
 			if err != nil {
-				log.Warnf("Failed to cancel semaphore lease %s/%s: %v", lease.SemaphoreKind, lease.SemaphoreName, err)
+				slog.WarnContext(cancelContext, "Failed to cancel semaphore lease %s/%s: %v",
+					"semaphore_kind", lease.SemaphoreKind,
+					"semaphore_name", lease.SemaphoreName,
+					"error", err,
+				)
 			}
 		} else {
-			log.Errorf("Semaphore lease expired: %s/%s", lease.SemaphoreKind, lease.SemaphoreName)
+			slog.ErrorContext(context.Background(), "Semaphore lease expired",
+				"semaphore_kind", lease.SemaphoreKind,
+				"semaphore_name", lease.SemaphoreName,
+			)
 		}
 	}()
 Outer:
@@ -219,7 +226,11 @@ Outer:
 					leaseCancel()
 					// semaphore and/or lease no longer exist; best to log the error
 					// and exit immediately.
-					log.Warnf("Halting keepalive on semaphore %s/%s early: %v", lease.SemaphoreKind, lease.SemaphoreName, err)
+					slog.WarnContext(leaseContext, "Halting keepalive on semaphore",
+						"semaphore_kind", lease.SemaphoreKind,
+						"semaphore_name", lease.SemaphoreName,
+						"error", err,
+					)
 					nodrop = true
 					return
 				}
@@ -233,7 +244,11 @@ Outer:
 					}
 					continue Outer
 				}
-				log.Debugf("Failed to renew semaphore lease %s/%s: %v", lease.SemaphoreKind, lease.SemaphoreName, err)
+				slog.DebugContext(leaseContext, "Failed to renew semaphore lease",
+					"semaphore_kind", lease.SemaphoreKind,
+					"semaphore_name", lease.SemaphoreName,
+					"error", err,
+				)
 				l.retry.Inc()
 				select {
 				case <-l.retry.After():
@@ -298,7 +313,7 @@ func AcquireSemaphoreLock(ctx context.Context, cfg SemaphoreLockConfig) (*Semaph
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Max:    cfg.Expiry / 4,
 		Step:   cfg.Expiry / 16,
-		Jitter: retryutils.NewJitter(),
+		Jitter: retryutils.DefaultJitter,
 		Clock:  cfg.Clock,
 	})
 	if err != nil {

@@ -22,11 +22,32 @@ package common
 import (
 	"log/slog"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/vnet"
 )
+
+const (
+	// On darwin the command must match the command provided in the .plist file.
+	vnetDaemonSubCommand = "vnet-daemon"
+)
+
+// vnetDaemonCommand implements the vnet-daemon subcommand to run the VNet MacOS
+// daemon.
+type vnetDaemonCommand struct {
+	*kingpin.CmdClause
+	// Launch daemons added through SMAppService are launched from a static .plist file, hence
+	// why this command does not accept any arguments.
+	// Instead, the daemon expects the arguments to be sent over XPC from an unprivileged process.
+}
+
+func newPlatformVnetDaemonCommand(app *kingpin.Application) *vnetDaemonCommand {
+	return &vnetDaemonCommand{
+		CmdClause: app.Command(vnetDaemonSubCommand, "Start the VNet daemon").Hidden(),
+	}
+}
 
 func (c *vnetDaemonCommand) run(cf *CLIConf) error {
 	if cf.Debug {
@@ -36,8 +57,4 @@ func (c *vnetDaemonCommand) run(cf *CLIConf) error {
 	}
 
 	return trace.Wrap(vnet.DaemonSubcommand(cf.Context))
-}
-
-func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
-	return trace.NotImplemented("tsh was built with support for VNet daemon, use %s instead", vnetDaemonSubCommand)
 }

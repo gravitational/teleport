@@ -31,7 +31,8 @@ func setupSSO(ctx context.Context, graphClient *msgraph.Client, appObjectID stri
 	preferredSingleSignOnMode := "saml"
 	spPatch.PreferredSingleSignOnMode = &preferredSingleSignOnMode
 	// Do not require explicit assignment of the app to use SSO.
-	// This is per our manual set-up recommendations, see https://goteleport.com/docs/access-controls/sso/azuread/ .
+	// This is per our manual set-up recommendations, see
+	// https://goteleport.com/docs/admin-guides/access-controls/sso/azuread/ .
 	appRoleAssignmentRequired := false
 	spPatch.AppRoleAssignmentRequired = &appRoleAssignmentRequired
 
@@ -51,6 +52,18 @@ func setupSSO(ctx context.Context, graphClient *msgraph.Client, appObjectID stri
 	securityGroups := new(string)
 	*securityGroups = "SecurityGroup"
 	app.GroupMembershipClaims = securityGroups
+
+	claimName := "groups"
+	optionalClaim := []msgraph.OptionalClaim{
+		{
+			Name: &claimName,
+		},
+	}
+	app.OptionalClaims = &msgraph.OptionalClaims{
+		IDToken:     optionalClaim,
+		SAML2Token:  optionalClaim,
+		AccessToken: optionalClaim,
+	}
 
 	err = graphClient.UpdateApplication(ctx, appObjectID, app)
 

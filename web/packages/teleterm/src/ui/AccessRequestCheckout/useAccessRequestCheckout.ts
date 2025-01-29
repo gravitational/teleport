@@ -16,39 +16,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
-
-import useAttempt from 'shared/hooks/useAttemptNext';
-
 import {
   getDryRunMaxDuration,
-  PendingListItem,
-  PendingKubeResourceItem,
   isKubeClusterWithNamespaces,
-  KubeNamespaceRequest,
+  PendingKubeResourceItem,
+  PendingListItem,
   RequestableResourceKind,
 } from 'shared/components/AccessRequests/NewRequest';
 import { useSpecifiableFields } from 'shared/components/AccessRequests/NewRequest/useSpecifiableFields';
-
 import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { useWorkspaceServiceState } from 'teleterm/ui/services/workspacesService';
-import {
-  PendingAccessRequest,
-  extractResourceRequestProperties,
-  ResourceRequest,
-  mapRequestToKubeNamespaceUri,
-  mapKubeNamespaceUriToRequest,
-} from 'teleterm/ui/services/workspacesService/accessRequestsService';
-import { retryWithRelogin } from 'teleterm/ui/utils';
 import {
   CreateAccessRequestRequest,
   AccessRequest as TeletermAccessRequest,
 } from 'teleterm/services/tshd/types';
-
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useWorkspaceServiceState } from 'teleterm/ui/services/workspacesService';
+import {
+  extractResourceRequestProperties,
+  mapKubeNamespaceUriToRequest,
+  mapRequestToKubeNamespaceUri,
+  PendingAccessRequest,
+  ResourceRequest,
+} from 'teleterm/ui/services/workspacesService/accessRequestsService';
 import { routing } from 'teleterm/ui/uri';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 import { makeUiAccessRequest } from '../DocumentAccessRequests/useAccessRequests';
 
@@ -56,17 +52,6 @@ export default function useAccessRequestCheckout() {
   const ctx = useAppContext();
   useWorkspaceServiceState();
   ctx.clustersService.useState();
-  /**
-   * @deprecated Do not use it here. This value comes from the cluster selector next to the search
-   * bar. Changing the cluster should not affect the request checkout in any way.
-   * clusterUri is kept here just to not break existing code that depends on it.
-   * See https://github.com/gravitational/teleport/issues/48510.
-   *
-   * Instead, in most cases you want to use rootClusterUri or the cluster URI derived from a URI of
-   * a resource that you're operating on.
-   */
-  const clusterUri =
-    ctx.workspacesService?.getActiveWorkspace()?.localClusterUri;
   const rootClusterUri = ctx.workspacesService?.getRootClusterUri();
 
   const {
@@ -269,18 +254,19 @@ export default function useAccessRequestCheckout() {
     );
   }
 
-  async function bulkToggleKubeResources(
+  function updateNamespacesForKubeCluster(
     items: PendingKubeResourceItem[],
     kubeCluster: PendingListKubeClusterWithOriginalItem
   ) {
-    await workspaceAccessRequest.addOrRemoveKubeNamespaces(
+    workspaceAccessRequest.updateNamespacesForKubeCluster(
       items.map(item =>
         mapRequestToKubeNamespaceUri({
           id: item.id,
           name: item.subResourceName,
           clusterUri: kubeCluster.originalItem.resource.uri,
         })
-      )
+      ),
+      kubeCluster.originalItem.resource.uri
     );
   }
 
@@ -338,8 +324,7 @@ export default function useAccessRequestCheckout() {
       ctx.clustersService.createAccessRequest(params).then(({ response }) => {
         return {
           accessRequest: response.request,
-          requestedCount:
-            pendingAccessRequestsWithoutParentResource.filter.length,
+          requestedCount: pendingAccessRequestsWithoutParentResource.length,
         };
       })
     ).catch(e => {
@@ -419,19 +404,19 @@ export default function useAccessRequestCheckout() {
     }
   }
 
-  async function fetchKubeNamespaces({
-    kubeCluster,
-    search,
-  }: KubeNamespaceRequest): Promise<string[]> {
+  async function fetchKubeNamespaces(
+    search: string,
+    kubeCluster: PendingListKubeClusterWithOriginalItem
+  ): Promise<string[]> {
     const { response } = await ctx.tshd.listKubernetesResources({
       searchKeywords: search,
       limit: 50,
       useSearchAsRoles: true,
       nextKey: '',
       resourceType: 'namespace',
-      clusterUri: clusterUri,
+      clusterUri: kubeCluster.originalItem.resource.uri,
       predicateExpression: '',
-      kubernetesCluster: kubeCluster,
+      kubernetesCluster: kubeCluster.id,
       kubernetesNamespace: '',
     });
     return response.resources.map(i => i.name);
@@ -475,7 +460,7 @@ export default function useAccessRequestCheckout() {
     startTime,
     onStartTimeChange,
     fetchKubeNamespaces,
-    bulkToggleKubeResources,
+    updateNamespacesForKubeCluster,
   };
 }
 
@@ -488,6 +473,7 @@ type ResourceKind =
       | 'kube_cluster'
       | 'saml_idp_service_provider'
       | 'namespace'
+      | 'aws_ic_account_assignment'
     >
   | 'role';
 
@@ -502,7 +488,10 @@ type PendingListItemWithOriginalItem = Omit<PendingListItem, 'kind'> &
       }
   );
 
-type PendingListKubeClusterWithOriginalItem = Omit<PendingListItem, 'kind'> & {
+export type PendingListKubeClusterWithOriginalItem = Omit<
+  PendingListItem,
+  'kind'
+> & {
   kind: Extract<ResourceKind, 'kube_cluster'>;
   originalItem: Extract<ResourceRequest, { kind: 'kube' }>;
 };

@@ -307,7 +307,8 @@ Service.
    Application Service.
 
 1. Run the following command to associate the new instance profile with your
-   instance:
+   instance, assigning <Var name="INSTANCE_ID" /> to your instance ID and 
+   <Var name="AWS_REGION" /> to your AWS region:
 
    ```code
    $ aws ec2 associate-iam-instance-profile --iam-instance-profile Name="TeleportAWSAccess" \
@@ -360,6 +361,8 @@ In this step, you will define a Teleport role that confers access to the
    ```code
    $ tctl create aws-ro-access.yaml
    ```
+
+   (!docs/pages/includes/create-role-using-web.mdx!)
 
 1. (!docs/pages/includes/add-role-to-user.mdx role="aws-ro-access"!)
 

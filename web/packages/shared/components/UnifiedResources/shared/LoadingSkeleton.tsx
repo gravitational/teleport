@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect, Fragment, ReactElement } from 'react';
+import { Fragment, ReactElement, useEffect, useState } from 'react';
 
 const DISPLAY_SKELETON_AFTER_MS = 150;
 

@@ -84,7 +84,7 @@ func newLabelReconciler(cfg *labelReconcilerConfig) (*labelReconciler, error) {
 		discoveredServers: make(map[string]types.ServerInfo),
 		serverInfoQueue:   make([]types.ServerInfo, 0, minBatchSize),
 		lastBatchSize:     minBatchSize,
-		jitter:            retryutils.NewSeventhJitter(),
+		jitter:            retryutils.SeventhJitter,
 	}, nil
 }
 

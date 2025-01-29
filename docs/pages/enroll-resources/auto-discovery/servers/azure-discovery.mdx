@@ -235,13 +235,15 @@ the Discovery Service.
 In order to enable Azure instance discovery the `discovery_service.azure` section
 of `teleport.yaml` must include at least one entry:
 
+(!docs/pages/includes/discovery/discovery-group.mdx!)
+
 ```yaml
 version: v3
 teleport:
   join_params:
     token_name: "/tmp/token"
     method: token
-  proxy_server: "<Var name="teleport.example.com" />:443"
+  proxy_server: "teleport.example.com:443"
 auth_service:
   enabled: off
 proxy_service:
@@ -250,6 +252,7 @@ ssh_service:
   enabled: off
 discovery_service:
   enabled: "yes"
+  discovery_group: "azure-prod"
   azure:
     - types: ["vm"]
       subscriptions: ["<subscription>"]

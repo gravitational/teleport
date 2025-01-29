@@ -4,7 +4,7 @@ description: Learn how to use Access Lists to manage and audit long lived access
 ---
 
 This guide will help you:
-- Create an access list
+- Create an Access List
 - Assign a member to it
 - Verify permissions granted through the list membership
 
@@ -47,9 +47,8 @@ Try logging into the cluster with the test user to verify that no resources show
 
 ## Step 3/4. Create an Access List
 
-Next, we'll create a simple access list that will grant the `access` role to its members.
-Login as the administrative user mentioned in the prerequisites. Navigate to the management pane and
-click on access lists. Click on "Create an Access List."
+Next, we'll create a simple Access List that will grant the `access` role to its members.
+Login as the administrative user mentioned in the prerequisites. Click on "Add New" in the left pane, and then "Create an Access List."
 
 ![Navigate to create new Access List](../../../../img/access-controls/access-lists/create-new-access-list.png)
 
@@ -65,10 +64,10 @@ not be able to manage the list, though they will still be reflected as an owner.
 
 ![Select an owner](../../../../img/access-controls/access-lists/select-owner.png)
 
-Under "Members" select `requester` as a required role, then add your test user to the access list. Similar to
+Under "Members" select `requester` as a required role, then add your test user to the Access List. Similar to
 the owner requirements, this will ensure that any member of the list must have the `requester` role in order to
 be granted the access described in this list. If the user loses this role later, they will not be granted the
-roles or traits described in the access list.
+roles or traits described in the Access List.
 
 ![Add a member](../../../../img/access-controls/access-lists/add-member.png)
 

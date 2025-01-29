@@ -16,32 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { Suspense, useState, useEffect } from 'react';
-import { Box, ButtonSecondary, Text, Mark, H3 } from 'design';
+import { Suspense, useEffect, useState } from 'react';
+
+import { Box, ButtonSecondary, H3, Mark, Text } from 'design';
 import * as Icons from 'design/Icon';
 import Validation, { Validator } from 'shared/components/Validation';
 
 import { CatchError } from 'teleport/components/CatchError';
-import {
-  clearCachedJoinTokenResult,
-  useJoinTokenSuspender,
-} from 'teleport/Discover/Shared/useJoinTokenSuspender';
-import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
-import { ResourceLabel } from 'teleport/services/agents';
-import cfg from 'teleport/config';
-import { Database } from 'teleport/services/databases';
-
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-
+import cfg from 'teleport/config';
+import { DatabaseLocation } from 'teleport/Discover/SelectResource';
+import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 import {
   HintBox,
   SuccessBox,
   WaitingInfo,
 } from 'teleport/Discover/Shared/HintBox';
-
-import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
+import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
+import {
+  clearCachedJoinTokenResult,
+  useJoinTokenSuspender,
+} from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import { useDiscover } from 'teleport/Discover/useDiscover';
-import { DatabaseLocation } from 'teleport/Discover/SelectResource';
+import { ResourceLabel } from 'teleport/services/agents';
+import { Database } from 'teleport/services/databases';
 import {
   DiscoverEventStatus,
   DiscoverServiceDeployMethod,
@@ -58,7 +56,7 @@ import {
   TextIcon,
   useShowHint,
 } from '../../../Shared';
-import { Labels, hasMatchingLabels } from '../../common';
+import { hasMatchingLabels, Labels } from '../../common';
 import { DeployServiceProp } from '../DeployService';
 
 export default function Container({ toggleDeployMethod }: DeployServiceProp) {
@@ -145,15 +143,19 @@ export function ManualDeploy(props: {
   const { agentMeta, updateAgentMeta, nextStep, emitEvent } = useDiscover();
 
   // Fetches join token.
-  const { joinToken } = useJoinTokenSuspender(
-    [ResourceKind.Database],
-    props.labels
-  );
+  const { joinToken } = useJoinTokenSuspender({
+    resourceKinds: [ResourceKind.Database],
+    suggestedAgentMatcherLabels: props.labels,
+  });
 
   // Starts resource querying interval.
   const { active, result } = usePingTeleport<Database>(agentMeta.resourceName);
 
   const showHint = useShowHint(active);
+
+  useEffect(() => {
+    return () => clearCachedJoinTokenResult([ResourceKind.Database]);
+  }, []);
 
   function handleNextStep() {
     updateAgentMeta({

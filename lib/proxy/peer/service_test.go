@@ -31,13 +31,14 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	peerdial "github.com/gravitational/teleport/lib/proxy/peer/dial"
 )
 
 type mockClusterDialer struct {
-	MockDialCluster func(string, DialParams) (net.Conn, error)
+	MockDialCluster func(string, peerdial.DialParams) (net.Conn, error)
 }
 
-func (m *mockClusterDialer) Dial(clusterName string, request DialParams) (net.Conn, error) {
+func (m *mockClusterDialer) Dial(clusterName string, request peerdial.DialParams) (net.Conn, error) {
 	if m.MockDialCluster == nil {
 		return nil, trace.NotImplemented("")
 	}
@@ -93,8 +94,8 @@ func TestSendReceive(t *testing.T) {
 	}
 
 	local, remote := net.Pipe()
-	service.clusterDialer = &mockClusterDialer{
-		MockDialCluster: func(clusterName string, request DialParams) (net.Conn, error) {
+	service.dialer = &mockClusterDialer{
+		MockDialCluster: func(clusterName string, request peerdial.DialParams) (net.Conn, error) {
 			require.Equal(t, "test-cluster", clusterName)
 			require.Equal(t, dialRequest.TunnelType, request.ConnType)
 			require.Equal(t, dialRequest.NodeID, request.ServerID)

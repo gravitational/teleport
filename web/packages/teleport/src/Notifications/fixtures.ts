@@ -16,10 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { subSeconds, subMinutes, subHours, subMonths } from 'date-fns';
+import { subHours, subMinutes, subMonths, subSeconds } from 'date-fns';
 
-import { NotificationSubKind } from 'teleport/services/notifications';
-import { Notification } from 'teleport/services/notifications';
+import {
+  Notification,
+  NotificationSubKind,
+} from 'teleport/services/notifications';
 
 export const notifications: Notification[] = [
   {
@@ -112,5 +114,53 @@ export const notifications: Notification[] = [
         value: '3bd7d71f-64ad-588a-988c-22f3853910fa',
       },
     ],
+  },
+  {
+    id: '8',
+    title: `You have access lists that require your review within 30 days.`,
+    subKind: NotificationSubKind.NotificationAccessListReviewDue30d,
+    createdDate: subMinutes(Date.now(), 5), // 5 minutes ago
+    clicked: false,
+    labels: [],
+  },
+  {
+    id: '9',
+    title: `You have access lists that require your review within 14 days.`,
+    subKind: NotificationSubKind.NotificationAccessListReviewDue14d,
+    createdDate: subMinutes(Date.now(), 6), // 6 minutes ago
+    clicked: false,
+    labels: [],
+  },
+  {
+    id: '10',
+    title: `You have access lists that require your review within 7 days.`,
+    subKind: NotificationSubKind.NotificationAccessListReviewDue7d,
+    createdDate: subMinutes(Date.now(), 7), // 7 minutes ago
+    clicked: false,
+    labels: [],
+  },
+  {
+    id: '11',
+    title: `You have access lists that require your review within 3 days.`,
+    subKind: NotificationSubKind.NotificationAccessListReviewDue3d,
+    createdDate: subMinutes(Date.now(), 8), // 8 minutes ago
+    clicked: false,
+    labels: [],
+  },
+  {
+    id: '12',
+    title: `You have access lists overdue for review by more than 3 days.`,
+    subKind: NotificationSubKind.NotificationAccessListReviewOverdue3d,
+    createdDate: subMinutes(Date.now(), 9), // 9 minutes ago
+    clicked: false,
+    labels: [],
+  },
+  {
+    id: '13',
+    title: `You have access lists overdue for review by more than 7 days.`,
+    subKind: NotificationSubKind.NotificationAccessListReviewOverdue7d,
+    createdDate: subMinutes(Date.now(), 10), // 10 minutes ago
+    clicked: false,
+    labels: [],
   },
 ];

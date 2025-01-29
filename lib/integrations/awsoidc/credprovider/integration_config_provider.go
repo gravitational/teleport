@@ -33,10 +33,18 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 )
 
+// Options represents additional options for configuring the AWS credentials provider.
+// There are currently no options but this type is still referenced from
+// teleport.e.
+type Options struct{}
+
+// Option is a function that modifies the Options struct for the AWS configuration.
+type Option func(*Options)
+
 // CreateAWSConfigForIntegration returns a new AWS credentials provider that
 // uses the AWS OIDC integration to generate temporary credentials.
 // The provider will periodically refresh the credentials before they expire.
-func CreateAWSConfigForIntegration(ctx context.Context, config Config) (*aws.Config, error) {
+func CreateAWSConfigForIntegration(ctx context.Context, config Config, option ...Option) (*aws.Config, error) {
 	if err := config.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -52,7 +60,6 @@ func CreateAWSConfigForIntegration(ctx context.Context, config Config) (*aws.Con
 		return nil, trace.Wrap(err)
 	}
 	go credCache.Run(ctx)
-	credCache.WaitForFirstCredsOrErr(ctx)
 
 	awsCfg, err := newAWSConfig(ctx, config.Region, awsConfig.WithCredentialsProvider(credCache))
 	if err != nil {
@@ -126,17 +133,17 @@ func newAWSCredCache(ctx context.Context, cfg Config, stsClient stscreds.AssumeR
 
 	credCache, err := NewCredentialsCache(
 		CredentialsCacheOptions{
-			Log:         cfg.Logger,
-			Clock:       cfg.Clock,
-			STSClient:   stsClient,
-			RoleARN:     roleARN,
-			Integration: cfg.IntegrationName,
+			Log:                 cfg.Logger,
+			Clock:               cfg.Clock,
+			STSClient:           stsClient,
+			RoleARN:             roleARN,
+			Integration:         cfg.IntegrationName,
+			GenerateOIDCTokenFn: cfg.AWSOIDCTokenGenerator.GenerateAWSOIDCToken,
 		},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating OIDC credentials cache")
 	}
-	credCache.SetGenerateOIDCTokenFn(cfg.AWSOIDCTokenGenerator.GenerateAWSOIDCToken)
 	return credCache, nil
 }
 

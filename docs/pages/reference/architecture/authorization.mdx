@@ -4,14 +4,12 @@ description: This chapter explains how Teleport authorizes users and roles.
 h1: Teleport Authorization
 ---
 
-## Authorization
-
 Teleport handles both authentication and authorization.
 
 - Authentication is about proving an identity of a user or a service.
 - Authorization is proving access rights to something.
 
-This article covers authorization of users and services with RBAC.
+This article explains authorization of users and services with RBAC.
 
 ## Users and Roles
 
@@ -254,8 +252,9 @@ Reference](../access-controls/roles.mdx).
 
 **How role templates are evaluated**
 
-Role templates are evaluated at the time of access to any resource either by proxy or node.
-Every Teleport component - proxy, auth server or node has up to date copy of all roles.
+Every Teleport component - whether a Proxy Service instance, Auth Service
+instance, or Agent -has up to date copy of all roles.  Teleport components
+evaluate role templates at the time of access to any resource. 
 
 Let's review a case with the following role template:
 

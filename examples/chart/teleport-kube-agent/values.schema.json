@@ -252,6 +252,11 @@
             "type": "object",
             "default": {}
         },
+        "terminationGracePeriodSeconds": {
+            "$id": "#/properties/terminationGracePeriodSeconds",
+            "type": "integer",
+            "default": 30
+        },
         "tls": {
             "$id": "#/properties/tls",
             "type": "object",

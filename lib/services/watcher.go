@@ -138,10 +138,10 @@ func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg Re
 		return nil, trace.Wrap(err)
 	}
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.FullJitter(cfg.MaxRetryPeriod / 10),
+		First:  retryutils.FullJitter(cfg.MaxRetryPeriod / 10),
 		Step:   cfg.MaxRetryPeriod / 5,
 		Max:    cfg.MaxRetryPeriod,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 		Clock:  cfg.Clock,
 	})
 	if err != nil {
@@ -1705,3 +1705,44 @@ func (c *oktaAssignmentCollector) processEventsAndUpdateCurrent(ctx context.Cont
 }
 
 func (*oktaAssignmentCollector) notifyStale() {}
+
+// GitServerWatcherConfig is the config for Git server watcher.
+type GitServerWatcherConfig struct {
+	GitServerGetter
+	ResourceWatcherConfig
+
+	// EnableUpdateBroadcast turns on emitting updates on changes. Broadcast is
+	// opt-in for Git Server watcher.
+	EnableUpdateBroadcast bool
+}
+
+// NewGitServerWatcher returns a new instance of Git server watcher.
+func NewGitServerWatcher(ctx context.Context, cfg GitServerWatcherConfig) (*GenericWatcher[types.Server, readonly.Server], error) {
+	if cfg.GitServerGetter == nil {
+		return nil, trace.BadParameter("NodesGetter must be provided")
+	}
+
+	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.Server, readonly.Server]{
+		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
+		ResourceKind:          types.KindGitServer,
+		ResourceGetter: func(ctx context.Context) (all []types.Server, err error) {
+			var page []types.Server
+			var token string
+			for {
+				page, token, err = cfg.GitServerGetter.ListGitServers(ctx, apidefaults.DefaultChunkSize, token)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				all = append(all, page...)
+				if token == "" {
+					break
+				}
+			}
+			return all, nil
+		},
+		ResourceKey:            types.Server.GetName,
+		DisableUpdateBroadcast: !cfg.EnableUpdateBroadcast,
+		CloneFunc:              types.Server.DeepCopy,
+	})
+	return w, trace.Wrap(err)
+}

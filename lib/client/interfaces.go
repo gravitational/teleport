@@ -28,6 +28,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -79,6 +81,14 @@ func (idx KeyRingIndex) Match(matchKeyRing KeyRingIndex) bool {
 	return (matchKeyRing.ProxyHost == "" || matchKeyRing.ProxyHost == idx.ProxyHost) &&
 		(matchKeyRing.ClusterName == "" || matchKeyRing.ClusterName == idx.ClusterName) &&
 		(matchKeyRing.Username == "" || matchKeyRing.Username == idx.Username)
+}
+
+func (idx KeyRingIndex) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("proxy", idx.ProxyHost),
+		slog.String("cluster", idx.ClusterName),
+		slog.String("username", idx.Username),
+	)
 }
 
 // TLSCredential holds a signed TLS certificate and matching private key.
@@ -294,21 +304,39 @@ func (k *KeyRing) clientTLSConfig(cipherSuites []uint16, cred TLSCredential, clu
 
 // ClientCertPool returns x509.CertPool containing trusted CA.
 func (k *KeyRing) clientCertPool(clusters ...string) (*x509.CertPool, error) {
+	certPoolPEM, err := k.clientCertPoolPEM(clusters...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	pool := x509.NewCertPool()
+	if len(certPoolPEM) == 0 {
+		// It's valid to have no matching CAs and therefore an empty cert pool.
+		return pool, nil
+	}
+	if !pool.AppendCertsFromPEM(certPoolPEM) {
+		return nil, trace.BadParameter("failed to parse TLS CA certificate")
+	}
+	return pool, nil
+}
+
+func (k *KeyRing) clientCertPoolPEM(clusters ...string) ([]byte, error) {
+	var certPoolPEM bytes.Buffer
 	for _, caPEM := range k.TLSCAs() {
 		cert, err := tlsca.ParseCertificatePEM(caPEM)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "parsing TLS CA certificate")
 		}
-		for _, k := range clusters {
-			if cert.Subject.CommonName == k {
-				if !pool.AppendCertsFromPEM(caPEM) {
-					return nil, trace.BadParameter("failed to parse TLS CA certificate")
-				}
-			}
+		if !slices.Contains(clusters, cert.Subject.CommonName) {
+			continue
+		}
+		certPoolPEM.Write(caPEM)
+		// PEM files should end with a trailing newline, just double check
+		// before potentially concatenating multiple together.
+		if caPEM[len(caPEM)-1] != '\n' {
+			certPoolPEM.WriteByte('\n')
 		}
 	}
-	return pool, nil
+	return certPoolPEM.Bytes(), nil
 }
 
 // ProxyClientSSHConfig returns an ssh.ClientConfig with SSH credentials from this

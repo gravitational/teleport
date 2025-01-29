@@ -17,29 +17,29 @@
  */
 
 import { useState } from 'react';
-import styled from 'styled-components';
-import { Box } from 'design';
 import { ActionMeta } from 'react-select';
+import styled from 'styled-components';
 
-import { Option } from 'shared/components/Select';
+import { Box } from 'design';
 import { FieldSelectAsync } from 'shared/components/FieldSelect';
+import { Option } from 'shared/components/Select';
 
 import { CheckableOptionComponent } from '../CheckableOption';
-
-import { PendingListItem, PendingKubeResourceItem } from './RequestCheckout';
-
-import type { KubeNamespaceRequest } from '../kube';
+import { PendingKubeResourceItem, PendingListItem } from './RequestCheckout';
 
 export function KubeNamespaceSelector({
   kubeClusterItem,
   fetchKubeNamespaces,
   savedResourceItems,
-  bulkToggleKubeResources,
+  updateNamespacesForKubeCluster,
 }: {
   kubeClusterItem: PendingListItem;
-  fetchKubeNamespaces(p: KubeNamespaceRequest): Promise<string[]>;
+  fetchKubeNamespaces(
+    search: string,
+    kubeCluster: PendingListItem
+  ): Promise<string[]>;
   savedResourceItems: PendingListItem[];
-  bulkToggleKubeResources: (
+  updateNamespacesForKubeCluster: (
     resources: PendingKubeResourceItem[],
     resource: PendingListItem
   ) => void;
@@ -57,7 +57,9 @@ export function KubeNamespaceSelector({
 
   const currKubeClustersNamespaceItems = savedResourceItems.filter(
     resource =>
-      resource.kind === 'namespace' && resource.id === kubeClusterItem.id
+      resource.kind === 'namespace' &&
+      resource.id === kubeClusterItem.id &&
+      resource.clusterName === kubeClusterItem.clusterName
   ) as PendingKubeResourceItem[];
 
   const [selectedOpts, setSelectedOpts] = useState<Option[]>(() =>
@@ -75,22 +77,12 @@ export function KubeNamespaceSelector({
 
     switch (actionMeta.action) {
       case 'clear':
-        bulkToggleKubeResources(
-          currKubeClustersNamespaceItems,
-          kubeClusterItem
-        );
+        updateNamespacesForKubeCluster([], kubeClusterItem);
         return;
       case 'remove-value':
-        bulkToggleKubeResources(
-          [
-            {
-              kind: 'namespace',
-              id: kubeClusterItem.id,
-              subResourceName: actionMeta.removedValue.value,
-              clusterName: kubeClusterItem.clusterName,
-              name: actionMeta.removedValue.value,
-            },
-          ],
+        const selectedOptions = options || [];
+        updateNamespacesForKubeCluster(
+          selectedOptions.map(o => optionToKubeNamespace(o)),
           kubeClusterItem
         );
         return;
@@ -98,40 +90,29 @@ export function KubeNamespaceSelector({
   }
 
   const handleMenuClose = () => {
+    const selectedOptions = selectedOpts || [];
     setIsMenuOpen(false);
-
-    const currNamespaces = currKubeClustersNamespaceItems.map(
-      n => n.subResourceName
-    );
-    const selectedNamespaceIds = selectedOpts.map(o => o.value);
-    const toKeep = selectedNamespaceIds.filter(id =>
-      currNamespaces.includes(id)
-    );
-
-    const toInsert = selectedNamespaceIds.filter(o => !toKeep.includes(o));
-    const toRemove = currNamespaces.filter(n => !toKeep.includes(n));
-
-    if (!toInsert.length && !toRemove.length) {
-      return;
-    }
-
-    bulkToggleKubeResources(
-      [...toRemove, ...toInsert].map(namespace => ({
-        kind: 'namespace',
-        id: kubeClusterItem.id,
-        subResourceName: namespace,
-        clusterName: kubeClusterItem.clusterName,
-        name: namespace,
-      })),
+    updateNamespacesForKubeCluster(
+      selectedOptions.map(o => optionToKubeNamespace(o)),
       kubeClusterItem
     );
   };
 
+  function optionToKubeNamespace(
+    selectedOption: Option
+  ): PendingKubeResourceItem {
+    const namespace = selectedOption.value;
+    return {
+      kind: 'namespace',
+      id: kubeClusterItem.id,
+      subResourceName: namespace,
+      clusterName: kubeClusterItem.clusterName,
+      name: namespace,
+    };
+  }
+
   async function handleLoadOptions(input: string) {
-    const namespaces = await fetchKubeNamespaces({
-      kubeCluster: kubeClusterItem.id,
-      search: input,
-    });
+    const namespaces = await fetchKubeNamespaces(input, kubeClusterItem);
 
     return namespaces.map(namespace => ({
       kind: 'namespace',
@@ -141,10 +122,10 @@ export function KubeNamespaceSelector({
   }
 
   return (
-    <Box width="100%" mb={-3}>
+    <Box width="100%" mb={-3} mt={2}>
       <StyledSelect
         label={`Namespaces`}
-        inputId={kubeClusterItem.id}
+        inputId={`${kubeClusterItem.id}-${kubeClusterItem.clusterName}`}
         width="100%"
         placeholder="Start typing a namespace and press enter"
         isMulti

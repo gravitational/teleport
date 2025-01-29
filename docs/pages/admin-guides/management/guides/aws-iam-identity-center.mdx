@@ -1,0 +1,297 @@
+---
+title: AWS IAM Identity Center (Preview)
+description: How to set up and use Teleport AWS IAM Identity Center integration
+---
+
+Teleport's integration with [AWS IAM Identity Center](https://aws.amazon.com/iam/identity-center/)
+allows you to organize and manage your users' short- and long-term access to AWS
+accounts and their permissions.
+
+With the Identity Center integration you can grant or revoke persistent access
+to AWS accounts and resources using Teleport Access Lists, or use Teleport
+Access Requests for scenarios requiring temporary elevated AWS privileges.
+
+## How it works
+
+Identity Center integration builds on top of Teleport's [role-based access controls](../../access-controls/guides/guides.mdx),
+[just-in-time Access Requests](../../access-controls/access-requests/access-requests.mdx)
+and [Access Lists](../../access-controls/access-lists/access-lists.mdx).
+
+When enabled, Teleport takes ownership over Identity Center users, groups, and
+permission set assignments:
+
+- All Identity Center groups, along with their members, account and permission
+  assignments, are imported into Teleport as Access Lists.
+- Identity Center account and permission assignments are expressed as Teleport
+  role policies.
+- Changes made to Teleport users or Access Lists with Identity Center assigned
+  permissions are reflected in the Identity Center.
+
+For managing long-term access, Teleport cluster administrators can designate
+Identity Center-synced Access Lists owners who will be responsible for adding
+or removing users and performing periodic access reviews. Users added to or
+removed from such Access Lists will be added to or removed from corresponding
+Identity Center groups.
+
+For short-term access, users can go through Teleport's standard Access Request
+flow in which case Teleport will assign requested privileges to a particular
+user and automatically unassign once the Access Request expires.
+
+<Admonition type="note">
+The preview release of Teleport's Identity Center integration in Teleport 17.0
+supports role Access Requests only.
+
+Resource Access Requests (ability to request access to a particular permission
+set in a particular account or a particular resource) will be added in follow
+up releases.
+</Admonition>
+
+## Prerequisites
+
+- Teleport Enterprise or Teleport Enterprise Cloud cluster version 17.0 or higher.
+- Administrative access to AWS IAM Identity Center.
+
+<Admonition type="warning">
+Note that Identity Center integration requires using Teleport as an external
+identity source.
+
+As such, we recommend ensuring that all Identity Center users have access to
+your Teleport cluster before turning the integration on to avoid access
+interruption. If your Identity Center already uses external identity source,
+you can configure corresponding [SSO connector](../../access-controls/sso/sso.mdx)
+in Teleport or, if you're using Okta, turn on
+[Okta integration](../../../enroll-resources/application-access/okta/hosted-guide.mdx).
+</Admonition>
+
+## Step 1/6. Configure AWS integration
+
+Teleport provides a guided web UI based configuration flow for the Identity
+Center integration. To get started, navigate to the "Add new integration" page
+in your Teleport cluster control panel and select "AWS Identity Center".
+
+![Pick Identity Center integration](../../../../img/identity-center/ic-pick-integration.png)
+
+During this step, you will set up Teleport as an OIDC identity provider for
+your AWS account and create an AWS role with the permissions required for the
+integration to function, such as fetching Identity Center accounts, users,
+groups, permission set assignments, and so on.
+
+<Details title="Full list of IAM permissions required by Identity Center integration">
+```
+// ListAccounts
+organizations:ListAccounts
+organizations:ListAccountsForParent
+
+// ListGroupsAndMembers
+identitystore:ListUsers
+identitystore:ListGroups
+identitystore:ListGroupMemberships
+
+// ListPermissionSetsAndAssignments
+sso:DescribeInstance
+sso:DescribePermissionSet
+sso:ListPermissionSets
+sso:ListAccountAssignmentsForPrincipal
+sso:ListPermissionSetsProvisionedToAccount
+
+// CreateAndDeleteAccountAssignment
+sso:CreateAccountAssignment
+sso:DescribeAccountAssignmentCreationStatus
+sso:DeleteAccountAssignment
+sso:DescribeAccountAssignmentDeletionStatus
+iam:AttachRolePolicy
+iam:CreateRole
+iam:GetRole
+iam:ListAttachedRolePolicies
+iam:ListRolePolicies
+
+// AllowAccountAssignmentOnOwner
+iam:GetSAMLProvider
+
+// ListProvisionedRoles
+iam:ListRoles
+```
+</Details>
+
+![Configure AWS integration](../../../../img/identity-center/ic-step1.1.png)
+
+Enter required information such as Identity Center region, ARN and integration
+name, and execute the generated command in the Cloud Shell.
+
+After the script has run, fill out the ARN for the role created by the script.
+
+![Run script for AWS integration](../../../../img/identity-center/ic-step1.2.png)
+
+## Step 2/6. Preview AWS resources
+
+On the next step, you are presented with the list of AWS accounts, groups, and
+permission sets that Teleport was able to find in your Identity Center.
+
+![Preview AWS resources](../../../../img/identity-center/ic-step2.png)
+
+Pick the default owners that should be assigned to the Access Lists in Teleport.
+These resources will be imported into Teleport once the plugin is installed.
+
+## Step 3/6. Configure identity source
+
+<Admonition type="warning">
+After this step, Teleport will become your Identity Center's identity provider.
+
+To avoid access interruptions, we recommend making sure that all existing
+Identity Center users have access to your Teleport cluster by, for example, using
+the same [IdP](../../access-controls/sso/sso.mdx) as your current Identity Center
+external identity source.
+</Admonition>
+
+Follow the instructions to change your Identity Center's identity source to
+Teleport.
+
+![Configure identity source](../../../../img/identity-center/ic-step3.png)
+
+## Step 4/6. Enable SCIM
+
+The final step is to enable the SCIM endpoint in your Identity Center to
+allow Teleport to push user and group changes.
+
+![Enable SCIM](../../../../img/identity-center/ic-step4.png)
+
+Make sure to test SCIM connection after enabling it.
+
+## Step 5/6. Verify the integration
+
+Navigate to the Access Lists view page in your cluster and make sure that all
+your Identity Center groups have been imported.
+
+<Admonition type="note">
+It may take a few minutes for the initial sync to complete.
+</Admonition>
+
+![Access Lists view](../../../../img/identity-center/ic-lists.png)
+
+Imported Access Lists should show the same members as their corresponding
+Identity Center groups.
+
+## Step 6/6. Connect to AWS
+
+Once the integration is up and running, you will see an application named
+`aws-identity-center` among your resources:
+
+![Connect to AWS SSO portal](../../../../img/identity-center/ic-app.png)
+
+Clicking the "Log In" button for this app takes you to your Identity Center
+SSO start page which you can use to pick a role and connect to your AWS account
+as usual.
+
+## Usage scenarios
+
+Let's take a look at some common usage scenarios enabled by the Identity Center
+integration.
+
+### Managing access with Access Lists
+
+Teleport creates an Access List for each group found in the Identity Center,
+with group members becoming Access List members. Default Access List owners are
+configured during the initial integration enrollment flow and can be adjusted
+as necessary after the initial sync completes.
+
+Each imported Access List is automatically assigned a role (or a set of roles)
+that grant all members of that list access to a particular permission set on a
+particular AWS account based on the permissions the corresponding Identity Center
+group was assigned during the integration setup. Those roles are considered
+system roles generated by Teleport and are named using `<permission-set-name>-on-<account-name>`
+convention (e.g. `AdministratorAccess-on-my-account`).
+
+To give a user permission granted by an already-existing Identity Center synced
+Access List, an owner can add that user as a member which makes Teleport to add
+the user to its corresponding Identity Center group.
+
+<Admonition type="note">
+While the integration is running, all existing Teleport users are synced to
+Identity Center.
+</Admonition>
+
+Removing a member from an Identity Center synced Access List removes them
+from the corresponding Identity Center group effectively revoking privileges.
+
+In addition to membership changes, Teleport propagates changes in Access List
+grants to Identity Center as well. In a scenario where, say, for an Access List
+with roles `AdministratorAccess-on-my-account` and `ReadOnlyAccess-on-my-account`
+one of the granted roles were to be removed, the corresponding Identity Center
+group would see its assignments updated accordingly.
+
+### Using role Access Requests
+
+For short-term privilege elevation, Identity Center integration works with
+Teleport Access Requests.
+
+When an Access Request for a role granting Identity Center privileges is
+approved, Teleport creates an individual assignment for that user in the
+Identity Center. The assignment is deleted when the Access Request expires.
+
+<Admonition type="note">
+In a future version, Teleport will support requesting access to individual
+permission sets using resource-based Access Request flow similar to other
+Teleport resources.
+</Admonition>
+
+### Creating custom Identity Center roles
+
+You can craft your own roles that bind Identity Center accounts to permission
+sets, for example:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: aws-dev-access
+spec:
+  allow:
+    account_assignments:
+    - account: "<account_id>" # AWS identity center account ID
+      # permission set ARN of AdministratorAccess
+      permission_set: arn:aws:sso:::permissionSet/ssoins-1234/ps-5678
+    - account: "<account_id>"
+      # permission set ARN of ReadOnlyAccess
+      permission_set: arn:aws:sso:::permissionSet/ssoins-1234/ps-8765 
+```
+
+These roles can be assigned to users and Access Lists or requested by users
+using Access Requests flow described above.
+
+## FAQ
+
+### Which Access Lists are synced to Identity Center?
+
+Teleport syncs all Access Lists that have AWS account and permission set rules
+among their role grants to Identity Center.
+
+### How does it work with nested Access Lists?
+
+Identity Center does not support nested groups. As such, Teleport flattens out
+the member list when syncing an Access List that has
+[nested Access Lists](../../access-controls/access-lists/nested-access-lists.mdx).
+
+### How do I uninstall the integration?
+
+<Admonition type="warning">
+Before fully removing the integration, make sure to remember to change the
+identity source in your Identity Center.
+</Admonition>
+
+You can remove the integration by navigating to your cluster's Integrations
+list and deleting both the integration named `AWS Identity Center`. The AWS
+OIDC integration that was created during the first enrollment step will be
+automatically removed as well once the plugin is uninstalled.
+
+To clean up AWS resources created for the integration, remove the Identity
+Provider and its role from your AWS IAM console as well.
+
+## Next steps
+
+- Take a deeper dive into fundamental Teleport concepts used in Identity Center
+  integration such as [RBAC](../../access-controls/guides/guides.mdx),
+  [JIT Access Requests](../../access-controls/access-requests/access-requests.mdx)
+  and [Access Lists](../../access-controls/access-lists/access-lists.mdx).
+- Learn how to enable [Okta integration](../../../enroll-resources/application-access/okta/hosted-guide.mdx)
+  to sync apps, users and groups from Okta in conjunction with Identity Center
+  integration.

@@ -17,26 +17,28 @@
  */
 
 import {
-  DefaultTab,
-  ViewMode,
-  LabelsViewMode,
   AvailableResourceMode,
+  DefaultTab,
+  LabelsViewMode,
+  ViewMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import Logger, { NullService } from 'teleterm/logger';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import type * as tshd from 'teleterm/services/tshd/types';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 
 import { ClustersService } from '../clusters';
-import { StatePersistenceService } from '../statePersistence';
-import { NotificationsService } from '../notifications';
 import { ModalsService } from '../modals';
-
+import { NotificationsService } from '../notifications';
+import { StatePersistenceService } from '../statePersistence';
 import { getEmptyPendingAccessRequest } from './accessRequestsService';
-import { Workspace, WorkspacesService } from './workspacesService';
 import { DocumentCluster, DocumentsService } from './documentsService';
-
-import type * as tshd from 'teleterm/services/tshd/types';
+import {
+  Workspace,
+  WorkspacesService,
+  WorkspacesState,
+} from './workspacesService';
 
 beforeAll(() => {
   Logger.init(new NullService());
@@ -47,7 +49,7 @@ beforeEach(() => {
 });
 
 describe('restoring workspace', () => {
-  it('restores the workspace if there is a persisted state for given clusterUri', async () => {
+  it('restores the workspace if there is a persisted state for given clusterUri', () => {
     const cluster = makeRootCluster();
     const testWorkspace: Workspace = {
       accessRequests: {
@@ -65,16 +67,15 @@ describe('restoring workspace', () => {
       location: '/docs/some_uri',
     };
 
-    const { workspacesService, clusterDocument } = getTestSetup({
+    const persistedWorkspace = { [cluster.uri]: testWorkspace };
+
+    const { workspacesService } = getTestSetup({
       cluster,
-      persistedWorkspaces: { [cluster.uri]: testWorkspace },
+      persistedWorkspaces: persistedWorkspace,
     });
 
-    expect(workspacesService.state.isInitialized).toEqual(false);
+    workspacesService.restorePersistedState();
 
-    await workspacesService.restorePersistedState();
-
-    expect(workspacesService.state.isInitialized).toEqual(true);
     expect(workspacesService.getWorkspaces()).toStrictEqual({
       [cluster.uri]: {
         accessRequests: {
@@ -85,12 +86,9 @@ describe('restoring workspace', () => {
           isBarCollapsed: false,
         },
         localClusterUri: testWorkspace.localClusterUri,
-        documents: [clusterDocument],
-        location: clusterDocument.uri,
-        previous: {
-          documents: testWorkspace.documents,
-          location: testWorkspace.location,
-        },
+        documents: [expect.objectContaining({ kind: 'doc.cluster' })],
+        location: expect.any(String),
+        hasDocumentsToReopen: true,
         connectMyComputer: undefined,
         unifiedResourcePreferences: {
           defaultTab: DefaultTab.ALL,
@@ -100,20 +98,20 @@ describe('restoring workspace', () => {
         },
       },
     });
+    expect(workspacesService.getRestoredState().workspaces).toStrictEqual(
+      persistedWorkspace
+    );
   });
 
-  it('creates empty workspace if there is no persisted state for given clusterUri', async () => {
+  it('creates empty workspace if there is no persisted state for given clusterUri', () => {
     const cluster = makeRootCluster();
-    const { workspacesService, clusterDocument } = getTestSetup({
+    const { workspacesService } = getTestSetup({
       cluster,
       persistedWorkspaces: {},
     });
 
-    expect(workspacesService.state.isInitialized).toEqual(false);
+    workspacesService.restorePersistedState();
 
-    await workspacesService.restorePersistedState();
-
-    expect(workspacesService.state.isInitialized).toEqual(true);
     expect(workspacesService.getWorkspaces()).toStrictEqual({
       [cluster.uri]: {
         accessRequests: {
@@ -124,9 +122,9 @@ describe('restoring workspace', () => {
           },
         },
         localClusterUri: cluster.uri,
-        documents: [clusterDocument],
-        location: clusterDocument.uri,
-        previous: undefined,
+        documents: [expect.objectContaining({ kind: 'doc.cluster' })],
+        location: expect.any(String),
+        hasDocumentsToReopen: false,
         connectMyComputer: undefined,
         unifiedResourcePreferences: {
           defaultTab: DefaultTab.ALL,
@@ -134,6 +132,71 @@ describe('restoring workspace', () => {
           labelsViewMode: LabelsViewMode.COLLAPSED,
           availableResourceMode: AvailableResourceMode.NONE,
         },
+      },
+    });
+    expect(workspacesService.getRestoredState().workspaces).toStrictEqual({});
+  });
+});
+
+describe('state persistence', () => {
+  it('doc.authorize_web_session is not stored to disk', () => {
+    const cluster = makeRootCluster();
+    const workspacesState: WorkspacesState = {
+      rootClusterUri: cluster.uri,
+      isInitialized: true,
+      workspaces: {
+        [cluster.uri]: {
+          accessRequests: {
+            isBarCollapsed: true,
+            pending: getEmptyPendingAccessRequest(),
+          },
+          localClusterUri: cluster.uri,
+          documents: [
+            {
+              kind: 'doc.terminal_shell',
+              uri: '/docs/terminal_shell_uri',
+              title: '/Users/alice/Documents',
+            },
+            {
+              kind: 'doc.authorize_web_session',
+              uri: '/docs/authorize_web_session',
+              rootClusterUri: cluster.uri,
+              title: 'Authorize Web Session',
+              webSessionRequest: {
+                id: '',
+                token: '',
+                redirectUri: '',
+                username: '',
+              },
+            },
+          ],
+          location: '/docs/authorize_web_session',
+        },
+      },
+    };
+    const { workspacesService, statePersistenceService } = getTestSetup({
+      cluster,
+      persistedWorkspaces: {},
+    });
+
+    workspacesService.setState(() => workspacesState);
+
+    expect(statePersistenceService.saveWorkspacesState).toHaveBeenCalledTimes(
+      1
+    );
+    expect(statePersistenceService.saveWorkspacesState).toHaveBeenCalledWith({
+      rootClusterUri: cluster.uri,
+      workspaces: {
+        [cluster.uri]: expect.objectContaining({
+          documents: [
+            {
+              kind: 'doc.terminal_shell',
+              uri: '/docs/terminal_shell_uri',
+              title: '/Users/alice/Documents',
+            },
+          ],
+          location: '/docs/authorize_web_session',
+        }),
       },
     });
   });
@@ -218,19 +281,21 @@ describe('setActiveWorkspace', () => {
   });
 
   it('does not switch the workspace if the cluster has a profile status error', async () => {
+    const rootCluster = makeRootCluster({
+      connected: false,
+      loggedInUser: undefined,
+      profileStatusError: 'no YubiKey device connected',
+    });
     const { workspacesService, notificationsService } = getTestSetup({
-      cluster: makeRootCluster({
-        connected: false,
-        loggedInUser: undefined,
-        profileStatusError: 'no YubiKey device connected',
-      }),
+      cluster: rootCluster,
       persistedWorkspaces: {},
     });
 
     jest.spyOn(notificationsService, 'notifyError');
 
-    const { isAtDesiredWorkspace } =
-      await workspacesService.setActiveWorkspace('/clusters/foo');
+    const { isAtDesiredWorkspace } = await workspacesService.setActiveWorkspace(
+      rootCluster.uri
+    );
 
     expect(isAtDesiredWorkspace).toBe(false);
     expect(notificationsService.notifyError).toHaveBeenCalledWith(
@@ -241,10 +306,110 @@ describe('setActiveWorkspace', () => {
     );
     expect(workspacesService.getRootClusterUri()).toBeUndefined();
   });
+
+  it('sets location to first document if location points to non-existing document when reopening documents', async () => {
+    const cluster = makeRootCluster();
+    const testWorkspace: Workspace = {
+      accessRequests: {
+        isBarCollapsed: true,
+        pending: getEmptyPendingAccessRequest(),
+      },
+      localClusterUri: cluster.uri,
+      documents: [
+        {
+          kind: 'doc.terminal_shell',
+          uri: '/docs/terminal_shell_uri_1',
+          title: '/Users/alice/Documents',
+        },
+        {
+          kind: 'doc.terminal_shell',
+          uri: '/docs/terminal_shell_uri_2',
+          title: '/Users/alice/Documents',
+        },
+      ],
+      location: '/docs/non-existing-doc',
+    };
+
+    const { workspacesService, modalsService } = getTestSetup({
+      cluster,
+      persistedWorkspaces: { [cluster.uri]: testWorkspace },
+    });
+
+    jest
+      .spyOn(modalsService, 'openRegularDialog')
+      .mockImplementation(dialog => {
+        if (dialog.kind === 'documents-reopen') {
+          dialog.onConfirm();
+        } else {
+          throw new Error(`Got unexpected dialog ${dialog.kind}`);
+        }
+
+        return {
+          closeDialog: () => {},
+        };
+      });
+
+    workspacesService.restorePersistedState();
+    await workspacesService.setActiveWorkspace(cluster.uri);
+
+    expect(workspacesService.getWorkspace(cluster.uri)).toStrictEqual(
+      expect.objectContaining({
+        documents: [
+          {
+            kind: 'doc.terminal_shell',
+            uri: '/docs/terminal_shell_uri_1',
+            title: '/Users/alice/Documents',
+          },
+          {
+            kind: 'doc.terminal_shell',
+            uri: '/docs/terminal_shell_uri_2',
+            title: '/Users/alice/Documents',
+          },
+        ],
+        location: '/docs/terminal_shell_uri_1',
+      })
+    );
+  });
+
+  it('ongoing setActive call is canceled when the method is called again', async () => {
+    const clusterFoo = makeRootCluster({ uri: '/clusters/foo' });
+    const clusterBar = makeRootCluster({ uri: '/clusters/bar' });
+    const workspace1: Workspace = {
+      accessRequests: {
+        isBarCollapsed: true,
+        pending: getEmptyPendingAccessRequest(),
+      },
+      localClusterUri: clusterFoo.uri,
+      documents: [
+        {
+          kind: 'doc.terminal_shell',
+          uri: '/docs/terminal_shell_uri_1',
+          title: '/Users/alice/Documents',
+        },
+      ],
+      location: '/docs/non-existing-doc',
+    };
+
+    const { workspacesService } = getTestSetup({
+      cluster: [clusterFoo, clusterBar],
+      persistedWorkspaces: { [clusterFoo.uri]: workspace1 },
+    });
+
+    workspacesService.restorePersistedState();
+    await Promise.all([
+      // Activating the workspace foo will be stuck on restoring previous documents,
+      // since we don't have any handler. This dialog will be canceled be a request
+      // to set workspace bar (which doesn't have any documents).
+      workspacesService.setActiveWorkspace(clusterFoo.uri),
+      workspacesService.setActiveWorkspace(clusterBar.uri),
+    ]);
+
+    expect(workspacesService.getRootClusterUri()).toStrictEqual(clusterBar.uri);
+  });
 });
 
 function getTestSetup(options: {
-  cluster: tshd.Cluster | undefined; // assumes that only one cluster can be added
+  cluster: tshd.Cluster | tshd.Cluster[] | undefined;
   persistedWorkspaces: Record<string, Workspace>;
 }) {
   const { cluster } = options;
@@ -268,9 +433,14 @@ function getTestSetup(options: {
     saveWorkspacesState: jest.fn(),
   };
 
+  const normalizedClusters = (
+    Array.isArray(cluster) ? cluster : [cluster]
+  ).filter(Boolean);
   const clustersService: Partial<ClustersService> = {
-    findCluster: jest.fn(() => cluster),
-    getRootClusters: () => [cluster].filter(Boolean),
+    findCluster: jest.fn(clusterUri =>
+      normalizedClusters.find(c => c.uri === clusterUri)
+    ),
+    getRootClusters: () => normalizedClusters,
     syncRootClustersAndCatchErrors: async () => {},
   };
 
@@ -298,8 +468,8 @@ function getTestSetup(options: {
 
   return {
     workspacesService,
-    clusterDocument,
     modalsService,
     notificationsService,
+    statePersistenceService,
   };
 }

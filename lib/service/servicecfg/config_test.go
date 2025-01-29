@@ -22,12 +22,12 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -88,6 +88,7 @@ func TestDefaultConfig(t *testing.T) {
 	require.Equal(t, int64(defaults.LimiterMaxConnections), auth.Limiter.MaxConnections)
 	require.Equal(t, lite.GetName(), config.Auth.StorageConfig.Type)
 	require.Empty(t, auth.StorageConfig.Params[defaults.BackendPath])
+	require.Equal(t, filepath.Join(defaults.DataDir, defaults.LicenseFile), config.Auth.LicenseFile)
 
 	// SSH section
 	ssh := config.SSH
@@ -178,6 +179,102 @@ func TestCheckApp(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestCheckAppTCPPorts(t *testing.T) {
+	tests := []struct {
+		name     string
+		tcpPorts []PortRange
+		uri      string
+		check    require.ErrorAssertionFunc
+	}{
+		{
+			name: "valid ranges and single ports",
+			tcpPorts: []PortRange{
+				PortRange{Port: 22, EndPort: 25},
+				PortRange{Port: 26},
+				PortRange{Port: 65535},
+			},
+			check: hasNoErr,
+		},
+		{
+			name: "valid overlapping ranges",
+			tcpPorts: []PortRange{
+				PortRange{Port: 100, EndPort: 200},
+				PortRange{Port: 150, EndPort: 175},
+				PortRange{Port: 111},
+				PortRange{Port: 150, EndPort: 210},
+				PortRange{Port: 1, EndPort: 65535},
+			},
+			check: hasNoErr,
+		},
+		{
+			// Ports are validated only for TCP apps to allow for some forwards compatibility.
+			// If HTTP apps support port ranges in the future, old versions of Teleport shouldn't hard
+			// fail to make downgrades easier.
+			name: "valid non-TCP app with invalid ports ignored",
+			uri:  "http://localhost:8000",
+			tcpPorts: []PortRange{
+				PortRange{Port: 0},
+				PortRange{Port: 10, EndPort: 2},
+			},
+			check: hasNoErr,
+		},
+		// Test cases for invalid ports.
+		{
+			name: "port smaller than 1",
+			tcpPorts: []PortRange{
+				PortRange{Port: 0},
+			},
+			check: hasErrTypeBadParameter,
+		},
+		{
+			name: "end port smaller than 2",
+			tcpPorts: []PortRange{
+				PortRange{Port: 5, EndPort: 1},
+			},
+			check: hasErrTypeBadParameterAndContains("end port must be between 6 and 65535"),
+		},
+		{
+			name: "end port smaller than port",
+			tcpPorts: []PortRange{
+				PortRange{Port: 10, EndPort: 5},
+			},
+			check: hasErrTypeBadParameterAndContains("end port must be between 11 and 65535"),
+		},
+		{
+			name: "uri specifies port",
+			uri:  "tcp://localhost:1234",
+			tcpPorts: []PortRange{
+				PortRange{Port: 1000, EndPort: 1500},
+			},
+			check: hasErrTypeBadParameterAndContains("must not include a port number"),
+		},
+		{
+			name: "invalid uri",
+			uri:  "%",
+			tcpPorts: []PortRange{
+				PortRange{Port: 1000, EndPort: 1500},
+			},
+			check: hasErrAndContains("invalid URL escape"),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			app := App{
+				Name:     "foo",
+				URI:      "tcp://localhost",
+				TCPPorts: tc.tcpPorts,
+			}
+			if tc.uri != "" {
+				app.URI = tc.uri
+			}
+
+			err := app.CheckAndSetDefaults()
+			tc.check(t, err)
 		})
 	}
 }
@@ -553,44 +650,55 @@ func TestWebPublicAddr(t *testing.T) {
 
 func TestSetLogLevel(t *testing.T) {
 	for _, test := range []struct {
-		logLevel            slog.Level
-		expectedLogrusLevel logrus.Level
+		logLevel slog.Level
 	}{
 		{
-			logLevel:            logutils.TraceLevel,
-			expectedLogrusLevel: logrus.TraceLevel,
+			logLevel: logutils.TraceLevel,
 		},
 		{
-			logLevel:            slog.LevelDebug,
-			expectedLogrusLevel: logrus.DebugLevel,
+			logLevel: slog.LevelDebug,
 		},
 		{
-			logLevel:            slog.LevelInfo,
-			expectedLogrusLevel: logrus.InfoLevel,
+			logLevel: slog.LevelInfo,
 		},
 		{
-			logLevel:            slog.LevelWarn,
-			expectedLogrusLevel: logrus.WarnLevel,
+			logLevel: slog.LevelWarn,
 		},
 		{
-			logLevel:            slog.LevelError,
-			expectedLogrusLevel: logrus.ErrorLevel,
+			logLevel: slog.LevelError,
 		},
 	} {
 		t.Run(test.logLevel.String(), func(t *testing.T) {
 			// Create a configuration with local loggers to avoid modifying the
 			// global instances.
 			c := &Config{
-				Log:    logrus.New(),
 				Logger: slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
 			}
 			ApplyDefaults(c)
 
 			c.SetLogLevel(test.logLevel)
 			require.Equal(t, test.logLevel, c.LoggerLevel.Level())
-			require.IsType(t, &logrus.Logger{}, c.Log)
-			l, _ := c.Log.(*logrus.Logger)
-			require.Equal(t, test.expectedLogrusLevel, l.GetLevel())
 		})
+	}
+}
+
+func hasNoErr(t require.TestingT, err error, msgAndArgs ...interface{}) {
+	require.NoError(t, err, msgAndArgs...)
+}
+
+func hasErrTypeBadParameter(t require.TestingT, err error, msgAndArgs ...interface{}) {
+	require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %+v", err)
+}
+
+func hasErrTypeBadParameterAndContains(msg string) require.ErrorAssertionFunc {
+	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+		require.True(t, trace.IsBadParameter(err), "err should be trace.BadParameter")
+		require.ErrorContains(t, err, msg, msgAndArgs...)
+	}
+}
+
+func hasErrAndContains(msg string) require.ErrorAssertionFunc {
+	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+		require.ErrorContains(t, err, msg, msgAndArgs...)
 	}
 }

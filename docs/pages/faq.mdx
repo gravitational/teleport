@@ -4,12 +4,51 @@ description: Frequently Asked Questions About Using Teleport
 h1: Teleport FAQ
 ---
 
+This page includes answers to frequently asked questions about setting up,
+managing, and using Teleport. If you are new to Teleport, read our [Getting
+Started Guide](get-started.mdx).
+
 ## Can I use Teleport in production today?
 
 Teleport has been deployed on server clusters with thousands of hosts at
 Fortune 500 companies. It has been through several security audits from
 nationally recognized technology security companies, so we are comfortable with
 the stability of Teleport from a security perspective.
+
+## Can I connect to nodes behind a firewall?
+
+Yes, Teleport supports reverse SSH tunnels out of the box. To configure
+behind-firewall clusters, see [Configure Trusted Clusters](admin-guides/management/admin/trustedclusters.mdx).
+
+## How is Teleport's Community Edition different from Enterprise?
+
+Teleport provides two editions:
+
+- Teleport Enterprise
+- Teleport Community Edition
+
+Here is a detailed breakdown of the differences between Teleport's editions.
+
+(!docs/pages/includes/edition-comparison.mdx!)
+
+## Should we use Teleport Enterprise or Teleport Community Edition for connecting resources to our Teleport cluster?
+
+(!docs/pages/includes/ent-vs-community-faq.mdx!)
+
+## Can individual agents create reverse tunnels to the Proxy Service without creating a new cluster?
+
+Yes. When running a Teleport Agent, use the `--auth-server` flag to point to the
+Proxy Service address (this would be `public_addr` and `web_listen_addr` in your
+file configuration). For more information, see
+[Adding Nodes to the
+Cluster](./enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
+
+## Can Nodes use a single port for reverse tunnels?
+
+Yes, Teleport supports tunnel multiplexing on a single port. Set the
+`tunnel_listen_addr` to use the same port as the `web_listen_addr` address
+setting in the `proxy_service` configuration. Teleport will automatically use
+multiplexing with that configuration.
 
 ## Can Teleport be deployed in agentless mode?
 
@@ -31,29 +70,6 @@ functionality without a net addition of an agent on your system.
 Yes, this question comes up often and is related to the previous one. Take a
 look at [Using OpenSSH Guide](enroll-resources/server-access/openssh/openssh-agentless.mdx).
 
-## Can I connect to nodes behind a firewall?
-
-Yes, Teleport supports reverse SSH tunnels out of the box. To configure
-behind-firewall clusters, see [Configure Trusted Clusters](admin-guides/management/admin/trustedclusters.mdx).
-
-## Should we use Teleport Enterprise or Teleport Community Edition for connecting resources to our Teleport cluster?
-(!docs/pages/includes/ent-vs-community-faq.mdx!)
-
-## Can individual agents create reverse tunnels to the Proxy Service without creating a new cluster?
-
-Yes. When running a Teleport agent, use the `--auth-server` flag to point to the
-Proxy Service address (this would be `public_addr` and `web_listen_addr` in your
-file configuration). For more information, see
-[Adding Nodes to the
-Cluster](./enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
-
-## Can Nodes use a single port for reverse tunnels?
-
-Yes, Teleport supports tunnel multiplexing on a single port. Set the
-`tunnel_listen_addr` to use the same port as the `web_listen_addr` address
-setting in the `proxy_service` configuration. Teleport will automatically use
-multiplexing with that configuration.
-
 ## Can I copy files from one Teleport node to another?
 
 Yes, Teleport supports [Headless WebAuthn authentication](admin-guides/access-controls/guides/headless.mdx),
@@ -65,7 +81,7 @@ are not logged in to Teleport or may not have access to a browser.
 If your host machine is joined to an Active Directory domain, you might find user lookups take a
 lot longer than you expect. The number of Active Directory accounts that must be scanned to
 perform a user lookup can cause tsh to hang waiting to get information about the current user.
-To fix this issue, you can use environment variables to set default account information for your 
+To fix this issue, you can use environment variables to set default account information for your
 Teleport user. If you are experiencing long lookup times on Windows, do the following:
 
 - Either set the `TELEPORT_USER` environment variable or set the `--user` flag to the name of your Teleport user.
@@ -74,18 +90,6 @@ Teleport user. If you are experiencing long lookup times on Windows, do the foll
 
 You can set these environment variables globally in Windows so that you don't have to set them every
 time you run `tsh`.
-
-## How is Open Source different from Enterprise?
-
-Teleport provides three editions:
-
-- Teleport Enterprise
-- Teleport Enterprise Cloud
-- Teleport Community Edition
-
-Here is a detailed breakdown of the differences between Teleport's editions.
-
-(!docs/pages/includes/edition-comparison.mdx!)
 
 ## Which version of Teleport is supported?
 
@@ -98,11 +102,11 @@ months.
 
 Here are the major versions of Teleport and their support windows:
 
-| Release | Release Date       | EOL            | Minimum `tsh` version |
-|---------|--------------------|----------------|-----------------------|
-| v16.0   | June 14, 2024      | June 2025      | v15.0.0               |
-| v15.0   | January 29, 2024   | January 2025   | v14.0.0               |
-| v14.0   | September 20, 2023 | September 2024 | v13.0.0               |
+| Release | Release Date      | EOL           | Minimum `tsh` version |
+|---------|-------------------|---------------|-----------------------|
+| v17.0   | November 16, 2024 | November 2025 | v16.0.0               |
+| v16.0   | June 14, 2024     | June 2025     | v15.0.0               |
+| v15.0   | January 29, 2024  | January 2025  | v14.0.0               |
 
 ### Version compatibility
 
@@ -120,6 +124,19 @@ Please refer to our [Networking](./reference/networking.mdx) guide.
 
 Teleport offers this feature for the Enterprise (Cloud) and Enterprise
 (Self-Hosted) versions of Teleport.
+
+## Why do changes to a user's role set only take effect on the log next login?
+
+A Teleport user's assigned roles are embedded in the client certificate they
+receive upon logging on. This certificate remains valid and can be used until
+its expiry, even if the user's role set has changed.
+
+To get a new certificate with the new role set, the user will need to log out
+and log back in.
+
+Revocation of Teleport access should be done with Teleport's
+[session and identity locks](./admin-guides/access-controls/guides/locking.mdx),
+not by removing roles.
 
 ## Does Teleport support provisioning users via SCIM?
 
@@ -144,7 +161,10 @@ Service and Auth Service, as well as agents running other Teleport Services.
 
 Teleport requires a minimum of TLS version 1.2.
 
-This means that when applications and clients establish or accept TLS connections with Teleport processes, they must use TLS 1.2 or a higher protocol version. Teleport enforces this requirement in all operations that involve TLS connections.
+This means that when applications and clients establish or accept TLS
+connections with Teleport processes, they must use TLS 1.2 or a higher protocol
+version. Teleport enforces this requirement in all operations that involve TLS
+connections.
 
 ## Can I suppress warnings about available upgrades?
 

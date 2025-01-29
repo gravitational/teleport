@@ -16,23 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import { useCallback, useEffect, useState } from 'react';
 
-import { AccessRequest } from 'shared/services/accessRequests';
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import {
+  RequestFlags,
   SubmitReview,
   SuggestedAccessList,
-  RequestFlags,
 } from 'shared/components/AccessRequests/ReviewRequests';
-
 import { useAsync } from 'shared/hooks/useAsync';
+import { AccessRequest } from 'shared/services/accessRequests';
 
 import * as tsh from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { retryWithRelogin } from 'teleterm/ui/utils';
-import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
 import { makeUiAccessRequest } from '../useAccessRequests';
 
@@ -181,11 +180,13 @@ function getRequestFlags(
     ? reviewed.state === 'PENDING'
     : request.state === 'PENDING';
 
+  const canReview = !ownRequest && isPendingState && user.acl.reviewRequests;
+
   return {
     canAssume,
     isAssumed,
     canDelete,
-    canReview: !ownRequest && isPendingState,
+    canReview,
     isPromoted,
     ownRequest,
   };

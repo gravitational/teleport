@@ -39,7 +39,7 @@ import (
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/observability/tracing"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -390,13 +390,15 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 						var sshCert, tlsCert []byte
 						var err error
 						if req.SSHPublicKey != nil {
-							sshCert, err = ca.keygen.GenerateUserCert(services.UserCertParams{
+							sshCert, err = ca.keygen.GenerateUserCert(sshca.UserCertificateRequest{
 								CASigner:          caSigner,
 								PublicUserKey:     req.SSHPublicKey,
 								TTL:               req.Expires.Sub(clock.Now()),
-								Username:          req.Username,
 								CertificateFormat: req.Format,
-								RouteToCluster:    req.RouteToCluster,
+								Identity: sshca.Identity{
+									Username:       req.Username,
+									RouteToCluster: req.RouteToCluster,
+								},
 							})
 							if err != nil {
 								return nil, trace.Wrap(err)

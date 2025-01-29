@@ -405,6 +405,10 @@ const (
 	// TraitHostUserGID is the name of the variable used to specify
 	// the GID to create host user account with.
 	TraitHostUserGID = "host_user_gid"
+
+	// TraitGitHubOrgs is the name of the variable to specify the GitHub
+	// organizations for GitHub integration.
+	TraitGitHubOrgs = "github_orgs"
 )
 
 const (

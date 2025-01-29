@@ -602,7 +602,7 @@ To configure Teleport to protect access to Windows desktops:
    ```yaml
    version: v3
    teleport:
-     auth_token: <Var name="path-to-token"/>
+     auth_token: "path/to/token"
      proxy_server: <Var name="teleport.example.com"/> # replace with your proxy address
    windows_desktop_service:
      enabled: yes
@@ -614,7 +614,7 @@ To configure Teleport to protect access to Windows desktops:
        username: "$LDAP_USERNAME"
        sid: "$LDAP_USER_SID"
        # Path to the certificate you exported.
-       der_ca_file: <Var name="path-to-exported-cert"/>
+       der_ca_file: "path/to/exported/cert"
      discovery:
        base_dn: "*"
    auth_service:

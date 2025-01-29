@@ -131,7 +131,7 @@ export class StoreNotifications extends Store<NotificationStoreState> {
 
     try {
       return JSON.parse(value) as LocalNotificationStates;
-    } catch (err) {
+    } catch {
       return defaultLocalNotificationStates;
     }
   }

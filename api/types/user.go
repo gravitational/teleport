@@ -61,6 +61,8 @@ type User interface {
 	GetSAMLIdentities() []ExternalIdentity
 	// GetGithubIdentities returns a list of connected Github identities
 	GetGithubIdentities() []ExternalIdentity
+	// SetGithubIdentities sets the list of connected GitHub identities
+	SetGithubIdentities([]ExternalIdentity)
 	// Get local authentication secrets (may be nil).
 	GetLocalAuth() *LocalAuthSecrets
 	// Set local authentication secrets (use nil to delete).
@@ -430,6 +432,11 @@ func (u *UserV2) GetSAMLIdentities() []ExternalIdentity {
 // GetGithubIdentities returns a list of connected Github identities
 func (u *UserV2) GetGithubIdentities() []ExternalIdentity {
 	return u.Spec.GithubIdentities
+}
+
+// SetGithubIdentities sets the list of connected GitHub identities
+func (u *UserV2) SetGithubIdentities(identities []ExternalIdentity) {
+	u.Spec.GithubIdentities = identities
 }
 
 // GetLocalAuth gets local authentication secrets (may be nil).

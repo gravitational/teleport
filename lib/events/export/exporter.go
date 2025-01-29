@@ -30,7 +30,6 @@ import (
 
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -244,8 +243,8 @@ func (e *Exporter) run(ctx context.Context) {
 
 	poll := interval.New(interval.Config{
 		Duration:      e.cfg.PollInterval,
-		FirstDuration: utils.FullJitter(e.cfg.PollInterval / 2),
-		Jitter:        retryutils.NewSeventhJitter(),
+		FirstDuration: retryutils.FullJitter(e.cfg.PollInterval / 2),
+		Jitter:        retryutils.SeventhJitter,
 	})
 	defer poll.Stop()
 

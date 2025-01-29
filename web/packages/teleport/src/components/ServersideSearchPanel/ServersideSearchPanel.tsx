@@ -16,14 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { Flex } from 'design';
-
 import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 
 import useServersideSearchPanel, {
-  SearchPanelState,
   HookProps,
+  SearchPanelState,
 } from 'teleport/components/ServersideSearchPanel/useServerSideSearchPanel';
 
 import { SearchInput } from './SearchInput';

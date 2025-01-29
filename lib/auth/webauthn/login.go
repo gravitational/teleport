@@ -31,7 +31,6 @@ import (
 	wan "github.com/go-webauthn/webauthn/webauthn"
 	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -107,13 +106,14 @@ func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions 
 				continue
 			}
 
-			log.Errorf(""+
-				"User device %q/%q has unexpected RPID=%q, excluding from allowed credentials. "+
-				"RPID changes are not supported by WebAuthn, this is likely to cause permanent authentication problems for your users. "+
-				"Consider reverting the change or reset your users so they may register their devices again.",
-				user,
-				devices[i].GetName(),
-				webDev.CredentialRpId)
+			const msg = "User device has unexpected RPID, excluding from allowed credentials. " +
+				"RPID changes are not supported by WebAuthn, this is likely to cause permanent authentication problems for your users. " +
+				"Consider reverting the change or reset your users so they may register their devices again."
+			log.ErrorContext(ctx, msg,
+				"user", user,
+				"device", devices[i].GetName(),
+				"rpid", webDev.CredentialRpId,
+			)
 
 			// "Cut" device from slice.
 			devices = slices.Delete(devices, i, i+1)
@@ -249,7 +249,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 
 	origin := parsedResp.Response.CollectedClientData.Origin
 	if err := validateOrigin(origin, f.Webauthn.RPID); err != nil {
-		log.WithError(err).Debugf("WebAuthn: origin validation failed")
+		log.DebugContext(ctx, "origin validation failed", "error", err)
 		return nil, trace.Wrap(err)
 	}
 
@@ -330,9 +330,9 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	if (discoverableLogin || uvr == protocol.VerificationRequired) && sd.UserVerification != string(protocol.VerificationRequired) {
 		// This is not a failure yet, but will likely become one.
 		sd.UserVerification = string(protocol.VerificationRequired)
-		log.Warnf(""+
-			"WebAuthn: User verification required by extensions but not by challenge. "+
-			"Increased SessionData.UserVerification to %s.", sd.UserVerification)
+		const msg = "User verification required by extensions but not by challenge. " +
+			"Increased SessionData.UserVerification."
+		log.WarnContext(ctx, msg, "user_verification", sd.UserVerification)
 	}
 
 	sessionData := wantypes.SessionDataToProtocol(sd)
@@ -371,8 +371,10 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 		return nil, trace.Wrap(err)
 	}
 	if credential.Authenticator.CloneWarning {
-		log.Warnf(
-			"WebAuthn: Clone warning detected for user %q / device %q. Device counter may be malfunctioning.", user, dev.GetName())
+		log.WarnContext(ctx, "Clone warning detected for device, the device counter may be malfunctioning",
+			"user", user,
+			"device", dev.GetName(),
+		)
 	}
 
 	// Update last used timestamp and device counter.
@@ -381,7 +383,11 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	}
 	// Retroactively write the credential RPID, now that it cleared authn.
 	if webDev := dev.GetWebauthn(); webDev != nil && webDev.CredentialRpId == "" {
-		log.Debugf("WebAuthn: Recording RPID=%q in device %q/%q", rpID, user, dev.GetName())
+		log.DebugContext(ctx, "Recording RPID in device",
+			"rpid", rpID,
+			"user", user,
+			"device", dev.GetName(),
+		)
 		webDev.CredentialRpId = rpID
 	}
 
@@ -395,7 +401,10 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	// passes.
 	if sd.ChallengeExtensions.AllowReuse != mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
 		if err := f.sessionData.Delete(ctx, user, challenge); err != nil {
-			log.Warnf("WebAuthn: failed to delete login SessionData for user %v (scope = %s)", user, sd.ChallengeExtensions.Scope)
+			log.WarnContext(ctx, "failed to delete login SessionData for user",
+				"user", user,
+				"scope", sd.ChallengeExtensions.Scope,
+			)
 		}
 	}
 
@@ -463,19 +472,19 @@ func updateCredentialAndTimestamps(
 			d.Webauthn.CredentialBackupEligible = &gogotypes.BoolValue{
 				Value: credential.Flags.BackupEligible,
 			}
-			log.WithFields(log.Fields{
-				"device": dest.GetName(),
-				"be":     credential.Flags.BackupEligible,
-			}).Debug("Backfilled Webauthn device BE flag")
+			log.DebugContext(context.Background(), "Backfilled Webauthn device BE flag",
+				"device", dest.GetName(),
+				"be", credential.Flags.BackupEligible,
+			)
 		}
 		if d.Webauthn.CredentialBackedUp == nil {
 			d.Webauthn.CredentialBackedUp = &gogotypes.BoolValue{
 				Value: credential.Flags.BackupState,
 			}
-			log.WithFields(log.Fields{
-				"device": dest.GetName(),
-				"bs":     credential.Flags.BackupState,
-			}).Debug("Backfilled Webauthn device BS flag")
+			log.DebugContext(context.Background(), "Backfilled Webauthn device BS flag",
+				"device", dest.GetName(),
+				"bs", credential.Flags.BackupState,
+			)
 		}
 
 	default:

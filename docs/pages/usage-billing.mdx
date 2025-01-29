@@ -77,16 +77,16 @@ calculate two types of billing metrics:
 <Admonition type="note">
 
 This will be displayed only for those on usage-based plans. Users will need permission to read the billing resource.
+
 </Admonition>
 
+1. Go to https://teleport.sh/ and enter your tenant name.
+1. Sign in using your administrator credentials.
+1. Click on your username at the top right to expand the dropdown menu.
+1. Click on "Billing Summary".
+1. Usage data for the current billing cycle will be displayed. Example:
 
-  1. Go to https://teleport.sh/ and enter your tenant name.
-  1. Sign in using your administrator credentials.
-  1. Click on "Access Management" at the top.
-  1. Click on "Summary" under "Usage and Billing" at the left-hand side.
-  1. Usage data for the current billing cycle will be displayed. Example:
-  
-  ![Billing Cycle](../img/webui_billing_cycle.png)
+![Billing Cycle](../img/webui_billing_cycle.png)
 
 ### Monthly Active Users
 
@@ -106,7 +106,7 @@ provider, as user activity.
 
 Note: when configured to perform single-sign-on against an external identity
 provider, Teleport creates temporary user records that are valid for the
-duration of the SSO session. As a result, the *Users* page in Teleport's web UI
+duration of the SSO session. As a result, the _Users_ page in Teleport's web UI
 will only show users who have recently logged in and is not a true
 representation of all active users over the last month.
 
@@ -149,7 +149,7 @@ self-hosted Teleport infrastructure or Teleport Cloud, depending on the user's
 plan. The submission service persists usage reports in the case of a submission
 failure, and deletes the reports after a successful submission. It is not
 possible to set up a third-party destination for usage events to independently
-verify usage event data. 
+verify usage event data.
 
 If you are using Teleport Enterprise (Cloud), your usage data is accurate as
 long as Teleport-managed reporting infrastructure works as expected (check the
@@ -187,4 +187,3 @@ to Teleport during a given time period. The Teleport documentation includes
 [how-to guides](./admin-guides/management/export-audit-events/export-audit-events.mdx) for
 exporting audit events to common log management solutions so you can identify
 users that have authenticated using an SSO provider.
-

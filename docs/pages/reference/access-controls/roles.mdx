@@ -30,7 +30,7 @@ following commands:
 
 ```code
 # Log in to your cluster with tsh so you can use tctl from your local machine.
-$ tsh login --user=myuser --proxy=<Var name="mytenant.teleport.sh" />
+$ tsh login --user=myuser --proxy=example.teleport.sh
 $ tctl get roles
 ```
 
@@ -52,7 +52,7 @@ user:
 | - | - | - |
 | `max_session_ttl` | Max. time to live (TTL) of a user's SSH certificates | The shortest TTL wins |
 | `forward_agent` | Allow SSH agent forwarding | Logical "OR" i.e. if any role allows agent forwarding, it's allowed |
-| `port_forwarding` | Allow TCP port forwarding | Logical "OR" i.e. if any role allows port forwarding, it's allowed |
+| `ssh_port_forwarding` | Allow TCP port forwarding | Logical "AND" i.e. if any role denies port forwarding, it's denied |
 | `ssh_file_copy` | Allow SCP/SFTP | Logical "AND" i.e. if all roles allows file copying, it's allowed |
 | `client_idle_timeout` | Forcefully terminate active sessions after an idle interval | The shortest timeout value wins, i.e. the most restrictive value is selected |
 | `disconnect_expired_cert` | Forcefully terminate active sessions when a client certificate expires | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
@@ -87,7 +87,7 @@ There are currently five supported role versions: `v3`, `v4`, `v5`, `v6`, and `v
 
 `v4` and higher roles are completely backwards compatible with `v3`. The only difference
 lies in the default values which will be applied to the role if they are not explicitly set.
-Additionally, roles with version `v5` or higher are required to use [Moderated Sessions](../../admin-guides/access-controls/guides/moderated-sessions.mdx).
+Additionally, roles with version `v5` or higher are required to use [Moderated Sessions](../../admin-guides/access-controls/guides/joining-sessions.mdx).
 
 Label              | `v3` Default   | `v4` and higher Default
 ------------------ | -------------- | ---------------
@@ -188,13 +188,6 @@ spec:
 ```
 
 ### Label expressions
-
-<Admonition type="warning">
-Label expressions are available starting in Teleport version `13.1.1`.
-All components of your Teleport cluster must be upgraded to version `13.1.1`
-or newer before you will be able to use label expressions.
-This includes the Auth Service and **all** Teleport agents.
-</Admonition>
 
 Teleport roles also support matching resource labels with predicate expressions
 when you need to:
@@ -574,7 +567,7 @@ You can specify an external trait in dot syntax if it begins with a letter and
 contains only letters, numbers, and underscores. Otherwise, you must use bracket
 syntax to specify a trait.
 
-When using Azure AD or ADFS as your IdP, you must use bracket notation, as these
+When using Microsoft Entra ID or ADFS as your IdP, you must use bracket notation, as these
 IdPs assign attribute keys to URLs such as the following:
 
 ```text

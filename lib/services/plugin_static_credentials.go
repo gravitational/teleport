@@ -44,6 +44,9 @@ type PluginStaticCredentials interface {
 
 	// DeletePluginStaticCredentials will delete a plugin static credentials resource.
 	DeletePluginStaticCredentials(ctx context.Context, name string) error
+
+	// GetAllPluginStaticCredentials will get all plugin static credentials.
+	GetAllPluginStaticCredentials(ctx context.Context) ([]types.PluginStaticCredentials, error)
 }
 
 // MarshalPluginStaticCredentials marshals PluginStaticCredentials resource to JSON.

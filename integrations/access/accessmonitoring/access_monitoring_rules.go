@@ -151,8 +151,10 @@ func (amrh *RuleHandler) RecipientsFromAccessMonitoringRules(ctx context.Context
 	for _, rule := range amrh.getAccessMonitoringRules() {
 		match, err := MatchAccessRequest(rule.Spec.Condition, req)
 		if err != nil {
-			log.WithError(err).WithField("rule", rule.Metadata.Name).
-				Warn("Failed to parse access monitoring notification rule")
+			log.WarnContext(ctx, "Failed to parse access monitoring notification rule",
+				"error", err,
+				"rule", rule.Metadata.Name,
+			)
 		}
 		if !match {
 			continue
@@ -160,7 +162,7 @@ func (amrh *RuleHandler) RecipientsFromAccessMonitoringRules(ctx context.Context
 		for _, recipient := range rule.Spec.Notification.Recipients {
 			rec, err := amrh.fetchRecipientCallback(ctx, recipient)
 			if err != nil {
-				log.WithError(err).Warn("Failed to fetch plugin recipients based on Access monitoring rule recipients")
+				log.WarnContext(ctx, "Failed to fetch plugin recipients based on Access monitoring rule recipients", "error", err)
 				continue
 			}
 			recipientSet.Add(*rec)
@@ -176,8 +178,10 @@ func (amrh *RuleHandler) RawRecipientsFromAccessMonitoringRules(ctx context.Cont
 	for _, rule := range amrh.getAccessMonitoringRules() {
 		match, err := MatchAccessRequest(rule.Spec.Condition, req)
 		if err != nil {
-			log.WithError(err).WithField("rule", rule.Metadata.Name).
-				Warn("Failed to parse access monitoring notification rule")
+			log.WarnContext(ctx, "Failed to parse access monitoring notification rule",
+				"error", err,
+				"rule", rule.Metadata.Name,
+			)
 		}
 		if !match {
 			continue

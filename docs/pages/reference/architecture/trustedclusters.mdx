@@ -3,8 +3,6 @@ title: Trusted Clusters Architecture
 description: Deep dive into design of Teleport Trusted Clusters.
 ---
 
-## Overview
-
 Teleport can partition compute infrastructure into multiple clusters. A cluster
 is a group of Teleport connected resources. Each cluster
 manages a set of certificate authorities (CAs) for its users and resources.
@@ -31,7 +29,7 @@ databases behind a firewall.
 In the example below, there are three independent clusters:
 
 - Cluster `sso.example.com` is a root cluster. This cluster can be used as a single-sign-on entry point
-for your organization. It can have it's own independent resources connected to it, or be used just for audit
+for your organization. It can have its own independent resources connected to it, or be used just for audit
 logs collection and single-sign-on.
 - Clusters `us-east-1a` and `us-east-1b` are two independent clusters in different availability zones.
 

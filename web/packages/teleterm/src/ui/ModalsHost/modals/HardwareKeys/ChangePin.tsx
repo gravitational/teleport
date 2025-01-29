@@ -18,22 +18,21 @@
 
 import { useState } from 'react';
 
+import { ButtonPrimary, Flex, P2, Toggle } from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
 } from 'design/DialogConfirmation';
-import { ButtonPrimary, Flex, Toggle, P2 } from 'design';
-import Validation from 'shared/components/Validation';
-import FieldInput from 'shared/components/FieldInput';
 import {
   PromptHardwareKeyPINChangeRequest,
   PromptHardwareKeyPINChangeResponse,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
-
+import FieldInput from 'shared/components/FieldInput';
+import Validation from 'shared/components/Validation';
 import {
+  requiredAll,
   requiredField,
   Rule,
-  requiredAll,
 } from 'shared/components/Validation/rules';
 
 import { CommonHeader } from './CommonHeader';
@@ -45,6 +44,7 @@ export function ChangePin(props: {
   req: PromptHardwareKeyPINChangeRequest;
   onCancel(): void;
   onSuccess(response: PromptHardwareKeyPINChangeResponse): void;
+  hidden?: boolean;
 }) {
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -55,7 +55,8 @@ export function ChangePin(props: {
 
   return (
     <DialogConfirmation
-      open={true}
+      open={!props.hidden}
+      keepInDOMAfterClose
       onClose={props.onCancel}
       dialogCss={() => ({
         maxWidth: '450px',

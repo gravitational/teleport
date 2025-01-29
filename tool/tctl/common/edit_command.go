@@ -39,6 +39,8 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // EditCommand implements the `tctl edit` command for modifying
@@ -55,7 +57,7 @@ type EditCommand struct {
 	Editor func(filename string) error
 }
 
-func (e *EditCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (e *EditCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	e.app = app
 	e.config = config
 	e.cmd = app.Command("edit", "Edit a Teleport resource.")
@@ -68,12 +70,16 @@ func (e *EditCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	e.cmd.Flag("confirm", "Confirm an unsafe or temporary resource update").Hidden().BoolVar(&e.confirm)
 }
 
-func (e *EditCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (bool, error) {
+func (e *EditCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (bool, error) {
 	if cmd != e.cmd.FullCommand() {
 		return false, nil
 	}
-
-	err := e.editResource(ctx, client)
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	defer closeFn(ctx)
+	err = e.editResource(ctx, client)
 	return true, trace.Wrap(err)
 }
 
@@ -119,7 +125,7 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 		withSecrets: true,
 		confirm:     e.confirm,
 	}
-	rc.Initialize(e.app, e.config)
+	rc.Initialize(e.app, nil, e.config)
 
 	err = rc.Get(ctx, client)
 	if closeErr := f.Close(); closeErr != nil {

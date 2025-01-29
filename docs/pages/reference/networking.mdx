@@ -3,6 +3,14 @@ title: Networking
 description: This reference explains the networking requirements of a Teleport cluster, including its public address, ports, and support for HTTP CONNECT proxies.
 ---
 
+A Teleport cluster is a distributed system that may comprise a number of
+networks. On Teleport Enterprise (Cloud), for example, the Auth Service and
+Proxy Service run in Teleport-managed infrastructure, while Teleport users
+manage Agents and `tbot` instances.
+
+This reference guide describes the networking requirements of a Teleport
+cluster.
+
 ## Public address
 
 <Tabs>

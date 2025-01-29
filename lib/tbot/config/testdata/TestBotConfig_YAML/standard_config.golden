@@ -55,6 +55,28 @@ services:
     roles:
       - access
     app_name: my-app
+  - type: workload-identity-x509
+    selector:
+      name: my-workload-identity
+    destination:
+      type: directory
+      path: /an/output/path
+  - type: workload-identity-api
+    listen: tcp://127.0.0.1:123
+    attestors:
+      kubernetes:
+        enabled: false
+    selector:
+      name: my-workload-identity
+  - type: workload-identity-jwt
+    selector:
+      name: my-workload-identity
+    destination:
+      type: directory
+      path: /an/output/path
+    audiences:
+      - audience1
+      - audience2
 debug: true
 auth_server: example.teleport.sh:443
 certificate_ttl: 1m0s

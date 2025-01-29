@@ -20,13 +20,20 @@ package s3sessions
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
+	"sync"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -122,14 +129,93 @@ func TestConfig_SetFromURL(t *testing.T) {
 }
 
 func TestUploadMetadata(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	}))
+
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
 	handler, err := NewHandler(context.Background(), Config{
-		Region: "us-west-1",
-		Path:   "/test/",
-		Bucket: "teleport-unit-tests",
+		Region:   "us-west-1",
+		Path:     "/test/",
+		Bucket:   "teleport-unit-tests",
+		Endpoint: server.URL,
+		CredentialsProvider: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+			return aws.Credentials{}, nil
+		}),
 	})
 	require.NoError(t, err)
 	defer handler.Close()
 
 	meta := handler.GetUploadMetadata("test-session-id")
 	require.Equal(t, "s3://teleport-unit-tests/test/test-session-id", meta.URL)
+}
+
+func TestEndpoints(t *testing.T) {
+	tests := []struct {
+		name string
+		fips bool
+	}{
+		{
+			name: "fips",
+			fips: true,
+		},
+		{
+			name: "without fips",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fips := types.ClusterAuditConfigSpecV2_FIPS_DISABLED
+			if tt.fips {
+				fips = types.ClusterAuditConfigSpecV2_FIPS_ENABLED
+				modules.SetTestModules(t, &modules.TestModules{
+					FIPS: true,
+				})
+			}
+
+			var request *http.Request
+			var once sync.Once
+			mux := http.NewServeMux()
+			mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				once.Do(func() { request = r.Clone(context.Background()) })
+				w.WriteHeader(http.StatusTeapot)
+			}))
+
+			server := httptest.NewServer(mux)
+			t.Cleanup(server.Close)
+
+			handler, err := NewHandler(context.Background(), Config{
+				Region: "us-west-1",
+				Path:   "/test/",
+				Bucket: "teleport-unit-tests",
+				// The prefix is intentionally removed to validate that a scheme
+				// is applied automatically. This validates backwards compatible behavior
+				// with existing configurations and the behavior change from aws-sdk-go to aws-sdk-go-v2.
+				Endpoint:        strings.TrimPrefix(server.URL, "http://"),
+				UseFIPSEndpoint: fips,
+				Insecure:        true,
+				CredentialsProvider: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+					return aws.Credentials{}, nil
+				}),
+			})
+			// FIPS mode should fail because it is a violation to enable FIPS
+			// while also setting a custom endpoint.
+			if tt.fips {
+				assert.Error(t, err)
+				require.ErrorContains(t, err, "FIPS")
+				return
+			}
+
+			require.NoError(t, err)
+			defer handler.Close()
+			require.NotNil(t, request.URL)
+			require.Equal(t, "/teleport-unit-tests", request.URL.Path)
+		})
+	}
 }

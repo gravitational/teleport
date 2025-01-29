@@ -35,135 +35,15 @@ database.
   Service.
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/5. Install the Teleport Database Service
 
-(!docs/pages/includes/tctl-token.mdx serviceName="Database" tokenType="db" tokenFile="/tmp/token"!)
-
-Install Teleport on the host where you will run the Teleport Database Service:
-
-(!docs/pages/includes/install-linux.mdx!)
-
-Create the Database Service configuration.
-
-<Tabs>
-<TabItem label="PostgreSQL">
-
-- Specify the region for your database(s) in `--azure-postgres-discovery`.
-
-- Replace the `--proxy` value with your Teleport proxy address or Teleport cloud
-  URI (e.g. `mytenant.teleport.sh:443`):
-
-  ```code
-  $ sudo teleport db configure create \
-    -o file \
-    --proxy=teleport.example.com:443 \
-    --token=/tmp/token \
-    --azure-postgres-discovery=eastus
-  ```
-
-</TabItem>
-<TabItem label="MySQL">
-
-- Specify the region for your database(s) in `--azure-mysql-discovery`.
-
-- Replace the `--proxy` value with your Teleport proxy address or Teleport cloud
-  URI (e.g. `mytenant.teleport.sh:443`):
-
-  ```code
-  $ sudo teleport db configure create \
-    -o file \
-    --proxy=teleport.example.com:443 \
-    --token=/tmp/token \
-    --azure-mysql-discovery=eastus
-  ```
-
-</TabItem>
-
-<TabItem label="PostgreSQL and MySQL">
-
-Run the following command on your Database Service host:
-
-  ```code
-  $ sudo teleport db configure create \
-    -o file \
-    --proxy=teleport.example.com:443 \
-    --token=/tmp/token \
-    --azure-mysql-discovery=eastus \
-    --azure-postgres-discovery=eastus
-  ```
-
-<Admonition type="tip">
-This will create two `types` entities in `teleport.yaml`, one for each database
-type. This is useful if you want different regions, tags, or labels for each
-database type.
-
-Alternatively, you can edit `teleport.yaml` to include both database types in a
-single entry:
-
-```yaml
-db_service:
-  azure:
-  - types: ["mysql", "postgres"]
-  ...
-```
-
-</Admonition>
-
-</TabItem>
-
-</Tabs>
-
-This command will generate a Database Service configuration with Azure MySQL/Postgres
-database auto-discovery enabled in the `eastus` region and place it at the
-`/etc/teleport.yaml` location.
-
-### Create a Teleport role
-
-On your workstation logged in to your Teleport cluster with `tsh`, define a new
-role to provide access to your Azure database. Create a file called `azure-database-role.yaml` with the following content:
-
-```yaml
-version: v7
-kind: role
-metadata:
-  name: azure-database-access
-spec:
-  allow:
-    db_labels:
-      'engine':
-        - "Microsoft.DBforMySQL/servers"
-        - "Microsoft.DBforMySQL/flexibleServers"
-        - "Microsoft.DBforPostgreSQL/servers"
-        - "Microsoft.DBforPostgreSQL/flexibleServers"
-    db_names:
-    - '*'
-    db_users:
-    - teleport
-```
-
-| Flag                       | Description                                                                                                                              |
-|----------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
-| `--db-users` | List of database usernames the user will be allowed to use when connecting to the databases. A wildcard allows any user.                 |
-| `--db-names` | List of logical databases (aka schemas) the user will be allowed to connect to within a database server. A wildcard allows any database. |
-| `--db-labels` | List of labels assigned to the database the user will be able to access. A wildcard entry allows any database.                           |
-
-Save this file and apply it to your Teleport cluster:
-
-```code
-$ tctl create -f azure-database-role.yaml
-role 'azure-database-role.yaml' has been created
-```
-
-(\!docs/pages/includes/add-role-to-user.mdx role="azure-database-access" \!)
-
-## Step 2/5. Configure Azure service principal
+## Step 1/5. Configure Azure service principal
 
 To authenticate with PostgreSQL or MySQL databases, Teleport Database Service
 needs to obtain access tokens from Azure AD.
 
 (!docs/pages/includes/database-access/azure-configure-service-principal.mdx!)
 
-## Step 3/5. Configure IAM permissions for Teleport
+## Step 2/5. Configure IAM permissions for Teleport
 
 ### Create a custom role
 
@@ -228,7 +108,7 @@ and replace the subscription in "assignableScopes" with your own subscription id
 
 (!docs/pages/includes/database-access/azure-assign-service-principal.mdx!)
 
-## Step 4/5. Create Azure database users
+## Step 3/5. Create Azure database users
 
 To let Teleport connect to your Azure database authenticating as a service
 principal, you need to create Azure AD users authenticated by that principal in the database.
@@ -367,6 +247,139 @@ GRANT ALL ON `%`.* TO 'teleport'@'%';
 
 You can create multiple database users identified by the same service principal.
 
+## Step 4/5. Install the Teleport Database Service
+
+(!docs/pages/includes/tctl-token.mdx serviceName="Database" tokenType="db" tokenFile="/tmp/token"!)
+
+Install Teleport on the host where you will run the Teleport Database Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+Create the Database Service configuration.
+
+<Tabs>
+<TabItem label="PostgreSQL">
+
+- Specify the region for your database(s) in `--azure-postgres-discovery`.
+
+- Replace the `--proxy` value with your Teleport Proxy Service address or Teleport Enterprise (Cloud)
+  URI (e.g. `example.teleport.sh:443`):
+
+  ```code
+  $ sudo teleport db configure create \
+    -o file \
+    --proxy=teleport.example.com:443 \
+    --token=/tmp/token \
+    --azure-postgres-discovery=eastus
+  ```
+
+</TabItem>
+<TabItem label="MySQL">
+
+- Specify the region for your database(s) in `--azure-mysql-discovery`.
+
+- Replace the `--proxy` value with your Teleport Proxy Service address or Teleport Enterprise (Cloud)
+  URI (e.g. `example.teleport.sh:443`):
+
+  ```code
+  $ sudo teleport db configure create \
+    -o file \
+    --proxy=teleport.example.com:443 \
+    --token=/tmp/token \
+    --azure-mysql-discovery=eastus
+  ```
+
+</TabItem>
+
+<TabItem label="PostgreSQL and MySQL">
+
+Run the following command on your Database Service host:
+
+  ```code
+  $ sudo teleport db configure create \
+    -o file \
+    --proxy=teleport.example.com:443 \
+    --token=/tmp/token \
+    --azure-mysql-discovery=eastus \
+    --azure-postgres-discovery=eastus
+  ```
+
+This will create two `types` entities in `teleport.yaml`, one for each database
+type. This is useful if you want different regions, tags, or labels for each
+database type.
+
+Alternatively, you can edit `teleport.yaml` to include both database types in a
+single entry:
+
+```yaml
+db_service:
+  azure:
+  - types: ["mysql", "postgres"]
+  ...
+```
+
+</TabItem>
+
+</Tabs>
+
+This command will generate a Database Service configuration with Azure MySQL/Postgres
+database auto-discovery enabled in the `eastus` region and place it at the
+`/etc/teleport.yaml` location.
+
+### Create a Teleport role
+
+On your workstation logged in to your Teleport cluster with `tsh`, define a new
+role to provide access to your Azure database. Create a file called `azure-database-role.yaml` with the following content:
+
+```yaml
+version: v7
+kind: role
+metadata:
+  name: azure-database-access
+spec:
+  allow:
+    db_labels:
+      'engine':
+        - "Microsoft.DBforMySQL/servers"
+        - "Microsoft.DBforMySQL/flexibleServers"
+        - "Microsoft.DBforPostgreSQL/servers"
+        - "Microsoft.DBforPostgreSQL/flexibleServers"
+    db_names:
+    - '*'
+    db_users:
+    - teleport
+```
+
+| Flag                       | Description                                                                                                                              |
+|----------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
+| `--db-users` | List of database usernames the user will be allowed to use when connecting to the databases. A wildcard allows any user.                 |
+| `--db-names` | List of logical databases (aka schemas) the user will be allowed to connect to within a database server. A wildcard allows any database. |
+| `--db-labels` | List of labels assigned to the database the user will be able to access. A wildcard entry allows any database.                           |
+
+Save this file and apply it to your Teleport cluster:
+
+```code
+$ tctl create -f azure-database-role.yaml
+role 'azure-database-role.yaml' has been created
+```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
+
+(\!docs/pages/includes/add-role-to-user.mdx role="azure-database-access" \!)
+
+### Start Teleport Database Service
+
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
+
+<Admonition
+  type="tip"
+  title="Tip"
+>
+  A single Teleport process can run multiple different services, for example
+  multiple Database Service agents as well as the SSH Service or Application
+  Service.
+</Admonition>
+
 ## Step 5/5. Connect
 
 Log in to your Teleport cluster. Your Azure database should appear in the list of
@@ -416,6 +429,8 @@ $ tsh db connect --db-user=teleport --db-name=postgres azure-db
 
 </TabItem>
 </Tabs>
+
+(!docs/pages/includes/database-access/pg-access-webui.mdx!)
 
 <Admonition type="note">
 The appropriate database command-line client (`psql`, `mysql`) should be

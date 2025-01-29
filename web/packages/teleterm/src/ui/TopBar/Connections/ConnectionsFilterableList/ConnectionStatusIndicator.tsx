@@ -17,7 +17,8 @@
  */
 
 import styled, { css } from 'styled-components';
-import { Box, blink } from 'design';
+
+import { blink, Box } from 'design';
 
 type Status = 'on' | 'off' | 'error' | 'warning' | 'processing';
 

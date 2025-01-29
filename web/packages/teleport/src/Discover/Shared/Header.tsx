@@ -18,8 +18,8 @@
 
 import React, { PropsWithChildren } from 'react';
 
-import { ArrowBack } from 'design/Icon';
 import { ButtonIcon, Flex, H1, H2, Subtitle1 } from 'design';
+import { ArrowBack } from 'design/Icon';
 
 export const Header: React.FC<PropsWithChildren<unknown>> = ({ children }) => (
   <H1 my={1}>{children}</H1>

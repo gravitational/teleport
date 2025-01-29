@@ -75,7 +75,7 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 	// bookkeeping group or stored procedures get deleted or changed offband.
 	logger := e.Log.With("user", sessionCtx.DatabaseUser)
 	err = withRetry(ctx, logger, func() error {
-		return trace.Wrap(e.updateAutoUsersRole(ctx, conn))
+		return trace.Wrap(e.updateAutoUsersRole(ctx, conn, sessionCtx.Database.GetAdminUser().Name))
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -401,17 +401,46 @@ func (e *Engine) deleteUserRedshift(ctx context.Context, sessionCtx *common.Sess
 
 // updateAutoUsersRole ensures the bookkeeping role for auto-provisioned users
 // is present.
-func (e *Engine) updateAutoUsersRole(ctx context.Context, conn *pgx.Conn) error {
+func (e *Engine) updateAutoUsersRole(ctx context.Context, conn *pgx.Conn, adminUser string) error {
 	_, err := conn.Exec(ctx, fmt.Sprintf("create role %q", teleportAutoUserRole))
 	if err != nil {
 		if !strings.Contains(err.Error(), "already exists") {
 			return trace.Wrap(err)
 		}
-		e.Log.DebugContext(ctx, "PostgreSQL role already exists.", "role", teleportAutoUserRole)
+		e.Log.DebugContext(ctx, "PostgreSQL role already exists", "role", teleportAutoUserRole)
 	} else {
-		e.Log.DebugContext(ctx, "Created PostgreSQL role.", "role", teleportAutoUserRole)
+		e.Log.DebugContext(ctx, "Created PostgreSQL role", "role", teleportAutoUserRole)
 	}
 
+	// v16 Postgres changed the role grant permissions model such that you can
+	// no longer grant non-superuser role membership just by having the
+	// CREATEROLE attribute.
+	// On v16 Postgres, when a role is created the creator is automatically
+	// granted that role with "INHERIT FALSE, SET FALSE, ADMIN OPTION" options.
+	// Prior to v16 Postgres that grant is not automatically made, because
+	// the CREATEROLE attribute alone was sufficient to grant the role to
+	// others.
+	// This is the only role that is created and granted to others by the
+	// Teleport database admin.
+	// It grants the auto user role to every role it provisions.
+	// To avoid breaking user auto-provisioning for customers who upgrade from
+	// v15 postgres to v16, we should grant this role with the admin option to
+	// ourselves after creating it.
+	// Also note that the grant syntax in v15 postgres and below does not
+	// support WITH INHERIT FALSE or WITH SET FALSE syntax, so we only specify
+	// WITH ADMIN OPTION.
+	// See: https://www.postgresql.org/docs/16/release-16.html
+	stmt := fmt.Sprintf("grant %q to %q WITH ADMIN OPTION", teleportAutoUserRole, adminUser)
+	_, err = conn.Exec(ctx, stmt)
+	if err != nil {
+		if !strings.Contains(err.Error(), "cannot be granted back") && !strings.Contains(err.Error(), "already") {
+			e.Log.DebugContext(ctx, "Failed to grant required role to the Teleport database admin, user auto-provisioning may not work until the database admin is granted the role by a superuser",
+				"role", teleportAutoUserRole,
+				"database_admin", adminUser,
+				"error", err,
+			)
+		}
+	}
 	return nil
 }
 
@@ -611,7 +640,7 @@ func withRetry(ctx context.Context, log *slog.Logger, f func() error) error {
 		First:  0,
 		Step:   100 * time.Millisecond,
 		Max:    750 * time.Millisecond,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 	})
 	if err != nil {
 		return trace.Wrap(err)

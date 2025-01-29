@@ -29,8 +29,8 @@ import (
 // TrustedCluster holds information needed for a cluster that can not be directly
 // accessed (maybe be behind firewall without any open ports) to join a parent cluster.
 type TrustedCluster interface {
-	// Resource provides common resource properties
-	Resource
+	// ResourceWithOrigin provides common resource properties
+	ResourceWithOrigin
 	// SetMetadata sets object metadata
 	SetMetadata(meta Metadata)
 	// GetEnabled returns the state of the TrustedCluster.
@@ -184,6 +184,16 @@ func (c *TrustedClusterV2) SetName(e string) {
 	c.Metadata.Name = e
 }
 
+// Origin returns the origin value of the resource.
+func (c *TrustedClusterV2) Origin() string {
+	return c.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (c *TrustedClusterV2) SetOrigin(origin string) {
+	c.Metadata.SetOrigin(origin)
+}
+
 // GetEnabled returns the state of the TrustedCluster.
 func (c *TrustedClusterV2) GetEnabled() bool {
 	return c.Spec.Enabled
@@ -252,14 +262,6 @@ func (c *TrustedClusterV2) CanChangeStateTo(t TrustedCluster) error {
 	if !slices.Equal(c.GetRoles(), t.GetRoles()) {
 		return immutableFieldErr("roles")
 	}
-
-	if c.GetEnabled() == t.GetEnabled() && c.GetRoleMap().IsEqual(t.GetRoleMap()) {
-		if t.GetEnabled() {
-			return trace.AlreadyExists("leaf cluster is already enabled, this update would have no effect")
-		}
-		return trace.AlreadyExists("leaf cluster is already disabled, this update would have no effect")
-	}
-
 	return nil
 }
 

@@ -19,7 +19,6 @@
 import { Store } from 'shared/libs/stores';
 
 import cfg from 'teleport/config';
-
 import { UserContext } from 'teleport/services/user';
 
 export default class StoreUserContext extends Store<UserContext> {
@@ -125,6 +124,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.clipboardSharingEnabled;
   }
 
+  getReviewRequests() {
+    return this.state.acl.reviewRequests;
+  }
+
   getNodeAccess() {
     return this.state.acl.nodes;
   }
@@ -155,6 +158,10 @@ export default class StoreUserContext extends Store<UserContext> {
 
   getSamlIdPServiceProviderAccess() {
     return this.state.acl.samlIdpServiceProvider;
+  }
+
+  hasFileTransferAccess() {
+    return this.state.acl.fileTransferAccess;
   }
 
   // hasPrereqAccessToAddAgents checks if user meets the prerequisite
@@ -246,5 +253,13 @@ export default class StoreUserContext extends Store<UserContext> {
 
   getBotsAccess() {
     return this.state.acl.bots;
+  }
+
+  getContactsAccess() {
+    return this.state.acl.contacts;
+  }
+
+  getGitServersAccess() {
+    return this.state.acl.gitServers;
   }
 }

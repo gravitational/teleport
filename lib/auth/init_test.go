@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -77,14 +78,16 @@ func TestReadIdentity(t *testing.T) {
 	caSigner, err := ssh.ParsePrivateKey(priv)
 	require.NoError(t, err)
 
-	cert, err := a.GenerateHostCert(services.HostCertParams{
+	cert, err := a.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      caSigner,
 		PublicHostKey: pub,
 		HostID:        "id1",
 		NodeName:      "node-name",
-		ClusterName:   "example.com",
-		Role:          types.RoleNode,
 		TTL:           0,
+		Identity: sshca.Identity{
+			ClusterName: "example.com",
+			SystemRole:  types.RoleNode,
+		},
 	})
 	require.NoError(t, err)
 
@@ -98,14 +101,16 @@ func TestReadIdentity(t *testing.T) {
 	// test TTL by converting the generated cert to text -> back and making sure ExpireAfter is valid
 	ttl := 10 * time.Second
 	expiryDate := clock.Now().Add(ttl)
-	bytes, err := a.GenerateHostCert(services.HostCertParams{
+	bytes, err := a.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      caSigner,
 		PublicHostKey: pub,
 		HostID:        "id1",
 		NodeName:      "node-name",
-		ClusterName:   "example.com",
-		Role:          types.RoleNode,
 		TTL:           ttl,
+		Identity: sshca.Identity{
+			ClusterName: "example.com",
+			SystemRole:  types.RoleNode,
+		},
 	})
 	require.NoError(t, err)
 	copy, err := apisshutils.ParseCertificate(bytes)
@@ -125,14 +130,16 @@ func TestBadIdentity(t *testing.T) {
 	require.IsType(t, trace.BadParameter(""), err)
 
 	// missing authority domain
-	cert, err := a.GenerateHostCert(services.HostCertParams{
+	cert, err := a.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      caSigner,
 		PublicHostKey: pub,
 		HostID:        "id2",
 		NodeName:      "",
-		ClusterName:   "",
-		Role:          types.RoleNode,
 		TTL:           0,
+		Identity: sshca.Identity{
+			ClusterName: "",
+			SystemRole:  types.RoleNode,
+		},
 	})
 	require.NoError(t, err)
 
@@ -140,14 +147,16 @@ func TestBadIdentity(t *testing.T) {
 	require.IsType(t, trace.BadParameter(""), err)
 
 	// missing host uuid
-	cert, err = a.GenerateHostCert(services.HostCertParams{
+	cert, err = a.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      caSigner,
 		PublicHostKey: pub,
 		HostID:        "example.com",
 		NodeName:      "",
-		ClusterName:   "",
-		Role:          types.RoleNode,
 		TTL:           0,
+		Identity: sshca.Identity{
+			ClusterName: "",
+			SystemRole:  types.RoleNode,
+		},
 	})
 	require.NoError(t, err)
 
@@ -155,14 +164,16 @@ func TestBadIdentity(t *testing.T) {
 	require.IsType(t, trace.BadParameter(""), err)
 
 	// unrecognized role
-	cert, err = a.GenerateHostCert(services.HostCertParams{
+	cert, err = a.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      caSigner,
 		PublicHostKey: pub,
 		HostID:        "example.com",
 		NodeName:      "",
-		ClusterName:   "id1",
-		Role:          "bad role",
 		TTL:           0,
+		Identity: sshca.Identity{
+			ClusterName: "id1",
+			SystemRole:  "bad role",
+		},
 	})
 	require.NoError(t, err)
 
@@ -737,6 +748,40 @@ func keysIn[K comparable, V any](m map[K]V) []K {
 	return result
 }
 
+type failingTrustInternal struct {
+	services.TrustInternal
+}
+
+func (t *failingTrustInternal) CreateCertAuthority(ctx context.Context, ca types.CertAuthority) error {
+	return trace.Errorf("error")
+}
+
+// TestInitCertFailureRecovery ensures the auth server is able to recover from
+// a failure in the cert creation process.
+func TestInitCertFailureRecovery(t *testing.T) {
+	ctx := context.Background()
+	cap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type: constants.SAML,
+	})
+	require.NoError(t, err)
+
+	conf := setupConfig(t)
+
+	// BootstrapResources have lead to an unrecoverable state in the past.
+	// See https://github.com/gravitational/teleport/pull/49638.
+	conf.BootstrapResources = []types.Resource{cap}
+	_, err = Init(ctx, conf, func(s *Server) error {
+		s.TrustInternal = &failingTrustInternal{
+			TrustInternal: s.TrustInternal,
+		}
+		return nil
+	})
+	require.Error(t, err)
+
+	_, err = Init(ctx, conf)
+	require.NoError(t, err)
+}
+
 // TestPresets tests behavior of presets
 func TestPresets(t *testing.T) {
 	ctx := context.Background()
@@ -746,6 +791,7 @@ func TestPresets(t *testing.T) {
 		teleport.PresetAccessRoleName,
 		teleport.PresetAuditorRoleName,
 		teleport.PresetTerraformProviderRoleName,
+		teleport.PresetWildcardWorkloadIdentityIssuerRoleName,
 	}
 
 	t.Run("EmptyCluster", func(t *testing.T) {
@@ -1081,6 +1127,7 @@ func TestPresets(t *testing.T) {
 		enterpriseSystemRoleNames := []string{
 			teleport.SystemAutomaticAccessApprovalRoleName,
 			teleport.SystemOktaAccessRoleName,
+			teleport.SystemIdentityCenterAccessRoleName,
 		}
 
 		enterpriseUsers := []types.User{

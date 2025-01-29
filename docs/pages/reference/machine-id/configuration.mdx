@@ -207,7 +207,7 @@ type: identity
 The `application` output is used to generate credentials that can be used to
 access applications that have been configured with Teleport.
 
-See the [Machine ID with Application Access guide](../../enroll-resources/machine-id/access-guides/applications.mdx)
+See the [Machine ID with Applications guide](../../enroll-resources/machine-id/access-guides/applications.mdx)
 to see the `application` output used in context.
 
 ```yaml
@@ -227,7 +227,7 @@ app_name: grafana
 The `database` output is used to generate credentials that can be used to
 access databases that have been configured with Teleport.
 
-See the [Machine ID with Database Access guide](../../enroll-resources/machine-id/access-guides/databases.mdx)
+See the [Machine ID with Databases guide](../../enroll-resources/machine-id/access-guides/databases.mdx)
 to see the `database` output used in context.
 
 ```yaml
@@ -273,7 +273,7 @@ access Kubernetes clusters that have been configured with Teleport.
 It outputs a `kubeconfig.yaml` in the output destination, which can be used
 with `kubectl`.
 
-See the [Machine ID with Kubernetes Access guide](../../enroll-resources/machine-id/access-guides/kubernetes.mdx)
+See the [Machine ID with Kubernetes Clusters guide](../../enroll-resources/machine-id/access-guides/kubernetes.mdx)
 to see the `kubernetes` output used in context.
 
 ```yaml
@@ -311,7 +311,69 @@ principals:
 (!docs/pages/includes/machine-id/common-output-config.yaml!)
 ```
 
+### `workload-identity-x509`
+
+The `workload-identity-x509` output is used to issue an X509 workload identity
+credential and write this to a configured destination.
+
+The output generates the following artifacts:
+
+- `svid.pem`: the X509 SVID.
+- `svid.key`: the private key associated with the X509 SVID.
+- `bundle.pem`: the X509 bundle that contains the trust domain CAs.
+
+See [Workload Identity introduction](../../enroll-resources/workload-identity/introduction.mdx)
+for more information on Workload Identity functionality.
+
+```yaml
+# type specifies the type of the output. For the X509 Workload Identity output,
+# this will always be `workload-identity-x509`.
+type: workload-identity-x509
+(!docs/pages/includes/machine-id/workload-identity-selector-config.yaml!)
+(!docs/pages/includes/machine-id/common-output-config.yaml!)
+```
+
+### `workload-identity-jwt`
+
+The `workload-identity-jwt` output is used to issue a JWT workload identity
+credential and write this to a configured destination.
+
+The JWT workload identity credential is compatible with the [SPIFFE JWT SVID
+specification](https://github.com/spiffe/spiffe/blob/main/standards/JWT-SVID.md).
+
+The output generates the following artifacts:
+
+- `jwt_svid`: the JWT SVID.
+
+See [Workload Identity introduction](../../enroll-resources/workload-identity/introduction.mdx)
+for more information on Workload Identity functionality.
+
+```yaml
+# type specifies the type of the output. For the JWT Workload Identity output,
+# this will always be `workload-identity-jwt`.
+type: workload-identity-jwt
+# audiences specifies the values that should be included in the `aud` claim of
+# the JWT. Typically, this identifies the intended recipient of the JWT and
+# contains a single value.
+#
+# At least one audience value must be specified.
+audiences:
+ - example.com
+ - foo.example.com
+(!docs/pages/includes/machine-id/workload-identity-selector-config.yaml!)
+(!docs/pages/includes/machine-id/common-output-config.yaml!)
+```
+
 ### `spiffe-svid`
+
+<Admonition type="warning" >
+The use of this service has been deprecated as part of the introduction of the
+new Workload Identity configuration experience. You can replace the use of this
+output with the new `workload-identity-x509` or `workload-identity-jwt` service.
+
+For further information, see [the new Workload Identity configuration experience
+and how to migrate](../workload-identity/configuration-resource-migration.mdx).
+</Admonition>
 
 The `spiffe-svid` output is used to generate a SPIFFE X509 SVID and write this
 to a configured destination.
@@ -367,7 +429,25 @@ Outputs, they may not necessarily generate artifacts. Typically, services
 provide supporting functionality for machine to machine access, for example,
 opening tunnels or providing APIs.
 
+### `workload-identity-api`
+
+The `workload-identity-api` services opens a listener that provides a local
+workload identity API, intended to serve workload identity credentials
+(e.g X509/JWT SPIFFE SVIDs) to workloads running on the same host.
+
+For more information about this, see the
+[Workload Identity API and Workload Attestation reference](../workload-identity/workload-identity-api-and-workload-attestation.mdx)
+
 ### `spiffe-workload-api`
+
+<Admonition type="warning" >
+The use of this service has been deprecated as part of the introduction of the
+new Workload Identity configuration experience. You can replace the use of this
+service with the new `workload-identity-api` service.
+
+For further information, see [the new Workload Identity configuration experience
+and how to migrate](../workload-identity/configuration-resource-migration.mdx).
+</Admonition>
 
 The `spiffe-workload-api` service opens a listener for a service that implements
 the SPIFFE Workload API. This service is used to provide SPIFFE SVIDs to
@@ -500,10 +580,10 @@ service, three additional special names can be used to aid configuration:
 
 - `default`: `tbot` will return the default SVID for the workload.
 - `ROOTCA`: `tbot` will return the trust bundle for the trust domain that the
-   workload is a member of.
+workload is a member of.
 - `ALL`: `tbot` will return the trust bundle for the trust domain that the
-  workload is a member of, as well as the trust bundles of any trust domain
-  that the trust domain is federated with.
+workload is a member of, as well as the trust bundles of any trust domain
+that the trust domain is federated with.
 
 The following is an example Envoy configuration that sources a certificate
 and trust bundle from the `spiffe-workload-api` service listening on

@@ -18,15 +18,15 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
-import { Box, ButtonIcon, Flex, Text } from 'design';
-import { Cross } from 'design/Icon';
 
-import * as Icon from 'design/Icon';
-import { IconProps } from 'design/Icon/Icon';
-import { Theme } from 'design/theme/themes/types';
-import { borderColor } from 'design/system';
+import { Box, ButtonIcon, Flex, Text } from 'design';
 import { ActionButton } from 'design/Alert';
 import { BoxProps } from 'design/Box';
+import { Cross } from 'design/Icon';
+import * as Icon from 'design/Icon';
+import { IconProps } from 'design/Icon/Icon';
+import { borderColor } from 'design/system';
+import { Theme } from 'design/theme/themes/types';
 
 import type {
   NotificationItem,
@@ -45,6 +45,8 @@ interface NotificationProps extends BoxProps {
    * seconds. If undefined, the decision is based on the notification severity:
    * only 'success', 'info', and 'neutral' notifications are removable by
    * default.
+   *
+   * @deprecated: Define isAutoRemovable on item.content instead.
    */
   isAutoRemovable?: boolean;
 }
@@ -55,6 +57,7 @@ export function Notification(props: NotificationProps) {
   const {
     item,
     onRemove,
+    // TODO(ravicious): Remove isAutoRemovable in favor of item.content.isAutoRemovable.
     isAutoRemovable: isAutoRemovableProp,
     ...styleProps
   } = props;
@@ -65,6 +68,7 @@ export function Notification(props: NotificationProps) {
   const theme = useTheme();
 
   const isAutoRemovable =
+    getContentIsAutoRemovable(item.content) ??
     isAutoRemovableProp ??
     ['success', 'info', 'neutral'].includes(item.severity);
   useEffect(() => {
@@ -176,6 +180,11 @@ const toObjectContent = (
   content: NotificationItemContent
 ): NotificationItemObjectContent =>
   typeof content === 'string' ? { title: content } : content;
+
+const getContentIsAutoRemovable = (
+  content: NotificationItemContent
+): boolean | undefined =>
+  typeof content === 'string' ? undefined : content.isAutoRemovable;
 
 const notificationColors = (theme: Theme, severity: NotificationSeverity) => {
   switch (severity) {

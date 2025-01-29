@@ -150,7 +150,8 @@ spec:
 
 (!docs/pages/includes/machine-id/recover-circle-ci-claims.mdx!)
 
-Then, create the following `terraform-bot-token.yaml`:
+Then, create the following `terraform-bot-token.yaml`, replacing <Var
+name="context-id" /> with your context ID:
 
 ```yaml
 kind: token
@@ -163,7 +164,7 @@ spec:
   bot_name: terraform
   circleci:
     organization_id: <Var name="organization-id" />
-    # allow specifies the rules by which the Auth Server determines if `tbot`
+    # allow specifies the rules by which the Auth Service determines if `tbot`
     # should be allowed to join.
     allow:
     - context_id: <Var name="context-id" />
@@ -242,7 +243,7 @@ To do this you need:
 
 Create this minimal `main.tf` file:
 
-```var
+```hcl
 terraform {
   required_providers {
     teleport = {

@@ -3,12 +3,7 @@ title: Configuring Workload Identity and AWS OIDC Federation
 description: Configuring AWS to accept Workload Identity JWTs as authentication using OIDC Federation
 ---
 
-<Admonition type="tip" title="Preview">
-Teleport Workload Identity is currently in Preview. This means that some
-features may be missing. We're actively looking for design partners to help us
-shape the future of Workload Identity and would love to
-[hear your feedback](mailto:product@goteleport.com).
-</Admonition>
+(!/docs/pages/includes/workload-id-preview.mdx!)
 
 Teleport Workload Identity issues flexible short-lived identities in JWT format.
 AWS OIDC Federation allows you to use these JWTs to authenticate to AWS
@@ -345,6 +340,8 @@ Apply this role to your Teleport cluster using `tctl`:
 ```code
 $ tctl create -f role.yaml
 ```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
 
 You now need to assign this role to the bot:
 

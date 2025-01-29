@@ -48,6 +48,7 @@ test('correct formatting of apps fetch response', async () => {
         samlApp: false,
         samlAppSsoUrl: '',
         integration: '',
+        permissionSets: [],
       },
       {
         kind: 'app',
@@ -69,6 +70,7 @@ test('correct formatting of apps fetch response', async () => {
         samlApp: false,
         samlAppSsoUrl: '',
         integration: '',
+        permissionSets: [],
       },
       {
         kind: 'app',
@@ -90,6 +92,7 @@ test('correct formatting of apps fetch response', async () => {
         samlApp: false,
         samlAppSsoUrl: '',
         integration: '',
+        permissionSets: [],
       },
       {
         kind: 'app',
@@ -112,6 +115,7 @@ test('correct formatting of apps fetch response', async () => {
         samlAppSsoUrl: 'http://localhost/enterprise/saml-idp/login/saml-app',
         samlAppPreset: 'gcp-workforce',
         integration: '',
+        permissionSets: [],
       },
     ],
     startKey: mockResponse.startKey,

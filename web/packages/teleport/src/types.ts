@@ -16,16 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { ReactNode } from 'react';
 
 import { UserPreferences } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 
-import {
-  ManagementSection,
-  NavigationCategory,
-} from 'teleport/Navigation/categories';
-
-import { NavigationCategory as SideNavigationCategory } from './Navigation/SideNavigation/categories';
+import { NavigationCategory } from './Navigation/categories';
 
 export type NavGroup = 'team' | 'activity' | 'clusters' | 'accessrequests';
 
@@ -36,7 +31,7 @@ export interface Context {
 
 export interface TeleportFeatureNavigationItem {
   title: NavTitle;
-  icon: (props) => JSX.Element;
+  icon: (props) => ReactNode;
   exact?: boolean;
   getLink?(clusterId: string): string;
   isExternalLink?: boolean;
@@ -66,6 +61,7 @@ export enum NavTitle {
   Roles = 'Roles',
   JoinTokens = 'Join Tokens',
   AuthConnectors = 'Auth Connectors',
+  AuthConnectorsShortened = 'Auth Conn.',
   Integrations = 'Integrations',
   EnrollNewResource = 'Resource',
   EnrollNewIntegration = 'Integration',
@@ -118,11 +114,8 @@ export interface TeleportFeatureRoute {
 export interface TeleportFeature {
   parent?: new () => TeleportFeature | null;
   category?: NavigationCategory;
-  // TODO(rudream): Delete category field above and rename sideNavCategory field to category once old nav is removed.
-  sideNavCategory?: SideNavigationCategory;
   /** standalone is whether this feature has no subsections */
   standalone?: boolean;
-  section?: ManagementSection;
   hasAccess(flags: FeatureFlags): boolean;
   // logoOnlyTopbar is used to optionally hide the elements in the topbar from view except for the logo.
   // The features that use this are supposed to be "full page" features where navigation
@@ -149,6 +142,8 @@ export interface TeleportFeature {
   // if highlightKey is specified, navigating to ?highlight=<highlightKey>
   // will highlight the feature in the navigation, to draw a users attention to it
   highlightKey?: string;
+  /** showInDashboard is whether this page should be shown in the navigation for dashboard tenants. Any feature without this flag will not be shown for dashboards. */
+  showInDashboard?: boolean;
 }
 
 export type StickyCluster = {
@@ -197,8 +192,6 @@ export interface FeatureFlags {
   newLocks: boolean;
   tokens: boolean;
   accessMonitoring: boolean;
-  // Whether or not the management section should be available.
-  managementSection: boolean;
   accessGraph: boolean;
   accessGraphIntegrations: boolean;
   externalAuditStorage: boolean;
@@ -206,6 +199,7 @@ export interface FeatureFlags {
   addBots: boolean;
   editBots: boolean;
   removeBots: boolean;
+  gitServers: boolean;
 }
 
 // LockedFeatures are used for determining which features are disabled in the user's cluster.

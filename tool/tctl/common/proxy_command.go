@@ -28,6 +28,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // ProxyCommand returns information about connected proxies
@@ -39,7 +41,7 @@ type ProxyCommand struct {
 }
 
 // Initialize creates the proxy command and subcommands
-func (p *ProxyCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (p *ProxyCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	p.config = config
 
 	proxyCommand := app.Command("proxy", "Operations with information for cluster proxies.").Hidden()
@@ -72,12 +74,19 @@ func (p *ProxyCommand) ListProxies(ctx context.Context, clusterAPI *authclient.C
 }
 
 // TryRun runs the proxy command
-func (p *ProxyCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (p *ProxyCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case p.lsCmd.FullCommand():
-		err = p.ListProxies(ctx, client)
+		commandFunc = p.ListProxies
 	default:
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
 	return true, trace.Wrap(err)
 }

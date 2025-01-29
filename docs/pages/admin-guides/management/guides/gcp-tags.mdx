@@ -17,7 +17,7 @@ When the Teleport process starts, it fetches all tags and labels from
 the GCP API and adds them as labels. The process will update the tags every hour, 
 so newly created or deleted tags will be reflected in the labels.
 
-If the GCP label `TeleportHostname` (case-sensitive) is present, its value will override the node's hostname. This
+If the GCP label `TeleportHostname` is present, its value (must be lower case) will override the node's hostname. This
 does not apply to GCP tags.
 
 ```code
@@ -35,8 +35,8 @@ fakehost.example.com 127.0.0.1:3022 gcp/label/testing=yes,gcp/tag/environment=st
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
-- One Teleport agent running on a GCP Compute instance. See
-  [our guides](../../../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx) for how to set up Teleport agents.
+- One Teleport Agent running on a GCP Compute instance. See
+  [our guides](../../../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx) for how to set up Teleport Agents.
 
 ## Configure service account on instances with Teleport nodes
 

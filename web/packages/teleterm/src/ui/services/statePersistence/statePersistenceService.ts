@@ -35,7 +35,10 @@ export type WorkspacesPersistedState = Omit<
   WorkspacesState,
   'workspaces' | 'isInitialized'
 > & {
-  workspaces: Record<string, Omit<Workspace, 'accessRequests'>>;
+  workspaces: Record<
+    string,
+    Omit<Workspace, 'accessRequests' | 'documentsRestoredOrDiscarded'>
+  >;
 };
 
 export interface StatePersistenceState {

@@ -30,7 +30,7 @@ DOCKER_BUILD_ARGS = --load --platform="$(OS)/$(ARCH)"
 
 .PHONY: $(BINARY)
 $(BINARY):
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -o $(BINARY) $(BUILDFLAGS) github.com/gravitational/teleport/integrations/access/$(ACCESS_PLUGIN)/cmd/teleport-$(ACCESS_PLUGIN)
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -o $(BINARY) -tags "kustomize_disable_go_plugin_support" $(BUILDFLAGS) github.com/gravitational/teleport/integrations/access/$(ACCESS_PLUGIN)/cmd/teleport-$(ACCESS_PLUGIN)
 
 .PHONY: test
 test: FLAGS ?= '-race'

@@ -18,7 +18,7 @@
 
 import { Label } from 'teleport/types';
 
-import { Node } from '../nodes';
+import { ResourceLabel } from '../agents';
 
 /**
  * type Integration v. type Plugin:
@@ -62,6 +62,7 @@ export enum IntegrationKind {
   AwsOidc = 'aws-oidc',
   AzureOidc = 'azure-oidc',
   ExternalAuditStorage = 'external-audit-storage',
+  GitHub = 'github',
 }
 
 /**
@@ -81,6 +82,23 @@ export type IntegrationSpecAwsOidc = {
    * that depends on this integration.
    */
   audience?: IntegrationAudience;
+};
+
+export type AwsOidcPingRequest = {
+  // Define roleArn if the ping request should
+  // use this potentially new roleArn to test the
+  // connection works, typically used with updates.
+  //
+  // Leave empty if the ping request should
+  // use the roleArn stored in the integration resource,
+  // typically used when checking integration still works.
+  roleArn?: string;
+};
+
+export type AwsOidcPingResponse = {
+  accountId: string;
+  arn: string;
+  userId: string;
 };
 
 export enum IntegrationStatusCode {
@@ -265,6 +283,41 @@ export type IntegrationCreateRequest = {
 export type IntegrationListResponse = {
   items: Integration[];
   nextKey?: string;
+};
+
+// IntegrationWithSummary describes Integration fields and the fields required to return the summary.
+export type IntegrationWithSummary = {
+  name: string;
+  subKind: string;
+  awsoidc: IntegrationSpecAwsOidc;
+  // AWSEC2 contains the summary for the AWS EC2 resources for this integration.
+  awsec2: ResourceTypeSummary;
+  // AWSRDS contains the summary for the AWS RDS resources and agents for this integration.
+  awsrds: ResourceTypeSummary;
+  // AWSEKS contains the summary for the AWS EKS resources for this integration.
+  awseks: ResourceTypeSummary;
+};
+
+// ResourceTypeSummary contains the summary of the enrollment rules and found resources by the integration.
+export type ResourceTypeSummary = {
+  // rulesCount is the number of enrollment rules that are using this integration.
+  // A rule is a matcher in a DiscoveryConfig that is being processed by a DiscoveryService.
+  // If the DiscoveryService is not reporting any Status, it means it is not being processed and it doesn't count for the number of rules.
+  // Example 1: a DiscoveryConfig with a matcher whose Type is "EC2" for two regions count as two EC2 rules.
+  // Example 2: a DiscoveryConfig with a matcher whose Types is "EC2,RDS" for one regions count as one EC2 rule.
+  // Example 3: a DiscoveryConfig with a matcher whose Types is "EC2,RDS", but has no DiscoveryService using it, it counts as 0 rules.
+  rulesCount: number;
+  // resourcesFound contains the count of resources found by this integration.
+  resourcesFound: number;
+  // resourcesEnrollmentFailed contains the count of resources that failed to enroll into the cluster.
+  resourcesEnrollmentFailed: number;
+  // resourcesEnrollmentSuccess contains the count of resources that succeeded to enroll into the cluster.
+  resourcesEnrollmentSuccess: number;
+  // discoverLastSync contains the time when this integration tried to auto-enroll resources.
+  discoverLastSync: number;
+  // ecsDatabaseServiceCount is the total number of DatabaseServices that were deployed into Amazon ECS.
+  // Only applicable for AWS RDS resource summary.
+  ecsDatabaseServiceCount: number;
 };
 
 // awsRegionMap maps the AWS regions to it's region name
@@ -486,6 +539,11 @@ export type EnrollEksClustersRequest = {
   region: string;
   enableAppDiscovery: boolean;
   clusterNames: string[];
+  /**
+   * User provided labels.
+   * Only supported with V2 endpoint
+   */
+  extraLabels?: ResourceLabel[];
 };
 
 export type EnrollEksClustersResponse = {
@@ -507,81 +565,6 @@ export type ListEksClustersResponse = {
    */
   clusters: AwsEksCluster[];
   nextToken?: string;
-};
-
-export type ListEc2InstancesRequest = {
-  region: Regions;
-  nextToken?: string;
-};
-
-export type ListEc2InstancesResponse = {
-  // instances is the list of EC2 Instances.
-  instances: Node[];
-  nextToken?: string;
-};
-
-export type ListEc2InstanceConnectEndpointsRequest = {
-  region: Regions;
-  // VPCIDs is a list of VPCs to filter EC2 Instance Connect Endpoints.
-  vpcIds: string[];
-  nextToken?: string;
-};
-
-export type ListEc2InstanceConnectEndpointsResponse = {
-  // endpoints is the list of EC2 Instance Connect Endpoints.
-  endpoints: Ec2InstanceConnectEndpoint[];
-  nextToken?: string;
-  // DashboardLink is the URL for AWS Web Console that
-  // lists all the Endpoints for the queries VPCs.
-  dashboardLink: string;
-};
-
-export type Ec2InstanceConnectEndpoint = {
-  name: string;
-  // state is the current state of the EC2 Instance Connect Endpoint.
-  state: Ec2InstanceConnectEndpointState;
-  // stateMessage is an optional message describing the state of the EICE, such as an error message.
-  stateMessage?: string;
-  // dashboardLink is a URL to AWS Console where the user can see the EC2 Instance Connect Endpoint.
-  dashboardLink: string;
-  // subnetID is the subnet used by the Endpoint. Please note that the Endpoint should be able to reach any subnet within the VPC.
-  subnetId: string;
-  // VPCID is the VPC ID where the Endpoint is created.
-  vpcId: string;
-};
-
-export type Ec2InstanceConnectEndpointState =
-  | 'create-in-progress'
-  | 'create-complete'
-  | 'create-failed'
-  | 'delete-in-progress'
-  | 'delete-complete'
-  | 'delete-failed';
-
-export type AwsOidcDeployEc2InstanceConnectEndpointRequest = {
-  // SubnetID is the subnet id for the EC2 Instance Connect Endpoint.
-  subnetId: string;
-  // SecurityGroupIDs is the list of SecurityGroups to apply to the Endpoint.
-  // If not specified, the Endpoint will receive the default SG for the Subnet's VPC.
-  securityGroupIds?: string[];
-};
-
-export type DeployEc2InstanceConnectEndpointRequest = {
-  region: Regions;
-  // Endpoints is a list of endpoinst to create.
-  endpoints: AwsOidcDeployEc2InstanceConnectEndpointRequest[];
-};
-
-export type AwsEc2InstanceConnectEndpoint = {
-  // Name is the EC2 Instance Connect Endpoint name.
-  name: string;
-  // SubnetID is the subnet where this endpoint was created.
-  subnetId: string;
-};
-
-export type DeployEc2InstanceConnectEndpointResponse = {
-  // Endpoints is a list of created endpoints
-  endpoints: AwsEc2InstanceConnectEndpoint[];
 };
 
 export type Subnet = {
@@ -699,4 +682,17 @@ export type Vpc = {
 export type AwsDatabaseVpcsResponse = {
   vpcs: Vpc[];
   nextToken: string;
+};
+
+/**
+ * Object that contains request fields for
+ * when requesting to create an AWS console app.
+ *
+ * This request object is only supported with v2 endpoint.
+ */
+export type CreateAwsAppAccessRequest = {
+  /**
+   * resource labels that will be set as app_server's labels
+   */
+  labels?: Record<string, string>;
 };

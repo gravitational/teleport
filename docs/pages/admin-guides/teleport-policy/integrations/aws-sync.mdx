@@ -88,7 +88,6 @@ that are set up with the `discovery_group` matching
 discovery_service:
   enabled: true
   discovery_group: <Var name="access-graph-disc" />
-
 ```
 
 Notice that if you already operate a Discovery Service within your cluster,
@@ -157,6 +156,8 @@ The IAM policy includes the following directives:
         "s3:ListBucket",
         "s3:GetBucketLocation",
         "s3:GetBucketTagging",
+        "s3:GetBucketPolicyStatus",
+        "s3:GetBucketAcl",
 
         "iam:ListUsers",
         "iam:GetUser",

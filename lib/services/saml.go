@@ -24,6 +24,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/xml"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -33,7 +34,6 @@ import (
 	saml2 "github.com/russellhaering/gosaml2"
 	samltypes "github.com/russellhaering/gosaml2/types"
 	dsig "github.com/russellhaering/goxmldsig"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -87,7 +87,11 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
 		}
 
 		sc.SetEntityDescriptor(entityDescriptor)
-		log.Debugf("[SAML] Successfully fetched entity descriptor from %v for connector %v", url, sc.GetName())
+		slog.DebugContext(context.Background(), " Successfully fetched entity descriptor for connector",
+			teleport.ComponentKey, teleport.ComponentSAML,
+			"entity_descriptor_url", url,
+			"connector", sc.GetName(),
+		)
 	}
 
 	if ed := sc.GetEntityDescriptor(); ed != "" {
@@ -173,9 +177,12 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
 		sc.SetMFASettings(mfa)
 	}
 
-	log.Debugf("[SAML] SSO: %v", sc.GetSSO())
-	log.Debugf("[SAML] Issuer: %v", sc.GetIssuer())
-	log.Debugf("[SAML] ACS: %v", sc.GetAssertionConsumerService())
+	slog.DebugContext(context.Background(), "connector validated",
+		teleport.ComponentKey, teleport.ComponentSAML,
+		"sso", sc.GetSSO(),
+		"issuer", sc.GetIssuer(),
+		"acs", sc.GetAssertionConsumerService(),
+	)
 
 	return nil
 }
@@ -211,6 +218,10 @@ func CheckSAMLEntityDescriptor(entityDescriptor string) ([]*x509.Certificate, er
 	metadata := &samltypes.EntityDescriptor{}
 	if err := xml.Unmarshal([]byte(entityDescriptor), metadata); err != nil {
 		return nil, trace.Wrap(err, "failed to parse entity_descriptor")
+	}
+
+	if metadata.IDPSSODescriptor == nil {
+		return nil, nil
 	}
 
 	var roots []*x509.Certificate
@@ -271,7 +282,9 @@ func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*sam
 		// Case 1: Only the signing key pair is set. This means that SAML encryption is not expected
 		// and we therefore configure the main key that gets used for all operations as the signing key.
 		// This is done because gosaml2 mandates an encryption key even if not used.
-		log.Info("No assertion_key_pair was detected. Falling back to signing key for all SAML operations.")
+		slog.InfoContext(context.Background(), "No assertion_key_pair was detected, falling back to signing key for all SAML operations",
+			teleport.ComponentKey, teleport.ComponentSAML,
+		)
 		keyStore, err = utils.ParseKeyStorePEM(signingKeyPair.PrivateKey, signingKeyPair.Cert)
 		signingKeyStore = keyStore
 		if err != nil {
@@ -281,7 +294,9 @@ func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*sam
 		// Case 2: An encryption keypair is configured. This means that encrypted SAML responses are expected.
 		// Since gosaml2 always uses the main key for encryption, we set it to assertion_key_pair.
 		// To handle signing correctly, we now instead set the optional signing key in gosaml2 to signing_key_pair.
-		log.Info("Detected assertion_key_pair and configured it to decrypt SAML responses.")
+		slog.InfoContext(context.Background(), "Detected assertion_key_pair and configured it to decrypt SAML responses",
+			teleport.ComponentKey, teleport.ComponentSAML,
+		)
 		keyStore, err = utils.ParseKeyStorePEM(encryptionKeyPair.PrivateKey, encryptionKeyPair.Cert)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse certificate or private key defined in assertion_key_pair")
@@ -313,9 +328,7 @@ func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*sam
 	// be used.
 	switch sc.GetProvider() {
 	case teleport.ADFS, teleport.JumpCloud:
-		log.WithFields(log.Fields{
-			teleport.ComponentKey: teleport.ComponentSAML,
-		}).Debug("Setting ADFS/JumpCloud values.")
+		slog.DebugContext(context.Background(), "Setting ADFS/JumpCloud values", teleport.ComponentKey, teleport.ComponentSAML)
 		if sp.SignAuthnRequests {
 			sp.SignAuthnRequestsCanonicalizer = dsig.MakeC14N10ExclusiveCanonicalizerWithPrefixList(dsig.DefaultPrefix)
 

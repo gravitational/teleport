@@ -23,10 +23,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/gravitational/teleport"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
@@ -44,6 +42,13 @@ type authServer interface {
 
 	// RotateCertAuthority starts or restarts certificate authority rotation process.
 	RotateCertAuthority(ctx context.Context, req types.RotateRequest) error
+
+	// UpsertTrustedClusterV2 upserts a Trusted Cluster.
+	UpsertTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
+	// CreateTrustedCluster creates a Trusted Cluster.
+	CreateTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
+	// UpdateTrustedCluster updates a Trusted Cluster.
+	UpdateTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
 }
 
 // ServiceConfig holds configuration options for
@@ -52,7 +57,6 @@ type ServiceConfig struct {
 	Authorizer authz.Authorizer
 	Cache      services.AuthorityGetter
 	Backend    services.TrustInternal
-	Logger     *logrus.Entry
 	AuthServer authServer
 }
 
@@ -63,7 +67,6 @@ type Service struct {
 	cache      services.AuthorityGetter
 	backend    services.TrustInternal
 	authServer authServer
-	logger     *logrus.Entry
 }
 
 // NewService returns a new trust gRPC service.
@@ -77,12 +80,9 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("authorizer is required")
 	case cfg.AuthServer == nil:
 		return nil, trace.BadParameter("authServer is required")
-	case cfg.Logger == nil:
-		cfg.Logger = logrus.WithField(teleport.ComponentKey, "trust.service")
 	}
 
 	return &Service{
-		logger:     cfg.Logger,
 		authorizer: cfg.Authorizer,
 		cache:      cfg.Cache,
 		backend:    cfg.Backend,

@@ -17,16 +17,16 @@
  */
 
 import {
-  RpcInputStream,
-  UnaryCall,
   ClientStreamingCall,
-  ServerStreamingCall,
   DuplexStreamingCall,
-  RpcOutputStream,
-  RpcError,
-  RpcOptions,
-  ServiceInfo,
   FinishedUnaryCall,
+  RpcError,
+  RpcInputStream,
+  RpcOptions,
+  RpcOutputStream,
+  ServerStreamingCall,
+  ServiceInfo,
+  UnaryCall,
 } from '@protobuf-ts/runtime-rpc';
 
 /**

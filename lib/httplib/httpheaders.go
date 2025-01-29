@@ -188,6 +188,10 @@ var desktopSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/desktops/[^/]+/[^
 // which is a route to a desktop recording that uses WASM.
 var recordingRe = regexp.MustCompile(`^/web/cluster/[^/]+/session/[^/]+$`)
 
+// regex for the ssh terminal endpoint /web/cluster/:clusterId/console/node/:sid/:login
+// which is a route to a ssh session that uses WASM.
+var sshSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/console/node/[^/]+/[^/]+$`)
+
 var indexCSPStringCache *cspCache = newCSPCache()
 
 func getIndexContentSecurityPolicyString(cfg proto.Features, urlPath string) string {
@@ -197,7 +201,7 @@ func getIndexContentSecurityPolicyString(cfg proto.Features, urlPath string) str
 	}
 
 	// Nothing found in cache, calculate regex and result
-	withWasm := desktopSessionRe.MatchString(urlPath) || recordingRe.MatchString(urlPath)
+	withWasm := desktopSessionRe.MatchString(urlPath) || recordingRe.MatchString(urlPath) || sshSessionRe.MatchString(urlPath)
 	cspString := GetContentSecurityPolicyString(
 		getIndexContentSecurityPolicy(withWasm),
 	)

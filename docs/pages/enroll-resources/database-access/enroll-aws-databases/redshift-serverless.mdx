@@ -43,9 +43,10 @@ Create an AWS IAM role to provide user access to Redshift Serverless. This role
 will be granted to Teleport users via a corresponding Teleport role. In this
 guide we will give this role the name `teleport-redshift-serverless-access`.
 
-Configure the role's trust policy to trust the AWS account.
-This will be sufficient to allow the Teleport Database Service to assume the
-role, which we'll be setting up in the next step:
+Configure the role's trust policy to trust the AWS account.  This will be
+sufficient to allow the Teleport Database Service to assume the role, which
+we'll be setting up in the next step. Assign <Var name="aws-account-id"/> to
+your AWS account ID:
 
 ```json
 {
@@ -126,24 +127,10 @@ host.
 ### Generate a config file
 
 Update <Var name="REDSHIFT_SERVERLESS_URI" /> to the domain name and port of the
-cluster.
-On the node that is running the Database Service, create a configuration file:
-
-<Tabs>
-<TabItem label="Self-Hosted">
-
-```code
-$ sudo teleport db configure create \
-   -o file \
-   --name="redshift-serverless" \
-   --proxy=teleport.example.com:3080 \
-   --protocol=postgres \
-   --uri=<Var name="REDSHIFT_SERVERLESS_URI" /> \
-   --token=/tmp/token
-```
-
-</TabItem>
-<TabItem label="Teleport Enterprise (Cloud)">
+cluster.  On the node that is running the Database Service, create a
+configuration file, replacing <Var name="example.teleport.sh:443" /> with the
+host and web port of your Teleport Proxy Service (e.g., `example.teleport.sh` if
+using Teleport Cloud):
 
 ```code
 $ sudo teleport db configure create \
@@ -154,9 +141,6 @@ $ sudo teleport db configure create \
    --uri=<Var name="REDSHIFT_SERVERLESS_URI" /> \
    --token=/tmp/token
 ```
-
-</TabItem>
-</Tabs>
 
 The command will generate a Database Service configuration to proxy your AWS
 Redshift Serverless instance and place it at the `/etc/teleport.yaml` location.
@@ -206,6 +190,8 @@ $ tctl create -f redshift-role.yaml
 role 'redshift-serverless-access' has been created
 ```
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 (!docs/pages/includes/add-role-to-user.mdx role="redshift-serverless-access"!)
 
 ## Step 5/5. Connect
@@ -234,6 +220,8 @@ Type "help" for help.
 
 dev=>
 ```
+
+(!docs/pages/includes/database-access/pg-access-webui.mdx!)
 
 To log out of the database and remove credentials:
 

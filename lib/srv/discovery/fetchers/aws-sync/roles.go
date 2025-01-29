@@ -24,7 +24,8 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -35,7 +36,7 @@ import (
 
 // pollAWSRoles is a function that returns a function that fetches
 // AWS roles and their inline and attached policies.
-func (a *awsFetcher) pollAWSRoles(ctx context.Context, result *Resources, collectErr func(error)) func() error {
+func (a *Fetcher) pollAWSRoles(ctx context.Context, result *Resources, collectErr func(error)) func() error {
 	return func() error {
 		var err error
 		existing := a.lastResult
@@ -84,29 +85,36 @@ func (a *awsFetcher) pollAWSRoles(ctx context.Context, result *Resources, collec
 }
 
 // fetchRoles fetches AWS roles and returns them as a slice of accessgraphv1alpha.AWSRoleV1.
-func (a *awsFetcher) fetchRoles(ctx context.Context) ([]*accessgraphv1alpha.AWSRoleV1, error) {
-	var roles []*accessgraphv1alpha.AWSRoleV1
-
-	iamClient, err := a.CloudClients.GetAWSIAMClient(
+func (a *Fetcher) fetchRoles(ctx context.Context) ([]*accessgraphv1alpha.AWSRoleV1, error) {
+	awsCfg, err := a.AWSConfigProvider.GetConfig(
 		ctx,
 		"", /* region is empty because roles are global */
-		a.getAWSOptions()...,
+		a.getAWSV2Options()...,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	err = iamClient.ListRolesPagesWithContext(ctx, &iam.ListRolesInput{
-		MaxItems: aws.Int64(pageSize),
-	},
-		func(page *iam.ListRolesOutput, lastPage bool) bool {
-			for _, role := range page.Roles {
-				roles = append(roles, awsRoleToProtoRole(role, a.AccountID))
-			}
-			return !lastPage
+	iamClient := a.awsClients.getIAMClient(awsCfg)
+	pager := iam.NewListRolesPaginator(
+		iamClient,
+		&iam.ListRolesInput{
+			MaxItems: aws.Int32(pageSize),
+		},
+		func(opts *iam.ListRolesPaginatorOptions) {
+			opts.StopOnDuplicateToken = true
 		},
 	)
 
+	var roles []*accessgraphv1alpha.AWSRoleV1
+	for pager.HasMorePages() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return roles, trace.Wrap(err)
+		}
+		for _, role := range page.Roles {
+			roles = append(roles, awsRoleToProtoRole(role, a.AccountID))
+		}
+	}
 	return roles, trace.Wrap(err)
 }
 
@@ -114,87 +122,101 @@ func (a *awsFetcher) fetchRoles(ctx context.Context) ([]*accessgraphv1alpha.AWSR
 // them as a slice of accessgraphv1alpha.AWSRoleInlinePolicyV1.
 // It uses iam.ListRolePoliciesPagesWithContext to iterate over all inline policies
 // and iam.GetRolePolicyWithContext to fetch policy documents.
-func (a *awsFetcher) fetchRoleInlinePolicies(ctx context.Context, role *accessgraphv1alpha.AWSRoleV1) ([]*accessgraphv1alpha.AWSRoleInlinePolicyV1, error) {
+func (a *Fetcher) fetchRoleInlinePolicies(ctx context.Context, role *accessgraphv1alpha.AWSRoleV1) ([]*accessgraphv1alpha.AWSRoleInlinePolicyV1, error) {
+	awsCfg, err := a.AWSConfigProvider.GetConfig(
+		ctx,
+		"", /* region is empty because users and groups are global */
+		a.getAWSV2Options()...,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	iamClient := a.awsClients.getIAMClient(awsCfg)
+	pager := iam.NewListRolePoliciesPaginator(
+		iamClient,
+		&iam.ListRolePoliciesInput{
+			RoleName: aws.String(role.Name),
+			MaxItems: aws.Int32(pageSize),
+		},
+		func(opts *iam.ListRolePoliciesPaginatorOptions) {
+			opts.StopOnDuplicateToken = true
+		},
+	)
+
 	var policies []*accessgraphv1alpha.AWSRoleInlinePolicyV1
 	var errs []error
 	errCollect := func(err error) {
 		errs = append(errs, err)
 	}
-	iamClient, err := a.CloudClients.GetAWSIAMClient(
-		ctx,
-		"", /* region is empty because users and groups are global */
-		a.getAWSOptions()...,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = iamClient.ListRolePoliciesPagesWithContext(
-		ctx,
-		&iam.ListRolePoliciesInput{
-			RoleName: aws.String(role.Name),
-			MaxItems: aws.Int64(pageSize),
-		},
-		func(page *iam.ListRolePoliciesOutput, lastPage bool) bool {
-			for _, policyName := range page.PolicyNames {
-				policy, err := iamClient.GetRolePolicyWithContext(ctx, &iam.GetRolePolicyInput{
-					RoleName:   aws.String(role.Name),
-					PolicyName: policyName,
-				})
-				if err != nil {
-					errCollect(trace.Wrap(err, "failed to fetch user %q inline policy %q", role.Name, *policyName))
-					continue
-				}
-
-				policies = append(policies, awsRolePolicyToProtoUserPolicy(policy, role, a.AccountID))
+	for pager.HasMorePages() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return policies, trace.NewAggregate(append(errs, err)...)
+		}
+		for _, policyName := range page.PolicyNames {
+			policy, err := iamClient.GetRolePolicy(ctx, &iam.GetRolePolicyInput{
+				RoleName:   aws.String(role.Name),
+				PolicyName: aws.String(policyName),
+			})
+			if err != nil {
+				errCollect(trace.Wrap(err, "failed to fetch user %q inline policy %q", role.Name, policyName))
+				continue
 			}
-			return !lastPage
-		})
+
+			policies = append(policies, awsRolePolicyToProtoUserPolicy(policy, role, a.AccountID))
+		}
+	}
 
 	return policies, trace.NewAggregate(append(errs, err)...)
 }
 
 // fetchRoleAttachedPolicies fetches attached policies for an AWS role.
-func (a *awsFetcher) fetchRoleAttachedPolicies(ctx context.Context, role *accessgraphv1alpha.AWSRoleV1) (*accessgraphv1alpha.AWSRoleAttachedPolicies, error) {
+func (a *Fetcher) fetchRoleAttachedPolicies(ctx context.Context, role *accessgraphv1alpha.AWSRoleV1) (*accessgraphv1alpha.AWSRoleAttachedPolicies, error) {
+	awsCfg, err := a.AWSConfigProvider.GetConfig(
+		ctx,
+		"", /* region is empty because users and groups are global */
+		a.getAWSV2Options()...,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	iamClient := a.awsClients.getIAMClient(awsCfg)
+	pager := iam.NewListAttachedRolePoliciesPaginator(
+		iamClient,
+		&iam.ListAttachedRolePoliciesInput{
+			RoleName: aws.String(role.Name),
+			MaxItems: aws.Int32(pageSize),
+		},
+		func(opts *iam.ListAttachedRolePoliciesPaginatorOptions) {
+			opts.StopOnDuplicateToken = true
+		},
+	)
+
 	rsp := &accessgraphv1alpha.AWSRoleAttachedPolicies{
 		AwsRole:      role,
 		AccountId:    a.AccountID,
 		LastSyncTime: timestamppb.Now(),
 	}
-
-	iamClient, err := a.CloudClients.GetAWSIAMClient(
-		ctx,
-		"", /* region is empty because users and groups are global */
-		a.getAWSOptions()...,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	for pager.HasMorePages() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return rsp, trace.Wrap(err)
+		}
+		for _, policy := range page.AttachedPolicies {
+			rsp.Policies = append(
+				rsp.Policies,
+				&accessgraphv1alpha.AttachedPolicyV1{
+					Arn:        aws.ToString(policy.PolicyArn),
+					PolicyName: aws.ToString(policy.PolicyName),
+				},
+			)
+		}
 	}
-
-	err = iamClient.ListAttachedRolePoliciesPagesWithContext(
-		ctx,
-		&iam.ListAttachedRolePoliciesInput{
-			RoleName: aws.String(role.Name),
-			MaxItems: aws.Int64(pageSize),
-		},
-		func(page *iam.ListAttachedRolePoliciesOutput, lastPage bool) bool {
-			for _, policy := range page.AttachedPolicies {
-				rsp.Policies = append(
-					rsp.Policies,
-					&accessgraphv1alpha.AttachedPolicyV1{
-						Arn:        aws.ToString(policy.PolicyArn),
-						PolicyName: aws.ToString(policy.PolicyName),
-					},
-				)
-			}
-			return !lastPage
-		},
-	)
-
 	return rsp, trace.Wrap(err)
 }
 
 // awsRoleToProtoRole converts an AWS IAM Role to a proto Role.
-func awsRoleToProtoRole(role *iam.Role, accountID string) *accessgraphv1alpha.AWSRoleV1 {
+func awsRoleToProtoRole(role iamtypes.Role, accountID string) *accessgraphv1alpha.AWSRoleV1 {
 	tags := make([]*accessgraphv1alpha.AWSTag, 0, len(role.Tags))
 	for _, tag := range role.Tags {
 		tags = append(tags, &accessgraphv1alpha.AWSTag{
@@ -226,7 +248,7 @@ func awsRoleToProtoRole(role *iam.Role, accountID string) *accessgraphv1alpha.AW
 		AssumeRolePolicyDocument: strPtrToByteSlice(role.AssumeRolePolicyDocument),
 		Path:                     aws.ToString(role.Path),
 		Description:              aws.ToString(role.Description),
-		MaxSessionDuration:       durationpb.New(time.Duration(aws.ToInt64(role.MaxSessionDuration)) * time.Second),
+		MaxSessionDuration:       durationpb.New(time.Duration(aws.ToInt32(role.MaxSessionDuration)) * time.Second),
 		RoleId:                   aws.ToString(role.RoleId),
 		CreatedAt:                awsTimeToProtoTime(role.CreateDate),
 		AccountId:                accountID,

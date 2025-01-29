@@ -18,9 +18,9 @@
 
 import useAttempt from './useAttempt';
 import useAttemptNext from './useAttemptNext';
-import { useRefAutoFocus } from './useRefAutoFocus';
-import { useInterval } from './useInterval';
 import { useInfiniteScroll } from './useInfiniteScroll';
+import { useInterval } from './useInterval';
+import { useRefAutoFocus } from './useRefAutoFocus';
 
 export {
   useAttempt,

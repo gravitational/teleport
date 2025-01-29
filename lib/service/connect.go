@@ -72,11 +72,11 @@ const updateClientsJoinWarning = "This agent joined the cluster during the updat
 // service until succeeds or process gets shut down
 func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*Connector, error) {
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.HalfJitter(process.Config.MaxRetryPeriod / 10),
+		First:  retryutils.HalfJitter(process.Config.MaxRetryPeriod / 10),
 		Step:   process.Config.MaxRetryPeriod / 5,
 		Max:    process.Config.MaxRetryPeriod,
 		Clock:  process.Clock,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -495,12 +495,14 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		process.logger.WarnContext(process.ExitContext(), "Failed to write identity to storage.", "identity", role, "error", err)
 	}
 
-	if err := process.storage.WriteState(role, state.StateV2{
+	err = process.storage.WriteState(role, state.StateV2{
 		Spec: state.StateSpecV2{
 			Rotation:            ca.GetRotation(),
 			InitialLocalVersion: teleport.Version,
 		},
-	}); err != nil {
+	})
+	process.rotationCache.Remove(role)
+	if err != nil {
 		return nil, trace.NewAggregate(err, connector.Close())
 	}
 	process.logger.InfoContext(process.ExitContext(), "The process successfully wrote the credentials and state to the disk.", "identity", role)
@@ -640,10 +642,10 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 	process.logger.InfoContext(process.ExitContext(), "The new service has started successfully. Starting syncing rotation status.", "max_retry_period", maxRetryPeriod)
 
 	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		First:  utils.FullJitter(maxRetryPeriod / 16),
+		First:  retryutils.FullJitter(maxRetryPeriod / 16),
 		Driver: retryutils.NewExponentialDriver(maxRetryPeriod / 16),
 		Max:    maxRetryPeriod,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 		Clock:  process.Clock,
 	})
 	if err != nil {
@@ -704,8 +706,8 @@ func (process *TeleportProcess) syncRotationStateCycle(retry retryutils.Retry) e
 
 	periodic := interval.New(interval.Config{
 		Duration:      process.Config.PollingPeriod,
-		FirstDuration: utils.HalfJitter(process.Config.PollingPeriod),
-		Jitter:        retryutils.NewSeventhJitter(),
+		FirstDuration: retryutils.HalfJitter(process.Config.PollingPeriod),
+		Jitter:        retryutils.SeventhJitter,
 	})
 	defer periodic.Stop()
 
@@ -912,6 +914,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 		}
 		localState.Spec.Rotation = remote
 		err = storage.WriteState(id.Role, localState)
+		process.rotationCache.Remove(id.Role)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -982,6 +985,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 			// only update local phase, there is no need to reload
 			localState.Spec.Rotation = remote
 			err = storage.WriteState(id.Role, localState)
+			process.rotationCache.Remove(id.Role)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

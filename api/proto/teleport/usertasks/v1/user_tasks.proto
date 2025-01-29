@@ -37,6 +37,8 @@ message UserTask {
   teleport.header.v1.Metadata metadata = 4;
   // The configured properties of UserTask.
   UserTaskSpec spec = 5;
+  // The current status for this UserTask.
+  UserTaskStatus status = 6;
 }
 
 // UserTaskSpec contains the properties of the UserTask.
@@ -57,6 +59,18 @@ message UserTaskSpec {
   // DiscoverEC2 contains the AWS EC2 instances that failed to auto enroll into the cluster.
   // Present when TaskType is discover-ec2.
   DiscoverEC2 discover_ec2 = 5;
+  // DiscoverEKS contains the AWS EKS clusters that failed to auto enroll into the cluster.
+  // Present when TaskType is discover-eks.
+  DiscoverEKS discover_eks = 6;
+  // DiscoverRDS contains the AWS RDS databases that failed to auto enroll into the cluster.
+  // Present when TaskType is discover-rds.
+  DiscoverRDS discover_rds = 7;
+}
+
+// UserTaskStatus contains the current status for the UserTask.
+message UserTaskStatus {
+  // LastStateChange is the timestamp when the UserTask state was last modified.
+  google.protobuf.Timestamp last_state_change = 1;
 }
 
 // DiscoverEC2 contains the instances that failed to auto-enroll into the cluster.
@@ -95,4 +109,59 @@ message DiscoverEC2Instance {
   string discovery_group = 7;
   // SyncTime is the timestamp when the error was produced.
   google.protobuf.Timestamp sync_time = 8;
+}
+
+// DiscoverEKS contains the clusters that failed to auto-enroll into the cluster.
+message DiscoverEKS {
+  // Clusters maps a cluster name to the result of enrolling that cluster into teleport.
+  map<string, DiscoverEKSCluster> clusters = 1;
+  // AccountID is the AWS Account ID for the cluster.
+  string account_id = 2;
+  // Region is the AWS Region where Teleport failed to enroll EKS Clusters.
+  string region = 3;
+  // AppAutoDiscover indicates whether the Kubernetes agent should auto enroll HTTP services as Teleport Apps.
+  bool app_auto_discover = 4;
+}
+
+// DiscoverEKSCluster contains the result of enrolling an AWS EKS Cluster.
+message DiscoverEKSCluster {
+  // Name is the cluster Name.
+  string name = 1;
+  // DiscoveryConfig is the discovery config name that originated this cluster enrollment.
+  string discovery_config = 2;
+  // DiscoveryGroup is the DiscoveryGroup name that originated this task.
+  string discovery_group = 3;
+  // SyncTime is the timestamp when the error was produced.
+  google.protobuf.Timestamp sync_time = 4;
+}
+
+// DiscoverRDS contains the databases that failed to auto-enroll into teleport.
+message DiscoverRDS {
+  // Databases maps a database resource id to the result of enrolling that database into teleport.
+  // For RDS Aurora Clusters, this is the DBClusterIdentifier.
+  // For other RDS databases, this is the DBInstanceIdentifier.
+  map<string, DiscoverRDSDatabase> databases = 1;
+  // AccountID is the AWS Account ID for the database.
+  string account_id = 2;
+  // Region is the AWS Region where Teleport failed to enroll RDS databases.
+  string region = 3;
+}
+
+// DiscoverRDSDatabase contains the result of enrolling an AWS RDS database.
+message DiscoverRDSDatabase {
+  // Name is the database identifier.
+  // For RDS Aurora Clusters, this is the DBClusterIdentifier.
+  // For other RDS databases, this is the DBInstanceIdentifier.
+  string name = 1;
+  // IsCluster indicates whether this database is a cluster or a single instance.
+  bool is_cluster = 2;
+  // Engine indicates the engine name for this RDS.
+  // Eg, aurora-postgresql, postgresql
+  string engine = 3;
+  // DiscoveryConfig is the discovery config name that originated this database enrollment.
+  string discovery_config = 4;
+  // DiscoveryGroup is the DiscoveryGroup name that originated this task.
+  string discovery_group = 5;
+  // SyncTime is the timestamp when the error was produced.
+  google.protobuf.Timestamp sync_time = 6;
 }

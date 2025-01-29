@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -77,7 +78,7 @@ func TestTerminalReadFromClosedConn(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	stream := terminal.NewStream(ctx, terminal.StreamConfig{WS: conn, Logger: utils.NewLoggerForTests()})
+	stream := terminal.NewStream(ctx, terminal.StreamConfig{WS: conn, Logger: utils.NewSlogLoggerForTests()})
 
 	// close the stream before we attempt to read from it,
 	// this will produce a net.ErrClosed error on the read
@@ -203,7 +204,7 @@ func connectToHost(ctx context.Context, cfg connectConfig) (*testTerminal, error
 
 	t.stream = terminal.NewStream(ctx, terminal.StreamConfig{
 		WS:       ws,
-		Logger:   utils.NewLogger(),
+		Logger:   slog.Default(),
 		Handlers: cfg.handlers,
 	})
 

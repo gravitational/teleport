@@ -19,21 +19,20 @@
 import React from 'react';
 import styled, { CSSObject } from 'styled-components';
 
-import { shouldForwardProp as defaultValidatorFn } from 'design/ThemeProvider';
-
 import {
-  space,
-  width,
-  height,
   alignSelf,
-  gap,
-  SpaceProps,
-  WidthProps,
-  HeightProps,
   AlignSelfProps,
+  gap,
   GapProps,
+  height,
+  HeightProps,
+  space,
+  SpaceProps,
+  width,
+  WidthProps,
 } from 'design/system';
 import { Theme } from 'design/theme/themes/types';
+import { shouldForwardProp as defaultValidatorFn } from 'design/ThemeProvider';
 
 export type ButtonProps<E extends React.ElementType> =
   React.ComponentPropsWithoutRef<E> &

@@ -15,32 +15,30 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import React, { useEffect } from 'react';
-
+import { delay, http, HttpResponse } from 'msw';
+import { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { Info } from 'design/Alert';
 
-import { http, HttpResponse, delay } from 'msw';
-
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import {
-  AwsEksCluster,
-  IntegrationKind,
-  IntegrationStatusCode,
-} from 'teleport/services/integrations';
+import { ResourceKind } from 'teleport/Discover/Shared';
+import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
+import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import {
   DiscoverContextState,
   DiscoverProvider,
 } from 'teleport/Discover/useDiscover';
 import { createTeleportContext, getUserContext } from 'teleport/mocks/contexts';
-import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
-import { ResourceKind } from 'teleport/Discover/Shared';
+import {
+  AwsEksCluster,
+  IntegrationKind,
+  IntegrationStatusCode,
+} from 'teleport/services/integrations';
 import { INTERNAL_RESOURCE_ID_LABEL_KEY } from 'teleport/services/joinToken';
-import { DiscoverEventResource } from 'teleport/services/userEvent/types';
 import { Kube } from 'teleport/services/kube';
-import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
+import { DiscoverEventResource } from 'teleport/services/userEvent/types';
 
 import { EnrollEksCluster } from './EnrollEksCluster';
 
@@ -71,7 +69,7 @@ export default {
   ],
 };
 
-const tokenHandler = http.post(cfg.api.joinTokenPath, () => {
+const tokenHandler = http.post(cfg.api.discoveryJoinToken.createV2, () => {
   return HttpResponse.json({
     id: 'token-id',
     suggestedLabels: [
@@ -165,7 +163,6 @@ WithAwsPermissionsError.parameters = {
 };
 
 export const WithEnrollmentError = () => <Component />;
-
 WithEnrollmentError.parameters = {
   msw: {
     handlers: [
@@ -194,6 +191,39 @@ WithEnrollmentError.parameters = {
   },
 };
 
+export const WithAlreadyExistsError = () => (
+  <Component devInfoText="select any region, select EKS1 to see already exist error" />
+);
+WithAlreadyExistsError.parameters = {
+  msw: {
+    handlers: [
+      tokenHandler,
+      http.post(cfg.getListEKSClustersUrl(integrationName), () => {
+        {
+          return HttpResponse.json({ clusters: eksClusters });
+        }
+      }),
+      http.get(
+        cfg.getKubernetesUrl(getUserContext().cluster.clusterId, {}),
+        () => {
+          return HttpResponse.json({ items: kubeServers });
+        }
+      ),
+      http.post(cfg.getEnrollEksClusterUrl(integrationName), async () => {
+        await delay(1000);
+        return HttpResponse.json({
+          results: [
+            {
+              clusterName: 'EKS1',
+              error: 'teleport-kube-agent is already installed on the cluster',
+            },
+          ],
+        });
+      }),
+    ],
+  },
+};
+
 export const WithOtherError = () => <Component />;
 
 WithOtherError.parameters = {
@@ -212,7 +242,7 @@ WithOtherError.parameters = {
   },
 };
 
-const Component = () => {
+const Component = ({ devInfoText = '' }) => {
   const ctx = createTeleportContext();
   const discoverCtx: DiscoverContextState = {
     agentMeta: {
@@ -268,7 +298,9 @@ const Component = () => {
           resourceKind={ResourceKind.Kubernetes}
         >
           <DiscoverProvider mockCtx={discoverCtx}>
-            <Info>Devs: Select any region to see story state</Info>
+            <Info>
+              {devInfoText || 'Devs: Select any region to see story state'}
+            </Info>
             <EnrollEksCluster
               nextStep={discoverCtx.nextStep}
               updateAgentMeta={discoverCtx.updateAgentMeta}

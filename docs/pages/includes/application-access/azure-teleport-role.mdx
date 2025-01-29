@@ -44,8 +44,9 @@ Teleport, the Teleport Auth Service populates the
 have assigned to the user.
 
 Assign the `teleport-azure` identity to your Teleport user by running the
-following command, pasting in the URI of the Azure identity you copied earlier
-as the value of `--set-azure-identities`:
+following command, assigning <Var name="teleport-user" /> to your Teleport
+username and pasting in the URI of the Azure identity you copied earlier as the
+value of <Var name="azure-identity-uri" />:
 
 ```code
 $ tctl users update <Var name="teleport-user" /> \
@@ -66,6 +67,8 @@ Create the role:
 ```code
 $ tctl create -f azure-cli-access.yaml
 ```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
 
 </TabItem>
 <TabItem options="Dynamic Identities" label="SAML/OIDC Connectors">
@@ -104,6 +107,8 @@ Create the role:
 $ tctl create -f azure-cli-access.yaml
 ```
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 </TabItem>
 <TabItem options="Static Identities" label="All Authentication Methods">
 
@@ -138,6 +143,8 @@ Create the role:
 ```code
 $ tctl create -f azure-cli-access.yaml
 ```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
 
 </TabItem>
 </Tabs>

@@ -16,27 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
 
-import { Label, Alert, ButtonBorder, Flex, ButtonPrimary, Box } from 'design';
+import { Alert, Box, ButtonBorder, ButtonPrimary, Flex, Label } from 'design';
 import Table, { Cell } from 'design/DataTable';
-import { Attempt } from 'shared/hooks/useAttemptNext';
-import { Attempt as AsyncAttempt } from 'shared/hooks/useAsync';
-
-import { AccessRequest, canAssumeNow } from 'shared/services/accessRequests';
+import { requestMatcher } from 'shared/components/AccessRequests/NewRequest/matcher';
 import {
+  formattedName,
   renderIdCell,
   renderStatusCell,
   renderUserCell,
-  formattedName,
   RequestFlags,
 } from 'shared/components/AccessRequests/ReviewRequests';
 import {
   BlockedByStartTimeButton,
   ButtonPromotedInfo,
 } from 'shared/components/AccessRequests/Shared/Shared';
-import { requestMatcher } from 'shared/components/AccessRequests/NewRequest/matcher';
+import { Attempt as AsyncAttempt } from 'shared/hooks/useAsync';
+import { Attempt } from 'shared/hooks/useAttemptNext';
+import { AccessRequest, canAssumeNow } from 'shared/services/accessRequests';
 
 export function RequestList({
   attempt,
@@ -167,7 +165,7 @@ const renderActionCell = (
           onClick={() => assumeRole(request)}
           width="108px"
         >
-          {flags.isAssumed ? 'assumed' : 'assume roles'}
+          {flags.isAssumed ? 'Assumed' : 'Assume Roles'}
         </ButtonPrimary>
       );
     } else {

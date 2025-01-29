@@ -3,17 +3,23 @@ title: Routing Access Request notifications
 description: How to set up Teleport's Access Monitoring Rules to route Access Request notifications
 ---
 
+With Teleport's Access Monitoring Rules, Access Request notifications can be
+routed to plugins based on based on several conditions. For example, you may
+wish to send notifications to different Slack channels based on what roles or
+resources are being accessed, or based on what user is making the request.
+
 ## How it works
 
-With Teleport's Access Monitoring Rules, Access Request notifications
-can be routed to plugins based on based on several conditions.
-For example, you may wish to send notifications to different Slack channels
-based on what roles or resources are being accessed, or based on what user
-is making the request.
+The Access Monitoring Rule (AMR) is a dynamic Teleport resource that matches
+audit events with certain characteristics and instructs Teleport plugins to take
+action when it receives these events. Teleport plugins connect to the Teleport
+Auth Service and listen for AMRs. If an AMR matches the plugin, the plugin loads
+the the AMR and uses it to process incoming events. 
 
-Currently, only a subset of hosted plugins support notification routing rules.
-We are working on extending support to the rest of hosted plugins. Keep an eye
-on Teleport [changelog](../../../changelog.mdx) to learn about new plugins being added.
+Plugins implement AMR handling logic separately from one another. Currently,
+only a subset of hosted plugins support notification routing rules. We are
+working on extending support to the rest of hosted plugins. Keep an eye on
+Teleport [changelog](../../../changelog.mdx) to learn about new plugins.
 
 ## Prerequisites
 

@@ -18,16 +18,14 @@
 
 import { ChannelCredentials, Metadata } from '@grpc/grpc-js';
 
+import { Struct } from 'teleterm/sharedProcess/api/protogen/google/protobuf/struct_pb';
 import {
   PtyHostClient as GrpcClient,
   PtyCreate,
   PtyId,
 } from 'teleterm/sharedProcess/ptyHost';
 
-import { Struct } from 'teleterm/sharedProcess/api/protogen/google/protobuf/struct_pb';
-
 import { PtyHostClient } from '../types';
-
 import { PtyEventsStreamHandler } from './ptyEventsStreamHandler';
 
 export function createPtyHostClient(

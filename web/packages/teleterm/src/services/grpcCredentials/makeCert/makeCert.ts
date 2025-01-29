@@ -43,7 +43,7 @@
 
 import { promisify } from 'util';
 
-import { pki, md } from 'node-forge';
+import { md, pki } from 'node-forge';
 
 const generateKeyPair = promisify(pki.rsa.generateKeyPair.bind(pki.rsa));
 

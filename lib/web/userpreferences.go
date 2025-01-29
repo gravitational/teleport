@@ -66,12 +66,13 @@ type AccessGraphPreferencesResponse struct {
 
 // UserPreferencesResponse is the JSON response for the user preferences.
 type UserPreferencesResponse struct {
-	Assist                     AssistUserPreferencesResponse      `json:"assist"`
-	Theme                      userpreferencesv1.Theme            `json:"theme"`
-	UnifiedResourcePreferences UnifiedResourcePreferencesResponse `json:"unifiedResourcePreferences"`
-	Onboard                    OnboardUserPreferencesResponse     `json:"onboard"`
-	ClusterPreferences         ClusterUserPreferencesResponse     `json:"clusterPreferences,omitempty"`
-	AccessGraph                AccessGraphPreferencesResponse     `json:"accessGraph,omitempty"`
+	Assist                     AssistUserPreferencesResponse       `json:"assist"`
+	Theme                      userpreferencesv1.Theme             `json:"theme"`
+	UnifiedResourcePreferences UnifiedResourcePreferencesResponse  `json:"unifiedResourcePreferences"`
+	Onboard                    OnboardUserPreferencesResponse      `json:"onboard"`
+	ClusterPreferences         ClusterUserPreferencesResponse      `json:"clusterPreferences,omitempty"`
+	AccessGraph                AccessGraphPreferencesResponse      `json:"accessGraph,omitempty"`
+	SideNavDrawerMode          userpreferencesv1.SideNavDrawerMode `json:"sideNavDrawerMode"`
 }
 
 func (h *Handler) getUserClusterPreferences(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
@@ -152,6 +153,7 @@ func makePreferenceRequest(req UserPreferencesResponse) *userpreferencesv1.Upser
 			AccessGraph: &userpreferencesv1.AccessGraphUserPreferences{
 				HasBeenRedirected: req.AccessGraph.HasBeenRedirected,
 			},
+			SideNavDrawerMode: req.SideNavDrawerMode,
 		},
 	}
 }
@@ -185,6 +187,7 @@ func userPreferencesResponse(resp *userpreferencesv1.UserPreferences) *UserPrefe
 		ClusterPreferences:         clusterPreferencesResponse(resp.ClusterPreferences),
 		UnifiedResourcePreferences: unifiedResourcePreferencesResponse(resp.UnifiedResourcePreferences),
 		AccessGraph:                accessGraphPreferencesResponse(resp.AccessGraph),
+		SideNavDrawerMode:          resp.SideNavDrawerMode,
 	}
 
 	return jsonResp

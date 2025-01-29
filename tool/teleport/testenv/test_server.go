@@ -150,7 +150,7 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 
 	cfg.Hostname = "server01"
 	cfg.DataDir = t.TempDir()
-	cfg.Log = utils.NewLoggerForTests()
+	cfg.Logger = utils.NewSlogLoggerForTests()
 	authAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerAuth, &cfg.FileDescriptors)}
 	cfg.SetToken(StaticToken)
 	cfg.SetAuthServerAddress(authAddr)
@@ -417,7 +417,7 @@ func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServ
 	rootProxyTunnelAddr, err := rootServer.ProxyTunnelAddr()
 	require.NoError(t, err)
 
-	tc, err := types.NewTrustedCluster("root-cluster", types.TrustedClusterSpecV2{
+	tc, err := types.NewTrustedCluster(rootServer.Config.Auth.ClusterName.GetClusterName(), types.TrustedClusterSpecV2{
 		Enabled:              true,
 		Token:                StaticToken,
 		ProxyAddress:         rootProxyAddr.String(),
@@ -431,7 +431,7 @@ func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServ
 	})
 	require.NoError(t, err)
 
-	_, err = leafServer.GetAuthServer().UpsertTrustedCluster(ctx, tc)
+	_, err = leafServer.GetAuthServer().UpsertTrustedClusterV2(ctx, tc)
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {

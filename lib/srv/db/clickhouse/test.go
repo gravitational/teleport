@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"database/sql"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -32,11 +33,11 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/proto"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestServerOption allows setting test server options.
@@ -63,7 +64,7 @@ type TestServer struct {
 	listener  net.Listener
 	port      string
 	tlsConfig *tls.Config
-	log       logrus.FieldLogger
+	logger    *slog.Logger
 	protocol  string
 }
 
@@ -92,10 +93,10 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 		listener:  config.Listener,
 		port:      port,
 		tlsConfig: tlsConfig,
-		log: logrus.WithFields(logrus.Fields{
-			teleport.ComponentKey: defaults.ProtocolClickHouse,
-			"name":                config.Name,
-		}),
+		logger: utils.NewSlogLoggerForTests().With(
+			teleport.ComponentKey, defaults.ProtocolClickHouse,
+			"name", config.Name,
+		),
 	}
 
 	for _, opt := range opts {
@@ -182,27 +183,27 @@ func (s *TestServer) serveHTTP() error {
 	mux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		buff, err := io.ReadAll(request.Body)
 		if err != nil {
-			s.log.Errorf("Got unexpected error %q", err)
+			s.logger.ErrorContext(request.Context(), "Got unexpected error", "error", err)
 		}
 		defer request.Body.Close()
 
 		query := string(buff)
 		enc, ok := encHandler[query]
 		if !ok {
-			s.log.Errorf("Got unexpected query %q", query)
+			s.logger.ErrorContext(request.Context(), "Got unexpected query", "query", query)
 			writer.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		respBuff, err := enc()
 		if err != nil {
-			s.log.Errorf("Got unexpected error: %v", err)
+			s.logger.ErrorContext(request.Context(), "Got unexpected error", "error", err)
 			writer.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
 		_, err = writer.Write(respBuff)
 		if err != nil {
-			s.log.Errorf("Got unexpected error: %v", err)
+			s.logger.ErrorContext(request.Context(), "Got unexpected error", "error", err)
 			writer.WriteHeader(http.StatusInternalServerError)
 			return
 		}

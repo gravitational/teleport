@@ -16,12 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ComponentType, ReactElement, useRef, useState } from 'react';
+import {
+  ComponentPropsWithoutRef,
+  ComponentType,
+  ElementType,
+  ReactElement,
+  useRef,
+  useState,
+} from 'react';
 
 import { ButtonBorder, Flex, Menu, MenuItem } from 'design';
+import { ButtonSize } from 'design/Button';
 import * as icons from 'design/Icon';
 import { IconProps } from 'design/Icon/Icon';
-import { ButtonSize } from 'design/Button';
 
 /**
  * Displays a button with a menu to the right of it. Unlike with a regular <Button>, the text of
@@ -46,13 +53,15 @@ import { ButtonSize } from 'design/Button';
  *   <MenuItem>Bar</MenuItem>
  * </ButtonWithMenu>
  */
-export const ButtonWithMenu = (props: {
-  text: string;
-  children: MenuItemComponent | MenuItemComponent[];
-  MenuIcon?: ComponentType<IconProps>;
-  size?: ButtonSize;
-  [buttonBorderProp: string]: any;
-}) => {
+export const ButtonWithMenu = <Element extends ElementType = 'button'>(
+  props: {
+    text: string;
+    children: MenuItemComponent | MenuItemComponent[];
+    MenuIcon?: ComponentType<IconProps>;
+    size?: ButtonSize;
+    forwardedAs?: Element;
+  } & ComponentPropsWithoutRef<typeof ButtonBorder<Element>>
+) => {
   const {
     text,
     MenuIcon = icons.MoreVert,

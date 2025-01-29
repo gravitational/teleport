@@ -1057,6 +1057,13 @@ func TestPluginAWSICSettings(t *testing.T) {
 			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.IntegrationName = "" },
 			assertErr:      requireNamedBadParameterError("integration name"),
 		}, {
+			name: "missing oidc integration is allowed with ambient creds",
+			mutateSettings: func(cfg *PluginAWSICSettings) {
+				cfg.IntegrationName = ""
+				cfg.CredentialsSource = AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_SYSTEM
+			},
+			assertErr: require.NoError,
+		}, {
 			name:           "missing instance region",
 			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.Region = "" },
 			assertErr:      requireNamedBadParameterError("region"),
@@ -1335,4 +1342,79 @@ func TestPluginEmailSettings(t *testing.T) {
 			tc.assertErr(t, plugin.CheckAndSetDefaults())
 		})
 	}
+}
+
+func TestNetIQPluginSettings(t *testing.T) {
+
+	validSettings := func() *PluginSpecV1_NetIq {
+		return &PluginSpecV1_NetIq{
+			NetIq: &PluginNetIQSettings{
+				OauthIssuerEndpoint: "https://example.com",
+				ApiEndpoint:         "https://example.com",
+			},
+		}
+	}
+	testCases := []struct {
+		name           string
+		mutateSettings func(*PluginSpecV1_NetIq)
+		assertErr      require.ErrorAssertionFunc
+	}{
+		{
+			name:           "valid",
+			mutateSettings: nil,
+			assertErr:      require.NoError,
+		},
+		{
+			name: "missing OauthIssuer",
+			mutateSettings: func(s *PluginSpecV1_NetIq) {
+				s.NetIq.OauthIssuerEndpoint = ""
+			},
+			assertErr: requireNamedBadParameterError("oauth_issuer"),
+		},
+		{
+			name: "missing ApiEndpoint",
+			mutateSettings: func(s *PluginSpecV1_NetIq) {
+				s.NetIq.ApiEndpoint = ""
+			},
+			assertErr: requireNamedBadParameterError("api_endpoint"),
+		},
+		{
+			name: "incorrect OauthIssuer",
+			mutateSettings: func(s *PluginSpecV1_NetIq) {
+				s.NetIq.OauthIssuerEndpoint = "invalidURL%%#"
+			},
+			assertErr: requireNamedBadParameterError("oauth_issuer"),
+		},
+		{
+			name: "missing ApiEndpoint",
+			mutateSettings: func(s *PluginSpecV1_NetIq) {
+				s.NetIq.ApiEndpoint = "invalidURL%%#"
+			},
+			assertErr: requireNamedBadParameterError("api_endpoint"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			settings := validSettings()
+			if tc.mutateSettings != nil {
+				tc.mutateSettings(settings)
+			}
+
+			plugin := NewPluginV1(
+				Metadata{Name: "uut"},
+				PluginSpecV1{Settings: settings},
+				&PluginCredentialsV1{
+					Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+						StaticCredentialsRef: &PluginStaticCredentialsRef{
+							Labels: map[string]string{
+								"label1": "value1",
+							},
+						},
+					},
+				})
+			tc.assertErr(t, plugin.CheckAndSetDefaults())
+		})
+	}
+
 }

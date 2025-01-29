@@ -490,7 +490,7 @@ requested by RDP.
 
 For files, `last_modified` is the last modified time of the file as specified by the [`mtime`](https://www.makeuseof.com/linux-file-timestamps/), in milliseconds
 since the [UNIX epoch](https://en.wikipedia.org/wiki/Unix_time). For directories, `last_modified` should also be set to the
-[directory's `mtime`](https://stackoverflow.com/a/3620704/6277051) when suchinformation is available. If such information is unavailable for a directory, such as
+[directory's `mtime`](https://stackoverflow.com/a/3620704/6277051) when such information is available. If such information is unavailable for a directory, such as
 in a browser environment, this value should be assigned the UNIX epoch itself (0).
 
 For files, `size` is the size of the file in bytes. For directories, `size` is not the total size of the contents of the

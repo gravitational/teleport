@@ -122,7 +122,7 @@ func onAfterPagerDutyResponse(sink common.StatusSink) resty.ResponseMiddleware {
 		defer cancel()
 
 		if err := sink.Emit(ctx, status); err != nil {
-			log.WithError(err).Errorf("Error while emitting PagerDuty plugin status: %v", err)
+			log.ErrorContext(ctx, "Error while emitting PagerDuty plugin status", "error", err)
 		}
 
 		if resp.IsError() {
@@ -288,7 +288,7 @@ func (p *Pagerduty) FindUserByEmail(ctx context.Context, userEmail string) (User
 	}
 
 	if len(result.Users) > 0 && result.More {
-		logger.Get(ctx).Warningf("PagerDuty returned too many results when querying by email %q", userEmail)
+		logger.Get(ctx).WarnContext(ctx, "PagerDuty returned too many results when querying user email", "email", userEmail)
 	}
 
 	return User{}, trace.NotFound("failed to find pagerduty user by email %s", userEmail)
@@ -387,10 +387,10 @@ func (p *Pagerduty) FilterOnCallPolicies(ctx context.Context, userID string, esc
 
 	if len(filteredIDSet) == 0 {
 		if anyData {
-			logger.Get(ctx).WithFields(logger.Fields{
-				"pd_user_id":               userID,
-				"pd_escalation_policy_ids": escalationPolicyIDs,
-			}).Warningf("PagerDuty returned some oncalls array but none of them matched the query")
+			logger.Get(ctx).WarnContext(ctx, "PagerDuty returned some oncalls array but none of them matched the query",
+				"pd_user_id", userID,
+				"pd_escalation_policy_ids", escalationPolicyIDs,
+			)
 		}
 
 		return nil, nil

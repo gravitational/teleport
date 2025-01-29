@@ -32,7 +32,7 @@ verify that you can run `tctl` commands using your current credentials.
 For example:
 
 ```code
-$ tsh login --proxy=<Var name="teleport.example.com:443" /> --user=<Var name="email@example.com" />
+$ tsh login --proxy=teleport.example.com --user=email@example.com
 $ tctl status
 # Cluster  (=teleport.url=)
 # Version  (=teleport.version=)
@@ -85,7 +85,7 @@ You can run the Teleport Terraform provider from this shell.
 
 1. Create a `main.tf` file containing this minimal Terraform code:
 
-   ```var
+   ```hcl
    terraform {
      required_providers {
        teleport = {
@@ -96,7 +96,7 @@ You can run the Teleport Terraform provider from this shell.
    }
    
    provider "teleport" {
-     addr               = '<Var name="teleport.example.com:443" />'
+     addr               = "<Var name="teleport.example.com:443" />"
    }
    
    # We must create a test role, if we don't declare resources, Terraform won't try to

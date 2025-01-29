@@ -16,21 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Platform, UserAgent } from 'design/platform';
+import { MemoryRouter } from 'react-router';
 
+import { Platform, UserAgent } from 'design/platform';
+import { render, screen, waitFor } from 'design/utils/testing';
 import {
   OnboardUserPreferences,
   Resource,
 } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 
-import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
-
+import { ContextProvider } from 'teleport/index';
+import {
+  allAccessAcl,
+  createTeleportContext,
+  noAccess,
+} from 'teleport/mocks/contexts';
 import { OnboardDiscover } from 'teleport/services/user';
+import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
+import * as userUserContext from 'teleport/User/UserContext';
 
 import { ResourceKind } from '../Shared';
 import { resourceKindToPreferredResource } from '../Shared/ResourceKind';
-
-import { filterResources, sortResources } from './SelectResource';
+import {
+  filterResources,
+  SelectResource,
+  sortResources,
+} from './SelectResource';
 import { ResourceSpec } from './types';
 
 const setUp = () => {
@@ -1113,6 +1124,56 @@ describe('sorting Connect My Computer', () => {
       ]);
     });
   });
+});
+
+test('displays an info banner if lacking "all" permissions to add resources', async () => {
+  jest.spyOn(userUserContext, 'useUser').mockReturnValue({
+    preferences: makeDefaultUserPreferences(),
+    updatePreferences: () => null,
+    updateClusterPinnedResources: () => null,
+    getClusterPinnedResources: () => null,
+  });
+
+  const ctx = createTeleportContext();
+  ctx.storeUser.setState({ acl: { ...allAccessAcl, tokens: noAccess } });
+
+  render(
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <SelectResource onSelect={() => {}} />
+      </ContextProvider>
+    </MemoryRouter>
+  );
+
+  await waitFor(() => {
+    expect(
+      screen.getByText(/You cannot add new resources./i)
+    ).toBeInTheDocument();
+  });
+});
+
+test('does not display erorr banner if user has "some" permissions to add', async () => {
+  jest.spyOn(userUserContext, 'useUser').mockReturnValue({
+    preferences: makeDefaultUserPreferences(),
+    updatePreferences: () => null,
+    updateClusterPinnedResources: () => null,
+    getClusterPinnedResources: () => null,
+  });
+
+  const ctx = createTeleportContext();
+  ctx.storeUser.setState({ acl: { ...allAccessAcl } });
+
+  render(
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <SelectResource onSelect={() => {}} />
+      </ContextProvider>
+    </MemoryRouter>
+  );
+
+  expect(
+    screen.queryByText(/You cannot add new resources./i)
+  ).not.toBeInTheDocument();
 });
 
 describe('filterResources', () => {

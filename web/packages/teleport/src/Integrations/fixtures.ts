@@ -19,12 +19,9 @@
 import {
   IntegrationKind,
   IntegrationStatusCode,
-} from 'teleport/services/integrations';
-
-import type {
-  Plugin,
-  Integration,
-  ExternalAuditStorage,
+  type ExternalAuditStorage,
+  type Integration,
+  type Plugin,
 } from 'teleport/services/integrations';
 
 export const plugins: Plugin[] = [

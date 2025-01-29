@@ -43,12 +43,22 @@ tsh.app under "Allow in the Background".
 ## Step 3/3. Connect
 
 Once VNet is running, you can connect to the application using the application client you would
-normally use to connect to it. The port number is inconsequential. VNet forwards connections over
-any port number under the public address of the app to the app itself.
+normally use to connect to it.
 
 ```code
 $ psql postgres://postgres@tcp-app.teleport.example.com/postgres
 ```
+
+<Admonition type="note" title="Support for multiple ports">
+Unless the application specifies [multiple
+ports](../enroll-resources/application-access/guides/tcp.mdx#configuring-access-to-multiple-ports),
+VNet proxies connections over any port used by the application client. For multi-port apps, the port
+number must match one of the target ports of the app. To see a list of target ports, click the
+three dot menu next to an application in Teleport Connect or execute `tsh apps ls`.
+
+If [per-session MFA](../admin-guides/access-controls/guides/per-session-mfa.mdx) is enabled, the
+first connection over each port triggers an MFA check.
+</Admonition>
 
 VNet is going to automatically start on the next Teleport Connect launch, unless you stop VNet
 before closing Teleport Connect.
@@ -64,6 +74,20 @@ $ tsh vnet
 ```
 
 ## Troubleshooting
+
+### Conflicting IPv4 ranges
+
+On the client computer, VNet uses IPv4 addresses from the CGNAT IP range `100.64.0.0/10` by
+default, and needs to configure addresses and routes for this range.
+This can conflict with other VPN-like applications, notably Tailscale also uses
+this range.
+
+If you are experiencing connectivity problems with VNet, check if you are
+running Tailscale or another VPN client, and try disabling it to see if the
+issue persists.
+To avoid the conflict and run VNet alongside Tailscale or another VPN client you
+can configure VNet to use a different IPv4 range, see our VNet configuration
+[guide](../enroll-resources/application-access/guides/vnet.mdx#configuring-ipv4-cidr-range).
 
 ### Connecting to the app without VNet
 
@@ -94,7 +118,8 @@ From /var/log/vnet.log:
 INFO  Setting an IP route for the VNet. netmask:100.64.0.0/10 vnet/osconfig_darwin.go:47
 ```
 
-Send a query for a TCP app available in your cluster:
+Send a query for a TCP app available in your cluster, replacing <Var
+name="tcp-app.teleport.example.com" /> with the name of your app:
 
 ```code
 $ dscacheutil -q host -a name <Var name="tcp-app.teleport.example.com" />
@@ -131,4 +156,6 @@ client you use.
 
 ## Next steps
 
+- Read our VNet configuration [guide](../enroll-resources/application-access/guides/vnet.mdx)
+  to learn how to configure VNet access to your applications.
 - Read [RFD 163](https://github.com/gravitational/teleport/blob/master/rfd/0163-vnet.md) to learn how VNet works on a technical level.

@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/test"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 )
 
 type nativeContext struct {
@@ -175,16 +175,17 @@ func TestBuildPrincipals(t *testing.T) {
 	// run tests
 	for _, tc := range tests {
 		t.Logf("Running test case: %q", tc.desc)
-		hostCertificateBytes, err := tt.suite.A.GenerateHostCert(
-			services.HostCertParams{
-				CASigner:      caSigner,
-				PublicHostKey: hostPublicKey,
-				HostID:        tc.inHostID,
-				NodeName:      tc.inNodeName,
-				ClusterName:   tc.inClusterName,
-				Role:          tc.inRole,
-				TTL:           time.Hour,
-			})
+		hostCertificateBytes, err := tt.suite.A.GenerateHostCert(sshca.HostCertificateRequest{
+			CASigner:      caSigner,
+			PublicHostKey: hostPublicKey,
+			HostID:        tc.inHostID,
+			NodeName:      tc.inNodeName,
+			TTL:           time.Hour,
+			Identity: sshca.Identity{
+				ClusterName: tc.inClusterName,
+				SystemRole:  tc.inRole,
+			},
+		})
 		require.NoError(t, err)
 
 		hostCertificate, err := sshutils.ParseCertificate(hostCertificateBytes)
@@ -226,23 +227,24 @@ func TestUserCertCompatibility(t *testing.T) {
 	for i, tc := range tests {
 		comment := fmt.Sprintf("Test %v", i)
 
-		userCertificateBytes, err := tt.suite.A.GenerateUserCert(services.UserCertParams{
-			CASigner:      caSigner,
-			PublicUserKey: ssh.MarshalAuthorizedKey(caSigner.PublicKey()),
-			Username:      "user",
-			AllowedLogins: []string{"centos", "root"},
-			TTL:           time.Hour,
-			Roles:         []string{"foo"},
-			CertificateExtensions: []*types.CertExtension{{
-				Type:  types.CertExtensionType_SSH,
-				Mode:  types.CertExtensionMode_EXTENSION,
-				Name:  "login@github.com",
-				Value: "hello",
+		userCertificateBytes, err := tt.suite.A.GenerateUserCert(sshca.UserCertificateRequest{
+			CASigner:          caSigner,
+			PublicUserKey:     ssh.MarshalAuthorizedKey(caSigner.PublicKey()),
+			TTL:               time.Hour,
+			CertificateFormat: tc.inCompatibility,
+			Identity: sshca.Identity{
+				Username:   "user",
+				Principals: []string{"centos", "root"},
+				Roles:      []string{"foo"},
+				CertificateExtensions: []*types.CertExtension{{
+					Type:  types.CertExtensionType_SSH,
+					Mode:  types.CertExtensionMode_EXTENSION,
+					Name:  "login@github.com",
+					Value: "hello",
+				}},
+				PermitAgentForwarding: true,
+				PermitPortForwarding:  true,
 			},
-			},
-			CertificateFormat:     tc.inCompatibility,
-			PermitAgentForwarding: true,
-			PermitPortForwarding:  true,
 		})
 		require.NoError(t, err, comment)
 

@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join/iam"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/bitbucket"
 	"github.com/gravitational/teleport/lib/circleci"
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
 	"github.com/gravitational/teleport/lib/cloud/imds/azure"
@@ -49,7 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
-	"github.com/gravitational/teleport/lib/kubernetestoken"
+	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/spacelift"
 	"github.com/gravitational/teleport/lib/terraformcloud"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -237,7 +238,7 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodKubernetes:
-		params.IDToken, err = kubernetestoken.GetIDToken(os.Getenv, params.KubernetesReadFileFunc)
+		params.IDToken, err = kubetoken.GetIDToken(os.Getenv, params.KubernetesReadFileFunc)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -253,6 +254,11 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 		}
 	case types.JoinMethodTerraformCloud:
 		params.IDToken, err = terraformcloud.NewIDTokenSource(params.TerraformCloudAudienceTag, os.Getenv).GetIDToken()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case types.JoinMethodBitbucket:
+		params.IDToken, err = bitbucket.NewIDTokenSource(os.Getenv).GetIDToken()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -489,12 +495,12 @@ func getHostAddresses(params RegisterParams) []string {
 // CA on disk. If no CA is found on disk, Teleport will not verify the Auth
 // Server it is connecting to.
 func insecureRegisterClient(ctx context.Context, params RegisterParams) (*authclient.Client, error) {
-	//nolint:sloglint // Conjoined string literals trip up the linter.
-	slog.WarnContext(ctx, "Joining cluster without validating the identity of the Auth "+
-		"Server. This may open you up to a Man-In-The-Middle (MITM) attack if an "+
-		"attacker can gain privileged network access. To remedy this, use the CA pin "+
-		"value provided when join token was generated to validate the identity of "+
-		"the Auth Server or point to a valid Certificate via the CA Path option.")
+	const msg = "Joining cluster without validating the identity of the Auth " +
+		"Server. This may open you up to a Man-In-The-Middle (MITM) attack if an " +
+		"attacker can gain privileged network access. To remedy this, use the CA pin " +
+		"value provided when join token was generated to validate the identity of " +
+		"the Auth Server or point to a valid Certificate via the CA Path option."
+	slog.WarnContext(ctx, msg)
 
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now

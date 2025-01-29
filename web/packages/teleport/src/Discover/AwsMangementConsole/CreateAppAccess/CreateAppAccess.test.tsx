@@ -16,36 +16,36 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
+
 import { render, screen, userEvent } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
-import {
-  IntegrationKind,
-  IntegrationStatusCode,
-  integrationService,
-} from 'teleport/services/integrations';
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import cfg from 'teleport/config';
-import TeleportContext from 'teleport/teleportContext';
+import { app } from 'teleport/Discover/AwsMangementConsole/fixtures';
+import { ResourceKind } from 'teleport/Discover/Shared';
 import {
   DiscoverContextState,
   DiscoverProvider,
 } from 'teleport/Discover/useDiscover';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import {
+  IntegrationKind,
+  integrationService,
+  IntegrationStatusCode,
+} from 'teleport/services/integrations';
 import {
   DiscoverEventResource,
   userEventService,
 } from 'teleport/services/userEvent';
-import { app } from 'teleport/Discover/AwsMangementConsole/fixtures';
-import { ResourceKind } from 'teleport/Discover/Shared';
+import { ProxyRequiresUpgrade } from 'teleport/services/version/unsupported';
+import TeleportContext from 'teleport/teleportContext';
 
 import { CreateAppAccess } from './CreateAppAccess';
 
 beforeEach(() => {
-  jest.spyOn(integrationService, 'createAwsAppAccess').mockResolvedValue(app);
+  jest.spyOn(integrationService, 'createAwsAppAccessV2').mockResolvedValue(app);
   jest
     .spyOn(userEventService, 'captureDiscoverEvent')
     .mockResolvedValue(undefined as never);
@@ -56,6 +56,8 @@ afterEach(() => {
 });
 
 test('create app access', async () => {
+  jest.spyOn(integrationService, 'createAwsAppAccess').mockResolvedValue(app);
+
   const { ctx, discoverCtx } = getMockedContexts();
 
   renderCreateAppAccess(ctx, discoverCtx);
@@ -63,6 +65,25 @@ test('create app access', async () => {
 
   await userEvent.click(screen.getByRole('button', { name: /next/i }));
   await screen.findByText(/aws-console/i);
+  expect(integrationService.createAwsAppAccessV2).toHaveBeenCalledTimes(1);
+  expect(integrationService.createAwsAppAccess).not.toHaveBeenCalled();
+});
+
+test('create app access with v1 endpoint auto retry', async () => {
+  jest
+    .spyOn(integrationService, 'createAwsAppAccessV2')
+    .mockRejectedValueOnce(new Error(ProxyRequiresUpgrade));
+  jest.spyOn(integrationService, 'createAwsAppAccess').mockResolvedValue(app);
+
+  const { ctx, discoverCtx } = getMockedContexts();
+
+  renderCreateAppAccess(ctx, discoverCtx);
+  await screen.findByText(/bash/i);
+
+  await userEvent.click(screen.getByRole('button', { name: /next/i }));
+  await screen.findByText(/aws-console/i);
+
+  expect(integrationService.createAwsAppAccessV2).toHaveBeenCalledTimes(1);
   expect(integrationService.createAwsAppAccess).toHaveBeenCalledTimes(1);
 });
 

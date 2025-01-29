@@ -82,6 +82,8 @@ message NotificationFilters {
   bool global_only = 2;
   // user_created_only is whether to only list user-created notifications (ie. notifications created by an admin via the tctl interface).
   bool user_created_only = 3;
+  // labels is used to request only notifications with specific labels.
+  map<string, string> labels = 4;
 }
 
 // ListNotificationsResponse is the response from listing a user's notifications.

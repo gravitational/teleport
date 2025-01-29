@@ -40,10 +40,13 @@ const (
 	aptRepoEndpoint                = "https://apt.releases.teleport.dev/"
 
 	aptTeleportSourceListFileRelative = "/etc/apt/sources.list.d/teleport.list"
-	aptTeleportPublicKeyFileRelative  = "/usr/share/keyrings/teleport-archive-keyring.asc"
 
-	aptFilePermsRepository = 0o644
+	aptKeyringsLocation      = "/etc/apt/keyrings"
+	aptKeyringsLocationPerms = 0o755
+	aptFilePermsRepository   = 0o644
 )
+
+var aptTeleportPublicKeyFileRelative = filepath.Join(aptKeyringsLocation, "teleport-archive-keyring.asc")
 
 // APT is a wrapper for apt package manager.
 // This package manager is used in Debian/Ubuntu and distros based on this distribution.
@@ -128,7 +131,10 @@ func (pm *APT) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OSRel
 	aptTeleportSourceListFile := filepath.Join(pm.fsRootPrefix, aptTeleportSourceListFileRelative)
 	aptTeleportPublicKeyFile := filepath.Join(pm.fsRootPrefix, aptTeleportPublicKeyFileRelative)
 	// Format for teleport repo entry should look like this:
-	// deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} $RepoChannel"
+	// deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} $RepoChannel"
+	if err := os.MkdirAll(filepath.Join(pm.fsRootPrefix, aptKeyringsLocation), aptKeyringsLocationPerms); err != nil {
+		return trace.Wrap(err)
+	}
 	teleportRepoMetadata := fmt.Sprintf("deb [signed-by=%s] %s%s %s %s", aptTeleportPublicKeyFile, aptRepoEndpoint, linuxInfo.ID, linuxInfo.VersionCodename, repoChannel)
 
 	switch {

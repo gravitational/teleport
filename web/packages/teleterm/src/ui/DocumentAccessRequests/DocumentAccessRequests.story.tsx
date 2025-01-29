@@ -19,15 +19,15 @@
 import { AccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
-import AppContextProvider from 'teleterm/ui/appContextProvider';
-import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
-import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
-import { DocumentAccessRequests } from 'teleterm/ui/DocumentAccessRequests/DocumentAccessRequests';
-import * as types from 'teleterm/ui/services/workspacesService';
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { getEmptyPendingAccessRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import AppContextProvider from 'teleterm/ui/appContextProvider';
+import { DocumentAccessRequests } from 'teleterm/ui/DocumentAccessRequests/DocumentAccessRequests';
+import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
+import * as types from 'teleterm/ui/services/workspacesService';
+import { getEmptyPendingAccessRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 
 const rootCluster = makeRootCluster();
 

@@ -75,10 +75,17 @@ message App {
   // proxy hostname] if public_addr is not present.
   // If the app belongs to a leaf cluster, fqdn is equal to [name].[root cluster proxy hostname].
   //
-  // fqdn is not present for SAML applications.
+  // fqdn is not present for SAML applications. Available only when the app was fetched through the
+  // ListUnifiedResources RPC.
   string fqdn = 10;
-  // aws_roles is a list of AWS IAM roles for the application representing AWS console.
+  // aws_roles is a list of AWS IAM roles for the application representing AWS console. Available
+  // only when the app wast fetched through the ListUnifiedResources RPC.
   repeated AWSRole aws_roles = 11;
+  // TCPPorts is a list of ports and port ranges that an app agent can forward connections to.
+  // Only applicable to TCP App Access.
+  // If this field is not empty, URI is expected to contain no port number and start with the tcp
+  // protocol.
+  repeated PortRange tcp_ports = 12;
 }
 
 // AwsRole describes AWS IAM role.
@@ -91,4 +98,36 @@ message AWSRole {
   string arn = 3;
   // AccountID is the AWS Account ID this role refers to.
   string account_id = 4;
+}
+
+// PortRange describes a port range for TCP apps. The range starts with Port and ends with EndPort.
+// PortRange can be used to describe a single port in which case the Port field is the port and the
+// EndPort field is 0.
+message PortRange {
+  // Port describes the start of the range. It must be between 1 and 65535.
+  uint32 port = 1;
+  // EndPort describes the end of the range, inclusive. If set, it must be between 2 and 65535 and
+  // be greater than Port when describing a port range. When omitted or set to zero, it signifies
+  // that the port range defines a single port.
+  uint32 end_port = 2;
+}
+
+// RouteToApp is used by the auth service and the app service during cert generation and routing.
+// It's purpose is to point to a specific app within a root cluster. Kind of like an app URI in
+// Connect, but with extra data attached.
+message RouteToApp {
+  // name is the name of the app within a cluster.
+  string name = 1;
+  // public_addr is the address under which the app can be reached. It's just the hostname, it does
+  // not include the schema or the port number. See the docs for public_addr of
+  // the App message for a more thorough description.
+  string public_addr = 2;
+  // cluster_name is the name of the cluster that the app belongs to. In the case of the root
+  // cluster, it's not guaranteed to be equal to the proxy hostname – the root cluster might have a
+  // distinct name set.
+  string cluster_name = 3;
+  // uri is the URI which the app service is going to proxy requests to.
+  string uri = 4;
+  // target_port is the port of a multi-port TCP app that the connection is going to be proxied to.
+  uint32 target_port = 5;
 }

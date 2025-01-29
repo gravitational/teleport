@@ -29,7 +29,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -48,6 +47,7 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *ServerContext {
@@ -67,7 +67,7 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 	clusterName := "localhost"
 	_, connCtx := sshutils.NewConnectionContext(ctx, nil, &ssh.ServerConn{Conn: sshConn})
 	scx := &ServerContext{
-		Entry:                  logrus.NewEntry(logrus.StandardLogger()),
+		Logger:                 utils.NewSlogLoggerForTests(),
 		ConnectionContext:      connCtx,
 		env:                    make(map[string]string),
 		SessionRecordingConfig: recConfig,
@@ -160,7 +160,7 @@ type mockServer struct {
 	datadir   string
 	auth      *auth.Server
 	component string
-	clock     clockwork.FakeClock
+	clock     clocki.FakeClock
 	bpf       bpf.BPF
 }
 
@@ -245,7 +245,12 @@ func (m *mockServer) GetInfo() types.Server {
 }
 
 func (m *mockServer) TargetMetadata() apievents.ServerMetadata {
-	return apievents.ServerMetadata{}
+	return apievents.ServerMetadata{
+		ServerID:        "123",
+		ForwardedBy:     "abc",
+		ServerHostname:  "testHost",
+		ServerNamespace: "testNamespace",
+	}
 }
 
 // UseTunnel used to determine if this node has connected to this cluster

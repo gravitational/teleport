@@ -30,8 +30,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/genmap"
 )
 
@@ -204,7 +204,7 @@ func (c *ClientTLSConfigGenerator) refreshClientTLSConfigs(ctx context.Context) 
 		}
 
 		select {
-		case <-time.After(utils.FullJitter(time.Second * 3)):
+		case <-time.After(retryutils.FullJitter(time.Second * 3)):
 		case <-ctx.Done():
 			return
 		}

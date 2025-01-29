@@ -22,6 +22,8 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/accessmonitoring"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/plugin"
+	"github.com/gravitational/teleport/tool/tctl/common/stableunixusers"
+	"github.com/gravitational/teleport/tool/tctl/common/top"
 	"github.com/gravitational/teleport/tool/tctl/sso/configure"
 	"github.com/gravitational/teleport/tool/tctl/sso/tester"
 )
@@ -29,12 +31,13 @@ import (
 // Commands returns the set of available subcommands for tctl.
 func Commands() []CLICommand {
 	return []CLICommand{
+		&VersionCommand{},
 		&UserCommand{},
 		&NodeCommand{},
 		&TokensCommand{},
 		&AuthCommand{},
 		&StatusCommand{},
-		&TopCommand{},
+		&top.Command{},
 		&AccessRequestCommand{},
 		&AppsCommand{},
 		&DBCommand{},
@@ -42,6 +45,7 @@ func Commands() []CLICommand {
 		&DesktopCommand{},
 		&LockCommand{},
 		&BotsCommand{},
+		&WorkloadIdentityCommand{},
 		&InventoryCommand{},
 		&RecordingsCommand{},
 		&AlertCommand{},
@@ -64,5 +68,7 @@ func Commands() []CLICommand {
 		&webauthnwinCommand{},
 		&touchIDCommand{},
 		&TerraformCommand{},
+		&AutoUpdateCommand{},
+		&stableunixusers.Command{},
 	}
 }

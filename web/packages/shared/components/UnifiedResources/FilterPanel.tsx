@@ -18,32 +18,24 @@
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { ButtonBorder, ButtonPrimary, ButtonSecondary } from 'design/Button';
-import { SortDir } from 'design/DataTable/types';
-import { Text, Flex, Toggle } from 'design';
-import Menu, { MenuItem } from 'design/Menu';
+
+import { Flex, Text, Toggle } from 'design';
+import { ButtonBorder, ButtonSecondary } from 'design/Button';
 import { CheckboxInput } from 'design/Checkbox';
-import {
-  ArrowUp,
-  ArrowDown,
-  ChevronDown,
-  SquaresFour,
-  Rows,
-  ArrowsIn,
-  ArrowsOut,
-  Refresh,
-} from 'design/Icon';
-
+import { ArrowsIn, ArrowsOut, ChevronDown, Refresh } from 'design/Icon';
+import Menu from 'design/Menu';
+import { HoverTooltip } from 'design/Tooltip';
 import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+import { MultiselectMenu } from 'shared/components/Controls/MultiselectMenu';
+import { SortMenu } from 'shared/components/Controls/SortMenu';
+import { ViewModeSwitch } from 'shared/components/Controls/ViewModeSwitch';
 
-import { HoverTooltip } from 'shared/components/ToolTip';
-
-import { ResourceAvailabilityFilter, FilterKind } from './UnifiedResources';
 import {
   IncludedResourceMode,
   SharedUnifiedResource,
   UnifiedResourcesQueryParams,
 } from './types';
+import { FilterKind, ResourceAvailabilityFilter } from './UnifiedResources';
 
 const kindToLabel: Record<SharedUnifiedResource['resource']['kind'], string> = {
   app: 'Application',
@@ -52,6 +44,7 @@ const kindToLabel: Record<SharedUnifiedResource['resource']['kind'], string> = {
   kube_cluster: 'Kubernetes',
   node: 'Server',
   user_group: 'User group',
+  git_server: 'Git',
 };
 
 const sortFieldOptions = [
@@ -136,11 +129,17 @@ export function FilterPanel({
             data-testid="select_all"
           />
         </HoverTooltip>
-
-        <FilterTypesMenu
+        <MultiselectMenu
+          options={availableKinds.map(({ kind, disabled }) => ({
+            value: kind,
+            label: kindToLabel[kind],
+            disabled: disabled,
+          }))}
+          selected={kinds || []}
           onChange={onKindsChanged}
-          availableKinds={availableKinds}
-          kindsFromParams={kinds || []}
+          label="Types"
+          tooltip="Filter by resource type"
+          buffered
         />
         {ClusterDropdown}
         {availabilityFilter && (
@@ -197,10 +196,19 @@ export function FilterPanel({
           </>
         )}
         <SortMenu
-          onDirChange={onSortOrderButtonClicked}
-          onChange={onSortFieldChange}
-          sortType={activeSortFieldOption.label}
-          sortDir={sort.dir}
+          current={{
+            fieldName: activeSortFieldOption.value,
+            dir: sort.dir,
+          }}
+          fields={sortFieldOptions}
+          onChange={newSort => {
+            if (newSort.dir !== sort.dir) {
+              onSortOrderButtonClicked();
+            }
+            if (newSort.fieldName !== activeSortFieldOption.value) {
+              onSortFieldChange(newSort.fieldName);
+            }
+          }}
         />
       </Flex>
     </Flex>
@@ -219,303 +227,6 @@ function oppositeSort(
       // Will never happen. Of course.
       return sort;
   }
-}
-
-type FilterTypesMenuProps = {
-  availableKinds: FilterKind[];
-  kindsFromParams: string[];
-  onChange: (kinds: string[]) => void;
-};
-
-const FilterTypesMenu = ({
-  onChange,
-  availableKinds,
-  kindsFromParams,
-}: FilterTypesMenuProps) => {
-  const kindOptions = availableKinds.map(({ kind, disabled }) => ({
-    value: kind,
-    label: kindToLabel[kind],
-    disabled: disabled,
-  }));
-
-  const [anchorEl, setAnchorEl] = useState(null);
-  // we have a separate state in the filter so we can select a few different things and then click "apply"
-  const [kinds, setKinds] = useState<string[]>(kindsFromParams || []);
-  const handleOpen = event => {
-    setKinds(kindsFromParams);
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleClose = () => {
-    setAnchorEl(null);
-  };
-
-  // if we cancel, we reset the kinds to what is already selected in the params
-  const cancelUpdate = () => {
-    setKinds(kindsFromParams);
-    handleClose();
-  };
-
-  const handleSelect = (value: string) => {
-    let newKinds = [...kinds];
-    if (newKinds.includes(value)) {
-      newKinds = newKinds.filter(v => v !== value);
-    } else {
-      newKinds.push(value);
-    }
-    setKinds(newKinds);
-  };
-
-  const handleSelectAll = () => {
-    setKinds(kindOptions.filter(k => !k.disabled).map(k => k.value));
-  };
-
-  const handleClearAll = () => {
-    setKinds([]);
-  };
-
-  const applyFilters = () => {
-    onChange(kinds);
-    handleClose();
-  };
-
-  return (
-    <Flex textAlign="center" alignItems="center">
-      <HoverTooltip tipContent={'Filter by resource type'}>
-        <ButtonSecondary size="small" onClick={handleOpen}>
-          Types{' '}
-          {kindsFromParams.length > 0 ? `(${kindsFromParams.length})` : ''}
-          <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
-          {kindsFromParams.length > 0 && <FiltersExistIndicator />}
-        </ButtonSecondary>
-      </HoverTooltip>
-      <Menu
-        popoverCss={() => `margin-top: 36px;`}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'left',
-        }}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'left',
-        }}
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={cancelUpdate}
-      >
-        <Flex gap={2} p={2}>
-          <ButtonSecondary
-            size="small"
-            onClick={handleSelectAll}
-            textTransform="none"
-            css={`
-              background-color: transparent;
-            `}
-            px={2}
-          >
-            Select All
-          </ButtonSecondary>
-          <ButtonSecondary
-            size="small"
-            onClick={handleClearAll}
-            textTransform="none"
-            css={`
-              background-color: transparent;
-            `}
-            px={2}
-          >
-            Clear All
-          </ButtonSecondary>
-        </Flex>
-        {kindOptions.map(kind => {
-          const $checkbox = (
-            <>
-              <CheckboxInput
-                type="checkbox"
-                name={kind.label}
-                disabled={kind.disabled}
-                onChange={() => {
-                  handleSelect(kind.value);
-                }}
-                id={kind.value}
-                checked={kinds.includes(kind.value)}
-              />
-              <Text ml={2} fontWeight={300} fontSize={2}>
-                {kind.label}
-              </Text>
-            </>
-          );
-          return (
-            <MenuItem
-              disabled={kind.disabled}
-              px={2}
-              key={kind.value}
-              onClick={() => (!kind.disabled ? handleSelect(kind.value) : null)}
-            >
-              {kind.disabled ? (
-                <HoverTooltip
-                  tipContent={`You do not have access to ${kind.label} resources.`}
-                >
-                  {$checkbox}
-                </HoverTooltip>
-              ) : (
-                $checkbox
-              )}
-            </MenuItem>
-          );
-        })}
-        <Flex justifyContent="space-between" p={2} gap={2}>
-          <ButtonPrimary
-            disabled={kindArraysEqual(kinds, kindsFromParams)}
-            size="small"
-            onClick={applyFilters}
-          >
-            Apply Filters
-          </ButtonPrimary>
-          <ButtonSecondary
-            size="small"
-            css={`
-              background-color: transparent;
-            `}
-            onClick={cancelUpdate}
-          >
-            Cancel
-          </ButtonSecondary>
-        </Flex>
-      </Menu>
-    </Flex>
-  );
-};
-
-type SortMenuProps = {
-  transformOrigin?: any;
-  anchorOrigin?: any;
-  sortType: string;
-  sortDir: SortDir;
-  onChange: (value: string) => void;
-  onDirChange: () => void;
-};
-
-const SortMenu: React.FC<SortMenuProps> = props => {
-  const { sortType, onChange, onDirChange, sortDir } = props;
-  const [anchorEl, setAnchorEl] = React.useState(null);
-
-  const handleOpen = event => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleClose = () => {
-    setAnchorEl(null);
-  };
-
-  const handleSelect = (value: string) => {
-    handleClose();
-    onChange(value);
-  };
-
-  return (
-    <Flex textAlign="center">
-      <HoverTooltip tipContent={'Sort by'}>
-        <ButtonBorder
-          css={`
-            border-right: none;
-            border-top-right-radius: 0;
-            border-bottom-right-radius: 0;
-            border-color: ${props => props.theme.colors.spotBackground[2]};
-          `}
-          textTransform="none"
-          size="small"
-          px={2}
-          onClick={handleOpen}
-        >
-          {sortType}
-        </ButtonBorder>
-      </HoverTooltip>
-      <Menu
-        popoverCss={() => `margin-top: 36px;`}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'center',
-        }}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'center',
-        }}
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleClose}
-      >
-        <MenuItem onClick={() => handleSelect('name')}>Name</MenuItem>
-        <MenuItem onClick={() => handleSelect('kind')}>Type</MenuItem>
-      </Menu>
-      <HoverTooltip tipContent={'Sort direction'}>
-        <ButtonBorder
-          onClick={onDirChange}
-          textTransform="none"
-          css={`
-            border-top-left-radius: 0;
-            border-bottom-left-radius: 0;
-            border-color: ${props => props.theme.colors.spotBackground[2]};
-          `}
-          size="small"
-        >
-          {sortDir === 'ASC' ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
-        </ButtonBorder>
-      </HoverTooltip>
-    </Flex>
-  );
-};
-
-function kindArraysEqual(arr1: string[], arr2: string[]) {
-  if (arr1.length !== arr2.length) {
-    return false;
-  }
-
-  const sortedArr1 = arr1.slice().sort();
-  const sortedArr2 = arr2.slice().sort();
-
-  for (let i = 0; i < sortedArr1.length; i++) {
-    if (sortedArr1[i] !== sortedArr2[i]) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-function ViewModeSwitch({
-  currentViewMode,
-  setCurrentViewMode,
-}: {
-  currentViewMode: ViewMode;
-  setCurrentViewMode: (viewMode: ViewMode) => void;
-}) {
-  return (
-    <ViewModeSwitchContainer>
-      <ViewModeSwitchButton
-        className={currentViewMode === ViewMode.CARD ? 'selected' : ''}
-        onClick={() => setCurrentViewMode(ViewMode.CARD)}
-        css={`
-          border-right: 1px solid
-            ${props => props.theme.colors.spotBackground[2]};
-          border-top-left-radius: 4px;
-          border-bottom-left-radius: 4px;
-        `}
-      >
-        <SquaresFour size="small" color="text.main" />
-      </ViewModeSwitchButton>
-      <ViewModeSwitchButton
-        className={currentViewMode === ViewMode.LIST ? 'selected' : ''}
-        onClick={() => setCurrentViewMode(ViewMode.LIST)}
-        css={`
-          border-top-right-radius: 4px;
-          border-bottom-right-radius: 4px;
-        `}
-      >
-        <Rows size="small" color="text.main" />
-      </ViewModeSwitchButton>
-    </ViewModeSwitchContainer>
-  );
 }
 
 const IncludedResourcesSelector = ({
@@ -551,9 +262,6 @@ const IncludedResourcesSelector = ({
       <HoverTooltip tipContent={'Filter by resource availability'}>
         <ButtonSecondary
           px={2}
-          css={`
-            border-color: ${props => props.theme.colors.spotBackground[0]};
-          `}
           textTransform="none"
           size="small"
           onClick={handleOpen}
@@ -583,7 +291,9 @@ const IncludedResourcesSelector = ({
         onClose={handleClose}
       >
         <AccessRequestsToggleItem>
-          <Text mr={2}>Show requestable resources</Text>
+          <Text mr={2} mb={1}>
+            Show requestable resources
+          </Text>
           <Toggle
             isToggled={
               availabilityFilter.mode === 'requestable' ||
@@ -596,39 +306,6 @@ const IncludedResourcesSelector = ({
     </Flex>
   );
 };
-
-const ViewModeSwitchContainer = styled.div`
-  height: 22px;
-  width: 48px;
-  border: 1px solid ${props => props.theme.colors.spotBackground[2]};
-  border-radius: 4px;
-  display: flex;
-
-  .selected {
-    background-color: ${props => props.theme.colors.spotBackground[1]};
-
-    &:hover {
-      background-color: ${props => props.theme.colors.spotBackground[1]};
-    }
-  }
-`;
-
-const ViewModeSwitchButton = styled.button`
-  height: 100%;
-  width: 50%;
-  overflow: hidden;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-
-  background-color: transparent;
-
-  &:hover {
-    background-color: ${props => props.theme.colors.spotBackground[0]};
-  }
-`;
 
 const FiltersExistIndicator = styled.div`
   position: absolute;
@@ -644,8 +321,9 @@ const FiltersExistIndicator = styled.div`
 const AccessRequestsToggleItem = styled.div`
   min-height: 40px;
   box-sizing: border-box;
-  padding-left: ${props => props.theme.space[2]}px;
-  padding-right: ${props => props.theme.space[2]}px;
+  padding-top: 2px;
+  padding-left: ${props => props.theme.space[3]}px;
+  padding-right: ${props => props.theme.space[3]}px;
   display: flex;
   justify-content: flex-start;
   align-items: center;

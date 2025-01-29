@@ -16,23 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { Integration } from 'teleport/services/integrations';
 
-import { DeleteIntegrationDialog } from '../RemoveIntegrationDialog';
 import { EditAwsOidcIntegrationDialog } from '../EditAwsOidcIntegrationDialog';
-
+import { DeleteIntegrationDialog } from '../RemoveIntegrationDialog';
 import {
-  OperationType,
   EditableIntegrationFields,
+  OperationType,
 } from './useIntegrationOperation';
 
 type Props = {
   operation: OperationType;
   integration: Integration;
   close(): void;
-  edit(req: EditableIntegrationFields): Promise<void>;
+  edit(integration: Integration, req: EditableIntegrationFields): Promise<void>;
   remove(): Promise<void>;
 };
 

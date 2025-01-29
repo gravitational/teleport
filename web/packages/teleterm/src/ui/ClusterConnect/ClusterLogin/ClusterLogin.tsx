@@ -17,28 +17,29 @@
  */
 
 import React from 'react';
-import * as Alerts from 'design/Alert';
+
 import {
-  ButtonIcon,
-  Text,
-  Indicator,
   Box,
+  ButtonIcon,
+  ButtonPrimary,
   Flex,
   H2,
-  ButtonPrimary,
+  Indicator,
+  Text,
 } from 'design';
+import * as Alerts from 'design/Alert';
+import { DialogContent, DialogHeader } from 'design/Dialog';
 import * as Icons from 'design/Icon';
-import { DialogHeader, DialogContent } from 'design/Dialog';
 import { PrimaryAuthType } from 'shared/services';
 
+import { publicAddrWithTargetPort } from 'teleterm/services/tshd/app';
+import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
 import { AuthSettings } from 'teleterm/ui/services/clusters/types';
 import { ClusterConnectReason } from 'teleterm/ui/services/modals';
-import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
 
 import { outermostPadding } from '../spacing';
-
 import LoginForm from './FormLogin';
-import useClusterLogin, { State, Props } from './useClusterLogin';
+import useClusterLogin, { Props, State } from './useClusterLogin';
 
 export function ClusterLogin(props: Props & { reason: ClusterConnectReason }) {
   const { reason, ...otherProps } = props;
@@ -170,7 +171,7 @@ const getTargetDesc = (reason: ClusterConnectReason): React.ReactNode => {
       }
     }
     case 'reason.vnet-cert-expired': {
-      return <strong>{reason.publicAddr}</strong>;
+      return <strong>{publicAddrWithTargetPort(reason.routeToApp)}</strong>;
     }
     default: {
       reason satisfies never;

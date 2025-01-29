@@ -16,14 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 
 import { wait } from 'shared/utils/wait';
 
 import {
-  useAsync,
-  CanceledError,
   Attempt,
+  CanceledError,
+  useAsync,
   useDelayedRepeatedAttempt,
 } from './useAsync';
 

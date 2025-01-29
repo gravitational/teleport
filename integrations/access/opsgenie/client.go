@@ -185,10 +185,10 @@ func (og Client) tryGetAlertRequestResult(ctx context.Context, reqID string) (Ge
 	for {
 		alertRequestResult, err := og.getAlertRequestResult(ctx, reqID)
 		if err == nil {
-			logger.Get(ctx).Debugf("Got alert request result: %+v", alertRequestResult)
+			logger.Get(ctx).DebugContext(ctx, "Got alert request result", "alert_id", alertRequestResult.Data.AlertID)
 			return alertRequestResult, nil
 		}
-		logger.Get(ctx).Debug("Failed to get alert request result:", err)
+		logger.Get(ctx).DebugContext(ctx, "Failed to get alert request result", "error", err)
 		if err := backoff.Do(ctx); err != nil {
 			return GetAlertRequestResult{}, trace.Wrap(err)
 		}
@@ -344,8 +344,10 @@ func (og Client) CheckHealth(ctx context.Context) error {
 			code = types.PluginStatusCode_OTHER_ERROR
 		}
 		if err := og.StatusSink.Emit(ctx, &types.PluginStatusV1{Code: code}); err != nil {
-			logger.Get(resp.Request.Context()).WithError(err).
-				WithField("code", resp.StatusCode()).Errorf("Error while emitting servicenow plugin status: %v", err)
+			logger.Get(resp.Request.Context()).ErrorContext(ctx, "Error while emitting servicenow plugin status",
+				"error", err,
+				"code", resp.StatusCode(),
+			)
 		}
 	}
 

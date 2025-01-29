@@ -683,7 +683,7 @@ $ tsh join <session_ID>
   title="Lacking permission?"
 >
   Joining sessions requires special permissions that need to be set up by your cluster administrator.
-  Refer them to the [Moderated Sessions guide](../admin-guides/access-controls/guides/moderated-sessions.mdx) for more information on configuring join permissions.
+  Refer them to the [Moderated Sessions guide](../admin-guides/access-controls/guides/joining-sessions.mdx) for more information on configuring join permissions.
 </Admonition>
 
 <Notice type="note" scope={["oss", "enterprise"]}>
@@ -699,8 +699,9 @@ tunnels from behind-firewall environments into a Teleport Proxy Service you have
 To learn more about setting up a trust relationship between clusters behind firewalls, see
 [Configure Trusted Clusters](../admin-guides/management/admin/trustedclusters.mdx).
 
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+<Notice type="note" >
+  Trusted clusters are only available for self-hosted Teleport clusters.
+</Notice>
 
 Assuming the Teleport Proxy Server called `work` is configured with a few trusted
 clusters, you can use the `tsh clusters` command to see a list of all the trusted clusters on the server:
@@ -714,31 +715,9 @@ $ tsh --proxy=work clusters
 # production       offline
 ```
 
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
-Assuming the Teleport Cloud tenant called `mytenant.teleport.sh` is configured with a few trusted
-clusters, a user may use the `tsh clusters` command to see a list of all Trusted Clusters on the server:
-
-```code
-$ tsh --proxy=mytenant.teleport.sh clusters
-
-# Cluster Name     Status
-# ------------     ------
-# staging          online
-# production       offline
-```
-
-</TabItem>
-
-</Tabs>
-
 [CLI Docs - tsh clusters](../reference/cli/tsh.mdx#tsh-clusters)
 
 Now you can use the `--cluster` flag with any `tsh` command. For example, to list SSH nodes that are members of the `production` cluster, simply run:
-
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh --proxy=work ls --cluster=production
@@ -749,26 +728,7 @@ $ tsh --proxy=work ls --cluster=production
 # db-2          xxxxxxxxx     10.0.20.41:3022    kernel:4.2
 ```
 
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
-```code
-$ tsh --proxy=mytenant.teleport.sh ls --cluster=production
-
-# Node Name     Node ID       Address            Labels
-# ---------     -------       -------            ------
-# db-1          xxxxxxxxx     10.0.20.31:3022    kernel:4.4
-# db-2          xxxxxxxxx     10.0.20.41:3022    kernel:4.2
-```
-
-</TabItem>
-
-</Tabs>
-
 Similarly, if you want to SSH into `db-1` inside the `production` cluster:
-
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh --proxy=work ssh --cluster=production db-1
@@ -778,22 +738,6 @@ This is possible even if Nodes in the `production` cluster are located behind a
 firewall without open ports. This works because the `production` cluster
 establishes a reverse SSH tunnel back into the Proxy Service called `work`, and
 this tunnel is used to establish inbound SSH connections.
-
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
-```code
-$ tsh --proxy=mytenant.teleport.sh ssh --cluster=production db-1
-```
-
-This is possible even if Nodes in the `production` cluster are located behind a
-firewall without open ports. This works because the `production` cluster
-establishes a reverse SSH tunnel back into your Teleport Cloud tenant's Proxy
-Service, and this tunnel is used to establish inbound SSH connections.
-
-</TabItem>
-
-</Tabs>
 
 ## X11 forwarding
 
@@ -826,6 +770,10 @@ $ tsh status
   ...
   Extensions:         permit-X11-forwarding
 ```
+
+## Proxying Git commands
+
+(!docs/pages/connect-your-client/includes/tsh-git.mdx!)
 
 ## Custom aliases and defaults
 

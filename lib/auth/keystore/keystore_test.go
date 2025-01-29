@@ -508,7 +508,7 @@ func assertKeyAlgorithm(t *testing.T, expectedAlgorithm cryptosuites.Algorithm, 
 
 type testPack struct {
 	backends []*backendDesc
-	clock    clockwork.FakeClock
+	clock    *clockwork.FakeClock
 }
 
 type backendDesc struct {
@@ -652,7 +652,7 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 			opts.awsKMSClient = nil
 			opts.awsSTSClient = nil
 
-			backend, err := newAWSKMSKeystore(ctx, &config.AWSKMS, &opts)
+			backend, err := newAWSKMSKeystore(ctx, config.AWSKMS, &opts)
 			require.NoError(t, err)
 			name := "aws_kms"
 			if multiRegion {
@@ -680,7 +680,7 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 
 		// Always test with fake AWS client.
 		fakeAWSKMSConfig := servicecfg.KeystoreConfig{
-			AWSKMS: servicecfg.AWSKMSConfig{
+			AWSKMS: &servicecfg.AWSKMSConfig{
 				AWSAccount: "123456789012",
 				AWSRegion:  "us-west-2",
 				MultiRegion: struct{ Enabled bool }{
@@ -688,7 +688,7 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 				},
 			},
 		}
-		fakeAWSKMSBackend, err := newAWSKMSKeystore(ctx, &fakeAWSKMSConfig.AWSKMS, &baseOpts)
+		fakeAWSKMSBackend, err := newAWSKMSKeystore(ctx, fakeAWSKMSConfig.AWSKMS, &baseOpts)
 		require.NoError(t, err)
 		name := "fake_aws_kms"
 		if multiRegion {

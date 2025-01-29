@@ -41,6 +41,7 @@ import (
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -141,7 +142,6 @@ type cacheCollections struct {
 	staticHostUsers                    collectionReader[staticHostUserGetter]
 	kubeServers                        collectionReader[kubeServerGetter]
 	locks                              collectionReader[services.LockGetter]
-	namespaces                         collectionReader[namespaceGetter]
 	networkRestrictions                collectionReader[networkRestrictionGetter]
 	oktaAssignments                    collectionReader[oktaAssignmentGetter]
 	oktaImportRules                    collectionReader[oktaImportRuleGetter]
@@ -176,6 +176,9 @@ type cacheCollections struct {
 	identityCenterAccounts             collectionReader[identityCenterAccountGetter]
 	identityCenterPrincipalAssignments collectionReader[identityCenterPrincipalAssignmentGetter]
 	identityCenterAccountAssignments   collectionReader[identityCenterAccountAssignmentGetter]
+	pluginStaticCredentials            collectionReader[pluginStaticCredentialsGetter]
+	gitServers                         collectionReader[services.GitServerGetter]
+	workloadIdentity                   collectionReader[WorkloadIdentityReader]
 }
 
 // setupCollections returns a registry of collections.
@@ -298,15 +301,6 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.roles
-		case types.KindNamespace:
-			if c.Presence == nil {
-				return nil, trace.BadParameter("missing parameter Presence")
-			}
-			collections.namespaces = &genericCollection[*types.Namespace, namespaceGetter, namespaceExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.namespaces
 		case types.KindNode:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -704,6 +698,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.spiffeFederations
+		case types.KindWorkloadIdentity:
+			if c.Config.WorkloadIdentity == nil {
+				return nil, trace.BadParameter("missing parameter WorkloadIdentity")
+			}
+			collections.workloadIdentity = &genericCollection[*workloadidentityv1pb.WorkloadIdentity, WorkloadIdentityReader, workloadIdentityExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.workloadIdentity
 		case types.KindAutoUpdateConfig:
 			if c.AutoUpdateService == nil {
 				return nil, trace.BadParameter("missing parameter AutoUpdateService")
@@ -784,6 +787,33 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			}
 			collections.byKind[resourceKind] = collections.identityCenterAccountAssignments
 
+		case types.KindPluginStaticCredentials:
+			if c.PluginStaticCredentials == nil {
+				return nil, trace.BadParameter("missing parameter PluginStaticCredentials")
+			}
+			collections.pluginStaticCredentials = &genericCollection[
+				types.PluginStaticCredentials,
+				pluginStaticCredentialsGetter,
+				pluginStaticCredentialsExecutor,
+			]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.pluginStaticCredentials
+
+		case types.KindGitServer:
+			if c.GitServers == nil {
+				return nil, trace.BadParameter("missing parameter GitServers")
+			}
+			collections.gitServers = &genericCollection[
+				types.Server,
+				services.GitServerGetter,
+				gitServerExecutor,
+			]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.gitServers
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -903,7 +933,7 @@ func (remoteClusterExecutor) upsert(ctx context.Context, cache *Cache, resource 
 	err := cache.trustCache.DeleteRemoteCluster(ctx, resource.GetName())
 	if err != nil {
 		if !trace.IsNotFound(err) {
-			cache.Logger.WithError(err).Warnf("Failed to delete remote cluster %v.", resource.GetName())
+			cache.Logger.WarnContext(ctx, "Failed to delete remote cluster", "cluster", resource.GetName(), "error", err)
 			return trace.Wrap(err)
 		}
 	}
@@ -1032,50 +1062,6 @@ type nodeGetter interface {
 }
 
 var _ executor[types.Server, nodeGetter] = nodeExecutor{}
-
-type namespaceExecutor struct{}
-
-func (namespaceExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*types.Namespace, error) {
-	namespaces, err := cache.Presence.GetNamespaces()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	derefNamespaces := make([]*types.Namespace, len(namespaces))
-	for i := range namespaces {
-		ns := namespaces[i]
-		derefNamespaces[i] = &ns
-	}
-	return derefNamespaces, nil
-}
-
-func (namespaceExecutor) upsert(ctx context.Context, cache *Cache, resource *types.Namespace) error {
-	return cache.presenceCache.UpsertNamespace(*resource)
-}
-
-func (namespaceExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.presenceCache.DeleteAllNamespaces()
-}
-
-func (namespaceExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteNamespace(resource.GetName())
-}
-
-func (namespaceExecutor) isSingleton() bool { return false }
-
-func (namespaceExecutor) getReader(cache *Cache, cacheOK bool) namespaceGetter {
-	if cacheOK {
-		return cache.presenceCache
-	}
-	return cache.Config.Presence
-}
-
-type namespaceGetter interface {
-	GetNamespaces() ([]types.Namespace, error)
-	GetNamespace(name string) (*types.Namespace, error)
-}
-
-var _ executor[*types.Namespace, namespaceGetter] = namespaceExecutor{}
 
 type certAuthorityExecutor struct {
 	// extracted from watch.Filter, to avoid rebuilding on every event

@@ -48,6 +48,8 @@ type ClusterConfigurationService struct {
 	backend.Backend
 }
 
+var _ services.ClusterConfigurationInternal = (*ClusterConfigurationService)(nil)
+
 // NewClusterConfigurationService returns a new ClusterConfigurationService.
 func NewClusterConfigurationService(backend backend.Backend) (*ClusterConfigurationService, error) {
 	err := metrics.RegisterPrometheusCollectors(clusterNameNotFound)
@@ -280,6 +282,15 @@ func (s *ClusterConfigurationService) DeleteAuthPreference(ctx context.Context) 
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// AppendCheckAuthPreferenceActions implements [services.ClusterConfigurationInternal].
+func (s *ClusterConfigurationService) AppendCheckAuthPreferenceActions(actions []backend.ConditionalAction, revision string) ([]backend.ConditionalAction, error) {
+	return append(actions, backend.ConditionalAction{
+		Key:       backend.NewKey(authPrefix, preferencePrefix, generalPrefix),
+		Condition: backend.Revision(revision),
+		Action:    backend.Nop(),
+	}), nil
 }
 
 // GetClusterAuditConfig gets cluster audit config from the backend.

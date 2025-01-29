@@ -20,12 +20,12 @@ package auth
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/integrations/access/common/auth/oauth"
 	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
@@ -65,7 +65,7 @@ type RotatedAccessTokenProviderConfig struct {
 	Refresher oauth.Refresher
 	Clock     clockwork.Clock
 
-	Log *logrus.Entry
+	Log *slog.Logger
 }
 
 // CheckAndSetDefaults validates a configuration and sets default values
@@ -87,7 +87,7 @@ func (c *RotatedAccessTokenProviderConfig) CheckAndSetDefaults() error {
 		c.Clock = clockwork.NewRealClock()
 	}
 	if c.Log == nil {
-		c.Log = logrus.NewEntry(logrus.StandardLogger())
+		c.Log = slog.Default()
 	}
 	return nil
 }
@@ -104,7 +104,7 @@ type RotatedAccessTokenProvider struct {
 	refresher           oauth.Refresher
 	clock               clockwork.Clock
 
-	log logrus.FieldLogger
+	log *slog.Logger
 
 	lock  sync.RWMutex // protects the below fields
 	creds *storage.Credentials
@@ -153,12 +153,12 @@ func (r *RotatedAccessTokenProvider) RefreshLoop(ctx context.Context) {
 
 	timer := r.clock.NewTimer(interval)
 	defer timer.Stop()
-	r.log.Infof("Will attempt token refresh in: %s", interval)
+	r.log.InfoContext(ctx, "Starting token refresh loop", "next_refresh", interval)
 
 	for {
 		select {
 		case <-ctx.Done():
-			r.log.Info("Shutting down")
+			r.log.InfoContext(ctx, "Shutting down")
 			return
 		case <-timer.Chan():
 			creds, _ := r.store.GetCredentials(ctx)
@@ -174,18 +174,21 @@ func (r *RotatedAccessTokenProvider) RefreshLoop(ctx context.Context) {
 
 				interval := r.getRefreshInterval(creds)
 				timer.Reset(interval)
-				r.log.Infof("Next refresh in: %s", interval)
+				r.log.InfoContext(ctx, "Refreshed token", "next_refresh", interval)
 				continue
 			}
 
 			creds, err := r.refresh(ctx)
 			if err != nil {
-				r.log.Errorf("Error while refreshing: %s. Will retry after: %s", err, r.retryInterval)
+				r.log.ErrorContext(ctx, "Error while refreshing token",
+					"error", err,
+					"retry_interval", r.retryInterval,
+				)
 				timer.Reset(r.retryInterval)
 			} else {
 				err := r.store.PutCredentials(ctx, creds)
 				if err != nil {
-					r.log.Errorf("Error while storing the refreshed credentials: %s", err)
+					r.log.ErrorContext(ctx, "Error while storing the refreshed credentials", "error", err)
 					timer.Reset(r.retryInterval)
 					continue
 				}
@@ -196,7 +199,7 @@ func (r *RotatedAccessTokenProvider) RefreshLoop(ctx context.Context) {
 
 				interval := r.getRefreshInterval(creds)
 				timer.Reset(interval)
-				r.log.Infof("Successfully refreshed credentials. Next refresh in: %s", interval)
+				r.log.InfoContext(ctx, "Successfully refreshed credentials", "next_refresh", interval)
 			}
 		}
 	}

@@ -16,18 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
-import styled from 'styled-components';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import { matchPath } from 'react-router';
 import { NavLink } from 'react-router-dom';
-import { Flex, Text, H4, P3, ButtonIcon } from 'design';
+import styled from 'styled-components';
+
+import { ButtonIcon, Flex, H4, P3, Text } from 'design';
 import { Cross } from 'design/Icon';
 
-import { TeleportFeature } from 'teleport/types';
 import { useFeatures } from 'teleport/FeaturesContext';
+import { TeleportFeature } from 'teleport/types';
 
-import { getSubsectionStyles } from './SideNavigation/Section';
-import { SidenavCategory } from './SideNavigation/categories';
+import { SidenavCategory } from './categories';
+import { getSubsectionStyles } from './Section';
 
 export type RecentHistoryItem = {
   category?: SidenavCategory;
@@ -43,7 +44,7 @@ type AnimatedItem = RecentHistoryItem & {
 function getIconForRoute(
   features: TeleportFeature[],
   route: string
-): (props) => JSX.Element {
+): (props) => ReactNode {
   const feature = features.find(feature =>
     matchPath(route, {
       path: feature?.route?.path,
@@ -165,7 +166,7 @@ function AnimatedHistoryItem({
   onRemove,
 }: {
   item: AnimatedItem;
-  Icon: (props) => JSX.Element;
+  Icon: (props) => ReactNode;
   onRemove: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
@@ -176,7 +177,7 @@ function AnimatedHistoryItem({
       const height = item.category ? 60 : 40;
       itemRef.current.style.height = `${height}px`;
       itemRef.current.style.opacity = '1';
-      itemRef.current.offsetHeight; // Force reflow
+      void itemRef.current.offsetHeight; // Force reflow
       requestAnimationFrame(() => {
         if (itemRef.current) {
           itemRef.current.style.height = '0px';
@@ -189,7 +190,7 @@ function AnimatedHistoryItem({
       const height = item.category ? 60 : 40;
       itemRef.current.style.height = `0px`;
       itemRef.current.style.opacity = '0';
-      itemRef.current.offsetHeight; // Force reflow
+      void itemRef.current.offsetHeight; // Force reflow
       requestAnimationFrame(() => {
         if (itemRef.current) {
           itemRef.current.style.height = `${height}px`;

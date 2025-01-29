@@ -23,6 +23,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 
 	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	managerv2 "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
@@ -30,6 +31,7 @@ import (
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/smithy-go"
 	"github.com/gravitational/trace"
 )
 
@@ -82,6 +84,11 @@ func ConvertS3Error(err error, args ...interface{}) error {
 	var notFound *s3types.NotFound
 	if errors.As(err, &notFound) {
 		return trace.NotFound(notFound.Error(), args...)
+	}
+
+	var opError *smithy.OperationError
+	if errors.As(err, &opError) && strings.Contains(opError.Err.Error(), "FIPS") {
+		return trace.BadParameter(opError.Error())
 	}
 
 	return err

@@ -16,11 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Text, Box } from 'design';
+import { Box, Text } from 'design';
 
 import { ResourceKind } from '../Shared';
-
 import { ResourceSpec } from './types';
 
 export function PermissionsErrorMessage({

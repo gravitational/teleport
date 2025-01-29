@@ -16,19 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
-import { typography } from 'design/system';
 
-import * as Icons from 'design/Icon';
 import { Box, ButtonIcon } from 'design';
-
+import * as Icons from 'design/Icon';
+import { typography } from 'design/system';
+import { TypographyProps } from 'design/system/typography';
 import { useStore } from 'shared/libs/stores';
 
-import { TypographyProps } from 'design/system/typography';
-
-import * as stores from 'teleport/Console/stores';
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
+import * as stores from 'teleport/Console/stores';
 
 import TabItem from './TabItem';
 

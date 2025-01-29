@@ -26,7 +26,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	stdlog "log"
 	"log/slog"
 	"os"
 	"runtime"
@@ -38,7 +37,6 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/term"
 
 	"github.com/gravitational/teleport"
@@ -100,59 +98,18 @@ func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) 
 		opt(&o)
 	}
 
-	logrus.StandardLogger().ReplaceHooks(make(logrus.LevelHooks))
-	logrus.SetLevel(logutils.SlogLevelToLogrusLevel(level))
-
-	var (
-		w            io.Writer
-		enableColors bool
-	)
-	switch purpose {
-	case LoggingForCLI:
-		// If debug logging was asked for on the CLI, then write logs to stderr.
-		// Otherwise, discard all logs.
-		if level == slog.LevelDebug {
-			enableColors = IsTerminal(os.Stderr)
-			w = logutils.NewSharedWriter(os.Stderr)
-		} else {
-			w = io.Discard
-			enableColors = false
-		}
-	case LoggingForDaemon:
-		enableColors = IsTerminal(os.Stderr)
-		w = logutils.NewSharedWriter(os.Stderr)
+	// If debug or trace logging is not enabled for CLIs,
+	// then discard all log output.
+	if purpose == LoggingForCLI && level > slog.LevelDebug {
+		slog.SetDefault(slog.New(logutils.DiscardHandler{}))
+		return
 	}
 
-	var (
-		formatter logrus.Formatter
-		handler   slog.Handler
-	)
-	switch o.format {
-	case LogFormatText, "":
-		textFormatter := logutils.NewDefaultTextFormatter(enableColors)
-
-		// Calling CheckAndSetDefaults enables the timestamp field to
-		// be included in the output. The error returned is ignored
-		// because the default formatter cannot be invalid.
-		if purpose == LoggingForCLI && level == slog.LevelDebug {
-			_ = textFormatter.CheckAndSetDefaults()
-		}
-
-		formatter = textFormatter
-		handler = logutils.NewSlogTextHandler(w, logutils.SlogTextHandlerConfig{
-			Level:        level,
-			EnableColors: enableColors,
-		})
-	case LogFormatJSON:
-		formatter = &logutils.JSONFormatter{}
-		handler = logutils.NewSlogJSONHandler(w, logutils.SlogJSONHandlerConfig{
-			Level: level,
-		})
-	}
-
-	logrus.SetFormatter(formatter)
-	logrus.SetOutput(w)
-	slog.SetDefault(slog.New(handler))
+	logutils.Initialize(logutils.Config{
+		Severity:     level.String(),
+		Format:       o.format,
+		EnableColors: IsTerminal(os.Stderr),
+	})
 }
 
 var initTestLoggerOnce = sync.Once{}
@@ -160,57 +117,27 @@ var initTestLoggerOnce = sync.Once{}
 // InitLoggerForTests initializes the standard logger for tests.
 func InitLoggerForTests() {
 	initTestLoggerOnce.Do(func() {
-		// Parse flags to check testing.Verbose().
-		flag.Parse()
-
-		level := slog.LevelWarn
-		w := io.Discard
-		if testing.Verbose() {
-			level = slog.LevelDebug
-			w = os.Stderr
+		if !flag.Parsed() {
+			// Parse flags to check testing.Verbose().
+			flag.Parse()
 		}
 
-		logger := logrus.StandardLogger()
-		logger.SetFormatter(logutils.NewTestJSONFormatter())
-		logger.SetLevel(logutils.SlogLevelToLogrusLevel(level))
+		if !testing.Verbose() {
+			slog.SetDefault(slog.New(logutils.DiscardHandler{}))
+			return
+		}
 
-		output := logutils.NewSharedWriter(w)
-		logger.SetOutput(output)
-		slog.SetDefault(slog.New(logutils.NewSlogJSONHandler(output, logutils.SlogJSONHandlerConfig{Level: level})))
+		logutils.Initialize(logutils.Config{
+			Severity: slog.LevelDebug.String(),
+			Format:   LogFormatJSON,
+		})
 	})
-}
-
-// NewLoggerForTests creates a new logrus logger for test environments.
-func NewLoggerForTests() *logrus.Logger {
-	InitLoggerForTests()
-	return logrus.StandardLogger()
 }
 
 // NewSlogLoggerForTests creates a new slog logger for test environments.
 func NewSlogLoggerForTests() *slog.Logger {
 	InitLoggerForTests()
 	return slog.Default()
-}
-
-// WrapLogger wraps an existing logger entry and returns
-// a value satisfying the Logger interface
-func WrapLogger(logger *logrus.Entry) Logger {
-	return &logWrapper{Entry: logger}
-}
-
-// NewLogger creates a new empty logrus logger.
-func NewLogger() *logrus.Logger {
-	return logrus.StandardLogger()
-}
-
-// Logger describes a logger value
-type Logger interface {
-	logrus.FieldLogger
-	// GetLevel specifies the level at which this logger
-	// value is logging
-	GetLevel() logrus.Level
-	// SetLevel sets the logger's level to the specified value
-	SetLevel(level logrus.Level)
 }
 
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging
@@ -231,7 +158,7 @@ func GetIterations() int {
 	if err != nil {
 		panic(err)
 	}
-	logrus.Debugf("Starting tests with %v iterations.", iter)
+	slog.DebugContext(context.Background(), "Running tests multiple times due to presence of ITERATIONS environment variable", "iterations", iter)
 	return iter
 }
 
@@ -484,47 +411,6 @@ func AllowWhitespace(s string) string {
 	return sb.String()
 }
 
-// NewStdlogger creates a new stdlib logger that uses the specified leveled logger
-// for output and the given component as a logging prefix.
-func NewStdlogger(logger LeveledOutputFunc, component string) *stdlog.Logger {
-	return stdlog.New(&stdlogAdapter{
-		log: logger,
-	}, component, stdlog.LstdFlags)
-}
-
-// Write writes the specified buffer p to the underlying leveled logger.
-// Implements io.Writer
-func (r *stdlogAdapter) Write(p []byte) (n int, err error) {
-	r.log(string(p))
-	return len(p), nil
-}
-
-// stdlogAdapter is an io.Writer that writes into an instance
-// of logrus.Logger
-type stdlogAdapter struct {
-	log LeveledOutputFunc
-}
-
-// LeveledOutputFunc describes a function that emits given
-// arguments at a specific level to an underlying logger
-type LeveledOutputFunc func(args ...interface{})
-
-// GetLevel returns the level of the underlying logger
-func (r *logWrapper) GetLevel() logrus.Level {
-	return r.Entry.Logger.GetLevel()
-}
-
-// SetLevel sets the logging level to the given value
-func (r *logWrapper) SetLevel(level logrus.Level) {
-	r.Entry.Logger.SetLevel(level)
-}
-
-// logWrapper wraps a log entry.
-// Implements Logger
-type logWrapper struct {
-	*logrus.Entry
-}
-
 // needsQuoting returns true if any non-printable characters are found.
 func needsQuoting(text string) bool {
 	for _, r := range text {
@@ -615,7 +501,7 @@ type PredicateError struct {
 }
 
 func (p PredicateError) Error() string {
-	return fmt.Sprintf("%s\nCheck syntax at https://goteleport.com/docs/setup/reference/predicate-language/#resource-filtering", p.Err.Error())
+	return fmt.Sprintf("%s\nCheck syntax at https://goteleport.com/docs/reference/predicate-language/#resource-filtering", p.Err.Error())
 }
 
 // FormatAlert formats and colors the alert message if possible.

@@ -16,25 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Link as InternalRouteLink } from 'react-router-dom';
+import styled from 'styled-components';
+
 import { Box, ButtonPrimary, ButtonSecondary, Flex, Link, Text } from 'design';
 import * as Icons from 'design/Icon';
-import { Link as InternalRouteLink } from 'react-router-dom';
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
 import { requiredIamRoleName } from 'shared/components/Validation/rules';
-import styled from 'styled-components';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
 import { Header } from 'teleport/Discover/Shared';
-import {
-  ShowConfigurationScript,
-  RoleArnInput,
-} from 'teleport/Integrations/shared';
 import { AWS_RESOURCE_GROUPS_TAG_EDITOR_LINK } from 'teleport/Discover/Shared/const';
-import useStickyClusterId from 'teleport/useStickyClusterId';
+import {
+  RoleArnInput,
+  ShowConfigurationScript,
+} from 'teleport/Integrations/shared';
 import { AwsOidcPolicyPreset } from 'teleport/services/integrations';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
+import { ConfigureAwsOidcSummary } from './ConfigureAwsOidcSummary';
 import { FinishDialog } from './FinishDialog';
 import { useAwsOidcIntegration } from './useAwsOidcIntegration';
 
@@ -161,7 +163,13 @@ export function AwsOidc() {
             {scriptUrl && (
               <>
                 <Container mb={5} width={800}>
-                  <Text bold>Step 2</Text>
+                  <Flex gap={1} alignItems="center">
+                    <Text bold>Step 2</Text>
+                    <ConfigureAwsOidcSummary
+                      roleName={integrationConfig.roleName}
+                      integrationName={integrationConfig.name}
+                    />
+                  </Flex>
                   <ShowConfigurationScript scriptUrl={scriptUrl} />
                 </Container>
                 <Container mb={5} width={800}>

@@ -19,45 +19,41 @@
 import Logger from 'shared/libs/logger';
 
 import init, {
-  init_wasm_log,
   FastPathProcessor,
+  init_wasm_log,
 } from 'teleport/ironrdp/pkg/ironrdp';
-
-import { WebsocketCloseCode, TermEvent } from 'teleport/lib/term/enums';
-import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
+import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
+import { TermEvent, WebsocketCloseCode } from 'teleport/lib/term/enums';
+import { MfaChallengeResponse } from 'teleport/services/mfa';
 
 import Codec, {
-  MessageType,
   FileType,
-  SharedDirectoryErrCode,
+  MessageType,
   Severity,
+  SharedDirectoryErrCode,
+  type ButtonState,
+  type ClientScreenSpec,
+  type ClipboardData,
+  type FileSystemObject,
+  type MouseButton,
+  type PngFrame,
+  type ScrollAxis,
+  type SharedDirectoryCreateResponse,
+  type SharedDirectoryDeleteResponse,
+  type SharedDirectoryInfoResponse,
+  type SharedDirectoryListResponse,
+  type SharedDirectoryMoveResponse,
+  type SharedDirectoryReadResponse,
+  type SharedDirectoryTruncateResponse,
+  type SharedDirectoryWriteResponse,
+  type SyncKeys,
 } from './codec';
 import {
   PathDoesNotExistError,
   SharedDirectoryManager,
+  type FileOrDirInfo,
 } from './sharedDirectoryManager';
-
-import type { FileOrDirInfo } from './sharedDirectoryManager';
-import type {
-  MouseButton,
-  ButtonState,
-  ScrollAxis,
-  ClientScreenSpec,
-  PngFrame,
-  ClipboardData,
-  SharedDirectoryInfoResponse,
-  SharedDirectoryListResponse,
-  SharedDirectoryMoveResponse,
-  SharedDirectoryReadResponse,
-  SharedDirectoryWriteResponse,
-  SharedDirectoryCreateResponse,
-  SharedDirectoryDeleteResponse,
-  FileSystemObject,
-  SyncKeys,
-  SharedDirectoryTruncateResponse,
-} from './codec';
-import type { WebauthnAssertionResponse } from 'teleport/services/auth';
 
 export enum TdpClientEvent {
   TDP_CLIENT_SCREEN_SPEC = 'tdp client screen spec',
@@ -624,7 +620,7 @@ export default class Client extends EventEmitterMfaSender {
     this.send(this.codec.encodeClipboardData(clipboardData));
   }
 
-  sendWebAuthn(data: WebauthnAssertionResponse) {
+  sendChallengeResponse(data: MfaChallengeResponse) {
     const msg = this.codec.encodeMfaJson({
       mfaType: 'n',
       jsonString: JSON.stringify(data),

@@ -26,11 +26,8 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gravitational/trace"
 	"github.com/redis/go-redis/v9"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
@@ -103,7 +100,6 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 type TestServer struct {
 	cfg    common.TestServerConfig
 	server *miniredis.Miniredis
-	log    logrus.FieldLogger
 
 	// password is the default user password.
 	// If set, AUTH must be sent first to get access to the server.
@@ -126,13 +122,9 @@ func NewTestServer(t testing.TB, config common.TestServerConfig, opts ...TestSer
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log := logrus.WithFields(logrus.Fields{
-		teleport.ComponentKey: defaults.ProtocolRedis,
-		"name":                config.Name,
-	})
+
 	server := &TestServer{
 		cfg: config,
-		log: log,
 	}
 
 	for _, opt := range opts {

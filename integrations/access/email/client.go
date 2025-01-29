@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 )
@@ -60,16 +61,16 @@ func NewClient(ctx context.Context, conf Config, clusterName, webProxyAddr strin
 
 	if conf.Mailgun != nil {
 		mailer = NewMailgunMailer(*conf.Mailgun, conf.StatusSink, conf.Delivery.Sender, clusterName, conf.RoleToRecipients[types.Wildcard])
-		logger.Get(ctx).WithField("domain", conf.Mailgun.Domain).Info("Using Mailgun as email transport")
+		logger.Get(ctx).InfoContext(ctx, "Using Mailgun as email transport", "domain", conf.Mailgun.Domain)
 	}
 
 	if conf.SMTP != nil {
 		mailer = NewSMTPMailer(*conf.SMTP, conf.StatusSink, conf.Delivery.Sender, clusterName)
-		logger.Get(ctx).WithFields(logger.Fields{
-			"host":     conf.SMTP.Host,
-			"port":     conf.SMTP.Port,
-			"username": conf.SMTP.Username,
-		}).Info("Using SMTP as email transport")
+		logger.Get(ctx).InfoContext(ctx, "Using SMTP as email transport",
+			"host", conf.SMTP.Host,
+			"port", conf.SMTP.Port,
+			"username", conf.SMTP.Username,
+		)
 	}
 
 	return Client{
@@ -85,20 +86,20 @@ func (c *Client) CheckHealth(ctx context.Context) error {
 }
 
 // SendNewThreads sends emails on new requests. Returns EmailData.
-func (c *Client) SendNewThreads(ctx context.Context, recipients []string, reqID string, reqData RequestData) ([]EmailThread, error) {
+func (c *Client) SendNewThreads(ctx context.Context, recipients []common.Recipient, reqID string, reqData RequestData) ([]EmailThread, error) {
 	var threads []EmailThread
 	var errors []error
 
 	body := c.buildBody(reqID, reqData, "You have a new Role Request")
 
-	for _, email := range recipients {
-		id, err := c.mailer.Send(ctx, reqID, email, body, "")
+	for _, recipient := range recipients {
+		id, err := c.mailer.Send(ctx, reqID, recipient.ID, body, "")
 		if err != nil {
 			errors = append(errors, err)
 			continue
 		}
 
-		threads = append(threads, EmailThread{Email: email, Timestamp: time.Now().String(), MessageID: id})
+		threads = append(threads, EmailThread{Email: recipient.ID, Timestamp: time.Now().String(), MessageID: id})
 	}
 
 	return threads, trace.NewAggregate(errors...)
