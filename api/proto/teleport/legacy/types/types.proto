@@ -2560,6 +2560,7 @@ message AccessCapabilitiesRequest {
 }
 
 // ResourceID is a unique identifier for a teleport resource.
+// Must be kept in sync with teleport.decision.v1alpha1.ResourceId.
 message ResourceID {
   // ClusterName is the name of the cluster the resource is in.
   string ClusterName = 1 [(gogoproto.jsontag) = "cluster"];

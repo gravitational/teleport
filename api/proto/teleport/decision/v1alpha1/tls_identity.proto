@@ -1,0 +1,235 @@
+// Copyright 2024 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.decision.v1alpha1;
+
+import "google/protobuf/timestamp.proto";
+import "teleport/trait/v1/trait.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpb";
+
+// TLSIdentity is the identity used for TLS connections.
+// Must be kept in sync with tlsca.Identity.
+message TLSIdentity {
+  // Username is the name of the user (for end-users/bots) or the Host ID (for
+  // Teleport processes).
+  string username = 1;
+
+  // Impersonator is a username of a user impersonating this user.
+  string impersonator = 2;
+
+  // Groups is a list of groups (Teleport roles) encoded in the identity.
+  repeated string groups = 3;
+
+  // SystemRoles is a list of system roles (e.g. auth, proxy, node, etc) used in
+  // "multi-role" certificates. Single-role certificates encode the system role
+  // in `Groups` for back-compat reasons.
+  repeated string system_roles = 4;
+
+  // Usage is a list of usage restrictions encoded in the identity.
+  repeated string usage = 5;
+
+  // Principals is a list of Unix logins allowed.
+  repeated string principals = 6;
+
+  // KubernetesGroups is a list of Kubernetes groups allowed.
+  repeated string kubernetes_groups = 7;
+
+  // KubernetesUsers is a list of Kubernetes users allowed.
+  repeated string kubernetes_users = 8;
+
+  // Expires specifies whenever the session will expire.
+  google.protobuf.Timestamp expires = 9;
+
+  // RouteToCluster specifies the target cluster.
+  string route_to_cluster = 10;
+
+  // KubernetesCluster specifies the target kubernetes cluster for TLS
+  // identities. This can be empty on older Teleport clients.
+  string kubernetes_cluster = 11;
+
+  // Traits hold claim data used to populate a role at runtime.
+  repeated teleport.trait.v1.Trait traits = 12;
+
+  // RouteToApp holds routing information for applications. Routing metadata
+  // allows Teleport web proxy to route HTTP requests to the appropriate cluster
+  // and Teleport application proxy within the cluster.
+  RouteToApp route_to_app = 13;
+
+  // TeleportCluster is the name of the teleport cluster that this identity
+  // originated from. For TLS certs this may not be the same as cert issuer, in
+  // case of multi-hop requests that originate from a remote cluster.
+  string teleport_cluster = 14;
+
+  // RouteToDatabase contains routing information for databases.
+  RouteToDatabase route_to_database = 15;
+
+  // DatabaseNames is a list of allowed database names.
+  repeated string database_names = 16;
+
+  // DatabaseUsers is a list of allowed database users.
+  repeated string database_users = 17;
+
+  // MfaVerified is the UUID of an MFA device when this Identity was
+  // confirmed immediately after an MFA check.
+  string mfa_verified = 18;
+
+  // PreviousIdentityExpires is the expiry time of the identity/cert that this
+  // identity/cert was derived from. It is used to determine a session's hard
+  // deadline in cases where both require_session_mfa and
+  // disconnect_expired_cert are enabled.
+  // See https://github.com/gravitational/teleport/issues/18544.
+  google.protobuf.Timestamp previous_identity_expires = 19;
+
+  // LoginIp is an observed IP of the client that this Identity represents.
+  string login_ip = 20;
+
+  // PinnedIp is an IP the certificate is pinned to.
+  string pinned_ip = 21;
+
+  // AwsRoleArns is a list of allowed AWS role ARNs user can assume.
+  repeated string aws_role_arns = 22;
+
+  // AzureIdentities is a list of allowed Azure identities user can assume.
+  repeated string azure_identities = 23;
+
+  // GcpServiceAccounts is a list of allowed GCP service accounts that the user
+  // can assume.
+  repeated string gcp_service_accounts = 24;
+
+  // ActiveRequests is a list of UUIDs of active requests for this Identity.
+  repeated string active_requests = 25;
+
+  // DisallowReissue is a flag that, if set, instructs the auth server to deny
+  // any attempts to reissue new certificates while authenticated with this
+  // certificate.
+  bool disallow_reissue = 26;
+
+  // Renewable indicates that this identity is allowed to renew it's own
+  // credentials. This is only enabled for certificate renewal bots.
+  bool renewable = 27;
+
+  // Generation counts the number of times this certificate has been renewed.
+  uint64 generation = 28;
+
+  // BotName indicates the name of the Machine ID bot this identity was issued
+  // to, if any.
+  string bot_name = 29;
+
+  // AllowedResourceIds lists the resources the identity should be allowed to
+  // access.
+  repeated ResourceId allowed_resource_ids = 31;
+
+  // PrivateKeyPolicy is the private key policy supported by this identity.
+  string private_key_policy = 32;
+
+  // ConnectionDiagnosticId is used to add connection diagnostic messages when
+  // Testing a Connection.
+  string connection_diagnostic_id = 33;
+
+  // DeviceExtensions holds device-aware extensions for the identity.
+  DeviceExtensions device_extensions = 34;
+
+  // UserType indicates if the User was created by an SSO Provider or locally.
+  string user_type = 35;
+}
+
+// RouteToApp holds routing information for applications.
+message RouteToApp {
+  // SessionId is an ID used to identify application sessions created by this
+  // certificate.
+  string session_id = 1;
+
+  // PublicAddr (and ClusterName) are used to route requests issued with this
+  // certificate to the appropriate application proxy/cluster.
+  string public_addr = 2;
+
+  // ClusterName (and PublicAddr) are used to route requests issued with this
+  // certificate to the appropriate application proxy/cluster.
+  string cluster_name = 3;
+
+  // Name is the app name.
+  string name = 4;
+
+  // AwsRoleArn is the AWS role to assume when accessing AWS console.
+  string aws_role_arn = 5;
+
+  // AzureIdentity is the Azure identity to assume when accessing Azure API.
+  string azure_identity = 6;
+
+  // GcpServiceAccount is the GCP service account to assume when accessing GCP
+  // API.
+  string gcp_service_account = 7;
+}
+
+// RouteToDatabase contains routing information for databases.
+message RouteToDatabase {
+  // ServiceName is the name of the Teleport database proxy service to route
+  // requests to.
+  string service_name = 1;
+
+  // Protocol is the database protocol.
+  //
+  // It is embedded in identity so clients can understand what type of database
+  // this is without contacting server.
+  string protocol = 2;
+
+  // Username is an optional database username to serve as a default username to
+  // connect as.
+  string username = 3;
+
+  // Database is an optional database name to serve as a default database to
+  // connect to.
+  string database = 4;
+
+  // Roles is an optional list of database roles to use for a database session.
+  // This list should be a subset of allowed database roles. If not specified,
+  // Database Service will use all allowed database roles for this database.
+  repeated string roles = 5;
+}
+
+// ResourceId is a unique identifier for a teleport resource.
+// Must be kept in sync with types.ResourceID.
+message ResourceId {
+  // ClusterName is the name of the cluster the resource is in.
+  string cluster_name = 1;
+
+  // Kind is the resource kind.
+  string kind = 2;
+
+  // Name is the name of the specific resource.
+  string name = 3;
+
+  // SubResourceName is the resource belonging to resource identified by "Name"
+  // that the user is allowed to access to. When granting access to a
+  // subresource, access to other resources is limited. Currently it just
+  // supports resources of Kind=pod and the format is the following
+  // "<kube_namespace>/<kube_pod>".
+  string sub_resource_name = 4;
+}
+
+// DeviceExtensions holds device-aware extensions for the identity.
+message DeviceExtensions {
+  // DeviceId is the trusted device identifier.
+  string device_id = 1;
+
+  // AssetTag is the device inventory identifier.
+  string asset_tag = 2;
+
+  // CredentialId is the identifier for the credential used by the device to
+  // authenticate itself.
+  string credential_id = 3;
+}
