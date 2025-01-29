@@ -6455,6 +6455,8 @@ message PluginSpecV1 {
     PluginEmailSettings email = 17;
     // Settings for the Microsoft Teams plugin
     PluginMSTeamsSettings msteams = 18;
+    // Settings for the OpenTex NetIQ plugin.
+    PluginNetIQSettings net_iq = 19;
   }
 
   // generation contains a unique ID that should:
@@ -6945,6 +6947,18 @@ message PluginMSTeamsSettings {
   string default_recipient = 5;
 }
 
+// PluginNetIQSettings defines the settings for a NetIQ integration plugin
+message PluginNetIQSettings {
+  option (gogoproto.equal) = true;
+  // oauth_issuer_endpoint is the NetIQ Oauth Issuer endpoint.
+  // Usually, it's equal to https://osp.domain.ext/a/idm/auth/oauth2
+  string oauth_issuer_endpoint = 1;
+  // api_endpoint is the IDM PROV Rest API location.
+  string api_endpoint = 2;
+  // insecure_skip_verify controls whether the NetIQ certificate validation should be skipped.
+  bool insecure_skip_verify = 3;
+}
+
 message PluginBootstrapCredentialsV1 {
   oneof credentials {
     PluginOAuth2AuthorizationCodeCredentials oauth2_authorization_code = 1;
@@ -6983,6 +6997,8 @@ message PluginStatusV1 {
     PluginOktaStatusV1 okta = 7;
     // AWSIC holds status details for the AWS Identity Center plugin.
     PluginAWSICStatusV1 aws_ic = 8;
+    // NetIQ holds status details for the NetIQ plugin.
+    PluginNetIQStatusV1 net_iq = 9;
   }
 
   // last_raw_error variable stores the most recent raw error message received from an API or service.
@@ -6990,6 +7006,18 @@ message PluginStatusV1 {
   // This can be useful for debugging purposes, providing detailed information about what went wrong
   // in the interaction with the external service.
   string last_raw_error = 6;
+}
+
+// PluginNetIQStatusV1 is the status details for the NetIQ plugin.
+message PluginNetIQStatusV1 {
+  // imported_users is the number of users imported from NetIQ eDirectory.
+  uint32 imported_users = 1;
+  // imported_groups is the number of groups imported from NetIQ eDirectory.
+  uint32 imported_groups = 2;
+  // imported_roles is the number of roles imported from NetIQ eDirectory.
+  uint32 imported_roles = 3;
+  // imported_resources is the number of resources imported from NetIQ eDirectory.
+  uint32 imported_resources = 4;
 }
 
 // PluginGitlabStatusV1 is the status details for the Gitlab plugin.
