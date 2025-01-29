@@ -160,9 +160,9 @@ function calculateDeviceTrustStatus(
   return 'none';
 }
 
-// Hack - for some reason xterm.js doesn't allow moving a focus to the Identity popover
-// when it is focused using element.focus(). Moreover, it looks like this solution has a benefit
-// of returning the focus to the previously focused element when popover is closed.
+// Hack - for some reason xterm.js doesn't allow moving focus to the Identity popover
+// when it is focused using element.focus().
+// It used to restore focus after the popover was closed, but this no longer seems to work.
 const focusGrabber = (
   <input
     style={{
