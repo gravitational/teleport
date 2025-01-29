@@ -91,7 +91,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
 	redisprotocol "github.com/gravitational/teleport/lib/srv/db/redis/protocol"
-	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
 	"github.com/gravitational/teleport/lib/srv/db/spanner"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
@@ -2484,9 +2483,8 @@ func (p *agentParams) setDefaults(c *testContext) {
 
 	if p.CloudClients == nil {
 		p.CloudClients = &clients.TestCloudClients{
-			STS:            &mocks.STSClientV1{},
-			SecretsManager: secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
-			GCPSQL:         p.GCPSQL,
+			STS:    &mocks.STSClientV1{},
+			GCPSQL: p.GCPSQL,
 		}
 	}
 	if p.AWSConfigProvider == nil {
