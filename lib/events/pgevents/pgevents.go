@@ -72,7 +72,7 @@ const (
 const (
 	// A note on "session_id uuid NOT NULL":
 	//
-	// Some session IDs aren't UUIDs. See Log.deriveSessionID for an example.
+	// Some session IDs aren't UUIDs. See [Log.deriveSessionID] for an example.
 	// The wiser choice of type would be "session_id text", ie, handling session
 	// IDs as an opaque identifier.
 	//
@@ -591,7 +591,7 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 }
 
 // sessionIDBase is a randomly-generated UUID used as the basis for deriving
-// an UUID from session IDs. See Log.deriveSessionID.
+// an UUID from session IDs. See [Log.deriveSessionID].
 var sessionIDBase = uuid.MustParse("e481e221-77b0-4b9e-be98-bc2e486b751b")
 
 func (l *Log) deriveSessionID(ctx context.Context, sessionID string) uuid.UUID {
