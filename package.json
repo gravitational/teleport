@@ -21,7 +21,7 @@
     "lint": "pnpm eslint && pnpm prettier-check",
     "lint-fix": "pnpm eslint --fix && pnpm prettier-write",
     "eslint": "eslint --quiet '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
-    "type-check": "NODE_OPTIONS='--max-old-space-size=4096' tsc --build",
+    "type-check": "NODE_OPTIONS='--max-old-space-size=4096' make dump-preset-roles && tsc --build",
     "prettier-check": "prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "prettier-write": "prettier --write --log-level silent '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "process-icons": "node web/packages/design/src/Icon/script/script.js & pnpm prettier --log-level silent --write 'web/packages/design/src/Icon/**/*.tsx'",
