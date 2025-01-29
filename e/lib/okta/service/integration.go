@@ -37,14 +37,21 @@ func (s *Service) ValidateClientCredentials(ctx context.Context, req *oktapb.Val
 		credsFromReq:     req.GetApiCredentials(),
 		oktaOrganization: req.GetOktaOrganizationUrl(),
 	}
-	oktaClient, err := s.createOktaClient(ctx, params)
-	if err != nil {
-		return nil, trace.BadParameter("okta credential verification failed: %v", err)
-	}
-	if _, err = oktaClient.ListUsers(ctx); err != nil {
-		return nil, trace.BadParameter("okta credential verification failed: %v", err)
+	if err := s.validateClientCredentials(ctx, params); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return &oktapb.ValidateClientCredentialsResponse{}, nil
+}
+
+func (s *Service) validateClientCredentials(ctx context.Context, params *createOktaClientParams) error {
+	oktaClient, err := s.createOktaClient(ctx, params)
+	if err != nil {
+		return trace.BadParameter("okta credential verification failed: %v", err)
+	}
+	if _, err = oktaClient.ListUsers(ctx); err != nil {
+		return trace.BadParameter("okta credential verification failed: %v", err)
+	}
+	return nil
 }
 
 func (s *Service) GetGroups(ctx context.Context, req *oktapb.GetGroupsRequest) (*oktapb.GetGroupsResponse, error) {
@@ -121,9 +128,6 @@ func (s *Service) CreateIntegration(ctx context.Context, req *oktapb.CreateInteg
 	if err := s.authorize(ctx, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := validateCreateIntegrationRequest(req); err != nil {
-		return nil, trace.Wrap(err, "create integration failed due to invalid request")
-	}
 
 	resp, err := s.createIntegration(ctx, req)
 	if err != nil {
@@ -141,6 +145,19 @@ func (s *Service) CreateIntegration(ctx context.Context, req *oktapb.CreateInteg
 }
 
 func (s *Service) createIntegration(ctx context.Context, req *oktapb.CreateIntegrationRequest) (*oktapb.CreateIntegrationResponse, error) {
+	if err := validateCreateIntegrationRequest(req); err != nil {
+		return nil, trace.Wrap(err, "create integration failed due to invalid request")
+	}
+	if req.GetApiCredentials() != nil {
+		err := s.validateClientCredentials(ctx, &createOktaClientParams{
+			credsFromReq:     req.GetApiCredentials(),
+			oktaOrganization: req.GetOktaOrganizationUrl(),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "validating request Okta credentials")
+		}
+	}
+
 	connectorInfo, err := s.getOrCreateSAMLConnector(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to get or create SAML connector")
@@ -252,6 +269,16 @@ func (s *Service) updateIntegration(ctx context.Context, req *oktapb.UpdateInteg
 		return nil, trace.Wrap(err)
 	}
 
+	if req.GetApiCredentials() != nil {
+		err := s.validateClientCredentials(ctx, &createOktaClientParams{
+			credsFromReq:     req.GetApiCredentials(),
+			oktaOrganization: pluginV1.Spec.GetOkta().OrgUrl,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "validating request Okta credentials")
+		}
+	}
+
 	if err := s.updateOktaSpec(ctx, req, pluginV1); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -277,14 +304,7 @@ func (s *Service) createOktaClientForPluginInstall(ctx context.Context, req *okt
 		return nil, trace.BadParameter("missing Okta API credentials")
 	}
 	if req.GetOktaOrganizationUrl() == "" && connector != nil {
-		oktaOrg, err := sso.ExtractOktaOrganizationFromURL(connector.GetSSO())
-		if err != nil {
-			return nil, trace.BadParameter("missing Okta organization URL")
-		}
-		if oktaOrg == "" {
-			return nil, trace.BadParameter("missing Okta organization URL")
-		}
-		req.OktaOrganizationUrl = oktaOrg
+		return nil, trace.BadParameter("missing Okta org URL")
 	}
 
 	oktaClient, err := s.createOktaClient(ctx, &createOktaClientParams{
