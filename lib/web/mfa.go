@@ -199,6 +199,15 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 			return nil, trace.Wrap(err)
 		}
 
+		// If this is an app session request and we're missing the ClusterID argument, we can
+		// get the target cluster ID from the app resolved by the request. This is useful when
+		// connecting directly to a leaf cluster app through the root cluster rather than through
+		// the launcher.
+		appReq := mfaRequiredCheckProto.GetApp()
+		if appReq != nil && req.IsMFARequiredRequest.ClusterID == "" {
+			req.IsMFARequiredRequest.ClusterID = appReq.GetClusterName()
+		}
+
 		// If the MFA requirement check is being performed for a leaf host, we must check directly
 		// with the leaf cluster before the authentication challenge request through root.
 		if req.IsMFARequiredRequest.ClusterID != "" && req.IsMFARequiredRequest.ClusterID != c.cfg.RootClusterName {
