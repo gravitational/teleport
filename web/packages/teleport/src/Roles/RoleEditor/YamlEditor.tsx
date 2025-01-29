@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useState } from 'react';
+
 import { Flex } from 'design';
 import TextEditor from 'shared/components/TextEditor';
 
@@ -30,6 +32,7 @@ type YamlEditorProps = {
   isProcessing: boolean;
   onChange?(y: YamlEditorModel): void;
   onSave?(content: string): void;
+  onPreview?(): void;
   onCancel?(): void;
 };
 
@@ -39,13 +42,25 @@ export const YamlEditor = ({
   yamlEditorModel,
   onChange,
   onSave,
+  onPreview,
   onCancel,
 }: YamlEditorProps) => {
   const isEditing = !!originalRole;
+  const [wasPreviewed, setHasPreviewed] = useState(!onPreview);
 
   const handleSave = () => onSave?.(yamlEditorModel.content);
 
+  const handlePreview = () => {
+    // handlePreview should only be called if `onPreview` exists, but adding
+    // the extra safety here to protect against potential misuse
+    onPreview?.();
+    setHasPreviewed(true);
+  };
+
   function handleSetYaml(newContent: string) {
+    if (onPreview) {
+      setHasPreviewed(false);
+    }
     onChange?.({
       isDirty: originalRole?.yaml !== newContent,
       content: newContent,
@@ -63,8 +78,12 @@ export const YamlEditor = ({
       </Flex>
       <EditorSaveCancelButton
         onSave={handleSave}
+        onPreview={onPreview ? handlePreview : undefined}
         onCancel={onCancel}
-        disabled={isProcessing || !yamlEditorModel.isDirty}
+        saveDisabled={isProcessing || !yamlEditorModel.isDirty || !wasPreviewed}
+        previewDisabled={
+          isProcessing || wasPreviewed || !yamlEditorModel.isDirty
+        }
         isEditing={isEditing}
       />
     </Flex>

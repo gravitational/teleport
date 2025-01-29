@@ -19,6 +19,7 @@
 package client
 
 import (
+	"cmp"
 	"context"
 	"crypto"
 	"crypto/tls"
@@ -3480,13 +3481,7 @@ func (tc *TeleportClient) Login(ctx context.Context) (*KeyRing, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if tc.KeyTTL == 0 {
-		tc.KeyTTL = time.Duration(pr.Auth.DefaultSessionTTL)
-	}
-	// todo(lxea): DELETE IN v15(?) where the auth is guaranteed to send us a valid MaxSessionTTL or the auth is guaranteed to interpret 0 duration as the auth's default?
-	if tc.KeyTTL == 0 {
-		tc.KeyTTL = apidefaults.CertDuration
-	}
+	tc.KeyTTL = cmp.Or(tc.KeyTTL, pr.Auth.DefaultSessionTTL.Duration(), apidefaults.CertDuration)
 
 	// Get the SSHLoginFunc that matches client and cluster settings.
 	sshLoginFunc, err := tc.getSSHLoginFunc(pr)
@@ -5289,6 +5284,29 @@ func (tc *TeleportClient) RootClusterCACertPool(ctx context.Context) (*x509.Cert
 	}
 
 	pool, err := keyRing.clientCertPool(rootClusterName)
+	return pool, trace.Wrap(err)
+}
+
+// RootClusterCACertPoolPEM returns a PEM-encoded cert pool with the root cluster CA.
+func (tc *TeleportClient) RootClusterCACertPoolPEM(ctx context.Context) ([]byte, error) {
+	_, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/RootClusterCACertPoolPEM",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	keyRing, err := tc.localAgent.GetCoreKeyRing()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rootClusterName, err := keyRing.RootClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pool, err := keyRing.clientCertPoolPEM(rootClusterName)
 	return pool, trace.Wrap(err)
 }
 

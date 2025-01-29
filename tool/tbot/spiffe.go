@@ -36,21 +36,37 @@ type logger struct {
 }
 
 func (l logger) Debugf(format string, args ...interface{}) {
+	if !l.l.Handler().Enabled(context.Background(), slog.LevelDebug) {
+		return
+	}
+
 	//nolint:sloglint // msg cannot be constant
 	l.l.DebugContext(context.Background(), fmt.Sprintf(format, args...))
 }
 
 func (l logger) Infof(format string, args ...interface{}) {
+	if !l.l.Handler().Enabled(context.Background(), slog.LevelInfo) {
+		return
+	}
+
 	//nolint:sloglint // msg cannot be constant
 	l.l.InfoContext(context.Background(), fmt.Sprintf(format, args...))
 }
 
 func (l logger) Warnf(format string, args ...interface{}) {
+	if !l.l.Handler().Enabled(context.Background(), slog.LevelWarn) {
+		return
+	}
+
 	//nolint:sloglint // msg cannot be constant
 	l.l.WarnContext(context.Background(), fmt.Sprintf(format, args...))
 }
 
 func (l logger) Errorf(format string, args ...interface{}) {
+	if !l.l.Handler().Enabled(context.Background(), slog.LevelError) {
+		return
+	}
+
 	//nolint:sloglint // msg cannot be constant
 	l.l.ErrorContext(context.Background(), fmt.Sprintf(format, args...))
 }

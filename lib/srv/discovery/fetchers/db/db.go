@@ -21,15 +21,17 @@ package db
 import (
 	"context"
 	"log/slog"
+	"maps"
+	"slices"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
 	"github.com/aws/aws-sdk-go-v2/service/memorydb"
+	opensearch "github.com/aws/aws-sdk-go-v2/service/opensearch"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -77,6 +79,8 @@ type AWSClientProvider interface {
 	GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) ElastiCacheClient
 	// GetMemoryDBClient provides an [MemoryDBClient].
 	GetMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) MemoryDBClient
+	// GetOpenSearchClient provides an [OpenSearchClient].
+	GetOpenSearchClient(cfg aws.Config, optFns ...func(*opensearch.Options)) OpenSearchClient
 	// GetRDSClient provides an [RDSClient].
 	GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) RDSClient
 	// GetRedshiftClient provides an [RedshiftClient].
@@ -93,6 +97,10 @@ func (defaultAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*el
 
 func (defaultAWSClients) GetMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) MemoryDBClient {
 	return memorydb.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) GetOpenSearchClient(cfg aws.Config, optFns ...func(*opensearch.Options)) OpenSearchClient {
+	return opensearch.NewFromConfig(cfg, optFns...)
 }
 
 func (defaultAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) RDSClient {
@@ -157,7 +165,9 @@ func (f *AWSFetcherFactory) MakeFetchers(ctx context.Context, matchers []types.A
 		for _, matcherType := range matcher.Types {
 			makeFetchers, found := makeAWSFetcherFuncs[matcherType]
 			if !found {
-				return nil, trace.BadParameter("unknown matcher type %q. Supported AWS matcher types are %v", matcherType, maps.Keys(makeAWSFetcherFuncs))
+				return nil, trace.BadParameter("unknown matcher type %q. Supported AWS matcher types are %v",
+					matcherType,
+					slices.Collect(maps.Keys(makeAWSFetcherFuncs)))
 			}
 
 			for _, makeFetcher := range makeFetchers {
@@ -190,7 +200,9 @@ func MakeAzureFetchers(clients cloud.AzureClients, matchers []types.AzureMatcher
 		for _, matcherType := range matcher.Types {
 			makeFetchers, found := makeAzureFetcherFuncs[matcherType]
 			if !found {
-				return nil, trace.BadParameter("unknown matcher type %q. Supported Azure database matcher types are %v", matcherType, maps.Keys(makeAzureFetcherFuncs))
+				return nil, trace.BadParameter("unknown matcher type %q. Supported Azure database matcher types are %v",
+					matcherType,
+					slices.Collect(maps.Keys(makeAzureFetcherFuncs)))
 			}
 
 			for _, makeFetcher := range makeFetchers {

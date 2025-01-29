@@ -28,14 +28,12 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -61,8 +59,6 @@ type Engine struct {
 	clientConn net.Conn
 	// sessionCtx is current session context.
 	sessionCtx *common.Session
-	// CredentialsGetter is used to obtain STS credentials.
-	CredentialsGetter libaws.CredentialsGetter
 }
 
 // InitializeConnection initializes the engine with the client connection.
@@ -137,19 +133,9 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 		e.Audit.OnSessionStart(e.Context, e.sessionCtx, err)
 		return trace.Wrap(err)
 	}
-
-	meta := e.sessionCtx.Database.GetAWS()
-	awsSession, err := e.CloudClients.GetAWSSession(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	signer, err := libaws.NewSigningService(libaws.SigningServiceConfig{
 		Clock:             e.Clock,
-		SessionProvider:   libaws.StaticAWSSessionProvider(awsSession),
-		CredentialsGetter: e.CredentialsGetter,
+		AWSConfigProvider: e.AWSConfigProvider,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -245,13 +231,22 @@ func (e *Engine) getSignedRequest(signer *libaws.SigningService, reqCopy *http.R
 		return nil, trace.Wrap(err)
 	}
 
+	meta := e.sessionCtx.Database.GetAWS()
 	signCtx := &libaws.SigningCtx{
-		SigningName:   opensearchservice.EndpointsID,
-		SigningRegion: e.sessionCtx.Database.GetAWS().Region,
-		Expiry:        e.sessionCtx.Identity.Expires,
-		SessionName:   e.sessionCtx.Identity.Username,
-		AWSRoleArn:    roleArn,
-		AWSExternalID: e.sessionCtx.Database.GetAWS().ExternalID,
+		SigningName:       "es",
+		SigningRegion:     meta.Region,
+		Expiry:            e.sessionCtx.Identity.Expires,
+		SessionName:       e.sessionCtx.Identity.Username,
+		BaseAWSRoleARN:    meta.AssumeRoleARN,
+		BaseAWSExternalID: meta.ExternalID,
+		AWSRoleArn:        roleArn,
+		// OpenSearch uses meta.ExternalID for both the base role and the
+		// assumed role.
+		AWSExternalID: meta.ExternalID,
+	}
+
+	if meta.AssumeRoleARN == "" {
+		signCtx.AWSExternalID = meta.ExternalID
 	}
 
 	signedReq, err := signer.SignRequest(e.Context, reqCopy, signCtx)

@@ -244,3 +244,60 @@ describe('Roles list', () => {
     expect(menuItems).toHaveLength(0);
   });
 });
+
+test('renders the role diff component', async () => {
+  const ctx = createTeleportContext();
+  const defaultState = (): State => ({
+    create: jest.fn(),
+    fetch: jest.fn().mockResolvedValue({
+      startKey: '',
+      items: [
+        {
+          content: '',
+          id: '1',
+          kind: 'role',
+          name: 'cool-role',
+          description: 'coolest-role',
+        },
+      ],
+    }),
+    remove: jest.fn(),
+    update: jest.fn(),
+    rolesAcl: {
+      read: true,
+      remove: true,
+      create: true,
+      edit: true,
+      list: true,
+    },
+  });
+  const roleDiffElement = <div>i am rendered</div>;
+
+  render(
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <Roles
+          {...defaultState()}
+          roleDiffProps={{
+            roleDiffElement,
+            updateRoleDiff: () => null,
+            errorMessage: 'there is an error here',
+          }}
+        />
+      </ContextProvider>
+    </MemoryRouter>
+  );
+  await openEditor();
+  expect(screen.getByText('i am rendered')).toBeInTheDocument();
+  expect(screen.getByText('there is an error here')).toBeInTheDocument();
+});
+
+async function openEditor() {
+  await waitFor(() => {
+    expect(screen.getByText('cool-role')).toBeInTheDocument();
+  });
+  const optionsButton = screen.getByRole('button', { name: /options/i });
+  fireEvent.click(optionsButton);
+  const menuItems = screen.queryAllByRole('menuitem');
+  fireEvent.click(menuItems[0]);
+}

@@ -56,6 +56,7 @@ import (
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -822,6 +823,26 @@ func (c *Client) UpsertUserNotification(ctx context.Context, notification *notif
 
 // ListUserNotificationStatesForAllUsers not implemented: can only be called locally.
 func (c *Client) ListNotificationStatesForAllUsers(ctx context.Context, pageSize int, nextToken string) ([]*notificationsv1.UserNotificationState, string, error) {
+	return nil, "", trace.NotImplemented(notImplementedMessage)
+}
+
+// CreateUniqueNotificationIdentifier not implemented: can only be called locally.
+func (c *Client) CreateUniqueNotificationIdentifier(ctx context.Context, prefix string, identifier string) (*notificationsv1.UniqueNotificationIdentifier, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// GetUniqueNotificationIdentifier not implemented: can only be called locally.
+func (c *Client) GetUniqueNotificationIdentifier(ctx context.Context, prefix string, identifier string) (*notificationsv1.UniqueNotificationIdentifier, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteUniqueNotificationIdentifier not implemented: can only be called locally.
+func (c *Client) DeleteUniqueNotificationIdentifier(ctx context.Context, prefix string, identifier string) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// ListUniqueNotificationIdentifiersForPrefix not implemented: can only be called locally.
+func (c *Client) ListUniqueNotificationIdentifiersForPrefix(ctx context.Context, prefix string, pageSize int, startKey string) ([]*notificationsv1.UniqueNotificationIdentifier, string, error) {
 	return nil, "", trace.NotImplemented(notImplementedMessage)
 }
 
@@ -1703,6 +1724,9 @@ type ClientI interface {
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
 
+	// GenerateAzureOIDCToken generates a token to be used to execute an Azure OIDC Integration action.
+	GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error)
+
 	// ResetAuthPreference resets cluster auth preference to defaults.
 	ResetAuthPreference(ctx context.Context) error
 
@@ -1826,6 +1850,12 @@ type ClientI interface {
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	WorkloadIdentityServiceClient() machineidv1pb.WorkloadIdentityServiceClient
+
+	// WorkloadIdentityIssuanceClient returns a workload identity issuance service client.
+	// Clients connecting to  older Teleport versions, still get a client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient
 
 	// NotificationServiceClient returns a notification service client.
 	// Clients connecting to  older Teleport versions, still get a client

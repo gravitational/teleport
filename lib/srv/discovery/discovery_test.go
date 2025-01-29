@@ -43,6 +43,7 @@ import (
 	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
 	"github.com/aws/aws-sdk-go-v2/service/memorydb"
+	"github.com/aws/aws-sdk-go-v2/service/opensearch"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
@@ -3929,11 +3930,12 @@ func newPopulatedGCPProjectsMock() *mockProjectsAPI {
 }
 
 type fakeAWSClients struct {
-	ecClient       db.ElastiCacheClient
-	mdbClient      db.MemoryDBClient
-	rdsClient      db.RDSClient
-	redshiftClient db.RedshiftClient
-	rssClient      db.RSSClient
+	ecClient         db.ElastiCacheClient
+	mdbClient        db.MemoryDBClient
+	openSearchClient db.OpenSearchClient
+	rdsClient        db.RDSClient
+	redshiftClient   db.RedshiftClient
+	rssClient        db.RSSClient
 }
 
 func (f fakeAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) db.ElastiCacheClient {
@@ -3942,6 +3944,10 @@ func (f fakeAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*ela
 
 func (f fakeAWSClients) GetMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) db.MemoryDBClient {
 	return f.mdbClient
+}
+
+func (f fakeAWSClients) GetOpenSearchClient(cfg aws.Config, optFns ...func(*opensearch.Options)) db.OpenSearchClient {
+	return f.openSearchClient
 }
 
 func (f fakeAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) db.RDSClient {

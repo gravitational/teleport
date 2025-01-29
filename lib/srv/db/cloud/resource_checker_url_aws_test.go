@@ -24,10 +24,10 @@ import (
 
 	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
+	opensearchtypes "github.com/aws/aws-sdk-go-v2/service/opensearch/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
-	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -121,14 +121,10 @@ func TestURLChecker_AWS(t *testing.T) {
 
 	// Mock cloud clients.
 	mockClients := &cloud.TestCloudClients{
-		OpenSearch: &mocks.OpenSearchMock{
-			Domains: []*opensearchservice.DomainStatus{openSearchDomain, openSearchVPCDomain},
-		},
 		STS: &mocks.STSClientV1{},
 	}
 	mockClientsUnauth := &cloud.TestCloudClients{
-		OpenSearch: &mocks.OpenSearchMock{Unauth: true},
-		STS:        &mocks.STSClientV1{},
+		STS: &mocks.STSClientV1{},
 	}
 
 	// Test both check methods.
@@ -145,11 +141,14 @@ func TestURLChecker_AWS(t *testing.T) {
 			clients:           mockClients,
 			awsConfigProvider: &mocks.AWSConfigProvider{},
 			awsClients: fakeAWSClients{
+				ecClient: &mocks.ElastiCacheClient{
+					ReplicationGroups: []ectypes.ReplicationGroup{*elastiCacheClusterConfigurationMode, *elastiCacheCluster},
+				},
 				mdbClient: &mocks.MemoryDBClient{
 					Clusters: []memorydbtypes.Cluster{*memoryDBCluster},
 				},
-				ecClient: &mocks.ElastiCacheClient{
-					ReplicationGroups: []ectypes.ReplicationGroup{*elastiCacheClusterConfigurationMode, *elastiCacheCluster},
+				openSearchClient: &mocks.OpenSearchClient{
+					Domains: []opensearchtypes.DomainStatus{*openSearchDomain, *openSearchVPCDomain},
 				},
 				rdsClient: &mocks.RDSClient{
 					DBInstances:      []rdstypes.DBInstance{*rdsInstance},
@@ -171,11 +170,12 @@ func TestURLChecker_AWS(t *testing.T) {
 			clients:           mockClientsUnauth,
 			awsConfigProvider: &mocks.AWSConfigProvider{},
 			awsClients: fakeAWSClients{
-				ecClient:       &mocks.ElastiCacheClient{Unauth: true},
-				mdbClient:      &mocks.MemoryDBClient{Unauth: true},
-				rdsClient:      &mocks.RDSClient{Unauth: true},
-				redshiftClient: &mocks.RedshiftClient{Unauth: true},
-				rssClient:      &mocks.RedshiftServerlessClient{Unauth: true},
+				ecClient:         &mocks.ElastiCacheClient{Unauth: true},
+				mdbClient:        &mocks.MemoryDBClient{Unauth: true},
+				openSearchClient: &mocks.OpenSearchClient{Unauth: true},
+				rdsClient:        &mocks.RDSClient{Unauth: true},
+				redshiftClient:   &mocks.RedshiftClient{Unauth: true},
+				rssClient:        &mocks.RedshiftServerlessClient{Unauth: true},
 			},
 		},
 	}

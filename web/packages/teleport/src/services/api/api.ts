@@ -28,8 +28,16 @@ import parseError, { ApiError, parseProxyVersion } from './parseError';
 export const MFA_HEADER = 'Teleport-Mfa-Response';
 
 const api = {
-  get(url: string, abortSignal?: AbortSignal) {
-    return api.fetchJsonWithMfaAuthnRetry(url, { signal: abortSignal });
+  get(
+    url: string,
+    abortSignal?: AbortSignal,
+    mfaResponse?: MfaChallengeResponse
+  ) {
+    return api.fetchJsonWithMfaAuthnRetry(
+      url,
+      { signal: abortSignal },
+      mfaResponse
+    );
   },
 
   post(url, data?, abortSignal?, mfaResponse?: MfaChallengeResponse) {
@@ -142,66 +150,31 @@ const api = {
     customOptions: RequestInit,
     mfaResponse?: MfaChallengeResponse
   ): Promise<any> {
-    const response = await api.fetch(url, customOptions, mfaResponse);
-
-    let json;
     try {
-      json = await response.json();
+      return await api.fetch(url, customOptions, mfaResponse);
     } catch (err) {
-      // error reading JSON
-      const message = response.ok
-        ? err.message
-        : `${response.status} - ${response.url}`;
-      throw new ApiError({ message, response, opts: { cause: err } });
+      // Retry with MFA if we get an admin action MFA error.
+      if (!mfaResponse && isAdminActionRequiresMfaError(err)) {
+        mfaResponse = await api.getAdminActionMfaResponse();
+        return api.fetch(url, customOptions, mfaResponse);
+      } else {
+        throw err;
+      }
     }
+  },
 
-    if (response.ok) {
-      return json;
-    }
+  async getAdminActionMfaResponse() {
+    const challenge = await auth.getMfaChallenge({
+      scope: MfaChallengeScope.ADMIN_ACTION,
+    });
 
-    /** This error can occur in the edge case where a role in the user's certificate was deleted during their session. */
-    const isRoleNotFoundErr = isRoleNotFoundError(parseError(json));
-    if (isRoleNotFoundErr) {
-      websession.logoutWithoutSlo({
-        /* Don't remember location after login, since they may no longer have access to the page they were on. */
-        rememberLocation: false,
-        /* Show "access changed" notice on login page. */
-        withAccessChangedMessage: true,
-      });
-      return;
-    }
-
-    // Retry with MFA if we get an admin action missing MFA error.
-    const isAdminActionMfaError = isAdminActionRequiresMfaError(
-      parseError(json)
-    );
-    const shouldRetry = isAdminActionMfaError && !mfaResponse;
-    if (!shouldRetry) {
-      throw new ApiError({
-        message: parseError(json),
-        response,
-        proxyVersion: parseProxyVersion(json),
-        messages: json.messages,
-      });
-    }
-
-    let mfaResponseForRetry;
-    try {
-      const challenge = await auth.getMfaChallenge({
-        scope: MfaChallengeScope.ADMIN_ACTION,
-      });
-      mfaResponseForRetry = await auth.getMfaChallengeResponse(challenge);
-    } catch {
+    if (!challenge) {
       throw new Error(
-        'Failed to fetch MFA challenge. Please connect a registered hardware key and try again. If you do not have a hardware key registered, you can add one from your account settings page.'
+        'This is an admin-level API request and requires MFA verification. Please try again with a registered MFA device. If you do not have an MFA device registered, you can add one in the account settings page.'
       );
     }
 
-    return api.fetchJsonWithMfaAuthnRetry(
-      url,
-      customOptions,
-      mfaResponseForRetry
-    );
+    return auth.getMfaChallengeResponse(challenge);
   },
 
   /**
@@ -246,7 +219,7 @@ const api = {
    * @param mfaResponse if defined (eg: `fetchJsonWithMfaAuthnRetry`)
    * will add a custom MFA header field that will hold the mfaResponse.
    */
-  fetch(
+  async fetch(
     url: string,
     customOptions: RequestInit = {},
     mfaResponse?: MfaChallengeResponse
@@ -272,7 +245,41 @@ const api = {
     }
 
     // native call
-    return fetch(url, options);
+    const response = await fetch(url, options);
+
+    let json;
+    try {
+      json = await response.json();
+    } catch (err) {
+      // error reading JSON
+      const message = response.ok
+        ? err.message
+        : `${response.status} - ${response.url}`;
+      throw new ApiError({ message, response, opts: { cause: err } });
+    }
+
+    if (response.ok) {
+      return json;
+    }
+
+    /** This error can occur in the edge case where a role in the user's certificate was deleted during their session. */
+    const isRoleNotFoundErr = isRoleNotFoundError(parseError(json));
+    if (isRoleNotFoundErr) {
+      websession.logoutWithoutSlo({
+        /* Don't remember location after login, since they may no longer have access to the page they were on. */
+        rememberLocation: false,
+        /* Show "access changed" notice on login page. */
+        withAccessChangedMessage: true,
+      });
+      return;
+    }
+
+    throw new ApiError({
+      message: parseError(json),
+      response,
+      proxyVersion: parseProxyVersion(json),
+      messages: json.messages,
+    });
   },
 };
 
@@ -318,8 +325,8 @@ export function getHostName() {
   return location.hostname + (location.port ? ':' + location.port : '');
 }
 
-function isAdminActionRequiresMfaError(errMessage) {
-  return errMessage.includes(
+function isAdminActionRequiresMfaError(err: Error) {
+  return err.message.includes(
     'admin-level API request requires MFA verification'
   );
 }

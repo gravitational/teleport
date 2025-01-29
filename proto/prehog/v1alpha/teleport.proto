@@ -232,6 +232,8 @@ message SessionStartDatabaseMetadata {
   string db_protocol = 2;
   // database origin source.
   string db_origin = 3;
+  // Indicates the client used on the session.
+  string user_agent = 4;
 }
 
 // SessionStartDesktop Metadata contains additional information about
