@@ -295,9 +295,9 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
-					Group:       "group",
-					URLTemplate: "https://example.com",
-					Enabled:     true,
+					Group:   "group",
+					BaseURL: "https://example.com",
+					Enabled: true,
 				},
 				Status: UpdateStatus{
 					Active: NewRevision("old-version", 0),
@@ -309,7 +309,7 @@ func TestUpdater_Update(t *testing.T) {
 
 			removedRevisions:  []Revision{NewRevision("unknown-version", 0)},
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: "https://example.com",
+			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", 0),
 			requestGroup:      "group",
 			reloadCalls:       1,
@@ -1394,7 +1394,7 @@ func TestUpdater_Install(t *testing.T) {
 			notPresent: true,
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: cdnURITemplate,
+			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       0,
 			revertCalls:       1,
@@ -1407,7 +1407,7 @@ func TestUpdater_Install(t *testing.T) {
 			notActive:  true,
 
 			installedRevision: NewRevision("16.3.0", 0),
-			installedTemplate: cdnURITemplate,
+			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			reloadCalls:       1,
 			setupCalls:        1,
