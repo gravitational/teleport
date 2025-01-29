@@ -48,16 +48,21 @@ export function IdentityContainer() {
   const selectorRef = useRef<HTMLButtonElement>();
   const [open, setOpen] = useState(false);
   const { getLabelWithAccelerator } = useKeyboardShortcutFormatters();
-  const togglePopover = useCallback(() => {
-    setOpen(wasOpened => !wasOpened);
-  }, []);
+  const hasClusters = activeRootCluster || rootClusters.length;
+  const togglePopoverOrAddCluster = useCallback(() => {
+    if (hasClusters) {
+      setOpen(o => !o);
+    } else {
+      addCluster();
+    }
+  }, [addCluster, hasClusters]);
 
   useKeyboardShortcuts(
     useMemo(
       () => ({
-        openProfiles: togglePopover,
+        openProfiles: togglePopoverOrAddCluster,
       }),
-      [togglePopover]
+      [togglePopoverOrAddCluster]
     )
   );
 
@@ -88,7 +93,7 @@ export function IdentityContainer() {
     <>
       <IdentitySelector
         ref={selectorRef}
-        onClick={togglePopover}
+        onClick={togglePopoverOrAddCluster}
         open={open}
         activeCluster={activeRootCluster}
         activeColor={activeColor}

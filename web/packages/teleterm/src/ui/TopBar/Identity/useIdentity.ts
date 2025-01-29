@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useCallback } from 'react';
+
 import { Cluster } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
@@ -34,9 +36,9 @@ export function useIdentity() {
     await ctx.workspacesService.setActiveWorkspace(clusterUri);
   }
 
-  function addCluster(): void {
+  const addCluster = useCallback(() => {
     ctx.commandLauncher.executeCommand('cluster-connect', {});
-  }
+  }, [ctx.commandLauncher]);
 
   function refreshCluster(clusterUri: RootClusterUri): void {
     ctx.commandLauncher.executeCommand('cluster-connect', { clusterUri });

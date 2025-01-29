@@ -28,7 +28,6 @@ import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
 import { getUserWithClusterName } from 'teleterm/ui/utils';
 
 import { getClusterLetter } from '../IdentityList/IdentityListItem';
-import { PamIcon } from './PamIcon';
 import { UserIcon } from './UserIcon';
 
 export const IdentitySelector = forwardRef<
@@ -78,9 +77,7 @@ export const IdentitySelector = forwardRef<
           )}
         </Box>
       ) : (
-        // TODO(gzdunek): Replace this icon with something simpler.
-        // It is too detailed for its size and has no meaning.
-        <PamIcon />
+        <UserIcon letter="+" />
       )}
     </TopBarButton>
   );
