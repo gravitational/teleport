@@ -129,10 +129,6 @@ message TLSIdentity {
   // to, if any.
   string bot_name = 29;
 
-  // BotInstanceId is a unique identifier for Machine ID bots that is persisted
-  // through renewals.
-  string bot_instance_id = 30;
-
   // AllowedResourceIds lists the resources the identity should be allowed to
   // access.
   repeated ResourceId allowed_resource_ids = 31;
@@ -177,16 +173,6 @@ message RouteToApp {
   // GcpServiceAccount is the GCP service account to assume when accessing GCP
   // API.
   string gcp_service_account = 7;
-
-  // Uri is the URI of the app. This is the internal endpoint where the
-  // application is running and isn't user-facing.
-  string uri = 8;
-
-  // TargetPort is the port to which connections should be routed to. Used only
-  // for multi-port TCP apps. It is appended to the hostname from the URI in the
-  // app spec, since the URI from RouteToApp is not used as the source of truth
-  // for routing.
-  int32 target_port = 9;
 }
 
 // RouteToDatabase contains routing information for databases.

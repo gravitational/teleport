@@ -68,8 +68,6 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 			AwsRoleArn:        "aws-role-arn",
 			AzureIdentity:     "azure-id",
 			GcpServiceAccount: "gcp-service-account",
-			Uri:               "uri",
-			TargetPort:        111,
 		},
 		TeleportCluster: "teleport-cluster",
 		RouteToDatabase: &decisionpb.RouteToDatabase{
@@ -93,7 +91,6 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 		Renewable:               true,
 		Generation:              112,
 		BotName:                 "bot-name",
-		BotInstanceId:           "bot-instance-id",
 		AllowedResourceIds: []*decisionpb.ResourceId{
 			{
 				ClusterName:     "cluster1",
