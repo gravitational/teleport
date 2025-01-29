@@ -82,7 +82,7 @@ With the values used in Step 2, please copy and paste the following information:
 	netIQStep5Template = bold("Step 5: Input IDM User and Password") + `
 
 Please provide the IDM user to configure the integration. 
-This user must have the necessary permissions to access the IDM API and retrieve users, groups, roles 
+This user must have permissions to access the IDM API and retrieve users, groups, roles 
 and resources. Use the following format: ` + bold("cn=uaadmin,ou=sa,o=data") + `.
 `
 )
@@ -121,7 +121,7 @@ func (p *PluginsCommand) netIQSetupGuide(ctx context.Context) (netIQSettings, er
 		return netIQSettings{}, trace.Wrap(err)
 	}
 
-	settings.apiURL, err = promptForURL(ctx, os.Stdout, netIQStep2Template, "Please enter the IDM API address ", p.install.netIQ.insecureSkipVerify, checkUnauthenticatedNetIQAPIAddress)
+	settings.apiURL, err = promptForURL(ctx, os.Stdout, netIQStep2Template, "Please enter the IDM API address", p.install.netIQ.insecureSkipVerify, checkUnauthenticatedNetIQAPIAddress)
 	if err != nil {
 		return netIQSettings{}, trace.Wrap(err)
 	}
@@ -130,12 +130,12 @@ func (p *PluginsCommand) netIQSetupGuide(ctx context.Context) (netIQSettings, er
 		return netIQSettings{}, err
 	}
 
-	settings.oAuthClientID, err = promptForInput(ctx, os.Stdout, netIQStep4Template, "Enter the OAuth ClientID ")
+	settings.oAuthClientID, err = promptForInput(ctx, os.Stdout, netIQStep4Template, "Enter the OAuth ClientID")
 	if err != nil {
 		return netIQSettings{}, trace.Wrap(err)
 	}
 
-	settings.oAuthClientSecret, err = promptForPassword(ctx, os.Stdout, "Enter the OAuth Client Secret ")
+	settings.oAuthClientSecret, err = promptForPassword(ctx, os.Stdout, "Enter the OAuth Client Secret")
 	if err != nil {
 		return netIQSettings{}, trace.Wrap(err)
 	}
