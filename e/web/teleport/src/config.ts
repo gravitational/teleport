@@ -68,6 +68,8 @@ const cfg = {
       '/v1/enterprise/accessrequest/:requestId/suggestions/accesslist',
 
     accessGraphQueryPath: '/v1/enterprise/accessgraph/query',
+    accessGraphRoleTesterPath:
+      '/v1/enterprise/accessgraph/graph/tester/teleport/role/v1',
 
     accessRequestPromotePath: '/v1/enterprise/accessrequest/:requestId/promote',
     accessRequestPath: '/v1/enterprise/accessrequest/:requestId?',

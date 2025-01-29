@@ -46,6 +46,7 @@ export interface AccessPathDiff {
 
 interface AccessGraphDiffProps {
   diff: AccessPathDiff;
+  loading: boolean;
 }
 
 declare global {
