@@ -430,11 +430,18 @@ func (li *LocalInstaller) Link(ctx context.Context, rev Revision, force bool) (r
 	return revert, nil
 }
 
+func emptyRevert(_ context.Context) bool {
+	return true
+}
+
 // LinkSystem links the system (package) version into LinkBinDir and CopyServiceFile.
 // LinkSystem returns ErrInvalid if LinkBinDir is not DefaultLinkDir.
 // The revert function restores the previous linking.
 // See Installer interface for additional specs.
 func (li *LocalInstaller) LinkSystem(ctx context.Context) (revert func(context.Context) bool, err error) {
+	if filepath.Clean(li.LinkBinDir) != filepath.Clean(DefaultLinkDir) {
+		return emptyRevert, trace.Wrap(ErrInvalid, "refusing to link into %s instead of %s", li.LinkBinDir, DefaultLinkDir)
+	}
 	revert, err = li.forceLinks(ctx, li.SystemBinDir, li.SystemServiceFile, false)
 	return revert, trace.Wrap(err)
 }
@@ -458,6 +465,9 @@ func (li *LocalInstaller) TryLink(ctx context.Context, revision Revision) error 
 // TryLinkSystem returns ErrInvalid if LinkBinDir is not DefaultLinkDir.
 // See Installer interface for additional specs.
 func (li *LocalInstaller) TryLinkSystem(ctx context.Context) error {
+	if filepath.Clean(li.LinkBinDir) != filepath.Clean(DefaultLinkDir) {
+		return trace.Wrap(ErrInvalid, "refusing to link into %s instead of %s", li.LinkBinDir, DefaultLinkDir)
+	}
 	return trace.Wrap(li.tryLinks(ctx, li.SystemBinDir, li.SystemServiceFile))
 }
 
