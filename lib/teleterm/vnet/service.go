@@ -63,6 +63,7 @@ type Service struct {
 	usageReporter      usageReporter
 	processManager     *vnet.ProcessManager
 	clusterConfigCache *vnet.ClusterConfigCache
+	networkStackInfo   vnet.NetworkStackInfo
 }
 
 // New creates an instance of Service.
@@ -159,7 +160,7 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		clientApplication.usageReporter = usageReporter
 	}
 
-	processManager, _, err := vnet.RunUserProcess(ctx, &vnet.UserProcessConfig{
+	processManager, nsi, err := vnet.RunUserProcess(ctx, &vnet.UserProcessConfig{
 		ClientApplication: clientApplication,
 	})
 	if err != nil {
@@ -194,6 +195,7 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 	}()
 
 	s.processManager = processManager
+	s.networkStackInfo = nsi
 	s.usageReporter = clientApplication.usageReporter
 	s.status = statusRunning
 	return &api.StartResponse{}, nil
