@@ -323,7 +323,8 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 
 	if err := u.update(ctx, cfg, target, override.AllowOverwrite); err != nil {
 		if errors.Is(err, ErrFilePresent) && !override.AllowOverwrite {
-			u.Log.WarnContext(ctx, "Use --overwrite to force removal of existing binaries.")
+			u.Log.WarnContext(ctx, "Use --overwrite to force removal of existing binaries installed via script.")
+			u.Log.WarnContext(ctx, "If a teleport rpm or deb package is installed, upgrade it to the latest version and retry. DO NOT USE --overwrite.")
 		}
 		return trace.Wrap(err)
 	}
