@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/debug"
 )
 
-// PID monitoring consts
+// process monitoring consts
 const (
 	// monitorTimeout is the timeout for determining whether the process has started.
 	monitorTimeout = 1 * time.Minute
