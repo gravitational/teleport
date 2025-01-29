@@ -40,24 +40,11 @@ export function ColorPicker(props: {
   const [hoveredColor, setHoveredColor] = useState<ProfileColor | undefined>();
   const ref = useRefClickOutside<HTMLDivElement>({ open, setOpen });
 
-  const $userIcon = (
-    <UserIcon
-      color={hoveredColor || props.color}
-      onClick={() => setOpen(o => !o)}
-      css={`
-        cursor: pointer;
-        height: 34px;
-        width: 34px;
-
-        &:hover {
-          opacity: 0.9;
-        }
-      `}
-      letter={props.letter}
-    >
-      {!open && <AbsolutePencilIcon />}
-    </UserIcon>
-  );
+  const userIconProps = {
+    size: 'big' as const,
+    onClick: () => setOpen(o => !o),
+    letter: props.letter,
+  };
 
   return (
     <Box
@@ -65,7 +52,9 @@ export function ColorPicker(props: {
         position: relative;
       `}
     >
-      {$userIcon}
+      <UserIcon {...userIconProps} interactive={!open} color={props.color}>
+        <AbsolutePencilIcon />
+      </UserIcon>
       {open && (
         <Flex
           ref={ref}
@@ -82,7 +71,11 @@ export function ColorPicker(props: {
           flexDirection="row"
           p={1}
         >
-          {$userIcon}
+          <UserIcon
+            {...userIconProps}
+            interactive
+            color={hoveredColor || props.color}
+          />
           <Flex alignItems="center" flexDirection="row" gap={2} px={2}>
             {profileColors.options.map(profileColor => (
               <Circle
@@ -112,6 +105,10 @@ const Circle = styled.button<{ color?: string }>`
   border: none;
   cursor: pointer;
   box-shadow: rgba(0, 0, 0, 0.15) 0 1px 3px;
+
+  &:focus-visible {
+    outline: 1px solid ${props => props.theme.colors.text.muted};
+  }
 
   &:hover {
     opacity: 0.9;

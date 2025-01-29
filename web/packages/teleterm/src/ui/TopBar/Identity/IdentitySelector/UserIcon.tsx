@@ -28,34 +28,52 @@ export function UserIcon(props: {
   letter: string;
   /** If not provided, a default neutral color is rendered. */
   color?: ProfileColor;
-  className?: string;
   onClick?(e: MouseEvent<HTMLSpanElement>): void;
   children?: ReactNode;
+  interactive?: boolean;
+  size?: 'regular' | 'big';
 }) {
   return (
     <Circle
+      as={props.interactive ? 'button' : 'span'}
+      size={props.size === 'big' ? '34px' : '30px'}
       onClick={props.onClick}
-      className={props.className}
+      interactive={props.interactive}
       color={profileColorMapping[props.color]}
     >
-      {props.letter.toLocaleUpperCase()}
+      {props.letter?.toLocaleUpperCase()}
       {props.children}
     </Circle>
   );
 }
 
-const Circle = styled.span<{ color?: string }>`
+const Circle = styled.span<{
+  color?: string;
+  interactive?: boolean;
+  size: string;
+}>`
   position: relative;
   border-radius: 50%;
-  color: ${props =>
-    props.color ? 'white' : props.theme.colors.interactive.solid.primary};
+  color: ${props => (props.color ? 'white' : props.theme.colors.text.main)};
   background: ${props =>
     props.color || props.theme.colors.interactive.tonal.neutral[1]};
-  height: 30px;
-  width: 30px;
+  height: ${props => props.size};
+  width: ${props => props.size};
   display: flex;
   font-weight: 500;
   justify-content: center;
   align-items: center;
   box-shadow: rgba(0, 0, 0, 0.15) 0 1px 3px;
+  border: none;
+  &:focus-visible {
+    outline: 2px solid ${props => props.theme.colors.text.muted};
+  }
+  ${props =>
+    props.interactive &&
+    `
+    &:hover {
+      opacity: 0.9;
+    }
+    cursor: pointer;
+    `}
 `;
