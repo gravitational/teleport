@@ -122,7 +122,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	foundAssignment := getOktaAssignment(t, ap, accessRequest.GetName())
 	expires := accessRequest.GetAccessExpiry()
 	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, expires, constants.OktaAssignmentStatusPending, clock.Now(), false,
-		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, hash, "app1", "link1"))),
+		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, "app1", "link1"))),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
@@ -137,7 +137,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	cleanupTimeNow := clock.Now()
 	foundAssignment = getOktaAssignment(t, ap, accessRequest.GetName())
 	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, cleanupTimeNow, constants.OktaAssignmentStatusPending, clock.Now(), false,
-		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, hash, "app1", "link1"))),
+		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, "app1", "link1"))),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
@@ -147,7 +147,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 
 	foundAssignment = getOktaAssignment(t, ap, accessRequest.GetName())
 	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, cleanupTimeNow, constants.OktaAssignmentStatusPending, clock.Now(), false,
-		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, hash, "app1", "link1"))),
+		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, "app1", "link1"))),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
@@ -268,8 +268,8 @@ func TestAccessRequestToOktaAssignment(t *testing.T) {
 			},
 			assignmentStatus: constants.OktaAssignmentStatusPending,
 			expected: assignment(t, accessRequestName, user, expires, constants.OktaAssignmentStatusPending, clock.Now(), false,
-				target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, hash, "app1", "link1")),
-				target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, hash, "app2", "link1")),
+				target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, "app1", "link1")),
+				target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, "app2", "link1")),
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			),
 			errAssertionFunc: require.NoError,

@@ -294,10 +294,9 @@ func waitForResult[T any](t *testing.T, ch chan T, expected T, numTimes int) {
 	}
 }
 
-func mustAppName(t *testing.T, hash crypto.Hash, name, appLinkName string) string {
+func mustAppName(t *testing.T, name, appLinkName string) string {
 	t.Helper()
-
-	appName, err := appName(hash, name, appLinkName)
+	appName, err := AppName(name, appLinkName)
 	require.NoError(t, err)
 	return appName
 }
@@ -322,7 +321,7 @@ func application(t *testing.T, hash crypto.Hash, name, appLinkName, origin, orgU
 		labels[teleport.OktaOrgURLLabel] = orgURL
 	}
 	metadata := types.Metadata{
-		Name:   mustAppName(t, hash, name, appLinkName),
+		Name:   mustAppName(t, name, appLinkName),
 		Labels: labels,
 	}
 

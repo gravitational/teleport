@@ -28,7 +28,7 @@ func TestProcessAssignments(t *testing.T) {
 	const link = "link"
 	hash := crypto.SHA256
 	appName := func(name string) string {
-		return mustAppName(t, hash, name, link)
+		return mustAppName(t, name, link)
 	}
 	startTime := time.Now().UTC()
 	zero := time.Time{}
@@ -77,8 +77,8 @@ func TestProcessAssignments(t *testing.T) {
 				application(t, hash, "app2", link, types.OriginOkta, "different-org-url", testHostID),
 			},
 			deleteOktaAppIDs: map[string]bool{
-				mustAppName(t, hash, "app1", link): true,
-				mustAppName(t, hash, "app2", link): true,
+				mustAppName(t, "app1", link): true,
+				mustAppName(t, "app2", link): true,
 			},
 			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusPending, startTime, false,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),

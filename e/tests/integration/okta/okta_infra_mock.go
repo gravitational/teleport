@@ -67,7 +67,7 @@ func withAppsGroupsUsersCount(apps, groups, users int) oktaSetupOptionFun {
 	}
 }
 
-func createOktaSetupTreeAppGroupUserAndBasicUserGroupAssigment(t *testing.T, ctx context.Context) *oktaInfraSetup {
+func createOktaSetupTreeAppGroupUserAndBasicUserGroupAssignment(t *testing.T, ctx context.Context) *oktaInfraSetup {
 	oktaAppGroupsUsersCount := withAppsGroupsUsersCount(3, 3, 3)
 	oktaInfra := createOktaSetup(t, ctx, newMockOktaAPIClient(), oktaAppGroupsUsersCount)
 	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[0].Id)
@@ -154,7 +154,33 @@ func (s *oktaInfraSetup) addUserToGroup(t *testing.T, groupID, userID string) {
 	require.NoError(t, err, "failed to add %s user to group %s", userID, groupID)
 }
 
-func createOktaApp(t *testing.T, ctx context.Context, client *mockOktaAPIClient, name string) *okta.BasicAuthApplication {
+type oktaApplicationEmbedLinks struct {
+	AppLinks []oktaApplicationEmbedLink
+}
+
+type oktaApplicationEmbedLink struct {
+	Name string
+	Href string
+}
+
+type createOktaAppOptions struct {
+	links oktaApplicationEmbedLinks
+}
+
+type createOktaAppOption func(*createOktaAppOptions)
+
+func withAppLinks(links oktaApplicationEmbedLinks) createOktaAppOption {
+	return func(o *createOktaAppOptions) {
+		o.links = links
+	}
+}
+
+func createOktaApp(t *testing.T, ctx context.Context, client *mockOktaAPIClient, name string, opts ...createOktaAppOption) *okta.BasicAuthApplication {
+	var options createOktaAppOptions
+	for _, o := range opts {
+		o(&options)
+	}
+
 	basicApplication := okta.NewBasicAuthApplication()
 	basicApplication.Settings = &okta.BasicApplicationSettings{
 		App: &okta.BasicApplicationSettingsApplication{
@@ -162,7 +188,10 @@ func createOktaApp(t *testing.T, ctx context.Context, client *mockOktaAPIClient,
 			Url:     "https://example.com/auth.html",
 		},
 	}
-	basicApplication.Label = fmt.Sprintf("%s-%s", name, uuid.New())
+	basicApplication.Label = name
+	if len(options.links.AppLinks) > 0 {
+		basicApplication.Links = options.links
+	}
 
 	application, _, err := client.CreateApplication(ctx, basicApplication, nil)
 	require.NoError(t, err)
@@ -181,7 +210,7 @@ func createOktaSAMLAPP(t *testing.T, ctx context.Context, client *mockOktaAPICli
 			"type": "application/xml",
 		},
 	}
-	samlAPP.Label = name
+	samlAPP.Name = name
 	application, _, err := client.CreateApplication(ctx, samlAPP, nil)
 	require.NoError(t, err)
 	app, ok := application.(*okta.SamlApplication)

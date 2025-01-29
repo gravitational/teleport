@@ -245,9 +245,6 @@ type Service struct {
 	// rateLimiter will rate limit backend interactions.
 	rateLimiter *rate.Limiter
 
-	// hash function for getting unique names from app IDs/app link names.
-	hash crypto.Hash
-
 	// Heartbeat monitoring
 	heartbeatsMu sync.Mutex
 	heartbeats   map[string]*srv.Heartbeat
@@ -384,7 +381,6 @@ func newWithClientCreator(ctx context.Context, config Config, creator api.OktaCl
 		onHeartbeat:             config.OnHeartbeat,
 		emitter:                 config.Emitter,
 		rateLimiter:             rate.NewLimiter(rate.Every(time.Second/time.Duration(config.BackendTasksPerSecond)), 1),
-		hash:                    crypto.SHA256,
 		heartbeats:              map[string]*srv.Heartbeat{},
 		groupIRMapping:          map[string]prioritizedLabels{},
 		applicationIRMapping:    map[string]prioritizedLabels{},

@@ -62,20 +62,18 @@ func (s *Service) oktaGroupToUserGroup(oktaGroup *okta.Group, appIDs []string) (
 	return userGroup, nil
 }
 
-type embeddedLinks struct {
-	AppLinks []appLink `mapstructure:"appLinks"`
-	Metadata *appLink  `mapstructure:"metadata"`
+type oktaApplicationEmbedLinks struct {
+	AppLinks []oktaApplicationEmbedLink `mapstructure:"appLinks"`
 }
 
-type appLink struct {
+type oktaApplicationEmbedLink struct {
 	Name string `mapstructure:"name"`
 	Href string `mapstructure:"href"`
-	Type string `mapstructure:"type"`
 }
 
 // oktaAppToApps converts an Okta app object to types.Application objects. This will convert
 // multiple appLinks in an Okta object into multiple applications.
-func (s *Service) oktaAppToApp(oktaApplication *okta.Application, groupIDs []string) ([]*types.AppV3, error) {
+func (s *Service) oktaAppToApps(oktaApplication *okta.Application, groupIDs []string) ([]*types.AppV3, error) {
 	appIdentifier := fmt.Sprintf("%s (%s)", oktaApplication.Id, oktaApplication.Label)
 
 	// Filter out Okta apps if they're not the kind we want to display to users.
@@ -89,7 +87,7 @@ func (s *Service) oktaAppToApp(oktaApplication *okta.Application, groupIDs []str
 
 	// Unfortunately the app links are stuffed into an interface{}, so we've got to extract the
 	// fields for app links using mapstructure.
-	embeddedLinks := &embeddedLinks{}
+	embeddedLinks := &oktaApplicationEmbedLinks{}
 	if err := mapstructure.Decode(oktaApplication.Links, embeddedLinks); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -116,7 +114,7 @@ func (s *Service) oktaAppToApp(oktaApplication *okta.Application, groupIDs []str
 	// Create an app for each app link. This is required because there can be multiple
 	// app links per Okta application.
 	for _, appLink := range embeddedLinks.AppLinks {
-		appID, err := appName(s.hash, oktaApplication.Id, appLink.Name)
+		appID, err := AppName(oktaApplication.Id, appLink.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -151,10 +149,10 @@ func (s *Service) oktaAppToApp(oktaApplication *okta.Application, groupIDs []str
 	return apps, nil
 }
 
-// appName returns an app name based on the ID and app link name.
-func appName(hash crypto.Hash, id, appLinkName string) (string, error) {
+// AppName returns an app name based on the Okta app ID and embed link name.
+func AppName(id, appLinkName string) (string, error) {
 	// Let's create a short unique string for the app ID.
-	hasher := hash.New()
+	hasher := crypto.SHA256.New()
 	_, err := hasher.Write([]byte(fmt.Sprintf("%s-%s", id, appLinkName)))
 	if err != nil {
 		return "", trace.Wrap(err)

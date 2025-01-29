@@ -86,7 +86,7 @@ func TestPluginEnrolmentFullIntegration(t *testing.T) {
 	})
 
 	t.Run("enroll okta integration", func(t *testing.T) {
-		mustCreateOktaEveryoneGroupAndAssignOktaUsers(t, oktaInfra)
+		mustCreateOktaEveryoneGroupAndAssignOktaUsers(t, oktaInfra.client, oktaInfra.Users...)
 
 		resp, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
 			OktaOrganizationUrl:  "https://trial-1234567.okta.com",
@@ -189,14 +189,14 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 	ctx := context.Background()
 	scimToken := uuid.NewString()
 
-	oktaInfra := createOktaSetupTreeAppGroupUserAndBasicUserGroupAssigment(t, ctx)
+	oktaInfra := createOktaSetupTreeAppGroupUserAndBasicUserGroupAssignment(t, ctx)
 	sut := common.InitSUT(t,
 		common.WithSAMLConnector(idp.SAMLConnector),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithUser(t, "alice-admin", "editor"),
 	)
 	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
-	mustCreateOktaEveryoneGroupAndAssignOktaUsers(t, oktaInfra)
+	mustCreateOktaEveryoneGroupAndAssignOktaUsers(t, oktaInfra.client, oktaInfra.Users...)
 
 	t.Run("enroll okta integration with SCIM only", func(t *testing.T) {
 		_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
@@ -324,7 +324,7 @@ func TestPluginEnrollmentErrors(t *testing.T) {
 		common.WithUser(t, "alice-admin", "editor"),
 	)
 	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
-	mustCreateOktaEveryoneGroupAndAssignOktaUsers(t, oktaInfra)
+	mustCreateOktaEveryoneGroupAndAssignOktaUsers(t, oktaInfra.client, oktaInfra.Users...)
 
 	t.Run("try to configure scim integration without any okta connector", func(t *testing.T) {
 		_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
@@ -367,7 +367,7 @@ func (f RoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
 
-func mustCreateOktaEveryoneGroupAndAssignOktaUsers(t *testing.T, oktaInfra *oktaInfraSetup) {
+func mustCreateOktaEveryoneGroupAndAssignOktaUsers(t *testing.T, oktaClient *mockOktaAPIClient, users ...*oktaUserType) {
 	g := okta.Group{
 		Type: "BUILT_IN",
 		Profile: &okta.GroupProfile{
@@ -378,10 +378,10 @@ func mustCreateOktaEveryoneGroupAndAssignOktaUsers(t *testing.T, oktaInfra *okta
 			"type": "application/xml",
 		},
 	}
-	everyoneGroup, _, err := oktaInfra.client.CreateGroup(context.Background(), g)
+	everyoneGroup, _, err := oktaClient.CreateGroup(context.Background(), g)
 	require.NoError(t, err)
-	for _, user := range oktaInfra.Users {
-		_, err := oktaInfra.client.AddUserToGroup(context.Background(), everyoneGroup.Id, user.Id)
+	for _, user := range users {
+		_, err := oktaClient.AddUserToGroup(context.Background(), everyoneGroup.Id, user.Id)
 		require.NoError(t, err)
 	}
 }
@@ -406,12 +406,14 @@ func TestCreateOktaIntegrationFromLegacyConnector(t *testing.T) {
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithUser(t, "alice-admin", "editor"),
 	)
-	samlAPP := createOktaSAMLAPP(t, ctx, oktaApiClientMock, "trial-4777663_ssotest")
 
 	// Create a legacy SAML connector that doesn't have any label
 	// The Legacy SAML connector is created manually by a user following
 	// the OKTA SSO integration guide.
 	connector := mustUnmarshalSAMLConnector(t, idp.SAMLConnector)
+	// The SAML app must exist in okta and have the matching Okta label.
+	samlAPP := createOktaSAMLAPP(t, ctx, oktaApiClientMock, "trial-123456_teleportsamlconnectorapp_1")
+
 	meta := connector.GetMetadata()
 	meta.Labels = map[string]string{}
 	meta.Name = legacyConnectorName

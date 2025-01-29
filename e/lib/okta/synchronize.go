@@ -264,7 +264,7 @@ func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToAppl
 			groups[i] = string(g)
 		}
 
-		apps, err := s.oktaAppToApp(oktaApplication, groups)
+		apps, err := s.oktaAppToApps(oktaApplication, groups)
 		if err != nil {
 			s.logger.DebugContext(ctx, "Error converting Okta app", "error", err)
 			return nil

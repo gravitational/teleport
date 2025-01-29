@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/okta/okta-sdk-golang/v2/okta/query"
 
@@ -245,6 +246,9 @@ func (m *mockOktaAPIClient) ListApplications(_ context.Context, qp *query.Params
 		if err := json.Unmarshal(buff, &item); err != nil {
 			panic(err)
 		}
+		if qp.Q != "" && (item.Name != qp.Q && item.Label != qp.Q) {
+			continue
+		}
 		apps = append(apps, &item)
 	}
 
@@ -258,7 +262,7 @@ func (m *mockOktaAPIClient) ListApplicationUsers(_ context.Context, appId string
 
 	var appUsers []*okta.AppUser
 	for userId := range m.appUserAssignments[appId] {
-		appUsers = append(appUsers, &okta.AppUser{Id: userId})
+		appUsers = append(appUsers, &okta.AppUser{Id: userId, Scope: string(api.UserScope)})
 	}
 
 	return appUsers, &okta.Response{}, nil
@@ -295,6 +299,10 @@ func (m *mockOktaAPIClient) RemoveUserFromGroup(_ context.Context, groupId strin
 func (m *mockOktaAPIClient) AssignUserToApplication(_ context.Context, appId string, body okta.AppUser) (*okta.AppUser, *okta.Response, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	if _, ok := m.applications[appId]; !ok {
+		return nil, nil, trace.Errorf("application %q not found", appId)
+	}
 
 	if m.appUserAssignments[appId] == nil {
 		m.appUserAssignments[appId] = make(map[string]bool)
@@ -349,7 +357,9 @@ func (m *mockOktaAPIClient) CreateApplication(_ context.Context, body okta.App, 
 	case *okta.BasicAuthApplication:
 		t.Id = appID
 		t.Status = "ACTIVE"
-		t.Links = links
+		if t.Links == nil {
+			t.Links = links
+		}
 	case *okta.SamlApplication:
 		t.Id = appID
 		t.Status = "ACTIVE"
@@ -362,7 +372,9 @@ func (m *mockOktaAPIClient) CreateApplication(_ context.Context, body okta.App, 
 	case *okta.BookmarkApplication:
 		t.Id = appID
 		t.Status = "ACTIVE"
-		t.Links = links
+		if t.Links == nil {
+			t.Links = links
+		}
 	default:
 		panic(fmt.Sprintf("unexpected Okta application type %T", t))
 	}

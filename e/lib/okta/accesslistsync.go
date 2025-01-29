@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"maps"
 	"regexp"
+	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -758,7 +760,17 @@ func getAppID(a types.Application) (oktaAppID, bool) {
 
 func (a *accessListSync) importApps(ctx context.Context, params importAppsParams) error {
 	appIDProcessed := newSet[oktaAppID]()
-	for _, app := range params.apps {
+	// Sort the apps by name. This is to make the generated resource names predictable. It may
+	// a single Okta application has multiple links. If so, there is a separate app passed here
+	// in the params for each Okta app link, but the resources here (Access Lists, Access List
+	// Members and Roles) are generated only for the first encountered app/link. Because the
+	// app.GetName() is generated with a hash value impacted by the link name we make sure
+	// always use the the same app/link for each Okta app here.
+	// https://github.com/gravitational/teleport.e/pull/5934#discussion_r1929587258
+	sortedApps := slices.SortedFunc(maps.Values(params.apps), func(a, b types.Application) int {
+		return strings.Compare(a.GetName(), b.GetName())
+	})
+	for _, app := range sortedApps {
 		log := a.logger.With("app_name", app.GetName())
 
 		appID, ok := getAppID(app)
@@ -1054,7 +1066,7 @@ func (a *accessListSync) metadataToImportResources(irMetadata importResourceMeta
 		rules = append(rules, types.NewRule(types.KindUserGroup, services.RO()))
 	}
 
-	role, err := types.NewRole(accessRoleName, types.RoleSpecV6{
+	accessRole, err := types.NewRole(accessRoleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules:       rules,
 			AppLabels:   toLabels(irMetadata.roleAppLabels),
@@ -1064,24 +1076,23 @@ func (a *accessListSync) metadataToImportResources(irMetadata importResourceMeta
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
-	role.SetStaticLabels(labels)
+	accessRole.SetStaticLabels(labels)
 
 	reviewerRole, err := types.NewRole(reviewerRoleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			ReviewRequests: &types.AccessReviewConditions{
-				Roles: []string{role.GetName()},
+				Roles: []string{accessRole.GetName()},
 			},
 		},
 	})
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
-
 	labelsCpy := maps.Clone(labels)
 	labelsCpy[eteleport.OktaACLReviewerRoleLabel] = "true"
 	reviewerRole.SetStaticLabels(labelsCpy)
 
-	return accessList, members, []types.Role{role, reviewerRole}, nil
+	return accessList, members, []types.Role{accessRole, reviewerRole}, nil
 }
 
 // onUpsertAccessList will create or modify an access list.

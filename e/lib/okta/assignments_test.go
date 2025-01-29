@@ -2,7 +2,6 @@ package okta
 
 import (
 	"context"
-	"crypto"
 	"testing"
 	"time"
 
@@ -21,7 +20,6 @@ import (
 func TestAssignmentReconciler(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(time.Now())
 	ctx := context.Background()
-	hash := crypto.SHA256
 	ap := newTestAccessPoint(t, clock)
 	svc, oktaClient, emitter := newTestService(t, ap)
 	svc.clock = clock
@@ -33,7 +31,7 @@ func TestAssignmentReconciler(t *testing.T) {
 
 	const link = "link"
 	appName := func(name string) string {
-		return mustAppName(t, hash, name, link)
+		return mustAppName(t, name, link)
 	}
 
 	reconciler := newAssignmentReconciler(ctx, testClusterName, svc)

@@ -11,12 +11,14 @@ const (
 	reviewerRoleContext = "reviewer-okta-acl-role"
 )
 
-// CreateOktaAccessRoleFriendlyName creates a friendly name for an Okta access role base on the title and id.
+// CreateOktaAccessRoleFriendlyName creates a friendly name for an Okta access role based on the
+// Okta application Label and ID.
 func CreateOktaAccessRoleFriendlyName(title string, id string) string {
 	return oktaResourceFriendlyName(title, id, accessRoleContext)
 }
 
-// CreateOktaReviewerRoleFriendlyName creates a friendly name for an Okta reviewer role based on the title and id.
+// CreateOktaReviewerRoleFriendlyName creates a friendly name for an Okta reviewer role based on
+// the Okta application Label and ID.
 func CreateOktaReviewerRoleFriendlyName(title string, id string) string {
 	return oktaResourceFriendlyName(title, id, reviewerRoleContext)
 }

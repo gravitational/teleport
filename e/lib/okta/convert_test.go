@@ -350,7 +350,7 @@ func TestOktaAppToApplications(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ap := newTestAccessPoint(t, clockwork.NewRealClock())
 			service, _, _ := newTestService(t, ap)
-			apps, err := service.oktaAppToApp(test.oktaApp, test.groupIDs)
+			apps, err := service.oktaAppToApps(test.oktaApp, test.groupIDs)
 			test.errAssertionFunc(t, err)
 			require.Equal(t, test.expected, apps)
 		})

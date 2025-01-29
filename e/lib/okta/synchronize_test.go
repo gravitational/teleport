@@ -130,7 +130,7 @@ func TestSynchronizeGroups(t *testing.T) {
 	group4, err := ap.GetUserGroup(ctx, "group4")
 	require.NoError(t, err)
 	require.Equal(t, "group name (group 4 description)", group4.GetMetadata().Description)
-	require.Equal(t, []string{mustAppName(t, svc.hash, "app1", "applink-name1")}, group4.GetApplications())
+	require.Equal(t, []string{mustAppName(t, "app1", "applink-name1")}, group4.GetApplications())
 
 	// This should have never been created.
 	_, err = ap.GetUserGroup(ctx, "group5")
@@ -160,7 +160,7 @@ func TestSynchronizeGroups(t *testing.T) {
 	group3, err = ap.GetUserGroup(ctx, "group3")
 	require.NoError(t, err)
 	require.Equal(t, "group name (group 3 description)", group3.GetMetadata().Description)
-	require.Equal(t, []string{mustAppName(t, svc.hash, "app1", "applink-name1")}, group3.GetApplications())
+	require.Equal(t, []string{mustAppName(t, "app1", "applink-name1")}, group3.GetApplications())
 
 	expectAuditEvent(t, emitter, func(event *apievents.OktaResourcesUpdate) {
 		require.Equal(t, events.OktaApplicationsUpdateEvent, event.GetType())
@@ -190,7 +190,7 @@ func TestSynchronizeGroups(t *testing.T) {
 	group3, err = ap.GetUserGroup(ctx, "group3")
 	require.NoError(t, err)
 	require.Equal(t, "group name (group 3 description)", group3.GetMetadata().Description)
-	require.Equal(t, []string{mustAppName(t, svc.hash, "app1", "applink-name1")}, group3.GetApplications())
+	require.Equal(t, []string{mustAppName(t, "app1", "applink-name1")}, group3.GetApplications())
 
 	expectAuditEvent(t, emitter, func(event *apievents.OktaResourcesUpdate) {
 		require.Equal(t, events.OktaGroupsUpdateEvent, event.GetType())
@@ -339,7 +339,7 @@ func TestSynchronizeAppsImportError(t *testing.T) {
 			// EXPECT that all of the Teleport Applications derived from upstream
 			// Okta apps have been appropriately preserved or deleted
 			for _, appName := range appNames {
-				appID := mustAppName(t, svc.hash, appName, "applink")
+				appID := mustAppName(t, appName, "applink")
 				assertAppValue, hasCustom := tt.assertAppValue[appName]
 				if !hasCustom {
 					assertAppValue = require.NotNil
@@ -366,7 +366,7 @@ func TestSynchronizeApplications(t *testing.T) {
 	addApp(t, "app2", types.OriginOkta, svc.orgURL, svc)
 
 	// Add an app to be updated.
-	app3Name, err := appName(svc.hash, "app3", "applink-name1")
+	app3Name, err := AppName("app3", "applink-name1")
 	require.NoError(t, err)
 	addApp(t, app3Name, types.OriginOkta, svc.orgURL, svc)
 
@@ -441,12 +441,12 @@ func TestSynchronizeApplications(t *testing.T) {
 	require.Equal(t, "https://www.link1.com", app3.GetURI())
 
 	// This should have been created
-	app4Link1Name, err := appName(svc.hash, "app4", "applink-name1")
+	app4Link1Name, err := AppName("app4", "applink-name1")
 	require.NoError(t, err)
 	app4Link1 := apps[app4Link1Name]
 	require.Equal(t, "https://www.link1.com", app4Link1.GetURI())
 	require.Equal(t, []string{"group4"}, app4Link1.GetUserGroups())
-	app4Link2Name, err := appName(svc.hash, "app4", "applink-name2")
+	app4Link2Name, err := AppName("app4", "applink-name2")
 	require.NoError(t, err)
 	app4Link2 := apps[app4Link2Name]
 	require.Equal(t, "https://www.link2.com", app4Link2.GetURI())
