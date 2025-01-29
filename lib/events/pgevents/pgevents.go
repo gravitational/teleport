@@ -622,7 +622,6 @@ func (l *Log) deriveSessionID(ctx context.Context, sessionID string) uuid.UUID {
 	l.log.DebugContext(ctx,
 		"Failed to parse event session ID, using derived ID",
 		"error", err,
-		"session_id", sessionID,
 		"derived_id", derived,
 	)
 	return derived
