@@ -140,7 +140,17 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 		}
 	}
 
-	totalReportCount := len(userActivityReports) + len(resourcePresenceReports)
+	freeBatchSize = submitBatchSize - len(userActivityReports) - len(resourcePresenceReports)
+	var botInstanceActivityReports []*prehogv1.BotInstanceActivityReport
+	if freeBatchSize > 0 {
+		botInstanceActivityReports, err = svc.listBotInstanceActivityReports(ctx, freeBatchSize)
+		if err != nil {
+			c.Logger.ErrorContext(ctx, "Failed to load bot instance activity reports for submission.", "error", err)
+			return
+		}
+	}
+
+	totalReportCount := len(userActivityReports) + len(resourcePresenceReports) + len(botInstanceActivityReports)
 
 	if totalReportCount < 1 {
 		err := ClearAlert(ctx, c.Status)
@@ -170,6 +180,14 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 			newest = t
 		}
 	}
+	if len(botInstanceActivityReports) > 0 {
+		if t := botInstanceActivityReports[0].GetStartTime().AsTime(); t.Before(oldest) {
+			oldest = t
+		}
+		if t := botInstanceActivityReports[len(botInstanceActivityReports)-1].GetStartTime().AsTime(); t.After(newest) {
+			newest = t
+		}
+	}
 
 	debugPayload := fmt.Sprintf("%v %q", time.Now().Round(0), c.HostID)
 	if err := svc.createUserActivityReportsLock(ctx, submitLockDuration, []byte(debugPayload)); err != nil {
@@ -180,13 +198,15 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 		}
 		return
 	}
+	// TODO: Should we hold a lock for the bot or rely on user activity reports lock.
 
 	lockCtx, cancel := context.WithTimeout(ctx, submitLockDuration*9/10)
 	defer cancel()
 
 	batchUUID, err := c.Submitter(lockCtx, &prehogv1.SubmitUsageReportsRequest{
-		UserActivity:     userActivityReports,
-		ResourcePresence: resourcePresenceReports,
+		UserActivity:        userActivityReports,
+		ResourcePresence:    resourcePresenceReports,
+		BotInstanceActivity: botInstanceActivityReports,
 	})
 	if err != nil {
 		c.Logger.ErrorContext(ctx, "Failed to send usage reports.",
@@ -233,6 +253,11 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 	}
 	for _, report := range resourcePresenceReports {
 		if err := svc.deleteResourcePresenceReport(ctx, report); err != nil {
+			lastErr = err
+		}
+	}
+	for _, report := range botInstanceActivityReports {
+		if err := svc.deleteBotInstanceActivityReport(ctx, report); err != nil {
 			lastErr = err
 		}
 	}
