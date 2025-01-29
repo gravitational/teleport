@@ -1,5 +1,5 @@
 // Teleport
-// Copyright (C) 2024 Gravitational, Inc.
+// Copyright (C) 2025 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -14,29 +14,24 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !darwin && !windows
-// +build !darwin,!windows
-
 package dns
 
-import (
-	"context"
-	"runtime"
+import "context"
 
-	"github.com/gravitational/trace"
-)
-
-var (
-	// vnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
-	vnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
-)
-
+// OSUpstreamNameserverSource provides the list of upstream DNS nameservers
+// configured in the OS. The VNet DNS resolver will forward unhandles queries to
+// these nameservers.
 type OSUpstreamNameserverSource struct{}
 
+// NewOSUpstreamNameserverSource returns a new *OSUpstreamNameserverSource.
 func NewOSUpstreamNameserverSource() (*OSUpstreamNameserverSource, error) {
-	return nil, trace.Wrap(vnetNotImplemented)
+	return &OSUpstreamNameserverSource{}, nil
 }
 
+// UpstreamNameservers is net yet implemented and currently returns a nil/empty
+// list of upstream nameservers. It does not return an error so that the
+// networking stack can actually run without just immediately exiting.
 func (s *OSUpstreamNameserverSource) UpstreamNameservers(ctx context.Context) ([]string, error) {
-	return nil, trace.Wrap(vnetNotImplemented)
+	// TODO(nklaassen): implement UpstreamNameservers on windows.
+	return nil, nil
 }
