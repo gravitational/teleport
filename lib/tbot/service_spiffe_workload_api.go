@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 	"github.com/gravitational/teleport/lib/uds"
+	utilsuds "github.com/gravitational/teleport/lib/utils/uds"
 )
 
 // SPIFFEWorkloadAPIService implements a gRPC server that fulfills the SPIFFE
@@ -158,10 +159,7 @@ func createListener(ctx context.Context, log *slog.Logger, addr string) (net.Lis
 			log.WarnContext(ctx, "Failed to remove existing socket file", "error", err)
 		}
 
-		l, err := net.ListenUnix("unix", &net.UnixAddr{
-			Net:  "unix",
-			Name: absPath,
-		})
+		l, err := utilsuds.ListenUnix(ctx, "unix", absPath)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating unix socket", absPath)
 		}

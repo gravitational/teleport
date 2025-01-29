@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
 const (
@@ -294,34 +295,38 @@ func (process *TeleportProcess) createListener(typ ListenerType, address string)
 		return nil, trace.BadParameter("listening is blocked")
 	}
 
-	// When the process exists, the socket files are left behind (to cover
-	// forking scenarios). To guarantee there won't be errors like "address
-	// already in use", delete the file before starting the listener.
+	var listener net.Listener
 	if typ.Network() == "unix" {
 		process.logger.DebugContext(process.ExitContext(), "Deleting socket file", "path", address)
+		// When the process exists, the socket files are left behind (to cover
+		// forking scenarios). To guarantee there won't be errors like "address
+		// already in use", delete the file before starting the listener.
 		if err := trace.ConvertSystemError(os.Remove(address)); !trace.IsNotFound(err) {
 			warnOnErr(process.ExitContext(), err, process.logger)
 		}
-	}
-
-	listener, err := net.Listen(typ.Network(), address)
-	if err != nil {
-		process.Lock()
-		listener, ok := process.getListenerNeedsLock(typ, address)
-		process.Unlock()
-		if ok {
-			process.logger.DebugContext(process.ExitContext(), "Using existing listener.", "type", typ, "address", address)
-			return listener, nil
+		l, err := uds.ListenUnix(process.ExitContext(), "unix", address)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return nil, trace.Wrap(err)
-	}
-
-	// The default behavior for unix listeners is to delete the file when the
-	// listener closes (unlinking). However, if the process forks, the file
-	// descriptor will be gone when its parent process exists, causing the new
-	// listener to have no socket file.
-	if unixListener, ok := listener.(*net.UnixListener); ok {
-		unixListener.SetUnlinkOnClose(false)
+		// The default behavior for unix listeners is to delete the file when the
+		// listener closes (unlinking). However, if the process forks, the file
+		// descriptor will be gone when its parent process exists, causing the new
+		// listener to have no socket file.
+		l.SetUnlinkOnClose(false)
+		listener = l
+	} else {
+		l, err := new(net.ListenConfig).Listen(process.ExitContext(), typ.Network(), address)
+		if err != nil {
+			process.Lock()
+			listener, ok := process.getListenerNeedsLock(typ, address)
+			process.Unlock()
+			if ok {
+				process.logger.DebugContext(process.ExitContext(), "Using existing listener.", "type", typ, "address", address)
+				return listener, nil
+			}
+			return nil, trace.Wrap(err)
+		}
+		listener = l
 	}
 
 	process.Lock()
