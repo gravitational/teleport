@@ -68,12 +68,17 @@ func WorkloadIdentitiesLogValue(credentials []*workloadidentityv1pb.Credential) 
 	return values
 }
 
+type authClient interface {
+	WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient
+	cryptosuites.AuthPreferenceGetter
+}
+
 // IssueX509WorkloadIdentity uses a given client and selector to issue a single
 // or multiple X509-SVID workload identity credentials.
 func IssueX509WorkloadIdentity(
 	ctx context.Context,
 	log *slog.Logger,
-	clt *authclient.Client,
+	clt authClient,
 	workloadIdentity config.WorkloadIdentitySelector,
 	ttl time.Duration,
 	attest *workloadidentityv1pb.WorkloadAttrs,
