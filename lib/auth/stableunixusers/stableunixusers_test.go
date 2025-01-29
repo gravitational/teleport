@@ -19,6 +19,8 @@ package stableunixusers_test
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"os"
 	"testing"
 	"time"
 
@@ -35,7 +37,13 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
+	"github.com/gravitational/teleport/lib/utils"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 func TestStableUNIXUsers(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -66,6 +74,8 @@ func TestStableUNIXUsers(t *testing.T) {
 	cacheClock := clockwork.NewFakeClock()
 	svc, err := stableunixusers.New(stableunixusers.Config{
 		Authorizer: &authorizer,
+		Emitter:    emitter,
+		Logger:     slog.Default(),
 
 		Backend:       bk,
 		ReadOnlyCache: readOnlyCache,
