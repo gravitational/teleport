@@ -112,21 +112,34 @@ func (p *PluginsCommand) netIQSetupGuide(ctx context.Context) (netIQSettings, er
 	settings := netIQSettings{}
 	var err error
 
-	settings.ospURL, err = promptForURL(ctx, os.Stdout, netIQStep1Template, "Please enter the IDM OSP address", p.install.netIQ.insecureSkipVerify,
-		func(ctx context.Context, s string, b bool) error {
-			_, err := checkNetIQOSPAddress(ctx, s, b)
+	settings.ospURL, err = promptForURL(
+		ctx,
+		os.Stdout,
+		netIQStep1Template,
+		"Please enter the IDM OSP address",
+		p.install.netIQ.insecureSkipVerify,
+		func(ctx context.Context, s *url.URL, b bool) error {
+			_, err := checkNetIQOSPAddress(ctx, s.String(), b)
 			return trace.Wrap(err)
 		})
 	if err != nil {
 		return netIQSettings{}, trace.Wrap(err)
 	}
 
-	settings.apiURL, err = promptForURL(ctx, os.Stdout, netIQStep2Template, "Please enter the IDM API address", p.install.netIQ.insecureSkipVerify, checkUnauthenticatedNetIQAPIAddress)
+	settings.apiURL, err = promptForURL(
+		ctx,
+		os.Stdout,
+		netIQStep2Template,
+		"Please enter the IDM API address",
+		p.install.netIQ.insecureSkipVerify,
+		func(ctx context.Context, u *url.URL, b bool) error {
+			return checkUnauthenticatedNetIQAPIAddress(ctx, u.String(), b)
+		})
 	if err != nil {
 		return netIQSettings{}, trace.Wrap(err)
 	}
 
-	if err := promptForContinue(os.Stdout, netIQStep3Template); err != nil {
+	if err := promptForContinue(ctx, os.Stdout, netIQStep3Template); err != nil {
 		return netIQSettings{}, err
 	}
 
@@ -195,27 +208,35 @@ func (p *PluginsCommand) InstallNetIQ(ctx context.Context, args installPluginArg
 	return nil
 }
 
-func promptForURL(ctx context.Context, out io.Writer, template, prompt string, insecureSkipVerify bool, checkFunc func(context.Context, string, bool) error) (string, error) {
+func promptForURL(ctx context.Context, out io.Writer, template, promptT string, insecureSkipVerify bool, checkFunc func(context.Context, *url.URL, bool) error) (string, error) {
 	fmt.Fprintf(out, "\n%s", template)
-	return readData(os.Stdin, out, prompt, func(input string) bool {
-		_, err := url.Parse(input)
-		if err != nil {
-			fmt.Fprintf(out, "Invalid URL: %v\n", err)
-			return false
-		}
-		if err := checkFunc(ctx, input, insecureSkipVerify); err != nil {
-			fmt.Fprintf(out, "Invalid address: %v\n", err)
-			return false
-		}
-		return true
-	}, "Invalid input.")
+
+	return prompt.URL(
+		ctx,
+		out,
+		prompt.Stdin(),
+		promptT,
+		prompt.WithURLValidator(
+			func(u *url.URL) error {
+				if err := checkFunc(ctx, u, insecureSkipVerify); err != nil {
+					fmt.Fprintf(out, "Invalid address: %v\n", err)
+					return trace.Wrap(err)
+				}
+				return nil
+			},
+		),
+	)
 }
 
-func promptForContinue(out io.Writer, template string) error {
+func promptForContinue(ctx context.Context, out io.Writer, template string) error {
 	fmt.Fprintf(out, "\n%s", template)
-	op, err := readData(os.Stdin, out, "Type 'continue' to proceed, 'exit' to quit: ", func(input string) bool {
-		return input == "continue" || input == "exit"
-	}, "Invalid input. Please enter 'continue' or 'exit'.")
+	op, err := prompt.PickOne(
+		ctx,
+		out,
+		prompt.Stdin(),
+		"Type 'continue' to proceed, 'exit' to quit",
+		[]string{"continue", "exit"},
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -232,13 +253,11 @@ func promptForPassword(ctx context.Context, out io.Writer, promptMsg string) (st
 	)
 }
 
-func promptForInput(_ context.Context, out io.Writer, template, prompt string) (string, error) {
+func promptForInput(ctx context.Context, out io.Writer, template, promptT string) (string, error) {
 	if template != "" {
 		fmt.Fprintf(out, "\n%s", template)
 	}
-	return readData(os.Stdin, out, prompt, func(s string) bool {
-		return s != ""
-	}, "Invalid input.")
+	return prompt.Input(ctx, out, prompt.Stdin(), promptT)
 }
 
 func checkNetIQOSPAddress(ctx context.Context, ospURL string, insecureSkipVerify bool) (string, error) {
@@ -330,8 +349,6 @@ func checkAuthenticatedNetIQAPIAddress(ctx context.Context, data netIQSettings) 
 		// API endpoints are protected so we are ensuring that the endpoint
 		// is reachable and doesn't return 404.
 		func(r *http.Response) error {
-			fmt.Println(r.StatusCode)
-			io.Copy(os.Stdout, r.Body)
 			switch r.StatusCode {
 			case http.StatusUnauthorized:
 				return trace.BadParameter("invalid API credentials")
