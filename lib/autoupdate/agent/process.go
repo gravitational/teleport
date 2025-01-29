@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io/fs"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -141,7 +142,7 @@ func (s SystemdService) monitor(ctx context.Context, initPID int) error {
 
 	s.Log.InfoContext(ctx, "Monitoring diagnostic socket to detect readiness.", unitKey, s.ServiceName)
 	client := debug.NewClient(s.SocketPath)
-	err := s.waitForSocketPresent(ctx, tickC)
+	err := s.waitForSocketPresent(ctx, tickC, missingSocketTimeout)
 	if errors.Is(err, os.ErrNotExist) {
 		s.Log.WarnContext(ctx, "Socket appears to be disabled.", unitKey, s.ServiceName)
 		return nil
@@ -283,13 +284,21 @@ func tickFile(ctx context.Context, path string, ch chan<- int, tickC <-chan time
 }
 
 // waitForSocketPresent returns true after the socket is created.
-// If the socket does not exist after missingSocketTimeout, os.ErrNotExist is returned.
-func (s SystemdService) waitForSocketPresent(ctx context.Context, tickC <-chan time.Time) error {
-	timer := time.NewTimer(missingSocketTimeout)
+// If the socket does not exist after timeout, os.ErrNotExist is returned.
+func (s SystemdService) waitForSocketPresent(ctx context.Context, tickC <-chan time.Time, timeout time.Duration) error {
+	timer := time.NewTimer(timeout)
 	for {
-		_, err := os.Stat(s.SocketPath)
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			return trace.Wrap(err)
+		fi, err := os.Stat(s.SocketPath)
+		if !errors.Is(err, os.ErrNotExist) {
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if fi.Mode().Type() != fs.ModeSocket {
+				return errors.New("expected socket but found other file")
+			}
+			if err == nil {
+				return nil
+			}
 		}
 		select {
 		case <-ctx.Done():
@@ -307,11 +316,14 @@ func (s SystemdService) waitForSocketPresent(ctx context.Context, tickC <-chan t
 func (s SystemdService) waitForReady(ctx context.Context, client *debug.Client, tickC <-chan time.Time) error {
 	for {
 		ready, msg, err := client.GetReadiness(ctx)
-		if ready || trace.IsNotFound(err) {
+		if trace.IsNotFound(err) {
 			return nil
 		}
 		if err != nil {
 			return trace.Wrap(err)
+		}
+		if ready {
+			return nil
 		}
 		select {
 		case <-ctx.Done():

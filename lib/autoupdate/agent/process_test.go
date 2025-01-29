@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -290,6 +291,84 @@ func TestTickFile(t *testing.T) {
 			}()
 			err := tickFile(ctx, filePath, ch, tickC)
 			require.Equal(t, tt.errored, err != nil)
+		})
+	}
+}
+
+func TestWaitForSocketPresent(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name      string
+		timeout   time.Duration
+		canceled  bool
+		notSocket bool
+		exists    bool
+
+		matchErr string
+	}{
+		{
+			name:      "missing",
+			timeout:   0,
+			canceled:  false,
+			notSocket: false,
+			exists:    false,
+			matchErr:  os.ErrNotExist.Error(),
+		},
+		{
+			name:      "context timeout",
+			timeout:   10 * time.Second,
+			canceled:  true,
+			notSocket: false,
+			exists:    false,
+			matchErr:  context.Canceled.Error(),
+		},
+		{
+			name:      "not socket",
+			timeout:   0,
+			canceled:  false,
+			notSocket: true,
+			exists:    false,
+			matchErr:  "other file",
+		},
+		{
+			name:      "present",
+			timeout:   0,
+			canceled:  false,
+			notSocket: false,
+			exists:    true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tmp := t.TempDir()
+			socketFile := filepath.Join(tmp, "socket")
+			svc := &SystemdService{
+				Log:        slog.Default(),
+				SocketPath: socketFile,
+			}
+			ctx := context.Background()
+			ctx, cancel := context.WithCancel(ctx)
+			defer cancel()
+			if tt.canceled {
+				cancel()
+			}
+			if tt.exists {
+				l, err := net.Listen("unix", socketFile)
+				t.Cleanup(func() { l.Close() })
+				require.NoError(t, err)
+			}
+			if tt.notSocket {
+				err := os.WriteFile(socketFile, []byte("test"), os.ModePerm)
+				require.NoError(t, err)
+			}
+			ch := make(chan time.Time, 1)
+			ch <- time.Time{}
+			err := svc.waitForSocketPresent(ctx, ch, tt.timeout)
+			if tt.matchErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tt.matchErr)
+			}
 		})
 	}
 }
