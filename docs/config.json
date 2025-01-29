@@ -353,6 +353,11 @@
       "source": "/setup/admin/github-sso/",
       "destination": "/admin-guides/access-controls/sso/github-sso/",
       "permanent": true
+    },
+    {
+      "source": "/access-controls/device-trust/guide/",
+      "destination": "/admin-guides/access-controls/device-trust/guide/",
+      "permanent": true
     }
   ]
 }
