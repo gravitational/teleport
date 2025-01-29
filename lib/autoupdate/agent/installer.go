@@ -515,7 +515,7 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcPath string
 			}
 		}
 		for _, f := range revertFiles {
-			err := renameio.WriteFile(f.name, f.data, f.mode)
+			err := writeFileAtomicWithinDir(f.name, f.data, f.mode)
 			if err != nil {
 				keepFiles = append(keepFiles, f)
 				li.Log.ErrorContext(ctx, "Failed to revert files", "name", f.name, errorKey, err)
@@ -650,11 +650,20 @@ func forceCopy(dst string, srcData []byte, n int64) (orig *smallFile, err error)
 			return nil, trace.Wrap(os.ErrExist)
 		}
 	}
-	err = renameio.WriteFile(dst, srcData, configFileMode)
+	err = writeFileAtomicWithinDir(dst, srcData, configFileMode)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return orig, nil
+}
+
+// writeFileAtomicWithinDir atomically creates a new file with renameio, while ensuring that temporary
+// files use the same directory as the target file (with format: .[base][randints]).
+// This ensures that SELinux contexts for important files are set correctly.
+func writeFileAtomicWithinDir(filename string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(filename)
+	err := renameio.WriteFile(filename, data, perm, renameio.WithTempDir(dir))
+	return trace.Wrap(err)
 }
 
 // readFileAtMost reads a file up to n, or errors if it is too large.
