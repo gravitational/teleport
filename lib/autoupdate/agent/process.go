@@ -176,15 +176,21 @@ func (s SystemdService) waitForReady(ctx context.Context, client *debug.Client, 
 // probeReady probes the SocketPath unix domain socket with an HTTP request.
 // If the request returns 200, the service is considered ready.
 // If the socket does not exist, the service is not considered ready.
+// If the readiness check is not implemented, the service is considered ready immediately.
 func (s SystemdService) probeReady(ctx context.Context, client *debug.Client) (ready bool, msg string, err error) {
 	_, err = os.Stat(s.SocketPath)
 	if errors.Is(err, os.ErrNotExist) {
 		return false, "socket missing", nil
 	}
+	// TODO: socket missing entire time
 	if err != nil {
 		return false, "", trace.Wrap(err)
 	}
-	return client.GetReadiness(ctx)
+	ready, msg, err = client.GetReadiness(ctx)
+	if trace.IsNotFound(err) {
+		return true, msg, nil
+	}
+	return ready, msg, trace.Wrap(err)
 }
 
 // monitorPID for the started process to ensure it's running by polling PIDFile.
