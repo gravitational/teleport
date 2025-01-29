@@ -214,7 +214,7 @@ export const StandardEditor = ({
       <EditorSaveCancelButton
         onSave={() => handleSave()}
         onCancel={onCancel}
-        disabled={
+        saveDisabled={
           isProcessing ||
           standardEditorModel.roleModel.requiresReset ||
           !standardEditorModel.isDirty
