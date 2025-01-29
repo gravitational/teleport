@@ -91,7 +91,7 @@ func maybeUseStdinTerminalFallbackLocked(original *ContextReader) *ContextReader
 
 	// File /dev/tty is the controlling tty of the current terminal. Not
 	// available on Windows.
-	// https://man7.org/linux/man-pages/man4/tty.4.html
+	// https://tldp.org/HOWTO/Text-Terminal-HOWTO-7.html
 	devTTY, err := os.Open("/dev/tty")
 	if err != nil {
 		slog.DebugContext(context.Background(), "Failed to open /dev/tty", "error", err)
