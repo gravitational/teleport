@@ -82,6 +82,7 @@ export function ClusterConnectPanel() {
               {/*The user can navigate with Tab.*/}
               <NullKeyboardArrowsNavigation>
                 <Flex
+                  maxWidth="450px"
                   ref={containerRef}
                   flexDirection="column"
                   css={`
