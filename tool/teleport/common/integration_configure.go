@@ -226,17 +226,33 @@ func onIntegrationConfAccessGraphAWSSync(ctx context.Context, params config.Inte
 func onIntegrationConfAccessGraphAzureSync(ctx context.Context, params config.IntegrationConfAccessGraphAzureSync) error {
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
-	confReq := azureoidc.AccessGraphAzureConfigureRequest{
-		ManagedIdentity: params.ManagedIdentity,
-		RoleName:        params.RoleName,
-		SubscriptionID:  params.SubscriptionID,
-		AutoConfirm:     params.AutoConfirm,
+	if params.PrincipalID != "" && params.CreateEnterpriseApp {
+		return trace.BadParameter("Cannot create an enterprise application and specify an existing principal")
+	}
+	if params.CreateEnterpriseApp && params.ProxyPublicAddr == "" {
+		return trace.BadParameter("Must specify a proxy public address when creating an enterprise application")
+	}
+	if params.CreateEnterpriseApp && params.AuthConnectorName == "" {
+		return trace.BadParameter("Must specify a auth connector name when creating an enterprise application")
 	}
 	clt, err := azureoidc.NewAzureConfigClient(params.SubscriptionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(azureoidc.ConfigureAccessGraphSyncAzure(ctx, clt, confReq))
+	confReq := azureoidc.AccessGraphAzureConfigureRequest{
+		CreateEnterpriseApp: params.CreateEnterpriseApp,
+		ProxyPublicAddr:     params.ProxyPublicAddr,
+		AuthConnectorName:   params.AuthConnectorName,
+		PrincipalID:         params.PrincipalID,
+		RoleName:            params.RoleName,
+		SubscriptionID:      params.SubscriptionID,
+		AutoConfirm:         params.AutoConfirm,
+	}
+	err = azureoidc.ConfigureAccessGraphSyncAzure(ctx, clt, confReq)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func onIntegrationConfAzureOIDCCmd(ctx context.Context, params config.IntegrationConfAzureOIDC) error {

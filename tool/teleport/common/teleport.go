@@ -509,9 +509,12 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfAccessGraphAWSSyncCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.AutoConfirm)
 
 	integrationConfAccessGraphAzureSyncCmd := integrationConfAccessGraphCmd.Command("azure", "Adds required Azure permissions for syncing Azure resources into Access Graph service.")
-	integrationConfAccessGraphAzureSyncCmd.Flag("managed-identity", "The ID of the managed identity to run the Discovery service.").Required().StringVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.ManagedIdentity)
-	integrationConfAccessGraphAzureSyncCmd.Flag("role-name", "The name of the Azure Role to create and assign to the managed identity").Required().StringVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.RoleName)
-	integrationConfAccessGraphAzureSyncCmd.Flag("subscription-id", "The subscription ID in which to discovery resources.").StringVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.SubscriptionID)
+	integrationConfAccessGraphAzureSyncCmd.Flag("create-app", "Indicates whether to create a new enterprise application for this integration (cannot use this and --principal-id together).").BoolVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.CreateEnterpriseApp)
+	integrationConfAccessGraphAzureSyncCmd.Flag("proxy-public-addr", "The public address of Teleport Proxy Service (required if --create-app is set)").StringVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.ProxyPublicAddr)
+	integrationConfAccessGraphAzureSyncCmd.Flag("auth-connector-name", "The name of Entra ID SAML Auth connector in Teleport (required if --create-app is set).").StringVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.AuthConnectorName)
+	integrationConfAccessGraphAzureSyncCmd.Flag("principal-id", "The ID of the principal to run the Discovery service (cannot use this and --create-enterprise-app together).").StringVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.PrincipalID)
+	integrationConfAccessGraphAzureSyncCmd.Flag("role-name", "The name of the Azure Role to create and assign to the managed identity (will create the role if it does not exist)").Required().StringVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.RoleName)
+	integrationConfAccessGraphAzureSyncCmd.Flag("subscription-id", "The subscription ID in which to discover Azure resources.").StringVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.SubscriptionID)
 	integrationConfAccessGraphAzureSyncCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.AutoConfirm)
 
 	integrationConfAWSOIDCIdPCmd := integrationConfigureCmd.Command("awsoidc-idp", "Creates an IAM IdP (OIDC) in your AWS account to allow the AWS OIDC Integration to access AWS APIs.")
