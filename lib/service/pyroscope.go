@@ -60,7 +60,7 @@ func (l pyroscopeLogger) Errorf(format string, args ...interface{}) {
 }
 
 // createPyroscopeConfig generates the Pyroscope configuration for the Teleport process.
-func (process *TeleportProcess) createPyroscopeConfig(address string) (pyroscope.Config, error) {
+func createPyroscopeConfig(ctx context.Context, address string) (pyroscope.Config, error) {
 	if address == "" {
 		return pyroscope.Config{}, fmt.Errorf("pyroscope address is empty")
 	}
@@ -83,22 +83,22 @@ func (process *TeleportProcess) createPyroscopeConfig(address string) (pyroscope
 
 	// Evaluate if profile configuration is customized
 	if p := getPyroscopeProfileTypesFromEnv(); len(p) == 0 {
-		slog.InfoContext(process.ExitContext(), "No profile types enabled, using default")
+		slog.InfoContext(ctx, "No profile types enabled, using default")
 	} else {
 		config.ProfileTypes = p
-		slog.InfoContext(process.ExitContext(), "Pyroscope will configure profiles from env")
+		slog.InfoContext(ctx, "Pyroscope will configure profiles from env")
 	}
 
 	var uploadRate *time.Duration
 	if rate := os.Getenv("TELEPORT_PYROSCOPE_UPLOAD_RATE"); rate != "" {
 		parsedRate, err := time.ParseDuration(rate)
 		if err != nil {
-			slog.InfoContext(process.ExitContext(), "invalid TELEPORT_PYROSCOPE_UPLOAD_RATE, ignoring value", "provided_value", rate, "error", err)
+			slog.InfoContext(ctx, "invalid TELEPORT_PYROSCOPE_UPLOAD_RATE, ignoring value", "provided_value", rate, "error", err)
 		} else {
 			uploadRate = &parsedRate
 		}
 	} else {
-		slog.InfoContext(process.ExitContext(), "TELEPORT_PYROSCOPE_UPLOAD_RATE not specified, using default")
+		slog.InfoContext(ctx, "TELEPORT_PYROSCOPE_UPLOAD_RATE not specified, using default")
 	}
 
 	// Set UploadRate or fall back to defaults
@@ -119,7 +119,7 @@ func (process *TeleportProcess) createPyroscopeConfig(address string) (pyroscope
 
 // initPyroscope instruments Teleport to run with continuous profiling for Pyroscope
 func (process *TeleportProcess) initPyroscope(address string) {
-	config, err := process.createPyroscopeConfig(address)
+	config, err := createPyroscopeConfig(process.ExitContext(), address)
 	if err != nil {
 		slog.ErrorContext(process.ExitContext(), "failed to create Pyroscope config", "address", address, "error", err)
 		return

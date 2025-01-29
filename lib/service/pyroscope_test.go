@@ -17,35 +17,25 @@
 package service
 
 import (
+	"context"
 	"log/slog"
 	"testing"
 
 	"github.com/grafana/pyroscope-go"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/stretchr/testify/require"
 )
 
 func TestPyroscopeConfig(t *testing.T) {
 	tests := []struct {
-		name        string
-		envVars     map[string]string
-		initialTags map[string]string
-		want        pyroscope.Config
+		name    string
+		envVars map[string]string
+		want    pyroscope.Config
 	}{
 		{
 			name:    "No environment vars configured",
 			envVars: map[string]string{},
-			initialTags: map[string]string{
-				"host":    "unknown",
-				"version": "17.0.0",
-				"git_ref": "17.0.0-dev",
-			},
 			want: pyroscope.Config{
-				Tags: map[string]string{
-					"host":    "unknown",
-					"version": "17.0.0",
-					"git_ref": "17.0.0-dev",
-				},
+				Tags: map[string]string{},
 			},
 		},
 		{
@@ -57,24 +47,16 @@ func TestPyroscopeConfig(t *testing.T) {
 				"TELEPORT_PYROSCOPE_KUBE_COMPONENT":             "auth",
 				"TELEPORT_PYROSCOPE_KUBE_NAMESPACE":             "test-namespace",
 			},
-			initialTags: map[string]string{
-				"host":    "host123",
-				"version": "17.0.0",
-				"git_ref": "17.0.0-dev",
-			},
 			want: pyroscope.Config{
 				ProfileTypes: []pyroscope.ProfileType{
-					pyroscope.ProfileCPU,
-					pyroscope.ProfileGoroutines,
 					pyroscope.ProfileAllocObjects,
 					pyroscope.ProfileAllocSpace,
 					pyroscope.ProfileInuseObjects,
 					pyroscope.ProfileInuseSpace,
+					pyroscope.ProfileCPU,
+					pyroscope.ProfileGoroutines,
 				},
 				Tags: map[string]string{
-					"host":      "host123",
-					"version":   "17.0.0",
-					"git_ref":   "17.0.0-dev",
 					"component": "auth",
 					"namespace": "test-namespace",
 				},
@@ -87,16 +69,16 @@ func TestPyroscopeConfig(t *testing.T) {
 			for k, v := range tt.envVars {
 				t.Setenv(k, v)
 			}
-			cfg := &servicecfg.Config{
-				Auth: servicecfg.AuthConfig{
-					Enabled: true,
+			p := &TeleportProcess{
+				logger: slog.Default(),
+				Supervisor: &LocalSupervisor{
+					exitContext: context.Background(),
 				},
-				Logger: slog.Default(),
 			}
-			p, _ := NewTeleport(cfg)
-			got, _ := p.createPyroscopeConfig("127.0.0.1")
+			got, _ := createPyroscopeConfig(p.ExitContext(), "127.0.0.1")
 
 			require.Equal(t, tt.want.ProfileTypes, got.ProfileTypes)
+			require.Subset(t, got.Tags, tt.want.Tags)
 		})
 	}
 }
