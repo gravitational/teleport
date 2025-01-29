@@ -412,13 +412,13 @@ Ingest:
 		case *usagereporter.SPIFFESVIDIssuedEvent:
 			userRecord(te.UserName, te.UserKind).SpiffeSvidsIssued++
 			if te.BotInstanceId != "" {
-				botInstanceRecord(te.UserName, te.BotInstanceId).BotJoins++
+				botInstanceRecord(te.UserName, te.BotInstanceId).SpiffeSvidsIssued++
 			}
 		case *usagereporter.BotJoinEvent:
 			botUserName := machineidv1.BotResourceName(te.BotName)
 			userRecord(botUserName, prehogv1alpha.UserKind_USER_KIND_BOT).BotJoins++
 			if te.BotInstanceId != "" {
-				botInstanceRecord(te.UserName, te.BotInstanceId).BotJoins++
+				botInstanceRecord(botUserName, te.BotInstanceId).BotJoins++
 			}
 		case *usagereporter.UserCertificateIssuedEvent:
 			// Note: kind is poorly defined for this event type, so we'll assume
