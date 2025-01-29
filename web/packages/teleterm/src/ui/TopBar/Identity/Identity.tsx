@@ -81,13 +81,7 @@ export function IdentityContainer() {
   );
   const activeColor = useStoreSelector(
     'workspacesService',
-    useCallback(
-      state =>
-        activeRootCluster
-          ? state.workspaces[activeRootCluster.uri]?.color
-          : undefined,
-      [activeRootCluster]
-    )
+    useCallback(state => state.workspaces[state.rootClusterUri]?.color, [])
   );
 
   return (
