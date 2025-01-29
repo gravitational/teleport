@@ -670,6 +670,9 @@ type TeleportProcess struct {
 	// Both the metricsRegistry and the default global registry are gathered by
 	// Telepeort's metric service.
 	metricsRegistry *prometheus.Registry
+
+	// state is the process state machine tracking if the process is healthy or not.
+	state *processState
 }
 
 // processIndex is an internal process index
@@ -1340,6 +1343,12 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 	serviceStarted := false
 
+	ps, err := process.newProcessStateMachine()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to initialize process state machine")
+	}
+	process.state = ps
+
 	if !cfg.DiagnosticAddr.IsEmpty() {
 		if err := process.initDiagnosticService(); err != nil {
 			return nil, trace.Wrap(err)
@@ -1358,12 +1367,8 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		process.initPyroscope(address)
 	}
 
-	if cfg.DebugService.Enabled {
-		if err := process.initDebugService(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentDebug), process.logger)
+	if err := process.initDebugService(cfg.DebugService.Enabled); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Create a process wide key generator that will be shared. This is so the
@@ -3554,9 +3559,50 @@ func (process *TeleportProcess) newMetricsHandler() http.Handler {
 	return metricsHandler
 }
 
+// newProcessStateMachine creates a state machine tracking the Teleport process
+// state. The state machine is then used by the diagnostics or the debug service
+// to evaluate the process health.
+func (process *TeleportProcess) newProcessStateMachine() (*processState, error) {
+	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDiagnosticHealth, process.id))
+	// Create a state machine that will process and update the internal state of
+	// Teleport based off Events. Use this state machine to return the
+	// status from the /readyz endpoint.
+	ps, err := newProcessState(process)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	process.RegisterFunc("readyz.monitor", func() error {
+		// Start loop to monitor for events that are used to update Teleport state.
+		ctx, cancel := context.WithCancel(process.GracefulExitContext())
+		defer cancel()
+
+		eventCh := make(chan Event, 1024)
+		process.ListenForEvents(ctx, TeleportDegradedEvent, eventCh)
+		process.ListenForEvents(ctx, TeleportOKEvent, eventCh)
+
+		for {
+			select {
+			case e := <-eventCh:
+				ps.update(e)
+			case <-ctx.Done():
+				logger.DebugContext(process.ExitContext(), "Teleport is exiting, returning.")
+				return nil
+			}
+		}
+	})
+	return ps, nil
+}
+
 // initDiagnosticService starts diagnostic service currently serving healthz
 // and prometheus endpoints
 func (process *TeleportProcess) initDiagnosticService() error {
+	if process.state == nil {
+		return trace.BadParameter("teleport process state machine has not yet been initialized (this is a bug)")
+	}
+
+	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDiagnostic, process.id))
+
 	mux := http.NewServeMux()
 
 	// support legacy metrics collection in the diagnostic service.
@@ -3588,61 +3634,9 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	}
 
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		roundtrip.ReplyJSON(w, http.StatusOK, map[string]interface{}{"status": "ok"})
+		roundtrip.ReplyJSON(w, http.StatusOK, map[string]any{"status": "ok"})
 	})
-
-	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDiagnostic, process.id))
-
-	// Create a state machine that will process and update the internal state of
-	// Teleport based off Events. Use this state machine to return return the
-	// status from the /readyz endpoint.
-	ps, err := newProcessState(process)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	process.RegisterFunc("readyz.monitor", func() error {
-		// Start loop to monitor for events that are used to update Teleport state.
-		ctx, cancel := context.WithCancel(process.GracefulExitContext())
-		defer cancel()
-
-		eventCh := make(chan Event, 1024)
-		process.ListenForEvents(ctx, TeleportDegradedEvent, eventCh)
-		process.ListenForEvents(ctx, TeleportOKEvent, eventCh)
-
-		for {
-			select {
-			case e := <-eventCh:
-				ps.update(e)
-			case <-ctx.Done():
-				logger.DebugContext(process.ExitContext(), "Teleport is exiting, returning.")
-				return nil
-			}
-		}
-	})
-	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
-		switch ps.getState() {
-		// 503
-		case stateDegraded:
-			roundtrip.ReplyJSON(w, http.StatusServiceUnavailable, map[string]interface{}{
-				"status": "teleport is in a degraded state, check logs for details",
-			})
-		// 400
-		case stateRecovering:
-			roundtrip.ReplyJSON(w, http.StatusBadRequest, map[string]interface{}{
-				"status": "teleport is recovering from a degraded state, check logs for details",
-			})
-		case stateStarting:
-			roundtrip.ReplyJSON(w, http.StatusBadRequest, map[string]interface{}{
-				"status": "teleport is starting and hasn't joined the cluster yet",
-			})
-		// 200
-		case stateOK:
-			roundtrip.ReplyJSON(w, http.StatusOK, map[string]interface{}{
-				"status": "ok",
-			})
-		}
-	})
+	mux.HandleFunc("/readyz", process.state.readinessHandler())
 
 	listener, err := process.importOrCreateListener(ListenerDiagnostic, process.Config.DiagnosticAddr.Addr)
 	if err != nil {
@@ -3702,17 +3696,51 @@ func (process *TeleportProcess) initDiagnosticService() error {
 }
 
 // initDebugService starts debug service serving endpoints used for
-// troubleshooting the instance.
-func (process *TeleportProcess) initDebugService() error {
-	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDebug, process.id))
-
-	listener, err := process.importOrCreateListener(ListenerDebug, filepath.Join(process.Config.DataDir, teleport.DebugServiceSocketName))
-	if err != nil {
-		return trace.Wrap(err)
+// troubleshooting the instance. This service is always active, users can
+// disable its sensitive pprof and log-setting endpoints, but the liveness
+// and readiness ones are always active.
+func (process *TeleportProcess) initDebugService(exposeDebugRoutes bool) error {
+	if process.state == nil {
+		return trace.BadParameter("teleport process state machine has not yet been initialized (this is a bug)")
 	}
 
+	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDebug, process.id))
+
+	// Unix socket creation can fail on paths too long. Depending on the UNIX implementation,
+	// socket paths cannot exceed 104 or 108 chars.
+	listener, err := process.importOrCreateListener(ListenerDebug, filepath.Join(process.Config.DataDir, teleport.DebugServiceSocketName))
+	if err != nil {
+		// If the debug service is enabled in the config, this is a hard failure
+		if exposeDebugRoutes {
+			return trace.Wrap(err)
+			// If the debug service was disabled in the config, we issue a warning and will have to continue.
+		} else {
+			logger.WarnContext(process.ExitContext(),
+				"Failed to open the debug socket. teleport-update will not be able to accurately check Teleport health.",
+				"error", err,
+			)
+			return nil
+		}
+	}
+
+	// Users can disable the debug service for compliance reasons but not the health
+	// routes because the updater relies on them.
+	var mux *http.ServeMux
+	if exposeDebugRoutes {
+		mux = debug.NewServeMux(logger, process.Config)
+		mux.Handle("/metrics", process.newMetricsHandler())
+	} else {
+		mux = http.NewServeMux()
+	}
+
+	// Add healthcheck routes.
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		roundtrip.ReplyJSON(w, http.StatusOK, map[string]any{"status": "ok"})
+	})
+	mux.HandleFunc("/readyz", process.state.readinessHandler())
+
 	server := &http.Server{
-		Handler:           debug.NewServeMux(logger, process.Config),
+		Handler:           mux,
 		ReadTimeout:       apidefaults.DefaultIOTimeout,
 		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
 		// pprof endpoints support delta profiles and cpu and trace profiling
