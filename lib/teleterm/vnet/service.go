@@ -159,7 +159,7 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		clientApplication.usageReporter = usageReporter
 	}
 
-	processManager, err := vnet.RunUserProcess(ctx, &vnet.UserProcessConfig{
+	processManager, _, err := vnet.RunUserProcess(ctx, &vnet.UserProcessConfig{
 		ClientApplication: clientApplication,
 	})
 	if err != nil {

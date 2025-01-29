@@ -51,7 +51,7 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	processManager, err := vnet.RunUserProcess(cf.Context, &vnet.UserProcessConfig{
+	processManager, _, err := vnet.RunUserProcess(cf.Context, &vnet.UserProcessConfig{
 		ClientApplication: clientApp,
 	})
 	if err != nil {

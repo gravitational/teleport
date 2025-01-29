@@ -48,6 +48,7 @@ type ProcessManager struct {
 	cancel    context.CancelFunc
 	closed    chan struct{}
 	closeOnce func()
+	networkStackInfo NetworkStackInfo
 }
 
 // AddCriticalBackgroundTask adds a function to the error group. [task] is expected to block until
