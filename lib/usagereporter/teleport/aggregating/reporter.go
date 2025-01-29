@@ -42,7 +42,7 @@ import (
 const (
 	userActivityReportGranularity        = 15 * time.Minute
 	resourceReportGranularity            = time.Hour
-	botInstanceActivityReportGranularity = time.Hour
+	botInstanceActivityReportGranularity = 15 * time.Minute
 	rollbackGrace                        = time.Minute
 	reportTTL                            = 60 * 24 * time.Hour
 
