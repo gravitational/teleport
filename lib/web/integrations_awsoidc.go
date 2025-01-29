@@ -275,7 +275,7 @@ func (h *Handler) awsOIDCListDeployedDatabaseService(w http.ResponseWriter, r *h
 		return nil, trace.BadParameter("an integration name is required")
 	}
 
-	regions, err := fetchRelevantAWSRegions(ctx, clt, clt.DiscoveryConfigClient())
+	regions, err := regionsForListingDeployedDatabaseService(ctx, r, clt, clt.DiscoveryConfigClient())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -288,6 +288,35 @@ func (h *Handler) awsOIDCListDeployedDatabaseService(w http.ResponseWriter, r *h
 	return ui.AWSOIDCListDeployedDatabaseServiceResponse{
 		Services: services,
 	}, nil
+}
+
+func extractAWSRegionsFromQuery(r *http.Request) ([]string, error) {
+	var ret []string
+	for _, region := range r.URL.Query()["regions"] {
+		if err := aws.IsValidRegion(region); err != nil {
+			return nil, trace.BadParameter("invalid region %s", region)
+		}
+		ret = append(ret, region)
+	}
+
+	return ret, nil
+}
+
+func regionsForListingDeployedDatabaseService(ctx context.Context, r *http.Request, authClient databaseGetter, discoveryConfigsClient discoveryConfigLister) ([]string, error) {
+	if r.URL.Query().Has("regions") {
+		regions, err := extractAWSRegionsFromQuery(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return regions, err
+	}
+
+	regions, err := fetchRelevantAWSRegions(ctx, authClient, discoveryConfigsClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return regions, nil
 }
 
 type databaseGetter interface {
