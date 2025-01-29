@@ -314,7 +314,7 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 			discoveryConfigs: make([]*discoveryconfig.DiscoveryConfig, 0),
 		}
 
-		gotRules, err := collectAutoDiscoveryRules(ctx, integrationName, "", "", clt)
+		gotRules, err := collectAutoDiscoveryRules(ctx, integrationName, "", "", nil, clt)
 		require.NoError(t, err)
 		expectedRules := ui.IntegrationDiscoveryRules{}
 		require.Equal(t, expectedRules, gotRules)
@@ -386,7 +386,7 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 			},
 		}
 
-		got, err := collectAutoDiscoveryRules(ctx, integrationName, "", "", clt)
+		got, err := collectAutoDiscoveryRules(ctx, integrationName, "", "", nil, clt)
 		require.NoError(t, err)
 		expectedRules := []ui.IntegrationDiscoveryRule{
 			{
@@ -438,5 +438,154 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 		}
 		require.Empty(t, got.NextKey)
 		require.ElementsMatch(t, expectedRules, got.Rules)
+	})
+
+	t.Run("filters resource type", func(t *testing.T) {
+		syncTime := time.Now()
+		dcForEC2 := &discoveryconfig.DiscoveryConfig{
+			ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{
+				Name: uuid.NewString(),
+			}},
+			Spec: discoveryconfig.Spec{AWS: []types.AWSMatcher{{
+				Integration: integrationName,
+				Types:       []string{"ec2"},
+				Regions:     []string{"us-east-1"},
+				Tags:        types.Labels{"*": []string{"*"}},
+			}}},
+			Status: discoveryconfig.Status{
+				LastSyncTime: syncTime,
+			},
+		}
+		dcForRDS := &discoveryconfig.DiscoveryConfig{
+			ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{
+				Name: uuid.NewString(),
+			}},
+			Spec: discoveryconfig.Spec{AWS: []types.AWSMatcher{{
+				Integration: integrationName,
+				Types:       []string{"rds"},
+				Regions:     []string{"us-east-1", "us-east-2"},
+				Tags: types.Labels{
+					"env": []string{"dev", "prod"},
+				},
+			}}},
+			Status: discoveryconfig.Status{
+				LastSyncTime: syncTime,
+			},
+		}
+		clt := &mockRelevantAWSRegionsClient{
+			discoveryConfigs: []*discoveryconfig.DiscoveryConfig{
+				dcForEC2,
+				dcForRDS,
+			},
+		}
+
+		got, err := collectAutoDiscoveryRules(ctx, integrationName, "", "ec2", nil, clt)
+		require.NoError(t, err)
+		expectedRules := []ui.IntegrationDiscoveryRule{
+			{
+				ResourceType: "ec2",
+				Region:       "us-east-1",
+				LabelMatcher: []libui.Label{
+					{Name: "*", Value: "*"},
+				},
+				DiscoveryConfig: dcForEC2.GetName(),
+				LastSync:        &syncTime,
+			},
+		}
+		require.Empty(t, got.NextKey)
+		require.ElementsMatch(t, expectedRules, got.Rules)
+	})
+
+	t.Run("filters by region", func(t *testing.T) {
+		syncTime := time.Now()
+		dcForRDS := &discoveryconfig.DiscoveryConfig{
+			ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{
+				Name: uuid.NewString(),
+			}},
+			Spec: discoveryconfig.Spec{AWS: []types.AWSMatcher{{
+				Integration: integrationName,
+				Types:       []string{"rds"},
+				Regions:     []string{"us-east-1", "us-east-2", "us-west-2"},
+				Tags: types.Labels{
+					"env": []string{"dev", "prod"},
+				},
+			}}},
+			Status: discoveryconfig.Status{
+				LastSyncTime: syncTime,
+			},
+		}
+		clt := &mockRelevantAWSRegionsClient{
+			discoveryConfigs: []*discoveryconfig.DiscoveryConfig{
+				dcForRDS,
+			},
+		}
+
+		got, err := collectAutoDiscoveryRules(ctx, integrationName, "", "", []string{"us-east-1", "us-east-2"}, clt)
+		require.NoError(t, err)
+		expectedRules := []ui.IntegrationDiscoveryRule{
+			{
+				ResourceType: "rds",
+				Region:       "us-east-1",
+				LabelMatcher: []libui.Label{
+					{Name: "env", Value: "dev"},
+					{Name: "env", Value: "prod"},
+				},
+				DiscoveryConfig: dcForRDS.GetName(),
+				LastSync:        &syncTime,
+			},
+			{
+				ResourceType: "rds",
+				Region:       "us-east-2",
+				LabelMatcher: []libui.Label{
+					{Name: "env", Value: "dev"},
+					{Name: "env", Value: "prod"},
+				},
+				DiscoveryConfig: dcForRDS.GetName(),
+				LastSync:        &syncTime,
+			},
+		}
+		require.Empty(t, got.NextKey)
+		require.ElementsMatch(t, expectedRules, got.Rules)
+	})
+
+	t.Run("pagination", func(t *testing.T) {
+		syncTime := time.Now()
+		totalRules := 1000
+
+		discoveryConfigs := make([]*discoveryconfig.DiscoveryConfig, 0, totalRules)
+		for range totalRules {
+			discoveryConfigs = append(discoveryConfigs,
+				&discoveryconfig.DiscoveryConfig{
+					ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{
+						Name: uuid.NewString(),
+					}},
+					Spec: discoveryconfig.Spec{AWS: []types.AWSMatcher{{
+						Integration: integrationName,
+						Types:       []string{"ec2"},
+						Regions:     []string{"us-east-1"},
+						Tags:        types.Labels{"*": []string{"*"}},
+					}}},
+					Status: discoveryconfig.Status{
+						LastSyncTime: syncTime,
+					},
+				},
+			)
+		}
+		clt := &mockRelevantAWSRegionsClient{
+			discoveryConfigs: discoveryConfigs,
+		}
+
+		nextKey := ""
+		rulesCounter := 0
+		for {
+			got, err := collectAutoDiscoveryRules(ctx, integrationName, nextKey, "", nil, clt)
+			require.NoError(t, err)
+			rulesCounter += len(got.Rules)
+			nextKey = got.NextKey
+			if nextKey == "" {
+				break
+			}
+		}
+		require.Equal(t, totalRules, rulesCounter)
 	})
 }
