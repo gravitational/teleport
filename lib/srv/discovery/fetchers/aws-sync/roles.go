@@ -89,7 +89,7 @@ func (a *Fetcher) fetchRoles(ctx context.Context) ([]*accessgraphv1alpha.AWSRole
 	awsCfg, err := a.AWSConfigProvider.GetConfig(
 		ctx,
 		"", /* region is empty because roles are global */
-		a.getAWSV2Options()...,
+		a.getAWSOptions()...,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -126,7 +126,7 @@ func (a *Fetcher) fetchRoleInlinePolicies(ctx context.Context, role *accessgraph
 	awsCfg, err := a.AWSConfigProvider.GetConfig(
 		ctx,
 		"", /* region is empty because users and groups are global */
-		a.getAWSV2Options()...,
+		a.getAWSOptions()...,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -175,7 +175,7 @@ func (a *Fetcher) fetchRoleAttachedPolicies(ctx context.Context, role *accessgra
 	awsCfg, err := a.AWSConfigProvider.GetConfig(
 		ctx,
 		"", /* region is empty because users and groups are global */
-		a.getAWSV2Options()...,
+		a.getAWSOptions()...,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

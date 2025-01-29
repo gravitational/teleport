@@ -81,7 +81,7 @@ func (m *STSClientV1) AssumeRoleWithContext(ctx aws.Context, in *sts.AssumeRoleI
 	expiry := time.Now().Add(60 * time.Minute)
 	return &sts.AssumeRoleOutput{
 		Credentials: &sts.Credentials{
-			AccessKeyId:     in.RoleArn,
+			AccessKeyId:     aws.String("FAKEACCESSKEYID"),
 			SecretAccessKey: aws.String("secret"),
 			SessionToken:    aws.String("token"),
 			Expiration:      &expiry,

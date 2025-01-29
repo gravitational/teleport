@@ -38,6 +38,7 @@ import (
 	rdsauth "github.com/aws/aws-sdk-go-v2/feature/rds/auth"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/gravitational/trace"
@@ -135,10 +136,16 @@ type rssClient interface {
 	GetCredentials(context.Context, *rss.GetCredentialsInput, ...func(*rss.Options)) (*rss.GetCredentialsOutput, error)
 }
 
+// stsClient defines a subset of the AWS STS client API.
+type stsClient interface {
+	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+}
+
 // awsClientProvider is an AWS SDK client provider.
 type awsClientProvider interface {
 	getRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient
 	getRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) rssClient
+	getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient
 }
 
 type defaultAWSClients struct{}
@@ -149,6 +156,10 @@ func (defaultAWSClients) getRedshiftClient(cfg aws.Config, optFns ...func(*redsh
 
 func (defaultAWSClients) getRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) rssClient {
 	return rss.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient {
+	return sts.NewFromConfig(cfg, optFns...)
 }
 
 // AuthConfig is the database access authenticator configuration.
@@ -1141,12 +1152,13 @@ func (a *dbAuth) buildAWSRoleARNFromDatabaseUser(ctx context.Context, database t
 			awsAccountID = assumeRoleARN.AccountID
 		default:
 			a.cfg.Logger.DebugContext(ctx, "Fetching AWS Account ID to build role ARN")
-			stsClient, err := a.cfg.Clients.GetAWSSTSClient(ctx, dbAWS.Region, cloud.WithAmbientCredentials())
+			awsCfg, err := a.cfg.AWSConfigProvider.GetConfig(ctx, dbAWS.Region, awsconfig.WithAmbientCredentials())
 			if err != nil {
 				return "", trace.Wrap(err)
 			}
+			clt := a.cfg.awsClients.getSTSClient(awsCfg)
 
-			identity, err := awslib.GetIdentityWithClient(ctx, stsClient)
+			identity, err := awslib.GetIdentityWithClientV2(ctx, clt)
 			if err != nil {
 				return "", trace.Wrap(err)
 			}
