@@ -1234,7 +1234,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// Device Trust commands.
 	deviceCmd := newDeviceCommand(app)
 
-	workloadIdentityCmd := newSVIDCommands(app)
+	svidCmd := newSVIDCommands(app)
+	workloadIdentityCmd := newWorkloadIdentityCommands(app)
 
 	vnetCmd := newVnetCommand(app)
 	vnetAdminSetupCmd := newVnetAdminSetupCommand(app)
@@ -1609,8 +1610,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onKubectlCommand(&cf, args, args[idx:])
 	case headlessApprove.FullCommand():
 		err = onHeadlessApprove(&cf)
-	case workloadIdentityCmd.issue.FullCommand():
-		err = workloadIdentityCmd.issue.run(&cf)
+	case svidCmd.issue.FullCommand():
+		err = svidCmd.issue.run(&cf)
+	case workloadIdentityCmd.issueX509.FullCommand():
+		err = workloadIdentityCmd.issueX509.run(&cf)
 	case vnetCmd.FullCommand():
 		err = vnetCmd.run(&cf)
 	case vnetAdminSetupCmd.FullCommand():
