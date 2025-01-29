@@ -3076,6 +3076,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetTracerProvider(process.TracingProvider),
 			regular.SetSessionController(sessionController),
 			regular.SetPublicAddrs(cfg.SSH.PublicAddrs),
+			regular.SetStableUNIXUsers(conn.Client.StableUNIXUsersClient()),
 		)
 		if err != nil {
 			return trace.Wrap(err)

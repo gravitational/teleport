@@ -5257,6 +5257,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	stableUNIXUsersServiceServer, err := stableunixusers.New(stableunixusers.Config{
 		Authorizer: cfg.Authorizer,
+		Emitter:    cfg.Emitter,
+		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "stable_unix_users"),
 
 		Backend:       cfg.AuthServer.bk,
 		ReadOnlyCache: cfg.AuthServer.ReadOnlyCache,
