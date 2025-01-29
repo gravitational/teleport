@@ -24,7 +24,6 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -352,7 +351,7 @@ func rulesWithIntegration(dc *discoveryconfig.DiscoveryConfig, matcherType strin
 // Accepts the following query params:
 // startKey: indicator for pagination, should be the value of the last reponse's `nextItem`, or absent for a the starting page
 // resourceType: which resource type to return, one of ec2, eks, rds
-// regionPrefix: only rules for regions prefixed with this value are returned (eg us, us-east, us-east-1)
+// regions: only rules for regions listed are returned (omit query to include all regions)
 func (h *Handler) integrationDiscoveryRules(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	integrationName := p.ByName("name")
 	if integrationName == "" {
@@ -362,7 +361,7 @@ func (h *Handler) integrationDiscoveryRules(w http.ResponseWriter, r *http.Reque
 	values := r.URL.Query()
 	startKey := values.Get("startKey")
 	resourceType := values.Get("resourceType")
-	regionPrefix := values.Get("regionPrefix")
+	regionsFilter := values["regions"]
 
 	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
@@ -374,7 +373,7 @@ func (h *Handler) integrationDiscoveryRules(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	rules, err := collectAutoDiscoveryRules(r.Context(), ig.GetName(), startKey, resourceType, regionPrefix, clt.DiscoveryConfigClient())
+	rules, err := collectAutoDiscoveryRules(r.Context(), ig.GetName(), startKey, resourceType, regionsFilter, clt.DiscoveryConfigClient())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -383,7 +382,7 @@ func (h *Handler) integrationDiscoveryRules(w http.ResponseWriter, r *http.Reque
 }
 
 // collectAutoDiscoveryRules will iterate over all DiscoveryConfigs's Matchers and collect the Discovery Rules that exist in them for the given integration.
-// It can also be filtered by Matcher Type (eg ec2, rds, eks) and a region prefix (eg, us, us-east, us-east-1)
+// It can also be filtered by Matcher Type (eg ec2, rds, eks) and a regionsFilter list (eg, us-east-1, us-east-2)
 // A Discovery Rule is a close match to a DiscoveryConfig's Matcher, except that it will count as many rules as regions exist.
 // Eg if a DiscoveryConfig's Matcher has two regions, then it will output two (almost equal) Rules, one for each Region.
 func collectAutoDiscoveryRules(
@@ -391,7 +390,7 @@ func collectAutoDiscoveryRules(
 	integrationName string,
 	nextPage string,
 	resourceTypeFilter string,
-	regionPrefixFilter string,
+	regionsFilter []string,
 	clt interface {
 		ListDiscoveryConfigs(ctx context.Context, pageSize int, nextToken string) ([]*discoveryconfig.DiscoveryConfig, string, error)
 	},
@@ -407,7 +406,7 @@ func collectAutoDiscoveryRules(
 		}
 		for _, dc := range discoveryConfigs {
 			ret.Rules = append(ret.Rules,
-				collectAutoDiscoveryRulesFromDiscoveryConfig(dc, integrationName, resourceTypeFilter, regionPrefixFilter)...,
+				collectAutoDiscoveryRulesFromDiscoveryConfig(dc, integrationName, resourceTypeFilter, regionsFilter)...,
 			)
 		}
 
@@ -422,7 +421,7 @@ func collectAutoDiscoveryRules(
 	return ret, nil
 }
 
-func collectAutoDiscoveryRulesFromDiscoveryConfig(dc *discoveryconfig.DiscoveryConfig, integrationName, resourceTypeFilter, regionPrefixFilter string) []ui.IntegrationDiscoveryRule {
+func collectAutoDiscoveryRulesFromDiscoveryConfig(dc *discoveryconfig.DiscoveryConfig, integrationName, resourceTypeFilter string, regionsFilter []string) []ui.IntegrationDiscoveryRule {
 	var ret []ui.IntegrationDiscoveryRule
 
 	lastSync := &dc.Status.LastSyncTime
@@ -441,7 +440,7 @@ func collectAutoDiscoveryRulesFromDiscoveryConfig(dc *discoveryconfig.DiscoveryC
 			}
 
 			for _, region := range matcher.Regions {
-				if regionPrefixFilter != "" && !strings.HasPrefix(region, regionPrefixFilter) {
+				if len(regionsFilter) > 0 && !slices.Contains(regionsFilter, region) {
 					continue
 				}
 

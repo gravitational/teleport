@@ -314,7 +314,7 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 			discoveryConfigs: make([]*discoveryconfig.DiscoveryConfig, 0),
 		}
 
-		gotRules, err := collectAutoDiscoveryRules(ctx, integrationName, "", "", "", clt)
+		gotRules, err := collectAutoDiscoveryRules(ctx, integrationName, "", "", nil, clt)
 		require.NoError(t, err)
 		expectedRules := ui.IntegrationDiscoveryRules{}
 		require.Equal(t, expectedRules, gotRules)
@@ -386,7 +386,7 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 			},
 		}
 
-		got, err := collectAutoDiscoveryRules(ctx, integrationName, "", "", "", clt)
+		got, err := collectAutoDiscoveryRules(ctx, integrationName, "", "", nil, clt)
 		require.NoError(t, err)
 		expectedRules := []ui.IntegrationDiscoveryRule{
 			{
@@ -479,7 +479,7 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 			},
 		}
 
-		got, err := collectAutoDiscoveryRules(ctx, integrationName, "", "ec2", "", clt)
+		got, err := collectAutoDiscoveryRules(ctx, integrationName, "", "ec2", nil, clt)
 		require.NoError(t, err)
 		expectedRules := []ui.IntegrationDiscoveryRule{
 			{
@@ -520,7 +520,7 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 			},
 		}
 
-		got, err := collectAutoDiscoveryRules(ctx, integrationName, "", "", "us-east", clt)
+		got, err := collectAutoDiscoveryRules(ctx, integrationName, "", "", []string{"us-east-1", "us-east-2"}, clt)
 		require.NoError(t, err)
 		expectedRules := []ui.IntegrationDiscoveryRule{
 			{
@@ -578,7 +578,7 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 		nextKey := ""
 		rulesCounter := 0
 		for {
-			got, err := collectAutoDiscoveryRules(ctx, integrationName, nextKey, "", "", clt)
+			got, err := collectAutoDiscoveryRules(ctx, integrationName, nextKey, "", nil, clt)
 			require.NoError(t, err)
 			rulesCounter += len(got.Rules)
 			nextKey = got.NextKey
