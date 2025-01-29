@@ -9565,15 +9565,15 @@ func TestIsMFARequired_AdminAction(t *testing.T) {
 			name:                 "mfa verified",
 			adminActionAuthState: authz.AdminActionAuthMFAVerified,
 			expectResp: &proto.IsMFARequiredResponse{
-				Required:    false,
-				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+				Required:    true,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
 			},
 		}, {
 			name:                 "mfa verified with reuse",
 			adminActionAuthState: authz.AdminActionAuthMFAVerifiedWithReuse,
 			expectResp: &proto.IsMFARequiredResponse{
-				Required:    false,
-				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+				Required:    true,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
 			},
 		},
 	} {
