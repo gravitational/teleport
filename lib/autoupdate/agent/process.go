@@ -37,23 +37,17 @@ import (
 
 // PID monitoring consts
 const (
-	// crashMonitorInterval is the polling interval for determining restart times from PIDFile.
-	crashMonitorInterval = 2 * time.Second
-	// crashMonitorTimeout is the timeout for determining whether the PIDFile is stable.
-	crashMonitorTimeout = 30 * time.Second
+	// monitorTimeout is the timeout for determining whether the process has started.
+	monitorTimeout = 1 * time.Minute
+	// monitorInterval is the polling interval for determining whether the process has started.
+	monitorInterval = 2 * time.Second
 	// minRunningIntervalsBeforeStable is the number of consecutive intervals with the same running PID detected
 	// before the service is determined stable.
 	minRunningIntervalsBeforeStable = 6
 	// maxCrashesBeforeFailure is the number of total crashes detected before the service is marked as crash-looping.
 	maxCrashesBeforeFailure = 2
-)
-
-// readiness monitoring consts
-const (
-	// readyMonitorInterval is the polling interval for determining readiness from the socket.
-	readyMonitorInterval = 2 * time.Second
-	// readyMonitorTimeout is the timeout for determining whether the service is ready.
-	readyMonitorTimeout = 30 * time.Second
+	// missingSocketTimeout is the timeout for determining whether a socket will eventually be created after the PID is stable.
+	missingSocketTimeout = 15 * time.Second
 )
 
 // log keys
@@ -122,75 +116,46 @@ func (s SystemdService) Reload(ctx context.Context) error {
 	default:
 		s.Log.InfoContext(ctx, "Gracefully reloaded.", unitKey, s.ServiceName)
 	}
+	err = s.monitor(ctx, initPID)
+	if errors.Is(err, context.DeadlineExceeded) {
+		return trace.Errorf("timed out while waiting for process to start")
+	}
+	return trace.Wrap(err)
+}
+
+// monitor for a started, healthy process.
+// Note that PID monitoring ensures that the process isn't repeatedly restarting
+func (s SystemdService) monitor(ctx context.Context, initPID int) error {
+	ctx, cancel := context.WithTimeout(ctx, monitorTimeout)
+	defer cancel()
+	tickC := time.NewTicker(monitorInterval).C
+
 	if initPID != 0 {
 		s.Log.InfoContext(ctx, "Monitoring PID file to detect crashes.", unitKey, s.ServiceName)
-		err := s.monitorPID(ctx, initPID)
-		if errors.Is(err, context.DeadlineExceeded) {
-			return trace.Errorf("timed out while waiting for process to start")
-		}
-		return trace.Wrap(err)
-	}
-	s.Log.InfoContext(ctx, "Monitoring diagnostic socket to detect readiness.", unitKey, s.ServiceName)
-	err = s.monitorSocket(ctx)
-	if errors.Is(err, context.DeadlineExceeded) {
-		return trace.Errorf("timed out while waiting for readiness check to succeed")
-	}
-	return trace.Wrap(err)
-}
-
-// monitorSocket monitors the service's debug socket for readiness.
-func (s SystemdService) monitorSocket(ctx context.Context) error {
-	ctx, cancel := context.WithTimeout(ctx, readyMonitorTimeout)
-	defer cancel()
-	tickC := time.NewTicker(readyMonitorInterval).C
-	client := debug.NewClient(s.SocketPath)
-	err := s.waitForReady(ctx, client, tickC)
-	if err != nil {
-		s.Log.ErrorContext(ctx, "Error monitoring for process readiness.", errorKey, err, unitKey, s.ServiceName)
-	}
-	return trace.Wrap(err)
-}
-
-// waitForReady polls the SocketPath unix domain socket with HTTP requests.
-// If one request returns 200 before the timeout, the service is considered ready.
-func (s SystemdService) waitForReady(ctx context.Context, client *debug.Client, tickC <-chan time.Time) error {
-	for {
-		ready, msg, err := s.probeReady(ctx, client)
+		err := s.monitorPID(ctx, initPID, tickC)
 		if err != nil {
+			s.Log.ErrorContext(ctx, "Error monitoring for crashing PID.", errorKey, err, unitKey, s.ServiceName)
 			return trace.Wrap(err)
 		}
-		if ready {
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			if msg != "" {
-				s.Log.ErrorContext(ctx, "Process not ready by deadline.", unitKey, s.ServiceName, "message", msg)
-			}
-			return ctx.Err()
-		case <-tickC:
-		}
 	}
-}
 
-// probeReady probes the SocketPath unix domain socket with an HTTP request.
-// If the request returns 200, the service is considered ready.
-// If the socket does not exist, the service is not considered ready.
-// If the readiness check is not implemented, the service is considered ready immediately.
-func (s SystemdService) probeReady(ctx context.Context, client *debug.Client) (ready bool, msg string, err error) {
-	_, err = os.Stat(s.SocketPath)
+	s.Log.InfoContext(ctx, "Monitoring diagnostic socket to detect readiness.", unitKey, s.ServiceName)
+	client := debug.NewClient(s.SocketPath)
+	err := s.waitForSocketPresent(ctx, tickC)
 	if errors.Is(err, os.ErrNotExist) {
-		return false, "socket missing", nil
+		s.Log.WarnContext(ctx, "Socket appears to be disabled.", unitKey, s.ServiceName)
+		return nil
 	}
-	// TODO: socket missing entire time
 	if err != nil {
-		return false, "", trace.Wrap(err)
+		s.Log.ErrorContext(ctx, "Error monitoring for socket presence.", errorKey, err, unitKey, s.ServiceName)
+		return trace.Wrap(err)
 	}
-	ready, msg, err = client.GetReadiness(ctx)
-	if trace.IsNotFound(err) {
-		return true, msg, nil
+	err = s.waitForReady(ctx, client, tickC)
+	if err != nil {
+		s.Log.ErrorContext(ctx, "Error monitoring for process readiness.", errorKey, err, unitKey, s.ServiceName)
+		return trace.Wrap(err)
 	}
-	return ready, msg, trace.Wrap(err)
+	return nil
 }
 
 // monitorPID for the started process to ensure it's running by polling PIDFile.
@@ -198,11 +163,9 @@ func (s SystemdService) probeReady(ctx context.Context, client *debug.Client) (r
 // For example, the process may crash by failing to fork (non-running PID), or looping (repeatedly changing PID),
 // or getting stuck on quit (no change in PID).
 // initPID is the PID before the restart operation has been issued.
-func (s SystemdService) monitorPID(ctx context.Context, initPID int) error {
-	ctx, cancel := context.WithTimeout(ctx, crashMonitorTimeout)
+func (s SystemdService) monitorPID(ctx context.Context, initPID int, tickC <-chan time.Time) error {
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	tickC := time.NewTicker(crashMonitorInterval).C
-
 	pidC := make(chan int)
 	g := &errgroup.Group{}
 	g.Go(func() error {
@@ -315,6 +278,48 @@ func tickFile(ctx context.Context, path string, ch chan<- int, tickC <-chan time
 		case ch <- t:
 		case <-ctx.Done():
 			return err
+		}
+	}
+}
+
+// waitForSocketPresent returns true after the socket is created.
+// If the socket does not exist after missingSocketTimeout, os.ErrNotExist is returned.
+func (s SystemdService) waitForSocketPresent(ctx context.Context, tickC <-chan time.Time) error {
+	timer := time.NewTimer(missingSocketTimeout)
+	for {
+		_, err := os.Stat(s.SocketPath)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return trace.Wrap(err)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+			return os.ErrNotExist
+		case <-tickC:
+		}
+	}
+}
+
+// waitForReady polls the SocketPath unix domain socket with HTTP requests.
+// If one request returns 200 before the timeout, the service is considered ready.
+// If the readiness check is not implemented, the service is considered ready immediately.
+func (s SystemdService) waitForReady(ctx context.Context, client *debug.Client, tickC <-chan time.Time) error {
+	for {
+		ready, msg, err := client.GetReadiness(ctx)
+		if ready || trace.IsNotFound(err) {
+			return nil
+		}
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		select {
+		case <-ctx.Done():
+			if msg != "" {
+				s.Log.ErrorContext(ctx, "Process not ready by deadline.", unitKey, s.ServiceName, "message", msg)
+			}
+			return ctx.Err()
+		case <-tickC:
 		}
 	}
 }
