@@ -26,6 +26,7 @@ import (
 	"github.com/grafana/pyroscope-go"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/trace"
 )
 
 // TODO: Replace logger when pyroscope uses slog
@@ -51,7 +52,7 @@ func (l pyroscopeLogger) Errorf(format string, args ...interface{}) {
 // createPyroscopeConfig generates the Pyroscope configuration for the Teleport process.
 func createPyroscopeConfig(ctx context.Context, address string) (pyroscope.Config, error) {
 	if address == "" {
-		return pyroscope.Config{}, fmt.Errorf("pyroscope address is empty")
+		return pyroscope.Config{}, trace.BadParameter("pyroscope address is empty")
 	}
 
 	hostname, err := os.Hostname()
