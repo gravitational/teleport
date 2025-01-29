@@ -346,6 +346,7 @@ function EmptyState() {
   );
 }
 
+//TODO(rudream): Delete local notifications
 /** accessListStoreNotificationsToNotifications converts a list of access list notifications from the notifications store into the primary
  * Notification type used by the notifications list.
  */

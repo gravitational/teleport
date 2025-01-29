@@ -307,6 +307,10 @@ func (s *Service) matchGlobalNotification(ctx context.Context, authCtx *authz.Co
 		// Always return true if the matcher is "all."
 		return true
 
+	case *notificationsv1.GlobalNotificationSpec_ByUsers:
+		userList := matcher.ByUsers.GetUsers()
+		return slices.Contains(userList, authCtx.User.GetName())
+
 	case *notificationsv1.GlobalNotificationSpec_ByRoles:
 		matcherRoles := matcher.ByRoles.GetRoles()
 		userRoles := authCtx.User.GetRoles()
