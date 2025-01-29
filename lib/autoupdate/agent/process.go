@@ -155,6 +155,10 @@ func (s SystemdService) monitor(ctx context.Context, initPID int) error {
 		return trace.Wrap(err)
 	}
 	err = s.waitForReady(ctx, client, tickC)
+	if trace.IsNotFound(err) {
+		s.Log.WarnContext(ctx, "Socket appears to be missing readiness endpoint.", unitKey, s.ServiceName)
+		return nil
+	}
 	if err != nil {
 		s.Log.ErrorContext(ctx, "Error monitoring for process readiness.", errorKey, err, unitKey, s.ServiceName)
 		return trace.Wrap(err)
@@ -315,13 +319,9 @@ func (s SystemdService) waitForSocketPresent(ctx context.Context, tickC <-chan t
 
 // waitForReady polls the SocketPath unix domain socket with HTTP requests.
 // If one request returns 200 before the timeout, the service is considered ready.
-// If the readiness check is not implemented, the service is considered ready immediately.
 func (s SystemdService) waitForReady(ctx context.Context, client *debug.Client, tickC <-chan time.Time) error {
 	for {
 		ready, msg, err := client.GetReadiness(ctx)
-		if trace.IsNotFound(err) {
-			return nil
-		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
