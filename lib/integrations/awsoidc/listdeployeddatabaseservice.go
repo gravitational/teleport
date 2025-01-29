@@ -145,7 +145,7 @@ func ListDeployedDatabaseServices(ctx context.Context, clt ListDeployedDatabaseS
 			return &ListDeployedDatabaseServicesResponse{}, nil
 		}
 
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(convertedError)
 	}
 
 	describeServicesOutput, err := clt.DescribeServices(ctx, &ecs.DescribeServicesInput{

@@ -875,13 +875,13 @@ func envVarDefaultFormat() string {
 func envVarCommand(format, key, value string) (string, error) {
 	switch format {
 	case envVarFormatUnix:
-		return fmt.Sprintf("export %s=%s", key, value), nil
+		return fmt.Sprintf(`export %s="%s"`, key, value), nil
 
 	case envVarFormatWindowsCommandPrompt:
 		return fmt.Sprintf("set %s=%s", key, value), nil
 
 	case envVarFormatWindowsPowershell:
-		return fmt.Sprintf("$Env:%s=\"%s\"", key, value), nil
+		return fmt.Sprintf(`$Env:%s="%s"`, key, value), nil
 
 	case envVarFormatText:
 		return fmt.Sprintf("%s=%s", key, value), nil

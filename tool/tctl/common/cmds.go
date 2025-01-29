@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/accessmonitoring"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/plugin"
+	"github.com/gravitational/teleport/tool/tctl/common/top"
 	"github.com/gravitational/teleport/tool/tctl/sso/configure"
 	"github.com/gravitational/teleport/tool/tctl/sso/tester"
 )
@@ -35,7 +36,7 @@ func Commands() []CLICommand {
 		&TokensCommand{},
 		&AuthCommand{},
 		&StatusCommand{},
-		&TopCommand{},
+		&top.Command{},
 		&AccessRequestCommand{},
 		&AppsCommand{},
 		&DBCommand{},

@@ -1,37 +1,33 @@
-/*
- * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package common
+package top
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"iter"
 	"math"
 	"net/url"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
-	"github.com/alecthomas/kingpin/v2"
-	"github.com/dustin/go-humanize"
-	ui "github.com/gizak/termui/v3"
-	"github.com/gizak/termui/v3/widgets"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
@@ -39,348 +35,9 @@ import (
 	"github.com/prometheus/common/expfmt"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
-	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
-	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
-
-// TopCommand implements `tctl top` group of commands.
-type TopCommand struct {
-	config *servicecfg.Config
-
-	// CLI clauses (subcommands)
-	top           *kingpin.CmdClause
-	diagURL       *string
-	refreshPeriod *time.Duration
-}
-
-// Initialize allows TopCommand to plug itself into the CLI parser.
-func (c *TopCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
-	c.config = config
-	c.top = app.Command("top", "Report diagnostic information.")
-	c.diagURL = c.top.Arg("diag-addr", "Diagnostic HTTP URL").Default("http://127.0.0.1:3000").String()
-	c.refreshPeriod = c.top.Arg("refresh", "Refresh period").Default("5s").Duration()
-}
-
-// TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
-func (c *TopCommand) TryRun(ctx context.Context, cmd string, _ commonclient.InitFunc) (match bool, err error) {
-	switch cmd {
-	case c.top.FullCommand():
-		diagClient, err := roundtrip.NewClient(*c.diagURL, "")
-		if err != nil {
-			return true, trace.Wrap(err)
-		}
-		err = c.Top(ctx, diagClient)
-		if trace.IsConnectionProblem(err) {
-			return true, trace.ConnectionProblem(err,
-				"[CLIENT] Could not connect to metrics service at %v. Is teleport running with --diag-addr=%v?", *c.diagURL, *c.diagURL)
-		}
-		return true, trace.Wrap(err)
-	default:
-		return false, nil
-	}
-}
-
-// Top is called to execute "status" CLI command.
-func (c *TopCommand) Top(ctx context.Context, client *roundtrip.Client) error {
-	if err := ui.Init(); err != nil {
-		return trace.Wrap(err)
-	}
-	defer ui.Close()
-
-	uiEvents := ui.PollEvents()
-	ticker := time.NewTicker(*c.refreshPeriod)
-	defer ticker.Stop()
-
-	// fetch and render first time
-	var prev *Report
-	re, err := c.fetchAndGenerateReport(ctx, client, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	lastTab := ""
-	if err := c.render(ctx, *re, lastTab); err != nil {
-		return trace.Wrap(err)
-	}
-	for {
-		select {
-		case e := <-uiEvents:
-			switch e.ID { // event string/identifier
-			case "q", "<C-c>": // press 'q' or 'C-c' to quit
-				return nil
-			}
-			if e.ID == "1" || e.ID == "2" || e.ID == "3" || e.ID == "4" {
-				lastTab = e.ID
-			}
-			// render previously fetched data on the resize event
-			if re != nil {
-				if err := c.render(ctx, *re, lastTab); err != nil {
-					return trace.Wrap(err)
-				}
-			}
-		case <-ticker.C:
-			// fetch data and re-render on ticker
-			prev = re
-			re, err = c.fetchAndGenerateReport(ctx, client, prev)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if err := c.render(ctx, *re, lastTab); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-	}
-}
-
-func (c *TopCommand) render(ctx context.Context, re Report, eventID string) error {
-	h := widgets.NewParagraph()
-	h.Text = fmt.Sprintf("Report Generated at %v for host %v. Press <q> or Ctrl-C to quit.",
-		re.Timestamp.Format(constants.HumanDateFormatSeconds), re.Hostname)
-	h.Border = false
-	h.TextStyle = ui.NewStyle(ui.ColorMagenta)
-
-	termWidth, termHeight := ui.TerminalDimensions()
-
-	backendRequestsTable := func(title string, b BackendStats) *widgets.Table {
-		t := widgets.NewTable()
-		t.Title = title
-		t.TitleStyle = ui.NewStyle(ui.ColorCyan)
-		t.ColumnWidths = []int{10, 10, 10, 50000}
-		t.RowSeparator = false
-		t.Rows = [][]string{
-			{"Count", "Req/Sec", "Range", "Key"},
-		}
-		for _, req := range b.SortedTopRequests() {
-			t.Rows = append(t.Rows,
-				[]string{
-					humanize.FormatFloat("", float64(req.Count)),
-					humanize.FormatFloat("", req.GetFreq()),
-					fmt.Sprintf("%v", req.Key.IsRange()),
-					req.Key.Key,
-				})
-		}
-		return t
-	}
-
-	eventsTable := func(w *WatcherStats) *widgets.Table {
-		t := widgets.NewTable()
-		t.Title = "Top Events Emitted"
-		t.TitleStyle = ui.NewStyle(ui.ColorCyan)
-		t.ColumnWidths = []int{10, 10, 10, 50000}
-		t.RowSeparator = false
-		t.Rows = [][]string{
-			{"Count", "Req/Sec", "Avg Size", "Resource"},
-		}
-		for _, event := range w.SortedTopEvents() {
-			t.Rows = append(t.Rows,
-				[]string{
-					humanize.FormatFloat("", float64(event.Count)),
-					humanize.FormatFloat("", event.GetFreq()),
-					humanize.FormatFloat("", event.AverageSize()),
-					event.Resource,
-				})
-		}
-		return t
-	}
-
-	eventsGraph := func(title string, buf *utils.CircularBuffer) *widgets.Plot {
-		lc := widgets.NewPlot()
-		lc.Title = title
-		lc.TitleStyle = ui.NewStyle(ui.ColorCyan)
-		lc.Data = make([][]float64, 1)
-		// only get the most recent events to fill the graph
-		lc.Data[0] = buf.Data((termWidth / 2) - 10)
-		lc.AxesColor = ui.ColorWhite
-		lc.LineColors[0] = ui.ColorGreen
-		lc.Marker = widgets.MarkerDot
-
-		return lc
-	}
-
-	t1 := widgets.NewTable()
-	t1.Title = "Cluster Stats"
-	t1.TitleStyle = ui.NewStyle(ui.ColorCyan)
-	t1.ColumnWidths = []int{30, 50000}
-	t1.RowSeparator = false
-	t1.Rows = [][]string{
-		{"Interactive Sessions", humanize.FormatFloat("", re.Cluster.InteractiveSessions)},
-		{"Cert Gen Active Requests", humanize.FormatFloat("", re.Cluster.GenerateRequests)},
-		{"Cert Gen Requests/sec", humanize.FormatFloat("", re.Cluster.GenerateRequestsCount.GetFreq())},
-		{"Cert Gen Throttled Requests/sec", humanize.FormatFloat("", re.Cluster.GenerateRequestsThrottledCount.GetFreq())},
-		{"Auth Watcher Queue Size", humanize.FormatFloat("", re.Cache.QueueSize)},
-		{"Active Migrations", strings.Join(re.Cluster.ActiveMigrations, ", ")},
-	}
-	for _, rc := range re.Cluster.RemoteClusters {
-		t1.Rows = append(t1.Rows, []string{
-			fmt.Sprintf("Cluster %v", rc.Name), rc.IsConnected(),
-		})
-	}
-
-	t2 := widgets.NewTable()
-	t2.Title = "Process Stats"
-	t2.TitleStyle = ui.NewStyle(ui.ColorCyan)
-	t2.ColumnWidths = []int{30, 50000}
-	t2.RowSeparator = false
-	t2.Rows = [][]string{
-		{"Start Time", re.Process.StartTime.Format(constants.HumanDateFormatSeconds)},
-		{"Resident Memory Bytes", humanize.Bytes(uint64(re.Process.ResidentMemoryBytes))},
-		{"Open File Descriptors", humanize.FormatFloat("", re.Process.OpenFDs)},
-		{"CPU Seconds Total", humanize.FormatFloat("", re.Process.CPUSecondsTotal)},
-		{"Max File Descriptors", humanize.FormatFloat("", re.Process.MaxFDs)},
-	}
-
-	t3 := widgets.NewTable()
-	t3.Title = "Go Runtime Stats"
-	t3.TitleStyle = ui.NewStyle(ui.ColorCyan)
-	t3.ColumnWidths = []int{30, 50000}
-	t3.RowSeparator = false
-	t3.Rows = [][]string{
-		{"Allocated Memory", humanize.Bytes(uint64(re.Go.AllocBytes))},
-		{"Goroutines", humanize.FormatFloat("", re.Go.Goroutines)},
-		{"Threads", humanize.FormatFloat("", re.Go.Threads)},
-		{"Heap Objects", humanize.FormatFloat("", re.Go.HeapObjects)},
-		{"Heap Allocated Memory", humanize.Bytes(uint64(re.Go.HeapAllocBytes))},
-		{"Info", re.Go.Info},
-	}
-
-	percentileTable := func(title string, hist Histogram) *widgets.Table {
-		t := widgets.NewTable()
-		t.Title = title
-		t.TitleStyle = ui.NewStyle(ui.ColorCyan)
-
-		if hist.Count == 0 {
-			t.Rows = [][]string{
-				{"No data"},
-			}
-			return t
-		}
-
-		t.ColumnWidths = []int{30, 50000}
-		t.RowSeparator = false
-		t.Rows = [][]string{
-			{"Percentile", "Latency"},
-		}
-		for _, p := range hist.AsPercentiles() {
-			t.Rows = append(t.Rows, []string{
-				humanize.FormatFloat("#,###", p.Percentile) + "%",
-				fmt.Sprintf("%v", p.Value),
-			})
-		}
-		return t
-	}
-
-	grid := ui.NewGrid()
-	grid.SetRect(0, 0, termWidth, termHeight)
-
-	tabpane := widgets.NewTabPane("[1] Common", "[2] Backend Stats", "[3] Cache Stats", "[4] Event Stats")
-	tabpane.ActiveTabStyle = ui.NewStyle(ui.ColorCyan, ui.ColorClear, ui.ModifierBold|ui.ModifierUnderline)
-	tabpane.InactiveTabStyle = ui.NewStyle(ui.ColorCyan)
-	tabpane.Border = false
-
-	switch eventID {
-	case "", "1":
-		tabpane.ActiveTabIndex = 0
-		grid.Set(
-			ui.NewRow(0.05,
-				ui.NewCol(1.0, tabpane),
-			),
-			ui.NewRow(0.925,
-				ui.NewCol(0.5,
-					ui.NewRow(0.3, t1),
-					ui.NewRow(0.3, t2),
-					ui.NewRow(0.3, t3),
-				),
-				ui.NewCol(0.5,
-					ui.NewRow(0.3, percentileTable("Generate Server Certificates Percentiles", re.Cluster.GenerateRequestsHistogram)),
-				),
-			),
-			ui.NewRow(0.025,
-				ui.NewCol(1.0, h),
-			),
-		)
-	case "2":
-		tabpane.ActiveTabIndex = 1
-		grid.Set(
-			ui.NewRow(0.05,
-				ui.NewCol(1.0, tabpane),
-			),
-			ui.NewRow(0.925,
-				ui.NewCol(0.5,
-					ui.NewRow(1.0, backendRequestsTable("Top Backend Requests", re.Backend)),
-				),
-				ui.NewCol(0.5,
-					ui.NewRow(0.3, percentileTable("Backend Read Percentiles", re.Backend.Read)),
-					ui.NewRow(0.3, percentileTable("Backend Batch Read Percentiles", re.Backend.BatchRead)),
-					ui.NewRow(0.3, percentileTable("Backend Write Percentiles", re.Backend.Write)),
-				),
-			),
-			ui.NewRow(0.025,
-				ui.NewCol(1.0, h),
-			),
-		)
-	case "3":
-		tabpane.ActiveTabIndex = 2
-		grid.Set(
-			ui.NewRow(0.05,
-				ui.NewCol(1.0, tabpane),
-			),
-			ui.NewRow(0.925,
-				ui.NewCol(0.5,
-					ui.NewRow(1.0, backendRequestsTable("Top Cache Requests", re.Cache)),
-				),
-				ui.NewCol(0.5,
-					ui.NewRow(0.3, percentileTable("Cache Read Percentiles", re.Cache.Read)),
-					ui.NewRow(0.3, percentileTable("Cache Batch Read Percentiles", re.Cache.BatchRead)),
-					ui.NewRow(0.3, percentileTable("Cache Write Percentiles", re.Cache.Write)),
-				),
-			),
-			ui.NewRow(0.025,
-				ui.NewCol(1.0, h),
-			),
-		)
-	case "4":
-		tabpane.ActiveTabIndex = 3
-		grid.Set(
-			ui.NewRow(0.05,
-				ui.NewCol(1.0, tabpane),
-			),
-			ui.NewRow(0.925,
-				ui.NewCol(0.5,
-					ui.NewRow(1.0, eventsTable(re.Watcher)),
-				),
-				ui.NewCol(0.5,
-					ui.NewRow(0.5, eventsGraph("Events/Sec", re.Watcher.EventsPerSecond)),
-					ui.NewRow(0.5, eventsGraph("Bytes/Sec", re.Watcher.BytesPerSecond)),
-				),
-			),
-			ui.NewRow(0.025,
-				ui.NewCol(1.0, h),
-			),
-		)
-	}
-	ui.Render(grid)
-	return nil
-}
-
-func (c *TopCommand) fetchAndGenerateReport(ctx context.Context, client *roundtrip.Client, prev *Report) (*Report, error) {
-	metrics, err := c.getPrometheusMetrics(ctx, client)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return generateReport(metrics, prev, *c.refreshPeriod)
-}
-
-func (c *TopCommand) getPrometheusMetrics(ctx context.Context, client *roundtrip.Client) (map[string]*dto.MetricFamily, error) {
-	re, err := client.Get(ctx, client.Endpoint("metrics"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(trace.ConvertSystemError(err))
-	}
-	var parser expfmt.TextParser
-	return parser.TextToMetricFamilies(re.Reader())
-}
 
 // Report is a report rendered over the data
 type Report struct {
@@ -395,9 +52,9 @@ type Report struct {
 	// Go contains go runtime stats
 	Go GoStats
 	// Backend is a backend stats
-	Backend BackendStats
+	Backend *BackendStats
 	// Cache is cache stats
-	Cache BackendStats
+	Cache *BackendStats
 	// Cluster is cluster stats
 	Cluster ClusterStats
 	// Watcher is watcher stats
@@ -425,16 +82,17 @@ func (b *WatcherStats) SortedTopEvents() []Event {
 		out = append(out, events)
 	}
 
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].GetFreq() != out[j].GetFreq() {
-			return out[i].GetFreq() > out[j].GetFreq()
+	// Comparisons are inverted to ensure ordering is highest to lowest.
+	slices.SortFunc(out, func(a, b Event) int {
+		if a.GetFreq() != b.GetFreq() {
+			return cmp.Compare(a.GetFreq(), b.GetFreq()) * -1
 		}
 
-		if out[i].Count != out[j].Count {
-			return out[i].Count > out[j].Count
+		if a.Count != b.Count {
+			return cmp.Compare(a.Count, b.Count) * -1
 		}
 
-		return out[i].Resource < out[j].Resource
+		return cmp.Compare(a.Resource, b.Resource) * -1
 	})
 	return out
 }
@@ -510,16 +168,17 @@ func (b *BackendStats) SortedTopRequests() []Request {
 		out = append(out, req)
 	}
 
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].GetFreq() != out[j].GetFreq() {
-			return out[i].GetFreq() > out[j].GetFreq()
+	// Comparisons are inverted to ensure ordering is highest to lowest.
+	slices.SortFunc(out, func(a, b Request) int {
+		if a.GetFreq() != b.GetFreq() {
+			return cmp.Compare(a.GetFreq(), b.GetFreq()) * -1
 		}
 
-		if out[i].Count != out[j].Count {
-			return out[i].Count > out[j].Count
+		if a.Count != b.Count {
+			return cmp.Compare(a.Count, b.Count) * -1
 		}
 
-		return out[i].Key.Key < out[j].Key.Key
+		return cmp.Compare(a.Key.Key, b.Key.Key) * -1
 	})
 	return out
 }
@@ -541,6 +200,8 @@ type ClusterStats struct {
 	GenerateRequestsHistogram Histogram
 	// ActiveMigrations is a set of active migrations
 	ActiveMigrations []string
+	// Roles is the number of roles that exist in the cluster.
+	Roles float64
 }
 
 // RemoteCluster is a remote cluster (or local cluster)
@@ -630,30 +291,34 @@ type Percentile struct {
 	Value time.Duration
 }
 
-// AsPercentiles interprets histogram as a bucket of percentiles
-// and returns calculated percentiles
-func (h Histogram) AsPercentiles() []Percentile {
-	if h.Count == 0 {
-		return nil
-	}
-	var percentiles []Percentile
-	for _, bucket := range h.Buckets {
-		if bucket.Count == 0 {
-			continue
+// Percentiles returns an iterator of the percentiles
+// of the buckets within the historgram.
+func (h Histogram) Percentiles() iter.Seq[Percentile] {
+	return func(yield func(Percentile) bool) {
+		if h.Count == 0 {
+			return
 		}
-		if bucket.Count == h.Count || math.IsInf(bucket.UpperBound, 0) {
-			percentiles = append(percentiles, Percentile{
-				Percentile: 100,
+
+		for _, bucket := range h.Buckets {
+			if bucket.Count == 0 {
+				continue
+			}
+			if bucket.Count == h.Count || math.IsInf(bucket.UpperBound, 0) {
+				yield(Percentile{
+					Percentile: 100,
+					Value:      time.Duration(bucket.UpperBound * float64(time.Second)),
+				})
+				return
+			}
+
+			if !yield(Percentile{
+				Percentile: 100 * (float64(bucket.Count) / float64(h.Count)),
 				Value:      time.Duration(bucket.UpperBound * float64(time.Second)),
-			})
-			return percentiles
+			}) {
+				return
+			}
 		}
-		percentiles = append(percentiles, Percentile{
-			Percentile: 100 * (float64(bucket.Count) / float64(h.Count)),
-			Value:      time.Duration(bucket.UpperBound * float64(time.Second)),
-		})
 	}
-	return percentiles
 }
 
 // Bucket is a histogram bucket
@@ -664,6 +329,20 @@ type Bucket struct {
 	UpperBound float64
 }
 
+func fetchAndGenerateReport(ctx context.Context, client *roundtrip.Client, prev *Report, period time.Duration) (*Report, error) {
+	re, err := client.Get(ctx, client.Endpoint("metrics"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(trace.ConvertSystemError(err))
+	}
+
+	var parser expfmt.TextParser
+	metrics, err := parser.TextToMetricFamilies(re.Reader())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return generateReport(metrics, prev, period)
+}
+
 func generateReport(metrics map[string]*dto.MetricFamily, prev *Report, period time.Duration) (*Report, error) {
 	// format top backend requests
 	hostname, _ := os.Hostname()
@@ -671,10 +350,10 @@ func generateReport(metrics map[string]*dto.MetricFamily, prev *Report, period t
 		Version:   types.V1,
 		Timestamp: time.Now().UTC(),
 		Hostname:  hostname,
-		Backend: BackendStats{
+		Backend: &BackendStats{
 			TopRequests: make(map[RequestKey]Request),
 		},
-		Cache: BackendStats{
+		Cache: &BackendStats{
 			TopRequests: make(map[RequestKey]Request),
 		},
 	}
@@ -698,15 +377,15 @@ func generateReport(metrics map[string]*dto.MetricFamily, prev *Report, period t
 
 	var stats *BackendStats
 	if prev != nil {
-		stats = &prev.Backend
+		stats = prev.Backend
 	}
-	collectBackendStats(teleport.ComponentBackend, &re.Backend, stats)
+	collectBackendStats(teleport.ComponentBackend, re.Backend, stats)
 	if prev != nil {
-		stats = &prev.Cache
+		stats = prev.Cache
 	} else {
 		stats = nil
 	}
-	collectBackendStats(teleport.ComponentCache, &re.Cache, stats)
+	collectBackendStats(teleport.ComponentCache, re.Cache, stats)
 	re.Cache.QueueSize = getComponentGaugeValue(teleport.Component(teleport.ComponentAuth, teleport.ComponentCache),
 		metrics[teleport.MetricBackendWatcherQueues])
 
@@ -742,6 +421,7 @@ func generateReport(metrics map[string]*dto.MetricFamily, prev *Report, period t
 		GenerateRequestsThrottledCount: Counter{Count: getCounterValue(metrics[teleport.MetricGenerateRequestsThrottled])},
 		GenerateRequestsHistogram:      getHistogram(metrics[teleport.MetricGenerateRequestsHistogram], atIndex(0)),
 		ActiveMigrations:               getActiveMigrations(metrics[prometheus.BuildFQName(teleport.MetricNamespace, "", teleport.MetricMigrations)]),
+		Roles:                          getGaugeValue(metrics[prometheus.BuildFQName(teleport.MetricNamespace, "", "roles_total")]),
 	}
 
 	if prev != nil {

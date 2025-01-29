@@ -293,7 +293,13 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 	}
 
 	services, err := listDeployedDatabaseServices(ctx, req.logger, req.integration.GetName(), regions, req.awsOIDCClient)
-	if err != nil {
+	switch {
+	case trace.IsAccessDenied(err):
+		// The number of ECS Database Services is shown when listing the integration status.
+		// However, listing ECS Services is only possible after the user goes through the RDS enrollment flows, which adds the required policy to the IAM Role.
+		// If this calls returns an access denied, we assume the user doesn't have the required IAM Policies in their IAM Role and show 0 instead.
+
+	case err != nil:
 		return nil, trace.Wrap(err)
 	}
 
