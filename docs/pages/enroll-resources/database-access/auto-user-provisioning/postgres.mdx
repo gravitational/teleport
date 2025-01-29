@@ -45,7 +45,14 @@ for more information.
 If the admin user needs to grant the `rds_superuser` role to auto-provisioned
 users, the admin user must also be a `rds_superuser`:
 ```sql
-GRANT rds_superuser TO "teleport-admin" WITH ADMIN OPTION;
+GRANT rds_superuser TO "teleport-admin";
+```
+
+For PostgreSQL 16+, you must grant the `ADMIN` option to the admin user for each
+PostgreSQL role that Teleport will assign to your Teleport user. For example, to
+allow the admin user to grant and revoke role `reader`:
+```sql
+GRANT reader TO "teleport-admin" WITH ADMIN OPTION;
 ```
 </TabItem>
 <TabItem label="Self-hosted PostgreSQL">
@@ -53,6 +60,13 @@ The self-hosted PostgreSQL admin user must have X.509 authentication configured.
 
 ```sql
 CREATE USER "teleport-admin" login createrole;
+```
+
+For PostgreSQL 16+, you must grant the `ADMIN` option to the admin user for each
+PostgreSQL role that Teleport will assign to your Teleport user. For example, to
+allow the admin user to grant and revoke role `reader`:
+```sql
+GRANT reader TO "teleport-admin" WITH ADMIN OPTION;
 ```
 
 Note that the database must be configured to accept client certificate auth
