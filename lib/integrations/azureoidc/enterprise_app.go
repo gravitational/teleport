@@ -52,7 +52,7 @@ var appRoles = []string{
 //   - Provides Teleport with OIDC authentication to Azure
 //   - Is given the permissions to access certain Microsoft Graph API endpoints for this tenant.
 //   - Provides SSO to the Teleport cluster via SAML.
-func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnectorName string, skipOIDCSetup bool) (string, string, error) {
+func SetupEnterpriseApp(ctx context.Context, displayPrefix string, proxyPublicAddr string, authConnectorName string, skipOIDCSetup bool) (string, string, error) {
 	var appID, tenantID string
 
 	tenantID, err := getTenantID()
@@ -70,7 +70,7 @@ func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnect
 		return appID, tenantID, trace.Wrap(err, "could not parse URL of the Proxy Service")
 	}
 
-	displayName := "Teleport" + " " + proxyURL.Hostname()
+	displayName := displayPrefix + " " + proxyURL.Hostname()
 
 	appAndSP, err := graphClient.InstantiateApplicationTemplate(ctx, nonGalleryAppTemplateID, displayName)
 	if err != nil {
@@ -116,7 +116,7 @@ func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnect
 			}
 		}
 		if err != nil {
-			return appID, tenantID, trace.Wrap(err, "failed to assign app role %s", appRoleID)
+			return appID, tenantID, trace.Wrap(err, "failed to assign app role %s: %v", appRoleID, err)
 		}
 	}
 

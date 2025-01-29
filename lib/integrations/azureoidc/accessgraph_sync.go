@@ -20,8 +20,10 @@ package azureoidc
 
 import (
 	"context"
+	"errors"
 	"io"
 	"maps"
+	"net/http"
 	"slices"
 	"strings"
 
@@ -47,11 +49,15 @@ const azureUserAgent = "teleport"
 
 // requiredGraphRoleNames is the list of Graph API roles required for the managed identity to fetch resources from Azure
 var requiredGraphRoleNames = map[string]struct{}{
-	"User.ReadBasic.All": {},
 	"Group.Read.All":     {},
 	"Directory.Read.All": {},
 	"User.Read.All":      {},
 	"Policy.Read.All":    {},
+}
+
+// requiredGraphAppRoleNames is the list of Graph API roles required for the enterprise application to fetch resources from Azure
+var requiredGraphAppRoleNames = map[string]struct{}{
+	"Group.Read.All": {},
 }
 
 // AccessGraphAzureConfigureClient provides an interface for granting the managed identity the necessary permissions
@@ -185,8 +191,10 @@ func configureAzureSyncAction(clt AccessGraphAzureConfigureClient, subscriptionI
 	customRole := "CustomRole"
 	scope := "/subscriptions/" + subscriptionID
 	runnerFn := func(ctx context.Context) error {
+		var requiredRoles map[string]struct{}
 		if createApp {
-			appID, _, err := SetupEnterpriseApp(ctx, proxyPublicAddr, authConnectorName, false)
+			appID, _, err := SetupEnterpriseApp(
+				ctx, "Teleport Access Graph Sync", proxyPublicAddr, authConnectorName, false)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -195,6 +203,9 @@ func configureAzureSyncAction(clt AccessGraphAzureConfigureClient, subscriptionI
 				return trace.Wrap(err)
 			}
 			principalID = *principal.ID
+			requiredRoles = requiredGraphAppRoleNames
+		} else {
+			requiredRoles = requiredGraphRoleNames
 		}
 		// Create the role
 		roleDefinition := armauthorization.RoleDefinition{
@@ -217,6 +228,13 @@ func configureAzureSyncAction(clt AccessGraphAzureConfigureClient, subscriptionI
 		}
 		roleID, err := clt.CreateRoleDefinition(ctx, scope, roleDefinition)
 		if err != nil {
+			var respErr *azcore.ResponseError
+			if errors.As(err, &respErr) {
+				if respErr.StatusCode == http.StatusConflict {
+					return trace.Errorf("role name already exists, delete this role or choose another name: %s", *roleDefinition.Name)
+				}
+				return trace.Errorf("failed to create custom role: %v", respErr)
+			}
 			return trace.Errorf("failed to create custom role: %v", err)
 		}
 
@@ -237,7 +255,7 @@ func configureAzureSyncAction(clt AccessGraphAzureConfigureClient, subscriptionI
 			return trace.Errorf("could not get the graph API service principal: %v", err)
 		}
 		rolesNotAssigned := make(map[string]struct{})
-		for k, v := range requiredGraphRoleNames {
+		for k, v := range requiredRoles {
 			rolesNotAssigned[k] = v
 		}
 		for _, appRole := range graphPrincipal.AppRoles {
