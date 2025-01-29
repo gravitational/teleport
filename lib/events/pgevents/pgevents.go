@@ -592,7 +592,7 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 
 // sessionIDBase is a randomly-generated UUID used as the basis for deriving
 // an UUID from session IDs. See Log.deriveSessionID.
-var sessionIDBase = uuid.MustParse(`e481e221-77b0-4b9e-be98-bc2e486b751b`)
+var sessionIDBase = uuid.MustParse("e481e221-77b0-4b9e-be98-bc2e486b751b")
 
 func (l *Log) deriveSessionID(ctx context.Context, sessionID string) uuid.UUID {
 	if sessionID == "" {
