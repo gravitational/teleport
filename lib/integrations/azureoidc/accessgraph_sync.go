@@ -259,7 +259,7 @@ func configureAzureSyncAction(clt AccessGraphAzureConfigureClient, subscriptionI
 			rolesNotAssigned[k] = v
 		}
 		for _, appRole := range graphPrincipal.AppRoles {
-			if _, ok := requiredGraphRoleNames[*appRole.Value]; ok {
+			if _, ok := requiredRoles[*appRole.Value]; ok {
 				roleAssignment := msgraph.AppRoleAssignment{
 					AppRoleID:   appRole.ID,
 					PrincipalID: &principalID,
