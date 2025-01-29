@@ -80,12 +80,12 @@ func TestGetReadiness(t *testing.T) {
 	})
 
 	t.Run("Not found", func(t *testing.T) {
-		socketPath, _ := newSocketMockService(t, http.StatusNotFound, []byte(`{"status": "MISSING"}`))
+		socketPath, _ := newSocketMockService(t, http.StatusNotFound, []byte(`404`))
 		clt := NewClient(socketPath)
 
 		ready, msg, err := clt.GetReadiness(ctx)
 		require.True(t, trace.IsNotFound(err))
-		require.Equal(t, "MISSING", msg)
+		require.Equal(t, "not found", msg)
 		require.False(t, ready)
 	})
 }

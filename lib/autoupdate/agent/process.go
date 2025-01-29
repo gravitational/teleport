@@ -121,7 +121,10 @@ func (s SystemdService) Reload(ctx context.Context) error {
 	if errors.Is(err, context.DeadlineExceeded) {
 		return trace.Errorf("timed out while waiting for process to start")
 	}
-	return trace.Wrap(err)
+	if err != nil { // already logged
+		return trace.Errorf("failed to monitor process")
+	}
+	return nil
 }
 
 // monitor for a started, healthy process.
