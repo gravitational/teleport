@@ -27,19 +27,32 @@ import (
 
 func TestPyroscopeConfig(t *testing.T) {
 	tests := []struct {
-		name    string
-		envVars map[string]string
-		want    pyroscope.Config
+		name           string
+		address        string
+		envVars        map[string]string
+		want           pyroscope.Config
+		errorAssertion require.ErrorAssertionFunc
 	}{
 		{
-			name:    "No environment vars configured",
+			name:    "No address configured",
 			envVars: map[string]string{},
 			want: pyroscope.Config{
 				Tags: map[string]string{},
 			},
+			errorAssertion: require.Error,
 		},
 		{
-			name: "Environment vars configured",
+			name:    "No environment vars configured",
+			address: "127.0.0.1",
+			envVars: map[string]string{},
+			want: pyroscope.Config{
+				Tags: map[string]string{},
+			},
+			errorAssertion: require.NoError,
+		},
+		{
+			name:    "Environment vars configured",
+			address: "127.0.0.1",
 			envVars: map[string]string{
 				"TELEPORT_PYROSCOPE_PROFILE_CPU_ENABLED":        "true",
 				"TELEPORT_PYROSCOPE_PROFILE_GOROUTINES_ENABLED": "true",
@@ -61,6 +74,7 @@ func TestPyroscopeConfig(t *testing.T) {
 					"namespace": "test-namespace",
 				},
 			},
+			errorAssertion: require.NoError,
 		},
 	}
 
@@ -75,7 +89,8 @@ func TestPyroscopeConfig(t *testing.T) {
 					exitContext: context.Background(),
 				},
 			}
-			got, _ := createPyroscopeConfig(p.ExitContext(), "127.0.0.1")
+			got, err := createPyroscopeConfig(p.ExitContext(), tt.address)
+			tt.errorAssertion(t, err)
 
 			require.Equal(t, tt.want.ProfileTypes, got.ProfileTypes)
 			require.Subset(t, got.Tags, tt.want.Tags)
