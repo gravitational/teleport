@@ -70,7 +70,7 @@ export function RoleEditorAdapter({
   }, [originalContent]);
 
   const onRoleUpdate = useCallback(
-    debounce(roleDiffProps.updateRoleDiff, 500),
+    debounce(role => roleDiffProps?.updateRoleDiff(role), 500),
     []
   );
 
