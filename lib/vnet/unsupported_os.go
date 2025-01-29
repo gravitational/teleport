@@ -33,6 +33,20 @@ func runPlatformUserProcess(_ context.Context, _ *UserProcessConfig) (*ProcessMa
 	return nil, trace.Wrap(ErrVnetNotImplemented)
 }
 
-func platformConfigureOS(ctx context.Context, cfg *osConfig) error {
+func platformConfigureOS(_ context.Context, _ *osConfig) error {
 	return trace.Wrap(ErrVnetNotImplemented)
 }
+
+// Satisfy unused linter.
+var (
+	_ = osConfig{
+		tunName:    "",
+		tunIPv4:    "",
+		tunIPv6:    "",
+		dnsAddr:    "",
+		cidrRanges: nil,
+		dnsZones:   nil,
+	}
+	_ = newOSConfigurator
+	_ = (*osConfigurator).runOSConfigurationLoop
+)
