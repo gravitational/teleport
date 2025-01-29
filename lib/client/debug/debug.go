@@ -139,14 +139,11 @@ func (c *Client) CollectProfile(ctx context.Context, profileName string, seconds
 	return result, nil
 }
 
+// GetReadiness returns true if the Teleport service is ready.
 func (c *Client) GetReadiness(ctx context.Context) (ready bool, msg string, err error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", "http://debug.sock/readyz", nil)
+	resp, err := c.do(ctx, http.MethodGet, url.URL{Path: "/readyz"}, nil)
 	if err != nil {
-		return false, "", trace.Wrap(err)
-	}
-	resp, err := c.clt.Do(req)
-	if err != nil {
-		return false, " ", err
+		return false, " ", trace.Wrap(err)
 	}
 	defer resp.Body.Close()
 	ready = resp.StatusCode == http.StatusOK
