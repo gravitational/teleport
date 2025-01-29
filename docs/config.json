@@ -298,7 +298,7 @@
       "source": "/access-controls/guides/role-templates/",
       "destination": "/admin-guides/access-controls/guides/role-templates/",
       "permanent": true
-    }
+    },
     {
       "source": "/docs/access-controls/guides/headless/",
       "destination": "/docs/admin-guides/access-controls/guides/headless/",
