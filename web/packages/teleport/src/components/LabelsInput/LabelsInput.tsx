@@ -18,9 +18,10 @@
 
 import styled from 'styled-components';
 
-import { Box, ButtonIcon, ButtonSecondary, Flex } from 'design';
+import { Box, ButtonIcon, ButtonSecondary, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
+import { ToolTipInfo } from 'shared/components/ToolTip';
 import { useValidation, Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
@@ -35,6 +36,8 @@ export type LabelInputTexts = {
 };
 
 export function LabelsInput({
+  legend,
+  tooltipContent,
   labels = [],
   setLabels,
   disableBtns = false,
@@ -45,6 +48,8 @@ export function LabelsInput({
   labelVal = { fieldName: 'Value', placeholder: 'label value' },
   inputWidth = 200,
 }: {
+  legend?: string;
+  tooltipContent?: string;
   labels: Label[];
   setLabels(l: Label[]): void;
   disableBtns?: boolean;
@@ -104,15 +109,34 @@ export function LabelsInput({
 
   const width = `${inputWidth}px`;
   return (
-    <>
+    <Fieldset>
+      {legend && (
+        <Legend>
+          {tooltipContent ? (
+            <>
+              <span
+                css={{
+                  marginRight: '4px',
+                  verticalAlign: 'middle',
+                }}
+              >
+                {legend}
+              </span>
+              <ToolTipInfo children={tooltipContent} />
+            </>
+          ) : (
+            legend
+          )}
+        </Legend>
+      )}
       {labels.length > 0 && (
-        <Flex mt={2}>
+        <Flex mt={legend ? 1 : 0} mb={1}>
           <Box width={width} mr="3">
-            {labelKey.fieldName} <SmallText>(required field)</SmallText>
+            <Text typography="body2">
+              {labelKey.fieldName} (required field)
+            </Text>
           </Box>
-          <Box>
-            {labelVal.fieldName} <SmallText>(required field)</SmallText>
-          </Box>
+          <Text typography="body2">{labelVal.fieldName} (required field)</Text>
         </Flex>
       )}
       <Box>
@@ -184,11 +208,18 @@ export function LabelsInput({
         <Icons.Add className="icon-add" disabled={disableBtns} size="small" />
         {labels.length > 0 ? `Add another ${adjective}` : `Add a ${adjective}`}
       </ButtonSecondary>
-    </>
+    </Fieldset>
   );
 }
 
-const SmallText = styled.span`
-  font-size: ${p => p.theme.fontSizes[1]}px;
-  font-weight: lighter;
+const Fieldset = styled.fieldset`
+  border: none;
+  margin: 0;
+  padding: 0;
+`;
+
+const Legend = styled.legend`
+  margin: 0 0 ${props => props.theme.space[1]}px 0;
+  padding: 0;
+  ${props => props.theme.typography.body2}
 `;
