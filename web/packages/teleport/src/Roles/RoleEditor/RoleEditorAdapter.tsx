@@ -16,13 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useTheme } from 'styled-components';
 
 import { Danger } from 'design/Alert';
 import Flex from 'design/Flex';
 import { Indicator } from 'design/Indicator';
 import { useAsync } from 'shared/hooks/useAsync';
+import { debounce } from 'shared/utils/highbar';
 
 import { State as ResourcesState } from 'teleport/components/useResources';
 import { Role, RoleWithYaml } from 'teleport/services/resources';
@@ -68,6 +69,11 @@ export function RoleEditorAdapter({
     convertToRole(originalContent);
   }, [originalContent]);
 
+  const onRoleUpdate = useCallback(
+    debounce(roleDiffProps.updateRoleDiff, 500),
+    []
+  );
+
   return (
     <Flex flex="1">
       <Flex
@@ -90,26 +96,29 @@ export function RoleEditorAdapter({
         {convertAttempt.status === 'error' && (
           <Danger>{convertAttempt.statusText}</Danger>
         )}
+        {roleDiffProps?.errorMessage && (
+          <Danger>{roleDiffProps.errorMessage}</Danger>
+        )}
         {convertAttempt.status === 'success' && (
           <RoleEditor
             originalRole={convertAttempt.data}
             onCancel={onCancel}
             onSave={onSave}
+            onRoleUpdate={onRoleUpdate}
           />
         )}
       </Flex>
-      <Flex flex="1" alignItems="center" justifyContent="center" m={3}>
-        {/* TODO (avatus) this component will not be rendered until the Access Diff feature is implemented */}
-        {roleDiffProps ? (
-          <roleDiffProps.RoleDiffComponent />
-        ) : (
+      {roleDiffProps ? (
+        roleDiffProps.roleDiffElement
+      ) : (
+        <Flex flex="1" alignItems="center" justifyContent="center" m={3}>
           <PolicyPlaceholder
             currentFlow={
               resources.status === 'creating' ? 'creating' : 'updating'
             }
           />
-        )}
-      </Flex>
+        </Flex>
+      )}
     </Flex>
   );
 }
