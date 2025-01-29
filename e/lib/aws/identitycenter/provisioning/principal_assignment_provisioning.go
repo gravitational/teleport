@@ -118,7 +118,7 @@ func (a *AssignmentProvisioner) createAssignment(ctx context.Context, externalID
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.SDKClient.WaitForAccountAssignmentResult(ctx, resp.RequestID); err != nil {
+	if err := a.SDKClient.WaitForCreateAccountAssignmentResult(ctx, resp.RequestID); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -139,7 +139,7 @@ func (a *AssignmentProvisioner) deleteAssignment(ctx context.Context, externalID
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.SDKClient.WaitForAccountAssignmentResult(ctx, resp.RequestID); err != nil {
+	if err := a.SDKClient.WaitForDeleteAccountAssignmentResult(ctx, resp.RequestID); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

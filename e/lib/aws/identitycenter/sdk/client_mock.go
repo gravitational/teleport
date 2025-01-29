@@ -314,8 +314,8 @@ func (c *ClientMock) ListGroupsAssignments(ctx context.Context, groupID string) 
 	return c.GroupAssignments[groupID], nil
 }
 
-// WaitForAccountAssignmentResult waits until the account assignment reaches a terminal state.
-func (c *ClientMock) WaitForAccountAssignmentResult(ctx context.Context, requestID string) error {
+// WaitForDeleteAccountAssignmentResult waits until the account assignment creation reaches a terminal state.
+func (c *ClientMock) WaitForCreateAccountAssignmentResult(ctx context.Context, requestID string) error {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	return nil
@@ -380,6 +380,13 @@ func (c *ClientMock) DeleteAccountAssignment(ctx context.Context, req *DeleteAcc
 		}
 	}
 	return nil, trace.NotFound("assignment not found")
+}
+
+// WaitForDeleteAccountAssignmentResult waits until the account assignment deletion reaches a terminal state.
+func (c *ClientMock) WaitForDeleteAccountAssignmentResult(ctx context.Context, requestID string) error {
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
+	return nil
 }
 
 func (c *ClientMock) ListAssignments(ctx context.Context, principalID string, principalType ssoadmintypes.PrincipalType) ([]*Assignment, error) {

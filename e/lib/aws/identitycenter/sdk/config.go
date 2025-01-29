@@ -70,6 +70,8 @@ type ssoAdminClient interface {
 	DescribeAccountAssignmentCreationStatus(ctx context.Context, params *ssoadmin.DescribeAccountAssignmentCreationStatusInput, optFns ...func(*ssoadmin.Options)) (*ssoadmin.DescribeAccountAssignmentCreationStatusOutput, error)
 	// DeleteAccountAssignment deletes an account assignment.
 	DeleteAccountAssignment(ctx context.Context, params *ssoadmin.DeleteAccountAssignmentInput, optFns ...func(*ssoadmin.Options)) (*ssoadmin.DeleteAccountAssignmentOutput, error)
+	// DescribeAccountAssignmentDeletionStatus returns the status of an account assignment deletion.
+	DescribeAccountAssignmentDeletionStatus(ctx context.Context, params *ssoadmin.DescribeAccountAssignmentDeletionStatusInput, optFns ...func(*ssoadmin.Options)) (*ssoadmin.DescribeAccountAssignmentDeletionStatusOutput, error)
 }
 
 // identityStoreClient satisfies aws-sdk-go-v2 identitystore.Client.

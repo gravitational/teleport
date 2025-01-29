@@ -58,7 +58,7 @@ func TestAccountAssignmentMock(t *testing.T) {
 			AccountID:        "1111111111",
 		})
 		require.NoError(t, err)
-		require.NoError(t, c.WaitForAccountAssignmentResult(ctx, deleteResp.RequestID))
+		require.NoError(t, c.WaitForDeleteAccountAssignmentResult(ctx, deleteResp.RequestID))
 
 		deleteResp, err = c.DeleteAccountAssignment(ctx, &DeleteAccountAssignmentRequest{
 			PrincipalID:      "user2",
@@ -67,7 +67,7 @@ func TestAccountAssignmentMock(t *testing.T) {
 			AccountID:        "1111111111",
 		})
 		require.NoError(t, err)
-		require.NoError(t, c.WaitForAccountAssignmentResult(ctx, deleteResp.RequestID))
+		require.NoError(t, c.WaitForDeleteAccountAssignmentResult(ctx, deleteResp.RequestID))
 
 		want := []*UserWithAssignment{
 			{
@@ -93,7 +93,7 @@ func TestAccountAssignmentMock(t *testing.T) {
 			AccountID:        "1111111111",
 		})
 		require.NoError(t, err)
-		require.NoError(t, c.WaitForAccountAssignmentResult(ctx, createResp.RequestID))
+		require.NoError(t, c.WaitForCreateAccountAssignmentResult(ctx, createResp.RequestID))
 
 		want := []*UserWithAssignment{
 			{

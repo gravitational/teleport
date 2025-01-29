@@ -49,13 +49,16 @@ type Client interface {
 	// ListAssignments lists account assignment for a given principal, which can either be a user or a user group.
 	ListAssignments(ctx context.Context, principalID string, principalType ssoadmintypes.PrincipalType) ([]*Assignment, error)
 
-	// WaitForAccountAssignmentResult waits until the account assignment creation reaches a terminal state
-	// by tracking the status of the account assignment operation using the request ID.
-	WaitForAccountAssignmentResult(ctx context.Context, requestID string) error
-	// DeleteAccountAssignment deletes an account assignment for a user.
-	DeleteAccountAssignment(ctx context.Context, req *DeleteAccountAssignmentRequest) (*AccountAssignmentResponse, error)
 	// CreateAccountAssignment creates an account assignment for a user.
 	CreateAccountAssignment(ctx context.Context, req *CreateAccountAssignmentRequest) (*AccountAssignmentResponse, error)
+	// WaitForCreateAccountAssignmentResult waits until the account assignment creation reaches a terminal state
+	// by tracking the status of the account assignment operation using the request ID.
+	WaitForCreateAccountAssignmentResult(ctx context.Context, requestID string) error
+	// DeleteAccountAssignment deletes an account assignment for a user.
+	DeleteAccountAssignment(ctx context.Context, req *DeleteAccountAssignmentRequest) (*AccountAssignmentResponse, error)
+	// WaitForDeleteAccountAssignmentResult waits until the account assignment deletion reaches a terminal state
+	// by tracking the status of the account assignment operation using the request ID.
+	WaitForDeleteAccountAssignmentResult(ctx context.Context, requestID string) error
 }
 
 // ClientProvider is a function that creates a new AWS Identity Center SDK client.
@@ -528,8 +531,8 @@ func (c *client) DeleteAccountAssignment(ctx context.Context, req *DeleteAccount
 	}, nil
 }
 
-// WaitForAccountAssignmentResult waits until the account assignment creation reaches a terminal state
-func (c *client) WaitForAccountAssignmentResult(ctx context.Context, requestID string) error {
+// WaitForCreateAccountAssignmentResult waits until the account assignment creation reaches a terminal state.
+func (c *client) WaitForCreateAccountAssignmentResult(ctx context.Context, requestID string) error {
 	for {
 		resp, err := c.ssoAdminClient.DescribeAccountAssignmentCreationStatus(ctx, &ssoadmin.DescribeAccountAssignmentCreationStatusInput{
 			InstanceArn:                        aws.String(c.InstanceARN),
@@ -542,6 +545,32 @@ func (c *client) WaitForAccountAssignmentResult(ctx context.Context, requestID s
 			return trace.BadParameter("missing account assignment creation status")
 		}
 		status := resp.AccountAssignmentCreationStatus.Status
+		if status != ssoadmintypes.StatusValuesInProgress {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		case <-c.Clock.After(2 * time.Second):
+			continue
+		}
+	}
+}
+
+// WaitForDeleteAccountAssignmentResult waits until the account assignment deletion reaches a terminal state.
+func (c *client) WaitForDeleteAccountAssignmentResult(ctx context.Context, requestID string) error {
+	for {
+		resp, err := c.ssoAdminClient.DescribeAccountAssignmentDeletionStatus(ctx, &ssoadmin.DescribeAccountAssignmentDeletionStatusInput{
+			InstanceArn:                        aws.String(c.InstanceARN),
+			AccountAssignmentDeletionRequestId: aws.String(requestID),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if resp.AccountAssignmentDeletionStatus == nil {
+			return trace.BadParameter("missing account assignment deletion status")
+		}
+		status := resp.AccountAssignmentDeletionStatus.Status
 		if status != ssoadmintypes.StatusValuesInProgress {
 			return nil
 		}
