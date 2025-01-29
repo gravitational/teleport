@@ -701,6 +701,61 @@ To connect to a Windows desktop:
    To view the recording, select **Management** in the Teleport Web UI, then click **Session Recordings**
    in the Activity section.
 
+## LDAP Discovery
+
+In Active Directory environments, Teleport can be configured to discover hosts
+via LDAP. LDAP discovery is enabled by setting the `discovery.base_dn` field in
+the Teleport Windows Desktop Service configuration. You can set `base_dn` to a
+wildcard `'*` to search from the root of the domain, or you can specify an alternate
+base distinguished name to search from.
+
+```yaml
+windows_desktop_service:
+  enabled: yes
+  discovery:
+    base_dn: '*'
+```
+
+### Filters
+
+Teleport optionally accepts a set of filters that can be used to narrow the
+search results for discovery. The filters are specified with [LDAP
+Filter](https://ldap.com/ldap-filters/) syntax. Teleport will automatically
+compute a logical AND of all filters specified.
+
+```yaml
+windows_desktop_service:
+  enabled: yes
+  discovery:
+    base_dn: '*'
+  filters:
+  - '(location=Oakland)'
+  - '(!(primaryGroupID=516))'
+```
+
+### Labeling
+
+It is often necessary to apply labels to discovered hosts to control access. You
+can configure Teleport to convert LDAP attributes to Teleport labels by setting
+the `discovery.label_attributes` field in the Teleport Windows Desktop Service
+configuration.
+
+```yaml
+windows_desktop_service:
+  enabled: yes
+  discovery:
+    base_dn: '*'
+    label_attributes:
+      - 'location'
+      - 'department'
+```
+
+Each of the specified attributes will be placed in a Teleport label prefixed with `ldap/`.
+
+For example, if an AD computer object had a location attribute with a value of Oakland,
+and a department attribute with a value of Engineering, the Teleport resource for this
+host would have both `ldap/location=Oakland` and `ldap/department=Engineering` labels.
+
 ## Security hardening
 
 By default, the Default Domain Policy grants the **Add workstations to domain
