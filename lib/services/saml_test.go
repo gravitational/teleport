@@ -58,12 +58,16 @@ func TestParseFromMetadata(t *testing.T) {
 func TestCheckSAMLEntityDescriptor(t *testing.T) {
 	t.Parallel()
 
-	for name, input := range map[string]string{
-		"without certificate padding": fixtures.SAMLOktaConnectorV2,
-		"with certificate padding":    fixtures.SAMLOktaConnectorV2WithPadding,
+	for name, tt := range map[string]struct {
+		resource  string
+		wantCerts int
+	}{
+		"without certificate padding": {resource: fixtures.SAMLOktaConnectorV2, wantCerts: 1},
+		"with certificate padding":    {resource: fixtures.SAMLOktaConnectorV2WithPadding, wantCerts: 1},
+		"missing IDPSSODescriptor":    {resource: fixtures.SAMLConnectorMissingIDPSSODescriptor, wantCerts: 0},
 	} {
 		t.Run(name, func(t *testing.T) {
-			decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), defaults.LookaheadBufSize)
+			decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(tt.resource), defaults.LookaheadBufSize)
 			var raw UnknownResource
 			err := decoder.Decode(&raw)
 			require.NoError(t, err)
@@ -74,7 +78,7 @@ func TestCheckSAMLEntityDescriptor(t *testing.T) {
 			ed := oc.GetEntityDescriptor()
 			certs, err := CheckSAMLEntityDescriptor(ed)
 			require.NoError(t, err)
-			require.Len(t, certs, 1)
+			require.Len(t, certs, tt.wantCerts)
 		})
 	}
 }
