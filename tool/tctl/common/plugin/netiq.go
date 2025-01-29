@@ -445,7 +445,7 @@ func buildOAuthCredentials(clientID, clientSecret string) *types.PluginStaticCre
 			Metadata: types.Metadata{
 				Name: types.PluginTypeNetIQ + "-oauth",
 				Labels: map[string]string{
-					credPurposeLabel: credPurposeNetIQAuth,
+					credPurposeLabel: credPurposeNetIQOauth,
 				},
 			},
 		},
@@ -466,7 +466,7 @@ func buildBasicAuthCredentials(user, password string) *types.PluginStaticCredent
 			Metadata: types.Metadata{
 				Name: types.PluginTypeNetIQ + "-basic-auth",
 				Labels: map[string]string{
-					credPurposeLabel: credPurposeNetIQOauth,
+					credPurposeLabel: credPurposeNetIQAuth,
 				},
 			},
 		},
