@@ -117,18 +117,22 @@ func (s SystemdService) Reload(ctx context.Context) error {
 	default:
 		s.Log.InfoContext(ctx, "Gracefully reloaded.", unitKey, s.ServiceName)
 	}
+	// monitor logs all relevant errors, so we filter for a few outcomes
 	err = s.monitor(ctx, initPID)
 	if errors.Is(err, context.DeadlineExceeded) {
 		return trace.Errorf("timed out while waiting for process to start")
 	}
-	if err != nil { // already logged
+	if errors.Is(err, context.Canceled) {
+		return context.Canceled
+	}
+	if err != nil {
 		return trace.Errorf("failed to monitor process")
 	}
 	return nil
 }
 
 // monitor for a started, healthy process.
-// Note that PID monitoring ensures that the process isn't repeatedly restarting
+// monitor logs all errors that should be displayed to the user.
 func (s SystemdService) monitor(ctx context.Context, initPID int) error {
 	ctx, cancel := context.WithTimeout(ctx, monitorTimeout)
 	defer cancel()
