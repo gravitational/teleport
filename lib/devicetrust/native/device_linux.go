@@ -339,16 +339,11 @@ func sudoPath() string {
 		"/run/wrappers/bin/sudo", // NixOS
 	} {
 		if _, err := os.Stat(path); err != nil {
-			slog.DebugContext(
-				context.Background(),
-				"Failed to stat sudo binary",
-				"error", err,
-				"path", path,
-			)
+			log.WithError(err).WithField("path", path).Debug("Failed to stat sudo binary")
 			continue
 		}
 		if i > 0 {
-			slog.DebugContext(context.Background(), "Using alternative sudo path", "path", path)
+			log.WithField("path", path).Debug("Using alternative sudo path")
 		}
 		return path
 	}
