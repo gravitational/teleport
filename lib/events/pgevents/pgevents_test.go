@@ -52,7 +52,14 @@ const urlEnvVar = "TELEPORT_TEST_PGEVENTS_URL"
 
 func TestPostgresEvents(t *testing.T) {
 	// Don't t.Parallel(), relies on the database backed by urlEnvVar.
-	log, truncateEvents := newLog(t)
+	log := newLogForTesting(t)
+
+	ctx := context.Background()
+
+	truncateEvents := func(t *testing.T) {
+		_, err := log.pool.Exec(ctx, "TRUNCATE events")
+		require.NoError(t, err, "truncate events")
+	}
 
 	suite := test.EventsSuite{
 		Log:   log,
@@ -78,7 +85,7 @@ func TestPostgresEvents(t *testing.T) {
 // https://github.com/gravitational/teleport/issues/46207.
 func TestLog_nonStandardSessionID(t *testing.T) {
 	// Don't t.Parallel(), relies on the database backed by urlEnvVar.
-	eventsLog, _ := newLog(t)
+	eventsLog := newLogForTesting(t)
 
 	// Example app event. Only the session ID matters for the test, everything
 	// else is realistic but irrelevant here.
@@ -141,7 +148,7 @@ func TestLog_nonStandardSessionID(t *testing.T) {
 	}
 }
 
-func newLog(t *testing.T) (eventsLog *Log, truncateEvents func(*testing.T)) {
+func newLogForTesting(t *testing.T) *Log {
 	t.Helper()
 
 	connString, ok := os.LookupEnv(urlEnvVar)
@@ -157,15 +164,11 @@ func newLog(t *testing.T) (eventsLog *Log, truncateEvents func(*testing.T)) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	eventsLog, err = New(ctx, cfg)
+	eventsLog, err := New(ctx, cfg)
 	require.NoError(t, err, "create new Log")
 	t.Cleanup(func() { assert.NoError(t, eventsLog.Close(), "close events log") })
 
-	truncateEvents = func(t *testing.T) {
-		_, err := eventsLog.pool.Exec(ctx, "TRUNCATE events")
-		require.NoError(t, err, "truncate events")
-	}
-	return eventsLog, truncateEvents
+	return eventsLog
 }
 
 func TestConfig(t *testing.T) {
