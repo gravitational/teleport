@@ -237,7 +237,7 @@ You must repeat these steps if you rotate the Teleport user certificate authorit
 
 To export the Teleport user CA certificate:
 
-1. Log on to a Windows domain controller where you can access **Group Policy Management**.
+1. Log on to a Windows host where you can access **Group Policy Management**.
 
 1. Open PowerShell and download the Teleport user certificate authority by running the following
    command and replacing `teleport.example.com` with the address of your Teleport cluster:
@@ -246,7 +246,11 @@ To export the Teleport user CA certificate:
    $ curl.exe -fo user-ca.cer https://<Var name="teleport.example.com"/>/webapi/auth/export?type=windows
    ```
 
-1. Take note of the path to the `user-ca.cer` file for use in a later step.
+   If you are using Teleport's support for HSM-backed keys, then your Teleport
+   cluster has multiple user CAs (one for each Auth Service instance). You can
+   download a bundle containing all CAs by appending `&format=zip` to the URL.
+
+1. Take note of the path to file you just downloaded for use in a later step.
 
 #### Create the GPO for the Teleport certificate
 
@@ -289,6 +293,8 @@ To configure the group policy object:
    ![Import Teleport CA](../../../img/desktop-access/ca.png)
    </Figure>
 
+   If you are using HSM-backed keys, you should repeat this step for each CA certificate.
+
 1. To ensure your GPO update takes effect immediately on this host,
    open PowerShell and run the following command (optional):
 
@@ -314,6 +320,9 @@ To publish the Teleport certificate in the Active Directory domain:
    This command enables the domain controllers to trust the Teleport CA so that
    certificate-based smart card authentication through Teleport can succeed.
 
+   If you are using HSM-backed keys, you should repeat this step for each CA certificate
+   in the zip file you exported earlier in this guide.
+
 #### Publish the Teleport CA to the NTAuth Store
 
 For authentication with Teleport-issued certificates to succeed, the
@@ -321,6 +330,9 @@ Teleport CA also must be published to the enterprise NTAuth store.
 Teleport periodically publishes its CA after it is able to authenticate, but
 this step must be performed manually the first time for Teleport to have LDAP
 access.
+
+If you are using HSM-backed keys, you should repeat these steps for each CA certificate
+in the bundle.
 
 To publish the Teleport CA to LDAP:
 
