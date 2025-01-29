@@ -19,11 +19,13 @@
 package ui
 
 import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestMakeCAKeySet(t *testing.T) {

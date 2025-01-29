@@ -21,13 +21,15 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"testing"
+
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	libui "github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/web/ui"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestGitServers(t *testing.T) {
