@@ -93,6 +93,7 @@ export function notificationContentFactoryE(
       break;
     }
 
+    //TODO(rudream): Delete local notifications
     case LocalNotificationKind.AccessList:
       const redirectRoute = getLabelValue(labels, 'redirect-route');
 
@@ -106,6 +107,7 @@ export function notificationContentFactoryE(
       };
       break;
 
+    //TODO(rudream): Delete local notifications
     case LocalNotificationGroupedKind.AccessListGrouping: {
       notificationContent = {
         kind: 'redirect',
@@ -133,6 +135,22 @@ export function notificationContentFactoryE(
             createdDate={notification.createdDate}
           />
         ),
+      };
+      break;
+    }
+
+    case NotificationSubKind.NotificationAccessListReviewDue30d:
+    case NotificationSubKind.NotificationAccessListReviewDue14d:
+    case NotificationSubKind.NotificationAccessListReviewDue7d:
+    case NotificationSubKind.NotificationAccessListReviewDue3d:
+    case NotificationSubKind.NotificationAccessListReviewOverdue3d:
+    case NotificationSubKind.NotificationAccessListReviewOverdue7d: {
+      notificationContent = {
+        kind: 'redirect',
+        title: notification.title,
+        type: 'warning',
+        icon: Icons.UserList,
+        redirectRoute: cfg.getAccessListManagementRoute(null),
       };
       break;
     }
