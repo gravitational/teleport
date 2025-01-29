@@ -64,7 +64,7 @@ export const VnetSliderStepHeader = (props: { goBack: () => void }) => (
     title="Go back to Connections"
     onClick={props.goBack}
     showBackButton
-    showHelpButton
+    showExtraRightButtons
     // Make the element focusable.
     tabIndex={0}
   />
@@ -76,12 +76,16 @@ const VnetConnectionItemBase = forwardRef<
     onClick: () => void;
     title: string;
     showBackButton?: boolean;
-    showHelpButton?: boolean;
+    /** Shows help and diagnostics buttons between "VNet" text and the start/stop button. */
+    showExtraRightButtons?: boolean;
     isActive?: boolean;
     tabIndex?: number;
   }
 >((props, ref) => {
-  const { status, start, stop, startAttempt, stopAttempt } = useVnetContext();
+  const { configService } = useAppContext();
+  const isVnetDiagEnabled = configService.get('feature.vnetDiag').value;
+  const { status, start, stop, startAttempt, stopAttempt, runDiagnostics } =
+    useVnetContext();
   const isProcessing =
     startAttempt.status === 'processing' || stopAttempt.status === 'processing';
   const indicatorStatus =
@@ -160,19 +164,38 @@ const VnetConnectionItemBase = forwardRef<
 
         {/* Buttons to the right. Negative margin to match buttons of other connections. */}
         <Flex gap={1} mr="-3px">
-          {props.showHelpButton && (
-            <ButtonIcon
-              as="a"
-              title="Open VNet documentation"
-              href="https://goteleport.com/docs/connect-your-client/vnet/"
-              target="_blank"
-              onClick={e => {
-                // Don't trigger ListItem's onClick.
-                e.stopPropagation();
-              }}
-            >
-              <icons.Question size={18} />
-            </ButtonIcon>
+          {props.showExtraRightButtons && (
+            <>
+              <ButtonIcon
+                as="a"
+                title="Open VNet documentation"
+                href="https://goteleport.com/docs/connect-your-client/vnet/"
+                target="_blank"
+                onClick={e => {
+                  // Don't trigger ListItem's onClick.
+                  e.stopPropagation();
+                }}
+              >
+                <icons.Question size={18} />
+              </ButtonIcon>
+
+              {isVnetDiagEnabled && (
+                <ButtonIcon
+                  title={
+                    status.value === 'running'
+                      ? 'Run diagnostics'
+                      : 'Cannot run diagnostics while VNet itself is not running'
+                  }
+                  disabled={status.value !== 'running'}
+                  onClick={e => {
+                    e.stopPropagation();
+                    runDiagnostics();
+                  }}
+                >
+                  <icons.ListMagnifyingGlass size={18} />
+                </ButtonIcon>
+              )}
+            </>
           )}
 
           {/* The conditions for the buttons below could be written in a more concise way.
