@@ -25,9 +25,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
+	opensearchtypes "github.com/aws/aws-sdk-go-v2/service/opensearch/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
-	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/coreos/go-semver/semver"
 
 	"github.com/gravitational/teleport/lib/services"
@@ -69,7 +69,7 @@ func IsMemoryDBClusterAvailable(cluster *memorydbtypes.Cluster) bool {
 }
 
 // IsOpenSearchDomainAvailable checks if the OpenSearch domain is available.
-func IsOpenSearchDomainAvailable(domain *opensearchservice.DomainStatus) bool {
+func IsOpenSearchDomainAvailable(domain *opensearchtypes.DomainStatus) bool {
 	return aws.ToBool(domain.Created) && !aws.ToBool(domain.Deleted)
 }
 

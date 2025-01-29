@@ -28,7 +28,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -234,7 +233,7 @@ func (e *Engine) getSignedRequest(signer *libaws.SigningService, reqCopy *http.R
 
 	meta := e.sessionCtx.Database.GetAWS()
 	signCtx := &libaws.SigningCtx{
-		SigningName:       opensearchservice.EndpointsID,
+		SigningName:       "es",
 		SigningRegion:     meta.Region,
 		Expiry:            e.sessionCtx.Identity.Expires,
 		SessionName:       e.sessionCtx.Identity.Username,

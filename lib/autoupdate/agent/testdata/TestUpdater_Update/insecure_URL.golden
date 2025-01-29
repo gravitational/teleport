@@ -2,7 +2,7 @@ version: v1
 kind: update_config
 spec:
     proxy: localhost
-    url_template: http://example.com
+    base_url: http://example.com
     enabled: true
     pinned: false
 status:
