@@ -167,6 +167,10 @@ func CheckSAMLEntityDescriptor(entityDescriptor string) ([]*x509.Certificate, er
 		return nil, trace.Wrap(err, "failed to parse entity_descriptor")
 	}
 
+	if metadata.IDPSSODescriptor == nil {
+		return nil, nil
+	}
+
 	var roots []*x509.Certificate
 
 	for _, kd := range metadata.IDPSSODescriptor.KeyDescriptors {
