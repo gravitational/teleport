@@ -56,6 +56,30 @@ func TestSetLogLevel(t *testing.T) {
 	})
 }
 
+func TestGetReadiness(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Success", func(t *testing.T) {
+		socketPath, _ := newSocketMockService(t, http.StatusOK, []byte(`{"status": "OK"}`))
+		clt := NewClient(socketPath)
+
+		ready, msg, err := clt.GetReadiness(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "OK", msg)
+		require.True(t, ready)
+	})
+
+	t.Run("Failure", func(t *testing.T) {
+		socketPath, _ := newSocketMockService(t, http.StatusBadRequest, []byte(`{"status": "BAD"}`))
+		clt := NewClient(socketPath)
+
+		ready, msg, err := clt.GetReadiness(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "BAD", msg)
+		require.False(t, ready)
+	})
+}
+
 func TestCollectProfile(t *testing.T) {
 	ctx := context.Background()
 

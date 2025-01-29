@@ -55,7 +55,9 @@ const (
 	// reservedFreeDisk is the minimum required free space left on disk during downloads.
 	// TODO(sclevine): This value is arbitrary and could be replaced by, e.g., min(1%, 200mb) in the future
 	//   to account for a range of disk sizes.
-	reservedFreeDisk = 10_000_000 // 10 MB
+	reservedFreeDisk = 10_000_000
+	// debugSocketFileName is the name of Teleport's debug socket in the data dir.
+	debugSocketFileName = "debug.sock" // 10 MB
 )
 
 // Log keys
@@ -116,6 +118,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		Process: &SystemdService{
 			ServiceName: filepath.Base(ns.serviceFile),
 			PIDPath:     ns.pidFile,
+			SocketPath:  filepath.Join(ns.dataDir, debugSocketFileName),
 			Log:         cfg.Log,
 		},
 		Setup: func(ctx context.Context) error {

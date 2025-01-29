@@ -31,18 +31,29 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/gravitational/teleport/lib/client/debug"
 )
 
+// PID monitoring consts
 const (
 	// crashMonitorInterval is the polling interval for determining restart times from PIDFile.
 	crashMonitorInterval = 2 * time.Second
+	// crashMonitorTimeout is the timeout for determining whether the PIDFile is stable.
+	crashMonitorTimeout = 30 * time.Second
 	// minRunningIntervalsBeforeStable is the number of consecutive intervals with the same running PID detected
 	// before the service is determined stable.
 	minRunningIntervalsBeforeStable = 6
 	// maxCrashesBeforeFailure is the number of total crashes detected before the service is marked as crash-looping.
 	maxCrashesBeforeFailure = 2
-	// crashMonitorTimeout
-	crashMonitorTimeout = 30 * time.Second
+)
+
+// readiness monitoring consts
+const (
+	// readyMonitorInterval is the polling interval for determining readiness from the socket.
+	readyMonitorInterval = 2 * time.Second
+	// readyMonitorTimeout is the timeout for determining whether the service is ready.
+	readyMonitorTimeout = 30 * time.Second
 )
 
 // log keys
@@ -56,6 +67,8 @@ type SystemdService struct {
 	ServiceName string
 	// PIDPath is a path to a file containing the service's PID.
 	PIDPath string
+	// SocketPath is a path to a socket that responds to readiness checks.
+	SocketPath string
 	// Log contains a logger.
 	Log *slog.Logger
 }
@@ -111,21 +124,75 @@ func (s SystemdService) Reload(ctx context.Context) error {
 	}
 	if initPID != 0 {
 		s.Log.InfoContext(ctx, "Monitoring PID file to detect crashes.", unitKey, s.ServiceName)
-		err := s.monitor(ctx, initPID)
+		err := s.monitorPID(ctx, initPID)
 		if errors.Is(err, context.DeadlineExceeded) {
 			return trace.Errorf("timed out while waiting for process to start")
 		}
 		return trace.Wrap(err)
 	}
-	return nil
+	s.Log.InfoContext(ctx, "Monitoring diagnostic socket to detect readiness.", unitKey, s.ServiceName)
+	err = s.monitorSocket(ctx)
+	if errors.Is(err, context.DeadlineExceeded) {
+		return trace.Errorf("timed out while waiting for readiness check to succeed")
+	}
+	return trace.Wrap(err)
 }
 
-// monitor for the started process to ensure it's running by polling PIDFile.
+// monitorSocket monitors the service's debug socket for readiness.
+func (s SystemdService) monitorSocket(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, readyMonitorTimeout)
+	defer cancel()
+	tickC := time.NewTicker(readyMonitorInterval).C
+	client := debug.NewClient(s.SocketPath)
+	err := s.waitForReady(ctx, client, tickC)
+	if err != nil {
+		s.Log.ErrorContext(ctx, "Error monitoring for process readiness.", errorKey, err, unitKey, s.ServiceName)
+	}
+	return trace.Wrap(err)
+}
+
+// waitForReady polls the SocketPath unix domain socket with HTTP requests.
+// If one request returns 200 before the timeout, the service is considered ready.
+func (s SystemdService) waitForReady(ctx context.Context, client *debug.Client, tickC <-chan time.Time) error {
+	for {
+		ready, msg, err := s.probeReady(ctx, client)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if ready {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			if msg != "" {
+				s.Log.ErrorContext(ctx, "Process not ready by deadline.", unitKey, s.ServiceName, "message", msg)
+			}
+			return ctx.Err()
+		case <-tickC:
+		}
+	}
+}
+
+// probeReady probes the SocketPath unix domain socket with an HTTP request.
+// If the request returns 200, the service is considered ready.
+// If the socket does not exist, the service is not considered ready.
+func (s SystemdService) probeReady(ctx context.Context, client *debug.Client) (ready bool, msg string, err error) {
+	_, err = os.Stat(s.SocketPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, "socket missing", nil
+	}
+	if err != nil {
+		return false, "", trace.Wrap(err)
+	}
+	return client.GetReadiness(ctx)
+}
+
+// monitorPID for the started process to ensure it's running by polling PIDFile.
 // This function detects several types of crashes while minimizing its own runtime during updates.
 // For example, the process may crash by failing to fork (non-running PID), or looping (repeatedly changing PID),
 // or getting stuck on quit (no change in PID).
 // initPID is the PID before the restart operation has been issued.
-func (s SystemdService) monitor(ctx context.Context, initPID int) error {
+func (s SystemdService) monitorPID(ctx context.Context, initPID int) error {
 	ctx, cancel := context.WithTimeout(ctx, crashMonitorTimeout)
 	defer cancel()
 	tickC := time.NewTicker(crashMonitorInterval).C

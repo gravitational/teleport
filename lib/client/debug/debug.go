@@ -19,6 +19,7 @@ package debug
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net"
 	"net/http"
@@ -55,8 +56,9 @@ func NewClient(socketPath string) *Client {
 		clt: &http.Client{
 			Timeout: apidefaults.DefaultIOTimeout,
 			Transport: &http.Transport{
-				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial("unix", socketPath)
+				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+					var d net.Dialer
+					return d.DialContext(ctx, "unix", socketPath)
 				},
 			},
 		},
@@ -135,6 +137,27 @@ func (c *Client) CollectProfile(ctx context.Context, profileName string, seconds
 	}
 
 	return result, nil
+}
+
+func (c *Client) GetReadiness(ctx context.Context) (ready bool, msg string, err error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://debug.sock/readyz", nil)
+	if err != nil {
+		return false, "", trace.Wrap(err)
+	}
+	resp, err := c.clt.Do(req)
+	if err != nil {
+		return false, " ", err
+	}
+	defer resp.Body.Close()
+	ready = resp.StatusCode == http.StatusOK
+	var status struct {
+		Status string `json:"status"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&status)
+	if err != nil {
+		return ready, "", trace.Wrap(err)
+	}
+	return ready, status.Status, nil
 }
 
 func (c *Client) do(ctx context.Context, method string, u url.URL, body []byte) (*http.Response, error) {
