@@ -410,8 +410,6 @@ func WithProxyKube(t *testing.T) TestServerOptFunc {
 }
 
 func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServer *service.TeleportProcess, additionalRoleMappings ...types.RoleMapping) {
-	// TODO(noah): This function relies on extremely specific cluster names
-	// being used, it should be more resilient.
 	rootProxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
 	rootProxyTunnelAddr, err := rootServer.ProxyTunnelAddr()
@@ -435,7 +433,7 @@ func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServ
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		rt, err := rootServer.GetAuthServer().GetTunnelConnections("leaf")
+		rt, err := rootServer.GetAuthServer().GetTunnelConnections(leafServer.Config.Auth.ClusterName.GetClusterName())
 		assert.NoError(t, err)
 		assert.Len(t, rt, 1)
 	}, time.Second*10, time.Second)

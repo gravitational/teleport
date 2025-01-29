@@ -170,8 +170,8 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 	return OK(), nil
 }
 
-type createAuthenticateChallengeRequest struct {
-	IsMFARequiredRequest        *isMFARequiredRequest `json:"is_mfa_required_req"`
+type CreateAuthenticateChallengeRequest struct {
+	IsMFARequiredRequest        *IsMFARequiredRequest `json:"is_mfa_required_req"`
 	ChallengeScope              int                   `json:"challenge_scope"`
 	ChallengeAllowReuse         bool                  `json:"challenge_allow_reuse"`
 	UserVerificationRequirement string                `json:"user_verification_requirement"`
@@ -182,7 +182,7 @@ type createAuthenticateChallengeRequest struct {
 func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
 	ctx := r.Context()
 
-	var req createAuthenticateChallengeRequest
+	var req CreateAuthenticateChallengeRequest
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -426,7 +426,7 @@ func getDeviceUsage(reqUsage string) (proto.DeviceUsage, error) {
 	return deviceUsage, nil
 }
 
-type isMFARequiredDatabase struct {
+type IsMFARequiredDatabase struct {
 	// ServiceName is the database service name.
 	ServiceName string `json:"service_name"`
 	// Protocol is the type of the database protocol
@@ -438,56 +438,56 @@ type isMFARequiredDatabase struct {
 	DatabaseName string `json:"database_name,omitempty"`
 }
 
-type isMFARequiredKube struct {
+type IsMFARequiredKube struct {
 	// ClusterName is the name of the kube cluster.
 	ClusterName string `json:"cluster_name"`
 }
 
-type isMFARequiredNode struct {
+type IsMFARequiredNode struct {
 	// NodeName can be node's hostname or UUID.
 	NodeName string `json:"node_name"`
 	// Login is the OS login name.
 	Login string `json:"login"`
 }
 
-type isMFARequiredWindowsDesktop struct {
+type IsMFARequiredWindowsDesktop struct {
 	// DesktopName is the Windows Desktop server name.
 	DesktopName string `json:"desktop_name"`
 	// Login is the Windows desktop user login.
 	Login string `json:"login"`
 }
 
-type isMFARequiredApp struct {
+type IsMFARequiredApp struct {
 	// ResolveAppParams contains info used to resolve an application
 	ResolveAppParams
 }
 
-type isMFARequiredAdminAction struct{}
+type IsMFARequiredAdminAction struct{}
 
-type isMFARequiredRequest struct {
+type IsMFARequiredRequest struct {
 	// ClusterID is the ID of the cluster to check against for MFA requirements.
 	// If not set, MFA requirements will be checked against the root cluster.
 	ClusterID string `json:"clusterId,omitempty"`
 	// Database contains fields required to check if target database
 	// requires MFA check.
-	Database *isMFARequiredDatabase `json:"database,omitempty"`
+	Database *IsMFARequiredDatabase `json:"database,omitempty"`
 	// Node contains fields required to check if target node
 	// requires MFA check.
-	Node *isMFARequiredNode `json:"node,omitempty"`
+	Node *IsMFARequiredNode `json:"node,omitempty"`
 	// WindowsDesktop contains fields required to check if target
 	// windows desktop requires MFA check.
-	WindowsDesktop *isMFARequiredWindowsDesktop `json:"windows_desktop,omitempty"`
+	WindowsDesktop *IsMFARequiredWindowsDesktop `json:"windows_desktop,omitempty"`
 	// Kube is the name of the kube cluster to check if target cluster
 	// requires MFA check.
-	Kube *isMFARequiredKube `json:"kube,omitempty"`
+	Kube *IsMFARequiredKube `json:"kube,omitempty"`
 	// App contains fields required to resolve an application and check if
 	// the target application requires MFA check.
-	App *isMFARequiredApp `json:"app,omitempty"`
+	App *IsMFARequiredApp `json:"app,omitempty"`
 	// AdminAction is the name of the admin action RPC to check if MFA is required.
-	AdminAction *isMFARequiredAdminAction `json:"admin_action,omitempty"`
+	AdminAction *IsMFARequiredAdminAction `json:"admin_action,omitempty"`
 }
 
-func (h *Handler) checkAndGetProtoRequest(ctx context.Context, scx *SessionContext, r *isMFARequiredRequest) (*proto.IsMFARequiredRequest, error) {
+func (h *Handler) checkAndGetProtoRequest(ctx context.Context, scx *SessionContext, r *IsMFARequiredRequest) (*proto.IsMFARequiredRequest, error) {
 	numRequests := 0
 	var protoReq *proto.IsMFARequiredRequest
 
@@ -607,7 +607,7 @@ type isMfaRequiredResponse struct {
 
 // isMFARequired is the [ClusterHandler] implementer for checking if MFA is required for a given target.
 func (h *Handler) isMFARequired(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	var httpReq *isMFARequiredRequest
+	var httpReq *IsMFARequiredRequest
 	if err := httplib.ReadResourceJSON(r, &httpReq); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -621,7 +621,7 @@ func (h *Handler) isMFARequired(w http.ResponseWriter, r *http.Request, p httpro
 }
 
 // checkMFARequired checks if MFA is required for the target specified in the [isMFARequiredRequest].
-func (h *Handler) checkMFARequired(ctx context.Context, req *isMFARequiredRequest, sctx *SessionContext, site reversetunnelclient.RemoteSite) (bool, error) {
+func (h *Handler) checkMFARequired(ctx context.Context, req *IsMFARequiredRequest, sctx *SessionContext, site reversetunnelclient.RemoteSite) (bool, error) {
 	protoReq, err := h.checkAndGetProtoRequest(ctx, sctx, req)
 	if err != nil {
 		return false, trace.Wrap(err)
