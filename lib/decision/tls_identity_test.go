@@ -69,7 +69,6 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 			AzureIdentity:     "azure-id",
 			GcpServiceAccount: "gcp-service-account",
 			Uri:               "uri",
-			TargetPort:        111,
 		},
 		TeleportCluster: "teleport-cluster",
 		RouteToDatabase: &decisionpb.RouteToDatabase{

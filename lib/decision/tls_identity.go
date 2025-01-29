@@ -169,7 +169,6 @@ func routeToAppFromProto(routeToApp *decisionpb.RouteToApp) tlsca.RouteToApp {
 		AzureIdentity:     routeToApp.AzureIdentity,
 		GCPServiceAccount: routeToApp.GcpServiceAccount,
 		URI:               routeToApp.Uri,
-		TargetPort:        int(routeToApp.TargetPort),
 	}
 }
 
@@ -187,7 +186,6 @@ func routeToAppToProto(routeToApp *tlsca.RouteToApp) *decisionpb.RouteToApp {
 		AzureIdentity:     routeToApp.AzureIdentity,
 		GcpServiceAccount: routeToApp.GCPServiceAccount,
 		Uri:               routeToApp.URI,
-		TargetPort:        int32(routeToApp.TargetPort),
 	}
 }
 
