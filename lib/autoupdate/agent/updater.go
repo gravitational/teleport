@@ -189,7 +189,7 @@ type Installer interface {
 	// Link the Teleport agent at the specified revision of Teleport into the linking locations.
 	// The revert function must restore the previous linking, returning false on any failure.
 	// Link must be idempotent. Link's revert function must be idempotent.
-	Link(ctx context.Context, rev Revision) (revert func(context.Context) bool, err error)
+	Link(ctx context.Context, rev Revision, force bool) (revert func(context.Context) bool, err error)
 	// LinkSystem links the system installation of Teleport into the linking locations.
 	// The revert function must restore the previous linking, returning false on any failure.
 	// LinkSystem must be idempotent. LinkSystem's revert function must be idempotent.
@@ -225,6 +225,8 @@ var (
 	ErrNotSupported = errors.New("not supported on this platform")
 	// ErrNoBinaries is returned when no binaries are available to be linked.
 	ErrNoBinaries = errors.New("no binaries available to link")
+	// ErrFilePresent is returned when a file is present.
+	ErrFilePresent = errors.New("file present")
 )
 
 const (
@@ -263,6 +265,8 @@ type OverrideConfig struct {
 	ForceVersion string
 	// ForceFlags in installed Teleport.
 	ForceFlags autoupdate.InstallFlags
+	// AllowOverwrite of installed binaries.
+	AllowOverwrite bool
 }
 
 func deref[T any](ptr *T) T {
@@ -317,7 +321,10 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 		u.Log.InfoContext(ctx, "Initiating installation.", targetKey, target, activeKey, active)
 	}
 
-	if err := u.update(ctx, cfg, target); err != nil {
+	if err := u.update(ctx, cfg, target, override.AllowOverwrite); err != nil {
+		if errors.Is(err, ErrFilePresent) && !override.AllowOverwrite {
+			u.Log.WarnContext(ctx, "Use --overwrite to force removal of existing binaries.")
+		}
 		return trace.Wrap(err)
 	}
 	if target.Version == skip.Version {
@@ -575,7 +582,7 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 		time.Sleep(resp.Jitter)
 	}
 
-	updateErr := u.update(ctx, cfg, target)
+	updateErr := u.update(ctx, cfg, target, false)
 	writeErr := writeConfig(u.ConfigPath, cfg)
 	if writeErr != nil {
 		writeErr = trace.Wrap(writeErr, "failed to write %s", updateConfigName)
@@ -623,7 +630,7 @@ func (u *Updater) find(ctx context.Context, cfg *UpdateConfig) (FindResp, error)
 	}, nil
 }
 
-func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision) error {
+func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision, force bool) error {
 	active := cfg.Status.Active
 	backup := deref(cfg.Status.Backup)
 	switch backup {
@@ -656,7 +663,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 	// Cleanup logic at the end of this function will ensure that they are removed
 	// eventually.
 
-	revert, err := u.Installer.Link(ctx, target)
+	revert, err := u.Installer.Link(ctx, target, force)
 	if err != nil {
 		return trace.Wrap(err, "failed to link")
 	}
@@ -667,6 +674,10 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 	revertConfig := func(ctx context.Context) bool {
 		if target.Version != "" {
 			cfg.Status.Skip = toPtr(target)
+		}
+		if force {
+			u.Log.ErrorContext(ctx, "Unable to revert Teleport symlinks in overwrite mode. Installation likely broken.")
+			return false
 		}
 		if ok := revert(ctx); !ok {
 			u.Log.ErrorContext(ctx, "Failed to revert Teleport symlinks. Installation likely broken.")
