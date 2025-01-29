@@ -19,7 +19,6 @@
 package aggregating
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"log/slog"
@@ -277,25 +276,16 @@ func (r *Reporter) run(ctx context.Context) {
 	botInstanceActivityStartTime := r.clock.Now().UTC().Truncate(botInstanceActivityReportGranularity)
 	botInstanceActivityWindowStart := botInstanceActivityStartTime.Add(-rollbackGrace)
 	botInstanceActivityWindowEnd := botInstanceActivityStartTime.Add(botInstanceActivityReportGranularity)
-	botInstanceActivity := make(map[string]*prehogv1.BotInstanceActivityRecord)
+	botInstanceActivity := make(map[botInstanceActivityKey]*prehogv1.BotInstanceActivityRecord)
 	botInstanceRecord := func(botUserName string, botInstanceID string) *prehogv1.BotInstanceActivityRecord {
-		anonBotUserName := r.anonymizer.AnonymizeNonEmpty(botUserName)
-		record := botInstanceActivity[botInstanceID]
-		if record == nil {
-			record = &prehogv1.BotInstanceActivityRecord{
-				BotUserName: anonBotUserName,
-			}
-			botInstanceActivity[botInstanceID] = record
-			return record
+		key := botInstanceActivityKey{
+			botUserName:   botUserName,
+			botInstanceID: botInstanceID,
 		}
-		// TODO(noah): Maybe we just omit this check since we can't really
-		// react to this and the odds are low
-		if !bytes.Equal(record.BotUserName, anonBotUserName) {
-			r.logger.WarnContext(
-				ctx, "Record bot_user_name has changed unexpectedly",
-				"bot_user_name", botUserName,
-				"bot_instance_id", botInstanceID,
-			)
+		record := botInstanceActivity[key]
+		if record == nil {
+			record = &prehogv1.BotInstanceActivityRecord{}
+			botInstanceActivity[key] = record
 		}
 		return record
 	}
@@ -351,7 +341,7 @@ Ingest:
 				go func(
 					ctx context.Context,
 					startTime time.Time,
-					botInstanceActivity map[string]*prehogv1.BotInstanceActivityRecord,
+					botInstanceActivity map[botInstanceActivityKey]*prehogv1.BotInstanceActivityRecord,
 				) {
 					defer wg.Done()
 					r.persistBotInstanceActivity(ctx, startTime, botInstanceActivity)
@@ -361,7 +351,7 @@ Ingest:
 			botInstanceActivityStartTime = now.Truncate(botInstanceActivityReportGranularity)
 			botInstanceActivityWindowStart = botInstanceActivityStartTime.Add(-rollbackGrace)
 			botInstanceActivityWindowEnd = botInstanceActivityStartTime.Add(botInstanceActivityReportGranularity)
-			botInstanceActivity = make(map[string]*prehogv1.BotInstanceActivityRecord, len(botInstanceActivity))
+			botInstanceActivity = make(map[botInstanceActivityKey]*prehogv1.BotInstanceActivityRecord, len(botInstanceActivity))
 		}
 
 		if now := r.clock.Now().UTC(); now.Before(resourceUsageWindowStart) || !now.Before(resourceUsageWindowEnd) {
@@ -454,14 +444,20 @@ Ingest:
 	wg.Wait()
 }
 
+type botInstanceActivityKey struct {
+	botUserName   string
+	botInstanceID string
+}
+
 func (r *Reporter) persistBotInstanceActivity(
 	ctx context.Context,
 	startTime time.Time,
-	botInstanceActivity map[string]*prehogv1.BotInstanceActivityRecord,
+	botInstanceActivity map[botInstanceActivityKey]*prehogv1.BotInstanceActivityRecord,
 ) {
 	records := make([]*prehogv1.BotInstanceActivityRecord, 0, len(botInstanceActivity))
-	for botInstanceID, record := range botInstanceActivity {
-		record.BotInstanceId = r.anonymizer.AnonymizeNonEmpty(botInstanceID)
+	for key, record := range botInstanceActivity {
+		record.BotUserName = r.anonymizer.AnonymizeNonEmpty(key.botUserName)
+		record.BotInstanceId = r.anonymizer.AnonymizeNonEmpty(key.botInstanceID)
 		records = append(records, record)
 	}
 
