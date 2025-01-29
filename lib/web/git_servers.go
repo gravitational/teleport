@@ -35,24 +35,18 @@ func (h *Handler) gitServerCreateOrUpsert(_ http.ResponseWriter, r *http.Request
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := req.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	var gitServer types.Server
-	switch req.SubKind {
-	case types.SubKindGitHub:
-		if req.GitHub == nil {
-			return nil, trace.BadParameter("missing github server metadata")
-		}
-		githubServer, err := types.NewGitHubServerWithName(req.Name, types.GitHubServerMetadata{
-			Organization: req.GitHub.Organization,
-			Integration:  req.GitHub.Integration,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		gitServer = githubServer
-
-	default:
-		return nil, trace.BadParameter("unsupported git server sub kind: %v", req.SubKind)
+	// Only GitHub server is supported. Above req.Check() performs necessary
+	// checks to ensure all the fields are set.
+	gitServer, err := types.NewGitHubServerWithName(req.Name, types.GitHubServerMetadata{
+		Organization: req.GitHub.Organization,
+		Integration:  req.GitHub.Integration,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	userClient, err := sctx.GetUserClient(r.Context(), site)
