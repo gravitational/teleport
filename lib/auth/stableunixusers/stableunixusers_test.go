@@ -19,6 +19,8 @@ package stableunixusers_test
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"os"
 	"testing"
 	"time"
 
@@ -29,12 +31,19 @@ import (
 
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/stableunixusers"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
+	"github.com/gravitational/teleport/lib/utils"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 func TestStableUNIXUsers(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -58,11 +67,15 @@ func TestStableUNIXUsers(t *testing.T) {
 		Backend: bk,
 	}
 
+	emitter := new(mockEmitter)
+
 	var authorizer authz.AuthorizerFunc
 
 	cacheClock := clockwork.NewFakeClock()
 	svc, err := stableunixusers.New(stableunixusers.Config{
 		Authorizer: &authorizer,
+		Emitter:    emitter,
+		Logger:     slog.Default(),
 
 		Backend:       bk,
 		ReadOnlyCache: readOnlyCache,
@@ -114,38 +127,46 @@ func TestStableUNIXUsers(t *testing.T) {
 	uid1, err := obtainUIDForUsername("user1")
 	require.NoError(t, err)
 	require.Equal(t, firstUID, uid1)
+	require.True(t, emitter.getAndReset())
 
 	// this will panic unless the internal time-based cache is working
 	stableUNIXUsers.Backend = nil
 	uid1, err = obtainUIDForUsername("user1")
 	require.NoError(t, err)
 	require.Equal(t, firstUID, uid1)
+	require.False(t, emitter.getAndReset())
 
 	stableUNIXUsers.Backend = bk
 
 	uid2, err := obtainUIDForUsernameUncached("user2")
 	require.NoError(t, err)
 	require.Equal(t, firstUID+1, uid2)
+	require.True(t, emitter.getAndReset())
 
 	uid1, err = obtainUIDForUsernameUncached("user1")
 	require.NoError(t, err)
 	require.Equal(t, firstUID, uid1)
+	require.False(t, emitter.getAndReset())
 
 	uid2, err = obtainUIDForUsernameUncached("user2")
 	require.NoError(t, err)
 	require.Equal(t, firstUID+1, uid2)
+	require.False(t, emitter.getAndReset())
 
 	uid3, err := obtainUIDForUsernameUncached("user3")
 	require.NoError(t, err)
 	require.Equal(t, firstUID+2, uid3)
+	require.True(t, emitter.getAndReset())
 
 	uid4, err := obtainUIDForUsernameUncached("user4")
 	require.NoError(t, err)
 	require.Equal(t, firstUID+3, uid4)
+	require.True(t, emitter.getAndReset())
 
 	// 90000-90003 is only four spots, we can't store the fifth user
 	_, err = obtainUIDForUsernameUncached("user5")
 	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+	require.False(t, emitter.getAndReset())
 
 	// nodes are not allowed to list users
 	_, err = svc.ListStableUNIXUsers(ctx, &stableunixusersv1.ListStableUNIXUsersRequest{
@@ -193,6 +214,7 @@ func TestStableUNIXUsers(t *testing.T) {
 	_, err = clusterConfiguration.UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 
+	emitter.emitted = true
 	eg, ctx := errgroup.WithContext(ctx)
 	for i := range 1000 {
 		eg.Go(func() error {
@@ -201,4 +223,22 @@ func TestStableUNIXUsers(t *testing.T) {
 		})
 	}
 	require.NoError(t, eg.Wait())
+}
+
+type mockEmitter struct {
+	emitted bool
+}
+
+func (e *mockEmitter) EmitAuditEvent(ctx context.Context, ev apievents.AuditEvent) error {
+	if !e.emitted {
+		// avoid racing a write if the flag is already set
+		e.emitted = true
+	}
+	return nil
+}
+
+func (e *mockEmitter) getAndReset() bool {
+	r := e.emitted
+	e.emitted = false
+	return r
 }
