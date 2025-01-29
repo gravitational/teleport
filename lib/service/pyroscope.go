@@ -111,7 +111,7 @@ func createPyroscopeConfig(ctx context.Context, address string) (pyroscope.Confi
 func (process *TeleportProcess) initPyroscope(address string) {
 	config, err := createPyroscopeConfig(process.ExitContext(), address)
 	if err != nil {
-		slog.ErrorContext(process.ExitContext(), "failed to create Pyroscope config", "address", address, "error", err)
+		process.logger.ErrorContext(process.ExitContext(), "failed to create Pyroscope config", "address", address, "error", err)
 		return
 	}
 
