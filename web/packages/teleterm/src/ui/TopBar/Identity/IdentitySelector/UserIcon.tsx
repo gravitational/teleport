@@ -54,7 +54,10 @@ const Circle = styled.span<{
 }>`
   position: relative;
   border-radius: 50%;
-  color: ${props => (props.color ? 'white' : props.theme.colors.text.main)};
+  color: ${props =>
+    props.color
+      ? props.theme.colors.text.primaryInverse
+      : props.theme.colors.text.main};
   background: ${props =>
     props.color || props.theme.colors.interactive.tonal.neutral[1]};
   height: ${props => props.size};
