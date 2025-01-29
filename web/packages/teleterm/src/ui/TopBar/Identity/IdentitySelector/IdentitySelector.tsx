@@ -45,7 +45,7 @@ export const IdentitySelector = forwardRef<
     props.activeCluster &&
     getUserWithClusterName({
       clusterName: props.activeCluster.name,
-      userName: props.activeCluster?.loggedInUser?.name,
+      userName: props.activeCluster.loggedInUser?.name,
     });
   const title = props.makeTitle(selectorText);
 
