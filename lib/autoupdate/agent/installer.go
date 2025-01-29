@@ -535,6 +535,15 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcPath string
 		}
 	}()
 
+	// ensure source directory exists
+	entries, err := os.ReadDir(binDir)
+	if errors.Is(err, os.ErrNotExist) {
+		return revert, trace.Wrap(ErrNoBinaries)
+	}
+	if err != nil {
+		return revert, trace.Wrap(err, "failed to read Teleport binary directory")
+	}
+
 	// ensure target directories exist before trying to create links
 	err = os.MkdirAll(li.LinkBinDir, systemDirMode)
 	if err != nil {
@@ -546,11 +555,6 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcPath string
 	}
 
 	// create binary links
-
-	entries, err := os.ReadDir(binDir)
-	if err != nil {
-		return revert, trace.Wrap(err, "failed to find Teleport binary directory")
-	}
 	var linked int
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -748,8 +752,17 @@ func (li *LocalInstaller) removeLinks(ctx context.Context, binDir, svcPath strin
 // tryLinks will not attempt to create any links if linking could result in an error.
 // However, concurrent changes to links may result in an error with partially-complete linking.
 func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcPath string) error {
+	// ensure source directory exists
+	entries, err := os.ReadDir(binDir)
+	if errors.Is(err, os.ErrNotExist) {
+		return trace.Wrap(ErrNoBinaries)
+	}
+	if err != nil {
+		return trace.Wrap(err, "failed to read Teleport binary directory")
+	}
+
 	// ensure target directories exist before trying to create links
-	err := os.MkdirAll(li.LinkBinDir, systemDirMode)
+	err = os.MkdirAll(li.LinkBinDir, systemDirMode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -759,13 +772,8 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcPath string) 
 	}
 
 	// validate that we can link all system binaries before attempting linking
-
 	var links []symlink
 	var linked int
-	entries, err := os.ReadDir(binDir)
-	if err != nil {
-		return trace.Wrap(err, "failed to find Teleport binary directory")
-	}
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
