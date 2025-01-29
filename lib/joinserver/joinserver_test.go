@@ -86,6 +86,14 @@ func (c *mockJoinServiceClient) RegisterUsingTPMMethod(
 	return c.returnCerts, c.returnError
 }
 
+func (c *mockJoinServiceClient) RegisterUsingOracleMethod(
+	ctx context.Context,
+	tokenReq *types.RegisterUsingTokenRequest,
+	challengeResponse client.RegisterOracleChallengeResponseFunc,
+) (*proto.Certs, error) {
+	return c.returnCerts, c.returnError
+}
+
 func (c *mockJoinServiceClient) RegisterUsingToken(
 	ctx context.Context,
 	req *types.RegisterUsingTokenRequest,
@@ -601,7 +609,7 @@ func TestTimeout(t *testing.T) {
 			//
 			// Make sure the request is automatically timed out on the server and all
 			// connections are closed shortly after the timeout.
-			fakeClock.Advance(iamJoinRequestTimeout)
+			fakeClock.Advance(joinRequestTimeout)
 			require.Eventually(t, func() bool {
 				return testPack.streamConnectionCount.Load() == 0
 			}, 10*time.Second, 1*time.Millisecond)
