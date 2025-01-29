@@ -189,6 +189,9 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 		}
 	}
 
+	// Put submission lock in place - whilst this is by-name for
+	// "user activity reports", it can be considered to protect resource
+	// presence and bot instance activity too.
 	debugPayload := fmt.Sprintf("%v %q", time.Now().Round(0), c.HostID)
 	if err := svc.createUserActivityReportsLock(ctx, submitLockDuration, []byte(debugPayload)); err != nil {
 		if trace.IsAlreadyExists(err) {
@@ -198,7 +201,6 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 		}
 		return
 	}
-	// TODO: Should we hold a lock for the bot or rely on user activity reports lock.
 
 	lockCtx, cancel := context.WithTimeout(ctx, submitLockDuration*9/10)
 	defer cancel()
