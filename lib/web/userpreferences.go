@@ -64,15 +64,24 @@ type AccessGraphPreferencesResponse struct {
 	HasBeenRedirected bool `json:"hasBeenRedirected"`
 }
 
+type DiscoverGuidePreferences struct {
+	PinnedGuides []string `json:"pinnedGuides"`
+}
+
+type DiscoverResourcePreferencesResponse struct {
+	DiscoverGuidePreferences *DiscoverGuidePreferences `json:"discoverGuidePreferences"`
+}
+
 // UserPreferencesResponse is the JSON response for the user preferences.
 type UserPreferencesResponse struct {
-	Assist                     AssistUserPreferencesResponse       `json:"assist"`
-	Theme                      userpreferencesv1.Theme             `json:"theme"`
-	UnifiedResourcePreferences UnifiedResourcePreferencesResponse  `json:"unifiedResourcePreferences"`
-	Onboard                    OnboardUserPreferencesResponse      `json:"onboard"`
-	ClusterPreferences         ClusterUserPreferencesResponse      `json:"clusterPreferences,omitempty"`
-	AccessGraph                AccessGraphPreferencesResponse      `json:"accessGraph,omitempty"`
-	SideNavDrawerMode          userpreferencesv1.SideNavDrawerMode `json:"sideNavDrawerMode"`
+	Assist                      AssistUserPreferencesResponse       `json:"assist"`
+	Theme                       userpreferencesv1.Theme             `json:"theme"`
+	UnifiedResourcePreferences  UnifiedResourcePreferencesResponse  `json:"unifiedResourcePreferences"`
+	Onboard                     OnboardUserPreferencesResponse      `json:"onboard"`
+	ClusterPreferences          ClusterUserPreferencesResponse      `json:"clusterPreferences,omitempty"`
+	DiscoverResourcePreferences DiscoverResourcePreferencesResponse `json:"discoverResourcePreferences"`
+	AccessGraph                 AccessGraphPreferencesResponse      `json:"accessGraph,omitempty"`
+	SideNavDrawerMode           userpreferencesv1.SideNavDrawerMode `json:"sideNavDrawerMode"`
 }
 
 func (h *Handler) getUserClusterPreferences(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
@@ -127,6 +136,12 @@ func (h *Handler) getUserPreferences(_ http.ResponseWriter, r *http.Request, _ h
 }
 
 func makePreferenceRequest(req UserPreferencesResponse) *userpreferencesv1.UpsertUserPreferencesRequest {
+	var pinnedGuidesPreferences *userpreferencesv1.DiscoverGuidePreferences
+	if req.DiscoverResourcePreferences.DiscoverGuidePreferences != nil {
+		pinnedGuidesPreferences = &userpreferencesv1.DiscoverGuidePreferences{
+			PinnedGuides: req.DiscoverResourcePreferences.DiscoverGuidePreferences.PinnedGuides,
+		}
+	}
 	return &userpreferencesv1.UpsertUserPreferencesRequest{
 		Preferences: &userpreferencesv1.UserPreferences{
 			Theme: req.Theme,
@@ -154,6 +169,9 @@ func makePreferenceRequest(req UserPreferencesResponse) *userpreferencesv1.Upser
 				HasBeenRedirected: req.AccessGraph.HasBeenRedirected,
 			},
 			SideNavDrawerMode: req.SideNavDrawerMode,
+			DiscoverResourcePreferences: &userpreferencesv1.DiscoverResourcePreferences{
+				DiscoverGuidePreferences: pinnedGuidesPreferences,
+			},
 		},
 	}
 }
@@ -182,12 +200,13 @@ func (h *Handler) updateUserPreferences(_ http.ResponseWriter, r *http.Request, 
 // userPreferencesResponse creates a JSON response for the user preferences.
 func userPreferencesResponse(resp *userpreferencesv1.UserPreferences) *UserPreferencesResponse {
 	jsonResp := &UserPreferencesResponse{
-		Theme:                      resp.Theme,
-		Onboard:                    onboardUserPreferencesResponse(resp.Onboard),
-		ClusterPreferences:         clusterPreferencesResponse(resp.ClusterPreferences),
-		UnifiedResourcePreferences: unifiedResourcePreferencesResponse(resp.UnifiedResourcePreferences),
-		AccessGraph:                accessGraphPreferencesResponse(resp.AccessGraph),
-		SideNavDrawerMode:          resp.SideNavDrawerMode,
+		Theme:                       resp.Theme,
+		Onboard:                     onboardUserPreferencesResponse(resp.Onboard),
+		ClusterPreferences:          clusterPreferencesResponse(resp.ClusterPreferences),
+		UnifiedResourcePreferences:  unifiedResourcePreferencesResponse(resp.UnifiedResourcePreferences),
+		AccessGraph:                 accessGraphPreferencesResponse(resp.AccessGraph),
+		SideNavDrawerMode:           resp.SideNavDrawerMode,
+		DiscoverResourcePreferences: discoverResourcePreferenceResponse(resp.DiscoverResourcePreferences),
 	}
 
 	return jsonResp
@@ -241,5 +260,18 @@ func accessGraphPreferencesResponse(resp *userpreferencesv1.AccessGraphUserPrefe
 
 	return AccessGraphPreferencesResponse{
 		HasBeenRedirected: resp.HasBeenRedirected,
+	}
+}
+
+// accessGraphPreferencesResponse creates a JSON response for the access graph preferences.
+func discoverResourcePreferenceResponse(resp *userpreferencesv1.DiscoverResourcePreferences) DiscoverResourcePreferencesResponse {
+	if resp == nil || resp.DiscoverGuidePreferences == nil {
+		return DiscoverResourcePreferencesResponse{}
+	}
+
+	return DiscoverResourcePreferencesResponse{
+		DiscoverGuidePreferences: &DiscoverGuidePreferences{
+			PinnedGuides: resp.GetDiscoverGuidePreferences().GetPinnedGuides(),
+		},
 	}
 }
