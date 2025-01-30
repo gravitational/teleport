@@ -6029,6 +6029,7 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 		testserver.WithBootstrap(connector, accessUser),
 		testserver.WithHostname("node01"),
 		testserver.WithClusterName(t, "root"),
+		testserver.WithDebugApp(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			// Enable DB
 			cfg.Databases.Enabled = true
@@ -6039,9 +6040,6 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 					URI:      "localhost:5432",
 				},
 			}
-
-			cfg.Apps.Enabled = true
-			cfg.Apps.DebugApp = true
 		}),
 	}
 	rootServer := testserver.MakeTestServer(t, rootServerOpts...)
@@ -6050,6 +6048,7 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 		testserver.WithBootstrap(connector, accessUser),
 		testserver.WithHostname("node02"),
 		testserver.WithClusterName(t, "leaf"),
+		testserver.WithDebugApp(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			// Enable DB
 			cfg.Databases.Enabled = true
@@ -6060,9 +6059,6 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 					URI:      "localhost:5432",
 				},
 			}
-
-			cfg.Apps.Enabled = true
-			cfg.Apps.DebugApp = true
 		}),
 	}
 	leafServer := testserver.MakeTestServer(t, leafServerOpts...)

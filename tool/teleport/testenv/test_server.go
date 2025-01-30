@@ -412,7 +412,7 @@ func WithProxyKube(t *testing.T) TestServerOptFunc {
 }
 
 // WithDebugApp enables the app service and the debug app.
-func WithDebugApp(t *testing.T) TestServerOptFunc {
+func WithDebugApp() TestServerOptFunc {
 	return WithConfig(func(cfg *servicecfg.Config) {
 		cfg.Apps.Enabled = true
 		cfg.Apps.DebugApp = true

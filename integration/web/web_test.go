@@ -72,7 +72,6 @@ func TestMFAAuthenticateChallenge_IsMFARequiredApp(t *testing.T) {
 		testserver.WithTestApp(t, "root-app"),
 		testserver.WithTestApp(t, "root-app-mfa"),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
-			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.SSH.Enabled = false
 			cfg.Auth.Preference = &types.AuthPreferenceV2{
 				Metadata: types.Metadata{
@@ -98,8 +97,6 @@ func TestMFAAuthenticateChallenge_IsMFARequiredApp(t *testing.T) {
 		testserver.WithTestApp(t, "leaf-app-mfa"),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.SSH.Enabled = false
-			cfg.Apps.Enabled = true
-			cfg.Apps.DebugApp = true
 		}),
 	)
 	leafAuth := leafServer.GetAuthServer()

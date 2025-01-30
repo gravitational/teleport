@@ -1482,19 +1482,11 @@ func TestProxyAppWithIdentity(t *testing.T) {
 		userName    = "admin"
 	)
 
-	appURI := startDummyHTTPServer(t, appName)
-
 	rootServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithClusterName(t, clusterName),
+		testserver.WithTestApp(t, appName),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-			cfg.Apps = servicecfg.AppsConfig{
-				Enabled: true,
-				Apps: []servicecfg.App{{
-					Name: appName,
-					URI:  appURI,
-				}},
-			}
 		}),
 	}
 	process := testserver.MakeTestServer(t, rootServerOpts...)
