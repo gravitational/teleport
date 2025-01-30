@@ -646,7 +646,7 @@ func TestUpdater_Update(t *testing.T) {
 					installedBaseURL = baseURL
 					return tt.installErr
 				},
-				FuncLink: func(_ context.Context, rev Revision) (revert func(context.Context) bool, err error) {
+				FuncLink: func(_ context.Context, rev Revision, force bool) (revert func(context.Context) bool, err error) {
 					linkedRevision = rev
 					return func(_ context.Context) bool {
 						revertFuncCalls++
@@ -1472,7 +1472,7 @@ func TestUpdater_Install(t *testing.T) {
 					installedBaseURL = baseURL
 					return tt.installErr
 				},
-				FuncLink: func(_ context.Context, rev Revision) (revert func(context.Context) bool, err error) {
+				FuncLink: func(_ context.Context, rev Revision, force bool) (revert func(context.Context) bool, err error) {
 					linkedRevision = rev
 					return func(_ context.Context) bool {
 						revertFuncCalls++
@@ -1557,7 +1557,7 @@ func blankTestAddr(s []byte) []byte {
 type testInstaller struct {
 	FuncInstall       func(ctx context.Context, rev Revision, baseURL string) error
 	FuncRemove        func(ctx context.Context, rev Revision) error
-	FuncLink          func(ctx context.Context, rev Revision) (revert func(context.Context) bool, err error)
+	FuncLink          func(ctx context.Context, rev Revision, force bool) (revert func(context.Context) bool, err error)
 	FuncLinkSystem    func(ctx context.Context) (revert func(context.Context) bool, err error)
 	FuncTryLink       func(ctx context.Context, rev Revision) error
 	FuncTryLinkSystem func(ctx context.Context) error
@@ -1574,8 +1574,8 @@ func (ti *testInstaller) Remove(ctx context.Context, rev Revision) error {
 	return ti.FuncRemove(ctx, rev)
 }
 
-func (ti *testInstaller) Link(ctx context.Context, rev Revision) (revert func(context.Context) bool, err error) {
-	return ti.FuncLink(ctx, rev)
+func (ti *testInstaller) Link(ctx context.Context, rev Revision, force bool) (revert func(context.Context) bool, err error) {
+	return ti.FuncLink(ctx, rev, force)
 }
 
 func (ti *testInstaller) LinkSystem(ctx context.Context) (revert func(context.Context) bool, err error) {
