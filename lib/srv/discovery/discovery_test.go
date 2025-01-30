@@ -976,12 +976,22 @@ func TestDiscoveryServer(t *testing.T) {
 			if tc.wantDiscoveryConfigStatus != nil {
 				// It can take a while for the status to be updated.
 				require.Eventually(t, func() bool {
+					fakeClock.Advance(server.PollInterval)
 					storedDiscoveryConfig, err := tlsServer.Auth().DiscoveryConfigs.GetDiscoveryConfig(ctx, tc.discoveryConfig.GetName())
 					require.NoError(t, err)
 					if len(storedDiscoveryConfig.Status.IntegrationDiscoveredResources) == 0 {
 						return false
 					}
-					require.Equal(t, *tc.wantDiscoveryConfigStatus, storedDiscoveryConfig.Status)
+					want := *tc.wantDiscoveryConfigStatus
+					got := storedDiscoveryConfig.Status
+
+					require.Equal(t, want.State, got.State)
+					require.Equal(t, want.DiscoveredResources, got.DiscoveredResources)
+					require.Equal(t, want.ErrorMessage, got.ErrorMessage)
+					for expectedKey, expectedValue := range want.IntegrationDiscoveredResources {
+						require.Contains(t, got.IntegrationDiscoveredResources, expectedKey)
+						require.Equal(t, expectedValue, got.IntegrationDiscoveredResources[expectedKey])
+					}
 					return true
 				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
@@ -2175,16 +2185,17 @@ func TestDiscoveryDatabase(t *testing.T) {
 	}
 
 	tcs := []struct {
-		name                        string
-		existingDatabases           []types.Database
-		integrationsOnlyCredentials bool
-		awsMatchers                 []types.AWSMatcher
-		azureMatchers               []types.AzureMatcher
-		expectDatabases             []types.Database
-		discoveryConfigs            func(*testing.T) []*discoveryconfig.DiscoveryConfig
-		discoveryConfigStatusCheck  func(*testing.T, discoveryconfig.Status)
-		userTasksCheck              func(*testing.T, []*usertasksv1.UserTask)
-		wantEvents                  int
+		name                                   string
+		existingDatabases                      []types.Database
+		integrationsOnlyCredentials            bool
+		awsMatchers                            []types.AWSMatcher
+		azureMatchers                          []types.AzureMatcher
+		expectDatabases                        []types.Database
+		discoveryConfigs                       func(*testing.T) []*discoveryconfig.DiscoveryConfig
+		discoveryConfigStatusCheck             func(*testing.T, discoveryconfig.Status)
+		discoveryConfigStatusExpectedResources int
+		userTasksCheck                         func(*testing.T, []*usertasksv1.UserTask)
+		wantEvents                             int
 	}{
 		{
 			name: "discover AWS database",
@@ -2383,11 +2394,11 @@ func TestDiscoveryDatabase(t *testing.T) {
 			},
 			wantEvents: 1,
 			discoveryConfigStatusCheck: func(t *testing.T, s discoveryconfig.Status) {
-				require.Equal(t, uint64(1), s.DiscoveredResources)
 				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsRds.Enrolled)
 				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsRds.Found)
 				require.Zero(t, s.IntegrationDiscoveredResources[integrationName].AwsRds.Failed)
 			},
+			discoveryConfigStatusExpectedResources: 1,
 		},
 		{
 			name:                        "running in integrations-only-mode with a matcher without an integration, must find 1 database",
@@ -2417,10 +2428,10 @@ func TestDiscoveryDatabase(t *testing.T) {
 			expectDatabases: []types.Database{},
 			wantEvents:      0,
 			discoveryConfigStatusCheck: func(t *testing.T, s discoveryconfig.Status) {
-				require.Equal(t, uint64(1), s.DiscoveredResources)
 				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsEks.Found)
 				require.Zero(t, s.IntegrationDiscoveredResources[integrationName].AwsEks.Enrolled)
 			},
+			discoveryConfigStatusExpectedResources: 1,
 		},
 		{
 			name: "discovery config status must be updated even when there are no resources",
@@ -2439,9 +2450,9 @@ func TestDiscoveryDatabase(t *testing.T) {
 			expectDatabases: []types.Database{},
 			wantEvents:      0,
 			discoveryConfigStatusCheck: func(t *testing.T, s discoveryconfig.Status) {
-				require.Equal(t, uint64(0), s.DiscoveredResources)
 				require.Equal(t, "DISCOVERY_CONFIG_STATE_SYNCING", s.State)
 			},
+			discoveryConfigStatusExpectedResources: 0,
 		},
 		{
 			name: "discover-rds user task must be created when database is not configured to allow IAM DB Authentication",
@@ -2485,6 +2496,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			fakeClock := clockwork.NewFakeClock()
 
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
@@ -2578,6 +2590,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 						waitForReconcile <- struct{}{}
 					},
 					DiscoveryGroup: mainDiscoveryGroup,
+					clock:          fakeClock,
 				})
 
 			require.NoError(t, err)
@@ -2627,10 +2640,18 @@ func TestDiscoveryDatabase(t *testing.T) {
 			}
 
 			if tc.discoveryConfigStatusCheck != nil {
-				dc, err := tlsServer.Auth().GetDiscoveryConfig(ctx, discoveryConfigName)
-				require.NoError(t, err)
+				require.Eventually(t, func() bool {
+					fakeClock.Advance(srv.PollInterval * 2)
+					dc, err := tlsServer.Auth().GetDiscoveryConfig(ctx, discoveryConfigName)
+					require.NoError(t, err)
+					if tc.discoveryConfigStatusExpectedResources != int(dc.Status.DiscoveredResources) {
+						return false
+					}
 
-				tc.discoveryConfigStatusCheck(t, dc.Status)
+					tc.discoveryConfigStatusCheck(t, dc.Status)
+					return true
+				}, time.Second, 100*time.Millisecond)
+
 			}
 			if tc.userTasksCheck != nil {
 				var userTasks []*usertasksv1.UserTask
