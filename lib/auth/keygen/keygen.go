@@ -34,9 +34,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Keygen is a key generator that precomputes keys to provide quick access to
@@ -75,56 +73,63 @@ func (k *Keygen) GenerateKeyPair() ([]byte, []byte, error) {
 
 // GenerateHostCert generates a host certificate with the passed in parameters.
 // The private key of the CA to sign the certificate must be provided.
-func (k *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
-	if err := c.Check(); err != nil {
+func (k *Keygen) GenerateHostCert(req sshca.HostCertificateRequest) ([]byte, error) {
+	if err := req.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return k.GenerateHostCertWithoutValidation(c)
+	return k.GenerateHostCertWithoutValidation(req)
 }
 
 // GenerateHostCertWithoutValidation generates a host certificate with the
 // passed in parameters without validating them. For use in tests only.
-func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([]byte, error) {
-	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(c.PublicHostKey)
+func (k *Keygen) GenerateHostCertWithoutValidation(req sshca.HostCertificateRequest) ([]byte, error) {
+	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(req.PublicHostKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	// create shallow copy of identity since we want to make some local changes
+	ident := req.Identity
+
+	ident.CertType = ssh.HostCert
+
 	// Build a valid list of principals from the HostID and NodeName and then
 	// add in any additional principals passed in.
-	principals := BuildPrincipals(c.HostID, c.NodeName, c.ClusterName, types.SystemRoles{c.Role})
-	principals = append(principals, c.Principals...)
+	principals := BuildPrincipals(req.HostID, req.NodeName, ident.ClusterName, types.SystemRoles{ident.SystemRole})
+	principals = append(principals, ident.Principals...)
 	if len(principals) == 0 {
-		return nil, trace.BadParameter("no principals provided: %v, %v, %v",
-			c.HostID, c.NodeName, c.Principals)
+		return nil, trace.BadParameter("cannot generate host certificate without principals")
 	}
 	principals = apiutils.Deduplicate(principals)
+	ident.Principals = principals
 
-	// create certificate
-	validBefore := uint64(ssh.CertTimeInfinity)
-	if c.TTL != 0 {
-		b := k.clock.Now().UTC().Add(c.TTL)
-		validBefore = uint64(b.Unix())
+	// calculate ValidBefore based on the outer request TTL
+	ident.ValidBefore = uint64(ssh.CertTimeInfinity)
+	if req.TTL != 0 {
+		b := k.clock.Now().UTC().Add(req.TTL)
+		ident.ValidBefore = uint64(b.Unix())
 	}
-	cert := &ssh.Certificate{
-		ValidPrincipals: principals,
-		Key:             pubKey,
-		ValidAfter:      uint64(k.clock.Now().UTC().Add(-1 * time.Minute).Unix()),
-		ValidBefore:     validBefore,
-		CertType:        ssh.HostCert,
+
+	ident.ValidAfter = uint64(k.clock.Now().UTC().Add(-1 * time.Minute).Unix())
+
+	// encode the identity into a certificate
+	cert, err := ident.Encode("")
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	cert.Permissions.Extensions = make(map[string]string)
-	cert.Permissions.Extensions[utils.CertExtensionRole] = c.Role.String()
-	cert.Permissions.Extensions[utils.CertExtensionAuthority] = c.ClusterName
+
+	// set the public key of the certificate
+	cert.Key = pubKey
 
 	// sign host certificate with private signing key of certificate authority
-	if err := cert.SignCert(rand.Reader, c.CASigner); err != nil {
+	if err := cert.SignCert(rand.Reader, req.CASigner); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	log.Debugf("Generated SSH host certificate for role %v with principals: %v.",
-		c.Role, principals)
+		ident.SystemRole, ident.Principals)
+
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 
@@ -148,21 +153,14 @@ func (k *Keygen) GenerateUserCertWithoutValidation(req sshca.UserCertificateRequ
 	// create shallow copy of identity since we want to make some local changes
 	ident := req.Identity
 
-	// since this method ignores the supplied values for ValidBefore/ValidAfter, avoid confusing by
-	// rejecting identities where they are set.
-	if ident.ValidBefore != 0 {
-		return nil, trace.BadParameter("ValidBefore should not be set in calls to GenerateUserCert")
-	}
-	if ident.ValidAfter != 0 {
-		return nil, trace.BadParameter("ValidAfter should not be set in calls to GenerateUserCert")
-	}
+	ident.CertType = ssh.UserCert
 
 	// calculate ValidBefore based on the outer request TTL
 	ident.ValidBefore = uint64(ssh.CertTimeInfinity)
 	if req.TTL != 0 {
 		b := k.clock.Now().UTC().Add(req.TTL)
 		ident.ValidBefore = uint64(b.Unix())
-		log.Debugf("generated user key for %v with expiry on (%v) %v", ident.AllowedLogins, ident.ValidBefore, b)
+		log.Debugf("generated user key for %v with expiry on (%v) %v", ident.Principals, ident.ValidBefore, b)
 	}
 
 	// set ValidAfter to be 1 minute in the past

@@ -16,9 +16,166 @@ syntax = "proto3";
 
 package teleport.decision.v1alpha1;
 
+import "google/protobuf/timestamp.proto";
+import "teleport/decision/v1alpha1/tls_identity.proto";
+import "teleport/trait/v1/trait.proto";
+
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpb";
 
 // SSHIdentity is the identity used for SSH connections.
 message SSHIdentity {
-  // TBD
+  // --- common identity fields ---
+
+  // ValidAfter is the unix timestamp that marks the start time for when the certificate should
+  // be considered valid.
+  uint64 valid_after = 1;
+
+  // ValidBefore is the unix timestamp that marks the end time for when the certificate should
+  // be considered valid.
+  uint64 valid_before = 2;
+
+  // CertType indicates what type of cert this is (user or host).
+  uint32 cert_type = 3;
+
+  // Principals is the list of SSH principals associated with the certificate (this means the
+  // list of allowed unix logins in the case of user certs).
+  repeated string principals = 4;
+
+  // --- host identity fields ---
+
+  // ClusterName is the name of the cluster within which a node lives
+  string cluster_name = 5;
+  // SystemRole identifies the system role of a Teleport instance
+  string system_role = 6;
+
+  // -- user identity fields ---
+
+  // Username is teleport username
+  string username = 7;
+
+  // Impersonator is set when a user requests certificate for another user
+  string impersonator = 8;
+
+  // PermitX11Forwarding permits X11 forwarding for this cert
+  bool permit_x11_forwarding = 9;
+
+  // PermitAgentForwarding permits agent forwarding for this cert
+  bool permit_agent_forwarding = 10;
+
+  // PermitPortForwarding permits port forwarding.
+  bool permit_port_forwarding = 11;
+
+  // Roles is a list of roles assigned to this user
+  repeated string roles = 12;
+
+  // RouteToCluster specifies the target cluster
+  // if present in the certificate, will be used
+  // to route the requests to
+  string route_to_cluster = 13;
+
+  // Traits hold claim data used to populate a role at runtime.
+  repeated teleport.trait.v1.Trait traits = 14;
+
+  // ActiveRequests tracks privilege escalation requests applied during
+  // certificate construction.
+  repeated string active_requests = 15;
+
+  // MFAVerified is the UUID of an MFA device when this Identity was
+  // confirmed immediately after an MFA check.
+  string mfa_verified = 16;
+
+  // PreviousIdentityExpires is the expiry time of the identity/cert that this
+  // identity/cert was derived from. It is used to determine a session's hard
+  // deadline in cases where both require_session_mfa and disconnect_expired_cert
+  // are enabled. See https://github.com/gravitational/teleport/issues/18544.
+  google.protobuf.Timestamp previous_identity_expires = 17;
+
+  // LoginIP is an observed IP of the client on the moment of certificate creation.
+  string login_ip = 18;
+
+  // PinnedIP is an IP from which client must communicate with Teleport.
+  string pinned_ip = 19;
+
+  // DisallowReissue flags that any attempt to request new certificates while
+  // authenticated with this cert should be denied.
+  bool disallow_reissue = 20;
+
+  // CertificateExtensions are user configured ssh key extensions (note: this field also
+  // ends up aggregating all *unknown* extensions during cert parsing, meaning that this
+  // can sometimes contain fields that were inserted by a newer version of teleport).
+  repeated CertExtension certificate_extensions = 21;
+
+  // Renewable indicates this certificate is renewable.
+  bool renewable = 22;
+
+  // Generation counts the number of times a certificate has been renewed, with a generation of 1
+  // meaning the cert has never been renewed. A generation of zero means the cert's generation is
+  // not being tracked.
+  uint64 generation = 23;
+
+  // BotName is set to the name of the bot, if the user is a Machine ID bot user.
+  // Empty for human users.
+  string bot_name = 24;
+
+  // BotInstanceID is the unique identifier for the bot instance, if this is a
+  // Machine ID bot. It is empty for human users.
+  string bot_instance_id = 25;
+
+  // AllowedResourceIDs lists the resources the user should be able to access.
+  repeated ResourceId allowed_resource_ids = 26;
+
+  // ConnectionDiagnosticID references the ConnectionDiagnostic that we should use to append traces when testing a Connection.
+  string connection_diagnostic_id = 27;
+
+  // PrivateKeyPolicy is the private key policy supported by this certificate.
+  string private_key_policy = 28;
+
+  // DeviceID is the trusted device identifier.
+  string device_id = 29;
+
+  // DeviceAssetTag is the device inventory identifier.
+  string device_asset_tag = 30;
+
+  // DeviceCredentialID is the identifier for the credential used by the device
+  // to authenticate itself.
+  string device_credential_id = 31;
+}
+
+// CertExtensionMode specifies the type of extension to use in the cert. This type
+// must be kept up to date with types.CertExtensionMode.
+enum CertExtensionMode {
+  // CERT_EXTENSION_MODE_UNSPECIFIED is the default value and should not be used.
+  CERT_EXTENSION_MODE_UNSPECIFIED = 0;
+
+  // EXTENSION represents a cert extension that may or may not be
+  // honored by the server.
+  CERT_EXTENSION_MODE_EXTENSION = 1;
+}
+
+// CertExtensionType represents the certificate type the extension is for.
+// Currently only ssh is supported. This type must be kept up to date with
+// types.CertExtensionType.
+enum CertExtensionType {
+  // CERT_EXTENSION_TYPE_UNSPECIFIED is the default value and should not be used.
+  CERT_EXTENSION_TYPE_UNSPECIFIED = 0;
+
+  // SSH is used when extending an ssh certificate
+  CERT_EXTENSION_TYPE_SSH = 1;
+}
+
+// CertExtension represents a key/value for a certificate extension. This type must
+// be kept up to date with types.CertExtension.
+message CertExtension {
+  // Type represents the certificate type being extended, only ssh
+  // is supported at this time.
+  // 0 is "ssh".
+  CertExtensionType type = 1;
+  // Mode is the type of extension to be used -- currently
+  // critical-option is not supported.
+  // 0 is "extension".
+  CertExtensionMode mode = 2;
+  // Name specifies the key to be used in the cert extension.
+  string name = 3;
+  // Value specifies the value to be used in the cert extension.
+  string value = 4;
 }
