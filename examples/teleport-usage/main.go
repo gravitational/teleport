@@ -61,7 +61,17 @@ func main() {
 
 	ctx := context.Background()
 
-	awsConfig, err := config.LoadDefaultConfig(ctx, config.WithRegion(params.awsRegion))
+	configOpts := []func(*config.LoadOptions) error{config.WithRegion(params.awsRegion)}
+
+	// Check the package name for one of the boring primitives. If the package
+	// path is from BoringCrypto, we know this binary was compiled using
+	// `GOEXPERIMENT=boringcrypto`.
+	hash := sha256.New()
+	if reflect.TypeOf(hash).Elem().PkgPath() == "crypto/internal/boring" {
+		configOpts = append(configOpts, config.WithUseFIPSEndpoint(aws.FIPSEndpointStateEnabled))
+	}
+
+	awsConfig, err := config.LoadDefaultConfig(ctx, configOpts...)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -70,23 +80,9 @@ func main() {
 	// If this is too high and we encounter throttling that could impede Teleport, it will be adjusted automatically.
 	limiter := newAdaptiveRateLimiter(25)
 
-	dynamoOpts := []func(*dynamodb.Options){
-		func(o *dynamodb.Options) {
-			o.Retryer = aws.NopRetryer{}
-		},
-	}
-
-	// Check the package name for one of the boring primitives. If the package
-	// path is from BoringCrypto, we know this binary was compiled using
-	// `GOEXPERIMENT=boringcrypto`.
-	hash := sha256.New()
-	if reflect.TypeOf(hash).Elem().PkgPath() == "crypto/internal/boring" {
-		dynamoOpts = append(dynamoOpts, func(o *dynamodb.Options) {
-			o.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateEnabled
-		})
-	}
-
-	svc := dynamodb.NewFromConfig(awsConfig, dynamoOpts...)
+	svc := dynamodb.NewFromConfig(awsConfig, func(o *dynamodb.Options) {
+		o.Retryer = aws.NopRetryer{}
+	})
 
 	for _, date := range daysBetween(params.startDate, params.startDate.Add(scanDuration)) {
 		err := scanDay(ctx, svc, limiter, params.tableName, date, state)
