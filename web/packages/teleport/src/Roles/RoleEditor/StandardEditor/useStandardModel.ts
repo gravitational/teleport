@@ -63,6 +63,7 @@ export type StandardModelDispatcher = Dispatch<StandardModelAction>;
 
 type StandardModelAction =
   | SetModelAction
+  | ResetToStandardAction
   | SetMetadataAction
   | AddResourceAccessAction
   | SetResourceAccessAction
@@ -74,6 +75,7 @@ type StandardModelAction =
 
 /** Sets the entire model. */
 type SetModelAction = { type: 'set-role-model'; payload: RoleEditorModel };
+type ResetToStandardAction = { type: 'reset-to-standard'; payload?: never };
 type SetMetadataAction = { type: 'set-metadata'; payload: MetadataModel };
 type AddResourceAccessAction = {
   type: 'add-resource-access';
@@ -109,6 +111,11 @@ const reduce = (
   switch (type) {
     case 'set-role-model':
       state.roleModel = payload;
+      break;
+
+    case 'reset-to-standard':
+      state.roleModel.conversionErrors = [];
+      state.roleModel.requiresReset = false;
       break;
 
     case 'set-metadata':
