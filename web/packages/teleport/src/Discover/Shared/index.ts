@@ -29,6 +29,7 @@ export {
   ConnectionDiagnosticResult,
   useConnectionDiagnostic,
 } from './ConnectionDiagnostic';
+export { Overview } from './Overview';
 export { useShowHint } from './useShowHint';
 export { StepBox } from './StepBox';
 export { SecurityGroupPicker } from './SecurityGroupPicker';
