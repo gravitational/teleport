@@ -198,6 +198,12 @@ export interface UserActivityRecord {
      * @generated from protobuf field: uint64 certificates_issued = 17;
      */
     certificatesIssued: bigint;
+    /**
+     * counter of SVIDs issued for each SPIFFE ID.
+     *
+     * @generated from protobuf field: repeated prehog.v1.SPIFFEIDRecord spiffe_ids_issued = 18;
+     */
+    spiffeIdsIssued: SPIFFEIDRecord[];
 }
 /**
  * @generated from protobuf message prehog.v1.ResourcePresenceReport
@@ -344,6 +350,25 @@ export interface BotInstanceActivityRecord {
      * @generated from protobuf field: uint64 certificates_issued = 5;
      */
     certificatesIssued: bigint;
+}
+/**
+ * Used to record the issuance of a specific SPIFFE ID.
+ *
+ * @generated from protobuf message prehog.v1.SPIFFEIDRecord
+ */
+export interface SPIFFEIDRecord {
+    /**
+     * The anonymized SPIFFE ID - HMAC-SHA-256 (32 bytes)
+     *
+     * @generated from protobuf field: bytes spiffe_id = 1;
+     */
+    spiffeId: Uint8Array;
+    /**
+     * Number of SVIDs issued for the given spiffe_id.
+     *
+     * @generated from protobuf field: uint32 svids_issued = 2;
+     */
+    svidsIssued: number;
 }
 /**
  * @generated from protobuf message prehog.v1.SubmitUsageReportsRequest
@@ -579,7 +604,8 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
             { no: 13, name: "kube_port_sessions", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 15, name: "spiffe_svids_issued", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 16, name: "bot_joins", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
-            { no: 17, name: "certificates_issued", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+            { no: 17, name: "certificates_issued", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 18, name: "spiffe_ids_issued", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SPIFFEIDRecord }
         ]);
     }
     create(value?: PartialMessage<UserActivityRecord>): UserActivityRecord {
@@ -601,6 +627,7 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         message.spiffeSvidsIssued = 0n;
         message.botJoins = 0n;
         message.certificatesIssued = 0n;
+        message.spiffeIdsIssued = [];
         if (value !== undefined)
             reflectionMergePartial<UserActivityRecord>(this, message, value);
         return message;
@@ -660,6 +687,9 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
                     break;
                 case /* uint64 certificates_issued */ 17:
                     message.certificatesIssued = reader.uint64().toBigInt();
+                    break;
+                case /* repeated prehog.v1.SPIFFEIDRecord spiffe_ids_issued */ 18:
+                    message.spiffeIdsIssued.push(SPIFFEIDRecord.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -724,6 +754,9 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         /* uint64 certificates_issued = 17; */
         if (message.certificatesIssued !== 0n)
             writer.tag(17, WireType.Varint).uint64(message.certificatesIssued);
+        /* repeated prehog.v1.SPIFFEIDRecord spiffe_ids_issued = 18; */
+        for (let i = 0; i < message.spiffeIdsIssued.length; i++)
+            SPIFFEIDRecord.internalBinaryWrite(message.spiffeIdsIssued[i], writer.tag(18, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1032,6 +1065,61 @@ class BotInstanceActivityRecord$Type extends MessageType<BotInstanceActivityReco
  * @generated MessageType for protobuf message prehog.v1.BotInstanceActivityRecord
  */
 export const BotInstanceActivityRecord = new BotInstanceActivityRecord$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SPIFFEIDRecord$Type extends MessageType<SPIFFEIDRecord> {
+    constructor() {
+        super("prehog.v1.SPIFFEIDRecord", [
+            { no: 1, name: "spiffe_id", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
+            { no: 2, name: "svids_issued", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SPIFFEIDRecord>): SPIFFEIDRecord {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.spiffeId = new Uint8Array(0);
+        message.svidsIssued = 0;
+        if (value !== undefined)
+            reflectionMergePartial<SPIFFEIDRecord>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SPIFFEIDRecord): SPIFFEIDRecord {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* bytes spiffe_id */ 1:
+                    message.spiffeId = reader.bytes();
+                    break;
+                case /* uint32 svids_issued */ 2:
+                    message.svidsIssued = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SPIFFEIDRecord, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* bytes spiffe_id = 1; */
+        if (message.spiffeId.length)
+            writer.tag(1, WireType.LengthDelimited).bytes(message.spiffeId);
+        /* uint32 svids_issued = 2; */
+        if (message.svidsIssued !== 0)
+            writer.tag(2, WireType.Varint).uint32(message.svidsIssued);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1.SPIFFEIDRecord
+ */
+export const SPIFFEIDRecord = new SPIFFEIDRecord$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class SubmitUsageReportsRequest$Type extends MessageType<SubmitUsageReportsRequest> {
     constructor() {
