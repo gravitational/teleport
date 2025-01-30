@@ -95,21 +95,22 @@ export const DesktopPlayer = ({
       )}
 
       <StyledContainer>
-        <TdpClientCanvas
-          client={playerClient}
-          clientShouldConnect={true}
-          clientOnPngFrame={clientOnPngFrame}
-          clientOnBmpFrame={clientOnBitmapFrame}
-          clientOnClientScreenSpec={clientOnClientScreenSpec}
-          clientOnWsClose={clientOnWsClose}
-          clientOnTdpError={clientOnTdpError}
-          clientOnTdpInfo={clientOnTdpInfo}
-          canvasOnContextMenu={handleContextMenu}
-          style={{
-            ...canvasStyle,
-            ...canvasAndProgressBarDisplayStyle,
-          }}
-        />
+        {/* TODO (avatus) turn back on when types fixed */}
+        {/* <TdpClientCanvas */}
+        {/*   client={playerClient} */}
+        {/*   clientShouldConnect={true} */}
+        {/*   clientOnPngFrame={clientOnPngFrame} */}
+        {/*   clientOnBmpFrame={clientOnBitmapFrame} */}
+        {/*   clientOnClientScreenSpec={clientOnClientScreenSpec} */}
+        {/*   clientOnWsClose={clientOnWsClose} */}
+        {/*   clientOnTdpError={clientOnTdpError} */}
+        {/*   clientOnTdpInfo={clientOnTdpInfo} */}
+        {/*   canvasOnContextMenu={handleContextMenu} */}
+        {/*   style={{ */}
+        {/*     ...canvasStyle, */}
+        {/*     ...canvasAndProgressBarDisplayStyle, */}
+        {/*   }} */}
+        {/* /> */}
 
         <ProgressBar
           id={PROGRESS_BAR_ID}

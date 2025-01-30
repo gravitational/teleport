@@ -30,6 +30,7 @@ import { MfaChallengeResponse } from 'teleport/services/mfa';
 import Codec, {
   FileType,
   MessageType,
+  PointerData,
   Severity,
   SharedDirectoryErrCode,
   type ButtonState,
@@ -76,6 +77,28 @@ export enum TdpClientEvent {
   POINTER = 'pointer',
 }
 
+export type TdpClientEventHandlers = {
+  onScreenSpec?(spec: ClientScreenSpec): void;
+  onPngFrame?(pngFrame: PngFrame): void;
+  onBmpFrame?(bmpFrame: BitmapFrame): void;
+  onClipboardData?(clipboardData: ClipboardData): void;
+  onError?(error: Error): void;
+  onClientError?(error: Error): void;
+  onWarning?(warningMessage: string): void;
+  onClientWarning?(warningMessage: string): void;
+  onInfo?(infoMessage: string): void;
+  onWsOpen?(): void;
+  onWsClose?(message: string): void;
+  onReset?(): void;
+  onPointer?(pointerData: PointerData): void;
+};
+
+type TdpClientEventHandlerKey = keyof TdpClientEventHandlers;
+type TdpClientEventHandlerFunction<K extends TdpClientEventHandlerKey> =
+  TdpClientEventHandlers[K] extends (...args: any[]) => any
+    ? TdpClientEventHandlers[K]
+    : never;
+
 export enum LogType {
   OFF = 'OFF',
   ERROR = 'ERROR',
@@ -98,11 +121,14 @@ export default class Client extends EventEmitterMfaSender {
 
   private logger = Logger.create('TDPClient');
 
-  constructor(socketAddr: string) {
+  private eventHandlers: TdpClientEventHandlers = {};
+
+  constructor(socketAddr: string, eventHandlers?: TdpClientEventHandlers) {
     super();
     this.socketAddr = socketAddr;
     this.codec = new Codec();
     this.sdManager = new SharedDirectoryManager();
+    this.eventHandlers = eventHandlers || {};
   }
 
   // Connect to the websocket and register websocket event handlers.
@@ -120,7 +146,8 @@ export default class Client extends EventEmitterMfaSender {
 
     this.socket.onopen = () => {
       this.logger.info('websocket is open');
-      this.emit(TdpClientEvent.WS_OPEN);
+      // this.emit(TdpClientEvent.WS_OPEN);
+      this.eventHandlers.onWsOpen?.();
       if (spec) {
         this.sendClientScreenSpec(spec);
       }
@@ -148,8 +175,15 @@ export default class Client extends EventEmitterMfaSender {
       this.socket.onclose = null;
       this.socket = null;
 
-      this.emit(TdpClientEvent.WS_CLOSE, message);
+      this.eventHandlers?.onWsClose?.(message);
     };
+  }
+
+  public setEventHandler<K extends TdpClientEventHandlerKey>(
+    key: K,
+    handler: TdpClientEventHandlerFunction<K>
+  ) {
+    this.eventHandlers[key] = handler;
   }
 
   private async initWasm() {
@@ -287,8 +321,7 @@ export default class Client extends EventEmitterMfaSender {
   }
 
   handleClipboardData(buffer: ArrayBuffer) {
-    this.emit(
-      TdpClientEvent.TDP_CLIPBOARD_DATA,
+    this.eventHandlers.onClipboardData?.(
       this.codec.decodeClipboardData(buffer)
     );
   }
@@ -309,13 +342,15 @@ export default class Client extends EventEmitterMfaSender {
   // bounds and png bitmap and emit a render event.
   handlePngFrame(buffer: ArrayBuffer) {
     this.codec.decodePngFrame(buffer, (pngFrame: PngFrame) =>
-      this.emit(TdpClientEvent.TDP_PNG_FRAME, pngFrame)
+      // this.emit(TdpClientEvent.TDP_PNG_FRAME, pngFrame)
+      this.eventHandlers.onPngFrame?.(pngFrame)
     );
   }
 
   handlePng2Frame(buffer: ArrayBuffer) {
     this.codec.decodePng2Frame(buffer, (pngFrame: PngFrame) =>
-      this.emit(TdpClientEvent.TDP_PNG_FRAME, pngFrame)
+      // this.emit(TdpClientEvent.TDP_PNG_FRAME, pngFrame)
+      this.eventHandlers.onPngFrame?.(pngFrame)
     );
   }
 
@@ -324,7 +359,7 @@ export default class Client extends EventEmitterMfaSender {
       this.codec.decodeRdpConnectionActivated(buffer);
     const spec = { width: screenWidth, height: screenHeight };
     this.logger.info(
-      `screen spec received from server ${spec.width} x ${spec.height}`
+      `received screen size from server (${spec.width} x ${spec.height})`
     );
 
     this.initFastPathProcessor(ioChannelId, userChannelId, {
@@ -334,7 +369,8 @@ export default class Client extends EventEmitterMfaSender {
 
     // Emit the spec to any listeners. Listeners can then resize
     // the canvas to the size we're actually using in this session.
-    this.emit(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, spec);
+    // this.emit(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, spec);
+    this.eventHandlers.onScreenSpec?.(spec);
   }
 
   handleRdpFastPathPDU(buffer: ArrayBuffer) {
@@ -352,13 +388,17 @@ export default class Client extends EventEmitterMfaSender {
         rdpFastPathPDU,
         this,
         (bmpFrame: BitmapFrame) => {
-          this.emit(TdpClientEvent.TDP_BMP_FRAME, bmpFrame);
+          // console.log('fpp', this.fastPathProcessor.image);
+          // debugger;
+          // this.emit(TdpClientEvent.TDP_BMP_FRAME, bmpFrame);
+          this.eventHandlers.onBmpFrame?.(bmpFrame);
         },
         (responseFrame: ArrayBuffer) => {
           this.sendRdpResponsePDU(responseFrame);
         },
         (data: ImageData | boolean, hotspot_x?: number, hotspot_y?: number) => {
-          this.emit(TdpClientEvent.POINTER, { data, hotspot_x, hotspot_y });
+          // this.emit(TdpClientEvent.POINTER, { data, hotspot_x, hotspot_y });
+          this.eventHandlers.onPointer?.({ data, hotspot_x, hotspot_y });
         }
       );
     } catch (e) {
@@ -577,7 +617,7 @@ export default class Client extends EventEmitterMfaSender {
   protected send(
     data: string | ArrayBufferLike | Blob | ArrayBufferView
   ): void {
-    if (this.socket && this.socket.readyState === 1) {
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       try {
         this.socket.send(data);
       } catch (e) {
@@ -591,7 +631,7 @@ export default class Client extends EventEmitterMfaSender {
 
   sendClientScreenSpec(spec: ClientScreenSpec) {
     this.logger.info(
-      `requesting screen spec from client ${spec.width} x ${spec.height}`
+      `sending screen size to server (${spec.width}x${spec.height})`
     );
     this.send(this.codec.encodeClientScreenSpec(spec));
   }
@@ -703,7 +743,15 @@ export default class Client extends EventEmitterMfaSender {
     errType: TdpClientEvent.TDP_ERROR | TdpClientEvent.CLIENT_ERROR
   ) {
     this.logger.error(err);
-    this.emit(errType, err);
+    // this.emit(errType, err);
+    switch (errType) {
+      case TdpClientEvent.TDP_ERROR:
+        this.eventHandlers.onError?.(err);
+        break;
+      case TdpClientEvent.CLIENT_ERROR:
+        this.eventHandlers.onClientError?.(err);
+        break;
+    }
     this.socket?.close();
   }
 
@@ -713,12 +761,21 @@ export default class Client extends EventEmitterMfaSender {
     warnType: TdpClientEvent.TDP_WARNING | TdpClientEvent.CLIENT_WARNING
   ) {
     this.logger.warn(warning);
-    this.emit(warnType, warning);
+    switch (warnType) {
+      case TdpClientEvent.TDP_WARNING:
+        this.eventHandlers.onWarning?.(warning);
+        break;
+      case TdpClientEvent.CLIENT_WARNING:
+        this.eventHandlers.onClientWarning?.(warning);
+        break;
+    }
+    // this.emit(warnType, warning);
   }
 
   private handleInfo(info: string) {
     this.logger.info(info);
-    this.emit(TdpClientEvent.TDP_INFO, info);
+    // this.emit(TdpClientEvent.TDP_INFO, info);
+    this.eventHandlers.onInfo?.(info);
   }
 
   // Ensures full cleanup of this object.
