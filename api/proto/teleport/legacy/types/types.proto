@@ -6643,7 +6643,7 @@ message PluginOktaSyncSettings {
 
   // AppName is the Okta-assigned unique name of the Okta App that Teleport uses
   // as a gateway to interact with Okta for SAML login, SCIM provisioning and user
-  // sync. May be missing for old Okta integration installs.
+  // sync.
   string app_name = 8;
 
   // DisableSyncAppGroups disables syncing of app groups from Okta.
@@ -7107,7 +7107,9 @@ message PluginOktaStatusDetailsSSO {
   // SSO login.
   string app_id = 2;
 
-  // AppName is the human-readable name of the Okta Applicaion used for SSO.
+  // AppName is the Okta-assigned unique name of the Okta App that Teleport uses
+  // as a gateway to interact with Okta for SAML login, SCIM provisioning and user
+  // sync.
   string app_name = 3;
 }
 
