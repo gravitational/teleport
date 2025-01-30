@@ -724,7 +724,18 @@ func (c *NodeClient) TransferFiles(ctx context.Context, cfg *sftp.Config) error 
 	)
 	defer span.End()
 
-	return trace.Wrap(cfg.TransferFiles(ctx, c.Client.Client))
+	if err := cfg.TransferFiles(ctx, c.Client.Client); err != nil {
+		// TODO(tross): DELETE IN 19.0.0 - Older versions of Teleport would return
+		// a trace.BadParameter error when ~user path expansion was rejected, and
+		// reauthentication logic is attempted on BadParameter errors.
+		if trace.IsBadParameter(err) && strings.Contains(err.Error(), "expanding remote ~user paths is not supported") {
+			return trace.Wrap(&NonRetryableError{Err: err})
+		}
+
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 type netDialer interface {
