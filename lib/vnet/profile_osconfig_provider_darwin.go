@@ -55,17 +55,17 @@ func newProfileOSConfigProvider(tunName, ipv6Prefix, dnsAddr, homePath string, d
 		// This runs as root so we need to be configured with the user's home path.
 		return nil, trace.BadParameter("homePath must be passed from unprivileged process")
 	}
-
-	// ipv6Prefix always looks like "fdxx:xxxx:xxxx::"
-	// Set the IPv6 address for the TUN to "fdxx:xxxx:xxxx::1", the first valid address in the range.
-	tunIPv6 := ipv6Prefix + "1"
+	tunIP, err := tunIPv6ForPrefix(ipv6Prefix)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	p := &profileOSConfigProvider{
 		clientStore:        client.NewFSClientStore(homePath),
 		clusterConfigCache: NewClusterConfigCache(clockwork.NewRealClock()),
 		daemonClientCred:   daemonClientCred,
 		tunName:            tunName,
-		tunIPv6:            tunIPv6,
+		tunIPv6:            tunIP,
 		dnsAddr:            dnsAddr,
 		homePath:           homePath,
 	}
