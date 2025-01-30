@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -87,6 +88,7 @@ func NewAzureWatcher(ctx context.Context, fetchersFn func() []Fetcher, opts ...O
 		ctx:           cancelCtx,
 		cancel:        cancelFn,
 		pollInterval:  time.Minute,
+		clock:         clockwork.NewRealClock(),
 		triggerFetchC: make(<-chan struct{}),
 		InstancesC:    make(chan Instances),
 	}

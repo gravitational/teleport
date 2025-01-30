@@ -87,7 +87,6 @@ func (s *Server) startDatabaseWatchers() error {
 
 	go func() {
 		for {
-			discoveryConfigsChanged := map[string]struct{}{}
 			resourcesFoundByGroup := make(map[awsResourceGroup]int)
 
 			select {
@@ -101,7 +100,6 @@ func (s *Server) startDatabaseWatchers() error {
 
 					resourceGroup := awsResourceGroupFromLabels(db.GetStaticLabels())
 					resourcesFoundByGroup[resourceGroup] += 1
-					discoveryConfigsChanged[resourceGroup.discoveryConfigName] = struct{}{}
 
 					dbs = append(dbs, db)
 
@@ -138,9 +136,6 @@ func (s *Server) startDatabaseWatchers() error {
 				return
 			}
 
-			for dc := range discoveryConfigsChanged {
-				s.updateDiscoveryConfigStatus(dc)
-			}
 			s.upsertTasksForAWSRDSFailedEnrollments()
 		}
 	}()
@@ -205,16 +200,15 @@ func (s *Server) databaseWatcherIterationStarted() {
 		},
 	)
 
-	for _, g := range awsResultGroups {
-		s.awsRDSResourcesStatus.iterationStarted(g)
-	}
-
 	discoveryConfigs := slices.FilterMapUnique(awsResultGroups, func(g awsResourceGroup) (s string, include bool) {
 		return g.discoveryConfigName, true
 	})
 	s.updateDiscoveryConfigStatus(discoveryConfigs...)
-
 	s.awsRDSResourcesStatus.reset()
+	for _, g := range awsResultGroups {
+		s.awsRDSResourcesStatus.iterationStarted(g)
+	}
+
 	s.awsRDSTasks.reset()
 }
 

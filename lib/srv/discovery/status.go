@@ -346,8 +346,6 @@ func (s *Server) ReportEC2SSMInstallationResult(ctx context.Context, result *ser
 		integration:         result.IntegrationName,
 	}, 1)
 
-	s.updateDiscoveryConfigStatus(result.DiscoveryConfigName)
-
 	s.awsEC2Tasks.addFailedEnrollment(
 		awsEC2TaskKey{
 			integration:     result.IntegrationName,
