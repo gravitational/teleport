@@ -221,6 +221,7 @@ func TestReporterBotInstanceActivity(t *testing.T) {
 	r, err := NewReporter(ctx, ReporterConfig{
 		Backend:     bk,
 		Clock:       clk,
+		Log:         logrus.StandardLogger(),
 		ClusterName: clusterName,
 		HostID:      uuid.NewString(),
 		Anonymizer:  anonymizer,
