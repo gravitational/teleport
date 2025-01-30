@@ -84,6 +84,8 @@ breaking:
   ignore:
     # TODO(codingllama): Remove ignore once the PDP API is stable.
     - api/proto/teleport/decision/v1alpha1
+    # TODO(kopiczko) remove after https://github.com/gravitational/teleport/pull/51637 is merged
+    - api/proto/teleport/okta/v1/okta_service.proto
   ignore_only:
     RESERVED_ENUM_NO_DELETE:
       - api/proto/teleport/legacy/types/types.proto
