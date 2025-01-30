@@ -58,6 +58,32 @@ type Report struct {
 	Cluster ClusterStats
 	// Watcher is watcher stats
 	Watcher *WatcherStats
+	// Audit contains stats for audit event backends.
+	Audit *AuditStats
+}
+
+// AuditStats contains metrics related to the audit log.
+type AuditStats struct {
+	// FailedEventsCounter tallies the frequency of failed events.
+	FailedEventsCounter *Counter
+	// FailedEventsBuffer contains the historical frequencies of
+	// the FailedEventsCounter.
+	FailedEventsBuffer *utils.CircularBuffer
+	// EmittedEventsCounter tallies the frequency of all emitted events.
+	EmittedEventsCounter *Counter
+	// EmittedEventsBuffer contains the historical frequencies of
+	// the EmittedEventsCounter.
+	EmittedEventsBuffer *utils.CircularBuffer
+	// EventSizeCounter tallies the frequency of all events.
+	EventSizeCounter *Counter
+	// EventSizeBuffer contains the historical sizes of
+	// the EventSizeCounter.
+	EventSizeBuffer *utils.CircularBuffer
+	// EventsCounter tallies the frequency of trimmed events.
+	TrimmedEventsCounter *Counter
+	// TrimmedEventsBuffer contains the historical sizes of
+	// the TrimmedEventsCounter.
+	TrimmedEventsBuffer *utils.CircularBuffer
 }
 
 // WatcherStats contains watcher stats
@@ -255,13 +281,33 @@ type Counter struct {
 }
 
 // SetFreq sets counter frequency based on the previous value
-// and the time period
+// and the time period. SetFreq should be preffered over UpdateFreq
+// when initializing a Counter from previous statistics.
 func (c *Counter) SetFreq(prevCount Counter, period time.Duration) {
 	if period == 0 {
 		return
 	}
 	freq := float64(c.Count-prevCount.Count) / float64(period/time.Second)
 	c.Freq = &freq
+}
+
+// UpdateFreq sets counter frequency based on the previous value
+// and the time period. UpdateFreq should be preferred over SetFreq
+// if the Counter is reused.
+func (c *Counter) UpdateFreq(currentCount int64, period time.Duration) {
+	if period == 0 {
+		return
+	}
+
+	// Do not calculate the frequency until there are two data points.
+	if c.Count == 0 && c.Freq == nil {
+		c.Count = currentCount
+		return
+	}
+
+	freq := float64(currentCount-c.Count) / float64(period/time.Second)
+	c.Freq = &freq
+	c.Count = currentCount
 }
 
 // GetFreq returns frequency of the request
@@ -423,6 +469,13 @@ func generateReport(metrics map[string]*dto.MetricFamily, prev *Report, period t
 		Roles:                          getGaugeValue(metrics[prometheus.BuildFQName(teleport.MetricNamespace, "", "roles_total")]),
 	}
 
+	var auditStats *AuditStats
+	if prev != nil {
+		auditStats = prev.Audit
+	}
+
+	re.Audit = getAuditStats(metrics, auditStats, period)
+
 	if prev != nil {
 		re.Cluster.GenerateRequestsCount.SetFreq(prev.Cluster.GenerateRequestsCount, period)
 		re.Cluster.GenerateRequestsThrottledCount.SetFreq(prev.Cluster.GenerateRequestsThrottledCount, period)
@@ -545,6 +598,69 @@ func getWatcherStats(metrics map[string]*dto.MetricFamily, prev *WatcherStats, p
 	}
 
 	return stats
+}
+
+func getAuditStats(metrics map[string]*dto.MetricFamily, prev *AuditStats, period time.Duration) *AuditStats {
+	if prev == nil {
+		failed, err := utils.NewCircularBuffer(150)
+		if err != nil {
+			return nil
+		}
+
+		events, err := utils.NewCircularBuffer(150)
+		if err != nil {
+			return nil
+		}
+
+		trimmed, err := utils.NewCircularBuffer(150)
+		if err != nil {
+			return nil
+		}
+
+		sizes, err := utils.NewCircularBuffer(150)
+		if err != nil {
+			return nil
+		}
+
+		prev = &AuditStats{
+			FailedEventsBuffer:   failed,
+			FailedEventsCounter:  &Counter{},
+			EmittedEventsBuffer:  events,
+			EmittedEventsCounter: &Counter{},
+			TrimmedEventsBuffer:  trimmed,
+			TrimmedEventsCounter: &Counter{},
+			EventSizeBuffer:      sizes,
+			EventSizeCounter:     &Counter{},
+		}
+	}
+
+	updateCounter := func(metrics map[string]*dto.MetricFamily, metric string, counter *Counter, buf *utils.CircularBuffer) {
+		current := getCounterValue(metrics[metric])
+		counter.UpdateFreq(current, period)
+		buf.Add(counter.GetFreq())
+	}
+
+	updateCounter(metrics, prometheus.BuildFQName("", "audit", "failed_emit_events"), prev.FailedEventsCounter, prev.FailedEventsBuffer)
+	updateCounter(metrics, prometheus.BuildFQName(teleport.MetricNamespace, "audit", "stored_trimmed_events"), prev.TrimmedEventsCounter, prev.TrimmedEventsBuffer)
+
+	histogram := getHistogram(metrics[prometheus.BuildFQName(teleport.MetricNamespace, "", "audit_emitted_event_sizes")], atIndex(0))
+
+	prev.EmittedEventsCounter.UpdateFreq(histogram.Count, period)
+	prev.EmittedEventsBuffer.Add(prev.EmittedEventsCounter.GetFreq())
+
+	prev.EventSizeCounter.UpdateFreq(int64(histogram.Sum), period)
+	prev.EventSizeBuffer.Add(prev.EventSizeCounter.GetFreq())
+
+	return &AuditStats{
+		FailedEventsBuffer:   prev.FailedEventsBuffer,
+		FailedEventsCounter:  prev.FailedEventsCounter,
+		EmittedEventsBuffer:  prev.EmittedEventsBuffer,
+		EmittedEventsCounter: prev.EmittedEventsCounter,
+		TrimmedEventsBuffer:  prev.TrimmedEventsBuffer,
+		TrimmedEventsCounter: prev.TrimmedEventsCounter,
+		EventSizeBuffer:      prev.EventSizeBuffer,
+		EventSizeCounter:     prev.EventSizeCounter,
+	}
 }
 
 func getRemoteClusters(metric *dto.MetricFamily) []RemoteCluster {
