@@ -18,6 +18,8 @@
 
 import { z } from 'zod';
 
+import { dataVisualisationColors } from 'design/theme/themes/darkTheme';
+
 import Logger from 'teleterm/logger';
 
 export type WorkspaceColor = z.infer<typeof workspaceColors>;
@@ -57,7 +59,7 @@ export function parseWorkspaceColor(
 
 /**
  * Determines the next available unused color across all workspaces.
- * If all colors are already in use, it defaults to returning purple.
+ * If all colors are already in use, it returns purple.
  */
 function getNextWorkspaceColor(
   workspaces: Record<string, { color: WorkspaceColor }>
@@ -67,3 +69,19 @@ function getNextWorkspaceColor(
   const unusedColors = allColors.difference(takenColors);
   return unusedColors.size > 0 ? [...unusedColors][0] : 'purple';
 }
+
+/**
+ * Maps workspace colors to the theme colors.
+ * We always use dark theme colors.
+ * They look good in both light and dark modes,
+ * and we avoid confusing users with different shades of the same color.
+ */
+export const workspaceColorMapping: Record<WorkspaceColor, string> = {
+  purple: dataVisualisationColors.primary.purple,
+  red: dataVisualisationColors.primary.abbey,
+  green: dataVisualisationColors.primary.caribbean,
+  yellow: dataVisualisationColors.primary.sunflower,
+  blue: dataVisualisationColors.primary.picton,
+  cyan: dataVisualisationColors.primary.cyan,
+  pink: dataVisualisationColors.primary.wednesdays,
+};
