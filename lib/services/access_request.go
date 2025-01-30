@@ -1399,6 +1399,7 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest, s
 	// This prevents the time drift that can occur as the value is set on the client side.
 	if req.GetDryRun() {
 		maxDuration = MaxAccessDuration
+		// maxDuration may end upo < 0 even if maxDurationTime is set
 	} else if !maxDurationTime.IsZero() && maxDuration < 0 {
 		return 0, trace.BadParameter("invalid maxDuration: must be greater than creation time")
 	}
@@ -1410,17 +1411,7 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest, s
 	var minAdjDuration time.Duration
 	// Adjust the expiration time if the max_duration value is set on the request role.
 	for _, roleName := range req.GetRoles() {
-		var maxDurationForRole time.Duration
-		for _, tms := range m.MaxDurationMatchers {
-			for _, matcher := range tms.Matchers {
-				if matcher.Match(roleName) {
-					if tms.MaxDuration > maxDurationForRole {
-						maxDurationForRole = tms.MaxDuration
-					}
-				}
-			}
-		}
-
+		maxDurationForRole := m.maxDurationForRole(roleName)
 		if minAdjDuration == 0 || maxDurationForRole < minAdjDuration {
 			minAdjDuration = maxDurationForRole
 		}
@@ -1438,6 +1429,20 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest, s
 	}
 
 	return minAdjDuration, nil
+}
+
+func (m *RequestValidator) maxDurationForRole(role string) time.Duration {
+	var maxDurationForRole time.Duration
+	for _, tms := range m.MaxDurationMatchers {
+		for _, matcher := range tms.Matchers {
+			if matcher.Match(role) {
+				if tms.MaxDuration > maxDurationForRole {
+					maxDurationForRole = tms.MaxDuration
+				}
+			}
+		}
+	}
+	return maxDurationForRole
 }
 
 // calculatePendingRequestTTL calculates the TTL of the Access Request (how long it will await
