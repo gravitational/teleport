@@ -18,6 +18,7 @@ package vnet
 
 import (
 	"context"
+	"net/netip"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -66,8 +67,9 @@ func (c *osConfigurator) deconfigureOS(ctx context.Context) error {
 	return trace.Wrap(configureOS(ctx, &osConfig{}))
 }
 
-// osConfigurationLoop will keep running until ctx is canceled or an unrecoverable error is encountered, in
-// order to keep the host OS configuration up to date.
+// runOSConfigurationLoop will keep running until ctx is canceled or an
+// unrecoverable error is encountered, in order to keep the host OS
+// configuration up to date.
 func (c *osConfigurator) runOSConfigurationLoop(ctx context.Context) error {
 	// Clean up any stale configuration left by a previous VNet instance that
 	// may have failed to clean up. This is necessary in case any stale DNS
@@ -103,4 +105,18 @@ func (c *osConfigurator) runOSConfigurationLoop(ctx context.Context) error {
 			return trace.Wrap(ctx.Err(), "context canceled, shutting down os configuration loop")
 		}
 	}
+}
+
+// tunIPv6ForPrefix returns the IPv6 address to assign to the TUN interface under
+// ipv6Prefix. It always returns the second address in the range because the
+// first address (ending with all zeros) is the subnet router anycast address.
+func tunIPv6ForPrefix(ipv6Prefix string) (string, error) {
+	addr, err := netip.ParseAddr(ipv6Prefix)
+	if err != nil {
+		return "", trace.Wrap(err, "parsing IPv6 prefix %s", ipv6Prefix)
+	}
+	if !addr.Is6() {
+		return "", trace.BadParameter("IPv6 prefix %s is not an IPv6 address", ipv6Prefix)
+	}
+	return addr.Next().String(), nil
 }

@@ -47,6 +47,7 @@ var (
 		cidrRanges: nil,
 		dnsZones:   nil,
 	}
+	_ = tunIPv6ForPrefix
 	_ = newOSConfigurator
 	_ = (*osConfigurator).runOSConfigurationLoop
 )
