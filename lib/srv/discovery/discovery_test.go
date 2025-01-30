@@ -365,7 +365,6 @@ func TestDiscoveryServer(t *testing.T) {
 		wantInstalledInstances    []string
 		wantDiscoveryConfigStatus *discoveryconfig.Status
 		userTasksDiscoverCheck    require.ValueAssertionFunc
-		cloudClients              cloud.Clients
 		ssmRunError               error
 	}{
 		{
@@ -947,7 +946,6 @@ func TestDiscoveryServer(t *testing.T) {
 				Emitter:          tc.emitter,
 				Log:              logger,
 				DiscoveryGroup:   defaultDiscoveryGroup,
-				CloudClients:     tc.cloudClients,
 				clock:            fakeClock,
 			})
 			require.NoError(t, err)
@@ -2174,7 +2172,6 @@ func TestDiscoveryDatabase(t *testing.T) {
 	}
 
 	testCloudClients := &cloud.TestCloudClients{
-		STS: &mocks.STSClientV1{},
 		AzureRedis: azure.NewRedisClientByAPI(&azure.ARMRedisMock{
 			Servers: []*armredis.ResourceInfo{azRedisResource},
 		}),
@@ -2550,7 +2547,6 @@ func TestDiscoveryDatabase(t *testing.T) {
 			}
 			dbFetcherFactory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{
 				AWSConfigProvider: fakeConfigProvider,
-				CloudClients:      testCloudClients,
 				AWSClients: fakeAWSClients{
 					ecClient:  &mocks.ElastiCacheClient{},
 					mdbClient: &mocks.MemoryDBClient{},
@@ -2685,12 +2681,8 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 	fakeConfigProvider := &mocks.AWSConfigProvider{
 		STSClient: &mocks.STSClient{},
 	}
-	testCloudClients := &cloud.TestCloudClients{
-		STS: &fakeConfigProvider.STSClient.STSClientV1,
-	}
 	dbFetcherFactory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{
 		AWSConfigProvider: fakeConfigProvider,
-		CloudClients:      testCloudClients,
 		AWSClients: fakeAWSClients{
 			rdsClient: &mocks.RDSClient{
 				DBInstances: []rdstypes.DBInstance{*awsRDSInstance},
@@ -2730,7 +2722,6 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		&Config{
 			AWSConfigProvider:         fakeConfigProvider,
 			AWSDatabaseFetcherFactory: dbFetcherFactory,
-			CloudClients:              testCloudClients,
 			ClusterFeatures:           func() proto.Features { return proto.Features{} },
 			KubernetesClient:          fake.NewSimpleClientset(),
 			AccessPoint:               getDiscoveryAccessPoint(tlsServer.Auth(), authClient),

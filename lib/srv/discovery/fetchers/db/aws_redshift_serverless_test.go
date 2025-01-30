@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awstesthelpers"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -51,8 +50,7 @@ func TestRedshiftServerlessFetcher(t *testing.T) {
 
 	tests := []awsFetcherTest{
 		{
-			name:         "fetch all",
-			inputClients: &cloud.TestCloudClients{},
+			name: "fetch all",
 			fetcherCfg: AWSFetcherFactoryConfig{
 				AWSClients: fakeAWSClients{
 					rssClient: &mocks.RedshiftServerlessClient{

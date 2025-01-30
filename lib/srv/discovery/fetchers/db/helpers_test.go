@@ -112,7 +112,6 @@ var testAssumeRole = types.AssumeRole{
 // awsFetcherTest is a common test struct for AWS fetchers.
 type awsFetcherTest struct {
 	name          string
-	inputClients  *cloud.TestCloudClients
 	fetcherCfg    AWSFetcherFactoryConfig
 	inputMatchers []types.AWSMatcher
 	wantDatabases types.Databases
@@ -125,11 +124,6 @@ func testAWSFetchers(t *testing.T, tests ...awsFetcherTest) {
 	for _, test := range tests {
 		test := test
 		fakeSTS := &mocks.STSClient{}
-		if test.inputClients != nil {
-			require.Nil(t, test.inputClients.STS, "testAWSFetchers injects an STS mock itself, but test input had already configured it. This is a test configuration error.")
-			test.inputClients.STS = &fakeSTS.STSClientV1
-		}
-		test.fetcherCfg.CloudClients = test.inputClients
 		require.Nil(t, test.fetcherCfg.AWSConfigProvider, "testAWSFetchers injects a fake AWSConfigProvider, but the test input had already configured it. This is a test configuration error.")
 		test.fetcherCfg.AWSConfigProvider = &mocks.AWSConfigProvider{
 			STSClient: fakeSTS,

@@ -61,7 +61,7 @@ func newCredentialsChecker(cfg DiscoveryResourceCheckerConfig) (*credentialsChec
 	return &credentialsChecker{
 		awsConfigProvider: cfg.AWSConfigProvider,
 		awsClients:        defaultAWSClients{},
-		azureClients:      cfg.Clients,
+		azureClients:      cfg.AzureClients,
 		resourceMatchers:  cfg.ResourceMatchers,
 		logger:            cfg.Logger,
 		cache:             cache,

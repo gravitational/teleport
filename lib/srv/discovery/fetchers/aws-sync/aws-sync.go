@@ -35,7 +35,6 @@ import (
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/server"
 )
@@ -48,8 +47,6 @@ const pageSize int32 = 500
 type Config struct {
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
-	// CloudClients is the cloud clients to use when fetching AWS resources.
-	CloudClients cloud.Clients
 	// GetEKSClient gets an AWS EKS client for the given region.
 	GetEKSClient EKSClientGetter
 	// GetEC2Client gets an AWS EC2 client for the given region.
