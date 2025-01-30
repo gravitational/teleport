@@ -3038,6 +3038,7 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest, attestedKeyPolic
 		UsageKubernetes:  kubernetes,
 		UsageDesktop:     desktop,
 		PrivateKeyPolicy: string(attestedKeyPolicy),
+		BotInstanceId:    req.botInstanceID,
 	})
 }
 
