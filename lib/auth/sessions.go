@@ -158,7 +158,7 @@ func (a *Server) NewWebSession(ctx context.Context, req NewWebSessionRequest) (t
 		publicKey:      req.PrivateKey.MarshalSSHPublicKey(),
 		checker:        checker,
 		traits:         req.Traits,
-		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
+		activeRequests: req.AccessRequests,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -261,7 +261,7 @@ func (a *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		checker:        checker,
 		ttl:            ttl,
 		traits:         traits,
-		activeRequests: services.RequestIDs{AccessRequests: identity.ActiveRequests},
+		activeRequests: identity.ActiveRequests,
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
 		// Add in the application routing information.
@@ -286,6 +286,7 @@ func (a *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	bearer, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
