@@ -104,10 +104,6 @@ func NewSystemAutomaticAccessBotUser() types.User {
 // NewPresetEditorRole returns a new pre-defined role for cluster
 // editors who can edit cluster configuration resources.
 func NewPresetEditorRole() types.Role {
-	// IMPORTANT: Before adding new defaults, please make sure that the
-	// underlying field is supported by the standard role editor UI. This role
-	// should be editable with a rich UI, without requiring the user to dive into
-	// YAML.
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V7,
@@ -120,10 +116,6 @@ func NewPresetEditorRole() types.Role {
 			},
 		},
 		Spec: types.RoleSpecV6{
-			// IMPORTANT: Before adding new defaults, please make sure that the
-			// underlying field is supported by the standard role editor UI. This role
-			// should be editable with a rich UI, without requiring the user to dive into
-			// YAML.
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
@@ -141,10 +133,6 @@ func NewPresetEditorRole() types.Role {
 					Desktop: types.NewBoolOption(false),
 				},
 			},
-			// IMPORTANT: Before adding new defaults, please make sure that the
-			// underlying field is supported by the standard role editor UI. This role
-			// should be editable with a rich UI, without requiring the user to dive into
-			// YAML.
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},
 				Rules: []types.Rule{
@@ -220,10 +208,6 @@ func NewPresetEditorRole() types.Role {
 // NewPresetAccessRole creates a role for users who are allowed to initiate
 // interactive sessions.
 func NewPresetAccessRole() types.Role {
-	// IMPORTANT: Before adding new defaults, please make sure that the
-	// underlying field is supported by the standard role editor UI. This role
-	// should be editable with a rich UI, without requiring the user to dive into
-	// YAML.
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V7,
@@ -236,10 +220,6 @@ func NewPresetAccessRole() types.Role {
 			},
 		},
 		Spec: types.RoleSpecV6{
-			// IMPORTANT: Before adding new defaults, please make sure that the
-			// underlying field is supported by the standard role editor UI. This role
-			// should be editable with a rich UI, without requiring the user to dive into
-			// YAML.
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
@@ -255,10 +235,6 @@ func NewPresetAccessRole() types.Role {
 				BPF:           apidefaults.EnhancedEvents(),
 				RecordSession: &types.RecordSession{Desktop: types.NewBoolOption(true)},
 			},
-			// IMPORTANT: Before adding new defaults, please make sure that the
-			// underlying field is supported by the standard role editor UI. This role
-			// should be editable with a rich UI, without requiring the user to dive into
-			// YAML.
 			Allow: types.RoleConditions{
 				Namespaces:            []string{apidefaults.Namespace},
 				NodeLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -294,10 +270,6 @@ func NewPresetAccessRole() types.Role {
 			},
 		},
 	}
-	// IMPORTANT: Before adding new defaults, please make sure that the
-	// underlying field is supported by the standard role editor UI. This role
-	// should be editable with a rich UI, without requiring the user to dive into
-	// YAML.
 	role.SetLogins(types.Allow, []string{teleport.TraitInternalLoginsVariable})
 	role.SetWindowsLogins(types.Allow, []string{teleport.TraitInternalWindowsLoginsVariable})
 	role.SetKubeUsers(types.Allow, []string{teleport.TraitInternalKubeUsersVariable})
@@ -312,10 +284,6 @@ func NewPresetAccessRole() types.Role {
 // auditor - someone who can review cluster events and replay sessions,
 // but can't initiate interactive sessions or modify configuration.
 func NewPresetAuditorRole() types.Role {
-	// IMPORTANT: Before adding new defaults, please make sure that the
-	// underlying field is supported by the standard role editor UI. This role
-	// should be editable with a rich UI, without requiring the user to dive into
-	// YAML.
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V7,
