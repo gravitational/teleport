@@ -22,11 +22,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdsv2 "github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
@@ -55,19 +55,19 @@ func (c *RDSClient) DescribeDBInstances(_ context.Context, input *rdsv2.Describe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if aws.StringValue(input.DBInstanceIdentifier) == "" {
+	if aws.ToString(input.DBInstanceIdentifier) == "" {
 		return &rdsv2.DescribeDBInstancesOutput{
 			DBInstances: instances,
 		}, nil
 	}
 	for _, instance := range instances {
-		if aws.StringValue(instance.DBInstanceIdentifier) == aws.StringValue(input.DBInstanceIdentifier) {
+		if aws.ToString(instance.DBInstanceIdentifier) == aws.ToString(input.DBInstanceIdentifier) {
 			return &rdsv2.DescribeDBInstancesOutput{
 				DBInstances: []rdstypes.DBInstance{instance},
 			}, nil
 		}
 	}
-	return nil, trace.NotFound("instance %v not found", aws.StringValue(input.DBInstanceIdentifier))
+	return nil, trace.NotFound("instance %v not found", aws.ToString(input.DBInstanceIdentifier))
 }
 
 func (c *RDSClient) DescribeDBClusters(_ context.Context, input *rdsv2.DescribeDBClustersInput, _ ...func(*rdsv2.Options)) (*rdsv2.DescribeDBClustersOutput, error) {
@@ -82,19 +82,19 @@ func (c *RDSClient) DescribeDBClusters(_ context.Context, input *rdsv2.DescribeD
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if aws.StringValue(input.DBClusterIdentifier) == "" {
+	if aws.ToString(input.DBClusterIdentifier) == "" {
 		return &rdsv2.DescribeDBClustersOutput{
 			DBClusters: clusters,
 		}, nil
 	}
 	for _, cluster := range clusters {
-		if aws.StringValue(cluster.DBClusterIdentifier) == aws.StringValue(input.DBClusterIdentifier) {
+		if aws.ToString(cluster.DBClusterIdentifier) == aws.ToString(input.DBClusterIdentifier) {
 			return &rdsv2.DescribeDBClustersOutput{
 				DBClusters: []rdstypes.DBCluster{cluster},
 			}, nil
 		}
 	}
-	return nil, trace.NotFound("cluster %v not found", aws.StringValue(input.DBClusterIdentifier))
+	return nil, trace.NotFound("cluster %v not found", aws.ToString(input.DBClusterIdentifier))
 }
 
 func (c *RDSClient) ModifyDBInstance(ctx context.Context, input *rdsv2.ModifyDBInstanceInput, optFns ...func(*rdsv2.Options)) (*rdsv2.ModifyDBInstanceOutput, error) {
@@ -103,8 +103,8 @@ func (c *RDSClient) ModifyDBInstance(ctx context.Context, input *rdsv2.ModifyDBI
 	}
 
 	for i, instance := range c.DBInstances {
-		if aws.StringValue(instance.DBInstanceIdentifier) == aws.StringValue(input.DBInstanceIdentifier) {
-			if aws.BoolValue(input.EnableIAMDatabaseAuthentication) {
+		if aws.ToString(instance.DBInstanceIdentifier) == aws.ToString(input.DBInstanceIdentifier) {
+			if aws.ToBool(input.EnableIAMDatabaseAuthentication) {
 				c.DBInstances[i].IAMDatabaseAuthenticationEnabled = aws.Bool(true)
 			}
 			return &rdsv2.ModifyDBInstanceOutput{
@@ -112,7 +112,7 @@ func (c *RDSClient) ModifyDBInstance(ctx context.Context, input *rdsv2.ModifyDBI
 			}, nil
 		}
 	}
-	return nil, trace.NotFound("instance %v not found", aws.StringValue(input.DBInstanceIdentifier))
+	return nil, trace.NotFound("instance %v not found", aws.ToString(input.DBInstanceIdentifier))
 }
 
 func (c *RDSClient) ModifyDBCluster(ctx context.Context, input *rdsv2.ModifyDBClusterInput, optFns ...func(*rdsv2.Options)) (*rdsv2.ModifyDBClusterOutput, error) {
@@ -121,8 +121,8 @@ func (c *RDSClient) ModifyDBCluster(ctx context.Context, input *rdsv2.ModifyDBCl
 	}
 
 	for i, cluster := range c.DBClusters {
-		if aws.StringValue(cluster.DBClusterIdentifier) == aws.StringValue(input.DBClusterIdentifier) {
-			if aws.BoolValue(input.EnableIAMDatabaseAuthentication) {
+		if aws.ToString(cluster.DBClusterIdentifier) == aws.ToString(input.DBClusterIdentifier) {
+			if aws.ToBool(input.EnableIAMDatabaseAuthentication) {
 				c.DBClusters[i].IAMDatabaseAuthenticationEnabled = aws.Bool(true)
 			}
 			return &rdsv2.ModifyDBClusterOutput{
@@ -130,7 +130,7 @@ func (c *RDSClient) ModifyDBCluster(ctx context.Context, input *rdsv2.ModifyDBCl
 			}, nil
 		}
 	}
-	return nil, trace.NotFound("cluster %v not found", aws.StringValue(input.DBClusterIdentifier))
+	return nil, trace.NotFound("cluster %v not found", aws.ToString(input.DBClusterIdentifier))
 }
 
 func (c *RDSClient) DescribeDBProxies(_ context.Context, input *rdsv2.DescribeDBProxiesInput, _ ...func(*rdsv2.Options)) (*rdsv2.DescribeDBProxiesOutput, error) {
@@ -138,19 +138,19 @@ func (c *RDSClient) DescribeDBProxies(_ context.Context, input *rdsv2.DescribeDB
 		return nil, trace.AccessDenied("unauthorized")
 	}
 
-	if aws.StringValue(input.DBProxyName) == "" {
+	if aws.ToString(input.DBProxyName) == "" {
 		return &rdsv2.DescribeDBProxiesOutput{
 			DBProxies: c.DBProxies,
 		}, nil
 	}
 	for _, dbProxy := range c.DBProxies {
-		if aws.StringValue(dbProxy.DBProxyName) == aws.StringValue(input.DBProxyName) {
+		if aws.ToString(dbProxy.DBProxyName) == aws.ToString(input.DBProxyName) {
 			return &rdsv2.DescribeDBProxiesOutput{
 				DBProxies: []rdstypes.DBProxy{dbProxy},
 			}, nil
 		}
 	}
-	return nil, trace.NotFound("proxy %v not found", aws.StringValue(input.DBProxyName))
+	return nil, trace.NotFound("proxy %v not found", aws.ToString(input.DBProxyName))
 }
 
 func (c *RDSClient) DescribeDBProxyEndpoints(_ context.Context, input *rdsv2.DescribeDBProxyEndpointsInput, _ ...func(*rdsv2.Options)) (*rdsv2.DescribeDBProxyEndpointsOutput, error) {
@@ -158,8 +158,8 @@ func (c *RDSClient) DescribeDBProxyEndpoints(_ context.Context, input *rdsv2.Des
 		return nil, trace.AccessDenied("unauthorized")
 	}
 
-	inputProxyName := aws.StringValue(input.DBProxyName)
-	inputProxyEndpointName := aws.StringValue(input.DBProxyEndpointName)
+	inputProxyName := aws.ToString(input.DBProxyName)
+	inputProxyEndpointName := aws.ToString(input.DBProxyEndpointName)
 
 	if inputProxyName == "" && inputProxyEndpointName == "" {
 		return &rdsv2.DescribeDBProxyEndpointsOutput{
@@ -170,19 +170,19 @@ func (c *RDSClient) DescribeDBProxyEndpoints(_ context.Context, input *rdsv2.Des
 	var endpoints []rdstypes.DBProxyEndpoint
 	for _, dbProxyEndpoiont := range c.DBProxyEndpoints {
 		if inputProxyEndpointName != "" &&
-			inputProxyEndpointName != aws.StringValue(dbProxyEndpoiont.DBProxyEndpointName) {
+			inputProxyEndpointName != aws.ToString(dbProxyEndpoiont.DBProxyEndpointName) {
 			continue
 		}
 
 		if inputProxyName != "" &&
-			inputProxyName != aws.StringValue(dbProxyEndpoiont.DBProxyName) {
+			inputProxyName != aws.ToString(dbProxyEndpoiont.DBProxyName) {
 			continue
 		}
 
 		endpoints = append(endpoints, dbProxyEndpoiont)
 	}
 	if len(endpoints) == 0 {
-		return nil, trace.NotFound("proxy endpoint %v not found", aws.StringValue(input.DBProxyEndpointName))
+		return nil, trace.NotFound("proxy endpoint %v not found", aws.ToString(input.DBProxyEndpointName))
 	}
 	return &rdsv2.DescribeDBProxyEndpointsOutput{DBProxyEndpoints: endpoints}, nil
 }
@@ -198,10 +198,10 @@ func checkEngineFilters(filters []rdstypes.Filter, engineVersions []rdstypes.DBE
 	}
 	recognizedEngines := make(map[string]struct{})
 	for _, e := range engineVersions {
-		recognizedEngines[aws.StringValue(e.Engine)] = struct{}{}
+		recognizedEngines[aws.ToString(e.Engine)] = struct{}{}
 	}
 	for _, f := range filters {
-		if aws.StringValue(f.Name) != "engine" {
+		if aws.ToString(f.Name) != "engine" {
 			continue
 		}
 		for _, v := range f.Values {
@@ -261,7 +261,7 @@ func clusterIdentifierFilterSet(filters []rdstypes.Filter) map[string]struct{} {
 func filterValues(filters []rdstypes.Filter, filterKey string) map[string]struct{} {
 	out := make(map[string]struct{})
 	for _, f := range filters {
-		if aws.StringValue(f.Name) != filterKey {
+		if aws.ToString(f.Name) != filterKey {
 			continue
 		}
 		for _, v := range f.Values {
@@ -273,19 +273,19 @@ func filterValues(filters []rdstypes.Filter, filterKey string) map[string]struct
 
 // instanceEngineMatches returns whether an RDS DBInstance engine matches any engine name in a filter set.
 func instanceEngineMatches(instance rdstypes.DBInstance, filterSet map[string]struct{}) bool {
-	_, ok := filterSet[aws.StringValue(instance.Engine)]
+	_, ok := filterSet[aws.ToString(instance.Engine)]
 	return ok
 }
 
 // instanceClusterIDMatches returns whether an RDS DBInstance ClusterID matches any ClusterID in a filter set.
 func instanceClusterIDMatches(instance rdstypes.DBInstance, filterSet map[string]struct{}) bool {
-	_, ok := filterSet[aws.StringValue(instance.DBClusterIdentifier)]
+	_, ok := filterSet[aws.ToString(instance.DBClusterIdentifier)]
 	return ok
 }
 
 // clusterEngineMatches returns whether an RDS DBCluster engine matches any engine name in a filter set.
 func clusterEngineMatches(cluster rdstypes.DBCluster, filterSet map[string]struct{}) bool {
-	_, ok := filterSet[aws.StringValue(cluster.Engine)]
+	_, ok := filterSet[aws.ToString(cluster.Engine)]
 	return ok
 }
 
@@ -340,7 +340,7 @@ func WithRDSClusterReader(cluster *rdstypes.DBCluster) {
 
 func WithRDSClusterCustomEndpoint(name string) func(*rdstypes.DBCluster) {
 	return func(cluster *rdstypes.DBCluster) {
-		parsed, _ := arn.Parse(aws.StringValue(cluster.DBClusterArn))
+		parsed, _ := arn.Parse(aws.ToString(cluster.DBClusterArn))
 		cluster.CustomEndpoints = append(cluster.CustomEndpoints,
 			fmt.Sprintf("%v.cluster-custom-aabbccdd.%v.rds.amazonaws.com", name, parsed.Region),
 		)

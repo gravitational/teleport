@@ -362,8 +362,8 @@ func (a *Fetcher) poll(ctx context.Context, features Features) (*Resources, erro
 	return result, trace.NewAggregate(errs...)
 }
 
-// getAWSOptions returns a list of options to be used when
-// creating AWS clients with the v2 sdk.
+// getAWSOptions returns a list of options to be used when creating AWS clients
+// with the v2 sdk.
 func (a *Fetcher) getAWSOptions() []awsconfig.OptionsFn {
 	opts := []awsconfig.OptionsFn{
 		awsconfig.WithCredentialsMaybeIntegration(a.Config.Integration),
