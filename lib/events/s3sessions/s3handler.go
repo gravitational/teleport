@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	awsmetrics "github.com/gravitational/teleport/lib/observability/metrics/aws"
+	s3metrics "github.com/gravitational/teleport/lib/observability/metrics/s3"
 	"github.com/gravitational/teleport/lib/session"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/aws/endpoint"
@@ -197,7 +198,10 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		opts = append(opts, config.WithCredentialsProvider(cfg.CredentialsProvider))
 	}
 
-	opts = append(opts, config.WithAPIOptions(awsmetrics.MetricsMiddleware()))
+	opts = append(opts,
+		config.WithAPIOptions(awsmetrics.MetricsMiddleware()),
+		config.WithAPIOptions(s3metrics.MetricsMiddleware()),
+	)
 
 	resolver, err := endpoint.NewLoggingResolver(
 		s3.NewDefaultEndpointResolverV2(),
