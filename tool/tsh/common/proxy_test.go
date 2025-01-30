@@ -583,9 +583,6 @@ func TestProxySSH(t *testing.T) {
 func TestProxySSHJumpHost(t *testing.T) {
 	ctx := context.Background()
 
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
-
 	createAgent(t)
 
 	listenerModes := []types.ProxyListenerMode{

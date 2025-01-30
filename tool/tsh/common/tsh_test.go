@@ -6014,9 +6014,6 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
-
 	createAgent(t)
 
 	accessUser, err := types.NewUser("access")
