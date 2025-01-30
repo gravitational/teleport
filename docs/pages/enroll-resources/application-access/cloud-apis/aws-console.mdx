@@ -429,7 +429,10 @@ Application Service:
    `example.teleport.sh:443`.
 
    The `app_service` field configures the Teleport Application Service. Each
-   item within `app_service.apps` is an application configuration. 
+   item within `app_service.apps` is an application configuration. If self-hosting
+   the Teleport cluster, you must have DNS and a TLS certificate configured for the 
+   application domain name associated with the Teleport Proxy Service, e.g., 
+   `awsconsole.teleport.example.com`
 
 </TabItem>
 <TabItem label="EKS">
