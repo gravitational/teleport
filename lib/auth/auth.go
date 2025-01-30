@@ -2900,12 +2900,8 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest, params sshca.Use
 		UsageApp:         app,
 		UsageKubernetes:  kubernetes,
 		UsageDesktop:     desktop,
-<<<<<<< HEAD
 		PrivateKeyPolicy: string(params.Identity.PrivateKeyPolicy),
-=======
-		PrivateKeyPolicy: string(attestedKeyPolicy),
 		BotInstanceId:    req.botInstanceID,
->>>>>>> 9c5f8f7481 (Track usage by BotInstanceID (#51540))
 	})
 }
 
