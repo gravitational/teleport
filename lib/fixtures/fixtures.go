@@ -183,6 +183,19 @@ spec:
       pHM7WKwFyW1dvEDax3BGj9/cbKvpvcwR
     </ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor><md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat><md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat><md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://dev-813354.oktapreview.com/app/gravitationaldev813354_teleportsaml_1/exkafftca6RqPVgyZ0h7/sso/saml"/><md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://dev-813354.oktapreview.com/app/gravitationaldev813354_teleportsaml_1/exkafftca6RqPVgyZ0h7/sso/saml"/></md:IDPSSODescriptor></md:EntityDescriptor>`
 
+const SAMLConnectorMissingIDPSSODescriptor = `kind: saml
+version: v2
+metadata:
+  name: OktaSAML
+  namespace: default
+spec:
+  acs: https://localhost:3080/v1/webapi/saml/acs
+  sso: https://dev-813354.oktapreview.com/app/gravitationaldev813354_teleportsaml_1/exkafftca6RqPVgyZ0h7/sso/saml
+  attributes_to_roles:
+    - {name: "groups", value: "Everyone", roles: ["admin"]}
+  entity_descriptor: |
+    <?xml version="1.0" encoding="UTF-8"?><EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" validUntil="0001-01-01T00:00:00Z" entityID="dummy"></EntityDescriptor>`
+
 const (
 	TLSCACertPEM = apifixtures.TLSCACertPEM
 	TLSCAKeyPEM  = apifixtures.TLSCAKeyPEM
