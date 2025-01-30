@@ -1,0 +1,114 @@
+---
+title: Discover Azure Access Patterns with Teleport Policy
+description: Describes how to import and visualize Azure subscription access patterns using Teleport Policy and Access
+Graph.
+---
+
+Teleport Policy streamlines and centralizes access management across your entire infrastructure. You can view access
+relationships in seconds, viewing unified, up-to-date relationships and policies between all users, groups, and
+computing resources.
+
+Teleport Policy with Access Graph offers insights into access patterns within your Azure subscription. By scanning
+users, groups, service principals, and role definitions, it provides a visual representation and aids in enhancing the permission model
+within your Azure environment. This functionality enables you to address queries such as:
+
+- What resources are accessible to Azure users and roles?
+- Which groups belong to other groups and how does that impact resource access?
+- How broad or narrow is scoping across the subscription when assigning roles to users and groups?
+
+Utilizing the Access Graph to analyze permissions within an Azure subscription necessitates the setup of the Access
+Graph (AG) service, a Discovery Service, and integration with your Azure subscription.
+
+Access Graph is a feature of the [Teleport Policy](https://goteleport.com/platform/policy/) product that is available to Teleport Enterprise customers.
+
+After logging in to the Teleport UI, go to the Management tab. If enabled, Access Graph options can be found under
+the Permission Management section.
+
+## How it works
+
+Access Graph discovers Azure access patterns, synchronizes various Azure resources,
+including users, groups, service principals, and role definitions.
+These resources are then visualized using the graph representation detailed in the
+[Teleport Policy usage page](../policy-how-to-use.mdx).
+
+The importing process involves two primary steps:
+
+### Polling Cloud APIs
+
+The Teleport Discovery Service continuously scans the configured Azure subscriptions. At configurable intervals as
+low as 15 minutes, it retrieves the following resources from your Azure account:
+
+- Users
+- Groups
+- Service Principals
+- Role Definitions
+- Role Assignments
+- Virtual Machines
+
+Once all the necessary resources are fetched, the Teleport Discovery Service pushes them to the Access Graph, ensuring
+that it remains updated with the latest information from your Azure environment.
+
+### Importing resources
+
+Teleport Policy’s Access Graph feature delves into the resources retrieved from your Azure subscription, crafting a
+graphical representation thereof.
+
+## Prerequisites
+
+- A running Teleport Enterprise cluster v17.2.1 or later.
+- Teleport Policy enabled for your account.
+- For self-hosted clusters:
+- Ensure that an up-to-date `license.pem` is used in the Auth Service configuration.
+- A running Access Graph node v1.27.0 or later.
+Check the [Teleport Policy page](../teleport-policy.mdx) for details on
+how to set up Access Graph.
+- The node running the Access Graph service must be reachable from the Teleport Auth Service.
+
+## Configure Discovery Service (Self-hosted only)
+
+<Notice type="warning">
+  If you have a managed Teleport Enterprise cluster, you can disregard
+  this step, as managed Teleport Enterprise already operates a properly configured
+  Discovery Service within your cluster.
+</Notice>
+
+To activate the Teleport Discovery Service, add the provided snippet to your Auth Service configuration.
+This service monitors dynamic `discovery_config` resources that are set up with the `discovery_group` matching
+<Var name="access-graph-disc" />.
+
+```yaml
+discovery_service:
+  enabled: true
+  discovery_group: <Var name="access-graph-disc" />
+```
+
+Notice that if you already operate a Discovery Service within your cluster,
+it's possible to reuse it as long as the following requirements are met:
+
+- On step 2, you match the `discovery_group` with the existing Discovery Service's
+`discovery_group`.
+- Access Graph service is reachable from the machine where Discovery Service runs.
+
+## Step 2/2. Set up Access Graph Azure Sync
+
+To configure the Teleport Discovery Service, the Azure managed identity running the Discovery service within
+Azure must be given the right permissions to fetch Azure resources. Within the
+[Azure Cloud Shell](https://portal.azure.com/#cloudshell/), download the
+[Teleport binary](https://goteleport.com/download/#install-links) in `.tar.gz` format and use it to run the integration
+command.
+
+```bash
+curl -L https://cdn.teleport.dev/teleport-v17.2.3-linux-amd64-bin.tar.gz | tar xz
+./teleport integration configure access-graph azure --principal-id [ID of managed identity] --role-name [new role to create] --subscription-id [Azure subscription ID]
+```
+
+Once the managed identity is configured with the correct permissions, add the following to the Discovery server to
+enable it for fetching Azure resources:
+
+```yaml
+discovery_service:
+  access_graph:
+    azure:
+      - subscription_id: "060a97ea-3a57-4218-9be5-dba3f19ff2b5"
+```
+
