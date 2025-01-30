@@ -92,7 +92,7 @@ export function IdentityListItem(props: {
           // Align the error with the user icon.
           css={`
             margin-left: ${props => props.theme.space[2]}px;
-            gap: 11px;
+            gap: 10px;
           `}
         />
       )}
