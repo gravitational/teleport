@@ -23,6 +23,7 @@ import {
   DiscoverDiscoveryConfigMethod,
   DiscoverEventResource,
 } from 'teleport/services/userEvent';
+import { DiscoverGuideId } from 'teleport/services/userPreferences/discoverPreference';
 
 import { ResourceKind } from '../../Shared/ResourceKind';
 import {
@@ -44,6 +45,7 @@ const kubeKeywords = ['kubernetes', 'k8s', 'kubes', 'cluster'];
 
 export const SERVERS: ResourceSpec[] = [
   {
+    id: DiscoverGuideId.ServerLinuxUbuntu,
     name: 'Ubuntu 18.04+',
     kind: ResourceKind.Server,
     keywords: [...baseServerKeywords, 'ubuntu', 'linux'],
@@ -52,6 +54,7 @@ export const SERVERS: ResourceSpec[] = [
     platform: Platform.Linux,
   },
   {
+    id: DiscoverGuideId.ServerLinuxDebian,
     name: 'Debian 11+',
     kind: ResourceKind.Server,
     keywords: [...baseServerKeywords, 'debian', 'linux'],
@@ -60,6 +63,7 @@ export const SERVERS: ResourceSpec[] = [
     platform: Platform.Linux,
   },
   {
+    id: DiscoverGuideId.ServerLinuxRhelCentos,
     name: 'RHEL 8+/CentOS Stream 9+',
     kind: ResourceKind.Server,
     keywords: [...baseServerKeywords, 'rhel', 'redhat', 'centos', 'linux'],
@@ -68,6 +72,7 @@ export const SERVERS: ResourceSpec[] = [
     platform: Platform.Linux,
   },
   {
+    id: DiscoverGuideId.ServerLinuxAmazon,
     name: 'Amazon Linux 2/2023',
     kind: ResourceKind.Server,
     keywords: [...baseServerKeywords, 'amazon', 'linux'],
@@ -76,6 +81,7 @@ export const SERVERS: ResourceSpec[] = [
     platform: Platform.Linux,
   },
   {
+    id: DiscoverGuideId.ServerMac,
     name: 'macOS',
     kind: ResourceKind.Server,
     keywords: [
@@ -92,6 +98,7 @@ export const SERVERS: ResourceSpec[] = [
     platform: Platform.macOS,
   },
   {
+    id: DiscoverGuideId.ServerAwsEc2Auto,
     name: 'EC2 Auto Enrollment via SSM',
     kind: ResourceKind.Server,
     keywords: [
@@ -111,6 +118,7 @@ export const SERVERS: ResourceSpec[] = [
     },
   },
   {
+    id: DiscoverGuideId.ConnectMyComputer,
     name: 'Connect My Computer',
     kind: ResourceKind.ConnectMyComputer,
     keywords: [
@@ -129,7 +137,8 @@ export const SERVERS: ResourceSpec[] = [
 
 export const APPLICATIONS: ResourceSpec[] = [
   {
-    name: 'Application',
+    id: DiscoverGuideId.ApplicationWebHttpProxy,
+    name: 'Web Application',
     kind: ResourceKind.Application,
     keywords: ['application'],
     icon: 'application',
@@ -137,6 +146,7 @@ export const APPLICATIONS: ResourceSpec[] = [
     event: DiscoverEventResource.ApplicationHttp,
   },
   {
+    id: DiscoverGuideId.ApplicationAwsCliConsole,
     name: 'AWS CLI/Console Access',
     kind: ResourceKind.Application,
     keywords: [...awsKeywords, 'application', 'cli', 'console access'],
@@ -148,6 +158,7 @@ export const APPLICATIONS: ResourceSpec[] = [
 
 export const WINDOWS_DESKTOPS: ResourceSpec[] = [
   {
+    id: DiscoverGuideId.WindowsDesktopsActiveDirectory,
     name: 'Active Directory Users',
     kind: ResourceKind.Desktop,
     keywords: ['windows', 'desktop', 'microsoft active directory', 'ad'],
@@ -157,6 +168,7 @@ export const WINDOWS_DESKTOPS: ResourceSpec[] = [
       'https://goteleport.com/docs/enroll-resources/desktop-access/active-directory/',
   },
   {
+    id: DiscoverGuideId.WindowsDesktopsLocal,
     name: 'Local Users',
     kind: ResourceKind.Desktop,
     keywords: ['windows', 'desktop', 'non-ad', 'local'],
@@ -169,6 +181,7 @@ export const WINDOWS_DESKTOPS: ResourceSpec[] = [
 
 export const KUBERNETES: ResourceSpec[] = [
   {
+    id: DiscoverGuideId.Kubernetes,
     name: 'Kubernetes',
     kind: ResourceKind.Kubernetes,
     keywords: [...kubeKeywords],
@@ -177,6 +190,7 @@ export const KUBERNETES: ResourceSpec[] = [
     kubeMeta: { location: KubeLocation.SelfHosted },
   },
   {
+    id: DiscoverGuideId.KubernetesAwsEks,
     name: 'EKS',
     kind: ResourceKind.Kubernetes,
     keywords: [...awsKeywords, ...kubeKeywords, 'eks', 'elastic', 'service'],
@@ -220,6 +234,15 @@ export function getResourcePretitle(r: ResourceSpec) {
         if (r.dbMeta.engine === DatabaseEngine.Doc) {
           return 'Database';
         }
+        if (
+          r.id === DiscoverGuideId.DatabaseSnowflake ||
+          r.id === DiscoverGuideId.DatabaseMongoAtlas
+        ) {
+          return 'Database as a Service';
+        }
+        if (r.id === DiscoverGuideId.DatabaseDynamicRegistration) {
+          return 'Self-Hosted';
+        }
       }
       break;
     case ResourceKind.Desktop:
@@ -240,9 +263,24 @@ export function getResourcePretitle(r: ResourceSpec) {
       if (r.nodeMeta?.location === ServerLocation.Aws) {
         return 'Amazon Web Services (AWS)';
       }
-      return 'Server';
+      return 'SSH';
     case ResourceKind.SamlApplication:
+      if (
+        r.id === DiscoverGuideId.ApplicationSamlGeneric ||
+        r.id === DiscoverGuideId.ApplicationSamlGrafana
+      ) {
+        return 'Teleport as IDP';
+      }
       return 'SAML Application';
+    case ResourceKind.ConnectMyComputer:
+      return 'SSH';
+    case ResourceKind.Application:
+      if (r.id === DiscoverGuideId.ApplicationAwsCliConsole) {
+        return 'Amazon Web Services (AWS)';
+      }
+      if (r.id === DiscoverGuideId.ApplicationWebHttpProxy) {
+        return 'HTTP Proxy';
+      }
   }
 
   return '';
