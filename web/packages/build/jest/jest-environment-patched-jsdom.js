@@ -56,6 +56,20 @@ export default class PatchedJSDOMEnvironment extends JSDOMEnvironment {
       global.AbortSignal = AbortSignal;
       global.AbortController = AbortController;
     }
+    // TODO(gzdunek): Remove when JSDOM supports Set.prototype.difference.
+    // After the update to Node.js 22, we can replace the implementation with
+    // global.Set.prototype.difference = Set.prototype.difference.
+    if (!global.Set.difference) {
+      global.Set.prototype.difference = function (otherSet) {
+        const result = new Set();
+        for (const value of this) {
+          if (!otherSet.has(value)) {
+            result.add(value);
+          }
+        }
+        return result;
+      };
+    }
   }
 }
 export const TestEnvironment = PatchedJSDOMEnvironment;
