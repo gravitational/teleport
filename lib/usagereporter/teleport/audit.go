@@ -186,6 +186,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			JoinMethod:    e.Method,
 			JoinTokenName: e.TokenName,
 			UserName:      e.UserName,
+			BotInstanceId: e.BotInstanceID,
 		}
 
 	case *apievents.DeviceEvent2:
@@ -261,12 +262,13 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		}
 	case *apievents.SPIFFESVIDIssued:
 		return &SPIFFESVIDIssuedEvent{
-			UserName:     e.User,
-			UserKind:     prehogUserKindFromEventKind(e.UserKind),
-			SpiffeId:     e.SPIFFEID,
-			IpSansCount:  int32(len(e.IPSANs)),
-			DnsSansCount: int32(len(e.DNSSANs)),
-			SvidType:     e.SVIDType,
+			UserName:      e.User,
+			UserKind:      prehogUserKindFromEventKind(e.UserKind),
+			SpiffeId:      e.SPIFFEID,
+			IpSansCount:   int32(len(e.IPSANs)),
+			DnsSansCount:  int32(len(e.DNSSANs)),
+			SvidType:      e.SVIDType,
+			BotInstanceId: e.BotInstanceID,
 		}
 	case *apievents.DatabaseUserCreate:
 		return &DatabaseUserCreatedEvent{

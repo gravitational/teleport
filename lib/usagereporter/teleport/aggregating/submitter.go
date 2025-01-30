@@ -141,7 +141,17 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 		}
 	}
 
-	totalReportCount := len(userActivityReports) + len(resourcePresenceReports)
+	freeBatchSize = submitBatchSize - len(userActivityReports) - len(resourcePresenceReports)
+	var botInstanceActivityReports []*prehogv1.BotInstanceActivityReport
+	if freeBatchSize > 0 {
+		botInstanceActivityReports, err = svc.listBotInstanceActivityReports(ctx, freeBatchSize)
+		if err != nil {
+			c.Log.WithError(err).Error("Failed to load bot instance activity reports for submission.")
+			return
+		}
+	}
+
+	totalReportCount := len(userActivityReports) + len(resourcePresenceReports) + len(botInstanceActivityReports)
 
 	if totalReportCount < 1 {
 		err := ClearAlert(ctx, c.Status)
@@ -171,13 +181,21 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 			newest = t
 		}
 	}
+	if len(botInstanceActivityReports) > 0 {
+		if t := botInstanceActivityReports[0].GetStartTime().AsTime(); t.Before(oldest) {
+			oldest = t
+		}
+		if t := botInstanceActivityReports[len(botInstanceActivityReports)-1].GetStartTime().AsTime(); t.After(newest) {
+			newest = t
+		}
+	}
 
 	debugPayload := fmt.Sprintf("%v %q", time.Now().Round(0), c.HostID)
-	if err := svc.createUserActivityReportsLock(ctx, submitLockDuration, []byte(debugPayload)); err != nil {
+	if err := svc.createUsageReportingLock(ctx, submitLockDuration, []byte(debugPayload)); err != nil {
 		if trace.IsAlreadyExists(err) {
-			c.Log.Debugf("Failed to acquire lock %v, already held.", userActivityReportsLock)
+			c.Log.Debugf("Failed to acquire lock %v, already held.", usageReportingLock)
 		} else {
-			c.Log.WithError(err).Errorf("Failed to acquire lock %v.", userActivityReportsLock)
+			c.Log.WithError(err).Errorf("Failed to acquire lock %v.", usageReportingLock)
 		}
 		return
 	}
@@ -186,8 +204,9 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 	defer cancel()
 
 	batchUUID, err := c.Submitter(lockCtx, &prehogv1.SubmitUsageReportsRequest{
-		UserActivity:     userActivityReports,
-		ResourcePresence: resourcePresenceReports,
+		UserActivity:        userActivityReports,
+		ResourcePresence:    resourcePresenceReports,
+		BotInstanceActivity: botInstanceActivityReports,
 	})
 	if err != nil {
 		c.Log.WithError(err).WithFields(logrus.Fields{
@@ -233,6 +252,11 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 	}
 	for _, report := range resourcePresenceReports {
 		if err := svc.deleteResourcePresenceReport(ctx, report); err != nil {
+			lastErr = err
+		}
+	}
+	for _, report := range botInstanceActivityReports {
+		if err := svc.deleteBotInstanceActivityReport(ctx, report); err != nil {
 			lastErr = err
 		}
 	}

@@ -2901,6 +2901,7 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest, params sshca.Use
 		UsageKubernetes:  kubernetes,
 		UsageDesktop:     desktop,
 		PrivateKeyPolicy: string(params.Identity.PrivateKeyPolicy),
+		BotInstanceId:    req.botInstanceID,
 	})
 }
 
