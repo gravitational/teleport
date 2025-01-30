@@ -6604,7 +6604,8 @@ message PluginOktaCredentialsInfo {
 message PluginOktaSyncSettings {
   option (gogoproto.equal) = true;
 
-  // SyncUsers controls the user sync in the Okta integration service.
+  // SyncUsers controls the user sync in the Okta integration service. The source of truth for the
+  // users is defined by UserSyncSource.
   bool sync_users = 1;
 
   // SSOConnectorID is the name of the Teleport SSO connector created and used by the Okta plugin
@@ -6619,8 +6620,7 @@ message PluginOktaSyncSettings {
   // AppID is the Okta-assigned ID of the Okta App that Teleport uses as a
   // gateway to interact with Okta for SAML login, SCIM provisioning and user
   // sync. When set, user sync will pull users from the assignment list for this
-  // app. When empty the plugin will fall back to the legacy behaviour of syncing
-  // users from the entre organization.
+  // app.
   string app_id = 5;
 
   // GroupFilters are filters for which Okta groups to synchronize as access lists.
@@ -6654,6 +6654,15 @@ message PluginOktaSyncSettings {
   // DisableBidirectionalSync prevents syncing anything from Teleport to Okta. I.e. prevents
   // creating Okta assignments.
   bool disable_bidirectional_sync = 10;
+
+  // UserSyncSource defines the source of truth for Okta users. It can be one of "" (empty string),
+  // "saml_app" or "org". "saml_app" is set for all newly created plugins and indicates that source
+  // of truth for the sync are users assigned to the connector Okta SAML application. "org" is the
+  // legacy setting indicating that the source of truth for users are all the users from the Okta
+  // organization. If it's an empty string and UserSync is true, that means it's a legacy plugin
+  // that has not been yet updated and during the next update the value will be set to "org" if
+  // AppID is empty or "saml_app" if not.
+  string user_sync_source = 11;
 }
 
 // Defines a set of discord channel IDs
