@@ -254,6 +254,98 @@ export interface ResourceKindPresenceReport {
     resourceIds: bigint[];
 }
 /**
+ * counters for bot instance activity coming from a specific auth server from a
+ * specific cluster.
+ *
+ * PostHog event: tp.bot_instance.activity
+ *
+ * @generated from protobuf message prehog.v1.BotInstanceActivityReport
+ */
+export interface BotInstanceActivityReport {
+    /**
+     * randomly generated UUID for this specific report, 16 bytes (in string order)
+     *
+     * PostHog property: tp.report_uuid (in 8-4-4-4-12 string form)
+     *
+     * @generated from protobuf field: bytes report_uuid = 1;
+     */
+    reportUuid: Uint8Array;
+    /**
+     * cluster name, anonymized, 32 bytes (HMAC-SHA-256)
+     *
+     * PostHog property: tp.cluster_name (in base64)
+     *
+     * @generated from protobuf field: bytes cluster_name = 2;
+     */
+    clusterName: Uint8Array;
+    /**
+     * hostid of the auth that collected this report, anonymized, 32 bytes (HMAC-SHA-256)
+     *
+     * PostHog property: tp.reporter_hostid (in base64)
+     *
+     * @generated from protobuf field: bytes reporter_hostid = 3;
+     */
+    reporterHostid: Uint8Array;
+    /**
+     * beginning of the time window for this data; ending is not specified but is
+     * intended to be at most 15 minutes
+     *
+     * PostHog timestamp (not a property, the ingest time is tp.report_time instead)
+     *
+     * @generated from protobuf field: google.protobuf.Timestamp start_time = 4;
+     */
+    startTime?: Timestamp;
+    /**
+     * one set of counters for each bot instance
+     *
+     * PostHog property: tp.records (encoded as a map keyed by anonymized bot
+     * instance id, not as a list)
+     *
+     * @generated from protobuf field: repeated prehog.v1.BotInstanceActivityRecord records = 5;
+     */
+    records: BotInstanceActivityRecord[];
+}
+/**
+ * Records the activity for a single bot instance against a specific auth server
+ * from a specific cluster.
+ *
+ * @generated from protobuf message prehog.v1.BotInstanceActivityRecord
+ */
+export interface BotInstanceActivityRecord {
+    /**
+     * The UUID of the BotInstance, anonymized using HMAC-SHA-256.
+     *
+     * @generated from protobuf field: bytes bot_instance_id = 1;
+     */
+    botInstanceId: Uint8Array;
+    /**
+     * The name of the user associated with the BotInstance,
+     * anonymized using HMAC-SHA-256.
+     * Enables correlation with the UserActivityRecord for the Bot.
+     *
+     * @generated from protobuf field: bytes bot_user_name = 2;
+     */
+    botUserName: Uint8Array;
+    /**
+     * counter of bot joins
+     *
+     * @generated from protobuf field: uint64 bot_joins = 3;
+     */
+    botJoins: bigint;
+    /**
+     * counter of SPIFFE SVIDs issued
+     *
+     * @generated from protobuf field: uint64 spiffe_svids_issued = 4;
+     */
+    spiffeSvidsIssued: bigint;
+    /**
+     * counter of certificates issued for this user
+     *
+     * @generated from protobuf field: uint64 certificates_issued = 5;
+     */
+    certificatesIssued: bigint;
+}
+/**
  * @generated from protobuf message prehog.v1.SubmitUsageReportsRequest
  */
 export interface SubmitUsageReportsRequest {
@@ -271,6 +363,12 @@ export interface SubmitUsageReportsRequest {
      * @generated from protobuf field: repeated prehog.v1.ResourcePresenceReport resource_presence = 2;
      */
     resourcePresence: ResourcePresenceReport[];
+    /**
+     * encoded as a seperate tp.bot_instance.activity PostHog event
+     *
+     * @generated from protobuf field: repeated prehog.v1.BotInstanceActivityReport bot_instance_activity = 3;
+     */
+    botInstanceActivity: BotInstanceActivityReport[];
 }
 /**
  * @generated from protobuf message prehog.v1.SubmitUsageReportsResponse
@@ -778,17 +876,176 @@ class ResourceKindPresenceReport$Type extends MessageType<ResourceKindPresenceRe
  */
 export const ResourceKindPresenceReport = new ResourceKindPresenceReport$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class BotInstanceActivityReport$Type extends MessageType<BotInstanceActivityReport> {
+    constructor() {
+        super("prehog.v1.BotInstanceActivityReport", [
+            { no: 1, name: "report_uuid", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
+            { no: 2, name: "cluster_name", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
+            { no: 3, name: "reporter_hostid", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
+            { no: 4, name: "start_time", kind: "message", T: () => Timestamp },
+            { no: 5, name: "records", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => BotInstanceActivityRecord }
+        ]);
+    }
+    create(value?: PartialMessage<BotInstanceActivityReport>): BotInstanceActivityReport {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.reportUuid = new Uint8Array(0);
+        message.clusterName = new Uint8Array(0);
+        message.reporterHostid = new Uint8Array(0);
+        message.records = [];
+        if (value !== undefined)
+            reflectionMergePartial<BotInstanceActivityReport>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: BotInstanceActivityReport): BotInstanceActivityReport {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* bytes report_uuid */ 1:
+                    message.reportUuid = reader.bytes();
+                    break;
+                case /* bytes cluster_name */ 2:
+                    message.clusterName = reader.bytes();
+                    break;
+                case /* bytes reporter_hostid */ 3:
+                    message.reporterHostid = reader.bytes();
+                    break;
+                case /* google.protobuf.Timestamp start_time */ 4:
+                    message.startTime = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.startTime);
+                    break;
+                case /* repeated prehog.v1.BotInstanceActivityRecord records */ 5:
+                    message.records.push(BotInstanceActivityRecord.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: BotInstanceActivityReport, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* bytes report_uuid = 1; */
+        if (message.reportUuid.length)
+            writer.tag(1, WireType.LengthDelimited).bytes(message.reportUuid);
+        /* bytes cluster_name = 2; */
+        if (message.clusterName.length)
+            writer.tag(2, WireType.LengthDelimited).bytes(message.clusterName);
+        /* bytes reporter_hostid = 3; */
+        if (message.reporterHostid.length)
+            writer.tag(3, WireType.LengthDelimited).bytes(message.reporterHostid);
+        /* google.protobuf.Timestamp start_time = 4; */
+        if (message.startTime)
+            Timestamp.internalBinaryWrite(message.startTime, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        /* repeated prehog.v1.BotInstanceActivityRecord records = 5; */
+        for (let i = 0; i < message.records.length; i++)
+            BotInstanceActivityRecord.internalBinaryWrite(message.records[i], writer.tag(5, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1.BotInstanceActivityReport
+ */
+export const BotInstanceActivityReport = new BotInstanceActivityReport$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class BotInstanceActivityRecord$Type extends MessageType<BotInstanceActivityRecord> {
+    constructor() {
+        super("prehog.v1.BotInstanceActivityRecord", [
+            { no: 1, name: "bot_instance_id", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
+            { no: 2, name: "bot_user_name", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
+            { no: 3, name: "bot_joins", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 4, name: "spiffe_svids_issued", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 5, name: "certificates_issued", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+        ]);
+    }
+    create(value?: PartialMessage<BotInstanceActivityRecord>): BotInstanceActivityRecord {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.botInstanceId = new Uint8Array(0);
+        message.botUserName = new Uint8Array(0);
+        message.botJoins = 0n;
+        message.spiffeSvidsIssued = 0n;
+        message.certificatesIssued = 0n;
+        if (value !== undefined)
+            reflectionMergePartial<BotInstanceActivityRecord>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: BotInstanceActivityRecord): BotInstanceActivityRecord {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* bytes bot_instance_id */ 1:
+                    message.botInstanceId = reader.bytes();
+                    break;
+                case /* bytes bot_user_name */ 2:
+                    message.botUserName = reader.bytes();
+                    break;
+                case /* uint64 bot_joins */ 3:
+                    message.botJoins = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 spiffe_svids_issued */ 4:
+                    message.spiffeSvidsIssued = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 certificates_issued */ 5:
+                    message.certificatesIssued = reader.uint64().toBigInt();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: BotInstanceActivityRecord, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* bytes bot_instance_id = 1; */
+        if (message.botInstanceId.length)
+            writer.tag(1, WireType.LengthDelimited).bytes(message.botInstanceId);
+        /* bytes bot_user_name = 2; */
+        if (message.botUserName.length)
+            writer.tag(2, WireType.LengthDelimited).bytes(message.botUserName);
+        /* uint64 bot_joins = 3; */
+        if (message.botJoins !== 0n)
+            writer.tag(3, WireType.Varint).uint64(message.botJoins);
+        /* uint64 spiffe_svids_issued = 4; */
+        if (message.spiffeSvidsIssued !== 0n)
+            writer.tag(4, WireType.Varint).uint64(message.spiffeSvidsIssued);
+        /* uint64 certificates_issued = 5; */
+        if (message.certificatesIssued !== 0n)
+            writer.tag(5, WireType.Varint).uint64(message.certificatesIssued);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1.BotInstanceActivityRecord
+ */
+export const BotInstanceActivityRecord = new BotInstanceActivityRecord$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class SubmitUsageReportsRequest$Type extends MessageType<SubmitUsageReportsRequest> {
     constructor() {
         super("prehog.v1.SubmitUsageReportsRequest", [
             { no: 1, name: "user_activity", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => UserActivityReport },
-            { no: 2, name: "resource_presence", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ResourcePresenceReport }
+            { no: 2, name: "resource_presence", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ResourcePresenceReport },
+            { no: 3, name: "bot_instance_activity", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => BotInstanceActivityReport }
         ]);
     }
     create(value?: PartialMessage<SubmitUsageReportsRequest>): SubmitUsageReportsRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.userActivity = [];
         message.resourcePresence = [];
+        message.botInstanceActivity = [];
         if (value !== undefined)
             reflectionMergePartial<SubmitUsageReportsRequest>(this, message, value);
         return message;
@@ -803,6 +1060,9 @@ class SubmitUsageReportsRequest$Type extends MessageType<SubmitUsageReportsReque
                     break;
                 case /* repeated prehog.v1.ResourcePresenceReport resource_presence */ 2:
                     message.resourcePresence.push(ResourcePresenceReport.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* repeated prehog.v1.BotInstanceActivityReport bot_instance_activity */ 3:
+                    message.botInstanceActivity.push(BotInstanceActivityReport.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -822,6 +1082,9 @@ class SubmitUsageReportsRequest$Type extends MessageType<SubmitUsageReportsReque
         /* repeated prehog.v1.ResourcePresenceReport resource_presence = 2; */
         for (let i = 0; i < message.resourcePresence.length; i++)
             ResourcePresenceReport.internalBinaryWrite(message.resourcePresence[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* repeated prehog.v1.BotInstanceActivityReport bot_instance_activity = 3; */
+        for (let i = 0; i < message.botInstanceActivity.length; i++)
+            BotInstanceActivityReport.internalBinaryWrite(message.botInstanceActivity[i], writer.tag(3, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
