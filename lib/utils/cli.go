@@ -320,23 +320,36 @@ func createUsageTemplate(opts ...func(*usageTemplateOptions)) string {
 func UpdateAppUsageTemplate(app *kingpin.Application, args []string) {
 	// If ParseContext fails, kingpin will not show usage so there is no need
 	// to update anything here. See app.Parse for more details.
-	context, err := app.ParseContext(args)
+	appContext, err := app.ParseContext(args)
 	if err != nil {
 		return
 	}
 
 	app.UsageTemplate(createUsageTemplate(
-		withCommandPrintfWidth(app, context),
+		withCommandPrintfWidth(app, appContext, args),
 	))
 }
 
 // withCommandPrintfWidth returns an usage template option that
 // updates command printf width if longer than default.
-func withCommandPrintfWidth(app *kingpin.Application, context *kingpin.ParseContext) func(*usageTemplateOptions) {
+func withCommandPrintfWidth(app *kingpin.Application, appContext *kingpin.ParseContext, args []string) func(*usageTemplateOptions) {
 	return func(opt *usageTemplateOptions) {
 		var commands []*kingpin.CmdModel
-		if context.SelectedCommand != nil {
-			commands = context.SelectedCommand.Model().FlattenedCommands()
+
+		// When selected command is "help", parse again without the "help" arg
+		// so the intended command is selected for calculation.
+		if len(args) > 0 && args[0] == "help" &&
+			appContext.SelectedCommand != nil && appContext.SelectedCommand.FullCommand() == "help" {
+			appContextWithoutHelpArg, err := app.ParseContext(args[1:])
+			if err != nil {
+				slog.WarnContext(context.Background(), "Failed to parse args context without help command", "error", err, "args", args)
+			} else {
+				appContext = appContextWithoutHelpArg
+			}
+		}
+
+		if appContext.SelectedCommand != nil {
+			commands = appContext.SelectedCommand.Model().FlattenedCommands()
 		} else {
 			commands = app.Model().FlattenedCommands()
 		}
