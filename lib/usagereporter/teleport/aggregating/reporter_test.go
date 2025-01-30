@@ -245,6 +245,11 @@ func TestReporterBotInstanceActivity(t *testing.T) {
 		BotName:       "bob",
 		BotInstanceId: "0000-01",
 	})
+	r.AnonymizeAndSubmit(&usagereporter.SPIFFESVIDIssuedEvent{
+		UserName: "jen",
+		UserKind: prehogv1a.UserKind_USER_KIND_HUMAN,
+		SpiffeId: "spiffe://clustername/jen",
+	})
 	// Submit for two different bot instances, we expect a useractivity record
 	// with a value of two, and two bot instance activity records with a single
 	// value of 1.
@@ -252,12 +257,22 @@ func TestReporterBotInstanceActivity(t *testing.T) {
 		UserName:      "bot-bob",
 		BotInstanceId: "0000-01",
 		UserKind:      prehogv1a.UserKind_USER_KIND_BOT,
+		SpiffeId:      "spiffe://clustername/bot/bob",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.SPIFFESVIDIssuedEvent{
+		UserName:      "bot-bob",
+		BotInstanceId: "0000-01",
+		UserKind:      prehogv1a.UserKind_USER_KIND_BOT,
+		SpiffeId:      "spiffe://clustername/bot/bob-2",
 	})
 	r.AnonymizeAndSubmit(&usagereporter.SPIFFESVIDIssuedEvent{
 		UserName:      "bot-bob",
 		BotInstanceId: "0000-02",
 		UserKind:      prehogv1a.UserKind_USER_KIND_BOT,
+		SpiffeId:      "spiffe://clustername/bot/bob",
 	})
+	recvIngested()
+	recvIngested()
 	recvIngested()
 	recvIngested()
 	recvIngested()
@@ -275,7 +290,7 @@ func TestReporterBotInstanceActivity(t *testing.T) {
 	require.Len(t, userActivityReports[0].Records, 1)
 	userActivityRecord := userActivityReports[0].Records[0]
 	require.Equal(t, uint64(1), userActivityRecord.BotJoins)
-	require.Equal(t, uint64(2), userActivityRecord.SpiffeSvidsIssued)
+	require.Equal(t, uint64(3), userActivityRecord.SpiffeSvidsIssued)
 	require.Equal(t, uint64(1), userActivityRecord.CertificatesIssued)
 
 	botInstanceActivityReports, err := svc.listBotInstanceActivityReports(ctx, 10)
@@ -286,7 +301,7 @@ func TestReporterBotInstanceActivity(t *testing.T) {
 		require.Equal(t, userActivityRecord.UserName, record.BotUserName)
 	}
 	require.True(t, slices.ContainsFunc(botInstanceActivityReports[0].Records, func(record *prehogv1.BotInstanceActivityRecord) bool {
-		return record.BotJoins == 1 && record.CertificatesIssued == 1 && record.SpiffeSvidsIssued == 1
+		return record.BotJoins == 1 && record.CertificatesIssued == 1 && record.SpiffeSvidsIssued == 2
 	}))
 	require.True(t, slices.ContainsFunc(botInstanceActivityReports[0].Records, func(record *prehogv1.BotInstanceActivityRecord) bool {
 		return record.BotJoins == 0 && record.CertificatesIssued == 0 && record.SpiffeSvidsIssued == 1
