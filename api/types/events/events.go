@@ -2434,3 +2434,8 @@ func (m *WorkloadIdentityDelete) TrimToMaxSize(_ int) AuditEvent {
 func (m *GitCommand) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
+
+// TrimToMaxSize implements [AuditEvent].
+func (m *StableUNIXUserCreate) TrimToMaxSize(int) AuditEvent {
+	return m
+}

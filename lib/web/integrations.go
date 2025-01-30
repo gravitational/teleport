@@ -293,7 +293,13 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 	}
 
 	services, err := listDeployedDatabaseServices(ctx, req.logger, req.integration.GetName(), regions, req.awsOIDCClient)
-	if err != nil {
+	switch {
+	case trace.IsAccessDenied(err):
+		// The number of ECS Database Services is shown when listing the integration status.
+		// However, listing ECS Services is only possible after the user goes through the RDS enrollment flows, which adds the required policy to the IAM Role.
+		// If this calls returns an access denied, we assume the user doesn't have the required IAM Policies in their IAM Role and show 0 instead.
+
+	case err != nil:
 		return nil, trace.Wrap(err)
 	}
 
@@ -342,6 +348,10 @@ func rulesWithIntegration(dc *discoveryconfig.DiscoveryConfig, matcherType strin
 // integrationDiscoveryRules returns the Discovery Rules that are using a given integration.
 // A Discovery Rule is just like a DiscoveryConfig Matcher, except that it breaks down by region.
 // So, if a Matcher exists for two regions, that will be represented as two Rules.
+// Accepts the following query params:
+// startKey: indicator for pagination, should be the value of the last reponse's `nextItem`, or absent for a the starting page
+// resourceType: which resource type to return, one of ec2, eks, rds
+// regions: only rules for regions listed are returned (omit query to include all regions)
 func (h *Handler) integrationDiscoveryRules(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	integrationName := p.ByName("name")
 	if integrationName == "" {
@@ -351,6 +361,7 @@ func (h *Handler) integrationDiscoveryRules(w http.ResponseWriter, r *http.Reque
 	values := r.URL.Query()
 	startKey := values.Get("startKey")
 	resourceType := values.Get("resourceType")
+	regionsFilter := values["regions"]
 
 	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
@@ -362,7 +373,7 @@ func (h *Handler) integrationDiscoveryRules(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	rules, err := collectAutoDiscoveryRules(r.Context(), ig.GetName(), startKey, resourceType, clt.DiscoveryConfigClient())
+	rules, err := collectAutoDiscoveryRules(r.Context(), ig.GetName(), startKey, resourceType, regionsFilter, clt.DiscoveryConfigClient())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -371,7 +382,7 @@ func (h *Handler) integrationDiscoveryRules(w http.ResponseWriter, r *http.Reque
 }
 
 // collectAutoDiscoveryRules will iterate over all DiscoveryConfigs's Matchers and collect the Discovery Rules that exist in them for the given integration.
-// It can also be filtered by Matcher Type (eg ec2, rds, eks)
+// It can also be filtered by Matcher Type (eg ec2, rds, eks) and a regionsFilter list (eg, us-east-1, us-east-2)
 // A Discovery Rule is a close match to a DiscoveryConfig's Matcher, except that it will count as many rules as regions exist.
 // Eg if a DiscoveryConfig's Matcher has two regions, then it will output two (almost equal) Rules, one for each Region.
 func collectAutoDiscoveryRules(
@@ -379,6 +390,7 @@ func collectAutoDiscoveryRules(
 	integrationName string,
 	nextPage string,
 	resourceTypeFilter string,
+	regionsFilter []string,
 	clt interface {
 		ListDiscoveryConfigs(ctx context.Context, pageSize int, nextToken string) ([]*discoveryconfig.DiscoveryConfig, string, error)
 	},
@@ -393,45 +405,12 @@ func collectAutoDiscoveryRules(
 			return ret, trace.Wrap(err)
 		}
 		for _, dc := range discoveryConfigs {
-			lastSync := &dc.Status.LastSyncTime
-			if lastSync.IsZero() {
-				lastSync = nil
-			}
-
-			for _, matcher := range dc.Spec.AWS {
-				if matcher.Integration != integrationName {
-					continue
-				}
-
-				for _, resourceType := range matcher.Types {
-					if resourceTypeFilter != "" && resourceType != resourceTypeFilter {
-						continue
-					}
-
-					for _, region := range matcher.Regions {
-						uiLables := make([]libui.Label, 0, len(matcher.Tags))
-						for labelKey, labelValues := range matcher.Tags {
-							for _, labelValue := range labelValues {
-								uiLables = append(uiLables, libui.Label{
-									Name:  labelKey,
-									Value: labelValue,
-								})
-							}
-						}
-						ret.Rules = append(ret.Rules, ui.IntegrationDiscoveryRule{
-							ResourceType:    resourceType,
-							Region:          region,
-							LabelMatcher:    uiLables,
-							DiscoveryConfig: dc.GetName(),
-							LastSync:        lastSync,
-						})
-					}
-				}
-			}
+			ret.Rules = append(ret.Rules,
+				collectAutoDiscoveryRulesFromDiscoveryConfig(dc, integrationName, resourceTypeFilter, regionsFilter)...,
+			)
 		}
 
 		ret.NextKey = nextToken
-
 		if nextToken == "" || len(ret.Rules) > maxPerPage {
 			break
 		}
@@ -440,6 +419,52 @@ func collectAutoDiscoveryRules(
 	}
 
 	return ret, nil
+}
+
+func collectAutoDiscoveryRulesFromDiscoveryConfig(dc *discoveryconfig.DiscoveryConfig, integrationName, resourceTypeFilter string, regionsFilter []string) []ui.IntegrationDiscoveryRule {
+	var ret []ui.IntegrationDiscoveryRule
+
+	lastSync := &dc.Status.LastSyncTime
+	if lastSync.IsZero() {
+		lastSync = nil
+	}
+
+	for _, matcher := range dc.Spec.AWS {
+		if matcher.Integration != integrationName {
+			continue
+		}
+
+		for _, resourceType := range matcher.Types {
+			if resourceTypeFilter != "" && resourceType != resourceTypeFilter {
+				continue
+			}
+
+			for _, region := range matcher.Regions {
+				if len(regionsFilter) > 0 && !slices.Contains(regionsFilter, region) {
+					continue
+				}
+
+				uiLables := make([]libui.Label, 0, len(matcher.Tags))
+				for labelKey, labelValues := range matcher.Tags {
+					for _, labelValue := range labelValues {
+						uiLables = append(uiLables, libui.Label{
+							Name:  labelKey,
+							Value: labelValue,
+						})
+					}
+				}
+				ret = append(ret, ui.IntegrationDiscoveryRule{
+					ResourceType:    resourceType,
+					Region:          region,
+					LabelMatcher:    uiLables,
+					DiscoveryConfig: dc.GetName(),
+					LastSync:        lastSync,
+				})
+			}
+		}
+	}
+
+	return ret
 }
 
 // integrationsList returns a page of Integrations

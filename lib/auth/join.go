@@ -238,8 +238,8 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		if err := a.checkEC2JoinRequest(ctx, req); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case types.JoinMethodIAM, types.JoinMethodAzure, types.JoinMethodTPM:
-		// IAM and Azure join methods must use gRPC register methods
+	case types.JoinMethodIAM, types.JoinMethodAzure, types.JoinMethodTPM, types.JoinMethodOracle:
+		// These join methods must use gRPC register methods
 		return nil, trace.AccessDenied("this token is only valid for the %s "+
 			"join method but the node has connected to the wrong endpoint, make "+
 			"sure your node is configured to use the %s join method", method, method)

@@ -31,6 +31,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
 	"github.com/aws/aws-sdk-go-v2/service/memorydb"
+	"github.com/aws/aws-sdk-go-v2/service/opensearch"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
@@ -479,11 +480,12 @@ func makeAzureSQLServer(t *testing.T, name, group string) (*armsql.Server, types
 }
 
 type fakeAWSClients struct {
-	mdbClient      db.MemoryDBClient
-	ecClient       db.ElastiCacheClient
-	rdsClient      db.RDSClient
-	redshiftClient db.RedshiftClient
-	rssClient      db.RSSClient
+	ecClient         db.ElastiCacheClient
+	mdbClient        db.MemoryDBClient
+	openSearchClient db.OpenSearchClient
+	rdsClient        db.RDSClient
+	redshiftClient   db.RedshiftClient
+	rssClient        db.RSSClient
 }
 
 func (f fakeAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) db.ElastiCacheClient {
@@ -492,6 +494,10 @@ func (f fakeAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*ela
 
 func (f fakeAWSClients) GetMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) db.MemoryDBClient {
 	return f.mdbClient
+}
+
+func (f fakeAWSClients) GetOpenSearchClient(cfg aws.Config, optFns ...func(*opensearch.Options)) db.OpenSearchClient {
+	return f.openSearchClient
 }
 
 func (f fakeAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) db.RDSClient {

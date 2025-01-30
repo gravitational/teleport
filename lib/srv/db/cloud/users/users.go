@@ -26,6 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
 	memorydb "github.com/aws/aws-sdk-go-v2/service/memorydb"
+	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -63,6 +65,7 @@ type Config struct {
 type awsClientProvider interface {
 	getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient
 	getMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) memoryDBClient
+	getSecretsManagerClient(cfg aws.Config, optFns ...func(*secretsmanager.Options)) secrets.SecretsManagerClient
 }
 
 type defaultAWSClients struct{}
@@ -73,6 +76,10 @@ func (defaultAWSClients) getElastiCacheClient(cfg aws.Config, optFns ...func(*el
 
 func (defaultAWSClients) getMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) memoryDBClient {
 	return memorydb.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) getSecretsManagerClient(cfg aws.Config, optFns ...func(*secretsmanager.Options)) secrets.SecretsManagerClient {
+	return secretsmanager.NewFromConfig(cfg, optFns...)
 }
 
 // CheckAndSetDefaults validates the config and set defaults.

@@ -80,7 +80,7 @@ func NewDiscoveryResourceChecker(cfg DiscoveryResourceCheckerConfig) (DiscoveryR
 		return nil, trace.Wrap(err)
 	}
 
-	credentialsChecker, err := newCrednentialsChecker(cfg)
+	credentialsChecker, err := newCredentialsChecker(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

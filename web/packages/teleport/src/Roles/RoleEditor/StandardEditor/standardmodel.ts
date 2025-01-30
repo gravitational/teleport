@@ -34,6 +34,7 @@ import {
   RequireMFAType,
   ResourceKind,
   RoleOptions,
+  RoleVersion,
   Rule,
   SessionRecordingMode,
   SSHPortForwarding,
@@ -77,6 +78,7 @@ export type MetadataModel = {
   description?: string;
   revision?: string;
   labels: UILabel[];
+  version: RoleVersionOption;
 };
 
 /** A model for resource section. */
@@ -112,6 +114,14 @@ export type KubernetesAccess = ResourceAccessBase<'kube_cluster'> & {
   groups: readonly Option[];
   labels: UILabel[];
   resources: KubernetesResourceModel[];
+
+  /**
+   * Version of the role that owns this section. Required to propagate it to
+   * {@link KubernetesResourceModel}. It's the responsibility of
+   * `useStandardModel` reducer to keep this value consistent with the actual
+   * role version.
+   */
+  roleVersion: RoleVersion;
 };
 
 export type KubernetesResourceModel = {
@@ -121,6 +131,14 @@ export type KubernetesResourceModel = {
   name: string;
   namespace: string;
   verbs: readonly KubernetesVerbOption[];
+
+  /**
+   * Version of the role that owns this section. Required in order to support
+   * version-specific validation rules. It's the responsibility of
+   * `useStandardModel` reducer to keep this value consistent with the actual
+   * role version.
+   */
+  roleVersion: RoleVersion;
 };
 
 type KubernetesResourceKindOption = Option<KubernetesResourceKind, string>;
@@ -171,7 +189,7 @@ export const kubernetesResourceKindOptionsMap = optionsToMap(
   kubernetesResourceKindOptions
 );
 
-type KubernetesVerbOption = Option<KubernetesVerb, string>;
+export type KubernetesVerbOption = Option<KubernetesVerb, string>;
 /**
  * All possible Kubernetes verb drop-down options. This array needs to be kept
  * in sync with `KubernetesVerbs` in `api/types/constants.go.
@@ -361,7 +379,14 @@ export const sshPortForwardingModeOptionsMap = optionsToMap(
   sshPortForwardingModeOptions
 );
 
-const roleVersion = 'v7';
+export type RoleVersionOption = Option<RoleVersion>;
+export const roleVersionOptions = Object.values(RoleVersion)
+  .toSorted()
+  .toReversed()
+  .map(o => ({ value: o, label: o }));
+export const roleVersionOptionsMap = optionsToMap(roleVersionOptions);
+
+export const defaultRoleVersion = RoleVersion.V7;
 
 /**
  * Returns the role object with required fields defined with empty values.
@@ -377,19 +402,44 @@ export function newRole(): Role {
       deny: {},
       options: defaultOptions(),
     },
-    version: roleVersion,
+    version: defaultRoleVersion,
   };
 }
 
-export function newResourceAccess(kind: 'node'): ServerAccess;
-export function newResourceAccess(kind: 'kube_cluster'): KubernetesAccess;
-export function newResourceAccess(kind: 'app'): AppAccess;
-export function newResourceAccess(kind: 'db'): DatabaseAccess;
 export function newResourceAccess(
-  kind: 'windows_desktop'
+  kind: 'node',
+  roleVersion: RoleVersion
+): ServerAccess;
+
+export function newResourceAccess(
+  kind: 'kube_cluster',
+  roleVersion: RoleVersion
+): KubernetesAccess;
+
+export function newResourceAccess(
+  kind: 'app',
+  roleVersion: RoleVersion
+): AppAccess;
+
+export function newResourceAccess(
+  kind: 'db',
+  roleVersion: RoleVersion
+): DatabaseAccess;
+
+export function newResourceAccess(
+  kind: 'windows_desktop',
+  roleVersion: RoleVersion
 ): WindowsDesktopAccess;
-export function newResourceAccess(kind: ResourceAccessKind): AppAccess;
-export function newResourceAccess(kind: ResourceAccessKind): ResourceAccess {
+
+export function newResourceAccess(
+  kind: ResourceAccessKind,
+  roleVersion: RoleVersion
+): AppAccess;
+
+export function newResourceAccess(
+  kind: ResourceAccessKind,
+  roleVersion: RoleVersion
+): ResourceAccess {
   switch (kind) {
     case 'node':
       return {
@@ -403,6 +453,7 @@ export function newResourceAccess(kind: ResourceAccessKind): ResourceAccess {
         groups: [stringToOption('{{internal.kubernetes_groups}}')],
         labels: [],
         resources: [],
+        roleVersion,
       };
     case 'app':
       return {
@@ -431,13 +482,16 @@ export function newResourceAccess(kind: ResourceAccessKind): ResourceAccess {
   }
 }
 
-export function newKubernetesResourceModel(): KubernetesResourceModel {
+export function newKubernetesResourceModel(
+  roleVersion: RoleVersion
+): KubernetesResourceModel {
   return {
     id: crypto.randomUUID(),
     kind: kubernetesResourceKindOptions.find(k => k.value === '*'),
     name: '*',
     namespace: '*',
     verbs: [],
+    roleVersion,
   };
 }
 
@@ -470,9 +524,10 @@ export function roleToRoleEditorModel(
     resources,
     rules,
     requiresReset: allowRequiresReset,
-  } = roleConditionsToModel(allow);
+  } = roleConditionsToModel(allow, version);
   const { model: optionsModel, requiresReset: optionsRequireReset } =
     optionsToModel(options);
+  const versionOption = roleVersionOptionsMap.get(version);
 
   return {
     metadata: {
@@ -480,13 +535,14 @@ export function roleToRoleEditorModel(
       description,
       revision: originalRole?.metadata?.revision,
       labels: labelsToModel(labels),
+      version: versionOption ?? roleVersionOptionsMap.get(RoleVersion.V7),
     },
     resources,
     rules,
     options: optionsModel,
     requiresReset:
       revision !== originalRole?.metadata?.revision ||
-      version !== roleVersion ||
+      versionOption === undefined ||
       !(
         isEmpty(unsupported) &&
         isEmpty(unsupportedMetadata) &&
@@ -503,7 +559,8 @@ export function roleToRoleEditorModel(
  * specific) to a part of the role editor model.
  */
 function roleConditionsToModel(
-  conditions: RoleConditions
+  conditions: RoleConditions,
+  roleVersion: RoleVersion
 ): Pick<RoleEditorModel, 'resources' | 'rules' | 'requiresReset'> {
   const {
     node_labels,
@@ -548,13 +605,14 @@ function roleConditionsToModel(
   const {
     model: kubeResourcesModel,
     requiresReset: kubernetesResourcesRequireReset,
-  } = kubernetesResourcesToModel(kubernetes_resources);
+  } = kubernetesResourcesToModel(kubernetes_resources, roleVersion);
   if (someNonEmpty(kubeGroupsModel, kubeLabelsModel, kubeResourcesModel)) {
     resources.push({
       kind: 'kube_cluster',
       groups: kubeGroupsModel,
       labels: kubeLabelsModel,
       resources: kubeResourcesModel,
+      roleVersion,
     });
   }
 
@@ -649,16 +707,22 @@ function stringsToOptions<T extends string>(arr: T[]): Option<T>[] {
 }
 
 function kubernetesResourcesToModel(
-  resources: KubernetesResource[] | undefined
+  resources: KubernetesResource[] | undefined,
+  roleVersion: RoleVersion
 ): { model: KubernetesResourceModel[]; requiresReset: boolean } {
-  const result = (resources ?? []).map(kubernetesResourceToModel);
+  const result = (resources ?? []).map(res =>
+    kubernetesResourceToModel(res, roleVersion)
+  );
   return {
     model: result.map(r => r.model).filter(m => m !== undefined),
     requiresReset: result.some(r => r.requiresReset),
   };
 }
 
-function kubernetesResourceToModel(res: KubernetesResource): {
+function kubernetesResourceToModel(
+  res: KubernetesResource,
+  roleVersion: RoleVersion
+): {
   model?: KubernetesResourceModel;
   requiresReset: boolean;
 } {
@@ -675,6 +739,7 @@ function kubernetesResourceToModel(res: KubernetesResource): {
             name,
             namespace,
             verbs: knownVerbOptions,
+            roleVersion,
           }
         : undefined,
     requiresReset:
@@ -862,7 +927,8 @@ function isEmpty(obj: object) {
  * Converts a role editor model to a role. This operation is lossless.
  */
 export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
-  const { name, description, revision, labels, ...mRest } = roleModel.metadata;
+  const { name, description, revision, labels, version, ...mRest } =
+    roleModel.metadata;
   // Compile-time assert that protects us from silently losing fields.
   mRest satisfies Record<any, never>;
 
@@ -882,7 +948,7 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
       deny: {},
       options: optionsModelToRoleOptions(roleModel.options),
     },
-    version: roleVersion,
+    version: version.value,
   };
 
   for (const res of roleModel.resources) {

@@ -25,9 +25,11 @@ import (
 	"net/http"
 	"time"
 
+	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -56,6 +58,8 @@ type SigningServiceConfig struct {
 	Clock clockwork.Clock
 	// CredentialsGetter is used to obtain STS credentials.
 	CredentialsGetter CredentialsGetter
+	// AWSConfigProvider is a provider for AWS configs.
+	AWSConfigProvider awsconfig.Provider
 }
 
 // CheckAndSetDefaults validates the SigningServiceConfig config.
@@ -63,20 +67,23 @@ func (s *SigningServiceConfig) CheckAndSetDefaults() error {
 	if s.Clock == nil {
 		s.Clock = clockwork.NewRealClock()
 	}
-	if s.SessionProvider == nil {
-		return trace.BadParameter("session provider is required")
-	}
-	if s.CredentialsGetter == nil {
-		// Use cachedCredentialsGetter by default. cachedCredentialsGetter
-		// caches the credentials for one minute.
-		cachedGetter, err := NewCachedCredentialsGetter(CachedCredentialsGetterConfig{
-			Clock: s.Clock,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
 
-		s.CredentialsGetter = cachedGetter
+	if s.AWSConfigProvider == nil {
+		if s.SessionProvider == nil {
+			return trace.BadParameter("session provider or config provider is required")
+		}
+		if s.CredentialsGetter == nil {
+			// Use cachedCredentialsGetter by default. cachedCredentialsGetter
+			// caches the credentials for one minute.
+			cachedGetter, err := NewCachedCredentialsGetter(CachedCredentialsGetterConfig{
+				Clock: s.Clock,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			s.CredentialsGetter = cachedGetter
+		}
 	}
 	return nil
 }
@@ -91,7 +98,12 @@ type SigningCtx struct {
 	Expiry time.Time
 	// SessionName is role session name of AWS credentials used to sign requests.
 	SessionName string
-	// AWSRoleArn is the AWS ARN of the role to assume for signing requests.
+	// BaseAWSRoleARN is the AWS ARN of the role as a base to the assumed roles.
+	BaseAWSRoleARN string
+	// BaseAWSRoleARN is an optional external ID used on base assumed role.
+	BaseAWSExternalID string
+	// AWSRoleArn is the AWS ARN of the role to assume for signing requests,
+	// chained with BaseAWSRoleARN.
 	AWSRoleArn string
 	// AWSExternalID is an optional external ID used when getting sts credentials.
 	AWSExternalID string
@@ -161,6 +173,35 @@ func (s *SigningService) SignRequest(ctx context.Context, req *http.Request, sig
 	// 100-continue" headers without being signed, otherwise the Athena service
 	// would reject the requests.
 	unsignedHeaders := removeUnsignedHeaders(reqCopy)
+	signer, err := s.newSigner(ctx, signCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	_, err = signer.Sign(reqCopy, bytes.NewReader(payload), signCtx.SigningName, signCtx.SigningRegion, s.Clock.Now())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// copy removed headers back to the request after signing it, but don't copy the old Authorization header.
+	copyHeaders(reqCopy, req, utils.RemoveFromSlice(unsignedHeaders, "Authorization"))
+	return reqCopy, nil
+}
+
+// TODO(gabrielcorado): once all service callers are updated to use
+// AWSConfigProvider, make it required and remove session provider and
+// credentials getter fallback.
+func (s *SigningService) newSigner(ctx context.Context, signCtx *SigningCtx) (*v4.Signer, error) {
+	if s.AWSConfigProvider != nil {
+		awsCfg, err := s.AWSConfigProvider.GetConfig(ctx, signCtx.SigningRegion,
+			awsconfig.WithAssumeRole(signCtx.BaseAWSRoleARN, signCtx.BaseAWSExternalID),
+			awsconfig.WithAssumeRole(signCtx.AWSRoleArn, signCtx.AWSExternalID),
+			awsconfig.WithCredentialsMaybeIntegration(signCtx.Integration),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return NewSignerV2(awsCfg.Credentials, signCtx.SigningName), nil
+	}
 
 	session, err := s.SessionProvider(ctx, signCtx.SigningRegion, signCtx.Integration)
 	if err != nil {
@@ -177,15 +218,7 @@ func (s *SigningService) SignRequest(ctx context.Context, req *http.Request, sig
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signer := NewSigner(credentials, signCtx.SigningName)
-	_, err = signer.Sign(reqCopy, bytes.NewReader(payload), signCtx.SigningName, signCtx.SigningRegion, s.Clock.Now())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// copy removed headers back to the request after signing it, but don't copy the old Authorization header.
-	copyHeaders(reqCopy, req, utils.RemoveFromSlice(unsignedHeaders, "Authorization"))
-	return reqCopy, nil
+	return NewSigner(credentials, signCtx.SigningName), nil
 }
 
 // removeUnsignedHeaders removes and returns header keys that are not included in SigV4 SignedHeaders.

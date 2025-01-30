@@ -18,6 +18,8 @@
 
 import { Role, RoleOptions } from 'teleport/services/resources';
 
+import { defaultRoleVersion } from './standardmodel';
+
 export type DeepPartial<T> = {
   [k in keyof T]?: T[k] extends object ? DeepPartial<T[k]> : T[k];
 };
@@ -31,7 +33,7 @@ export type DeepPartial<T> = {
  */
 export const withDefaults = (role: DeepPartial<Role>): Role => ({
   kind: 'role',
-  version: '',
+  version: defaultRoleVersion,
 
   ...role,
 

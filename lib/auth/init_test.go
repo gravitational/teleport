@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -77,14 +78,16 @@ func TestReadIdentity(t *testing.T) {
 	caSigner, err := ssh.ParsePrivateKey(priv)
 	require.NoError(t, err)
 
-	cert, err := a.GenerateHostCert(services.HostCertParams{
+	cert, err := a.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      caSigner,
 		PublicHostKey: pub,
 		HostID:        "id1",
 		NodeName:      "node-name",
-		ClusterName:   "example.com",
-		Role:          types.RoleNode,
 		TTL:           0,
+		Identity: sshca.Identity{
+			ClusterName: "example.com",
+			SystemRole:  types.RoleNode,
+		},
 	})
 	require.NoError(t, err)
 
@@ -98,14 +101,16 @@ func TestReadIdentity(t *testing.T) {
 	// test TTL by converting the generated cert to text -> back and making sure ExpireAfter is valid
 	ttl := 10 * time.Second
 	expiryDate := clock.Now().Add(ttl)
-	bytes, err := a.GenerateHostCert(services.HostCertParams{
+	bytes, err := a.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      caSigner,
 		PublicHostKey: pub,
 		HostID:        "id1",
 		NodeName:      "node-name",
-		ClusterName:   "example.com",
-		Role:          types.RoleNode,
 		TTL:           ttl,
+		Identity: sshca.Identity{
+			ClusterName: "example.com",
+			SystemRole:  types.RoleNode,
+		},
 	})
 	require.NoError(t, err)
 	copy, err := apisshutils.ParseCertificate(bytes)
@@ -125,14 +130,16 @@ func TestBadIdentity(t *testing.T) {
 	require.IsType(t, trace.BadParameter(""), err)
 
 	// missing authority domain
-	cert, err := a.GenerateHostCert(services.HostCertParams{
+	cert, err := a.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      caSigner,
 		PublicHostKey: pub,
 		HostID:        "id2",
 		NodeName:      "",
-		ClusterName:   "",
-		Role:          types.RoleNode,
 		TTL:           0,
+		Identity: sshca.Identity{
+			ClusterName: "",
+			SystemRole:  types.RoleNode,
+		},
 	})
 	require.NoError(t, err)
 
@@ -140,14 +147,16 @@ func TestBadIdentity(t *testing.T) {
 	require.IsType(t, trace.BadParameter(""), err)
 
 	// missing host uuid
-	cert, err = a.GenerateHostCert(services.HostCertParams{
+	cert, err = a.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      caSigner,
 		PublicHostKey: pub,
 		HostID:        "example.com",
 		NodeName:      "",
-		ClusterName:   "",
-		Role:          types.RoleNode,
 		TTL:           0,
+		Identity: sshca.Identity{
+			ClusterName: "",
+			SystemRole:  types.RoleNode,
+		},
 	})
 	require.NoError(t, err)
 
@@ -155,14 +164,16 @@ func TestBadIdentity(t *testing.T) {
 	require.IsType(t, trace.BadParameter(""), err)
 
 	// unrecognized role
-	cert, err = a.GenerateHostCert(services.HostCertParams{
+	cert, err = a.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      caSigner,
 		PublicHostKey: pub,
 		HostID:        "example.com",
 		NodeName:      "",
-		ClusterName:   "id1",
-		Role:          "bad role",
 		TTL:           0,
+		Identity: sshca.Identity{
+			ClusterName: "id1",
+			SystemRole:  "bad role",
+		},
 	})
 	require.NoError(t, err)
 

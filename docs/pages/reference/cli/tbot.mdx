@@ -509,7 +509,88 @@ command supports these additional flags:
 | `--username` | The database user name. The bot user must have permission to connect as this user. Required. |
 | `--database` | The name of the database available in the requested service. Required. |
 
+## tbot start workload-identity-x509
+
+Issues an X509 workload identity credential using Teleport Workload Identity and
+writes this credential to a specified destination.
+
+See the [configuration reference](../machine-id/configuration.mdx) for further
+information about the workload identity credential output and the YAML
+configuration file format.
+
+### Flags
+
+In addition to the [common `tbot start` flags](#common-start-flags), this
+command supports these additional flags:
+
+| Flag                                     | Description                                                                                                                                                        |
+|------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--destination`                          | A destination URI, such as file:///foo/bar. See [Destination URIs](#destination-uris) for more info. Required.                                                     |
+| `--reader-user`                          | An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.                                 |
+| `--reader-group`                         | An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.                                |
+| `--[no-]include-federated-trust-bundles` | If set, include federated trust bundles in the output                                                                                                              |
+| `--name-selector`                        | Specifies a WorkloadIdentity resource by name to use when issuing the X509 for a workload. Mutually exclusive with `--label-selector`.                             |
+| `--label-selector`                       | Specifies a set of labels to use when selecting WorkloadIdentity resources to use when issuing the X509 for a workload. Mutually exclusive with `--name-selector`. |
+
+## tbot start workload-identity-jwt
+
+Issues a JWT workload identity credential using Teleport Workload Identity and
+writes this credential to a specified destination.
+
+The JWT workload identity credential is compatible with the [SPIFFE JWT SVID
+specification](https://github.com/spiffe/spiffe/blob/main/standards/JWT-SVID.md).
+
+See the [configuration reference](../machine-id/configuration.mdx) for further
+information about the workload identity credential output and the YAML
+configuration file format.
+
+### Flags
+
+In addition to the [common `tbot start` flags](#common-start-flags), this
+command supports these additional flags:
+
+| Flag               | Description                                                                                                                                                        |
+|--------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--destination`    | A destination URI, such as file:///foo/bar. See [Destination URIs](#destination-uris) for more info. Required.                                                     |
+| `--reader-user`    | An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.                                 |
+| `--reader-group`   | An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.                                |
+| `--name-selector`  | Specifies a WorkloadIdentity resource by name to use when issuing the X509 for a workload. Mutually exclusive with `--label-selector`.                             |
+| `--label-selector` | Specifies a set of labels to use when selecting WorkloadIdentity resources to use when issuing the X509 for a workload. Mutually exclusive with `--name-selector`. |
+| `--audience`       | The audience for the JWT. Can be provided multiple times to produce a JWT with multiple audiences. At least one audience must be provided.                         |
+
+## tbot start workload-identity-api
+
+Starts the `tbot` agent and opens a listener for the local workload identity
+API.
+
+The configuration for this service can be complex, and therefore, it is
+recommended that you leverage the YAML configuration.
+
+See [Workload Identity API & Workload Attestation](../workload-identity/workload-identity-api-and-workload-attestation.mdx)
+for further information about the local workload identity API and the YAML
+configuration.
+
+### Flags
+
+In addition to the [common `tbot start` flags](#common-start-flags), this
+command supports these additional flags:
+
+| Flag               | Description                                                                                                                                                        |
+|--------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--listen`         | A socket URI to listen on, e.g. `tcp://localhost:1234` or `unix:///opt/workload-identity.sock`. Required.                                                          |
+| `--name-selector`  | Specifies a WorkloadIdentity resource by name to use when issuing the X509 for a workload. Mutually exclusive with `--label-selector`.                             |
+| `--label-selector` | Specifies a set of labels to use when selecting WorkloadIdentity resources to use when issuing the X509 for a workload. Mutually exclusive with `--name-selector`. |
+
 ## tbot start spiffe-svid
+
+<Admonition type="warning" >
+The use of this command has been deprecated as part of the introduction of the
+new Workload Identity configuration experience. You can replace the use of this
+command with the new `tbot start workload-identity-x509` command.
+
+For further information, see [the new Workload Identity configuration experience
+and how to migrate](../workload-identity/configuration-resource-migration.mdx).
+</Admonition>
 
 ### Flags
 

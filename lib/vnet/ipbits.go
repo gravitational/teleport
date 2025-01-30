@@ -41,7 +41,7 @@ func NewIPv6Prefix() (tcpip.Address, error) {
 	var bytes [16]byte
 	bytes[0] = 0xfd
 	if _, err := rand.Read(bytes[1:6]); err != nil {
-		return tcpip.Address{}, trace.Wrap(err)
+		return tcpip.Address{}, trace.Wrap(err, "reading random bytes")
 	}
 	return tcpip.AddrFrom16(bytes), nil
 }

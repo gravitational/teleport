@@ -39,10 +39,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/request"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/opensearchservice"
-	"github.com/aws/aws-sdk-go/service/opensearchservice/opensearchserviceiface"
-	"github.com/aws/aws-sdk-go/service/secretsmanager"
-	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/gravitational/trace"
@@ -95,12 +91,6 @@ type GCPClients interface {
 type AWSClients interface {
 	// GetAWSSession returns AWS session for the specified region and any role(s).
 	GetAWSSession(ctx context.Context, region string, opts ...AWSOptionsFn) (*awssession.Session, error)
-	// GetAWSOpenSearchClient returns AWS OpenSearch client for the specified region.
-	GetAWSOpenSearchClient(ctx context.Context, region string, opts ...AWSOptionsFn) (opensearchserviceiface.OpenSearchServiceAPI, error)
-	// GetAWSSecretsManagerClient returns AWS Secrets Manager client for the specified region.
-	GetAWSSecretsManagerClient(ctx context.Context, region string, opts ...AWSOptionsFn) (secretsmanageriface.SecretsManagerAPI, error)
-	// GetAWSSTSClient returns AWS STS client for the specified region.
-	GetAWSSTSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (stsiface.STSAPI, error)
 }
 
 // AzureClients is an interface for Azure-specific API clients
@@ -474,33 +464,6 @@ func (c *cloudClients) GetAWSSession(ctx context.Context, region string, opts ..
 		return options.baseSession, nil
 	}
 	return c.getAWSSessionForRole(ctx, region, options)
-}
-
-// GetAWSOpenSearchClient returns AWS OpenSearch client for the specified region.
-func (c *cloudClients) GetAWSOpenSearchClient(ctx context.Context, region string, opts ...AWSOptionsFn) (opensearchserviceiface.OpenSearchServiceAPI, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return opensearchservice.New(session), nil
-}
-
-// GetAWSSecretsManagerClient returns AWS Secrets Manager client for the specified region.
-func (c *cloudClients) GetAWSSecretsManagerClient(ctx context.Context, region string, opts ...AWSOptionsFn) (secretsmanageriface.SecretsManagerAPI, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return secretsmanager.New(session), nil
-}
-
-// GetAWSSTSClient returns AWS STS client for the specified region.
-func (c *cloudClients) GetAWSSTSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (stsiface.STSAPI, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sts.New(session), nil
 }
 
 // GetGCPIAMClient returns GCP IAM client.
@@ -928,8 +891,6 @@ var _ Clients = (*TestCloudClients)(nil)
 
 // TestCloudClients are used in tests.
 type TestCloudClients struct {
-	OpenSearch              opensearchserviceiface.OpenSearchServiceAPI
-	SecretsManager          secretsmanageriface.SecretsManagerAPI
 	STS                     stsiface.STSAPI
 	GCPSQL                  gcp.SQLAdminClient
 	GCPGKE                  gcp.GKEClient
@@ -990,33 +951,6 @@ func (c *TestCloudClients) getAWSSessionForRegion(region string) (*awssession.Se
 		Region:          aws.String(region),
 		UseFIPSEndpoint: useFIPSEndpoint,
 	})
-}
-
-// GetAWSOpenSearchClient returns AWS OpenSearch client for the specified region.
-func (c *TestCloudClients) GetAWSOpenSearchClient(ctx context.Context, region string, opts ...AWSOptionsFn) (opensearchserviceiface.OpenSearchServiceAPI, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c.OpenSearch, nil
-}
-
-// GetAWSSecretsManagerClient returns AWS Secrets Manager client for the specified region.
-func (c *TestCloudClients) GetAWSSecretsManagerClient(ctx context.Context, region string, opts ...AWSOptionsFn) (secretsmanageriface.SecretsManagerAPI, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c.SecretsManager, nil
-}
-
-// GetAWSSTSClient returns AWS STS client for the specified region.
-func (c *TestCloudClients) GetAWSSTSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (stsiface.STSAPI, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c.STS, nil
 }
 
 // GetGCPIAMClient returns GCP IAM client.

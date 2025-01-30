@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
@@ -235,6 +236,10 @@ type Server struct {
 	// remoteForwardingMap holds the remote port forwarding listeners that need
 	// to be closed when forwarding finishes, keyed by listen addr.
 	remoteForwardingMap utils.SyncMap[string, io.Closer]
+
+	// stableUnixUsers is used to obtain fallback UIDs for host user
+	// provisioning from the control plane.
+	stableUnixUsers stableunixusersv1.StableUNIXUsersServiceClient
 }
 
 // TargetMetadata returns metadata about the server.
@@ -694,6 +699,15 @@ func SetSessionController(controller *srv.SessionController) ServerOption {
 func SetPROXYSigner(proxySigner PROXYHeaderSigner) ServerOption {
 	return func(s *Server) error {
 		s.proxySigner = proxySigner
+		return nil
+	}
+}
+
+// SetStableUNIXUsers sets the client for the stable UNIX users service, used as
+// a fallback to get UIDs for host user creation.
+func SetStableUNIXUsers(stableUNIXUsers stableunixusersv1.StableUNIXUsersServiceClient) ServerOption {
+	return func(s *Server) error {
+		s.stableUnixUsers = stableUNIXUsers
 		return nil
 	}
 }
@@ -1258,7 +1272,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 	}
 
 	// Create host user.
-	created, userCloser, err := s.termHandlers.SessionRegistry.UpsertHostUser(identityContext)
+	created, userCloser, err := s.termHandlers.SessionRegistry.UpsertHostUser(identityContext, s.obtainFallbackUID)
 	if err != nil {
 		s.logger.WarnContext(ctx, "error while creating host users", "error", err)
 	}
@@ -1279,6 +1293,39 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 	}
 
 	return ctx, nil
+}
+
+// obtainFallbackUID checks if the cluster is configured for stable
+// autoprovisioned UNIX user UIDs and, if so, obtains and returns the UID for
+// the given username. If the cluster is not configured for stable UIDs, it
+// returns (_, false, nil).
+func (s *Server) obtainFallbackUID(ctx context.Context, username string) (uid int32, ok bool, _ error) {
+	authPref, err := s.authService.GetAuthPreference(ctx)
+	if err != nil {
+		return 0, false, trace.Wrap(err)
+	}
+
+	cfg := authPref.GetStableUNIXUserConfig()
+	if cfg == nil || !cfg.Enabled {
+		return 0, false, nil
+	}
+
+	resp, err := s.stableUnixUsers.ObtainUIDForUsername(ctx, &stableunixusersv1.ObtainUIDForUsernameRequest{
+		Username: username,
+	})
+	if err != nil {
+		return 0, false, trace.Wrap(err)
+	}
+
+	uid = resp.GetUid()
+
+	// see https://github.com/systemd/systemd/blob/cc7300fc5868f6d47f3f47076100b574bf54e58d/docs/UIDS-GIDS.md
+	const firstUserUID = 1000
+	if uid < firstUserUID {
+		return 0, false, trace.BadParameter("received a negative or system UID as the new UID from the control plane (%v)", uid)
+	}
+
+	return uid, true, nil
 }
 
 // HandleNewChan is called when new channel is opened

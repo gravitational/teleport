@@ -342,6 +342,10 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 
 	router.GET("/api/:ver/teleport/join/:session", fwd.withAuthPassthrough(fwd.join))
 
+	for _, method := range allHTTPMethods() {
+		router.Handle(method, "/v1/teleport/:base64Cluster/:base64KubeCluster/*path", fwd.singleCertHandler())
+	}
+
 	router.NotFound = fwd.withAuthStd(fwd.catchAll)
 
 	fwd.router = instrumentHTTPHandler(fwd.cfg.KubeServiceType, router)
@@ -429,6 +433,9 @@ type authContext struct {
 	recordingConfig   types.SessionRecordingConfig
 	// clientIdleTimeout sets information on client idle timeout
 	clientIdleTimeout time.Duration
+	// clientIdleTimeoutMessage is the message to be displayed to the user
+	// when the client idle timeout is reached
+	clientIdleTimeoutMessage string
 	// disconnectExpiredCert if set, controls the time when the connection
 	// should be disconnected because the client cert expires
 	disconnectExpiredCert time.Time
@@ -819,13 +826,14 @@ func (f *Forwarder) setupContext(
 	}
 
 	return &authContext{
-		clientIdleTimeout:     roles.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
-		sessionTTL:            sessionTTL,
-		Context:               authCtx,
-		recordingConfig:       recordingConfig,
-		kubeClusterName:       kubeCluster,
-		certExpires:           identity.Expires,
-		disconnectExpiredCert: authCtx.GetDisconnectCertExpiry(authPref),
+		clientIdleTimeout:        roles.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		clientIdleTimeoutMessage: netConfig.GetClientIdleTimeoutMessage(),
+		sessionTTL:               sessionTTL,
+		Context:                  authCtx,
+		recordingConfig:          recordingConfig,
+		kubeClusterName:          kubeCluster,
+		certExpires:              identity.Expires,
+		disconnectExpiredCert:    authCtx.GetDisconnectCertExpiry(authPref),
 		teleportCluster: teleportClusterClient{
 			name:       teleportClusterName,
 			remoteAddr: utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
@@ -1690,6 +1698,8 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 
 	return upgradeRequestToRemoteCommandProxy(request,
 		func(proxy *remoteCommandProxy) error {
+			sess.sendErrStatus = proxy.writeStatus
+
 			if !sess.isLocalKubernetesCluster {
 				// We're forwarding this to another kubernetes_service instance or Teleport proxy, let it handle session recording.
 				return f.remoteExec(req, sess, proxy)
@@ -2362,6 +2372,8 @@ type clusterSession struct {
 	connCtx context.Context
 	// connMonitorCancel is the conn monitor connMonitorCancel function.
 	connMonitorCancel context.CancelCauseFunc
+	// sendErrStatus is a function that sends an error status to the client.
+	sendErrStatus func(status *kubeerrors.StatusError) error
 }
 
 // close cancels the connection monitor context if available.
@@ -2400,6 +2412,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (n
 		LockTargets:           lockTargets,
 		DisconnectExpiredCert: s.disconnectExpiredCert,
 		ClientIdleTimeout:     s.clientIdleTimeout,
+		IdleTimeoutMessage:    s.clientIdleTimeoutMessage,
 		Clock:                 s.parent.cfg.Clock,
 		Tracker:               tc,
 		Conn:                  tc,
@@ -2409,6 +2422,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (n
 		Logger:                s.parent.log,
 		Emitter:               s.parent.cfg.AuthClient,
 		EmitterContext:        s.parent.ctx,
+		MessageWriter:         formatForwardResponseError(s.sendErrStatus),
 	})
 	if err != nil {
 		tc.CloseWithCause(err)
@@ -2768,5 +2782,45 @@ func errorToKubeStatusReason(err error, code int) metav1.StatusReason {
 		return metav1.StatusReasonInternalError
 	default:
 		return metav1.StatusReasonUnknown
+	}
+}
+
+// formatForwardResponseError formats the error response from the connection
+// monitor to a Kubernetes API error response.
+type formatForwardResponseError func(status *kubeerrors.StatusError) error
+
+func (f formatForwardResponseError) WriteString(s string) (int, error) {
+	if f == nil {
+		return len(s), nil
+	}
+	err := f(
+		&kubeerrors.StatusError{
+			ErrStatus: metav1.Status{
+				Status:  metav1.StatusFailure,
+				Code:    http.StatusInternalServerError,
+				Reason:  metav1.StatusReasonInternalError,
+				Message: s,
+			},
+		},
+	)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	return len(s), nil
+}
+
+// allHTTPMethods returns a list of all HTTP methods, useful for creating
+// non-root catch-all handlers.
+func allHTTPMethods() []string {
+	return []string{
+		http.MethodConnect,
+		http.MethodDelete,
+		http.MethodGet,
+		http.MethodHead,
+		http.MethodOptions,
+		http.MethodPatch,
+		http.MethodPost,
+		http.MethodPut,
+		http.MethodTrace,
 	}
 }

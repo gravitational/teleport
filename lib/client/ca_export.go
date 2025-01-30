@@ -23,7 +23,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -52,23 +51,6 @@ type ExportAuthoritiesRequest struct {
 	AuthType                   string
 	ExportAuthorityFingerprint string
 	UseCompatVersion           bool
-	Integration                string
-}
-
-func (r *ExportAuthoritiesRequest) shouldExportIntegration(ctx context.Context) (bool, error) {
-	switch r.AuthType {
-	case "github":
-		if r.Integration == "" {
-			return false, trace.BadParameter("integration name must be provided for %q CAs", r.AuthType)
-		}
-		return true, nil
-	default:
-		if r.Integration != "" {
-			r.Integration = ""
-			slog.DebugContext(ctx, "Integration name is ignored for non-integration CAs")
-		}
-		return false, nil
-	}
 }
 
 // ExportedAuthority represents an exported authority certificate, as returned
@@ -130,22 +112,9 @@ func exportAllAuthorities(
 	req ExportAuthoritiesRequest,
 	exportSecrets bool,
 ) ([]*ExportedAuthority, error) {
-	var authorities []*ExportedAuthority
-	switch isIntegration, err := req.shouldExportIntegration(ctx); {
-	case err != nil:
+	authorities, err := exportAuth(ctx, client, req, exportSecrets)
+	if err != nil {
 		return nil, trace.Wrap(err)
-	case isIntegration && exportSecrets:
-		return nil, trace.NotImplemented("export with secrets is not supported for %q CAs", req.AuthType)
-	case isIntegration:
-		authorities, err = exportAuthForIntegration(ctx, client, req)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	default:
-		authorities, err = exportAuth(ctx, client, req, exportSecrets)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
 	// Sanity check that we have at least one authority.
@@ -155,41 +124,6 @@ func exportAllAuthorities(
 	}
 
 	return authorities, nil
-}
-
-// ExportAuthorities is the single-authority version of [ExportAllAuthorities].
-// Soft-deprecated, prefer using [ExportAllAuthorities] and handling exports
-// with more than one authority gracefully.
-func ExportAuthorities(ctx context.Context, client authclient.ClientI, req ExportAuthoritiesRequest) (string, error) {
-	// TODO(codingllama): Remove ExportAuthorities.
-	return exportAuthorities(ctx, client, req, ExportAllAuthorities)
-}
-
-// ExportAuthoritiesSecrets is the single-authority variant of
-// [ExportAllAuthoritiesSecrets].
-// Soft-deprecated, prefer using [ExportAllAuthoritiesSecrets] and handling
-// exports with more than one authority gracefully.
-func ExportAuthoritiesSecrets(ctx context.Context, client authclient.ClientI, req ExportAuthoritiesRequest) (string, error) {
-	// TODO(codingllama): Remove ExportAuthoritiesSecrets.
-	return exportAuthorities(ctx, client, req, ExportAllAuthoritiesSecrets)
-}
-
-func exportAuthorities(
-	ctx context.Context,
-	client authclient.ClientI,
-	req ExportAuthoritiesRequest,
-	exportAllFunc func(context.Context, authclient.ClientI, ExportAuthoritiesRequest) ([]*ExportedAuthority, error),
-) (string, error) {
-	authorities, err := exportAllFunc(ctx, client, req)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	// At least one authority is guaranteed on success by both ExportAll methods.
-	if l := len(authorities); l > 1 {
-		return "", trace.BadParameter("export returned %d authorities, expected exactly one", l)
-	}
-
-	return string(authorities[0].Data), nil
 }
 
 func exportAuth(ctx context.Context, client authclient.ClientI, req ExportAuthoritiesRequest, exportSecrets bool) ([]*ExportedAuthority, error) {
@@ -458,9 +392,52 @@ func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client authclient.Cli
 	})
 }
 
-func exportAuthForIntegration(ctx context.Context, client authclient.ClientI, req ExportAuthoritiesRequest) ([]*ExportedAuthority, error) {
+// IsIntegrationAuthorityType returns true if provided type is an integration CA
+// type.
+func IsIntegrationAuthorityType(authType string) bool {
+	return authType == types.IntegrationSubKindGitHub
+}
+
+// ExportIntegrationAuthoritiesRequest has the required fields to create an
+// export authorities request for integrations.
+type ExportIntegrationAuthoritiesRequest struct {
+	// AuthType is the type of CA to be exported. See
+	// ExportIntegrationAuthorities for details.
+	AuthType string
+	// MatchFingerprint filters authorities using provided fingerprint if
+	// specified. Fingerprint must be the SHA256 of the Authority's public key.
+	MatchFingerprint string
+	// Integration is the name of the integration resource.
+	Integration string
+}
+
+// ExportIntegrationAuthorities exports the public keys of all authorities
+// associated with an integration.
+//
+// Integrations that require certificate authorities have their CAs saved as
+// plugin credentials per integration. This ensures compatibility with services
+// like GitHub which mandate the use of unique CAs cross all integrations.
+// In addition, unlike cluster-level CAs, integration CAs are not used between
+// Teleport clients/agents/clusters. Integration CAs should only be used by an
+// agent to authenticate the service associated with the integration.
+//
+// Exporting integration CAs requires READ access to the integration. Currently,
+// "github" is the only supported AuthType.
+//
+// "github" AuthType returns the public key of each SSH certificate authority in
+// a single line. Each line starts with key type like "ssh-rsa AA..." and can be
+// copied to the text box when configuring new CA for a GitHub organization.
+// Once a CA is added to the GitHub organization, GitHub only displays the
+// SHA256 fingerprint of the key and the date it was added. The MatchFingerprint
+// option can be used to verify whether a fingerprint corresponds to that
+// particular integration.
+func ExportIntegrationAuthorities(ctx context.Context, client authclient.ClientI, req ExportIntegrationAuthoritiesRequest) ([]*ExportedAuthority, error) {
+	if req.Integration == "" {
+		return nil, trace.BadParameter("integration name is required when exporting integration authorities")
+	}
+
 	switch req.AuthType {
-	case "github":
+	case types.IntegrationSubKindGitHub:
 		keySet, err := fetchIntegrationCAKeySet(ctx, client, req.Integration)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -488,13 +465,13 @@ func fetchIntegrationCAKeySet(ctx context.Context, client authclient.ClientI, in
 	return resp.CertAuthorities, nil
 }
 
-func exportGitHubCAs(keySet *types.CAKeySet, req ExportAuthoritiesRequest) (string, error) {
+func exportGitHubCAs(keySet *types.CAKeySet, req ExportIntegrationAuthoritiesRequest) (string, error) {
 	ret := strings.Builder{}
 	for _, key := range keySet.SSH {
-		if req.ExportAuthorityFingerprint != "" {
+		if req.MatchFingerprint != "" {
 			if fingerprint, err := sshutils.AuthorizedKeyFingerprint(key.PublicKey); err != nil {
 				return "", trace.Wrap(err)
-			} else if !sshutils.EqualFingerprints(req.ExportAuthorityFingerprint, fingerprint) {
+			} else if !sshutils.EqualFingerprints(req.MatchFingerprint, fingerprint) {
 				continue
 			}
 		}
@@ -502,6 +479,9 @@ func exportGitHubCAs(keySet *types.CAKeySet, req ExportAuthoritiesRequest) (stri
 		// GitHub only needs the keys like "ssh-rsa xxx" so print them without
 		// cert-authority for easier copy-and-paste.
 		ret.WriteString(fmt.Sprintf("%s integration=%s\n", strings.TrimSpace(string(key.PublicKey)), req.Integration))
+	}
+	if req.MatchFingerprint != "" && ret.Len() == 0 {
+		return "", trace.NotFound("no authorities found matching the provided fingerprint")
 	}
 	return ret.String(), nil
 }

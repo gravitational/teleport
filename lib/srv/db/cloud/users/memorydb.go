@@ -89,19 +89,20 @@ func (f *memoryDBFetcher) FetchDatabaseUsers(ctx context.Context, database types
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clt := f.cfg.awsClients.getMemoryDBClient(awsCfg)
 
-	secrets, err := newSecretStore(ctx, database, f.cfg.Clients, f.cfg.ClusterName)
+	smClt := f.cfg.awsClients.getSecretsManagerClient(awsCfg)
+	secrets, err := newSecretStore(database.GetSecretStore(), smClt, f.cfg.ClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	users := []User{}
+	clt := f.cfg.awsClients.getMemoryDBClient(awsCfg)
 	mdbUsers, err := f.getManagedUsersForACL(ctx, meta.Region, meta.MemoryDB.ACLName, clt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	users := []User{}
 	for _, mdbUser := range mdbUsers {
 		user, err := f.createUser(&mdbUser, clt, secrets)
 		if err != nil {

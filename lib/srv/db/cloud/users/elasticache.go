@@ -88,22 +88,23 @@ func (f *elastiCacheFetcher) FetchDatabaseUsers(ctx context.Context, database ty
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	client := f.cfg.awsClients.getElastiCacheClient(awsCfg)
 
-	secrets, err := newSecretStore(ctx, database, f.cfg.Clients, f.cfg.ClusterName)
+	smClt := f.cfg.awsClients.getSecretsManagerClient(awsCfg)
+	secrets, err := newSecretStore(database.GetSecretStore(), smClt, f.cfg.ClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	ecClient := f.cfg.awsClients.getElastiCacheClient(awsCfg)
 	users := []User{}
 	for _, userGroupID := range meta.ElastiCache.UserGroupIDs {
-		managedUsers, err := f.getManagedUsersForGroup(ctx, meta.Region, userGroupID, client)
+		managedUsers, err := f.getManagedUsersForGroup(ctx, meta.Region, userGroupID, ecClient)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		for _, managedUser := range managedUsers {
-			user, err := f.createUser(&managedUser, client, secrets)
+			user, err := f.createUser(&managedUser, ecClient, secrets)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
