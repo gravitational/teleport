@@ -137,9 +137,119 @@ func TestGetVirtualMachine(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			vmClient := NewVirtualMachinesClientByAPI(tc.client)
+			vmClient := NewVirtualMachinesClientByAPI(tc.client, nil /* scaleSetAPI */)
 
 			vm, err := vmClient.Get(ctx, tc.resourceID)
+			tc.assertError(t, err)
+			tc.assertVM(t, vm)
+		})
+	}
+}
+
+func TestGetScaleSetVirtualMachine(t *testing.T) {
+	ctx := context.Background()
+	validResourceID := "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Compute/virtualMachineScaleSets/vmss/virtualMachines/0"
+	validVMID := "00000000-0000-0000-0000-000000000000"
+
+	for _, tc := range []struct {
+		desc        string
+		vmID        string
+		client      *ARMScaleSetMock
+		assertError require.ErrorAssertionFunc
+		assertVM    require.ValueAssertionFunc
+	}{
+		{
+			desc: "vm with valid user identities",
+			vmID: validVMID,
+			client: &ARMScaleSetMock{
+				GetResult: armcompute.VirtualMachineScaleSetVM{
+					ID:   to.Ptr(validResourceID),
+					Name: to.Ptr("name"),
+					Identity: &armcompute.VirtualMachineIdentity{
+						PrincipalID: to.Ptr("system assigned"),
+						Type:        to.Ptr(armcompute.ResourceIdentityTypeSystemAssigned),
+						UserAssignedIdentities: map[string]*armcompute.UserAssignedIdentitiesValue{
+							"identity1": {},
+							"identity2": {},
+						},
+					},
+				},
+			},
+			assertError: require.NoError,
+			assertVM: func(t require.TestingT, val interface{}, _ ...interface{}) {
+				require.NotNil(t, val)
+				vm, ok := val.(*VirtualMachine)
+				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
+				require.Equal(t, vm.ID, validResourceID)
+				require.Equal(t, "name", vm.Name)
+				require.ElementsMatch(t, []Identity{
+					{ResourceID: "system assigned"},
+					{ResourceID: "identity1"},
+					{ResourceID: "identity2"},
+				}, vm.Identities)
+			},
+		},
+		{
+			desc: "vm without identity",
+			vmID: validVMID,
+			client: &ARMScaleSetMock{
+				GetResult: armcompute.VirtualMachineScaleSetVM{
+					ID:   to.Ptr(validResourceID),
+					Name: to.Ptr("name"),
+				},
+			},
+			assertError: require.NoError,
+			assertVM: func(t require.TestingT, val interface{}, _ ...interface{}) {
+				require.NotNil(t, val)
+				vm, ok := val.(*VirtualMachine)
+				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
+				require.Equal(t, vm.ID, validResourceID)
+				require.Equal(t, "name", vm.Name)
+				require.Empty(t, vm.Identities)
+			},
+		},
+		{
+			desc: "vm with only user managed identities",
+			vmID: validVMID,
+			client: &ARMScaleSetMock{
+				GetResult: armcompute.VirtualMachineScaleSetVM{
+					ID:   to.Ptr(validResourceID),
+					Name: to.Ptr("name"),
+					Identity: &armcompute.VirtualMachineIdentity{
+						UserAssignedIdentities: map[string]*armcompute.UserAssignedIdentitiesValue{
+							"identity1": {},
+							"identity2": {},
+						},
+					},
+				},
+			},
+			assertError: require.NoError,
+			assertVM: func(t require.TestingT, val interface{}, _ ...interface{}) {
+				require.NotNil(t, val)
+				vm, ok := val.(*VirtualMachine)
+				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
+				require.Equal(t, vm.ID, validResourceID)
+				require.Equal(t, "name", vm.Name)
+				require.ElementsMatch(t, []Identity{
+					{ResourceID: "identity1"},
+					{ResourceID: "identity2"},
+				}, vm.Identities)
+			},
+		},
+		{
+			desc: "client error",
+			vmID: validVMID,
+			client: &ARMScaleSetMock{
+				GetErr: fmt.Errorf("client error"),
+			},
+			assertError: require.Error,
+			assertVM:    require.Nil,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			vmClient := NewVirtualMachinesClientByAPI(nil /* api */, tc.client)
+
+			vm, err := vmClient.GetByVMID(ctx, tc.vmID, WithVMScaleSetName("vmss"))
 			tc.assertError(t, err)
 			tc.assertVM(t, vm)
 		})
@@ -184,7 +294,7 @@ func TestListVirtualMachines(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := NewVirtualMachinesClientByAPI(mockAPI)
+			client := NewVirtualMachinesClientByAPI(mockAPI, nil /* scaleSetAPI */)
 
 			vms, err := client.ListVirtualMachines(context.Background(), tc.resourceGroup)
 			require.NoError(t, err)

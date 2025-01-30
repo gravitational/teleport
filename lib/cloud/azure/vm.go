@@ -41,14 +41,36 @@ type armCompute interface {
 	NewListAllPager(opts *armcompute.VirtualMachinesClientListAllOptions) *runtime.Pager[armcompute.VirtualMachinesClientListAllResponse]
 }
 
+// scaleSet provides an interfaces for an Azure VM scale set client.
+type scaleSet interface {
+	// Get retrieves a virtual machine from a VM scale set.
+	Get(ctx context.Context, resourceGroupName string, vmScaleSetName string, instanceID string, options *armcompute.VirtualMachineScaleSetVMsClientGetOptions) (armcompute.VirtualMachineScaleSetVMsClientGetResponse, error)
+}
+
 // VirtualMachinesClient is a client for Azure virtual machines.
 type VirtualMachinesClient interface {
 	// Get returns the virtual machine for the given resource ID.
 	Get(ctx context.Context, resourceID string) (*VirtualMachine, error)
 	// GetByVMID returns the virtual machine for a given VM ID.
-	GetByVMID(ctx context.Context, vmID string) (*VirtualMachine, error)
+	GetByVMID(ctx context.Context, vmID string, opts ...GetByVMIDOption) (*VirtualMachine, error)
 	// ListVirtualMachines gets all of the virtual machines in the given resource group.
 	ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*armcompute.VirtualMachine, error)
+}
+
+// GetByVMID represents a GetByVIMID option.
+type GetByVMIDOption func(*GetByVMIDConfig)
+
+// GetByVMIDConfig is the configuration used to retrieve a VM by ID.
+type GetByVMIDConfig struct {
+	// VMScaleSetName represents the scale set the VM is related to.
+	VMScaleSetName string
+}
+
+// WithVMScaleSetName sets the scale set name.
+func WithVMScaleSetName(scaleSetName string) GetByVMIDOption {
+	return func(c *GetByVMIDConfig) {
+		c.VMScaleSetName = scaleSetName
+	}
 }
 
 // VirtualMachine represents an Azure virtual machine.
@@ -74,8 +96,12 @@ type Identity struct {
 }
 
 type vmClient struct {
+	// resourceGroupName represents the VMs resource group name.
+	resourceGroupName string
 	// api is the Azure virtual machine client.
 	api armCompute
+	// scaleSetAPI is the Azure VM scale set client.
+	scaleSetAPI scaleSet
 }
 
 // NewVirtualMachinesClient creates a new Azure virtual machines client by
@@ -85,46 +111,75 @@ func NewVirtualMachinesClient(subscription string, cred azcore.TokenCredential, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	scaleSetAPI, err := armcompute.NewVirtualMachineScaleSetVMsClient(subscription, cred, options)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return NewVirtualMachinesClientByAPI(computeAPI), nil
+	return NewVirtualMachinesClientByAPI(computeAPI, scaleSetAPI), nil
 }
 
 // NewVirtualMachinesClientByAPI creates a new Azure virtual machines client by
 // ARM API client.
-func NewVirtualMachinesClientByAPI(api armCompute) VirtualMachinesClient {
+func NewVirtualMachinesClientByAPI(api armCompute, scaleSetAPI scaleSet) VirtualMachinesClient {
 	return &vmClient{
-		api: api,
+		api:         api,
+		scaleSetAPI: scaleSetAPI,
 	}
 }
 
-func parseVirtualMachine(vm *armcompute.VirtualMachine) (*VirtualMachine, error) {
-	resourceID, err := arm.ParseResourceID(*vm.ID)
+type vmTypes interface {
+	*armcompute.VirtualMachine | *armcompute.VirtualMachineScaleSetVM
+}
+
+func parseVirtualMachine[T vmTypes](vm T) (*VirtualMachine, error) {
+	var (
+		id       string
+		name     string
+		identity *armcompute.VirtualMachineIdentity
+		vmID     *string
+	)
+
+	switch v := any(vm).(type) {
+	case *armcompute.VirtualMachine:
+		id = *v.ID
+		name = *v.Name
+		identity = v.Identity
+		if v.Properties != nil {
+			vmID = v.Properties.VMID
+		}
+
+	case *armcompute.VirtualMachineScaleSetVM:
+		id = *v.ID
+		name = *v.Name
+		identity = v.Identity
+		if v.Properties != nil {
+			vmID = v.Properties.VMID
+		}
+	}
+
+	resourceID, err := arm.ParseResourceID(id)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var identities []Identity
-	if vm.Identity != nil {
-		if systemAssigned := StringVal(vm.Identity.PrincipalID); systemAssigned != "" {
+	if identity != nil {
+		if systemAssigned := StringVal(identity.PrincipalID); systemAssigned != "" {
 			identities = append(identities, Identity{ResourceID: systemAssigned})
 		}
 
-		for identityID := range vm.Identity.UserAssignedIdentities {
+		for identityID := range identity.UserAssignedIdentities {
 			identities = append(identities, Identity{ResourceID: identityID})
 		}
 	}
 
-	var vmID string
-	if vm.Properties != nil {
-		vmID = *vm.Properties.VMID
-	}
-
 	return &VirtualMachine{
-		ID:            *vm.ID,
-		Name:          *vm.Name,
+		ID:            id,
+		Name:          name,
 		Subscription:  resourceID.SubscriptionID,
 		ResourceGroup: resourceID.ResourceGroupName,
-		VMID:          vmID,
+		VMID:          StringVal(vmID),
 		Identities:    identities,
 	}, nil
 }
@@ -146,7 +201,16 @@ func (c *vmClient) Get(ctx context.Context, resourceID string) (*VirtualMachine,
 }
 
 // GetByVMID returns the virtual machine for a given VM ID.
-func (c *vmClient) GetByVMID(ctx context.Context, vmID string) (*VirtualMachine, error) {
+func (c *vmClient) GetByVMID(ctx context.Context, vmID string, opts ...GetByVMIDOption) (*VirtualMachine, error) {
+	cfg := &GetByVMIDConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	if cfg.VMScaleSetName != "" {
+		return c.getScaleSetVM(ctx, vmID, cfg.VMScaleSetName)
+	}
+
 	pager := newListAllPager(c.api.NewListAllPager(&armcompute.VirtualMachinesClientListAllOptions{}))
 	for pager.more() {
 		res, err := pager.nextPage(ctx)
@@ -162,6 +226,16 @@ func (c *vmClient) GetByVMID(ctx context.Context, vmID string) (*VirtualMachine,
 		}
 	}
 	return nil, trace.NotFound("no VM with ID %q", vmID)
+}
+
+func (c *vmClient) getScaleSetVM(ctx context.Context, vmID, scaleSetName string) (*VirtualMachine, error) {
+	resp, err := c.scaleSetAPI.Get(ctx, c.resourceGroupName, scaleSetName, vmID, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	result, err := parseVirtualMachine(&resp.VirtualMachineScaleSetVM)
+	return result, trace.Wrap(err)
 }
 
 type vmPager struct {
