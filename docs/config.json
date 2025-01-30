@@ -299,6 +299,7 @@
       "destination": "/admin-guides/access-controls/guides/role-templates/",
       "permanent": true
     },
+<<<<<<< HEAD
     {
       "source": "/access-controls/guides/headless/",
       "destination": "/admin-guides/access-controls/guides/headless/",
@@ -359,6 +360,8 @@
       "destination": "/admin-guides/access-controls/device-trust/guide/",
       "permanent": true
     }
+=======
+>>>>>>> 9b055cbeb6 (adding comma)
     {
       "source": "/docs/access-controls/guides/headless/",
       "destination": "/docs/admin-guides/access-controls/guides/headless/",
