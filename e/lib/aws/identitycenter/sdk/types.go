@@ -45,6 +45,8 @@ type Assignment struct {
 	AccountID string
 	// PermissionSetARN is an ARN value of the assigned permission set.
 	PermissionSetARN string
+	// PrincipalType is the type of principal assigned to the account assignment.
+	PrincipalType ssoAdminTypes.PrincipalType
 }
 
 // User represents Identity Center users.

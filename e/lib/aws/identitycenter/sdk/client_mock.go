@@ -393,10 +393,29 @@ func (c *ClientMock) ListAssignments(ctx context.Context, principalID string, pr
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 
+	var userAssignments, groupAssignments []*Assignment
 	switch principalType {
 	case ssoadmintypes.PrincipalTypeUser:
-		return c.UserAssignments[principalID], nil
+		userAssignments = append(userAssignments, c.UserAssignments[principalID]...)
+		for _, v := range userAssignments {
+			v.PrincipalType = ssoadmintypes.PrincipalTypeUser
+		}
+		for groupID, members := range c.GroupMemberships {
+			for _, member := range members {
+				if member.MemberID == principalID {
+					// Add group assignments for this user
+					groupAssignments = append(groupAssignments, c.GroupAssignments[groupID]...)
+				}
+			}
+		}
+		for _, v := range groupAssignments {
+			v.PrincipalType = ssoadmintypes.PrincipalTypeGroup
+		}
+		return append(userAssignments, groupAssignments...), nil
 	case ssoadmintypes.PrincipalTypeGroup:
+		for _, v := range c.GroupAssignments[principalID] {
+			v.PrincipalType = ssoadmintypes.PrincipalTypeGroup
+		}
 		return c.GroupAssignments[principalID], nil
 	default:
 		return nil, trace.BadParameter("unsupported principal type %q", principalType)

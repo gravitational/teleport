@@ -52,7 +52,7 @@ func (a *AssignmentProvisioner) Provision(ctx context.Context, principal *pb.Pri
 		"principal_assignment", principal.GetMetadata().GetName(),
 	)
 
-	awsAssignments, err := a.SDKClient.ListAssignments(ctx, externalID, principalType)
+	awsAssignments, err := a.fetchAWSAssignments(ctx, externalID, principalType)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -143,6 +143,27 @@ func (a *AssignmentProvisioner) deleteAssignment(ctx context.Context, externalID
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// fetchAWSAssignments retrieves the assignments from AWS Identity Center
+// and filters them by the principal type if necessary.
+func (a *AssignmentProvisioner) fetchAWSAssignments(ctx context.Context, externalID string, principalType ssoadmintypes.PrincipalType) ([]*icsdk.Assignment, error) {
+	awsAssignments, err := a.SDKClient.ListAssignments(ctx, externalID, principalType)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return filterAssignmentsByType(awsAssignments, principalType), nil
+}
+
+// filterAssignmentsByType filters a list of assignments by the given principal type.
+func filterAssignmentsByType(in []*icsdk.Assignment, principalType ssoadmintypes.PrincipalType) []*icsdk.Assignment {
+	out := make([]*icsdk.Assignment, 0, len(in))
+	for _, v := range in {
+		if v.PrincipalType == principalType {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 type assignmentDiffCalculator struct {

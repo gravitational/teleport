@@ -59,8 +59,8 @@ func TestAssignmentProvisioner_Provision_CreateAndDeleteAssignments(t *testing.T
 	require.NoError(t, err)
 
 	want := []*icsdk.Assignment{
-		{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
-		{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::0987654321:permissionSet/Admin"},
+		{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly", PrincipalType: ssoadmintypes.PrincipalTypeGroup},
+		{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::0987654321:permissionSet/Admin", PrincipalType: ssoadmintypes.PrincipalTypeGroup},
 	}
 
 	assertAssignments(t, want, got)
@@ -84,7 +84,7 @@ func TestAssignmentProvisioner_Provision_CreateAndDeleteAssignments(t *testing.T
 	got, err = sdkMockClient.ListAssignments(ctx, externalID, ssoadmintypes.PrincipalTypeGroup)
 	require.NoError(t, err)
 	want = []*icsdk.Assignment{
-		{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
+		{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly", PrincipalType: ssoadmintypes.PrincipalTypeGroup},
 	}
 	assertAssignments(t, want, got)
 }
@@ -150,6 +150,43 @@ func TestAssignmentDiffCalculator(t *testing.T) {
 			require.ElementsMatch(t, tc.wantToCreate, gotToCreate.Elements())
 		})
 	}
+}
+
+func TestFetchAWSAssignments_UserType(t *testing.T) {
+	mockClient := &icsdk.ClientMock{
+		MockedAWSStateType: icsdk.NewMockedAWSState(),
+	}
+
+	assignmentService := &mockAssignmentService{
+		UpdatePrincipalAssignmentFunc: func(ctx context.Context, assignment *pb.PrincipalAssignment) (*pb.PrincipalAssignment, error) {
+			assignment.Status.ProvisioningState = pb.ProvisioningState_PROVISIONING_STATE_PROVISIONED
+			return assignment, nil
+		},
+	}
+
+	provisioner, err := NewAssignmentProvisioner(ProvisionerConfig{
+		Assignment: assignmentService,
+		SDKClient:  mockClient,
+	})
+	require.NoError(t, err)
+
+	var assignees = []*pb.AccountAssignmentRef{
+		{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
+	}
+
+	principal := &pb.PrincipalAssignment{
+		Spec: &pb.PrincipalAssignmentSpec{
+			ExternalId:    "user2",
+			PrincipalType: pb.PrincipalType_PRINCIPAL_TYPE_USER,
+		},
+		Status: &pb.PrincipalAssignmentStatus{
+			Assignments:       assignees,
+			ProvisioningState: pb.ProvisioningState_PROVISIONING_STATE_STALE,
+		},
+	}
+
+	_, err = provisioner.Provision(context.Background(), principal)
+	require.NoError(t, err)
 }
 
 type mockAssignmentService struct {

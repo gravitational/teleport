@@ -441,6 +441,7 @@ func (c *client) ListAssignments(ctx context.Context, principalID string, princi
 			out = append(out, &Assignment{
 				AccountID:        aws.ToString(v.AccountId),
 				PermissionSetARN: aws.ToString(v.PermissionSetArn),
+				PrincipalType:    v.PrincipalType,
 			})
 		}
 		nextToken = resp.NextToken
