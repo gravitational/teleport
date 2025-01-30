@@ -41,8 +41,11 @@ const (
 const (
 	botInstanceActivityReportsPrefix = "botInstanceActivityReports"
 	userActivityReportsPrefix        = "userActivityReports"
-	userActivityReportsLock          = "userActivityReportsLock"
-	ResourcePresenceReportsPrefix    = "resourcePresenceReports"
+	// usageReportingLock is a lock that should be held when submitting usage
+	// reports to the upstream service. Whilst the underlying key refers
+	// specifically to "userActivityReports", this is inaccurate.
+	usageReportingLock            = "userActivityReportsLock"
+	ResourcePresenceReportsPrefix = "resourcePresenceReports"
 )
 
 // userActivityReportKey returns the backend key for a user activity report with
@@ -273,18 +276,18 @@ func (r reportService) listUserActivityReports(ctx context.Context, count int) (
 	return reports, nil
 }
 
-// createUserActivityReportsLock creates a lock that protects all data
-// submission - rather than just user activity as the name suggests.
-func (r reportService) createUserActivityReportsLock(ctx context.Context, ttl time.Duration, payload []byte) error {
+// createUsageReportingLock creates a lock that should be held when reading
+// reports and submitting them to the upstream service.
+func (r reportService) createUsageReportingLock(ctx context.Context, ttl time.Duration, payload []byte) error {
 	if len(payload) == 0 {
 		payload = []byte("null")
 	}
-	lockKey := backend.NewKey(userActivityReportsLock)
+	lockKey := backend.NewKey(usageReportingLock)
 	// HACK(espadolini): dynamodbbk doesn't let you Create over an expired item
 	// but it will explicitly delete expired items on a Get; in addition, reads
 	// are cheaper than writes in most backends, so we do a Get here first
 	if _, err := r.b.Get(ctx, lockKey); err == nil {
-		return trace.AlreadyExists(userActivityReportsLock + " already exists")
+		return trace.AlreadyExists(usageReportingLock + " already exists")
 	} else if !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}

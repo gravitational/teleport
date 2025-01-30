@@ -125,13 +125,13 @@ func TestLock(t *testing.T) {
 
 	svc := reportService{bk}
 
-	require.NoError(t, svc.createUserActivityReportsLock(ctx, 2*time.Minute, nil))
+	require.NoError(t, svc.createUsageReportingLock(ctx, 2*time.Minute, nil))
 	clk.Advance(time.Minute)
-	err = svc.createUserActivityReportsLock(ctx, 2*time.Minute, nil)
+	err = svc.createUsageReportingLock(ctx, 2*time.Minute, nil)
 	require.Error(t, err)
 	require.True(t, trace.IsAlreadyExists(err))
 	clk.Advance(time.Minute)
-	require.NoError(t, svc.createUserActivityReportsLock(ctx, 2*time.Minute, nil))
+	require.NoError(t, svc.createUsageReportingLock(ctx, 2*time.Minute, nil))
 }
 
 func newResourcePresenceReport(startTime time.Time) *prehogv1.ResourcePresenceReport {
