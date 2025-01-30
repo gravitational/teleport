@@ -25,9 +25,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/types"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
@@ -183,7 +185,7 @@ func TestReporter(t *testing.T) {
 	require.Equal(t, uint64(1), rec2.KubeSessions)
 }
 
-func TestReporterBotInstanceActivity(t *testing.T) {
+func TestReporterMachineWorkloadIdentityActivity(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	clk := clockwork.NewFakeClock()
@@ -287,18 +289,59 @@ func TestReporterBotInstanceActivity(t *testing.T) {
 	userActivityReports, err := svc.listUserActivityReports(ctx, 10)
 	require.NoError(t, err)
 	require.Len(t, userActivityReports, 1)
-	require.Len(t, userActivityReports[0].Records, 1)
-	userActivityRecord := userActivityReports[0].Records[0]
-	require.Equal(t, uint64(1), userActivityRecord.BotJoins)
-	require.Equal(t, uint64(3), userActivityRecord.SpiffeSvidsIssued)
-	require.Equal(t, uint64(1), userActivityRecord.CertificatesIssued)
+	require.Empty(t, cmp.Diff(
+		userActivityReports[0].Records,
+		[]*prehogv1.UserActivityRecord{
+			{
+				UserName:           anonymizer.AnonymizeNonEmpty("bot-bob"),
+				UserKind:           prehogv1.UserKind_USER_KIND_BOT,
+				BotJoins:           1,
+				SpiffeSvidsIssued:  3,
+				CertificatesIssued: 1,
+				SpiffeIdsIssued: []*prehogv1.SPIFFEIDRecord{
+					{
+						SpiffeId:    anonymizer.AnonymizeNonEmpty("spiffe://clustername/bot/bob"),
+						SvidsIssued: 2,
+					},
+					{
+						SpiffeId:    anonymizer.AnonymizeNonEmpty("spiffe://clustername/bot/bob-2"),
+						SvidsIssued: 1,
+					},
+				},
+			},
+			{
+				UserName:          anonymizer.AnonymizeNonEmpty("jen"),
+				UserKind:          prehogv1.UserKind_USER_KIND_HUMAN,
+				SpiffeSvidsIssued: 1,
+				SpiffeIdsIssued: []*prehogv1.SPIFFEIDRecord{
+					{
+						SpiffeId:    anonymizer.AnonymizeNonEmpty("spiffe://clustername/jen"),
+						SvidsIssued: 1,
+					},
+				},
+			},
+		},
+		protocmp.Transform(),
+		protocmp.SortRepeated(func(u1, u2 *prehogv1.UserActivityRecord) bool {
+			return bytes.Compare(u1.GetUserName(), u2.GetUserName()) == -1
+		}),
+		protocmp.SortRepeated(func(u1, u2 *prehogv1.SPIFFEIDRecord) bool {
+			return bytes.Compare(u1.GetSpiffeId(), u2.GetSpiffeId()) == -1
+		}),
+	))
+
+	botUserRecordIndex := slices.IndexFunc(userActivityReports[0].Records, func(record *prehogv1.UserActivityRecord) bool {
+		return bytes.Equal(record.UserName, anonymizer.AnonymizeNonEmpty("bot-bob"))
+	})
+	require.GreaterOrEqual(t, botUserRecordIndex, 0)
+	botUserRecord := userActivityReports[0].Records[botUserRecordIndex]
 
 	botInstanceActivityReports, err := svc.listBotInstanceActivityReports(ctx, 10)
 	require.NoError(t, err)
 	require.Len(t, botInstanceActivityReports, 1)
 	require.Len(t, botInstanceActivityReports[0].Records, 2)
 	for _, record := range botInstanceActivityReports[0].Records {
-		require.Equal(t, userActivityRecord.UserName, record.BotUserName)
+		require.Equal(t, botUserRecord.UserName, record.BotUserName)
 	}
 	require.True(t, slices.ContainsFunc(botInstanceActivityReports[0].Records, func(record *prehogv1.BotInstanceActivityRecord) bool {
 		return record.BotJoins == 1 && record.CertificatesIssued == 1 && record.SpiffeSvidsIssued == 2
