@@ -135,7 +135,7 @@ describe('restoring workspace', () => {
     expect(workspacesService.getRestoredState().workspaces).toStrictEqual({});
   });
 
-  it('restores profile color from state or assigns if empty', async () => {
+  it('restores workspace color from state or assigns if empty', async () => {
     const clusterFoo = makeRootCluster({ uri: '/clusters/foo' });
     const workspaceFoo: PersistedWorkspace = {
       color: 'blue',
