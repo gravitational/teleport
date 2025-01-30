@@ -9,23 +9,20 @@ import {
   requiredField,
 } from 'shared/components/Validation/rules';
 
-import cfg from 'teleport/config';
-
-import { FormDataField } from './types';
+import {
+  FormDataField,
+  getSupportedEmailServices,
+  SupportedEmailService,
+  supportedEmailServiceLabel,
+} from './types';
 
 export function FormMixin() {
   const [sender, setSender] = useState('');
   const [fallbackRecipient, setFallbackRecipient] = useState('');
-  const [service, setService] = useState<Option>({
-    value: 'mailgun',
-    label: 'Mailgun',
-  });
-
-  // SMTP is disabled for Cloud-Hosted Teleport
-  let opts = [{ value: 'mailgun', label: 'Mailgun' }];
-  if (!cfg.isCloud) {
-    opts.push({ value: 'smtp', label: 'SMTP' });
-  }
+  const supportedServices = getSupportedEmailServices();
+  const [service, setService] = useState<SupportedEmailService>(
+    supportedServices[0]
+  );
 
   return (
     <Box width="800px">
@@ -51,19 +48,28 @@ export function FormMixin() {
         toolTipContent="Fallback Recipient is the default recipient of Access Request notifications"
         mb={3}
       />
-      <FieldSelect
+      {
+        // This select must be rendered even if there's only one element, as the chosen service is
+        // read from form data on submit and used in the next step. FieldSelect doesn't support
+        // readonly prop which could be useful here.
+      }
+      <FieldSelect<Option>
         width="500px"
         label="Email Service"
         name={FormDataField.Service}
-        rule={requiredField<Option>('Email Service Required')}
-        value={service}
-        onChange={o => setService(o as Option)}
-        options={opts}
+        rule={requiredField('Email Service Required')}
+        value={serviceToOption(service)}
+        onChange={o => setService(o.value as SupportedEmailService)}
+        options={supportedServices.map(serviceToOption)}
         placeholder="Select email service"
-        toolTipContent="Email Service selects the desired email service"
-        isSearchable
+        isSearchable={false}
         mb={3}
       />
     </Box>
   );
 }
+
+const serviceToOption = (service: SupportedEmailService): Option => ({
+  value: service,
+  label: supportedEmailServiceLabel(service),
+});

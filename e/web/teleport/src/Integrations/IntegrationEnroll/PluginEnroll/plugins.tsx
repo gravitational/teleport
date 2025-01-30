@@ -26,6 +26,10 @@ import { AwsIdentityCenterPlugin } from './MultiStep/AwsIdentityCenter/Plugin';
 import { CreateEmail } from './MultiStep/Email/CreateEmail';
 import { EmailService } from './MultiStep/Email/EmailService';
 import { FormMixin as EmailFormMixin } from './MultiStep/Email/FormMixin';
+import {
+  getSupportedEmailServices,
+  supportedEmailServiceLabel,
+} from './MultiStep/Email/types';
 import { CreateEntra } from './MultiStep/Entra/CreateEntra';
 import { FormMixin as EntraFormMixin } from './MultiStep/Entra/FormMixin';
 import { RunScript } from './MultiStep/Entra/RunScript';
@@ -1108,20 +1112,37 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
         </P>
       </Text>
     ),
-    Setup: () => (
-      <Text>
-        <ol>
-          <li>
-            Configure the desired sender email and default fallback recipient.
-          </li>
-          <li>
-            Currently supported services are <strong>Mailgun</strong> and
-            generic <strong>SMTP</strong>. Select the desired email service and
-            click next for further configuration.
-          </li>
-        </ol>
-      </Text>
-    ),
+    Setup: () => {
+      const supportedServices = getSupportedEmailServices();
+
+      return (
+        <Text>
+          <ol>
+            <li>
+              Configure the desired sender email and default fallback recipient.
+            </li>
+            {supportedServices.length == 1 ? (
+              <li>
+                Currently the only supported service is{' '}
+                <strong>
+                  {supportedEmailServiceLabel(supportedServices[0])}
+                </strong>
+                . Click next for further configuration.
+              </li>
+            ) : (
+              <li>
+                Currently supported services are{' '}
+                {new Intl.ListFormat('en-US').format(
+                  supportedServices.map(supportedEmailServiceLabel)
+                )}
+                . Select the desired email service and click next for further
+                configuration.
+              </li>
+            )}
+          </ol>
+        </Text>
+      );
+    },
     views: () => [
       { title: 'Connect Email', component: CreateEmail },
       { title: 'Set up Email Service', component: EmailService },

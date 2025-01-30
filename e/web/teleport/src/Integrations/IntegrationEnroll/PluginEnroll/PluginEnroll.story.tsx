@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import cfg from 'teleport/config';
@@ -65,6 +65,21 @@ export const EnrollMsteams = () =>
 
 export const EnrollEmail = () =>
   renderPluginEnroll('', cfg.getIntegrationEnrollRoute('email'));
+
+export const EnrollEmailCloud = () => {
+  const [, setState] = useState({});
+
+  useEffect(() => {
+    const defaultIsCloud = cfg.isCloud;
+    cfg.isCloud = true;
+    setState({}); // Rerender component with updated cfg.
+    return () => {
+      cfg.isCloud = defaultIsCloud;
+    };
+  }, []);
+
+  return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('email'));
+};
 
 export const EnrollSuccess = () =>
   renderPluginEnroll(
