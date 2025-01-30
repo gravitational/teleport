@@ -25,7 +25,7 @@ const firstScreenCopy = (
     uses an external identity source (such as Okta), you can configure the
     corresponding{' '}
     <Link
-      href="https://goteleport.com/docs/admin-guides/access-controls/sso/sso/"
+      href="https://goteleport.com/docs/admin-guides/access-controls/sso/"
       target="_blank"
     >
       SSO connector
@@ -41,7 +41,7 @@ const identitySourceScreenCopy = (
     Center instance uses an external identity source (such as Okta), you can
     configure the corresponding{' '}
     <Link
-      href="https://goteleport.com/docs/admin-guides/access-controls/sso/sso/"
+      href="https://goteleport.com/docs/admin-guides/access-controls/sso/"
       target="_blank"
     >
       SSO connector
