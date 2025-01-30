@@ -151,6 +151,7 @@ func (m *latencyModel) View() string {
 		[][]float64{clientData, serverData},
 		asciigraph.Height(m.h-4),
 		asciigraph.Width(m.w),
+		asciigraph.UpperBound(1),
 		asciigraph.SeriesColors(clientColor, serverColor),
 		asciigraph.Caption(legend),
 	)
