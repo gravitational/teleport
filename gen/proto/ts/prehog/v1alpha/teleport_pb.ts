@@ -406,6 +406,13 @@ export interface UserCertificateIssuedEvent {
      * @generated from protobuf field: string private_key_policy = 8;
      */
     privateKeyPolicy: string;
+    /**
+     * bot_instance_id is the anonymized instance id of the bot, if the user is
+     * a Bot.
+     *
+     * @generated from protobuf field: string bot_instance_id = 9;
+     */
+    botInstanceId: string;
 }
 /**
  * the issuance of a SPIFFE SVID
@@ -460,6 +467,13 @@ export interface SPIFFESVIDIssuedEvent {
      * @generated from protobuf field: string svid_type = 6;
      */
     svidType: string;
+    /**
+     * bot_instance_id is the anonymized instance id of the bot, if the user is
+     * a Bot.
+     *
+     * @generated from protobuf field: string bot_instance_id = 7;
+     */
+    botInstanceId: string;
 }
 /**
  * UIBannerClickEvent is a usage event sent by the UI when the upgrade
@@ -1271,6 +1285,12 @@ export interface BotJoinEvent {
      * @generated from protobuf field: string user_name = 4;
      */
     userName: string;
+    /**
+     * bot_instance_id is the anonymized instance id of the bot.
+     *
+     * @generated from protobuf field: string bot_instance_id = 5;
+     */
+    botInstanceId: string;
 }
 /**
  * UICreateNewRoleClickEvent is an event that can be triggered during custom role creation
@@ -4419,7 +4439,8 @@ class UserCertificateIssuedEvent$Type extends MessageType<UserCertificateIssuedE
             { no: 5, name: "usage_app", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 6, name: "usage_kubernetes", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 7, name: "usage_desktop", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 8, name: "private_key_policy", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 8, name: "private_key_policy", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 9, name: "bot_instance_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<UserCertificateIssuedEvent>): UserCertificateIssuedEvent {
@@ -4431,6 +4452,7 @@ class UserCertificateIssuedEvent$Type extends MessageType<UserCertificateIssuedE
         message.usageKubernetes = false;
         message.usageDesktop = false;
         message.privateKeyPolicy = "";
+        message.botInstanceId = "";
         if (value !== undefined)
             reflectionMergePartial<UserCertificateIssuedEvent>(this, message, value);
         return message;
@@ -4463,6 +4485,9 @@ class UserCertificateIssuedEvent$Type extends MessageType<UserCertificateIssuedE
                     break;
                 case /* string private_key_policy */ 8:
                     message.privateKeyPolicy = reader.string();
+                    break;
+                case /* string bot_instance_id */ 9:
+                    message.botInstanceId = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -4500,6 +4525,9 @@ class UserCertificateIssuedEvent$Type extends MessageType<UserCertificateIssuedE
         /* string private_key_policy = 8; */
         if (message.privateKeyPolicy !== "")
             writer.tag(8, WireType.LengthDelimited).string(message.privateKeyPolicy);
+        /* string bot_instance_id = 9; */
+        if (message.botInstanceId !== "")
+            writer.tag(9, WireType.LengthDelimited).string(message.botInstanceId);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -4519,7 +4547,8 @@ class SPIFFESVIDIssuedEvent$Type extends MessageType<SPIFFESVIDIssuedEvent> {
             { no: 3, name: "spiffe_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "ip_sans_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
             { no: 5, name: "dns_sans_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 6, name: "svid_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 6, name: "svid_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 7, name: "bot_instance_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<SPIFFESVIDIssuedEvent>): SPIFFESVIDIssuedEvent {
@@ -4530,6 +4559,7 @@ class SPIFFESVIDIssuedEvent$Type extends MessageType<SPIFFESVIDIssuedEvent> {
         message.ipSansCount = 0;
         message.dnsSansCount = 0;
         message.svidType = "";
+        message.botInstanceId = "";
         if (value !== undefined)
             reflectionMergePartial<SPIFFESVIDIssuedEvent>(this, message, value);
         return message;
@@ -4556,6 +4586,9 @@ class SPIFFESVIDIssuedEvent$Type extends MessageType<SPIFFESVIDIssuedEvent> {
                     break;
                 case /* string svid_type */ 6:
                     message.svidType = reader.string();
+                    break;
+                case /* string bot_instance_id */ 7:
+                    message.botInstanceId = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -4587,6 +4620,9 @@ class SPIFFESVIDIssuedEvent$Type extends MessageType<SPIFFESVIDIssuedEvent> {
         /* string svid_type = 6; */
         if (message.svidType !== "")
             writer.tag(6, WireType.LengthDelimited).string(message.svidType);
+        /* string bot_instance_id = 7; */
+        if (message.botInstanceId !== "")
+            writer.tag(7, WireType.LengthDelimited).string(message.botInstanceId);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -6638,7 +6674,8 @@ class BotJoinEvent$Type extends MessageType<BotJoinEvent> {
             { no: 1, name: "bot_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "join_method", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "join_token_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 4, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "bot_instance_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<BotJoinEvent>): BotJoinEvent {
@@ -6647,6 +6684,7 @@ class BotJoinEvent$Type extends MessageType<BotJoinEvent> {
         message.joinMethod = "";
         message.joinTokenName = "";
         message.userName = "";
+        message.botInstanceId = "";
         if (value !== undefined)
             reflectionMergePartial<BotJoinEvent>(this, message, value);
         return message;
@@ -6667,6 +6705,9 @@ class BotJoinEvent$Type extends MessageType<BotJoinEvent> {
                     break;
                 case /* string user_name */ 4:
                     message.userName = reader.string();
+                    break;
+                case /* string bot_instance_id */ 5:
+                    message.botInstanceId = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -6692,6 +6733,9 @@ class BotJoinEvent$Type extends MessageType<BotJoinEvent> {
         /* string user_name = 4; */
         if (message.userName !== "")
             writer.tag(4, WireType.LengthDelimited).string(message.userName);
+        /* string bot_instance_id = 5; */
+        if (message.botInstanceId !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.botInstanceId);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

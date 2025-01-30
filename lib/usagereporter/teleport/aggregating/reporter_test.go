@@ -21,6 +21,7 @@ package aggregating
 import (
 	"bytes"
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -182,4 +183,114 @@ func TestReporter(t *testing.T) {
 	require.Equal(t, uint64(1), rec2.Logins)
 	require.Equal(t, uint64(0), rec1.KubeSessions)
 	require.Equal(t, uint64(1), rec2.KubeSessions)
+}
+
+func TestReporterBotInstanceActivity(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	clk := clockwork.NewFakeClock()
+	bk, err := memory.New(memory.Config{
+		Clock: clk,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+	// we set up a watcher to not have to poll the backend for newly added items
+	// we expect
+	w, err := bk.NewWatcher(ctx, backend.Watch{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, w.Close()) })
+	recvBackendEvent := func() backend.Event {
+		select {
+		case e := <-w.Events():
+			return e
+		case <-time.After(time.Second):
+			t.Fatal("failed to get backend event")
+			return backend.Event{}
+		}
+	}
+	require.Equal(t, types.OpInit, recvBackendEvent().Type)
+
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "clustername",
+	})
+	require.NoError(t, err)
+
+	anonymizer, err := utils.NewHMACAnonymizer("0123456789abcdef")
+	require.NoError(t, err)
+
+	r, err := NewReporter(ctx, ReporterConfig{
+		Backend:     bk,
+		Clock:       clk,
+		ClusterName: clusterName,
+		HostID:      uuid.NewString(),
+		Anonymizer:  anonymizer,
+	})
+	require.NoError(t, err)
+
+	svc := reportService{bk}
+
+	r.ingested = make(chan usagereporter.Anonymizable, 4)
+	recvIngested := func() {
+		select {
+		case <-r.ingested:
+		case <-time.After(time.Second):
+			t.Fatal("failed to receive ingested event")
+		}
+	}
+
+	r.AnonymizeAndSubmit(&usagereporter.UserCertificateIssuedEvent{
+		UserName:      "bot-bob",
+		BotInstanceId: "0000-01",
+		IsBot:         true,
+	})
+	r.AnonymizeAndSubmit(&usagereporter.BotJoinEvent{
+		BotName:       "bob",
+		BotInstanceId: "0000-01",
+	})
+	// Submit for two different bot instances, we expect a useractivity record
+	// with a value of two, and two bot instance activity records with a single
+	// value of 1.
+	r.AnonymizeAndSubmit(&usagereporter.SPIFFESVIDIssuedEvent{
+		UserName:      "bot-bob",
+		BotInstanceId: "0000-01",
+		UserKind:      prehogv1a.UserKind_USER_KIND_BOT,
+	})
+	r.AnonymizeAndSubmit(&usagereporter.SPIFFESVIDIssuedEvent{
+		UserName:      "bot-bob",
+		BotInstanceId: "0000-02",
+		UserKind:      prehogv1a.UserKind_USER_KIND_BOT,
+	})
+	recvIngested()
+	recvIngested()
+	recvIngested()
+	recvIngested()
+
+	clk.BlockUntil(1)
+	clk.Advance(botInstanceActivityReportGranularity)
+
+	require.Equal(t, types.OpPut, recvBackendEvent().Type)
+	require.Equal(t, types.OpPut, recvBackendEvent().Type)
+
+	userActivityReports, err := svc.listUserActivityReports(ctx, 10)
+	require.NoError(t, err)
+	require.Len(t, userActivityReports, 1)
+	require.Len(t, userActivityReports[0].Records, 1)
+	userActivityRecord := userActivityReports[0].Records[0]
+	require.Equal(t, uint64(1), userActivityRecord.BotJoins)
+	require.Equal(t, uint64(2), userActivityRecord.SpiffeSvidsIssued)
+	require.Equal(t, uint64(1), userActivityRecord.CertificatesIssued)
+
+	botInstanceActivityReports, err := svc.listBotInstanceActivityReports(ctx, 10)
+	require.NoError(t, err)
+	require.Len(t, botInstanceActivityReports, 1)
+	require.Len(t, botInstanceActivityReports[0].Records, 2)
+	for _, record := range botInstanceActivityReports[0].Records {
+		require.Equal(t, userActivityRecord.UserName, record.BotUserName)
+	}
+	require.True(t, slices.ContainsFunc(botInstanceActivityReports[0].Records, func(record *prehogv1.BotInstanceActivityRecord) bool {
+		return record.BotJoins == 1 && record.CertificatesIssued == 1 && record.SpiffeSvidsIssued == 1
+	}))
+	require.True(t, slices.ContainsFunc(botInstanceActivityReports[0].Records, func(record *prehogv1.BotInstanceActivityRecord) bool {
+		return record.BotJoins == 0 && record.CertificatesIssued == 0 && record.SpiffeSvidsIssued == 1
+	}))
 }
