@@ -69,7 +69,7 @@ const mockAwsRdsDb: AwsRdsDatabase = {
   subnets: ['subnet1', 'subnet2'],
 };
 
-const mocKIntegration: IntegrationAwsOidc = {
+const mockIntegration: IntegrationAwsOidc = {
   kind: IntegrationKind.AwsOidc,
   name: integrationName,
   resourceType: 'integration',
@@ -214,7 +214,7 @@ function getMockedContexts() {
     agentMeta: {
       resourceName: 'db1',
       awsRegion: region,
-      awsIntegration: mocKIntegration,
+      awsIntegration: mockIntegration,
       selectedAwsRdsDb: mockAwsRdsDb,
       agentMatcherLabels: mockDbLabels,
     } as DbMeta,
