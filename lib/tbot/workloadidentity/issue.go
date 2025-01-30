@@ -70,7 +70,6 @@ func WorkloadIdentitiesLogValue(credentials []*workloadidentityv1pb.Credential) 
 
 type authClient interface {
 	WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient
-	cryptosuites.AuthPreferenceGetter
 }
 
 // IssueX509WorkloadIdentity uses a given client and selector to issue a single
