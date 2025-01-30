@@ -20,14 +20,14 @@ import { MouseEvent, ReactNode } from 'react';
 import styled from 'styled-components';
 
 import {
-  ProfileColor,
-  profileColorMapping,
+  WorkspaceColor,
+  workspaceColorMapping,
 } from 'teleterm/ui/services/workspacesService';
 
 export function UserIcon(props: {
   letter: string;
   /** If not provided, a default neutral color is rendered. */
-  color?: ProfileColor;
+  color?: WorkspaceColor;
   onClick?(e: MouseEvent<HTMLSpanElement>): void;
   children?: ReactNode;
   interactive?: boolean;
@@ -39,7 +39,7 @@ export function UserIcon(props: {
       size={props.size === 'big' ? '34px' : '30px'}
       onClick={props.onClick}
       interactive={props.interactive}
-      color={profileColorMapping[props.color]}
+      color={workspaceColorMapping[props.color]}
     >
       {props.letter?.toLocaleUpperCase()}
       {props.children}

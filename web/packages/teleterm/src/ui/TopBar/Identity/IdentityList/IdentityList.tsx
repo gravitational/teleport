@@ -25,7 +25,7 @@ import Link from 'design/Link';
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
 import { ProfileStatusError } from 'teleterm/ui/components/ProfileStatusError';
-import { ProfileColor } from 'teleterm/ui/services/workspacesService';
+import { WorkspaceColor } from 'teleterm/ui/services/workspacesService';
 import { DeviceTrustStatus } from 'teleterm/ui/TopBar/Identity/Identity';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
@@ -39,9 +39,9 @@ import {
 
 export function ActiveCluster(props: {
   activeCluster: Cluster | undefined;
-  activeColor: ProfileColor;
+  activeColor: WorkspaceColor;
   deviceTrustStatus: DeviceTrustStatus;
-  onChangeColor(color: ProfileColor): void;
+  onChangeColor(color: WorkspaceColor): void;
   onRefresh(): void;
   onLogout(): void;
 }) {

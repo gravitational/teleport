@@ -24,20 +24,22 @@ import { Pencil } from 'design/Icon';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
 import {
-  ProfileColor,
-  profileColorMapping,
-  profileColors,
+  WorkspaceColor,
+  workspaceColorMapping,
+  workspaceColors,
 } from 'teleterm/ui/services/workspacesService';
 
 import { UserIcon } from '../IdentitySelector/UserIcon';
 
 export function ColorPicker(props: {
   letter: string;
-  color: ProfileColor;
-  setColor(color: ProfileColor): void;
+  color: WorkspaceColor;
+  setColor(color: WorkspaceColor): void;
 }) {
   const [open, setOpen] = useState(false);
-  const [hoveredColor, setHoveredColor] = useState<ProfileColor | undefined>();
+  const [hoveredColor, setHoveredColor] = useState<
+    WorkspaceColor | undefined
+  >();
   const ref = useRefClickOutside<HTMLDivElement>({ open, setOpen });
 
   const userIconProps = {
@@ -77,15 +79,15 @@ export function ColorPicker(props: {
             color={hoveredColor || props.color}
           />
           <Flex alignItems="center" flexDirection="row" gap={2} px={2}>
-            {profileColors.options.map(profileColor => (
+            {workspaceColors.options.map(color => (
               <Circle
                 tabIndex={0}
-                key={profileColor}
-                color={profileColorMapping[profileColor]}
-                onMouseEnter={() => setHoveredColor(profileColor)}
+                key={color}
+                color={workspaceColorMapping[color]}
+                onMouseEnter={() => setHoveredColor(color)}
                 onMouseLeave={() => setHoveredColor(undefined)}
                 onClick={() => {
-                  props.setColor(profileColor);
+                  props.setColor(color);
                   setOpen(false);
                 }}
               />

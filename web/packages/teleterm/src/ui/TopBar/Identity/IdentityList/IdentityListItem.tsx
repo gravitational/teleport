@@ -26,7 +26,7 @@ import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArro
 import { ListItem } from 'teleterm/ui/components/ListItem';
 import { ProfileStatusError } from 'teleterm/ui/components/ProfileStatusError';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
-import { ProfileColor } from 'teleterm/ui/services/workspacesService';
+import { WorkspaceColor } from 'teleterm/ui/services/workspacesService';
 
 import { UserIcon } from '../IdentitySelector/UserIcon';
 
@@ -41,7 +41,7 @@ export function IdentityListItem(props: {
     index: props.index,
     onRun: props.onSelect,
   });
-  const profileColor = useStoreSelector(
+  const workspaceColor = useStoreSelector(
     'workspacesService',
     useCallback(
       state => state.workspaces[props.cluster.uri]?.color,
@@ -61,7 +61,7 @@ export function IdentityListItem(props: {
       <Flex width="100%" justifyContent="space-between">
         <WithIconItem
           letter={getClusterLetter(props.cluster)}
-          color={profileColor}
+          color={workspaceColor}
           title={props.cluster.name}
           subtitle={props.cluster.loggedInUser?.name}
         />
@@ -129,7 +129,7 @@ function WithIconItem(props: {
   letter: string;
   title: string;
   subtitle?: string;
-  color?: ProfileColor;
+  color?: WorkspaceColor;
 }) {
   return (
     <Flex gap={2} alignItems="center">

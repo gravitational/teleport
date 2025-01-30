@@ -21,8 +21,8 @@ import { useCallback } from 'react';
 import { Cluster } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
-  ProfileColor,
   useWorkspaceServiceState,
+  WorkspaceColor,
 } from 'teleterm/ui/services/workspacesService';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
@@ -53,12 +53,12 @@ export function useIdentity() {
     return ctx.clustersService.findCluster(activeClusterUri);
   }
 
-  function changeColor(color: ProfileColor): undefined {
+  function changeColor(color: WorkspaceColor): undefined {
     const clusterUri = ctx.workspacesService.getRootClusterUri();
     if (!clusterUri) {
       return;
     }
-    ctx.workspacesService.changeProfileColor(clusterUri, color);
+    ctx.workspacesService.changeWorkspaceColor(clusterUri, color);
   }
 
   const rootClusters = ctx.clustersService

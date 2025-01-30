@@ -21,7 +21,7 @@ import { forwardRef } from 'react';
 import { Box } from 'design';
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
-import { ProfileColor } from 'teleterm/ui/services/workspacesService';
+import { WorkspaceColor } from 'teleterm/ui/services/workspacesService';
 import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 import { DeviceTrustStatus } from 'teleterm/ui/TopBar/Identity/Identity';
 import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
@@ -38,7 +38,7 @@ export const IdentitySelector = forwardRef<
     onClick(): void;
     makeTitle(userWithClusterName: string | undefined): string;
     deviceTrustStatus: DeviceTrustStatus;
-    activeColor: ProfileColor;
+    activeColor: WorkspaceColor;
   }
 >((props, ref) => {
   const selectorText =
