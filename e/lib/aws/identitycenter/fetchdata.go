@@ -9,6 +9,7 @@ import (
 	"github.com/gravitational/trace"
 
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	iccommon "github.com/gravitational/teleport/e/lib/aws/identitycenter/common"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/e/lib/provisioning"
 	"github.com/gravitational/teleport/lib/services"
@@ -80,6 +81,10 @@ func (svc *Service) fetchAccounts(ctx context.Context, idStoreID icsdk.IdentityS
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching accounts")
 	}
+
+	filterableItems := toFilterableAccounts(accountList)
+	accountList = iccommon.Filter(svc.importConfig.AccountFilters, filterableItems)
+
 	accounts := make(accountResourceMap, len(accountList))
 	for _, src := range accountList {
 		accountArn, err := arn.Parse(src.ARN)
@@ -110,4 +115,12 @@ func (svc *Service) fetchPermissionSets(ctx context.Context) (psResourceMap, err
 		permissionSets[getPermissionSetID(ps)] = ps
 	}
 	return permissionSets, nil
+}
+
+func toFilterableAccounts(items []*icsdk.Account) iccommon.FilterParams[*icsdk.Account] {
+	return iccommon.FilterParams[*icsdk.Account]{
+		Items:   items,
+		GetName: func(item *icsdk.Account) string { return item.Name },
+		GetID:   func(item *icsdk.Account) string { return item.ID },
+	}
 }

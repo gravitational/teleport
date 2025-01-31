@@ -66,6 +66,11 @@ type ImportConfig struct {
 	// GroupSyncFilter is a filter that is used to filter groups that are
 	// synchronized from Identity Center to Teleport.
 	GroupSyncFilter identitycentercommon.Filters
+
+	// AccountFilters is an optional collection of filters used to create an
+	// allow-list when importing AWS accounts. An empty collection implies
+	// "import everything"
+	AccountFilters identitycentercommon.Filters
 }
 
 func (cfg *ImportConfig) CheckAndSetDefaults() error {

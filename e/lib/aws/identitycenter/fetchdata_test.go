@@ -3,15 +3,19 @@ package identitycenter
 import (
 	"context"
 	"maps"
+	"slices"
 	"testing"
 
 	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
+	iccommon "github.com/gravitational/teleport/e/lib/aws/identitycenter/common"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
 	ictest "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestAWSDataFetch asserts that the data fetched from AWS is converted into
@@ -83,6 +87,116 @@ func TestAWSDataFetch(t *testing.T) {
 		}
 		require.Equal(t, expectedAccounts, data.accounts)
 	})
+}
+
+func TestFetchAccountFilters(t *testing.T) {
+	testCases := []struct {
+		name             string
+		awsAccounts      []*icsdk.Account
+		filters          iccommon.Filters
+		expectedAccounts []services.IdentityCenterAccount
+	}{
+		{
+			name: "unfiltered",
+			awsAccounts: []*icsdk.Account{
+				{Name: "alpha", ID: "1234567890", ARN: "arn:aws:iam:::account/alpha"},
+				{Name: "bravo", ID: "0987654321", ARN: "arn:aws:iam:::account/bravo"},
+			},
+			expectedAccounts: []services.IdentityCenterAccount{
+				ictest.Account{Name: "alpha", ID: "1234567890", ARN: "arn:aws:iam:::account/alpha"}.Build(),
+				ictest.Account{Name: "bravo", ID: "0987654321", ARN: "arn:aws:iam:::account/bravo"}.Build(),
+			},
+		},
+		{
+			name: "filtered by ID",
+			awsAccounts: []*icsdk.Account{
+				{Name: "alpha", ID: "1111111111", ARN: "arn:aws:iam:::account/alpha"},
+				{Name: "bravo", ID: "2222222222", ARN: "arn:aws:iam:::account/bravo"},
+				{Name: "charlie", ID: "3333333333", ARN: "arn:aws:iam:::account/charlie"},
+			},
+			filters: iccommon.Filters{
+				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_Id{Id: "2222222222"}},
+			},
+			expectedAccounts: []services.IdentityCenterAccount{
+				ictest.Account{Name: "bravo", ID: "2222222222", ARN: "arn:aws:iam:::account/bravo"}.Build(),
+			},
+		},
+		{
+			name: "filtered by regex",
+			awsAccounts: []*icsdk.Account{
+				{Name: "include-alpha", ID: "1111111111", ARN: "arn:aws:iam:::account/alpha"},
+				{Name: "exclude-bravo", ID: "2222222222", ARN: "arn:aws:iam:::account/bravo"},
+				{Name: "include-charlie", ID: "3333333333", ARN: "arn:aws:iam:::account/charlie"},
+			},
+			filters: iccommon.Filters{
+				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "^include-.*$"}},
+			},
+			expectedAccounts: []services.IdentityCenterAccount{
+				ictest.Account{Name: "include-alpha", ID: "1111111111", ARN: "arn:aws:iam:::account/alpha"}.Build(),
+				ictest.Account{Name: "include-charlie", ID: "3333333333", ARN: "arn:aws:iam:::account/charlie"}.Build(),
+			},
+		},
+		{
+			name: "filtered by glob",
+			awsAccounts: []*icsdk.Account{
+				{Name: "include-alpha", ID: "1111111111", ARN: "arn:aws:iam:::account/alpha"},
+				{Name: "exclude-bravo", ID: "2222222222", ARN: "arn:aws:iam:::account/bravo"},
+				{Name: "include-charlie", ID: "3333333333", ARN: "arn:aws:iam:::account/charlie"},
+			},
+			filters: iccommon.Filters{
+				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "include-*"}},
+			},
+			expectedAccounts: []services.IdentityCenterAccount{
+				ictest.Account{Name: "include-alpha", ID: "1111111111", ARN: "arn:aws:iam:::account/alpha"}.Build(),
+				ictest.Account{Name: "include-charlie", ID: "3333333333", ARN: "arn:aws:iam:::account/charlie"}.Build(),
+			},
+		},
+		{
+			name: "multiple filters",
+			awsAccounts: []*icsdk.Account{
+				{Name: "name-match-alpha", ID: "1111111111", ARN: "arn:aws:iam:::account/alpha"},
+				{Name: "id-match-bravo", ID: "2222222222", ARN: "arn:aws:iam:::account/bravo"},
+				{Name: "exclude-charlie", ID: "3333333333", ARN: "arn:aws:iam:::account/charlie"},
+				{Name: "name-match-delta", ID: "4444444444", ARN: "arn:aws:iam:::account/delta"},
+			},
+			filters: iccommon.Filters{
+				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_Id{Id: "2222222222"}},
+				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "^name-match-.*$"}},
+			},
+			expectedAccounts: []services.IdentityCenterAccount{
+				ictest.Account{Name: "name-match-alpha", ID: "1111111111", ARN: "arn:aws:iam:::account/alpha"}.Build(),
+				ictest.Account{Name: "id-match-bravo", ID: "2222222222", ARN: "arn:aws:iam:::account/bravo"}.Build(),
+				ictest.Account{Name: "name-match-delta", ID: "4444444444", ARN: "arn:aws:iam:::account/delta"}.Build(),
+			},
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	fixture := ictest.NewFixture(t)
+	icSvc := newTestService(t, fixture)
+	mockIC := fixture.ICClient
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			// GIVEN a mock AWS client configured with a known collection of AWS
+			// accounts
+			mockIC.Accounts = test.awsAccounts
+
+			// GIVEN an Identity Center service configured with a set of account
+			// filters
+			icSvc.importConfig.AccountFilters = test.filters
+
+			// WHEN I fetch the accounts from AWS
+			awsdata, err := icSvc.fetchAccounts(ctx, mockIC.Info.IdentityStoreID)
+			require.NoError(t, err)
+
+			// EXPECT that only accounts matching the supplied filter set are returned.
+			actualAccounts := slices.Collect(maps.Values(awsdata))
+			require.ElementsMatch(t, test.expectedAccounts, actualAccounts)
+		})
+	}
 }
 
 func TestAWSDataFetchPropagatesClientFailure(t *testing.T) {

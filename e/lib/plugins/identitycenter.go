@@ -20,8 +20,8 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/credprovider"
 )
 
-// awsICInstanceFactory creates a new instance of the AWS Identity Center Plugin.
-// It implements `instanceFactory`, and so takes config information from the
+// awsIdentityCenterInstanceFactory creates a new instance of the AWS Identity Center Plugin.
+// It implements [instanceFactory], and so takes config information from the
 // plugin manager amd returns a function that can be invoked to run the service.
 func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps instanceDependencies) (func() error, error) {
 	settings := p.Spec.GetAwsIc()
@@ -80,6 +80,11 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 			return trace.Wrap(err, "creating Identity Center client")
 		}
 
+		accountFilters, err := identitycentercommon.NewFilters(settings.AwsAccountsFilters)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		groupsFilters, err := identitycentercommon.NewFilters(settings.GroupSyncFilters)
 		if err != nil {
 			return trace.Wrap(err)
@@ -107,6 +112,7 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 			ImportConfig: identitycenter.ImportConfig{
 				AccessListDefaultOwners: settings.AccessListDefaultOwners,
 				GroupSyncFilter:         groupsFilters,
+				AccountFilters:          accountFilters,
 			},
 			PluginStatusSink: deps.statusSink,
 			PluginsService:   deps.pluginsService,

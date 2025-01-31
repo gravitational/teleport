@@ -1,6 +1,7 @@
 package test
 
 import (
+	"fmt"
 	"iter"
 	"slices"
 	"strings"
@@ -57,6 +58,14 @@ type Account struct {
 }
 
 func (a Account) Build() services.IdentityCenterAccount {
+	if a.StartURL == "" {
+		a.StartURL = fmt.Sprintf("https://store1.awsapps.com/start/#/console?account_id=%s", a.ID)
+	}
+
+	if a.PermissionSets == nil {
+		a.PermissionSets = slices.Values(([]*identitycenterv1.PermissionSet)(nil))
+	}
+
 	account := services.IdentityCenterAccount{
 		Account: &identitycenterv1.Account{
 			Kind:    types.KindIdentityCenterAccount,
