@@ -83,12 +83,6 @@ func TestPyroscopeConfig(t *testing.T) {
 			for k, v := range tt.envVars {
 				t.Setenv(k, v)
 			}
-			p := &TeleportProcess{
-				logger: slog.Default(),
-				Supervisor: &LocalSupervisor{
-					exitContext: context.Background(),
-				},
-			}
 			got, err := createPyroscopeConfig(p.ExitContext(), tt.address)
 			tt.errorAssertion(t, err)
 
