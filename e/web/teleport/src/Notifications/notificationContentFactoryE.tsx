@@ -139,10 +139,10 @@ export function notificationContentFactoryE(
       break;
     }
 
-    case NotificationSubKind.NotificationAccessListReviewDue30d:
     case NotificationSubKind.NotificationAccessListReviewDue14d:
     case NotificationSubKind.NotificationAccessListReviewDue7d:
     case NotificationSubKind.NotificationAccessListReviewDue3d:
+    case NotificationSubKind.NotificationAccessListReviewDue0d:
     case NotificationSubKind.NotificationAccessListReviewOverdue3d:
     case NotificationSubKind.NotificationAccessListReviewOverdue7d: {
       notificationContent = {
