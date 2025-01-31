@@ -203,6 +203,17 @@ Commands:
   create rocket Rocket.
 `,
 		},
+		{
+			name:      "command width aligned for unknown command error",
+			inputArgs: []string{"unknown"},
+			outputContains: `
+Commands:
+  help          Show help.
+  hello         Hello.
+  create box    Box.
+  create rocket Rocket.
+`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
