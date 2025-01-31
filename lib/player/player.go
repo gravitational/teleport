@@ -32,6 +32,7 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/player/db"
@@ -188,7 +189,7 @@ func (p *Player) stream() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	eventsC, errC := p.streamer.StreamSessionEvents(ctx, p.sessionID, 0)
+	eventsC, errC := p.streamer.StreamSessionEvents(metadata.WithSessionRecordingFormatContext(ctx, teleport.PTY), p.sessionID, 0)
 	var lastDelay time.Duration
 	for {
 		select {
