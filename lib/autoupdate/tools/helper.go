@@ -28,7 +28,13 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/autoupdate"
+	"github.com/gravitational/teleport/lib/modules"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
+)
+
+const (
+	// warningOSSBuild is warning exposed to the user that build type without base url is disabled.
+	warningOSSBuild = "Client tools update is disabled. Use 'TELEPORT_CDN_BASE_URL' environment variable to set CDN base URL"
 )
 
 // Variables might to be overridden during compilation time for integration tests.
@@ -53,8 +59,14 @@ func CheckAndUpdateLocal(ctx context.Context, reExecArgs []string) error {
 		return nil
 	}
 
+	bType := modules.GetModules().BuildType()
+	envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar)
+	if bType == modules.BuildOSS && envBaseURL == "" {
+		slog.WarnContext(ctx, warningOSSBuild)
+		return nil
+	}
 	// Overrides default base URL for custom CDN for downloading updates.
-	if envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar); envBaseURL != "" {
+	if envBaseURL != "" {
 		baseURL = envBaseURL
 	}
 
@@ -86,8 +98,14 @@ func CheckAndUpdateRemote(ctx context.Context, proxy string, insecure bool, reEx
 		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
 		return nil
 	}
+	bType := modules.GetModules().BuildType()
+	envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar)
+	if bType == modules.BuildOSS && envBaseURL == "" {
+		slog.WarnContext(ctx, warningOSSBuild)
+		return nil
+	}
 	// Overrides default base URL for custom CDN for downloading updates.
-	if envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar); envBaseURL != "" {
+	if envBaseURL != "" {
 		baseURL = envBaseURL
 	}
 
