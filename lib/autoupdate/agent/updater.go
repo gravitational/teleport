@@ -737,6 +737,14 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 		return true
 	}
 
+	// Check
+
+	return trace.Wrap(u.cleanup(ctx, []Revision{
+		target, active, backup,
+	}))
+}
+
+func (u *Updater) Check(ctx context.Context) error {
 	// Setup teleport-updater configuration and sync systemd.
 
 	err = u.Setup(ctx)
@@ -754,6 +762,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 	}
 
 	present, err := u.Process.IsPresent(ctx)
+	// TODO: missing ErrNotSupported check
 	if err != nil || !present {
 		u.Log.ErrorContext(ctx, "Reverting symlinks due to error reading Teleport service file.")
 		if ok := revertConfig(ctx); ok {
@@ -801,10 +810,6 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 	if r := deref(cfg.Status.Backup); r.Version != "" {
 		u.Log.InfoContext(ctx, "Backup version set.", backupKey, r)
 	}
-
-	return trace.Wrap(u.cleanup(ctx, []Revision{
-		target, active, backup,
-	}))
 }
 
 // notices displays final notices after install or update.
