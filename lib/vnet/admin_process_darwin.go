@@ -48,9 +48,15 @@ func RunDarwinAdminProcess(ctx context.Context, config daemon.Config) error {
 		return trace.Wrap(err)
 	}
 
+	osConfigProvider, err := newProfileOSConfigProvider(tunName, config.IPv6Prefix, config.DNSAddr, config.HomePath, config.ClientCred)
+	if err != nil {
+		return trace.Wrap(err, "creating profileOSConfigProvider")
+	}
+	osConfigurator := newOSConfigurator(osConfigProvider)
+
 	errCh := make(chan error)
 	go func() {
-		errCh <- trace.Wrap(osConfigurationLoop(ctx, tunName, config.IPv6Prefix, config.DNSAddr, config.HomePath, config.ClientCred))
+		errCh <- trace.Wrap(osConfigurator.runOSConfigurationLoop(ctx))
 	}()
 
 	// Stay alive until we get an error on errCh, indicating that the osConfig loop exited.
@@ -104,53 +110,4 @@ func createTUNDevice(ctx context.Context) (tun.Device, string, error) {
 		return nil, "", trace.Wrap(err, "getting TUN device name")
 	}
 	return dev, name, nil
-}
-
-// osConfigurationLoop will keep running until ctx is canceled or an unrecoverable error is encountered, in
-// order to keep the host OS configuration up to date.
-func osConfigurationLoop(ctx context.Context, tunName, ipv6Prefix, dnsAddr, homePath string, clientCred daemon.ClientCred) error {
-	osConfigurator, err := newOSConfigurator(tunName, ipv6Prefix, dnsAddr, homePath, clientCred)
-	if err != nil {
-		return trace.Wrap(err, "creating OS configurator")
-	}
-	defer func() {
-		if err := osConfigurator.close(); err != nil {
-			log.ErrorContext(ctx, "Error while closing OS configurator", "error", err)
-		}
-	}()
-
-	// Clean up any stale configuration left by a previous VNet instance that may have failed to clean up.
-	// This is necessary in case any stale /etc/resolver/<proxy address> entries are still present, we need to
-	// be able to reach the proxy in order to fetch the vnet_config.
-	if err := osConfigurator.deconfigureOS(ctx); err != nil {
-		return trace.Wrap(err, "cleaning up OS configuration on startup")
-	}
-
-	defer func() {
-		// Shutting down, deconfigure OS. Pass context.Background because ctx has likely been canceled
-		// already but we still need to clean up.
-		if err := osConfigurator.deconfigureOS(context.Background()); err != nil {
-			log.ErrorContext(ctx, "Error deconfiguring host OS before shutting down.", "error", err)
-		}
-	}()
-
-	if err := osConfigurator.updateOSConfiguration(ctx); err != nil {
-		return trace.Wrap(err, "applying initial OS configuration")
-	}
-
-	// Re-configure the host OS every 10 seconds. This will pick up any newly logged-in clusters by
-	// reading profiles from TELEPORT_HOME.
-	const osConfigurationInterval = 10 * time.Second
-	ticker := time.NewTicker(osConfigurationInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			if err := osConfigurator.updateOSConfiguration(ctx); err != nil {
-				return trace.Wrap(err, "updating OS configuration")
-			}
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
 }

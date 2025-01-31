@@ -24,11 +24,8 @@ import (
 	"strings"
 
 	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
-	stsv2 "github.com/aws/aws-sdk-go-v2/service/sts"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/arn"
-	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/aws/aws-sdk-go/service/sts/stsiface"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 )
 
@@ -109,23 +106,12 @@ func (i identityBase) String() string {
 }
 
 type callerIdentityGetter interface {
-	GetCallerIdentity(ctx context.Context, params *stsv2.GetCallerIdentityInput, optFns ...func(*stsv2.Options)) (*stsv2.GetCallerIdentityOutput, error)
+	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
 }
 
 // GetIdentityWithClient determines AWS identity of this Teleport process
 // using the provided STS API client.
-func GetIdentityWithClient(ctx context.Context, stsClient stsiface.STSAPI) (Identity, error) {
-	out, err := stsClient.GetCallerIdentityWithContext(ctx, &sts.GetCallerIdentityInput{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return IdentityFromArn(aws.StringValue(out.Arn))
-}
-
-// GetIdentityWithClient determines AWS identity of this Teleport process
-// using the provided STS API client.
-func GetIdentityWithClientV2(ctx context.Context, clt callerIdentityGetter) (Identity, error) {
+func GetIdentityWithClient(ctx context.Context, clt callerIdentityGetter) (Identity, error) {
 	out, err := clt.GetCallerIdentity(ctx, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)

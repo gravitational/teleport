@@ -41,7 +41,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -147,8 +146,6 @@ func (defaultAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Option
 
 // MetadataConfig is the cloud metadata service config.
 type MetadataConfig struct {
-	// Clients is an interface for retrieving cloud clients.
-	Clients cloud.Clients
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
 
@@ -158,13 +155,6 @@ type MetadataConfig struct {
 
 // Check validates the metadata service config.
 func (c *MetadataConfig) Check() error {
-	if c.Clients == nil {
-		cloudClients, err := cloud.NewClients()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		c.Clients = cloudClients
-	}
 	if c.AWSConfigProvider == nil {
 		return trace.BadParameter("missing AWSConfigProvider")
 	}
