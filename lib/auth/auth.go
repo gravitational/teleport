@@ -6245,7 +6245,7 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 			daysDiff := int(timeDiff.Hours() / 24)
 
 			if threshold.days < 0 {
-				if daysDiff <= -threshold.days {
+				if daysDiff <= threshold.days {
 					relevantLists = append(relevantLists, al)
 				}
 			} else {
