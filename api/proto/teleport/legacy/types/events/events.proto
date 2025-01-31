@@ -5637,6 +5637,10 @@ message SessionRecordingAccess {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // SessionType is type of the session.
+  string SessionType = 4 [(gogoproto.jsontag) = "session_type,omitempty"];
+  // Format is the format the session recording was accessed.
+  string Format = 5 [(gogoproto.jsontag) = "format,omitempty"];
 }
 
 // KubeClusterMetadata contains common kubernetes cluster information.

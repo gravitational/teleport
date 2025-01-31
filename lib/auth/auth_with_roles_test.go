@@ -49,6 +49,7 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -2097,6 +2098,89 @@ func TestStreamSessionEvents(t *testing.T) {
 
 	event := searchEvents[0].(*apievents.SessionRecordingAccess)
 	require.Equal(t, username, event.User)
+}
+
+// TestStreamSessionEvents ensures that when a user streams a session's events
+// a "session recording access" event is emitted with the correct session type.
+func TestStreamSessionEvents_SessionType(t *testing.T) {
+	t.Parallel()
+
+	authServerConfig := TestAuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
+	}
+	require.NoError(t, authServerConfig.CheckAndSetDefaults())
+
+	uploader := eventstest.NewMemoryUploader()
+	localLog, err := events.NewAuditLog(events.AuditLogConfig{
+		DataDir:       authServerConfig.Dir,
+		ServerID:      authServerConfig.ClusterName,
+		Clock:         authServerConfig.Clock,
+		UploadHandler: uploader,
+	})
+	require.NoError(t, err)
+	authServerConfig.AuditLog = localLog
+
+	as, err := NewTestAuthServer(authServerConfig)
+	require.NoError(t, err)
+
+	srv, err := as.NewTestTLSServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { srv.Close() })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	username := "user"
+	user, _, err := CreateUserAndRole(srv.Auth(), username, []string{}, nil)
+	require.NoError(t, err)
+
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+	sessionID := session.NewID()
+
+	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+		Uploader: uploader,
+	})
+	require.NoError(t, err)
+	stream, err := streamer.CreateAuditStream(ctx, sessionID)
+	require.NoError(t, err)
+	// The event is not required to pass through the auth server, we only need
+	// the upload to be present.
+	require.NoError(t, stream.RecordEvent(ctx, eventstest.PrepareEvent(&apievents.DatabaseSessionStart{
+		Metadata: apievents.Metadata{
+			Type: events.DatabaseSessionStartEvent,
+			Code: events.DatabaseSessionStartCode,
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: sessionID.String(),
+		},
+	})))
+	require.NoError(t, stream.Complete(ctx))
+
+	accessedFormat := teleport.PTY
+	clt.StreamSessionEvents(metadata.WithSessionRecordingFormatContext(ctx, accessedFormat), sessionID, 0)
+
+	// Perform the listing an eventually loop to ensure the event is emitted.
+	var searchEvents []apievents.AuditEvent
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		var err error
+		searchEvents, _, err = srv.AuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
+			From:       srv.Clock().Now().Add(-time.Hour),
+			To:         srv.Clock().Now().Add(time.Hour),
+			EventTypes: []string{events.SessionRecordingAccessEvent},
+			Limit:      1,
+			Order:      types.EventOrderDescending,
+		})
+		assert.NoError(t, err)
+		assert.Len(t, searchEvents, 1, "expected one event but got %d", len(searchEvents))
+	}, 5*time.Second, 200*time.Millisecond)
+
+	event := searchEvents[0].(*apievents.SessionRecordingAccess)
+	require.Equal(t, username, event.User)
+	require.Equal(t, string(types.DatabaseSessionKind), event.SessionType)
+	require.Equal(t, accessedFormat, event.Format)
 }
 
 // TestAPILockedOut tests Auth API when there are locks involved.
