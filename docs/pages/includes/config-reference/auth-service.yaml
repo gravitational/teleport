@@ -269,9 +269,10 @@ auth_service:
         stable_unix_user_config:
             # If set to true, SSH instances will use the same UID for each given
             # username when automatically creating users. Defaults to false.
-            #enabled: true
+            enabled: false
 
-            # The range of UIDs (including both ends) used for automatic UID assignment.
+            # The range of UIDs (including both ends) used for automatic UID
+            # assignment. Ignored if enabled is set to false.
             #first_uid: 90000
             #last_uid: 95000
 
