@@ -101,9 +101,6 @@ export function ViewEditAccessList() {
     setAccessList(modifiedAccessList);
     setPerms(newPerms);
 
-    // When an access list is modified, any existing clicked/seen states for it should be reset.
-    ctx.storeNotifications.resetStatesForNotification(accessList.id);
-
     // We also want to update the 'allAccessLists' state with the new access list.
     processAccessLists(prev =>
       prev.map(list =>

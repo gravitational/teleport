@@ -18,8 +18,6 @@ import {
 } from 'teleport/Notifications/notificationContentFactory';
 import history from 'teleport/services/history';
 import {
-  LocalNotificationGroupedKind,
-  LocalNotificationKind,
   NotificationSubKind,
   Notification as NotificationType,
 } from 'teleport/services/notifications';
@@ -89,33 +87,6 @@ export function notificationContentFactoryE(
         type: 'informational',
         icon: Icons.UserList,
         redirectRoute: cfg.getAccessRequestRoute(requestId),
-      };
-      break;
-    }
-
-    //TODO(rudream): Delete local notifications
-    case LocalNotificationKind.AccessList:
-      const redirectRoute = getLabelValue(labels, 'redirect-route');
-
-      notificationContent = {
-        kind: 'redirect',
-        title: notification.title,
-        type: 'warning',
-        icon: Icons.UserList,
-        redirectRoute,
-        hideDate: true,
-      };
-      break;
-
-    //TODO(rudream): Delete local notifications
-    case LocalNotificationGroupedKind.AccessListGrouping: {
-      notificationContent = {
-        kind: 'redirect',
-        title: notification.title,
-        type: 'warning',
-        icon: Icons.UserList,
-        redirectRoute: cfg.getAccessListManagementRoute(null),
-        hideDate: true,
       };
       break;
     }

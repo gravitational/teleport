@@ -40,6 +40,7 @@ import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsT
 import { Notification } from 'shared/components/Notification';
 
 import {
+  accessListRequiresReview,
   AccessListSort,
   useAccessListManagementContext,
 } from 'e-teleport/AccessListManagement/AccessListManagementContext';
@@ -61,7 +62,6 @@ import {
   AccessListMemberKind,
   AccessListType,
 } from 'e-teleport/services/accessmanagement';
-import { accessListRequiresReview } from 'e-teleport/stores/storeNotificationsE';
 import useTeleport from 'e-teleport/useTeleportE';
 import {
   decodeUrlQueryParam,

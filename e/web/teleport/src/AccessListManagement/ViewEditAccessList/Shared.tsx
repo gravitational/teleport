@@ -21,10 +21,10 @@ import {
   AccessListOwner,
   AccessListRequires,
 } from 'e-teleport/services/accessmanagement';
-import { accessListRequiresReview } from 'e-teleport/stores/storeNotificationsE';
 import type TeleportContextE from 'e-teleport/teleportContextE';
 import type { Access } from 'teleport/services/user';
 
+import { accessListRequiresReview } from '../AccessListManagementContext';
 import {
   matchRoles,
   matchTraits,
@@ -138,11 +138,6 @@ export const modifyAccessList = (
       acls
     ),
   };
-
-  ctx.storeNotifications.updateOrRemoveAccessListNotification(
-    acl,
-    ctx.storeUser.state
-  );
 
   const accessListAccess = ctx.storeUser.getAccessListAccess();
   const isOwner = isAccessListOwnerRecursive(

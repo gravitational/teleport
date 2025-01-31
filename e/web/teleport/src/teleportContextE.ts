@@ -1,5 +1,4 @@
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
-import { getErrMessage } from 'shared/utils/errorType';
 
 import eCfg from 'e-teleport/config';
 import CloudService from 'e-teleport/services/cloud';
@@ -15,19 +14,16 @@ import * as service from 'teleport/services/userPreferences';
 import TeleportContext from 'teleport/teleportContext';
 
 import { notificationContentFactoryE } from './Notifications';
-import { accessManagementService } from './services/accessmanagement';
 import { contactsService } from './services/contacts';
 import { downloadsService } from './services/downloads';
 import { externalAuditStorageService } from './services/externalauditstorage';
 import { IdpService } from './services/idp';
 import { pluginsService } from './services/plugins';
 import { upgradeWindowService } from './services/upgradeWindow';
-import { StoreNotificationsE } from './stores/storeNotificationsE';
 
 class TeleportEContext extends TeleportContext {
   // stores
   storeAccessRequests = new StoreAccessRequests();
-  storeNotifications = new StoreNotificationsE();
 
   // services
   workflowService = new WorkflowService();
@@ -50,34 +46,6 @@ class TeleportEContext extends TeleportContext {
   // block.
   async init(preferences: UserPreferences) {
     await super.init(preferences);
-
-    try {
-      const accessLists = await accessManagementService.fetchAccessLists();
-      this.storeNotifications.setNotificationsForAccessListsRequiringReview(
-        accessLists,
-        this.storeUser.state
-      );
-    } catch (err) {
-      // An error is most likely from access denied, so we'll
-      // ignore it.
-      //
-      // An access list can only be fetched if this user is either
-      // admin (rbac) or is an owner or member of access lists,
-      // otherwise returns an error.
-      //
-      // There could be a possiblilty that the error is not a type of
-      // access denied (eg: network blip), but chose to ignore it anyways
-      // for the following reasons:
-      //   1) upon refreshing the browser, the app reboots, so fetching
-      //      access lists will be attempted again
-      //   2) when a user visits the page for listing access lists,
-      //      the notifications for access list will be updated with
-      //      the access lists that were fetched for this page
-      //      (b/c it's fresher data)
-      //   3) we give users two weeks advance notice for due dates,
-      //      which should give users plenty of chances to get this notice
-      console.warn('Failed to set notifications: ', getErrMessage(err));
-    }
 
     if (
       cfg.isCloud &&

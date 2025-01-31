@@ -1,3 +1,4 @@
+import { subWeeks } from 'date-fns';
 import {
   createContext,
   Dispatch,
@@ -21,9 +22,6 @@ import {
   accessManagementService,
   type AccessList,
 } from 'e-teleport/services/accessmanagement';
-import { accessListRequiresReview } from 'e-teleport/stores/storeNotificationsE';
-import type TeleportEContext from 'e-teleport/teleportContextE';
-import useTeleportE from 'e-teleport/useTeleportE';
 import { ApiError } from 'teleport/services/api/parseError';
 import { KeysEnum } from 'teleport/services/storageService';
 
@@ -107,8 +105,6 @@ const AccessListManagementContext = createContext<AccessListManagementContext>({
 export const AccessListManagementContextProvider = (
   props: PropsWithChildren<unknown>
 ) => {
-  const ctx = useTeleportE();
-
   const accessListPreferences =
     JSON.parse(
       localStorage.getItem(KeysEnum.ACCESS_LIST_PREFERENCES) || '{}'
@@ -151,7 +147,6 @@ export const AccessListManagementContextProvider = (
 
   const refetchAccessLists = (setAttempt: boolean) => {
     initialFetch.current = fetchAccessListsWithAttempt({
-      ctx,
       attempt,
       pendingPreProcessRef,
       setAttempt,
@@ -183,7 +178,6 @@ export const AccessListManagementContextProvider = (
 
     setState(prev => {
       const accessLists = processFetchedLists({
-        ctx,
         listsToUse: prev.accessLists,
       })(preProcess);
       const { allOwners, allGrantedRoles } =
@@ -226,13 +220,11 @@ export const useAccessListManagementContext = () =>
   useContext(AccessListManagementContext);
 
 const fetchAccessListsWithAttempt = async ({
-  ctx,
   attempt,
   pendingPreProcessRef,
   setState,
   setAttempt = true,
 }: {
-  ctx: TeleportEContext;
   attempt: ReturnType<typeof useAttempt>;
   pendingPreProcessRef: { current: PreProcessFn[] };
   setState: Dispatch<SetStateAction<State>>;
@@ -251,7 +243,7 @@ const fetchAccessListsWithAttempt = async ({
       pendingPreProcessRef.current = [];
     }
 
-    const processedLists = processFetchedLists({ ctx, listsToUse })();
+    const processedLists = processFetchedLists({ listsToUse })();
     const { allOwners, allGrantedRoles } =
       getOwnersRolesFromLists(processedLists);
 
@@ -277,17 +269,11 @@ const fetchAccessListsWithAttempt = async ({
 };
 
 const processFetchedLists =
-  ({ ctx, listsToUse }: { ctx: TeleportEContext; listsToUse: AccessList[] }) =>
+  ({ listsToUse }: { listsToUse: AccessList[] }) =>
   (preProcess?: (lists: AccessList[]) => AccessList[]) => {
     if (typeof preProcess === 'function') {
       listsToUse = preProcess(listsToUse);
     }
-
-    // Update notifications for access lists.
-    ctx.storeNotifications.setNotificationsForAccessListsRequiringReview(
-      listsToUse,
-      ctx.storeUser.state
-    );
 
     return processTraits(listsToUse);
   };
@@ -348,3 +334,17 @@ const processTraits = (
 
   return updatedAccessLists satisfies AccessListWithModifiedGrants[];
 };
+
+export function accessListRequiresReview({
+  todayDate,
+  reviewDate,
+}: {
+  todayDate: Date;
+  reviewDate: Date | undefined;
+}) {
+  if (!reviewDate) {
+    return false;
+  }
+
+  return todayDate >= subWeeks(reviewDate, 2);
+}
