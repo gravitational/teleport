@@ -28,7 +28,7 @@ To prevent changes to labels from granting elevated privileges, you should:
   Don't give users permissive roles when more a restrictive role will do. For example, don't 
   assign users the preset `access` or `editor` role, which give them permission to access and edit 
   all cluster resources. Instead, define roles with the minimum required permissions for each 
-  user and configure **access requests** or **access lists** to provide temporary elevated permissions.
+  user and configure **Access Requests** or **Access Lists** to provide temporary elevated permissions.
 
 ## Restrict root access
 
@@ -37,7 +37,7 @@ accounts with administrative privileges.
 Privileged users could manipulate Teleport agents in ways that affect your authorization controls.
 For example, a privileged user with access to the Teleport configuration file might modify settings 
 to bypass role-based access controls. Similarly, a user with elevated access to the Teleport Auth Service, 
-Teleport Proxy Service, or Teleport agent services might replace the Teleport executable to infiltrate or 
+Teleport Proxy Service, or Teleport Agent services might replace the Teleport executable to infiltrate or 
 exfiltrate cluster systems, manipulate the discovery of dynamic resources, compromise sensitive credentials 
 and sessions, or obscure auditing.
 
@@ -45,7 +45,7 @@ To prevent elevated privileges from resulting in security incidents, you should 
 following guidelines:
 
 - Create new, non-root, users and use test instances for experimenting with Teleport.
-- Run all Teleport agent services except the SSH Service as a non-root user. 
+- Run all Teleport Agent services except the SSH Service as a non-root user. 
   The SSH Service requires root access, so you should limit access to the SSH Service. The Teleport Proxy
   Service must also have root permission—or the `CAP_NET_BIND_SERVICE` capability—to allow Teleport listen 
   on any port number less than 1024, including port 443.

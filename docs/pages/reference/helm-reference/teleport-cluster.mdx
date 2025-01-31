@@ -41,12 +41,6 @@ Get started with a guide for each mode:
 | `azure` | Leverages Azure managed services to store data. | [Running an HA Teleport cluster using a Microsoft Azure AKS cluster](../../admin-guides/deploy-a-cluster/helm-deployments/azure.mdx) |
 | `scratch` (v12 and above) | Generates empty Teleport configuration. User must pass their own config. This is discouraged, use `standalone` mode with [`auth.teleportConfig`](#authteleportconfig) and [`proxy.teleportConfig`](#proxyteleportconfig) instead. | [Running a Teleport cluster with a custom config](../../admin-guides/deploy-a-cluster/helm-deployments/custom.mdx) |
 
-<Admonition type="note" title="Custom mode removal">
-`custom` mode has been removed in Teleport version 12. See the [version 12
-migration guide](../../admin-guides/deploy-a-cluster/helm-deployments/migration-v12.mdx) for
-more information.
-</Admonition>
-
 <Admonition type="warning" title="Version Compatibility">
 The chart is versioned with Teleport. No compatibility guarantees are ensured
 between new charts and previous major Teleport versions. It is strongly recommended
