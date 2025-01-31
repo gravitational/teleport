@@ -386,7 +386,7 @@ func listAllAccessGraphPlugins(ctx context.Context, client authclient.ClientI) (
 
 		for _, plugin := range rsp.GetPlugins() {
 			switch plugin.GetType() {
-			case types.PluginTypeGitlab, types.PluginTypeOkta, types.PluginTypeEntraID:
+			case types.PluginTypeGitlab, types.PluginTypeOkta, types.PluginTypeEntraID, types.PluginTypeNetIQ:
 				allPlugins = append(allPlugins, plugin)
 			}
 		}

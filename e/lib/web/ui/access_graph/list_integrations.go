@@ -118,6 +118,7 @@ type PluginStatus struct {
 type PluginDetails struct {
 	Gitlab *GitlabDetails `json:"gitlab,omitempty"`
 	Entra  *EntraDetails  `json:"entra,omitempty"`
+	NetIQ  *NetIQDetails  `json:"netiq,omitempty"`
 }
 
 // GitlabDetails is the details of the Gitlab plugin.
@@ -136,6 +137,18 @@ type EntraDetails struct {
 	ImportedUsers uint32 `json:"imported_users"`
 	// ImportedGroups is the count of imported groups.
 	ImportedGroups uint32 `json:"imported_groups"`
+}
+
+// NetIQDetails is the details of the NetIQ plugin.
+type NetIQDetails struct {
+	// ImportedUsers is the count of imported users.
+	ImportedUsers uint32 `json:"imported_users"`
+	// ImportedGroups is the count of imported groups.
+	ImportedGroups uint32 `json:"imported_groups"`
+	// ImportedRoles is the count of imported roles.
+	ImportedRoles uint32 `json:"imported_roles"`
+	// ImportedResources is the count of imported resources.
+	ImportedResources uint32 `json:"imported_resources"`
 }
 
 // Metadata is the metadata of the integration.
@@ -182,6 +195,8 @@ func newPlugin(pl *types.PluginV1) *Plugin {
 		endpoint = pl.Spec.GetOkta().OrgUrl
 	} else if pl.Spec.GetGitlab() != nil {
 		endpoint = pl.Spec.GetGitlab().ApiEndpoint
+	} else if pl.Spec.GetNetIq() != nil {
+		endpoint = pl.Spec.GetNetIq().ApiEndpoint
 	}
 	p := &Plugin{
 		Kind:    pl.Kind,
@@ -217,6 +232,16 @@ func newPlugin(pl *types.PluginV1) *Plugin {
 			Entra: &EntraDetails{
 				ImportedUsers:  entra.ImportedUsers,
 				ImportedGroups: entra.ImportedGroups,
+			},
+		}
+	}
+	if netIQ := pl.Status.GetNetIq(); netIQ != nil {
+		p.Status.Details = &PluginDetails{
+			NetIQ: &NetIQDetails{
+				ImportedUsers:     netIQ.ImportedUsers,
+				ImportedGroups:    netIQ.ImportedGroups,
+				ImportedRoles:     netIQ.ImportedRoles,
+				ImportedResources: netIQ.ImportedResources,
 			},
 		}
 	}
