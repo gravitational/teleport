@@ -160,8 +160,8 @@ func (r *Resources) UsageReport(numberAccounts int) *usageeventsv1.AccessGraphAW
 	}
 }
 
-// NewAWSFetcher creates a new AWS fetcher.
-func NewAWSFetcher(ctx context.Context, cfg Config) (*Fetcher, error) {
+// NewFetcher creates a new AWS fetcher.
+func NewFetcher(ctx context.Context, cfg Config) (*Fetcher, error) {
 	a := &Fetcher{
 		Config:     cfg,
 		lastResult: &Resources{},

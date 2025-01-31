@@ -35,7 +35,7 @@ import (
 
 // pollAWSRoles is a function that returns a function that fetches
 // AWS roles and their inline and attached policies.
-func (a *awsFetcher) pollAWSRoles(ctx context.Context, result *Resources, collectErr func(error)) func() error {
+func (a *Fetcher) pollAWSRoles(ctx context.Context, result *Resources, collectErr func(error)) func() error {
 	return func() error {
 		var err error
 		existing := a.lastResult
@@ -84,7 +84,7 @@ func (a *awsFetcher) pollAWSRoles(ctx context.Context, result *Resources, collec
 }
 
 // fetchRoles fetches AWS roles and returns them as a slice of accessgraphv1alpha.AWSRoleV1.
-func (a *awsFetcher) fetchRoles(ctx context.Context) ([]*accessgraphv1alpha.AWSRoleV1, error) {
+func (a *Fetcher) fetchRoles(ctx context.Context) ([]*accessgraphv1alpha.AWSRoleV1, error) {
 	var roles []*accessgraphv1alpha.AWSRoleV1
 
 	iamClient, err := a.CloudClients.GetAWSIAMClient(
@@ -114,7 +114,7 @@ func (a *awsFetcher) fetchRoles(ctx context.Context) ([]*accessgraphv1alpha.AWSR
 // them as a slice of accessgraphv1alpha.AWSRoleInlinePolicyV1.
 // It uses iam.ListRolePoliciesPagesWithContext to iterate over all inline policies
 // and iam.GetRolePolicyWithContext to fetch policy documents.
-func (a *awsFetcher) fetchRoleInlinePolicies(ctx context.Context, role *accessgraphv1alpha.AWSRoleV1) ([]*accessgraphv1alpha.AWSRoleInlinePolicyV1, error) {
+func (a *Fetcher) fetchRoleInlinePolicies(ctx context.Context, role *accessgraphv1alpha.AWSRoleV1) ([]*accessgraphv1alpha.AWSRoleInlinePolicyV1, error) {
 	var policies []*accessgraphv1alpha.AWSRoleInlinePolicyV1
 	var errs []error
 	errCollect := func(err error) {
@@ -154,7 +154,7 @@ func (a *awsFetcher) fetchRoleInlinePolicies(ctx context.Context, role *accessgr
 }
 
 // fetchRoleAttachedPolicies fetches attached policies for an AWS role.
-func (a *awsFetcher) fetchRoleAttachedPolicies(ctx context.Context, role *accessgraphv1alpha.AWSRoleV1) (*accessgraphv1alpha.AWSRoleAttachedPolicies, error) {
+func (a *Fetcher) fetchRoleAttachedPolicies(ctx context.Context, role *accessgraphv1alpha.AWSRoleV1) (*accessgraphv1alpha.AWSRoleAttachedPolicies, error) {
 	rsp := &accessgraphv1alpha.AWSRoleAttachedPolicies{
 		AwsRole:      role,
 		AccountId:    a.AccountID,

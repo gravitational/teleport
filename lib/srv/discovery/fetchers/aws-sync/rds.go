@@ -33,7 +33,7 @@ import (
 
 // pollAWSRDSDatabases is a function that returns a function that fetches
 // RDS instances and clusters.
-func (a *awsFetcher) pollAWSRDSDatabases(ctx context.Context, result *Resources, collectErr func(error)) func() error {
+func (a *Fetcher) pollAWSRDSDatabases(ctx context.Context, result *Resources, collectErr func(error)) func() error {
 	return func() error {
 		var err error
 		result.RDSDatabases, err = a.fetchAWSRDSDatabases(ctx, a.lastResult)
@@ -45,7 +45,7 @@ func (a *awsFetcher) pollAWSRDSDatabases(ctx context.Context, result *Resources,
 }
 
 // fetchAWSRDSDatabases fetches RDS databases from all regions.
-func (a *awsFetcher) fetchAWSRDSDatabases(ctx context.Context, existing *Resources) (
+func (a *Fetcher) fetchAWSRDSDatabases(ctx context.Context, existing *Resources) (
 	[]*accessgraphv1alpha.AWSRDSDatabaseV1,
 	error,
 ) {

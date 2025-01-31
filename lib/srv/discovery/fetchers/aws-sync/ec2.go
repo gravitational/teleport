@@ -36,7 +36,7 @@ import (
 
 // pollAWSEC2Instances is a function that returns a function that fetches
 // ec2 instances and instance profiles and returns an error if any.
-func (a *awsFetcher) pollAWSEC2Instances(ctx context.Context, result *Resources, collectErr func(error)) func() error {
+func (a *Fetcher) pollAWSEC2Instances(ctx context.Context, result *Resources, collectErr func(error)) func() error {
 	return func() error {
 		var err error
 
@@ -56,7 +56,7 @@ func (a *awsFetcher) pollAWSEC2Instances(ctx context.Context, result *Resources,
 // as a slice of accessgraphv1alpha.AWSInstanceV1.
 // It uses ec2.DescribeInstancesPagesWithContext to iterate over all instances
 // in all regions.
-func (a *awsFetcher) fetchAWSEC2Instances(ctx context.Context) ([]*accessgraphv1alpha.AWSInstanceV1, error) {
+func (a *Fetcher) fetchAWSEC2Instances(ctx context.Context) ([]*accessgraphv1alpha.AWSInstanceV1, error) {
 	var (
 		hosts    []*accessgraphv1alpha.AWSInstanceV1
 		hostsMu  sync.Mutex
@@ -147,7 +147,7 @@ func awsInstanceToProtoInstance(instance *ec2.Instance, region string, accountID
 
 // fetchInstanceProfiles fetches instance profiles from all regions and returns them
 // as a slice of accessgraphv1alpha.AWSInstanceProfileV1.
-func (a *awsFetcher) fetchInstanceProfiles(ctx context.Context) ([]*accessgraphv1alpha.AWSInstanceProfileV1, error) {
+func (a *Fetcher) fetchInstanceProfiles(ctx context.Context) ([]*accessgraphv1alpha.AWSInstanceProfileV1, error) {
 	var existing = a.lastResult.InstanceProfiles
 	var profiles []*accessgraphv1alpha.AWSInstanceProfileV1
 	iamClient, err := a.CloudClients.GetAWSIAMClient(
