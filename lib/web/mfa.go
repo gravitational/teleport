@@ -199,19 +199,15 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 			return nil, trace.Wrap(err)
 		}
 
-		// If this is an app session request and we're missing the ClusterID argument, we can
-		// get the target cluster ID from the app resolved by the request. This is useful when
-		// connecting directly to a leaf cluster app through the root cluster rather than through
-		// the launcher.
+		// If this is an mfa required check for a leaf host, we need to check the requirement through
+		// the leaf cluster, rather than through root in the authenticate challenge request below
+		//
+		// TODO(Joerger): Currently, the only leafs hosts that we check mfa requirements for directly
+		// are apps. If we need to check other hosts directly, rather than through websocket flow,
+		// we'll need to include their clusterID in the request like we do for apps.
 		appReq := mfaRequiredCheckProto.GetApp()
-		if appReq != nil && req.IsMFARequiredRequest.ClusterID == "" {
-			req.IsMFARequiredRequest.ClusterID = appReq.GetClusterName()
-		}
-
-		// If the MFA requirement check is being performed for a leaf host, we must check directly
-		// with the leaf cluster before the authentication challenge request through root.
-		if req.IsMFARequiredRequest.ClusterID != "" && req.IsMFARequiredRequest.ClusterID != c.cfg.RootClusterName {
-			site, err := h.getSiteByClusterName(ctx, c, req.IsMFARequiredRequest.ClusterID)
+		if appReq != nil && appReq.ClusterName != c.cfg.RootClusterName {
+			site, err := h.getSiteByClusterName(ctx, c, appReq.ClusterName)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -426,7 +422,7 @@ func getDeviceUsage(reqUsage string) (proto.DeviceUsage, error) {
 	return deviceUsage, nil
 }
 
-type IsMFARequiredDatabase struct {
+type isMFARequiredDatabase struct {
 	// ServiceName is the database service name.
 	ServiceName string `json:"service_name"`
 	// Protocol is the type of the database protocol
@@ -438,19 +434,19 @@ type IsMFARequiredDatabase struct {
 	DatabaseName string `json:"database_name,omitempty"`
 }
 
-type IsMFARequiredKube struct {
+type isMFARequiredKube struct {
 	// ClusterName is the name of the kube cluster.
 	ClusterName string `json:"cluster_name"`
 }
 
-type IsMFARequiredNode struct {
+type isMFARequiredNode struct {
 	// NodeName can be node's hostname or UUID.
 	NodeName string `json:"node_name"`
 	// Login is the OS login name.
 	Login string `json:"login"`
 }
 
-type IsMFARequiredWindowsDesktop struct {
+type isMFARequiredWindowsDesktop struct {
 	// DesktopName is the Windows Desktop server name.
 	DesktopName string `json:"desktop_name"`
 	// Login is the Windows desktop user login.
@@ -462,29 +458,26 @@ type IsMFARequiredApp struct {
 	ResolveAppParams
 }
 
-type IsMFARequiredAdminAction struct{}
+type isMFARequiredAdminAction struct{}
 
 type IsMFARequiredRequest struct {
-	// ClusterID is the ID of the cluster to check against for MFA requirements.
-	// If not set, MFA requirements will be checked against the root cluster.
-	ClusterID string `json:"clusterId,omitempty"`
 	// Database contains fields required to check if target database
 	// requires MFA check.
-	Database *IsMFARequiredDatabase `json:"database,omitempty"`
+	Database *isMFARequiredDatabase `json:"database,omitempty"`
 	// Node contains fields required to check if target node
 	// requires MFA check.
-	Node *IsMFARequiredNode `json:"node,omitempty"`
+	Node *isMFARequiredNode `json:"node,omitempty"`
 	// WindowsDesktop contains fields required to check if target
 	// windows desktop requires MFA check.
-	WindowsDesktop *IsMFARequiredWindowsDesktop `json:"windows_desktop,omitempty"`
+	WindowsDesktop *isMFARequiredWindowsDesktop `json:"windows_desktop,omitempty"`
 	// Kube is the name of the kube cluster to check if target cluster
 	// requires MFA check.
-	Kube *IsMFARequiredKube `json:"kube,omitempty"`
+	Kube *isMFARequiredKube `json:"kube,omitempty"`
 	// App contains fields required to resolve an application and check if
 	// the target application requires MFA check.
 	App *IsMFARequiredApp `json:"app,omitempty"`
 	// AdminAction is the name of the admin action RPC to check if MFA is required.
-	AdminAction *IsMFARequiredAdminAction `json:"admin_action,omitempty"`
+	AdminAction *isMFARequiredAdminAction `json:"admin_action,omitempty"`
 }
 
 func (h *Handler) checkAndGetProtoRequest(ctx context.Context, scx *SessionContext, r *IsMFARequiredRequest) (*proto.IsMFARequiredRequest, error) {

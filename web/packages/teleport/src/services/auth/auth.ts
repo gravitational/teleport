@@ -412,7 +412,7 @@ function checkMfaRequired(
   params: IsMfaRequiredRequest,
   abortSignal?
 ): Promise<IsMfaRequiredResponse> {
-  return api.post(cfg.getMfaRequiredUrl(params.clusterId), params, abortSignal);
+  return api.post(cfg.getMfaRequiredUrl(), params, abortSignal);
 }
 
 function base64EncodeUnicode(str: string) {
@@ -450,18 +450,16 @@ function waitForMessage(
 
 export default auth;
 
-export type IsMfaRequiredRequest = {
-  // clusterId is the cluster to check mfa requirement against. When connecting to
-  // leaf hosts, this should be set to the leaf clusterId.
-  clusterId?: string;
-} & (
+// TODO(Joerger): In order to check if mfa is required for a leaf host, the leaf
+// clusterID must be included in the request. Currently, only IsMfaRequiredApp
+// supports this functionality.
+export type IsMfaRequiredRequest =
   | IsMfaRequiredDatabase
   | IsMfaRequiredNode
   | IsMfaRequiredKube
   | IsMfaRequiredWindowsDesktop
   | IsMfaRequiredApp
-  | IsMfaRequiredAdminAction
-);
+  | IsMfaRequiredAdminAction;
 
 export type IsMfaRequiredResponse = {
   required: boolean;

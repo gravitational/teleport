@@ -297,7 +297,7 @@ func (h *Handler) prepareForCertIssuance(
 ) (mfaRequired bool, certsReq *proto.UserCertsRequest, err error) {
 	// Check if MFA is required for this user/desktop combination.
 	mfaRequired, err = h.checkMFARequired(ctx, &IsMFARequiredRequest{
-		WindowsDesktop: &IsMFARequiredWindowsDesktop{
+		WindowsDesktop: &isMFARequiredWindowsDesktop{
 			DesktopName: desktopName,
 			Login:       username,
 		},

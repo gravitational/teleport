@@ -8827,7 +8827,7 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 			name: "valid db req",
 			getRequest: func() IsMFARequiredRequest {
 				return IsMFARequiredRequest{
-					Database: &IsMFARequiredDatabase{
+					Database: &isMFARequiredDatabase{
 						ServiceName: "name",
 						Protocol:    "protocol",
 					},
@@ -8838,14 +8838,14 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 			name:   "invalid db req",
 			errMsg: "missing service_name",
 			getRequest: func() IsMFARequiredRequest {
-				return IsMFARequiredRequest{Database: &IsMFARequiredDatabase{}}
+				return IsMFARequiredRequest{Database: &isMFARequiredDatabase{}}
 			},
 		},
 		{
 			name: "valid node req",
 			getRequest: func() IsMFARequiredRequest {
 				return IsMFARequiredRequest{
-					Node: &IsMFARequiredNode{
+					Node: &isMFARequiredNode{
 						NodeName: "name",
 						Login:    "login",
 					},
@@ -8856,14 +8856,14 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 			name:   "invalid node req",
 			errMsg: "missing login",
 			getRequest: func() IsMFARequiredRequest {
-				return IsMFARequiredRequest{Node: &IsMFARequiredNode{}}
+				return IsMFARequiredRequest{Node: &isMFARequiredNode{}}
 			},
 		},
 		{
 			name: "valid kube req",
 			getRequest: func() IsMFARequiredRequest {
 				return IsMFARequiredRequest{
-					Kube: &IsMFARequiredKube{
+					Kube: &isMFARequiredKube{
 						ClusterName: "name",
 					},
 				}
@@ -8873,14 +8873,14 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 			name:   "invalid kube req",
 			errMsg: "missing cluster_name",
 			getRequest: func() IsMFARequiredRequest {
-				return IsMFARequiredRequest{Kube: &IsMFARequiredKube{}}
+				return IsMFARequiredRequest{Kube: &isMFARequiredKube{}}
 			},
 		},
 		{
 			name: "valid windows desktop req",
 			getRequest: func() IsMFARequiredRequest {
 				return IsMFARequiredRequest{
-					WindowsDesktop: &IsMFARequiredWindowsDesktop{
+					WindowsDesktop: &isMFARequiredWindowsDesktop{
 						DesktopName: "name",
 						Login:       "login",
 					},
@@ -8891,7 +8891,7 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 			name:   "invalid windows desktop req",
 			errMsg: "missing desktop_name",
 			getRequest: func() IsMFARequiredRequest {
-				return IsMFARequiredRequest{WindowsDesktop: &IsMFARequiredWindowsDesktop{}}
+				return IsMFARequiredRequest{WindowsDesktop: &isMFARequiredWindowsDesktop{}}
 			},
 		},
 		{
@@ -8930,7 +8930,7 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 			name: "valid admin action req",
 			getRequest: func() IsMFARequiredRequest {
 				return IsMFARequiredRequest{
-					AdminAction: &IsMFARequiredAdminAction{},
+					AdminAction: &isMFARequiredAdminAction{},
 				}
 			},
 		},
@@ -8946,10 +8946,10 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 			errMsg: "only one target is allowed",
 			getRequest: func() IsMFARequiredRequest {
 				return IsMFARequiredRequest{
-					Kube: &IsMFARequiredKube{
+					Kube: &isMFARequiredKube{
 						ClusterName: "name",
 					},
-					Node: &IsMFARequiredNode{
+					Node: &isMFARequiredNode{
 						NodeName: "name",
 						Login:    "login",
 					},
