@@ -101,10 +101,10 @@ export enum NotificationSubKind {
   AccessRequestDenied = 'access-request-denied',
   AccessRequestPromoted = 'access-request-promoted',
 
-  NotificationAccessListReviewDue30d = 'access-list-review-due-30d',
   NotificationAccessListReviewDue14d = 'access-list-review-due-14d',
   NotificationAccessListReviewDue7d = 'access-list-review-due-7d',
   NotificationAccessListReviewDue3d = 'access-list-review-due-3d',
+  NotificationAccessListReviewDue0d = 'access-list-review-due-0d',
   NotificationAccessListReviewOverdue3d = 'access-list-review-overdue-3d',
   NotificationAccessListReviewOverdue7d = 'access-list-review-overdue-7d',
 }

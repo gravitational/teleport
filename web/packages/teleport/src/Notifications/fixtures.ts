@@ -117,8 +117,8 @@ export const notifications: Notification[] = [
   },
   {
     id: '8',
-    title: `You have access lists that require your review within 30 days.`,
-    subKind: NotificationSubKind.NotificationAccessListReviewDue30d,
+    title: `You have access lists that require your review today.`,
+    subKind: NotificationSubKind.NotificationAccessListReviewDue0d,
     createdDate: subMinutes(Date.now(), 5), // 5 minutes ago
     clicked: false,
     labels: [],
