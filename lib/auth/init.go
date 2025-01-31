@@ -57,7 +57,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/migration"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -301,9 +300,6 @@ type InitConfig struct {
 
 	// AccessMonitoringRules is a service that manages access monitoring rules.
 	AccessMonitoringRules services.AccessMonitoringRules
-
-	// CloudClients provides clients for various cloud providers.
-	CloudClients cloud.Clients
 
 	// KubeWaitingContainers is a service that manages
 	// Kubernetes ephemeral containers that are waiting

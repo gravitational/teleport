@@ -26,30 +26,16 @@ import (
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/gravitational/trace"
 )
 
-// ConvertRequestFailureError converts `err` into AWS errors to trace errors.
-// If the provided error is not a [awserr.RequestFailure] it delegates
-// error conversion to [ConvertRequestFailureErrorV2] for SDK v2 compatibility.
-// Prefer using [ConvertRequestFailureErrorV2] directly for AWS SDK v2 client
-// errors.
-func ConvertRequestFailureError(err error) error {
-	var requestErr awserr.RequestFailure
-	if errors.As(err, &requestErr) {
-		return convertRequestFailureErrorFromStatusCode(requestErr.StatusCode(), requestErr)
-	}
-	return ConvertRequestFailureErrorV2(err)
-}
-
-// ConvertRequestFailureErrorV2 converts AWS SDK v2 errors to trace errors.
+// ConvertRequestFailureError converts AWS SDK v2 errors to trace errors.
 // If the provided error is not a [awshttp.ResponseError] it returns the error
 // without modifying it.
-func ConvertRequestFailureErrorV2(err error) error {
+func ConvertRequestFailureError(err error) error {
 	var re *awshttp.ResponseError
 	if errors.As(err, &re) {
-		return convertRequestFailureErrorFromStatusCode(re.HTTPStatusCode(), re.Err)
+		return convertRequestFailureErrorFromStatusCode(re.HTTPStatusCode(), re)
 	}
 	return err
 }
@@ -107,5 +93,5 @@ func ConvertIAMError(err error) error {
 		return trace.BadParameter(*malformedPolicyDocument.Message)
 	}
 
-	return ConvertRequestFailureErrorV2(err)
+	return ConvertRequestFailureError(err)
 }

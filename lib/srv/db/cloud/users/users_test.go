@@ -36,7 +36,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	clients "github.com/gravitational/teleport/lib/cloud"
 	libaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -85,7 +84,6 @@ func TestUsers(t *testing.T) {
 
 	users, err := NewUsers(Config{
 		AWSConfigProvider: &mocks.AWSConfigProvider{},
-		Clients:           &clients.TestCloudClients{},
 		Clock:             clock,
 		UpdateMeta: func(_ context.Context, database types.Database) error {
 			// Update db1 to group3 when setupAllDatabases.

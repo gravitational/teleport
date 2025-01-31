@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiaws "github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -71,8 +71,6 @@ type Engine struct {
 	// RoundTrippers is a cache of RoundTrippers, mapped by service endpoint.
 	// It is not guarded by a mutex, since requests are processed serially.
 	RoundTrippers map[string]http.RoundTripper
-	// CredentialsGetter is used to obtain STS credentials.
-	CredentialsGetter libaws.CredentialsGetter
 	// UseFIPS will ensure FIPS endpoint resolution.
 	UseFIPS bool
 }
@@ -141,23 +139,6 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 	}
 	defer e.Audit.OnSessionEnd(e.Context, e.sessionCtx)
 
-	meta := e.sessionCtx.Database.GetAWS()
-	awsSession, err := e.CloudClients.GetAWSSession(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	signer, err := libaws.NewSigningService(libaws.SigningServiceConfig{
-		Clock:             e.Clock,
-		SessionProvider:   libaws.StaticAWSSessionProvider(awsSession),
-		CredentialsGetter: e.CredentialsGetter,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	clientConnReader := bufio.NewReader(e.clientConn)
 
 	observe()
@@ -171,7 +152,7 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 			return trace.Wrap(err)
 		}
 
-		if err := e.process(ctx, req, signer, msgFromClient, msgFromServer); err != nil {
+		if err := e.process(ctx, req, msgFromClient, msgFromServer); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -179,7 +160,7 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 
 // process reads request from connected dynamodb client, processes the requests/responses and sends data back
 // to the client.
-func (e *Engine) process(ctx context.Context, req *http.Request, signer *libaws.SigningService, msgFromClient prometheus.Counter, msgFromServer prometheus.Counter) (err error) {
+func (e *Engine) process(ctx context.Context, req *http.Request, msgFromClient prometheus.Counter, msgFromServer prometheus.Counter) (err error) {
 	msgFromClient.Inc()
 
 	if req.Body != nil {
@@ -222,18 +203,32 @@ func (e *Engine) process(ctx context.Context, req *http.Request, signer *libaws.
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	signingCtx := &libaws.SigningCtx{
-		SigningName:   re.SigningName,
-		SigningRegion: re.SigningRegion,
-		Expiry:        e.sessionCtx.Identity.Expires,
-		SessionName:   e.sessionCtx.Identity.Username,
-		AWSRoleArn:    roleArn,
-		SessionTags:   e.sessionCtx.Database.GetAWS().SessionTags,
+
+	ar := awsconfig.AssumeRole{
+		RoleARN:     roleArn,
+		SessionName: e.sessionCtx.Identity.Username,
+		Tags:        meta.SessionTags,
 	}
 	if meta.AssumeRoleARN == "" {
-		signingCtx.AWSExternalID = meta.ExternalID
+		ar.ExternalID = meta.ExternalID
 	}
-	signedReq, err := signer.SignRequest(e.Context, outReq, signingCtx)
+	awsCfg, err := e.AWSConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithDetailedAssumeRole(ar),
+		awsconfig.WithAmbientCredentials(),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	signingCtx := &libaws.SigningCtx{
+		Clock:         e.Clock,
+		Credentials:   awsCfg.Credentials,
+		SigningName:   re.SigningName,
+		SigningRegion: re.SigningRegion,
+	}
+
+	signedReq, err := libaws.SignRequest(e.Context, outReq, signingCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -190,11 +190,11 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 			name: "merge two errors",
 			args: args{
 				fetchers: []*fakeFetcher{
-					&fakeFetcher{
+					{
 						discoveryConfigName: "test1",
 						err:                 fmt.Errorf("error in fetcher 1"),
 					},
-					&fakeFetcher{
+					{
 						discoveryConfigName: "test1",
 						err:                 fmt.Errorf("error in fetcher 2"),
 					},

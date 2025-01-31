@@ -159,22 +159,17 @@ func IsSignedByAWSSigV4(r *http.Request) bool {
 	return strings.HasPrefix(r.Header.Get(AuthorizationHeader), AmazonSigV4AuthorizationPrefix)
 }
 
-// VerifyAWSSignatureV2 is a temporary AWS SDK migration helper.
-func VerifyAWSSignatureV2(req *http.Request, provider aws.CredentialsProvider) error {
-	return VerifyAWSSignature(req, migration.NewCredentialsAdapter(provider))
-}
-
 // VerifyAWSSignature verifies the request signature ensuring that the request originates from tsh aws command execution
 // AWS CLI signs the request with random generated credentials that are passed to LocalProxy by
 // the AWSCredentials LocalProxyConfig configuration.
-func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials) error {
+func VerifyAWSSignature(req *http.Request, credProvider aws.CredentialsProvider) error {
 	sigV4, err := ParseSigV4(req.Header.Get("Authorization"))
 	if err != nil {
 		return trace.BadParameter(err.Error())
 	}
 
 	// Verifies the request is signed by the expected access key ID.
-	credValue, err := credentials.Get()
+	credValue, err := credProvider.Retrieve(req.Context())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -212,7 +207,7 @@ func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials)
 		return trace.BadParameter(err.Error())
 	}
 
-	signer := NewSigner(credentials, sigV4.Service)
+	signer := NewSignerV2(credProvider, sigV4.Service)
 	_, err = signer.Sign(reqCopy, bytes.NewReader(payload), sigV4.Service, sigV4.Region, t)
 	if err != nil {
 		return trace.Wrap(err)

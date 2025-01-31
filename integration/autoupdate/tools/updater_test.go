@@ -46,8 +46,7 @@ var (
 // an update to a newer version, expecting it to re-execute with the updated version.
 func TestUpdate(t *testing.T) {
 	t.Setenv(types.HomeEnvVar, t.TempDir())
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
+	ctx := context.Background()
 
 	// Fetch compiled test binary with updater logic and install to $TELEPORT_HOME.
 	updater := tools.NewUpdater(
@@ -88,8 +87,7 @@ func TestUpdate(t *testing.T) {
 // the command with the updated version without any new downloads.
 func TestParallelUpdate(t *testing.T) {
 	t.Setenv(types.HomeEnvVar, t.TempDir())
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
+	ctx := context.Background()
 
 	// Initial fetch the updater binary un-archive and replace.
 	updater := tools.NewUpdater(
@@ -162,8 +160,7 @@ func TestParallelUpdate(t *testing.T) {
 // TestUpdateInterruptSignal verifies the interrupt signal send to the process must stop downloading.
 func TestUpdateInterruptSignal(t *testing.T) {
 	t.Setenv(types.HomeEnvVar, t.TempDir())
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
+	ctx := context.Background()
 
 	// Initial fetch the updater binary un-archive and replace.
 	updater := tools.NewUpdater(

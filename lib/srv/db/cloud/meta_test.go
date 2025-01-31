@@ -39,7 +39,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -137,9 +136,6 @@ func TestAWSMetadata(t *testing.T) {
 
 	// Create metadata fetcher.
 	metadata, err := NewMetadata(MetadataConfig{
-		Clients: &cloud.TestCloudClients{
-			STS: &fakeSTS.STSClientV1,
-		},
 		AWSConfigProvider: &mocks.AWSConfigProvider{
 			STSClient: fakeSTS,
 		},
@@ -420,9 +416,6 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 
 	// Create metadata fetcher.
 	metadata, err := NewMetadata(MetadataConfig{
-		Clients: &cloud.TestCloudClients{
-			STS: &fakeSTS.STSClientV1,
-		},
 		AWSConfigProvider: &mocks.AWSConfigProvider{
 			STSClient: fakeSTS,
 		},

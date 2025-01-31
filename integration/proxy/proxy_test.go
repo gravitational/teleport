@@ -31,7 +31,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -1739,7 +1739,7 @@ func TestALPNSNIProxyGRPCInsecure(t *testing.T) {
 
 	nodeAccount := "123456789012"
 	nodeRoleARN := "arn:aws:iam::123456789012:role/test"
-	nodeCredentials := credentials.NewStaticCredentials("FAKE_ID", "FAKE_KEY", "FAKE_TOKEN")
+	nodeCredentials := credentials.NewStaticCredentialsProvider("FAKE_ID", "FAKE_KEY", "FAKE_TOKEN")
 	provisionToken := mustCreateIAMJoinProvisionToken(t, "iam-join-token", nodeAccount, nodeRoleARN)
 
 	suite := newSuite(t,

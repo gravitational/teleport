@@ -335,15 +335,8 @@ func TestWatcherCloudFetchers(t *testing.T) {
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t)
 
-	testCloudClients := &clients.TestCloudClients{
-		AzureSQLServer: azure.NewSQLClientByAPI(&azure.ARMSQLServerMock{
-			AllServers: []*armsql.Server{azSQLServer},
-		}),
-		AzureManagedSQLServer: azure.NewManagedSQLClientByAPI(&azure.ARMSQLManagedServerMock{}),
-	}
 	dbFetcherFactory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{
 		AWSConfigProvider: &mocks.AWSConfigProvider{},
-		CloudClients:      testCloudClients,
 		AWSClients: fakeAWSClients{
 			rdsClient: &mocks.RDSClient{Unauth: true}, // Access denied error should not affect other fetchers.
 			rssClient: &mocks.RedshiftServerlessClient{
@@ -376,7 +369,6 @@ func TestWatcherCloudFetchers(t *testing.T) {
 			},
 		}},
 		CloudClients: &clients.TestCloudClients{
-			STS: &mocks.STSClientV1{},
 			AzureSQLServer: azure.NewSQLClientByAPI(&azure.ARMSQLServerMock{
 				AllServers: []*armsql.Server{azSQLServer},
 			}),
