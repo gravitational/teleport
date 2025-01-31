@@ -5,88 +5,174 @@ import (
 	"testing"
 
 	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 
+	headerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	"github.com/gravitational/teleport/api/types"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestAssignmentProvisioner_Provision_CreateAndDeleteAssignments(t *testing.T) {
-	const (
-		externalID = "test-external-id"
-	)
-	ctx := context.Background()
-	sdkMockClient := icsdk.NewClientMock(nil /* custom mock data */)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 
-	assignmentService := &mockAssignmentService{
-		UpdatePrincipalAssignmentFunc: func(ctx context.Context, assignment *pb.PrincipalAssignment) (*pb.PrincipalAssignment, error) {
-			assignment.Status.ProvisioningState = pb.ProvisioningState_PROVISIONING_STATE_PROVISIONED
-			return assignment, nil
+	testCases := []struct {
+		name                  string
+		principalType         ssoadmintypes.PrincipalType
+		calculatedAssignments []*pb.AccountAssignmentRef
+		initialAssignments    []*icsdk.Assignment
+		expectedAssignments   []*icsdk.Assignment
+	}{
+		{
+			name:          "user-create",
+			principalType: ssoadmintypes.PrincipalTypeUser,
+			calculatedAssignments: []*pb.AccountAssignmentRef{
+				{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
+				{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::0987654321:permissionSet/Admin"},
+			},
+			expectedAssignments: []*icsdk.Assignment{
+				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly", PrincipalType: ssoadmintypes.PrincipalTypeUser},
+				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::0987654321:permissionSet/Admin", PrincipalType: ssoadmintypes.PrincipalTypeUser},
+			},
+		},
+		{
+			name:          "user-delete",
+			principalType: ssoadmintypes.PrincipalTypeUser,
+			calculatedAssignments: []*pb.AccountAssignmentRef{
+				{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
+			},
+			initialAssignments: []*icsdk.Assignment{
+				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly", PrincipalType: ssoadmintypes.PrincipalTypeUser},
+				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::0987654321:permissionSet/Admin", PrincipalType: ssoadmintypes.PrincipalTypeUser},
+			},
+			expectedAssignments: []*icsdk.Assignment{
+				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly", PrincipalType: ssoadmintypes.PrincipalTypeUser},
+			},
+		},
+		{
+			name:          "group-create",
+			principalType: ssoadmintypes.PrincipalTypeGroup,
+			calculatedAssignments: []*pb.AccountAssignmentRef{
+				{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
+				{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::0987654321:permissionSet/Admin"},
+			},
+			expectedAssignments: []*icsdk.Assignment{
+				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly", PrincipalType: ssoadmintypes.PrincipalTypeGroup},
+				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::0987654321:permissionSet/Admin", PrincipalType: ssoadmintypes.PrincipalTypeGroup},
+			},
+		},
+		{
+			name:          "group-delete",
+			principalType: ssoadmintypes.PrincipalTypeGroup,
+			calculatedAssignments: []*pb.AccountAssignmentRef{
+				{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
+			},
+			initialAssignments: []*icsdk.Assignment{
+				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly", PrincipalType: ssoadmintypes.PrincipalTypeGroup},
+				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::0987654321:permissionSet/Admin", PrincipalType: ssoadmintypes.PrincipalTypeGroup},
+			},
+			expectedAssignments: []*icsdk.Assignment{
+				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly", PrincipalType: ssoadmintypes.PrincipalTypeGroup},
+			},
+		},
+		{
+			name:          "delete-all",
+			principalType: ssoadmintypes.PrincipalTypeGroup,
+			initialAssignments: []*icsdk.Assignment{
+				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly", PrincipalType: ssoadmintypes.PrincipalTypeGroup},
+				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::0987654321:permissionSet/Admin", PrincipalType: ssoadmintypes.PrincipalTypeGroup},
+			},
 		},
 	}
 
-	provisioner, err := NewAssignmentProvisioner(ProvisionerConfig{
-		Assignment: assignmentService,
-		SDKClient:  sdkMockClient,
-	})
-	require.NoError(t, err)
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
 
-	var assignees = []*pb.AccountAssignmentRef{
-		{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
-		{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::0987654321:permissionSet/Admin"},
+			// GIVEN a mock AWS client...
+			sdkMockClient := icsdk.NewClientMock(nil /* custom mock data */)
+
+			// GIVEN a method for resetting principal account assignments in the mock
+			// AWS system
+			setMockAccountAssignments := func(pType ssoadmintypes.PrincipalType, id string, assignments []*icsdk.Assignment) {
+				sdkMockClient.Mu.Lock()
+				defer sdkMockClient.Mu.Unlock()
+				dst := sdkMockClient.GroupAssignments
+				if pType == ssoadmintypes.PrincipalTypeUser {
+					dst = sdkMockClient.UserAssignments
+				}
+				dst[id] = assignments
+			}
+
+			assignmentService := &mockAssignmentService{
+				UpdatePrincipalAssignmentFunc: func(ctx context.Context, assignment *pb.PrincipalAssignment) (*pb.PrincipalAssignment, error) {
+					assignment.Status.ProvisioningState = pb.ProvisioningState_PROVISIONING_STATE_PROVISIONED
+					return assignment, nil
+				},
+			}
+
+			// GIVEN an Assignment Provisioner to test, configured with a known account
+			provisioner, err := NewAssignmentProvisioner(ProvisionerConfig{
+				Assignment: assignmentService,
+				SDKClient:  sdkMockClient,
+			})
+			require.NoError(t, err)
+			provisioner.SetKnownAccounts("1111111111")
+
+			// GIVEN an existing principal with pre-calculated account assignments
+			principalID := "test-" + test.name
+			externalID := "ext-" + test.name
+			principal := &pb.PrincipalAssignment{
+				Kind:    types.KindIdentityCenterPrincipalAssignment,
+				Version: types.V1,
+				Metadata: &headerpb.Metadata{
+					Name: principalID,
+				},
+				Spec: &pb.PrincipalAssignmentSpec{
+					ExternalId:    externalID,
+					PrincipalType: toPrincipalType(test.principalType),
+				},
+				Status: &pb.PrincipalAssignmentStatus{
+					Assignments:       test.calculatedAssignments,
+					ProvisioningState: pb.ProvisioningState_PROVISIONING_STATE_STALE,
+				},
+			}
+
+			// GIVEN a mock remote account with a known set of existing account
+			// assignments
+			setMockAccountAssignments(test.principalType, externalID, test.initialAssignments)
+
+			// WHEN I provision the principal's account assignments...
+			updatedPrincipal, err := provisioner.Provision(ctx, principal)
+
+			// EXPECT that the principal assignment record has been marked as
+			// PROVISIONED
+			require.NoError(t, err)
+			require.Equal(t,
+				pb.ProvisioningState_PROVISIONING_STATE_PROVISIONED,
+				updatedPrincipal.GetStatus().GetProvisioningState())
+
+			// EXPECT that the provisioner has created the correct assignments
+			actualAssignments, err := sdkMockClient.ListAssignments(ctx, externalID, test.principalType)
+			require.NoError(t, err)
+			assertAssignments(t, test.expectedAssignments, actualAssignments)
+		})
 	}
+}
 
-	principal := &pb.PrincipalAssignment{
-		Spec: &pb.PrincipalAssignmentSpec{
-			ExternalId:    externalID,
-			PrincipalType: pb.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST,
-		},
-		Status: &pb.PrincipalAssignmentStatus{
-			Assignments:       assignees,
-			ProvisioningState: pb.ProvisioningState_PROVISIONING_STATE_STALE,
-		},
+func toPrincipalType(t ssoadmintypes.PrincipalType) pb.PrincipalType {
+	switch t {
+	case ssoadmintypes.PrincipalTypeGroup:
+		return pb.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST
+
+	case ssoadmintypes.PrincipalTypeUser:
+		return pb.PrincipalType_PRINCIPAL_TYPE_USER
+
+	default:
+		return pb.PrincipalType_PRINCIPAL_TYPE_UNSPECIFIED
 	}
-
-	updatedPrincipal, err := provisioner.Provision(ctx, principal)
-	require.NoError(t, err)
-	require.Equal(t, pb.ProvisioningState_PROVISIONING_STATE_PROVISIONED, updatedPrincipal.GetStatus().GetProvisioningState())
-
-	got, err := sdkMockClient.ListAssignments(ctx, externalID, ssoadmintypes.PrincipalTypeGroup)
-	require.NoError(t, err)
-
-	want := []*icsdk.Assignment{
-		{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly", PrincipalType: ssoadmintypes.PrincipalTypeGroup},
-		{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::0987654321:permissionSet/Admin", PrincipalType: ssoadmintypes.PrincipalTypeGroup},
-	}
-
-	assertAssignments(t, want, got)
-
-	_, err = sdkMockClient.CreateAccountAssignment(ctx, &icsdk.CreateAccountAssignmentRequest{
-		PrincipalID:      externalID,
-		PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/Custom",
-		AccountID:        "22222222222",
-		PrincipalType:    ssoadmintypes.PrincipalTypeGroup,
-	})
-	require.NoError(t, err)
-
-	principal.Status.ProvisioningState = pb.ProvisioningState_PROVISIONING_STATE_STALE
-	principal.Status.Assignments = []*pb.AccountAssignmentRef{
-		{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
-	}
-
-	_, err = provisioner.Provision(ctx, principal)
-	require.NoError(t, err)
-
-	got, err = sdkMockClient.ListAssignments(ctx, externalID, ssoadmintypes.PrincipalTypeGroup)
-	require.NoError(t, err)
-	want = []*icsdk.Assignment{
-		{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly", PrincipalType: ssoadmintypes.PrincipalTypeGroup},
-	}
-	assertAssignments(t, want, got)
 }
 
 func TestAssignmentDiffCalculator(t *testing.T) {
@@ -202,13 +288,5 @@ func (m *mockAssignmentService) UpdatePrincipalAssignment(ctx context.Context, a
 }
 
 func assertAssignments(t *testing.T, want, got []*icsdk.Assignment) {
-	t.Helper()
-	require.Empty(t, cmp.Diff(want, got,
-		cmpopts.SortSlices(func(a, b *icsdk.Assignment) bool {
-			if a.AccountID != b.AccountID {
-				return a.AccountID < b.AccountID
-			}
-			return a.PermissionSetARN < b.PermissionSetARN
-		}),
-	))
+	require.ElementsMatch(t, want, got)
 }

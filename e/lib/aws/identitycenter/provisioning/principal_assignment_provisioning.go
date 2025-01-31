@@ -11,6 +11,7 @@ import (
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -21,12 +22,28 @@ func NewAssignmentProvisioner(cfg ProvisionerConfig) (*AssignmentProvisioner, er
 	}
 	return &AssignmentProvisioner{
 		ProvisionerConfig: cfg,
+		knownAccounts:     utils.NewSet[services.IdentityCenterAccountID](),
 	}, nil
 }
 
 // AssignmentProvisioner provisions the principal assignment in AWS Identity Center.
 type AssignmentProvisioner struct {
 	ProvisionerConfig
+
+	accountLock   sync.RWMutex
+	knownAccounts utils.Set[services.IdentityCenterAccountID]
+}
+
+func (a *AssignmentProvisioner) SetKnownAccounts(accts ...services.IdentityCenterAccountID) {
+	a.accountLock.Lock()
+	defer a.accountLock.Unlock()
+	a.knownAccounts = utils.NewSet(accts...)
+}
+
+func (a *AssignmentProvisioner) isKnownAccount(acct services.IdentityCenterAccountID) bool {
+	a.accountLock.RLock()
+	defer a.accountLock.RUnlock()
+	return a.knownAccounts.Contains(acct)
 }
 
 // Provision provisions the principal assignment in AWS Identity Center.
@@ -79,6 +96,11 @@ func (a *AssignmentProvisioner) Provision(ctx context.Context, principal *pb.Pri
 	}
 	for item := range diffCalc.assignmentsToDelete() {
 		item := item
+
+		if !a.isKnownAccount(services.IdentityCenterAccountID(item.AccountID)) {
+			continue
+		}
+
 		g.Go(func() error {
 			if err := a.deleteAssignment(ctx, externalID, item.PermissionSetARN, item.AccountID, principalType); err != nil {
 				log.WarnContext(ctx, "Failed to delete AWS IC assignment", "permission_set_arn", item.PermissionSetARN, "account_id", item.AccountID)

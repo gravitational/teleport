@@ -2,6 +2,8 @@ package identitycenter
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -90,6 +92,10 @@ func (svc *Service) synchronize(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "fetching AWS resources")
 	}
+
+	// Make sure that the assignment provisioner knows which accounts it is
+	// allowed to touch.
+	svc.assignmentProvisioner.SetKnownAccounts(slices.Collect(maps.Keys(awsData.accounts))...)
 
 	awsResources, err := svc.preProcessExternalData(ctx, awsData)
 	if err != nil {
