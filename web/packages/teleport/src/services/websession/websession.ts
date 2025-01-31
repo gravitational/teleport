@@ -147,16 +147,12 @@ const session = {
     }
 
     const token = this._getBearerToken();
-    var expiresIn, sessionExpiresIn;
-    if (token) {
-      // Convert seconds to millis.
-      if (token.expiresIn) {
-        expiresIn = token.expiresIn * 1000;
-      }
-      if (token.sessionExpiresIn) {
-        sessionExpiresIn = token.sessionExpiresIn * 1000;
-      }
+    if (!token) {
+      return false;
     }
+    // Convert seconds to millis.
+    const expiresIn = (token.expiresIn ?? 0) * 1000;
+    const sessionExpiresIn = (token.sessionExpiresIn ?? 0) * 1000;
 
     // Session TTL decreases on every renewal, up to a point where it doesn't
     // make sense to renew anymore, as we won't gain any extra time from it.
