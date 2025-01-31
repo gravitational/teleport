@@ -150,10 +150,14 @@ message UpdateIntegrationRequest {
   bool enable_app_group_sync = 6;
   // Settings related to access list synchronization.
   AccessListSettings access_list_settings = 7;
+  reserved 8; // reuse_connector
+  reserved "reuse_connector";
+  reserved 9; // sso_metadata_url
+  reserved "sso_metadata_url";
   // Enable sync from Teleport to Okta. If disabled it will prevent creating Okta assignments which
   // in turn will disable JIT Access Requests. Makes sense only when apps and groups sync is
   // enabled.
-  bool enable_bidirectional_sync = 8;
+  bool enable_bidirectional_sync = 10;
 }
 
 // AccessListSettings contains the settings for access list synchronization.
