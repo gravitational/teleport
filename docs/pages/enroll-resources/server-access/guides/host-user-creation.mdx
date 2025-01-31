@@ -243,7 +243,13 @@ spec:
 
 The range of UIDs between `first_uid` and `last_uid` (inclusive) will be used by Teleport to assign UIDs for new users, and you should make sure it's not a range of UIDs already in use by other services or workloads across your fleet of servers. While UID allocations in Linux can vary, we recommend sticking to one of the available ranges listed in the [systemd documentation for "Users, Groups, UIDs and GIDs on systemd Systems"](https://github.com/systemd/systemd/blob/main/docs/UIDS-GIDS.md).
 
-Once enabled, all Teleport SSH instances (of version 17.3 and newer) will use the UID provided by the control plane when automatically creating a new host user, if no other UID is specified by the user trait and if the `create_host_user_mode` is `keep` (and not `insecure-drop`).
+Once enabled, all Teleport SSH instances (of version 17.3 and newer) will use the UID provided by the control plane when automatically creating a new host user, if no other UID is specified by the user trait.
+
+<Admonition type="note">
+
+Teleport will only use the UID defined by the control plane if the `create_host_user_mode` is `keep` (and not `insecure-drop`), and only for automatically created host users that were created after the feature was enabled. The UID will not be applied to users that already exist, and it will not take effect for static host users.
+
+</Admonition>
 
 You can inspect the list of assigned UIDs with the following command:
 
