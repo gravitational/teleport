@@ -53,7 +53,7 @@ import useTeleport from 'teleport/useTeleport';
 
 import { getMarketingTermMatches } from './getMarketingTermMatches';
 import { DiscoverIcon } from './icons';
-import { SAML_APPLICATIONS } from './resourcesE';
+import { SAML_APPLICATIONS } from './resources';
 import {
   PrioritizedResources,
   SearchResource,
