@@ -37,6 +37,7 @@ type clientApplicationServiceClient struct {
 }
 
 func newClientApplicationServiceClient(ctx context.Context, addr string) (*clientApplicationServiceClient, error) {
+	// TODO(nklaassen): add mTLS credentials for client application service.
 	conn, err := grpc.NewClient(addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithUnaryInterceptor(interceptors.GRPCClientUnaryErrorInterceptor),
@@ -58,7 +59,7 @@ func (c *clientApplicationServiceClient) close() error {
 // Ping pings the client application.
 func (c *clientApplicationServiceClient) Ping(ctx context.Context) error {
 	if _, err := c.clt.Ping(ctx, &vnetv1.PingRequest{}); err != nil {
-		return trace.Wrap(err, "pinging client application")
+		return trace.Wrap(err, "calling Ping rpc")
 	}
 	return nil
 }
@@ -70,7 +71,7 @@ func (c *clientApplicationServiceClient) AuthenticateProcess(ctx context.Context
 		PipePath: pipePath,
 	})
 	if err != nil {
-		return trace.Wrap(err, "authenticating process")
+		return trace.Wrap(err, "calling AuthenticateProcess rpc")
 	}
 	if resp.Version != api.Version {
 		return trace.BadParameter("version mismatch, user process version is %s, admin process version is %s",
@@ -86,7 +87,7 @@ func (c *clientApplicationServiceClient) ResolveAppInfo(ctx context.Context, fqd
 		Fqdn: fqdn,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err, "resolving app info")
+		return nil, trace.Wrap(err, "calling ResolveAppInfo rpc")
 	}
 	return resp.GetAppInfo(), nil
 }
@@ -98,7 +99,7 @@ func (c *clientApplicationServiceClient) ReissueAppCert(ctx context.Context, app
 		TargetPort: uint32(targetPort),
 	})
 	if err != nil {
-		return nil, trace.Wrap(err, "reissuing app cert")
+		return nil, trace.Wrap(err, "calling ReissueAppCert rpc")
 	}
 	return resp.GetCert(), nil
 }
@@ -108,7 +109,7 @@ func (c *clientApplicationServiceClient) ReissueAppCert(ctx context.Context, app
 func (c *clientApplicationServiceClient) SignForApp(ctx context.Context, req *vnetv1.SignForAppRequest) ([]byte, error) {
 	resp, err := c.clt.SignForApp(ctx, req)
 	if err != nil {
-		return nil, trace.Wrap(err, "signing for app")
+		return nil, trace.Wrap(err, "calling SignForApp rpc")
 	}
 	return resp.GetSignature(), nil
 }
@@ -119,7 +120,7 @@ func (c *clientApplicationServiceClient) OnNewConnection(ctx context.Context, ap
 		AppKey: appKey,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "calling OnNewConnection rpc")
 	}
 	return nil
 }
@@ -132,7 +133,7 @@ func (c *clientApplicationServiceClient) OnInvalidLocalPort(ctx context.Context,
 		TargetPort: uint32(targetPort),
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "calling OnInvalidLocalPort rpc")
 	}
 	return nil
 }

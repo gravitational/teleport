@@ -2120,20 +2120,22 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 	}
 
 	// create and sign!
-	return a.generateHostCert(ctx, services.HostCertParams{
+	return a.generateHostCert(ctx, sshca.HostCertificateRequest{
 		CASigner:      caSigner,
 		PublicHostKey: hostPublicKey,
 		HostID:        hostID,
 		NodeName:      nodeName,
-		Principals:    principals,
-		ClusterName:   clusterName,
-		Role:          role,
 		TTL:           ttl,
+		Identity: sshca.Identity{
+			Principals:  principals,
+			ClusterName: clusterName,
+			SystemRole:  role,
+		},
 	})
 }
 
 func (a *Server) generateHostCert(
-	ctx context.Context, p services.HostCertParams,
+	ctx context.Context, req sshca.HostCertificateRequest,
 ) ([]byte, error) {
 	readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
@@ -2141,7 +2143,7 @@ func (a *Server) generateHostCert(
 	}
 
 	var locks []types.LockTarget
-	switch p.Role {
+	switch req.Identity.SystemRole {
 	case types.RoleNode:
 		// Node role is a special case because it was previously suported as a
 		// lock target that only locked the `ssh_service`. If the same Teleport server
@@ -2154,9 +2156,9 @@ func (a *Server) generateHostCert(
 		// and `Node` fields if the role is `Node` so that the previous behavior
 		// is preserved.
 		// This is a legacy behavior that we need to support for backwards compatibility.
-		locks = []types.LockTarget{{ServerID: p.HostID, Node: p.HostID}, {ServerID: HostFQDN(p.HostID, p.ClusterName), Node: HostFQDN(p.HostID, p.ClusterName)}}
+		locks = []types.LockTarget{{ServerID: req.HostID, Node: req.HostID}, {ServerID: HostFQDN(req.HostID, req.Identity.ClusterName), Node: HostFQDN(req.HostID, req.Identity.ClusterName)}}
 	default:
-		locks = []types.LockTarget{{ServerID: p.HostID}, {ServerID: HostFQDN(p.HostID, p.ClusterName)}}
+		locks = []types.LockTarget{{ServerID: req.HostID}, {ServerID: HostFQDN(req.HostID, req.Identity.ClusterName)}}
 	}
 	if lockErr := a.checkLockInForce(readOnlyAuthPref.GetLockingMode(),
 		locks,
@@ -2164,7 +2166,7 @@ func (a *Server) generateHostCert(
 		return nil, trace.Wrap(lockErr)
 	}
 
-	return a.Authority.GenerateHostCert(p)
+	return a.Authority.GenerateHostCert(req)
 }
 
 // GetKeyStore returns the KeyStore used by the auth server
@@ -2216,7 +2218,7 @@ type certRequest struct {
 	traits wrappers.Traits
 	// activeRequests tracks privilege escalation requests applied
 	// during the construction of the certificate.
-	activeRequests services.RequestIDs
+	activeRequests []string
 	// appSessionID is the session ID of the application session.
 	appSessionID string
 	// appPublicAddr is the public address of the application.
@@ -3038,6 +3040,7 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest, attestedKeyPolic
 		UsageKubernetes:  kubernetes,
 		UsageDesktop:     desktop,
 		PrivateKeyPolicy: string(attestedKeyPolicy),
+		BotInstanceId:    req.botInstanceID,
 	})
 }
 
@@ -3071,7 +3074,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		defaultMode:          readOnlyAuthPref.GetLockingMode(),
 		username:             req.user.GetName(),
 		mfaVerified:          req.mfaVerified,
-		activeAccessRequests: req.activeRequests.AccessRequests,
+		activeAccessRequests: req.activeRequests,
 		deviceID:             req.deviceExtensions.DeviceID,
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -3200,11 +3203,6 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	// All users have access to this and join RBAC rules are checked after the connection is established.
 	allowedLogins = append(allowedLogins, teleport.SSHSessionJoinPrincipal)
 
-	requestedResourcesStr, err := types.ResourceIDsToString(req.checker.GetAllowedResourceIDs())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	pinnedIP := ""
 	if caType == types.UserCA && (req.checker.PinSourceIP() || req.pinIP) {
 		if req.loginIP == "" {
@@ -3244,7 +3242,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			Identity: sshca.Identity{
 				Username:                req.user.GetName(),
 				Impersonator:            req.impersonator,
-				AllowedLogins:           allowedLogins,
+				Principals:              allowedLogins,
 				Roles:                   req.checker.RoleNames(),
 				PermitPortForwarding:    req.checker.CanPortForward(),
 				PermitAgentForwarding:   req.checker.CanForwardAgents(),
@@ -3262,7 +3260,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 				BotName:                 req.botName,
 				BotInstanceID:           req.botInstanceID,
 				CertificateExtensions:   req.checker.CertificateExtensions(),
-				AllowedResourceIDs:      requestedResourcesStr,
+				AllowedResourceIDs:      req.checker.GetAllowedResourceIDs(),
 				ConnectionDiagnosticID:  req.connectionDiagnosticID,
 				PrivateKeyPolicy:        attestedKeyPolicy,
 				DeviceID:                req.deviceExtensions.DeviceID,
@@ -3357,7 +3355,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		AWSRoleARNs:             roleARNs,
 		AzureIdentities:         azureIdentities,
 		GCPServiceAccounts:      gcpAccounts,
-		ActiveRequests:          req.activeRequests.AccessRequests,
+		ActiveRequests:          req.activeRequests,
 		DisallowReissue:         req.disallowReissue,
 		Renewable:               req.renewable,
 		Generation:              req.generation,
@@ -4702,14 +4700,16 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		return nil, trace.Wrap(err)
 	}
 	// generate host SSH certificate
-	hostSSHCert, err := a.generateHostCert(ctx, services.HostCertParams{
+	hostSSHCert, err := a.generateHostCert(ctx, sshca.HostCertificateRequest{
 		CASigner:      caSigner,
 		PublicHostKey: req.PublicSSHKey,
 		HostID:        req.HostID,
 		NodeName:      req.NodeName,
-		ClusterName:   clusterName.GetClusterName(),
-		Role:          req.Role,
-		Principals:    req.AdditionalPrincipals,
+		Identity: sshca.Identity{
+			ClusterName: clusterName.GetClusterName(),
+			SystemRole:  req.Role,
+			Principals:  req.AdditionalPrincipals,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
