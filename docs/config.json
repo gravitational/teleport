@@ -385,7 +385,72 @@
     {
       "source": "/enroll-resources/workload-identity/workload-attestation/",
       "destination": "/reference/workload-identity/workload-identity-api-and-workload-attestation/",
-       "permanent": true
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/guides/role-templates/",
+      "destination": "/admin-guides/access-controls/guides/role-templates/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/access-controls/guides/headless/",
+      "destination": "/docs/admin-guides/access-controls/guides/headless/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/application-access/okta/hosted-guide/",
+      "destination": "/docs/enroll-resources/application-access/okta/hosted-guide/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/architecture/tls-routing/",
+      "destination": "/docs/reference/architecture/tls-routing/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/desktop-access/",
+      "destination": "/docs/enroll-resources/desktop-access/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/enterprise/sso/google-workspace/",
+      "destination": "/docs/admin-guides/access-controls/sso/google-workspace/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/kubernetes-access/",
+      "destination": "/docs/enroll-resources/kubernetes-access/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/machine-id/introduction/",
+      "destination": "/docs/enroll-resources/machine-id/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/machine-id/reference/telemetry/",
+      "destination": "/docs/reference/machine-id/telemetry/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/machine-id/reference/v16-upgrade-guide/",
+      "destination": "/docs/reference/machine-id/v16-upgrade-guide/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/management/export-audit-events/fluentd/",
+      "destination": "/docs/admin-guides/management/export-audit-events/fluentd/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/setup/admin/github-sso/",
+      "destination": "/docs/admin-guides/access-controls/sso/github-sso/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/device-trust/guide/",
+      "destination": "/admin-guides/access-controls/device-trust/guide/",
+      "permanent": true
     }
   ]
 }
