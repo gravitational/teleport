@@ -73,22 +73,22 @@ func createPyroscopeConfig(ctx context.Context, logger *slog.Logger, address str
 
 	// Evaluate if profile configuration is customized
 	if p := getPyroscopeProfileTypesFromEnv(); len(p) == 0 {
-		slog.InfoContext(ctx, "No profile types enabled, using default")
+		logger.InfoContext(ctx, "No profile types enabled, using default")
 	} else {
 		config.ProfileTypes = p
-		slog.InfoContext(ctx, "Pyroscope will configure profiles from env")
+		logger.InfoContext(ctx, "Pyroscope will configure profiles from env")
 	}
 
 	var uploadRate *time.Duration
 	if rate := os.Getenv("TELEPORT_PYROSCOPE_UPLOAD_RATE"); rate != "" {
 		parsedRate, err := time.ParseDuration(rate)
 		if err != nil {
-			slog.InfoContext(ctx, "invalid TELEPORT_PYROSCOPE_UPLOAD_RATE, ignoring value", "provided_value", rate, "error", err)
+			logger.InfoContext(ctx, "invalid TELEPORT_PYROSCOPE_UPLOAD_RATE, ignoring value", "provided_value", rate, "error", err)
 		} else {
 			uploadRate = &parsedRate
 		}
 	} else {
-		slog.InfoContext(ctx, "TELEPORT_PYROSCOPE_UPLOAD_RATE not specified, using default")
+		logger.InfoContext(ctx, "TELEPORT_PYROSCOPE_UPLOAD_RATE not specified, using default")
 	}
 
 	// Set UploadRate or fall back to defaults
@@ -112,20 +112,20 @@ func (process *TeleportProcess) initPyroscope(address string) {
 	logger := process.logger.With(teleport.ComponentKey, "pyroscope")
 	config, err := createPyroscopeConfig(process.ExitContext(), logger, address)
 	if err != nil {
-		process.logger.ErrorContext(process.ExitContext(), "failed to create Pyroscope config", "address", address, "error", err)
+		logger.ErrorContext(process.ExitContext(), "failed to create Pyroscope config", "address", address, "error", err)
 		return
 	}
 
 	profiler, err := pyroscope.Start(config)
 	if err != nil {
-		slog.ErrorContext(process.ExitContext(), "error starting pyroscope profiler", "address", address, "error", err)
+		logger.ErrorContext(process.ExitContext(), "error starting pyroscope profiler", "address", address, "error", err)
 	} else {
 		process.OnExit("pyroscope.profiler", func(payload any) {
 			profiler.Flush(payload == nil)
 			_ = profiler.Stop()
 		})
 	}
-	slog.InfoContext(process.ExitContext(), "Pyroscope has successfully started")
+	logger.InfoContext(process.ExitContext(), "Pyroscope has successfully started")
 }
 
 // getPyroscopeProfileTypesFromEnv sets the profile types based on environment variables.
