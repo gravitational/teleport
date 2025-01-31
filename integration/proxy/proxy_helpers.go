@@ -33,7 +33,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
@@ -605,7 +605,7 @@ func mustParseURL(t *testing.T, rawURL string) *url.URL {
 type fakeSTSClient struct {
 	accountID   string
 	arn         string
-	credentials *credentials.Credentials
+	credentials aws.CredentialsProvider
 }
 
 func (f fakeSTSClient) Do(req *http.Request) (*http.Response, error) {
@@ -640,10 +640,10 @@ func mustCreateIAMJoinProvisionToken(t *testing.T, name, awsAccountID, allowedAR
 	return provisionToken
 }
 
-func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token string, credentials *credentials.Credentials) {
+func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token string, credentials aws.CredentialsProvider) {
 	t.Helper()
 
-	cred, err := credentials.Get()
+	cred, err := credentials.Retrieve(context.Background())
 	require.NoError(t, err)
 
 	t.Setenv("AWS_ACCESS_KEY_ID", cred.AccessKeyID)

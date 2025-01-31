@@ -4175,7 +4175,14 @@ func (a *ServerWithRoles) CreateGithubAuthRequest(ctx context.Context, req types
 
 	githubReq, err := a.authServer.CreateGithubAuthRequest(ctx, req)
 	if err != nil {
-		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodGithub, err, req.SSOTestFlow)
+		if trace.IsNotFound(err) {
+			// This flow is triggered via an unauthenticated endpoint, so it's not unusual to see
+			// attempts to hit this API with an invalid connector ID. These are not legitimate SSO
+			// attempts, so avoid cluttering the audit log with them.
+			a.authServer.logger.InfoContext(ctx, "rejecting invalid GitHub auth request", "connector", req.ConnectorID)
+		} else {
+			emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodGithub, err, req.SSOTestFlow)
+		}
 		return nil, trace.Wrap(err)
 	}
 

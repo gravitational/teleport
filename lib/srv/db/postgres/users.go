@@ -204,10 +204,10 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 	}
 
 	fetcher, err := objects.GetObjectFetcher(ctx, sessionCtx.Database, objects.ObjectFetcherConfig{
-		ImportRules:  e.AuthClient,
-		Auth:         e.Auth,
-		CloudClients: e.CloudClients,
-		Log:          e.Log,
+		ImportRules: e.AuthClient,
+		Auth:        e.Auth,
+		GCPClients:  e.GCPClients,
+		Log:         e.Log,
 	})
 	if err != nil {
 		return trace.Wrap(err)

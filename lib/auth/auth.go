@@ -92,7 +92,6 @@ import (
 	"github.com/gravitational/teleport/lib/bitbucket"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/circleci"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
@@ -369,12 +368,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.IdentityCenter == nil {
 		svcCfg := local.IdentityCenterServiceConfig{Backend: cfg.Backend}
 		cfg.IdentityCenter, err = local.NewIdentityCenterService(svcCfg)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	if cfg.CloudClients == nil {
-		cfg.CloudClients, err = cloud.NewClients()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3058,6 +3051,7 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest, attestedKeyPolic
 		UsageKubernetes:  kubernetes,
 		UsageDesktop:     desktop,
 		PrivateKeyPolicy: string(attestedKeyPolicy),
+		BotInstanceId:    req.botInstanceID,
 	})
 }
 

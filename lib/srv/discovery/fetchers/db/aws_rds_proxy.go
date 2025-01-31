@@ -145,7 +145,7 @@ func getRDSProxies(ctx context.Context, clt RDSClient, maxPages int) ([]rdstypes
 	for i := 0; i < maxPages && pager.HasMorePages(); i++ {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureErrorV2(err))
+			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 		}
 		rdsProxies = append(rdsProxies, page.DBProxies...)
 	}
@@ -165,7 +165,7 @@ func getRDSProxyCustomEndpoints(ctx context.Context, clt RDSClient, maxPages int
 	for i := 0; i < maxPages && pager.HasMorePages(); i++ {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureErrorV2(err))
+			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 		}
 		for _, customEndpoint := range page.DBProxyEndpoints {
 			customEndpointsByProxyName[aws.ToString(customEndpoint.DBProxyName)] = append(customEndpointsByProxyName[aws.ToString(customEndpoint.DBProxyName)], customEndpoint)
@@ -180,7 +180,7 @@ func listRDSResourceTags(ctx context.Context, clt RDSClient, resourceName *strin
 		ResourceName: resourceName,
 	})
 	if err != nil {
-		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureErrorV2(err))
+		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 	}
 	return output.TagList, nil
 }

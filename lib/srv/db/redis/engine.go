@@ -456,7 +456,7 @@ func (e *Engine) checkElastiCacheUserIAMAuthIsEnabled(ctx context.Context, awsMe
 	input := elasticache.DescribeUsersInput{UserId: aws.String(username)}
 	out, err := client.DescribeUsers(ctx, &input)
 	if err != nil {
-		return false, trace.Wrap(libaws.ConvertRequestFailureErrorV2(err))
+		return false, trace.Wrap(libaws.ConvertRequestFailureError(err))
 	}
 	if len(out.Users) < 1 || out.Users[0].Authentication == nil {
 		return false, nil
@@ -477,7 +477,7 @@ func (e *Engine) checkMemoryDBUserIAMAuthIsEnabled(ctx context.Context, awsMeta 
 	input := memorydb.DescribeUsersInput{UserName: aws.String(username)}
 	out, err := client.DescribeUsers(ctx, &input)
 	if err != nil {
-		return false, trace.Wrap(libaws.ConvertRequestFailureErrorV2(err))
+		return false, trace.Wrap(libaws.ConvertRequestFailureError(err))
 	}
 	if len(out.Users) < 1 || out.Users[0].Authentication == nil {
 		return false, nil
