@@ -1398,7 +1398,7 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest, s
 	// This prevents the time drift that can occur as the value is set on the client side.
 	if req.GetDryRun() {
 		maxDuration = MaxAccessDuration
-		// maxDuration may end upo < 0 even if maxDurationTime is set
+		// maxDuration may end up < 0 even if maxDurationTime is set
 	} else if !maxDurationTime.IsZero() && maxDuration < 0 {
 		return 0, trace.BadParameter("invalid maxDuration: must be greater than creation time")
 	}
@@ -1430,11 +1430,11 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest, s
 	return minAdjDuration, nil
 }
 
-func (m *RequestValidator) maxDurationForRole(role string) time.Duration {
+func (m *RequestValidator) maxDurationForRole(roleName string) time.Duration {
 	var maxDurationForRole time.Duration
 	for _, tms := range m.MaxDurationMatchers {
 		for _, matcher := range tms.Matchers {
-			if matcher.Match(role) {
+			if matcher.Match(roleName) {
 				if tms.MaxDuration > maxDurationForRole {
 					maxDurationForRole = tms.MaxDuration
 				}
