@@ -80,15 +80,17 @@ export function AccessCard({ accessList, onlyRender = false, onClick }: Props) {
       <Flex>
         {canViewMembers && (
           <Flex alignItems="center" gap={2} mr={2}>
-            <Flex
-              alignItems="center"
-              title={`${memberListCount} Access ${pluralize(memberListCount, 'List')} in this list`}
-            >
-              <UserList size={16} />
-              <Text ml={1} typography="body4">
-                {memberListCount || '0'}
-              </Text>
-            </Flex>
+            {memberListCount ? (
+              <Flex
+                alignItems="center"
+                title={`${memberListCount} Access ${pluralize(memberListCount, 'List')} in this list`}
+              >
+                <UserList size={16} />
+                <Text ml={1} typography="body4">
+                  {memberListCount || '0'}
+                </Text>
+              </Flex>
+            ) : null}
             <Flex
               alignItems="center"
               title={`${membersCount} ${pluralize(membersCount, 'member')} in this list`}
