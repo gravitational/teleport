@@ -1951,7 +1951,7 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
 	sb, err := s.parseSubsystemRequest(ctx, req, serverContext)
 	if err != nil {
-		serverContext.Logger.WarnContext(ctx, "Failed to parse subsystem request", "requres_type", req.Type, "error", err)
+		serverContext.Logger.WarnContext(ctx, "Failed to parse subsystem request", "request_type", req.Type, "error", err)
 		return trace.Wrap(err)
 	}
 	serverContext.Logger.DebugContext(ctx, "Starting subsystem")
