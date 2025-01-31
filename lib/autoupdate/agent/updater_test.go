@@ -706,11 +706,11 @@ func TestUpdater_Update(t *testing.T) {
 					return !tt.notActive, nil
 				},
 			}
-			updater.Setup = func(_ context.Context) error {
+			updater.ExecCheck = func(_ context.Context) error {
 				setupCalls++
 				return tt.setupErr
 			}
-			updater.Revert = func(_ context.Context) error {
+			updater.SetupConfig = func(_ context.Context) error {
 				revertSetupCalls++
 				return nil
 			}
@@ -1140,7 +1140,7 @@ func TestUpdater_Remove(t *testing.T) {
 					return false, nil
 				},
 			}
-			updater.Teardown = func(_ context.Context) error {
+			updater.TeardownConfig = func(_ context.Context) error {
 				teardownCalls++
 				return nil
 			}
@@ -1542,11 +1542,11 @@ func TestUpdater_Install(t *testing.T) {
 					return !tt.notActive, nil
 				},
 			}
-			updater.Setup = func(_ context.Context) error {
+			updater.ExecCheck = func(_ context.Context) error {
 				setupCalls++
 				return tt.setupErr
 			}
-			updater.Revert = func(_ context.Context) error {
+			updater.SetupConfig = func(_ context.Context) error {
 				revertSetupCalls++
 				return nil
 			}

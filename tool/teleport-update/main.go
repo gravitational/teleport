@@ -81,6 +81,8 @@ type cliConfig struct {
 	SelfSetup bool
 	// UpdateNow forces an immediate update.
 	UpdateNow bool
+	// Restart forces Teleport to restart
+	Restart bool
 }
 
 func Run(args []string) int {
@@ -141,14 +143,16 @@ func Run(args []string) int {
 	updateCmd := app.Command("update", "Update the agent to the latest version, if a new version is available.")
 	updateCmd.Flag("now", "Force immediate update even if update window is not active.").
 		Short('n').BoolVar(&ccfg.UpdateNow)
-	updateCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for auto-updates.").
+	updateCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for auto-updates and verify the Teleport installation.").
 		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
 
 	linkCmd := app.Command("link-package", "Link the system installation of Teleport from the Teleport package, if auto-updates is disabled.")
 	unlinkCmd := app.Command("unlink-package", "Unlink the system installation of Teleport from the Teleport package.")
 
-	setupCmd := app.Command("setup", "Write configuration files that run the update subcommand on a timer.").
+	setupCmd := app.Command("setup", "Write configuration files that run the update subcommand on a timer and verify the Teleport installation.").
 		Hidden()
+	setupCmd.Flag("restart", "Restart the Teleport agent.").
+		Short('n').BoolVar(&ccfg.UpdateNow)
 
 	statusCmd := app.Command("status", "Show Teleport agent auto-update status.")
 
@@ -205,9 +209,6 @@ func Run(args []string) int {
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.Errorf("command %s not configured", command)
-	}
-	if errors.Is(err, autoupdate.ErrNotSupported) {
-		return autoupdate.CodeNotSupported
 	}
 	if err != nil {
 		plog.ErrorContext(ctx, "Command failed.", "error", err)
@@ -418,13 +419,16 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = ns.Setup(ctx)
-	if errors.Is(err, autoupdate.ErrNotSupported) {
-		plog.WarnContext(ctx, "Not enabling systemd service because systemd is not running.")
+	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
+		SelfSetup: ccfg.SelfSetup,
+		Log:       plog,
+	}, ns)
+	if err != nil {
 		return trace.Wrap(err)
 	}
+	err = updater.Setup(ctx, ccfg.Restart)
 	if err != nil {
-		return trace.Wrap(err, "failed to setup teleport-update service")
+		return trace.Wrap(err)
 	}
 	return nil
 }
