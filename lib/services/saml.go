@@ -98,7 +98,17 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
 
 		sc.SetIssuer(md.EntityID)
 		if md.IDPSSODescriptor != nil && len(md.IDPSSODescriptor.SingleSignOnServices) > 0 {
-			sc.SetSSO(md.IDPSSODescriptor.SingleSignOnServices[0].Location)
+			metadataSsoUrl := md.IDPSSODescriptor.SingleSignOnServices[0].Location
+			if sc.GetSSO() != "" && sc.GetSSO() != metadataSsoUrl {
+				log.WithFields(log.Fields{
+					"connector_name":       sc.GetName(),
+					"connector_sso_url":    sc.GetSSO(),
+					"idp_metadata_sso_url": metadataSsoUrl,
+				}).Warn(
+					"Connector has set SSO URL, but it does not match the one found in IDP metadata. Overwriting with the IDP metadata SSO URL.",
+				)
+			}
+			sc.SetSSO(metadataSsoUrl)
 		}
 	}
 
