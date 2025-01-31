@@ -318,34 +318,34 @@ func createUsageTemplate(opts ...func(*usageTemplateOptions)) string {
 // pre-parsing the arguments then applying any changes to the usage template if
 // necessary.
 func UpdateAppUsageTemplate(app *kingpin.Application, args []string) {
-	// If ParseContext fails, kingpin will not show usage so there is no need
-	// to update anything here. See app.Parse for more details.
-	appContext, err := app.ParseContext(args)
-	if err != nil {
-		return
-	}
-
 	app.UsageTemplate(createUsageTemplate(
-		withCommandPrintfWidth(app, appContext, args),
+		withCommandPrintfWidth(app, args),
 	))
 }
 
-// withCommandPrintfWidth returns an usage template option that
+// withCommandPrintfWidth returns a usage template option that
 // updates command printf width if longer than default.
-func withCommandPrintfWidth(app *kingpin.Application, appContext *kingpin.ParseContext, args []string) func(*usageTemplateOptions) {
+func withCommandPrintfWidth(app *kingpin.Application, args []string) func(*usageTemplateOptions) {
 	return func(opt *usageTemplateOptions) {
 		var commands []*kingpin.CmdModel
 
-		// When selected command is "help", parse again without the "help" arg
+		// When selected command is "help", skip the "help" arg
 		// so the intended command is selected for calculation.
-		if len(args) > 0 && args[0] == "help" &&
-			appContext.SelectedCommand != nil && appContext.SelectedCommand.FullCommand() == "help" {
-			appContextWithoutHelpArg, err := app.ParseContext(args[1:])
-			if err != nil {
-				slog.WarnContext(context.Background(), "Failed to parse args context without help command", "error", err, "args", args)
-			} else {
-				appContext = appContextWithoutHelpArg
-			}
+		if len(args) > 0 && args[0] == "help" {
+			args = args[1:]
+		}
+
+		appContext, err := app.ParseContext(args)
+		switch {
+		case appContext == nil:
+			slog.WarnContext(context.Background(), "No application context found")
+			return
+
+		// Note that ParseContext may return the current selected command that's
+		// causing the error. We should continue in those cases when appContext is
+		// not nil.
+		case err != nil:
+			slog.InfoContext(context.Background(), "Error parsing application context", "error", err)
 		}
 
 		if appContext.SelectedCommand != nil {
