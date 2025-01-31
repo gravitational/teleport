@@ -123,7 +123,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 			Ready:       debugClient,
 			Log:         cfg.Log,
 		},
-		ExecCheck: func(ctx context.Context, restart bool) error {
+		ExecSetup: func(ctx context.Context, restart bool) error {
 			name := ns.updaterBinFile
 			if cfg.SelfSetup && runtime.GOOS == constants.LinuxOS {
 				name = "/proc/self/exe"
@@ -179,8 +179,8 @@ type Updater struct {
 	Installer Installer
 	// Process manages a running instance of Teleport.
 	Process Process
-	// ExecCheck execs teleport-update to verify and reload the installation.
-	ExecCheck func(ctx context.Context, restart bool) error
+	// ExecSetup execs teleport-update to verify and reload the installation.
+	ExecSetup func(ctx context.Context, restart bool) error
 	// SetupConfig installs the Teleport updater service using the running installation.
 	SetupConfig func(ctx context.Context) error
 	// TeardownConfig removes all traces of the updater and all managed installations.
@@ -414,10 +414,11 @@ func (u *Updater) Remove(ctx context.Context) error {
 	// Sync systemd.
 
 	err = u.Process.Sync(ctx)
+	if errors.Is(err, context.Canceled) {
+		return trace.Errorf("sync canceled")
+	}
 	if errors.Is(err, ErrNotSupported) {
 		u.Log.WarnContext(ctx, "Not syncing systemd configuration because systemd is not running.")
-	} else if errors.Is(err, context.Canceled) {
-		return trace.Errorf("sync canceled")
 	} else if err != nil {
 		// If sync fails, we may have left the host in a bad state, so we revert linking and re-Sync.
 		u.Log.ErrorContext(ctx, "Reverting symlinks due to invalid configuration.")
@@ -734,7 +735,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 	}
 
 	if cfg.Status.Active != target {
-		err := u.ExecCheck(ctx, true)
+		err := u.ExecSetup(ctx, true)
 		if errors.Is(err, context.Canceled) {
 			return trace.Errorf("check canceled")
 		}
@@ -757,7 +758,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 		}
 		cfg.Status.Active = target
 	} else {
-		err := u.ExecCheck(ctx, false)
+		err := u.ExecSetup(ctx, false)
 		if errors.Is(err, context.Canceled) {
 			return trace.Errorf("check canceled")
 		}
