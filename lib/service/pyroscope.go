@@ -50,7 +50,7 @@ func (l pyroscopeLogger) Errorf(format string, args ...interface{}) {
 }
 
 // createPyroscopeConfig generates the Pyroscope configuration for the Teleport process.
-func createPyroscopeConfig(ctx context.Context, address string) (pyroscope.Config, error) {
+func createPyroscopeConfig(ctx context.Context, logger *slog.Logger, address string) (pyroscope.Config, error) {
 	if address == "" {
 		return pyroscope.Config{}, trace.BadParameter("pyroscope address is empty")
 	}
@@ -63,7 +63,7 @@ func createPyroscopeConfig(ctx context.Context, address string) (pyroscope.Confi
 	config := pyroscope.Config{
 		ApplicationName: teleport.ComponentTeleport,
 		ServerAddress:   address,
-		Logger:          pyroscope.Logger(pyroscopeLogger{l: slog.Default()}),
+		Logger:          pyroscope.Logger(pyroscopeLogger{l: logger}),
 		Tags: map[string]string{
 			"host":    hostname,
 			"version": teleport.Version,
@@ -109,7 +109,8 @@ func createPyroscopeConfig(ctx context.Context, address string) (pyroscope.Confi
 
 // initPyroscope instruments Teleport to run with continuous profiling for Pyroscope
 func (process *TeleportProcess) initPyroscope(address string) {
-	config, err := createPyroscopeConfig(process.ExitContext(), address)
+	logger := process.logger.With(teleport.ComponentKey, "pyroscope")
+	config, err := createPyroscopeConfig(process.ExitContext(), logger, address)
 	if err != nil {
 		process.logger.ErrorContext(process.ExitContext(), "failed to create Pyroscope config", "address", address, "error", err)
 		return

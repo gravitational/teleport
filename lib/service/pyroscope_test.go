@@ -83,7 +83,7 @@ func TestPyroscopeConfig(t *testing.T) {
 			for k, v := range tt.envVars {
 				t.Setenv(k, v)
 			}
-			got, err := createPyroscopeConfig(p.ExitContext(), tt.address)
+			got, err := createPyroscopeConfig(context.Background(), slog.Default(), tt.address)
 			tt.errorAssertion(t, err)
 
 			require.Equal(t, tt.want.ProfileTypes, got.ProfileTypes)
