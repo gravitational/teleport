@@ -21,8 +21,8 @@ import { DbProtocol } from 'shared/services/databases';
 
 import { DiscoverEventResource } from 'teleport/services/userEvent';
 
-import { ResourceKind } from '../Shared/ResourceKind';
-import { DatabaseEngine, DatabaseLocation, ResourceSpec } from './types';
+import { ResourceKind } from '../../Shared/ResourceKind';
+import { DatabaseEngine, DatabaseLocation, ResourceSpec } from '../types';
 
 const baseDatabaseKeywords = ['db', 'database', 'databases'];
 const awsKeywords = [...baseDatabaseKeywords, 'aws', 'amazon web services'];
