@@ -669,7 +669,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 	baseURL := cfg.Spec.BaseURL
 	if baseURL == "" {
 		if agpl {
-			return trace.Errorf("base URL must be specified for AGPL edition of Teleport")
+			return trace.Errorf("--base-url flag must be specified for AGPL edition of Teleport")
 		}
 		baseURL = autoupdate.DefaultBaseURL
 	}
