@@ -91,7 +91,7 @@
     "react-highlight": "^0.15.0",
     "react-is": "^18.3.1",
     "react-router": "5.3.4",
-    "react-router-dom": "5.3.4",
+    "react-router-dom": "7.1.5",
     "react-select": "^5.9.0",
     "react-transition-group": "^4.4.5",
     "styled-components": "^6.1.13",
