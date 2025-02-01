@@ -152,7 +152,7 @@ func Run(args []string) int {
 	setupCmd := app.Command("setup", "Write configuration files that run the update subcommand on a timer and verify the Teleport installation.").
 		Hidden()
 	setupCmd.Flag("restart", "Restart the Teleport agent.").
-		Short('n').BoolVar(&ccfg.UpdateNow)
+		Short('r').BoolVar(&ccfg.Restart)
 
 	statusCmd := app.Command("status", "Show Teleport agent auto-update status.")
 
