@@ -1599,7 +1599,7 @@ func TestUpdater_Setup(t *testing.T) {
 			setupErr: ErrNotSupported,
 		},
 		{
-			name:     "setup error cancelled",
+			name:     "setup error canceled",
 			restart:  false,
 			setupErr: context.Canceled,
 			errMatch: "canceled",
@@ -1611,13 +1611,13 @@ func TestUpdater_Setup(t *testing.T) {
 			errMatch:   "some error",
 		},
 		{
-			name:       "present error cancelled",
+			name:       "present error canceled",
 			restart:    false,
 			presentErr: context.Canceled,
 			errMatch:   "canceled",
 		},
 		{
-			name:      "reload error cancelled",
+			name:      "reload error canceled",
 			restart:   true,
 			present:   true,
 			reloadErr: context.Canceled,
