@@ -1552,6 +1552,116 @@ func TestUpdater_Install(t *testing.T) {
 	}
 }
 
+func TestUpdater_Setup(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		restart    bool
+		present    bool
+		setupErr   error
+		presentErr error
+		reloadErr  error
+
+		errMatch string
+	}{
+		{
+			name:    "no restart",
+			restart: false,
+			present: true,
+		},
+		{
+			name:    "restart",
+			restart: true,
+			present: true,
+		},
+		{
+			name:      "reload not needed",
+			restart:   true,
+			present:   true,
+			reloadErr: ErrNotNeeded,
+		},
+		{
+			name:     "not present",
+			restart:  true,
+			present:  false,
+			errMatch: "cannot find systemd",
+		},
+		{
+			name:     "setup error",
+			restart:  false,
+			setupErr: errors.New("some error"),
+			errMatch: "some error",
+		},
+		{
+			name:     "setup error not supported",
+			restart:  false,
+			setupErr: ErrNotSupported,
+		},
+		{
+			name:     "setup error cancelled",
+			restart:  false,
+			setupErr: context.Canceled,
+			errMatch: "canceled",
+		},
+		{
+			name:       "present error",
+			restart:    false,
+			presentErr: errors.New("some error"),
+			errMatch:   "some error",
+		},
+		{
+			name:       "present error cancelled",
+			restart:    false,
+			presentErr: context.Canceled,
+			errMatch:   "canceled",
+		},
+		{
+			name:      "reload error cancelled",
+			restart:   true,
+			present:   true,
+			reloadErr: context.Canceled,
+			errMatch:  "canceled",
+		},
+		{
+			name:      "reload error",
+			restart:   true,
+			present:   true,
+			reloadErr: errors.New("some error"),
+			errMatch:  "some error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ns := &Namespace{}
+			updater, err := NewLocalUpdater(LocalUpdaterConfig{}, ns)
+			require.NoError(t, err)
+
+			updater.Process = &testProcess{
+				FuncReload: func(_ context.Context) error {
+					return tt.reloadErr
+				},
+				FuncIsPresent: func(_ context.Context) (bool, error) {
+					return tt.present, tt.presentErr
+				},
+			}
+			updater.SetupConfig = func(_ context.Context) error {
+				return tt.setupErr
+			}
+
+			ctx := context.Background()
+			err = updater.Setup(ctx, tt.restart)
+			if tt.errMatch != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMatch)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 var serverRegexp = regexp.MustCompile("127.0.0.1:[0-9]+")
 
 func blankTestAddr(s []byte) []byte {

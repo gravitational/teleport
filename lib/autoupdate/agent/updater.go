@@ -788,12 +788,12 @@ func (u *Updater) Setup(ctx context.Context, restart bool) error {
 	// Setup teleport-updater configuration and sync systemd.
 
 	err := u.SetupConfig(ctx)
+	if errors.Is(err, context.Canceled) {
+		return trace.Errorf("sync canceled")
+	}
 	if errors.Is(err, ErrNotSupported) {
 		u.Log.WarnContext(ctx, "Skipping all systemd setup because systemd is not running.")
 		return nil
-	}
-	if errors.Is(err, context.Canceled) {
-		return trace.Errorf("sync canceled")
 	}
 	if err != nil {
 		return trace.Wrap(err, "failed to setup updater")
