@@ -498,12 +498,13 @@ func (x *GenerateAWSOIDCTokenResponse) GetToken() string {
 // GenerateAzureOIDCTokenRequest are the parameters used to request an Azure OIDC
 // Integration token.
 type GenerateAzureOIDCTokenRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
 	// Integration is the Azure OIDC Integration name.
 	// Required.
-	Integration   string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
 }
 
 func (x *GenerateAzureOIDCTokenRequest) Reset() {
@@ -545,11 +546,12 @@ func (x *GenerateAzureOIDCTokenRequest) GetIntegration() string {
 
 // GenerateAzureOIDCTokenResponse contains a signed Azure OIDC Integration token.
 type GenerateAzureOIDCTokenResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Token is the signed JWT ready to be used
-	Token         string `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
-	unknownFields protoimpl.UnknownFields
+	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Token is the signed JWT ready to be used
+	Token string `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 }
 
 func (x *GenerateAzureOIDCTokenResponse) Reset() {
