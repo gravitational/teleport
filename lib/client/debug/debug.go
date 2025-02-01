@@ -61,6 +61,9 @@ func NewClient(socketPath string) *Client {
 					return d.DialContext(ctx, "unix", socketPath)
 				},
 			},
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+				return trace.Errorf("redirect via socket not allowed")
+			},
 		},
 	}
 }
