@@ -37,6 +37,9 @@ import {
 
 export type MfaProps = {
   req?: CreateAuthenticateChallengeRequest;
+  // isMfaRequired is an initial state for isMfaRequired. Useful in cases
+  // where the mfa requirement is discovered and set indirectly by the caller.
+  isMfaRequired?: boolean;
 };
 
 type mfaResponsePromiseWithResolvers = {
@@ -51,8 +54,8 @@ type mfaResponsePromiseWithResolvers = {
  * be used to display options to the user and prompt for them to complete
  * the MFA check.
  */
-export function useMfa({ req }: MfaProps): MfaState {
-  const [mfaRequired, setMfaRequired] = useState<boolean>();
+export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
+  const [mfaRequired, setMfaRequired] = useState<boolean>(isMfaRequired);
   const [options, setMfaOptions] = useState<MfaOption[]>();
   const [challenge, setMfaChallenge] = useState<MfaAuthenticateChallenge>();
 
@@ -68,8 +71,9 @@ export function useMfa({ req }: MfaProps): MfaState {
   const [attempt, getResponse, setMfaAttempt] = useAsync(
     useCallback(
       async (challenge?: MfaAuthenticateChallenge) => {
-        // If a previous call determined that MFA is not required, this is a noop.
-        if (mfaRequired === false) return;
+        // If a challenge wasn't provided and we previously determined MFA is not
+        // required, this is a noop.
+        if (mfaRequired === false && !challenge) return;
 
         challenge = challenge ? challenge : await auth.getMfaChallenge(req);
         if (!challenge) {

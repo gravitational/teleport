@@ -55,6 +55,9 @@ function DocumentSsh({ doc, visible }: PropTypes) {
   const [showSearch, setShowSearch] = useState(false);
 
   const mfa = useMfaEmitter(tty, {
+    // The MFA requirement will be determined by whether we do/don't get
+    // an mfa challenge over the event emitter at session start.
+    isMfaRequired: false,
     req: {
       scope: MfaChallengeScope.USER_SESSION,
     },
