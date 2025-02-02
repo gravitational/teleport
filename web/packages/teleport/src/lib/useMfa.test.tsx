@@ -121,30 +121,33 @@ describe('useMfa', () => {
     await waitFor(() => expect(mfa.current.mfaRequired).toEqual(false));
   });
 
-  test('adaptable mfa requirement state', async () => {
+  test('adaptable mfa requirement', async () => {
     jest.spyOn(auth, 'getMfaChallenge').mockResolvedValueOnce(mockChallenge);
-    jest
-      .spyOn(auth, 'getMfaChallengeResponse')
-      .mockResolvedValueOnce(mockResponse);
 
     const { result: mfa } = renderHook(() =>
       useMfa({
+        isMfaRequired: false,
         req: mockChallengeReq,
       })
     );
 
+    // The mfa requirement can be initialized to a non-undefined value to skip
+    // the mfa check when it isn't needed, e.g. the requirement was predetermined.
+    expect(mfa.current.mfaRequired).toEqual(false);
+
     // The mfa required state can be changed directly, in case the requirement
-    // is predetermined by other means (e.g. session mfa event emitter).
-    mfa.current.setMfaRequired(false);
-    expect(mfa.current.mfaRequired).toEqual(false);
-
+    // need to be updated by the caller.
     mfa.current.setMfaRequired(true);
-    expect(mfa.current.mfaRequired).toEqual(false);
+    await waitFor(() => {
+      expect(mfa.current.mfaRequired).toEqual(true);
+    });
 
-    // The mfa required state can be changed back to null (default) to force
+    // The mfa required state can be changed back to undefined (default) or null to force
     // the next mfa attempt to re-check mfa required / attempt to get a challenge.
     mfa.current.setMfaRequired(null);
-    expect(mfa.current.mfaRequired).toEqual(null);
+    await waitFor(() => {
+      expect(mfa.current.mfaRequired).toEqual(null);
+    });
 
     // mfa required will be updated to true as usual once the server returns an mfa challenge.
     mfa.current.getChallengeResponse();
