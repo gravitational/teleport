@@ -20,6 +20,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -49,6 +50,22 @@ func (h *Handler) autoUpdateAgentVersion(ctx context.Context, group, updaterUUID
 	}
 
 	return getVersionFromRollout(rollout, group, updaterUUID)
+}
+
+// handlerVersionGetter is a dummy struct implementing version.Getter by wrapping Handler.autoUpdateAgentVersion.
+type handlerVersionGetter struct {
+	*Handler
+}
+
+// GetVersion implements version.Getter.
+func (h *handlerVersionGetter) GetVersion(ctx context.Context) (string, error) {
+	const group, updaterUUID = "", ""
+	agentVersion, err := h.autoUpdateAgentVersion(ctx, group, updaterUUID)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	// We add the leading v required by the version.Getter interface.
+	return fmt.Sprintf("v%s", agentVersion), nil
 }
 
 // autoUpdateAgentShouldUpdate returns if the agent should update now to based on its group
