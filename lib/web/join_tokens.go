@@ -383,11 +383,13 @@ func (h *Handler) getAutoUpgrades(ctx context.Context) (bool, string, error) {
 	var err error
 	autoUpgrades := automaticUpgrades(h.GetClusterFeatures())
 	if autoUpgrades {
-		autoUpgradesVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
+		const group, updaterUUID = "", ""
+		autoUpgradesVersion, err = h.autoUpdateAgentVersion(ctx, group, updaterUUID)
 		if err != nil {
 			h.logger.InfoContext(ctx, "Failed to get auto upgrades version", "error", err)
 			return false, "", trace.Wrap(err)
 		}
+		autoUpgradesVersion = fmt.Sprintf("v%s", autoUpgradesVersion)
 	}
 	return autoUpgrades, autoUpgradesVersion, nil
 

@@ -158,13 +158,11 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 
 	teleportVersionTag := teleport.Version
 	if automaticUpgrades(h.GetClusterFeatures()) {
-		cloudStableVersion, err := h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
+		const group, updaterUUID = "", ""
+		teleportVersionTag, err = h.autoUpdateAgentVersion(r.Context(), group, updaterUUID)
 		if err != nil {
-			return "", trace.Wrap(err)
+			h.logger.ErrorContext(r.Context(), "Cannot read autoupdate target version", "error", err)
 		}
-
-		// cloudStableVersion has vX.Y.Z format, however the container image tag does not include the `v`.
-		teleportVersionTag = strings.TrimPrefix(cloudStableVersion, "v")
 	}
 
 	deployServiceResp, err := clt.IntegrationAWSOIDCClient().DeployService(ctx, &integrationv1.DeployServiceRequest{
@@ -211,13 +209,11 @@ func (h *Handler) awsOIDCDeployDatabaseServices(w http.ResponseWriter, r *http.R
 
 	teleportVersionTag := teleport.Version
 	if automaticUpgrades(h.GetClusterFeatures()) {
-		cloudStableVersion, err := h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
+		const group, updaterUUID = "", ""
+		teleportVersionTag, err = h.autoUpdateAgentVersion(r.Context(), group, updaterUUID)
 		if err != nil {
-			return "", trace.Wrap(err)
+			h.logger.ErrorContext(r.Context(), "Cannot read autoupdate target version", "error", err)
 		}
-
-		// cloudStableVersion has vX.Y.Z format, however the container image tag does not include the `v`.
-		teleportVersionTag = strings.TrimPrefix(cloudStableVersion, "v")
 	}
 
 	iamTokenName := deployserviceconfig.DefaultTeleportIAMTokenName
@@ -746,7 +742,8 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 		return nil, trace.BadParameter("an integration name is required")
 	}
 
-	agentVersion, err := kubeutils.GetKubeAgentVersion(ctx, h.cfg.ProxyClient, h.GetClusterFeatures(), h.cfg.AutomaticUpgradesChannels)
+	versionGetter := &handlerVersionGetter{h}
+	agentVersion, err := kubeutils.GetKubeAgentVersion(ctx, h.cfg.ProxyClient, h.GetClusterFeatures(), versionGetter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
