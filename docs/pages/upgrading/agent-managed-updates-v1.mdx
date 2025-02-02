@@ -9,8 +9,9 @@ currently supported but will eventually be deprecated.
 
 The original updater uses the `teleport-ent-updater` package and
 `cluster_maintenance_config` resource described in this document, while the
-next-generation updater is included in the `teleport` package and uses the
-`autoupdate_config` and `autoupdate_version` resources.
+next-generation updater is a binary called `teleport-update` that is included
+in the `teleport` package and configured by the `autoupdate_version` and
+`autoupdate_config` resources described in this document.
 
 Please consider using the next-generation updater, which is distributed with
 all versions of Teleport and provides a simpler, more flexible, and more reliable

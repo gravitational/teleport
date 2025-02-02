@@ -9,8 +9,9 @@ is currently in beta.
 
 The original updater uses the `teleport-ent-updater` package and
 `cluster_maintenance_config` resource, while the next-generation updater is
-included in the `teleport` package and uses the `autoupdate_version` and
-`autoupdate_config` resources described in this document.
+a binary called `teleport-update` that is included in the `teleport` package and
+configured by the `autoupdate_version` and `autoupdate_config` resources
+described in this document.
 
 Please consider using the next-generation updater, which is distributed with
 all versions of Teleport and provides a simpler, more flexible, and more reliable
@@ -47,7 +48,7 @@ will update the Teleport agent. Each agent belongs to an update group, and the
 time each group is updated can be configured using `tctl`.
 
 For Linux server-based installations, `teleport-update` command configures
-managed updates.
+managed updates locally on the server.
 
 For Kubernetes-based installations, the `teleport-kube-agent` Helm chart
 is configured to automatically update the Teleport container.
@@ -63,13 +64,13 @@ is configured to automatically update the Teleport container.
 - (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
 - (!docs/pages/includes/tctl.mdx!)
 
-## Quick Setup for Linux Servers
+## Quick Setup for Connected Linux Servers
 
 Users of cloud-hosted Teleport Enterprise can enable managed updates
-on Linux servers with a single command:
+on Linux servers that are already connected with a single command:
 
 ```code
-$ sudo teleport-update enable --proxy=[cluster-name].teleport.sh
+$ sudo teleport-update enable
 ```
 
 This command will disable the original (v1) updater if present.
@@ -90,7 +91,32 @@ $ sudo teleport-update uninstall
 
 For cloud-hosted Teleport Enterprise, updates will roll out automatically
 during the first chosen maintenance window that is at least 36 hours after
-the cluster version is updated. Keep reading to learn how to customize this.
+the cluster version is updated. Keep reading to learn how to customize the time.
+
+## Quick Setup for New Linux Servers
+
+The [Install Script] is the fastest way to onboard new Linux servers with
+a single command. However, it is also easy use `teleport-update` to setup
+a Teleport agent manually.
+
+Users of cloud-hosted Teleport Enterprise can install a fresh copy of Teleport
+with managed updates already enabled using a single command. First, download a
+copy of the [Teleport tarball] from the downloads page. Next, invoke
+`teleport-update` to install the correct version for your cluster.
+
+```code
+$ tar xf teleport-[version].tgz
+$ cd teleport-[version]
+$ sudo ./teleport-update enable --proxy example.teleport.sh
+```
+
+After Teleport is installed, you can create `/etc/teleport.yaml`, either manually
+or using `teleport configure`. After, the Teleport agent can be enabled and
+started via the `systemctl` command:
+
+```code
+$ sudo systemctl enable teleport --now
+```
 
 ## Step 1/4. Enable managed agent updates
 
@@ -109,7 +135,7 @@ spec:
     start_version: v17.2.0
     target_version: v17.2.1
     schedule: regular
-    strategy: time-based
+    strategy: halt-on-error
     mode: enabled
 ```
 
@@ -129,15 +155,8 @@ $ tctl create autoupdate_version.yaml
 ```
 
 For both cloud-hosted and self-hosted editions of Teleport, an update schedule
-may be set with the 
-
-
-See below for how 
-
-
-
-
-
+may be set with the `autoupdate_config` resource. The default resource looks
+like this:
 
 ```yaml
 kind: autoupdate_config
@@ -145,22 +164,65 @@ spec:
   agents:
     schedules:
       regular:
-      - name: default
-        days: ["Mon", "Tue", "Wed", "Thu"]
-        start_hour: 4
+        - name: default
+          days: [ "Mon", "Tue", "Wed", "Thu" ]
+          start_hour: 16
 ```
 
+For cloud-hosted Teleport Enterprise, the `days` are not configurable for most
+customers, and the `start_hour` is defaulted to your selected maintenance window.
 
+For example, a user of cloud-hosted Teleport with a staging environment and a
+production environment might create a schedule that looks like this:
 
+```yaml
+kind: autoupdate_config
+spec:
+  agents:
+    schedules:
+      regular:
+        - name: staging
+          start_hour: 4
+          wait_hours: 24
+        - name: production
+          start_hour: 5
+```
 
-If you are running a cloud-hosted Teleport Enterprise cluster, the
-`autoupdate_version` is managed for you and cannot be edited.
+This schedule would update agents in the `staging` group at 4 UTC, and then update
+the `production` group at 5 UTC the next day. The `production` group will not execute
+update until the staging group has updated.
 
+<Notice type="warning">
+While failed installations will revert automatically on the client-side,
+server-side healthchecks are still in development. To prevent the `production`
+group above from updating after `staging` has failed, you must manually suspend
+the schedule by setting the `spec.agents.mode` to `suspended`.
+</Notice>
 
+You may wish to schedule groups of agents to update without any dependence between
+them. For example, groups may represent geographic areas and not environments.
+To accomplish this, you can change the default `halt-on-error` strategy to the
+`time-based` strategy:
 
-Before enabling managed upgrades in your self-hosted Teleport cluster, you
-must enable a **version server**. This section shows you how to enable a version
-server in your cluster.
+```yaml
+kind: autoupdate_config
+spec:
+  agents:
+    strategy: time-based
+    schedules:
+      regular:
+        - name: nyc
+          start_hour: 4
+        - name: sjc
+          start_hour: 20
+```
+
+With this strategy, updates to `sjc` may occur before `nyc`, depending on when
+new versions become available.
+
+To add agents to groups, run `teleport-update enable --group group-name`.
+You may execute `teleport-update enable` repeatedly to change the group
+(or other managed update settings).
 
 ### Configure a maintenance schedule
 
@@ -300,16 +362,16 @@ Server ID                            Hostname      Services Version Upgrader
    </TabItem>
    <TabItem label="Self-Hosted Teleport Enterprise">
 
-   1. Follow the instructions in the Teleport [installation
-      guide](../installation.mdx#package-repositories) to install the `teleport`
-      binary on your Linux server for your package manager.
+    1. Follow the instructions in the Teleport [installation
+       guide](../installation.mdx#package-repositories) to install the `teleport`
+       binary on your Linux server for your package manager.
 
-   1. Using your package manager, install `teleport-ent-updater` on the
-      server where you installed `teleport`. For example:
+    1. Using your package manager, install `teleport-ent-updater` on the
+       server where you installed `teleport`. For example:
 
-      ```code
-      $ apt-get install -y teleport-ent-updater
-      ```
+       ```code
+       $ apt-get install -y teleport-ent-updater
+       ```
 
    </TabItem>
    </Tabs>
