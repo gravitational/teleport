@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"net/url"
 	"slices"
 	"strings"
 	"sync"
@@ -30,10 +31,12 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport/api/client/webclient"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
@@ -60,10 +63,25 @@ func (s *Server) startKubeIntegrationWatchers() error {
 	}
 	proxyPublicAddr := pingResponse.GetProxyPublicAddr()
 
-	releaseChannels := automaticupgrades.Channels{automaticupgrades.DefaultChannelName: &automaticupgrades.Channel{
-		ForwardURL: fmt.Sprintf("https://%s/webapi/automaticupgrades/channel/%s", proxyPublicAddr, automaticupgrades.DefaultChannelName)}}
-	if err := releaseChannels.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
+	//
+	proxyClt, err := webclient.NewReusableClient(&webclient.Config{
+		Context:   s.ctx,
+		ProxyAddr: proxyPublicAddr,
+	})
+	if err != nil {
+		return trace.Wrap(err, "failed to build proxy client")
+	}
+
+	baseURL, err := url.Parse(fmt.Sprintf("https://%s/webapi/automaticupgrades/channel/%s", proxyPublicAddr, automaticupgrades.DefaultChannelName))
+	if err != nil {
+		return trace.Wrap(err, "crafting the channel base URL (this is a bug)")
+	}
+
+	versionGetter := version.FailoverGetter{
+		// We try getting the version via the new webapi
+		version.NewProxyVersionGetter(proxyClt),
+		// If this is not implemented, we fallback to the release channels
+		version.NewBasicHTTPVersionGetter(baseURL),
 	}
 
 	watcher, err := common.NewWatcher(s.ctx, common.WatcherConfig{
@@ -108,7 +126,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 					continue
 				}
 
-				agentVersion, err := s.getKubeAgentVersion(releaseChannels)
+				agentVersion, err := s.getKubeAgentVersion(versionGetter)
 				if err != nil {
 					s.Log.WarnContext(s.ctx, "Could not get agent version to enroll EKS clusters", "error", err)
 					continue
@@ -305,8 +323,8 @@ func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName stri
 	}
 }
 
-func (s *Server) getKubeAgentVersion(releaseChannels automaticupgrades.Channels) (string, error) {
-	return kubeutils.GetKubeAgentVersion(s.ctx, s.AccessPoint, s.ClusterFeatures(), releaseChannels)
+func (s *Server) getKubeAgentVersion(versionGetter version.Getter) (string, error) {
+	return kubeutils.GetKubeAgentVersion(s.ctx, s.AccessPoint, s.ClusterFeatures(), versionGetter)
 }
 
 type IntegrationFetcher interface {
