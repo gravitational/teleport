@@ -30,7 +30,7 @@ import { TerminalSearch } from 'shared/components/TerminalSearch';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import * as stores from 'teleport/Console/stores';
-import { useMfa, useMfaEmitter } from 'teleport/lib/useMfa';
+import { useMfaEmitter } from 'teleport/lib/useMfa';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import { useConsoleContext } from '../consoleContextProvider';
@@ -54,14 +54,12 @@ function DocumentSsh({ doc, visible }: PropTypes) {
   const { tty, status, closeDocument, session } = useSshSession(doc);
   const [showSearch, setShowSearch] = useState(false);
 
-  const ttyMfa = useMfaEmitter(tty);
-  const ftMfa = useMfa({
-    isMfaRequired: ttyMfa.required,
+  const mfa = useMfaEmitter(tty, {
     req: {
       scope: MfaChallengeScope.USER_SESSION,
     },
   });
-  const ft = useFileTransfer(tty, session, doc, ftMfa);
+  const ft = useFileTransfer(tty, session, doc, mfa);
   const theme = useTheme();
 
   function handleCloseFileTransfer() {
@@ -74,13 +72,10 @@ function DocumentSsh({ doc, visible }: PropTypes) {
 
   useEffect(() => {
     // when switching tabs or closing tabs, focus on visible terminal
-    if (
-      ttyMfa.attempt.status === 'processing' ||
-      ftMfa.attempt.status === 'processing'
-    ) {
+    if (mfa.attempt.status === 'processing') {
       terminalRef.current?.focus();
     }
-  }, [visible, ttyMfa.attempt.status, ftMfa.attempt.status]);
+  }, [visible, mfa.attempt.status]);
 
   const onSearchClose = useCallback(() => {
     setShowSearch(false);
@@ -141,8 +136,15 @@ function DocumentSsh({ doc, visible }: PropTypes) {
           <Indicator />
         </Box>
       )}
-      <AuthnDialog mfaState={ttyMfa} onClose={closeDocument} />
-      <AuthnDialog mfaState={ftMfa} />
+      <AuthnDialog
+        mfaState={mfa}
+        onClose={() => {
+          // Don't close the ssh doc if this is just a file transfer request.
+          if (!ft.openedDialog) {
+            closeDocument();
+          }
+        }}
+      />
       {status === 'initialized' && terminal}
     </Document>
   );
