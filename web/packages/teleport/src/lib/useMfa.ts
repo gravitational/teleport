@@ -37,7 +37,6 @@ import {
 
 export type MfaProps = {
   req?: CreateAuthenticateChallengeRequest;
-  isMfaRequired?: boolean | null;
 };
 
 type mfaResponsePromiseWithResolvers = {
@@ -52,18 +51,10 @@ type mfaResponsePromiseWithResolvers = {
  * be used to display options to the user and prompt for them to complete
  * the MFA check.
  */
-export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
+export function useMfa({ req }: MfaProps): MfaState {
   const [mfaRequired, setMfaRequired] = useState<boolean>();
   const [options, setMfaOptions] = useState<MfaOption[]>();
   const [challenge, setMfaChallenge] = useState<MfaAuthenticateChallenge>();
-
-  useEffect(() => {
-    setMfaRequired(isMfaRequired);
-  }, [isMfaRequired]);
-
-  useEffect(() => {
-    setMfaRequired(null);
-  }, [req?.isMfaRequiredRequest]);
 
   // getResponse is used to initiate MFA authentication.
   //   1. Check if MFA is required by getting a new MFA challenge
@@ -158,7 +149,8 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
   );
 
   return {
-    required: mfaRequired,
+    mfaRequired,
+    setMfaRequired,
     options,
     challenge,
     getChallengeResponse,
@@ -168,16 +160,14 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
   };
 }
 
-export function useMfaEmitter(emitterSender: EventEmitterMfaSender): MfaState {
-  const [mfaRequired, setMfaRequired] = useState(false);
-
-  const mfa = useMfa({ isMfaRequired: mfaRequired });
+export function useMfaEmitter(
+  emitterSender: EventEmitterMfaSender,
+  mfaProps?: MfaProps
+): MfaState {
+  const mfa = useMfa(mfaProps);
 
   useEffect(() => {
     const challengeHandler = async (challengeJson: string) => {
-      // set Mfa required for other uses of this MfaState (e.g. file transfers)
-      setMfaRequired(true);
-
       const challenge = parseMfaChallengeJson(JSON.parse(challengeJson));
       const resp = await mfa.getChallengeResponse(challenge);
       emitterSender.sendChallengeResponse(resp);
@@ -193,7 +183,8 @@ export function useMfaEmitter(emitterSender: EventEmitterMfaSender): MfaState {
 }
 
 export type MfaState = {
-  required: boolean;
+  mfaRequired: boolean;
+  setMfaRequired: (r: boolean) => void;
   options: MfaOption[];
   challenge: MfaAuthenticateChallenge;
   // Generally you wouldn't pass in a challenge, unless you already
@@ -209,7 +200,8 @@ export type MfaState = {
 // used for testing
 export function makeDefaultMfaState(): MfaState {
   return {
-    required: true,
+    mfaRequired: true,
+    setMfaRequired: () => null,
     options: null,
     challenge: null,
     getChallengeResponse: async () => null,
