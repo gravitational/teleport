@@ -349,8 +349,9 @@ func x509Template(
 	notAfter time.Time,
 	spiffeID spiffeid.ID,
 	dnsSANs []string,
+	subjectTemplate *workloadidentityv1pb.X509DistinguishedNameTemplate,
 ) *x509.Certificate {
-	return &x509.Certificate{
+	c := &x509.Certificate{
 		SerialNumber: serialNumber,
 		NotBefore:    notBefore,
 		NotAfter:     notAfter,
@@ -379,6 +380,19 @@ func x509Template(
 		URIs:     []*url.URL{spiffeID.URL()},
 		DNSNames: dnsSANs,
 	}
+	if subjectTemplate != nil {
+		c.Subject.CommonName = subjectTemplate.CommonName
+		if subjectTemplate.Organization != "" {
+			c.Subject.Organization = []string{
+				subjectTemplate.Organization,
+			}
+		}
+		if subjectTemplate.OrganizationalUnit != "" {
+			c.Subject.OrganizationalUnit = []string{subjectTemplate.OrganizationalUnit}
+		}
+	}
+
+	return c
 }
 
 func (s *IssuanceService) getX509CA(
@@ -484,6 +498,7 @@ func (s *IssuanceService) issueX509SVID(
 			notAfter,
 			spiffeID,
 			wid.GetSpec().GetSpiffe().GetX509().GetDnsSans(),
+			wid.GetSpec().GetSpiffe().GetX509().GetSubjectTemplate(),
 		),
 		ca.Cert,
 		pubKey,

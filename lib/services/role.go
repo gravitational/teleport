@@ -31,7 +31,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	jsoniter "github.com/json-iterator/go"
@@ -511,6 +511,12 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 		outDbRoles := applyValueTraitsSlice(inDbRoles, traits, "database role")
 		r.SetDatabaseRoles(condition, apiutils.Deduplicate(outDbRoles))
 
+		githubPermissions := r.GetGitHubPermissions(condition)
+		for i, perm := range githubPermissions {
+			githubPermissions[i].Organizations = applyValueTraitsSlice(perm.Organizations, traits, "github organizations")
+		}
+		r.SetGitHubPermissions(condition, githubPermissions)
+
 		var out []types.KubernetesResource
 		// we access the resources in the role using the role conditions
 		// to avoid receiving the compatibility resources added in GetKubernetesResources
@@ -677,7 +683,8 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 				constants.TraitKubeGroups, constants.TraitKubeUsers,
 				constants.TraitDBNames, constants.TraitDBUsers, constants.TraitDBRoles,
 				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
-				constants.TraitGCPServiceAccounts, constants.TraitJWT:
+				constants.TraitGCPServiceAccounts, constants.TraitJWT,
+				constants.TraitGitHubOrgs:
 			default:
 				return trace.BadParameter("unsupported variable %q", name)
 			}

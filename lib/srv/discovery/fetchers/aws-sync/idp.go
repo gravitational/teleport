@@ -31,13 +31,13 @@ import (
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
 
-func (a *awsFetcher) pollAWSSAMLProviders(ctx context.Context, result *Resources, collectErr func(error)) func() error {
+func (a *Fetcher) pollAWSSAMLProviders(ctx context.Context, result *Resources, collectErr func(error)) func() error {
 	return func() error {
 		existing := a.lastResult
 		awsCfg, err := a.AWSConfigProvider.GetConfig(
 			ctx,
 			"", /* region is empty because saml providers are global */
-			a.getAWSV2Options()...,
+			a.getAWSOptions()...,
 		)
 		if err != nil {
 			collectErr(trace.Wrap(err, "failed to get AWS IAM client"))
@@ -74,7 +74,7 @@ func (a *awsFetcher) pollAWSSAMLProviders(ctx context.Context, result *Resources
 }
 
 // fetchAWSSAMLProvider fetches data about a single SAML identity provider.
-func (a *awsFetcher) fetchAWSSAMLProvider(ctx context.Context, client iamClient, arn string) (*accessgraphv1alpha.AWSSAMLProviderV1, error) {
+func (a *Fetcher) fetchAWSSAMLProvider(ctx context.Context, client iamClient, arn string) (*accessgraphv1alpha.AWSSAMLProviderV1, error) {
 	providerResp, err := client.GetSAMLProvider(ctx, &iam.GetSAMLProviderInput{
 		SAMLProviderArn: aws.String(arn),
 	})
@@ -132,13 +132,13 @@ func awsSAMLProviderOutputToProto(arn string, accountID string, provider *iam.Ge
 	}, nil
 }
 
-func (a *awsFetcher) pollAWSOIDCProviders(ctx context.Context, result *Resources, collectErr func(error)) func() error {
+func (a *Fetcher) pollAWSOIDCProviders(ctx context.Context, result *Resources, collectErr func(error)) func() error {
 	return func() error {
 		existing := a.lastResult
 		awsCfg, err := a.AWSConfigProvider.GetConfig(
 			ctx,
 			"", /* region is empty because oidc providers are global */
-			a.getAWSV2Options()...,
+			a.getAWSOptions()...,
 		)
 		if err != nil {
 			collectErr(trace.Wrap(err, "failed to get AWS IAM client"))
@@ -175,7 +175,7 @@ func (a *awsFetcher) pollAWSOIDCProviders(ctx context.Context, result *Resources
 }
 
 // fetchAWSOIDCProvider fetches data about a single OIDC identity provider.
-func (a *awsFetcher) fetchAWSOIDCProvider(ctx context.Context, client iamClient, arn string) (*accessgraphv1alpha.AWSOIDCProviderV1, error) {
+func (a *Fetcher) fetchAWSOIDCProvider(ctx context.Context, client iamClient, arn string) (*accessgraphv1alpha.AWSOIDCProviderV1, error) {
 	providerResp, err := client.GetOpenIDConnectProvider(ctx, &iam.GetOpenIDConnectProviderInput{
 		OpenIDConnectProviderArn: aws.String(arn),
 	})

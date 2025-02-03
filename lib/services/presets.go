@@ -104,6 +104,10 @@ func NewSystemAutomaticAccessBotUser() types.User {
 // NewPresetEditorRole returns a new pre-defined role for cluster
 // editors who can edit cluster configuration resources.
 func NewPresetEditorRole() types.Role {
+	// IMPORTANT: Before adding new defaults, please make sure that the
+	// underlying field is supported by the standard role editor UI. This role
+	// should be editable with a rich UI, without requiring the user to dive into
+	// YAML.
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V7,
@@ -116,6 +120,10 @@ func NewPresetEditorRole() types.Role {
 			},
 		},
 		Spec: types.RoleSpecV6{
+			// IMPORTANT: Before adding new defaults, please make sure that the
+			// underlying field is supported by the standard role editor UI. This role
+			// should be editable with a rich UI, without requiring the user to dive into
+			// YAML.
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
@@ -133,6 +141,10 @@ func NewPresetEditorRole() types.Role {
 					Desktop: types.NewBoolOption(false),
 				},
 			},
+			// IMPORTANT: Before adding new defaults, please make sure that the
+			// underlying field is supported by the standard role editor UI. This role
+			// should be editable with a rich UI, without requiring the user to dive into
+			// YAML.
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},
 				Rules: []types.Rule{
@@ -197,6 +209,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindAutoUpdateVersion, RW()),
 					types.NewRule(types.KindAutoUpdateConfig, RW()),
 					types.NewRule(types.KindAutoUpdateAgentRollout, RO()),
+					types.NewRule(types.KindGitServer, RW()),
 				},
 			},
 		},
@@ -207,6 +220,10 @@ func NewPresetEditorRole() types.Role {
 // NewPresetAccessRole creates a role for users who are allowed to initiate
 // interactive sessions.
 func NewPresetAccessRole() types.Role {
+	// IMPORTANT: Before adding new defaults, please make sure that the
+	// underlying field is supported by the standard role editor UI. This role
+	// should be editable with a rich UI, without requiring the user to dive into
+	// YAML.
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V7,
@@ -219,6 +236,10 @@ func NewPresetAccessRole() types.Role {
 			},
 		},
 		Spec: types.RoleSpecV6{
+			// IMPORTANT: Before adding new defaults, please make sure that the
+			// underlying field is supported by the standard role editor UI. This role
+			// should be editable with a rich UI, without requiring the user to dive into
+			// YAML.
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
@@ -234,6 +255,10 @@ func NewPresetAccessRole() types.Role {
 				BPF:           apidefaults.EnhancedEvents(),
 				RecordSession: &types.RecordSession{Desktop: types.NewBoolOption(true)},
 			},
+			// IMPORTANT: Before adding new defaults, please make sure that the
+			// underlying field is supported by the standard role editor UI. This role
+			// should be editable with a rich UI, without requiring the user to dive into
+			// YAML.
 			Allow: types.RoleConditions{
 				Namespaces:            []string{apidefaults.Namespace},
 				NodeLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -253,6 +278,9 @@ func NewPresetAccessRole() types.Role {
 						Verbs:     []string{types.Wildcard},
 					},
 				},
+				GitHubPermissions: []types.GitHubPermission{{
+					Organizations: []string{teleport.TraitInternalGitHubOrgs},
+				}},
 				Rules: []types.Rule{
 					types.NewRule(types.KindEvent, RO()),
 					{
@@ -266,6 +294,10 @@ func NewPresetAccessRole() types.Role {
 			},
 		},
 	}
+	// IMPORTANT: Before adding new defaults, please make sure that the
+	// underlying field is supported by the standard role editor UI. This role
+	// should be editable with a rich UI, without requiring the user to dive into
+	// YAML.
 	role.SetLogins(types.Allow, []string{teleport.TraitInternalLoginsVariable})
 	role.SetWindowsLogins(types.Allow, []string{teleport.TraitInternalWindowsLoginsVariable})
 	role.SetKubeUsers(types.Allow, []string{teleport.TraitInternalKubeUsersVariable})
@@ -280,6 +312,10 @@ func NewPresetAccessRole() types.Role {
 // auditor - someone who can review cluster events and replay sessions,
 // but can't initiate interactive sessions or modify configuration.
 func NewPresetAuditorRole() types.Role {
+	// IMPORTANT: Before adding new defaults, please make sure that the
+	// underlying field is supported by the standard role editor UI. This role
+	// should be editable with a rich UI, without requiring the user to dive into
+	// YAML.
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V7,
@@ -517,6 +553,34 @@ func NewPresetRequireTrustedDeviceRole() types.Role {
 	}
 }
 
+// NewPresetWildcardWorkloadIdentityIssuerRole returns a new pre-defined role
+// for issuing workload identities.
+func NewPresetWildcardWorkloadIdentityIssuerRole() types.Role {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetWildcardWorkloadIdentityIssuerRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Issue workload identities",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				WorkloadIdentityLabels: types.Labels{
+					types.Wildcard: []string{types.Wildcard},
+				},
+				Rules: []types.Rule{
+					types.NewRule(types.KindWorkloadIdentity, RO()),
+				},
+			},
+		},
+	}
+	return role
+}
+
 // SystemOktaAccessRoleName is the name of the system role that allows
 // access to Okta resources. This will be used by the Okta requester role to
 // search for Okta resources.
@@ -665,6 +729,7 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindDynamicWindowsDesktop, RW()),
 					types.NewRule(types.KindStaticHostUser, RW()),
 					types.NewRule(types.KindWorkloadIdentity, RW()),
+					types.NewRule(types.KindGitServer, RW()),
 				},
 			},
 		},
@@ -927,6 +992,16 @@ func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
 		}
 	}
 
+	// GitHub permissions.
+	if len(role.GetGitHubPermissions(types.Allow)) == 0 {
+		if githubOrgs := defaultGitHubOrgs()[role.GetName()]; len(githubOrgs) > 0 {
+			role.SetGitHubPermissions(types.Allow, []types.GitHubPermission{{
+				Organizations: githubOrgs,
+			}})
+			changed = true
+		}
+	}
+
 	if !changed {
 		return nil, trace.AlreadyExists("no change")
 	}
@@ -1037,4 +1112,10 @@ func updateAllowLabels(role types.Role, kind string, defaultLabels types.Labels)
 	}
 
 	return changed, nil
+}
+
+func defaultGitHubOrgs() map[string][]string {
+	return map[string][]string{
+		teleport.PresetAccessRoleName: []string{teleport.TraitInternalGitHubOrgs},
+	}
 }

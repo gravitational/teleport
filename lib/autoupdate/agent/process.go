@@ -278,11 +278,15 @@ func (s SystemdService) Enable(ctx context.Context, now bool) error {
 }
 
 // Disable the systemd service.
-func (s SystemdService) Disable(ctx context.Context) error {
+func (s SystemdService) Disable(ctx context.Context, now bool) error {
 	if err := s.checkSystem(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	code := s.systemctl(ctx, slog.LevelInfo, "disable", s.ServiceName)
+	args := []string{"disable", s.ServiceName}
+	if now {
+		args = append(args, "--now")
+	}
+	code := s.systemctl(ctx, slog.LevelInfo, args...)
 	if code != 0 {
 		return trace.Errorf("unable to disable systemd service")
 	}
@@ -290,7 +294,7 @@ func (s SystemdService) Disable(ctx context.Context) error {
 	return nil
 }
 
-// IsEnabled returns true if the service is enabled, or if it's disabled but still active.
+// IsEnabled returns true if the service is enabled.
 func (s SystemdService) IsEnabled(ctx context.Context) (bool, error) {
 	if err := s.checkSystem(ctx); err != nil {
 		return false, trace.Wrap(err)
@@ -302,7 +306,15 @@ func (s SystemdService) IsEnabled(ctx context.Context) (bool, error) {
 	case code == 0:
 		return true, nil
 	}
-	code = s.systemctl(ctx, slog.LevelDebug, "is-active", "--quiet", s.ServiceName)
+	return false, nil
+}
+
+// IsActive returns true if the service is active.
+func (s SystemdService) IsActive(ctx context.Context) (bool, error) {
+	if err := s.checkSystem(ctx); err != nil {
+		return false, trace.Wrap(err)
+	}
+	code := s.systemctl(ctx, slog.LevelDebug, "is-active", "--quiet", s.ServiceName)
 	switch {
 	case code < 0:
 		return false, trace.Errorf("unable to determine if systemd service %s is active", s.ServiceName)
@@ -312,14 +324,42 @@ func (s SystemdService) IsEnabled(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
+// IsPresent returns true if the service exists.
+func (s SystemdService) IsPresent(ctx context.Context) (bool, error) {
+	if err := s.checkSystem(ctx); err != nil {
+		return false, trace.Wrap(err)
+	}
+	code := s.systemctl(ctx, slog.LevelDebug, "list-unit-files", "--quiet", s.ServiceName)
+	if code < 0 {
+		return false, trace.Errorf("unable to determine if systemd service %s is present", s.ServiceName)
+	}
+	return code == 0, nil
+}
+
 // checkSystem returns an error if the system is not compatible with this process manager.
 func (s SystemdService) checkSystem(ctx context.Context) error {
-	_, err := os.Stat("/run/systemd/system")
-	if errors.Is(err, os.ErrNotExist) {
+	present, err := hasSystemD()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !present {
 		s.Log.ErrorContext(ctx, "This system does not support systemd, which is required by the updater.")
 		return trace.Wrap(ErrNotSupported)
 	}
-	return trace.Wrap(err)
+	return nil
+
+}
+
+// hasSystemD returns true if the system uses the SystemD process manager.
+func hasSystemD() (bool, error) {
+	_, err := os.Stat("/run/systemd/system")
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return true, nil
 }
 
 // systemctl returns a systemctl subcommand, converting the output to logs.

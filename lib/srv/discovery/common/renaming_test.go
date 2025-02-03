@@ -27,9 +27,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -505,7 +505,7 @@ func makeEKSKubeCluster(t *testing.T, name, region, accountID, overrideLabel str
 			overrideLabel: name,
 		},
 	}
-	kubeCluster, err := NewKubeClusterFromAWSEKS(aws.StringValue(eksCluster.Name), aws.StringValue(eksCluster.Arn), eksCluster.Tags)
+	kubeCluster, err := NewKubeClusterFromAWSEKS(aws.ToString(eksCluster.Name), aws.ToString(eksCluster.Arn), eksCluster.Tags)
 	require.NoError(t, err)
 	require.True(t, kubeCluster.IsAWS())
 	return kubeCluster

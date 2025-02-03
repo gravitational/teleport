@@ -47,11 +47,13 @@ func newVnetCommand(app *kingpin.Application) *vnetCommand {
 }
 
 func (c *vnetCommand) run(cf *CLIConf) error {
-	appProvider, err := newVnetAppProvider(cf)
+	clientApp, err := newVnetClientApplication(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	processManager, err := vnet.RunUserProcess(cf.Context, &vnet.UserProcessConfig{AppProvider: appProvider})
+	processManager, err := vnet.RunUserProcess(cf.Context, &vnet.UserProcessConfig{
+		ClientApplication: clientApp,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

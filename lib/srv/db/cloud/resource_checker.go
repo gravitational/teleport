@@ -45,8 +45,8 @@ type DiscoveryResourceCheckerConfig struct {
 	AWSConfigProvider awsconfig.Provider
 	// ResourceMatchers is a list of database resource matchers.
 	ResourceMatchers []services.ResourceMatcher
-	// Clients is an interface for retrieving cloud clients.
-	Clients cloud.Clients
+	// AzureClients is an interface for retrieving Azure cloud clients.
+	AzureClients cloud.AzureClients
 	// Context is the database server close context.
 	Context context.Context
 	// Logger is used for logging.
@@ -55,12 +55,12 @@ type DiscoveryResourceCheckerConfig struct {
 
 // CheckAndSetDefaults validates the config and sets default values.
 func (c *DiscoveryResourceCheckerConfig) CheckAndSetDefaults() error {
-	if c.Clients == nil {
+	if c.AzureClients == nil {
 		cloudClients, err := cloud.NewClients()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		c.Clients = cloudClients
+		c.AzureClients = cloudClients
 	}
 	if c.AWSConfigProvider == nil {
 		return trace.BadParameter("missing AWSConfigProvider")
@@ -80,7 +80,7 @@ func NewDiscoveryResourceChecker(cfg DiscoveryResourceCheckerConfig) (DiscoveryR
 		return nil, trace.Wrap(err)
 	}
 
-	credentialsChecker, err := newCrednentialsChecker(cfg)
+	credentialsChecker, err := newCredentialsChecker(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

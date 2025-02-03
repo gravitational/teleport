@@ -6759,6 +6759,138 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 			},
 			checkSessionTrackers: require.Empty,
 		},
+		{
+			// an explicit deny on session_tracker still allows listing
+			// for sessions that the user can join
+			name: "explicit-deny-can-join",
+			makeRole: func() (types.Role, error) {
+				return types.NewRole("observe-sessions", types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						JoinSessions: []*types.SessionJoinPolicy{
+							{
+								Name:  "observe-kube-sessions",
+								Kinds: []string{string(types.KubernetesSessionKind)},
+								Modes: []string{string(types.SessionObserverMode)},
+								Roles: []string{"access"},
+							},
+						},
+					},
+					Deny: types.RoleConditions{
+						Rules: []types.Rule{{
+							Resources: []string{types.KindSessionTracker},
+							Verbs:     []string{types.VerbList, types.VerbRead},
+						}},
+					},
+				})
+			},
+			extraSetup: func(t *testing.T, srv *TestTLSServer) {
+				originator, err := types.NewUser("session-originator")
+				require.NoError(t, err)
+
+				originator.AddRole("access")
+				_, err = srv.Auth().UpsertUser(context.Background(), originator)
+				require.NoError(t, err)
+			},
+			makeTracker: func(testUser types.User) (types.SessionTracker, error) {
+				return types.NewSessionTracker(types.SessionTrackerSpecV1{
+					SessionID: "1",
+					Kind:      string(types.KubernetesSessionKind),
+					HostUser:  "session-originator",
+					HostPolicies: []*types.SessionTrackerPolicySet{
+						{Name: "access"},
+					},
+				})
+			},
+			checkSessionTrackers: require.NotEmpty,
+		},
+		{
+			// user who can join SSH sessions should not be able to list
+			// kubernetes sessions
+			name: "no-access-wrong-kind",
+			makeRole: func() (types.Role, error) {
+				return types.NewRole("observe-sessions", types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						JoinSessions: []*types.SessionJoinPolicy{
+							{
+								Name:  "observe-ssh-sessions",
+								Kinds: []string{string(types.SSHSessionKind)},
+								Modes: []string{string(types.SessionObserverMode)},
+								Roles: []string{"access"},
+							},
+						},
+					},
+					Deny: types.RoleConditions{
+						Rules: []types.Rule{{
+							Resources: []string{types.KindSessionTracker},
+							Verbs:     []string{types.VerbList, types.VerbRead},
+						}},
+					},
+				})
+			},
+			extraSetup: func(t *testing.T, srv *TestTLSServer) {
+				originator, err := types.NewUser("session-originator")
+				require.NoError(t, err)
+
+				originator.AddRole("access")
+				_, err = srv.Auth().UpsertUser(context.Background(), originator)
+				require.NoError(t, err)
+			},
+			makeTracker: func(testUser types.User) (types.SessionTracker, error) {
+				return types.NewSessionTracker(types.SessionTrackerSpecV1{
+					SessionID: "1",
+					Kind:      string(types.KubernetesSessionKind),
+					HostUser:  "session-originator",
+					HostPolicies: []*types.SessionTrackerPolicySet{
+						{Name: "access"},
+					},
+				})
+			},
+			checkSessionTrackers: require.Empty,
+		},
+		{
+			// Test RFD 45 logic: an exception for the legacy ssh_session resource.
+			// (Explicit deny wins, even when the user can join the session)
+			name: "rfd-45-legacy-rbac",
+			makeRole: func() (types.Role, error) {
+				return types.NewRole("observe-sessions", types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						JoinSessions: []*types.SessionJoinPolicy{
+							{
+								Name:  "observe-ssh-sessions",
+								Kinds: []string{string(types.SSHSessionKind)},
+								Modes: []string{string(types.SessionObserverMode)},
+								Roles: []string{"access"},
+							},
+						},
+					},
+					Deny: types.RoleConditions{
+						Rules: []types.Rule{{
+							Resources: []string{types.KindSSHSession},
+							Verbs:     []string{types.VerbList, types.VerbRead},
+						}},
+					},
+				})
+			},
+			extraSetup: func(t *testing.T, srv *TestTLSServer) {
+				originator, err := types.NewUser("session-originator")
+				require.NoError(t, err)
+
+				originator.AddRole("access")
+				_, err = srv.Auth().UpsertUser(context.Background(), originator)
+				require.NoError(t, err)
+			},
+			makeTracker: func(testUser types.User) (types.SessionTracker, error) {
+				return types.NewSessionTracker(types.SessionTrackerSpecV1{
+					SessionID: "1",
+					Kind:      string(types.SSHSessionKind),
+					HostUser:  "session-originator",
+					HostPolicies: []*types.SessionTrackerPolicySet{
+						{Name: "access"},
+					},
+				})
+			},
+			checkSessionTrackers: require.Empty,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()

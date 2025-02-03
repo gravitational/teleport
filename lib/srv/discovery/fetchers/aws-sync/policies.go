@@ -34,7 +34,7 @@ import (
 
 // pollAWSPolicies is a function that returns a function that fetches
 // AWS policies and returns an error if any.
-func (a *awsFetcher) pollAWSPolicies(ctx context.Context, result *Resources, collectErr func(error)) func() error {
+func (a *Fetcher) pollAWSPolicies(ctx context.Context, result *Resources, collectErr func(error)) func() error {
 	return func() error {
 		var err error
 		result.Policies, err = a.fetchPolicies(ctx)
@@ -49,11 +49,11 @@ func (a *awsFetcher) pollAWSPolicies(ctx context.Context, result *Resources, col
 // accessgraphv1alpha.AWSPolicyV1.
 // It uses iam.ListPoliciesPagesWithContext to iterate over all policies
 // and iam.GetPolicyVersionWithContext to fetch policy documents.
-func (a *awsFetcher) fetchPolicies(ctx context.Context) ([]*accessgraphv1alpha.AWSPolicyV1, error) {
+func (a *Fetcher) fetchPolicies(ctx context.Context) ([]*accessgraphv1alpha.AWSPolicyV1, error) {
 	awsCfg, err := a.AWSConfigProvider.GetConfig(
 		ctx,
 		"", /* region is empty because users and groups are global */
-		a.getAWSV2Options()...,
+		a.getAWSOptions()...,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

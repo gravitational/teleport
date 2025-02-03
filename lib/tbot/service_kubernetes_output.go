@@ -391,7 +391,7 @@ func chooseOneKubeCluster(clusters []types.KubeCluster, name string) (types.Kube
 	return chooseOneResource(clusters, name, "kubernetes cluster")
 }
 
-func getKubeCluster(ctx context.Context, clt *authclient.Client, name string) (types.KubeCluster, error) {
+func getKubeCluster(ctx context.Context, clt apiclient.GetResourcesClient, name string) (types.KubeCluster, error) {
 	ctx, span := tracer.Start(ctx, "getKubeCluster")
 	defer span.End()
 

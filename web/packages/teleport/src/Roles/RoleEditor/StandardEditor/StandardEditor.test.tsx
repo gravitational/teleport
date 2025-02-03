@@ -138,8 +138,10 @@ test('edits metadata', async () => {
   const onSave = (r: Role) => (role = r);
   render(<TestStandardEditor onSave={onSave} />);
   await user.type(screen.getByLabelText('Description'), 'foo');
+  await selectEvent.select(screen.getByLabelText('Version'), 'v6');
   await user.click(screen.getByRole('button', { name: 'Create Role' }));
   expect(role.metadata.description).toBe('foo');
+  expect(role.version).toBe('v6');
 });
 
 test('edits resource access', async () => {
@@ -157,6 +159,41 @@ test('edits resource access', async () => {
   });
   await user.click(screen.getByRole('button', { name: 'Create Role' }));
   expect(role.spec.allow.logins).toEqual(['{{internal.logins}}', 'ec2-user']);
+});
+
+test('triggers v6 validation for Kubernetes resources', async () => {
+  const user = userEvent.setup();
+  const onSave = jest.fn();
+  render(<TestStandardEditor onSave={onSave} />);
+  await selectEvent.select(screen.getByLabelText('Version'), 'v6');
+  await user.click(screen.getByRole('tab', { name: 'Resources' }));
+  await user.click(
+    screen.getByRole('button', { name: 'Add New Resource Access' })
+  );
+  await user.click(screen.getByRole('menuitem', { name: 'Kubernetes' }));
+  await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
+  await selectEvent.select(screen.getByLabelText('Kind'), 'Job');
+
+  // Adding a second resource to make sure that we don't run into attempting to
+  // modify an immer-frozen object. This might happen if the reducer tried to
+  // modify resources that were already there.
+  await user.click(
+    screen.getByRole('button', { name: 'Add Another Resource' })
+  );
+  await selectEvent.select(screen.getAllByLabelText('Kind')[1], 'Pod');
+  await user.click(screen.getByRole('button', { name: 'Create Role' }));
+
+  // Validation should have failed on a Job resource and role v6.
+  expect(
+    screen.getByText('Only pods are allowed for role version v6')
+  ).toBeVisible();
+  expect(onSave).not.toHaveBeenCalled();
+
+  // Back to v7, try again
+  await user.click(screen.getByRole('tab', { name: 'Overview' }));
+  await selectEvent.select(screen.getByLabelText('Version'), 'v7');
+  await user.click(screen.getByRole('button', { name: 'Create Role' }));
+  expect(onSave).toHaveBeenCalled();
 });
 
 const getAllMenuItemNames = () =>

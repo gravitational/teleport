@@ -136,8 +136,8 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "16.4.11",
-      "major_version": "16",
+      "version": "17.1.6",
+      "major_version": "17",
       "sla": {
         "monthly_percentage": "99.9%",
         "monthly_downtime": "44 minutes"
@@ -215,8 +215,18 @@
   },
   "redirects": [
     {
+      "source": "/admin-guides/access-controls/guides/moderated-sessions/",
+      "destination": "/admin-guides/access-controls/guides/joining-sessions/",
+      "permanent": true
+    },
+    {
       "source": "/reference/operator-resources/resources.teleport.dev_accesslists/",
       "destination": "/reference/operator-resources/resources-teleport-dev-accesslists/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/deployments/ibm/",
+      "destination": "/admin-guides/deploy-a-cluster/helm-deployments/ibm/",
       "permanent": true
     },
     {
@@ -280,13 +290,79 @@
       "permanent": true
     },
     {
+      "source": "/enroll-resources/workload-identity/workload-attestation/",
+      "destination": "/reference/workload-identity/workload-identity-api-and-workload-attestation/",
+       "permanent": true
+    },
+    {
       "source": "/access-controls/guides/role-templates/",
       "destination": "/admin-guides/access-controls/guides/role-templates/",
       "permanent": true
     },
     {
+
       "source": "/enterprise/sso/",
       "destination": "/admin-guides/access-controls/sso/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/guides/headless/",
+      "destination": "/admin-guides/access-controls/guides/headless/",
+      "permanent": true
+    },
+    {
+      "source": "/application-access/okta/hosted-guide/",
+      "destination": "/enroll-resources/application-access/okta/hosted-guide/",
+      "permanent": true
+    },
+    {
+      "source": "/architecture/tls-routing/",
+      "destination": "/reference/architecture/tls-routing/",
+      "permanent": true
+    },
+    {
+      "source": "/desktop-access/",
+      "destination": "/enroll-resources/desktop-access/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/google-workspace/",
+      "destination": "/admin-guides/access-controls/sso/google-workspace/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/",
+      "destination": "/enroll-resources/kubernetes-access/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/introduction/",
+      "destination": "/enroll-resources/machine-id/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/reference/telemetry/",
+      "destination": "/reference/machine-id/telemetry/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/reference/v16-upgrade-guide/",
+      "destination": "/reference/machine-id/v16-upgrade-guide/",
+      "permanent": true
+    },
+    {
+      "source": "/management/export-audit-events/fluentd/",
+      "destination": "/admin-guides/management/export-audit-events/fluentd/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/admin/github-sso/",
+      "destination": "/admin-guides/access-controls/sso/github-sso/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/device-trust/guide/",
+      "destination": "/admin-guides/access-controls/device-trust/guide/",
       "permanent": true
     }
   ]

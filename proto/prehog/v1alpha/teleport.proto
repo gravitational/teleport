@@ -232,6 +232,8 @@ message SessionStartDatabaseMetadata {
   string db_protocol = 2;
   // database origin source.
   string db_origin = 3;
+  // Indicates the client used on the session.
+  string user_agent = 4;
 }
 
 // SessionStartDesktop Metadata contains additional information about
@@ -298,6 +300,10 @@ message UserCertificateIssuedEvent {
 
   // the private key policy associated with these user certificates.
   string private_key_policy = 8;
+
+  // bot_instance_id is the anonymized instance id of the bot, if the user is
+  // a Bot.
+  string bot_instance_id = 9;
 }
 
 // the issuance of a SPIFFE SVID
@@ -330,6 +336,10 @@ message SPIFFESVIDIssuedEvent {
   // Type of SVID issued. `x509` or `jwt`
   // PostHog property: tp.spiffe.svid_type
   string svid_type = 6;
+
+  // bot_instance_id is the anonymized instance id of the bot, if the user is
+  // a Bot.
+  string bot_instance_id = 7;
 }
 
 // UIBannerClickEvent is a usage event sent by the UI when the upgrade
@@ -741,6 +751,8 @@ message BotJoinEvent {
   string join_token_name = 3;
   // user_name is the anonymised name of the Bot user.
   string user_name = 4;
+  // bot_instance_id is the anonymized instance id of the bot.
+  string bot_instance_id = 5;
 }
 
 // UICreateNewRoleClickEvent is an event that can be triggered during custom role creation

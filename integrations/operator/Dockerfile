@@ -77,7 +77,7 @@ ARG TARGETARCH
 # CGO is required for github.com/gravitational/teleport/lib/system
 RUN echo "Targeting $TARGETOS/$TARGETARCH with CC=$COMPILER_NAME" && \
     CGO_ENABLED=1 CC=$COMPILER_NAME GOOS=$TARGETOS GOARCH=$TARGETARCH \
-    go build -a -o /go/bin/teleport-operator github.com/gravitational/teleport/integrations/operator
+    go build -tags "kustomize_disable_go_plugin_support" -a -o /go/bin/teleport-operator github.com/gravitational/teleport/integrations/operator
 
 # Create the image with the build operator on the $TARGETPLATFORM
 # TARGETPLATFORM is provided by Docker/buildx
