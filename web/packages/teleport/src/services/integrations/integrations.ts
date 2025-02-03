@@ -37,10 +37,13 @@ import {
   ExportedIntegrationCaResponse,
   Integration,
   IntegrationCreateRequest,
+  IntegrationCreateResult,
+  IntegrationFetchResult,
   IntegrationKind,
   IntegrationListResponse,
   IntegrationStatusCode,
   IntegrationUpdateRequest,
+  IntegrationUpdateResult,
   IntegrationWithSummary,
   ListAwsRdsDatabaseResponse,
   ListAwsRdsFromAllEnginesResponse,
@@ -65,8 +68,13 @@ export const integrationService = {
     return api.get(cfg.getIntegrationCaUrl(clusterId, integrationName));
   },
 
-  fetchIntegration(name: string): Promise<Integration> {
-    return api.get(cfg.getIntegrationsUrl(name)).then(makeIntegration);
+  fetchIntegration<T extends IntegrationKind>(
+    _kind: T,
+    name: string
+  ): Promise<IntegrationFetchResult<T>> {
+    return api
+      .get(cfg.getIntegrationsUrl(name))
+      .then(resp => makeIntegration(resp) as IntegrationFetchResult<T>);
   },
 
   fetchIntegrations(): Promise<IntegrationListResponse> {
@@ -79,8 +87,12 @@ export const integrationService = {
     });
   },
 
-  createIntegration(req: IntegrationCreateRequest): Promise<Integration> {
-    return api.post(cfg.getIntegrationsUrl(), req).then(makeIntegration);
+  createIntegration<T extends IntegrationCreateRequest>(
+    req: T
+  ): Promise<IntegrationCreateResult<T>> {
+    return api
+      .post(cfg.getIntegrationsUrl(), req)
+      .then(resp => makeIntegration(resp) as IntegrationCreateResult<T>);
   },
 
   pingAwsOidcIntegration(
@@ -93,11 +105,13 @@ export const integrationService = {
     return api.post(cfg.getPingAwsOidcIntegrationUrl(urlParams), req);
   },
 
-  updateIntegration(
+  updateIntegration<T extends IntegrationUpdateRequest>(
     name: string,
-    req: IntegrationUpdateRequest
-  ): Promise<Integration> {
-    return api.put(cfg.getIntegrationsUrl(name), req).then(makeIntegration);
+    req: T
+  ): Promise<IntegrationUpdateResult<T>> {
+    return api
+      .put(cfg.getIntegrationsUrl(name), req)
+      .then(resp => makeIntegration(resp) as IntegrationUpdateResult<T>);
   },
 
   updateIntegrationOAuthSecret(

@@ -95,7 +95,7 @@ export function useAwsOidcIntegration() {
     setCreateIntegrationAttempt,
   ] = useAsync(async (req: IntegrationCreateRequest) => {
     const resp = await integrationService.createIntegration(req);
-    setCreatedIntegration(resp as IntegrationAwsOidc);
+    setCreatedIntegration(resp);
     return resp;
   });
 

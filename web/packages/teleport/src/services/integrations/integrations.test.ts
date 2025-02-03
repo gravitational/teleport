@@ -20,7 +20,11 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
 import { integrationService } from './integrations';
-import { IntegrationAudience, IntegrationStatusCode } from './types';
+import {
+  IntegrationAudience,
+  IntegrationKind,
+  IntegrationStatusCode,
+} from './types';
 
 beforeEach(() => {
   jest.resetAllMocks();
@@ -30,7 +34,10 @@ test('fetch a single integration: fetchIntegration()', async () => {
   // test a valid response
   jest.spyOn(api, 'get').mockResolvedValue(awsOidcIntegration);
 
-  let response = await integrationService.fetchIntegration('integration-name');
+  let response = await integrationService.fetchIntegration(
+    IntegrationKind.AwsOidc,
+    'integration-name'
+  );
   expect(api.get).toHaveBeenCalledWith(
     cfg.getIntegrationsUrl('integration-name')
   );
@@ -50,7 +57,10 @@ test('fetch a single integration: fetchIntegration()', async () => {
   // test null response
   jest.spyOn(api, 'get').mockResolvedValue(null);
 
-  response = await integrationService.fetchIntegration('integration-name');
+  response = await integrationService.fetchIntegration(
+    IntegrationKind.AwsOidc,
+    'integration-name'
+  );
   expect(response).toEqual({
     resourceType: 'integration',
     statusCode: IntegrationStatusCode.Running,

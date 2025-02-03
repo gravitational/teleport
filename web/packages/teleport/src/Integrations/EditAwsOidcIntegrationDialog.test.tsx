@@ -251,7 +251,7 @@ test('edit submit called with proper fields', async () => {
   await userEvent.click(screen.getByRole('button', { name: /save/i }));
   await waitFor(() => expect(mockEditFn).toHaveBeenCalledTimes(1));
 
-  expect(mockEditFn).toHaveBeenCalledWith(integration, {
+  expect(mockEditFn).toHaveBeenCalledWith({
     kind: IntegrationKind.AwsOidc,
     roleArn: 'arn:aws:iam::123456789011:role/other',
   });
@@ -278,7 +278,7 @@ function ComponentWithEditOperation() {
   return (
     <EditAwsOidcIntegrationDialog
       close={() => null}
-      edit={(integration, req) => integrationOps.edit(integration, req).then()}
+      edit={req => integrationOps.edit(req).then()}
       integration={integration}
     />
   );

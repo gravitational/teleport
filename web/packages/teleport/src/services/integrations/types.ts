@@ -20,6 +20,23 @@ import { Label } from 'teleport/types';
 
 import { ResourceLabel } from '../agents';
 
+export type IntegrationCreateResult<T extends IntegrationCreateRequest> =
+  T['subKind'] extends IntegrationKind.GitHub
+    ? IntegrationGitHub
+    : IntegrationAwsOidc;
+
+export type IntegrationUpdateResult<T extends IntegrationUpdateRequest> =
+  T['kind'] extends IntegrationKind.GitHub
+    ? IntegrationGitHub
+    : IntegrationAwsOidc;
+
+export type IntegrationFetchResult<T extends IntegrationKind> =
+  T extends IntegrationKind.GitHub
+    ? IntegrationGitHub
+    : T extends IntegrationKind.AwsOidc
+      ? IntegrationAwsOidc
+      : IntegrationAzureOidc;
+
 export type Integration =
   | IntegrationGitHub
   | IntegrationAwsOidc

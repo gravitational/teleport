@@ -16,24 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { IntegrationKind } from 'teleport/services/integrations';
+import { Integration, IntegrationKind } from 'teleport/services/integrations';
 
 import { EditAwsOidcIntegrationDialog } from '../EditAwsOidcIntegrationDialog';
 import { DeleteIntegrationDialog } from '../RemoveIntegrationDialog';
 import {
-  EditableIntegration,
   EditableIntegrationFields,
   OperationType,
 } from './useIntegrationOperation';
 
-export type Props = {
+export type Props<T> = {
   operation: OperationType;
-  integration: EditableIntegration;
+  integration: Integration;
   close(): void;
-  edit(
-    integration: EditableIntegration,
-    req: EditableIntegrationFields
-  ): Promise<void>;
+  edit(req: T): Promise<void>;
   remove(): Promise<void>;
 };
 
@@ -43,7 +39,7 @@ export function IntegrationOperations({
   close,
   edit,
   remove,
-}: Props) {
+}: Props<EditableIntegrationFields>) {
   if (operation === 'delete') {
     return (
       <DeleteIntegrationDialog

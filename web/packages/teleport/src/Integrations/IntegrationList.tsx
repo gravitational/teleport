@@ -37,7 +37,6 @@ import {
   getStatusCodeDescription,
   getStatusCodeTitle,
   Integration,
-  IntegrationGitHub,
   IntegrationKind,
   IntegrationStatusCode,
   Plugin,
@@ -46,12 +45,12 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { ExternalAuditStorageOpType } from './Operations/useIntegrationOperation';
 
-type Props<IntegrationLike> = {
+type Props = {
   list: IntegrationLike[];
   onDeletePlugin?(p: Plugin): void;
   integrationOps?: {
     onDeleteIntegration(i: Integration): void;
-    onEditIntegration(i: Integration | IntegrationGitHub): void;
+    onEditIntegration(i: Integration): void;
   };
   onDeleteExternalAuditStorage?(opType: ExternalAuditStorageOpType): void;
 };
@@ -61,7 +60,7 @@ export type IntegrationLike =
   | Plugin
   | ExternalAuditStorageIntegration;
 
-export function IntegrationList(props: Props<IntegrationLike>) {
+export function IntegrationList(props: Props) {
   const history = useHistory();
 
   function handleRowClick(row: IntegrationLike) {

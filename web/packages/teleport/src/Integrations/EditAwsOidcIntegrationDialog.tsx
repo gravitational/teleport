@@ -55,17 +55,14 @@ import { EditableIntegrationFields } from './Operations/useIntegrationOperation'
 
 type Props = {
   close(): void;
-  edit(
-    integration: IntegrationAwsOidc,
-    req: EditableIntegrationFields
-  ): Promise<void>;
+  edit(req: EditableIntegrationFields): Promise<void>;
   integration: IntegrationAwsOidc;
 };
 
 export function EditAwsOidcIntegrationDialog(props: Props) {
   const { close, edit, integration } = props;
   const [updateAttempt, runUpdate] = useAsync(async () => {
-    await edit(integration, { kind: IntegrationKind.AwsOidc, roleArn });
+    await edit({ kind: IntegrationKind.AwsOidc, roleArn });
   });
 
   const [roleArn, setRoleArn] = useState(integration.spec.roleArn);
