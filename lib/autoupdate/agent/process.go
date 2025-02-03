@@ -22,8 +22,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io/fs"
 	"log/slog"
+	"net"
 	"os"
 	"os/exec"
 	"strconv"
@@ -47,8 +47,6 @@ const (
 	minRunningIntervalsBeforeStable = 6
 	// maxCrashesBeforeFailure is the number of total crashes detected before the service is marked as crash-looping.
 	maxCrashesBeforeFailure = 2
-	// missingSocketTimeout is the timeout for determining whether a socket will eventually be created after the PID is stable.
-	missingSocketTimeout = 15 * time.Second
 )
 
 // log keys
@@ -119,11 +117,9 @@ func (s SystemdService) Reload(ctx context.Context) error {
 	}
 	// monitor logs all relevant errors, so we filter for a few outcomes
 	err = s.monitor(ctx, initPID)
-	if errors.Is(err, context.DeadlineExceeded) {
-		return trace.Errorf("timed out while waiting for process to start")
-	}
-	if errors.Is(err, context.Canceled) {
-		return context.Canceled
+	if errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, context.Canceled) {
+		return trace.Wrap(err)
 	}
 	if err != nil {
 		return trace.Errorf("failed to monitor process")
@@ -141,6 +137,10 @@ func (s SystemdService) monitor(ctx context.Context, initPID int) error {
 	if initPID != 0 {
 		s.Log.InfoContext(ctx, "Monitoring PID file to detect crashes.", unitKey, s.ServiceName)
 		err := s.monitorPID(ctx, initPID, tickC)
+		if errors.Is(err, context.DeadlineExceeded) {
+			s.Log.ErrorContext(ctx, "Timed out monitoring for crashing PID.", unitKey, s.ServiceName)
+			return trace.Wrap(err)
+		}
 		if err != nil {
 			s.Log.ErrorContext(ctx, "Error monitoring for crashing PID.", errorKey, err, unitKey, s.ServiceName)
 			return trace.Wrap(err)
@@ -149,19 +149,11 @@ func (s SystemdService) monitor(ctx context.Context, initPID int) error {
 
 	s.Log.InfoContext(ctx, "Monitoring diagnostic socket to detect readiness.", unitKey, s.ServiceName)
 	client := debug.NewClient(s.SocketPath)
-	err := s.waitForSocketPresent(ctx, tickC, missingSocketTimeout)
-	if errors.Is(err, os.ErrNotExist) {
-		s.Log.WarnContext(ctx, "Socket appears to be disabled.", unitKey, s.ServiceName)
-		return nil
-	}
-	if err != nil {
-		s.Log.ErrorContext(ctx, "Error monitoring for socket presence.", errorKey, err, unitKey, s.ServiceName)
+	tickC = time.NewTicker(monitorInterval).C
+	err := s.waitForReady(ctx, client, tickC)
+	if errors.Is(err, context.DeadlineExceeded) {
+		s.Log.ErrorContext(ctx, "Timed out monitoring for process readiness.", unitKey, s.ServiceName)
 		return trace.Wrap(err)
-	}
-	err = s.waitForReady(ctx, client, tickC)
-	if trace.IsNotFound(err) {
-		s.Log.WarnContext(ctx, "Socket appears to be missing readiness endpoint.", unitKey, s.ServiceName)
-		return nil
 	}
 	if err != nil {
 		s.Log.ErrorContext(ctx, "Error monitoring for process readiness.", errorKey, err, unitKey, s.ServiceName)
@@ -294,46 +286,33 @@ func tickFile(ctx context.Context, path string, ch chan<- int, tickC <-chan time
 	}
 }
 
-// waitForSocketPresent returns true after the socket is created.
-// If the socket does not exist after timeout, os.ErrNotExist is returned.
-func (s SystemdService) waitForSocketPresent(ctx context.Context, tickC <-chan time.Time, timeout time.Duration) error {
-	timer := time.NewTimer(timeout)
-	for {
-		fi, err := os.Stat(s.SocketPath)
-		if !errors.Is(err, os.ErrNotExist) {
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if fi.Mode().Type() != fs.ModeSocket {
-				return errors.New("expected socket but found other file")
-			}
-			if err == nil {
-				return nil
-			}
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timer.C:
-			return os.ErrNotExist
-		case <-tickC:
-		}
-	}
-}
-
 // waitForReady polls the SocketPath unix domain socket with HTTP requests.
 // If one request returns 200 before the timeout, the service is considered ready.
 func (s SystemdService) waitForReady(ctx context.Context, client *debug.Client, tickC <-chan time.Time) error {
 	for {
 		ready, msg, err := client.GetReadiness(ctx)
-		if err != nil {
-			return trace.Wrap(err)
+		if trace.IsNotFound(err) {
+			s.Log.WarnContext(ctx, "Socket appears to be missing readiness endpoint.", unitKey, s.ServiceName)
+			return nil
 		}
-		if ready {
+		if err == nil && ready {
 			return nil
 		}
 		select {
 		case <-ctx.Done():
+			var netError net.Error
+			if errors.Is(err, os.ErrNotExist) ||
+				errors.Is(err, syscall.EINVAL) ||
+				errors.Is(err, os.ErrInvalid) ||
+				errors.As(err, &netError) {
+				s.Log.WarnContext(ctx, "Socket appears to be disabled. Proceeding without check.", unitKey, s.ServiceName)
+				s.Log.DebugContext(ctx, "Found error after timeout polling socket.", unitKey, s.ServiceName, errorKey, err)
+				return nil
+			}
+			if err != nil {
+				s.Log.WarnContext(ctx, "Unexpected error after timeout polling socket. Proceeding without check.", unitKey, s.ServiceName, errorKey, err)
+				return nil
+			}
 			if msg != "" {
 				s.Log.ErrorContext(ctx, "Process not ready by deadline.", unitKey, s.ServiceName, "message", msg)
 			}

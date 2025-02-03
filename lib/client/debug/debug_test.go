@@ -85,7 +85,31 @@ func TestGetReadiness(t *testing.T) {
 
 		ready, msg, err := clt.GetReadiness(ctx)
 		require.True(t, trace.IsNotFound(err))
-		require.Equal(t, "not found", msg)
+		require.Equal(t, "", msg)
+		require.False(t, ready)
+	})
+
+	t.Run("Closed", func(t *testing.T) {
+		socketPath, closeFn := newSocketMockService(t, http.StatusOK, []byte(`{"status": "OK"}`))
+		closeFn()
+		clt := NewClient(socketPath)
+
+		ready, msg, err := clt.GetReadiness(ctx)
+		var netError net.Error
+		require.ErrorAs(t, err, &netError)
+		require.Equal(t, "", msg)
+		require.False(t, ready)
+	})
+
+	t.Run("Missing", func(t *testing.T) {
+		socketPath, _ := newSocketMockService(t, http.StatusOK, []byte(`{"status": "OK"}`))
+		err := os.RemoveAll(socketPath)
+		require.NoError(t, err)
+		clt := NewClient(socketPath)
+
+		ready, msg, err := clt.GetReadiness(ctx)
+		require.ErrorIs(t, err, os.ErrNotExist)
+		require.Equal(t, "", msg)
 		require.False(t, ready)
 	})
 }
@@ -178,6 +202,7 @@ func newSocketMockService(t *testing.T, status int, contents []byte) (string, fu
 
 	t.Cleanup(func() { srv.Shutdown(context.Background()) })
 	return socketPath, func() []string {
+		srv.Shutdown(context.Background())
 		return requests
 	}
 }

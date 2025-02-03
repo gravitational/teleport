@@ -146,11 +146,11 @@ func (c *Client) CollectProfile(ctx context.Context, profileName string, seconds
 func (c *Client) GetReadiness(ctx context.Context) (ready bool, msg string, err error) {
 	resp, err := c.do(ctx, http.MethodGet, url.URL{Path: "/readyz"}, nil)
 	if err != nil {
-		return false, " ", trace.Wrap(err)
+		return false, "", trace.Wrap(err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound {
-		return ready, "not found", trace.NotFound("readiness endpoint not found")
+		return ready, "", trace.NotFound("readiness endpoint not found")
 	}
 	ready = resp.StatusCode == http.StatusOK
 	var status struct {
