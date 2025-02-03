@@ -289,46 +289,53 @@ func TestReporterMachineWorkloadIdentityActivity(t *testing.T) {
 	userActivityReports, err := svc.listUserActivityReports(ctx, 10)
 	require.NoError(t, err)
 	require.Len(t, userActivityReports, 1)
-	require.Empty(t, cmp.Diff(
-		userActivityReports[0].Records,
-		[]*prehogv1.UserActivityRecord{
-			{
-				UserName:           anonymizer.AnonymizeNonEmpty("bot-bob"),
-				UserKind:           prehogv1.UserKind_USER_KIND_BOT,
-				BotJoins:           1,
-				SpiffeSvidsIssued:  3,
-				CertificatesIssued: 1,
-				SpiffeIdsIssued: []*prehogv1.SPIFFEIDRecord{
-					{
-						SpiffeId:    anonymizer.AnonymizeNonEmpty("spiffe://clustername/bot/bob"),
-						SvidsIssued: 2,
-					},
-					{
-						SpiffeId:    anonymizer.AnonymizeNonEmpty("spiffe://clustername/bot/bob-2"),
-						SvidsIssued: 1,
-					},
+	slices.SortFunc(userActivityReports[0].Records, func(a, b *prehogv1.UserActivityRecord) int {
+		return bytes.Compare(a.GetUserName(), a.GetUserName())
+	})
+	want := []*prehogv1.UserActivityRecord{
+		{
+			UserName:           anonymizer.AnonymizeNonEmpty("bot-bob"),
+			UserKind:           prehogv1.UserKind_USER_KIND_BOT,
+			BotJoins:           1,
+			SpiffeSvidsIssued:  3,
+			CertificatesIssued: 1,
+			SpiffeIdsIssued: []*prehogv1.SPIFFEIDRecord{
+				{
+					SpiffeId:    anonymizer.AnonymizeNonEmpty("spiffe://clustername/bot/bob"),
+					SvidsIssued: 2,
 				},
-			},
-			{
-				UserName:          anonymizer.AnonymizeNonEmpty("jen"),
-				UserKind:          prehogv1.UserKind_USER_KIND_HUMAN,
-				SpiffeSvidsIssued: 1,
-				SpiffeIdsIssued: []*prehogv1.SPIFFEIDRecord{
-					{
-						SpiffeId:    anonymizer.AnonymizeNonEmpty("spiffe://clustername/jen"),
-						SvidsIssued: 1,
-					},
+				{
+					SpiffeId:    anonymizer.AnonymizeNonEmpty("spiffe://clustername/bot/bob-2"),
+					SvidsIssued: 1,
 				},
 			},
 		},
+		{
+			UserName:          anonymizer.AnonymizeNonEmpty("jen"),
+			UserKind:          prehogv1.UserKind_USER_KIND_HUMAN,
+			SpiffeSvidsIssued: 1,
+			SpiffeIdsIssued: []*prehogv1.SPIFFEIDRecord{
+				{
+					SpiffeId:    anonymizer.AnonymizeNonEmpty("spiffe://clustername/jen"),
+					SvidsIssued: 1,
+				},
+			},
+		},
+	}
+	slices.SortFunc(want, func(a, b *prehogv1.UserActivityRecord) int {
+		return bytes.Compare(a.GetUserName(), a.GetUserName())
+	})
+	diff := cmp.Diff(
+		userActivityReports[0].Records,
+		want,
 		protocmp.Transform(),
-		protocmp.SortRepeated(func(u1, u2 *prehogv1.UserActivityRecord) bool {
-			return bytes.Compare(u1.GetUserName(), u2.GetUserName()) == -1
-		}),
 		protocmp.SortRepeated(func(u1, u2 *prehogv1.SPIFFEIDRecord) bool {
 			return bytes.Compare(u1.GetSpiffeId(), u2.GetSpiffeId()) == -1
 		}),
-	))
+	)
+	if diff != "" {
+		t.Errorf("UserActivityRecords mismatch (-want +got):\n%s", diff)
+	}
 
 	botUserRecordIndex := slices.IndexFunc(userActivityReports[0].Records, func(record *prehogv1.UserActivityRecord) bool {
 		return bytes.Equal(record.UserName, anonymizer.AnonymizeNonEmpty("bot-bob"))
