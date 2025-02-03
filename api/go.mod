@@ -9,7 +9,7 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.5.0
-	github.com/gravitational/trace v1.3.1
+	github.com/gravitational/trace v1.4.1
 	github.com/jonboulle/clockwork v0.4.0
 	github.com/russellhaering/gosaml2 v0.9.1
 	github.com/sirupsen/logrus v1.9.3
@@ -33,7 +33,6 @@ require (
 )
 
 require (
-	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	github.com/beevik/etree v1.2.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
