@@ -16,12 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useMemo } from 'react';
+import { MutableRefObject, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 
 import { Text } from 'design';
 
+import { AccessRequestsContextProvider } from 'teleterm/ui/AccessRequests';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   ConnectMyComputerContextProvider,
@@ -48,7 +49,8 @@ import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 import { WorkspaceContextProvider } from './workspaceContext';
 
 export function DocumentsRenderer(props: {
-  topBarContainerRef: React.MutableRefObject<HTMLDivElement>;
+  topBarConnectMyComputerRef: MutableRefObject<HTMLDivElement>;
+  topBarAccessRequestRef: MutableRefObject<HTMLDivElement>;
 }) {
   const { workspacesService } = useAppContext();
 
@@ -96,12 +98,18 @@ export function DocumentsRenderer(props: {
                   <KeyboardShortcutsPanel />
                 )}
                 {workspace.rootClusterUri ===
-                  workspacesService.getRootClusterUri() &&
-                  props.topBarContainerRef.current &&
-                  createPortal(
-                    <ConnectMyComputerNavigationMenu />,
-                    props.topBarContainerRef.current
-                  )}
+                  workspacesService.getRootClusterUri() && (
+                  <>
+                    {props.topBarConnectMyComputerRef.current &&
+                      createPortal(
+                        <ConnectMyComputerNavigationMenu />,
+                        props.topBarConnectMyComputerRef.current
+                      )}
+                    {props.topBarAccessRequestRef.current &&
+                      //TODO(gzdunek): inject access requests menu.
+                      createPortal(null, props.topBarAccessRequestRef.current)}
+                  </>
+                )}
               </AccessRequestsContextProvider>
             </ConnectMyComputerContextProvider>
           </WorkspaceContextProvider>
