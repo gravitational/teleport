@@ -87,18 +87,22 @@ export function DocumentsRenderer(props: {
             <ConnectMyComputerContextProvider
               rootClusterUri={workspace.rootClusterUri}
             >
-              {workspace.documentsService.getDocuments().length ? (
-                renderDocuments(workspace.documentsService)
-              ) : (
-                <KeyboardShortcutsPanel />
-              )}
-              {workspace.rootClusterUri ===
-                workspacesService.getRootClusterUri() &&
-                props.topBarContainerRef.current &&
-                createPortal(
-                  <ConnectMyComputerNavigationMenu />,
-                  props.topBarContainerRef.current
+              <AccessRequestsContextProvider
+                rootClusterUri={workspace.rootClusterUri}
+              >
+                {workspace.documentsService.getDocuments().length ? (
+                  renderDocuments(workspace.documentsService)
+                ) : (
+                  <KeyboardShortcutsPanel />
                 )}
+                {workspace.rootClusterUri ===
+                  workspacesService.getRootClusterUri() &&
+                  props.topBarContainerRef.current &&
+                  createPortal(
+                    <ConnectMyComputerNavigationMenu />,
+                    props.topBarContainerRef.current
+                  )}
+              </AccessRequestsContextProvider>
             </ConnectMyComputerContextProvider>
           </WorkspaceContextProvider>
         </DocumentsContainer>
