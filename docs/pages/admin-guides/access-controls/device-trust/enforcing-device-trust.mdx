@@ -5,12 +5,12 @@ videoBanner: gBQyj_X1LVw
 ---
 
 <Admonition type="notice" title="Supported Resources">
-Device trust fully supports SSH, Database and Kubernetes resources using
+Device Trust fully supports SSH, database and Kubernetes resources using
 cluster-wide or role-based enforcement.
 
-Apps and Desktops may enforce trusted devices using role-based enforcement. See the [App
-Access support](#app-access-support) and the [Desktop Access support](#desktop-access-support)
-sections for further details.
+Apps and Desktops may enforce trusted devices using role-based enforcement. See
+the [web application support](#web-application-support) and [desktop
+support](#desktop-support) sections for further details.
 
 </Admonition>
 
@@ -36,8 +36,8 @@ by the `device_trust_mode` authentication setting:
 (!docs/pages/includes/device-trust/prereqs.mdx!)
 
 This guide makes use of the preset `require-trusted-device` role, which does not
-enforce the use of a trusted device for [Apps](#app-access-support) or
-[Desktops](#desktop-access-support). Refer to their corresponding sections for
+enforce the use of a trusted device for [Apps](#web-application-support) or
+[Desktops](#desktop-support). Refer to their corresponding sections for
 instructions.
 
 ## Role-based trusted device enforcement
@@ -139,7 +139,7 @@ cluster. Likewise, a root cluster will not enforce Device Trust on resources in
 leaf clusters.
 </Admonition>
 
-## App Access support
+## Web application support
 
 The Teleport App Service may enforce Device Trust via [role-based enforcement](
 #role-based-trusted-device-enforcement).
@@ -191,7 +191,7 @@ version: v2
 
 Now the alice user can only access `env:production` apps using a trusted device.
 
-## Desktop Access support
+## Desktop support
 
 The Teleport Desktop Service may enforce Device Trust via [role-based
 enforcement]( #role-based-trusted-device-enforcement).

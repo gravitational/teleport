@@ -115,4 +115,52 @@ export const notifications: Notification[] = [
       },
     ],
   },
+  {
+    id: '8',
+    title: `You have access lists that require your review today.`,
+    subKind: NotificationSubKind.NotificationAccessListReviewDue0d,
+    createdDate: subMinutes(Date.now(), 5), // 5 minutes ago
+    clicked: false,
+    labels: [],
+  },
+  {
+    id: '9',
+    title: `You have access lists that require your review within 14 days.`,
+    subKind: NotificationSubKind.NotificationAccessListReviewDue14d,
+    createdDate: subMinutes(Date.now(), 6), // 6 minutes ago
+    clicked: false,
+    labels: [],
+  },
+  {
+    id: '10',
+    title: `You have access lists that require your review within 7 days.`,
+    subKind: NotificationSubKind.NotificationAccessListReviewDue7d,
+    createdDate: subMinutes(Date.now(), 7), // 7 minutes ago
+    clicked: false,
+    labels: [],
+  },
+  {
+    id: '11',
+    title: `You have access lists that require your review within 3 days.`,
+    subKind: NotificationSubKind.NotificationAccessListReviewDue3d,
+    createdDate: subMinutes(Date.now(), 8), // 8 minutes ago
+    clicked: false,
+    labels: [],
+  },
+  {
+    id: '12',
+    title: `You have access lists overdue for review by more than 3 days.`,
+    subKind: NotificationSubKind.NotificationAccessListReviewOverdue3d,
+    createdDate: subMinutes(Date.now(), 9), // 9 minutes ago
+    clicked: false,
+    labels: [],
+  },
+  {
+    id: '13',
+    title: `You have access lists overdue for review by more than 7 days.`,
+    subKind: NotificationSubKind.NotificationAccessListReviewOverdue7d,
+    createdDate: subMinutes(Date.now(), 10), // 10 minutes ago
+    clicked: false,
+    labels: [],
+  },
 ];

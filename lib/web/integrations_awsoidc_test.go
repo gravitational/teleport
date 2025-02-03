@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -1430,6 +1431,48 @@ func dummyDeployedDatabaseServices(count int, command []string) []*integrationv1
 	return ret
 }
 
+func TestRegionsForListingDeployedDatabaseService(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("regions query param is used instead of parsing internal resources", func(t *testing.T) {
+		clt := &mockRelevantAWSRegionsClient{
+			databaseServices: &proto.ListResourcesResponse{
+				Resources: []*proto.PaginatedResource{},
+			},
+			databases:        make([]types.Database, 0),
+			discoveryConfigs: make([]*discoveryconfig.DiscoveryConfig, 0),
+		}
+		r := http.Request{
+			URL: &url.URL{RawQuery: "regions=us-east-1&regions=us-east-2"},
+		}
+		gotRegions, err := regionsForListingDeployedDatabaseService(ctx, &r, clt, clt)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"us-east-1", "us-east-2"}, gotRegions)
+	})
+
+	t.Run("fallbacks to internal resources when query param is not present", func(t *testing.T) {
+		clt := &mockRelevantAWSRegionsClient{
+			databaseServices: &proto.ListResourcesResponse{
+				Resources: []*proto.PaginatedResource{{Resource: &proto.PaginatedResource_DatabaseService{
+					DatabaseService: &types.DatabaseServiceV1{Spec: types.DatabaseServiceSpecV1{
+						ResourceMatchers: []*types.DatabaseResourceMatcher{
+							{Labels: &types.Labels{"region": []string{"us-east-1"}}},
+							{Labels: &types.Labels{"region": []string{"us-east-2"}}},
+						},
+					}},
+				}}},
+			},
+			databases:        make([]types.Database, 0),
+			discoveryConfigs: make([]*discoveryconfig.DiscoveryConfig, 0),
+		}
+		r := http.Request{
+			URL: &url.URL{},
+		}
+		gotRegions, err := regionsForListingDeployedDatabaseService(ctx, &r, clt, clt)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"us-east-1", "us-east-2"}, gotRegions)
+	})
+}
 func TestFetchRelevantAWSRegions(t *testing.T) {
 	ctx := context.Background()
 

@@ -75,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -166,6 +167,7 @@ const (
 const (
 	notificationsPageReadInterval = 5 * time.Millisecond
 	notificationsWriteInterval    = 40 * time.Millisecond
+	accessListsPageReadInterval   = 5 * time.Millisecond
 )
 
 var ErrRequiresEnterprise = services.ErrRequiresEnterprise
@@ -1351,6 +1353,7 @@ const (
 	desktopCheckKey
 	upgradeWindowCheckKey
 	roleCountKey
+	accessListReminderNotificationsKey
 )
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -1398,6 +1401,12 @@ func (a *Server) runPeriodicOperations() {
 			Key:           roleCountKey,
 			Duration:      12 * time.Hour,
 			FirstDuration: retryutils.FullJitter(time.Minute),
+			Jitter:        retryutils.SeventhJitter,
+		},
+		interval.SubInterval[periodicIntervalKey]{
+			Key:           accessListReminderNotificationsKey,
+			Duration:      8 * time.Hour,
+			FirstDuration: retryutils.FullJitter(time.Hour),
 			Jitter:        retryutils.SeventhJitter,
 		},
 	)
@@ -1572,6 +1581,8 @@ func (a *Server) runPeriodicOperations() {
 				go a.syncUpgradeWindowStartHour(a.closeCtx)
 			case roleCountKey:
 				go a.tallyRoles(a.closeCtx)
+			case accessListReminderNotificationsKey:
+				go a.CreateAccessListReminderNotifications(a.closeCtx)
 			}
 		}
 	}
@@ -6122,6 +6133,237 @@ func (a *Server) CleanupNotifications(ctx context.Context) {
 			}
 		}
 	}
+}
+
+const (
+	accessListReminderSemaphoreName      = "access-list-reminder-check"
+	accessListReminderSemaphoreMaxLeases = 1
+)
+
+// CreateAccessListReminderNotifications checks if there are any access lists expiring soon and creates notifications to remind their owners if so.
+func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
+	// Ensure only one auth server is running this check at a time.
+	lease, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
+		Service: a,
+		Clock:   a.clock,
+		Expiry:  5 * time.Minute,
+		Params: types.AcquireSemaphoreRequest{
+			SemaphoreKind: types.SemaphoreKindAccessListReminderLimiter,
+			SemaphoreName: accessListReminderSemaphoreName,
+			MaxLeases:     accessListReminderSemaphoreMaxLeases,
+			Holder:        a.ServerID,
+		},
+	})
+	if err != nil {
+		a.logger.WarnContext(ctx, "unable to acquire semaphore, will skip this access list reminder check", "server_id", a.ServerID)
+		return
+	}
+
+	defer func() {
+		lease.Stop()
+		if err := lease.Wait(); err != nil {
+			a.logger.WarnContext(ctx, "error cleaning up semaphore", "error", err)
+		}
+	}()
+
+	now := a.clock.Now()
+
+	// Fetch all access lists
+	var accessLists []*accesslist.AccessList
+	var accessListsPageKey string
+	accessListsReadLimiter := time.NewTicker(accessListsPageReadInterval)
+	defer accessListsReadLimiter.Stop()
+	for {
+		select {
+		case <-accessListsReadLimiter.C:
+		case <-ctx.Done():
+			return
+		}
+		response, nextKey, err := a.Cache.ListAccessLists(ctx, 20, accessListsPageKey)
+		if err != nil {
+			a.logger.WarnContext(ctx, "failed to list access lists for periodic reminder notification check", "error", err)
+		}
+
+		for _, al := range response {
+			daysDiff := int(al.Spec.Audit.NextAuditDate.Sub(now).Hours() / 24)
+			// Only keep access lists that fall within our thresholds in memory
+			if daysDiff <= 15 && daysDiff >= -8 {
+				accessLists = append(accessLists, al)
+			}
+		}
+
+		if nextKey == "" {
+			break
+		}
+		accessListsPageKey = nextKey
+	}
+
+	reminderThresholds := []struct {
+		days                int
+		prefix              string
+		notificationSubkind string
+	}{
+		{14, types.NotificationIdentifierPrefixAccessListDueReminder14d, types.NotificationAccessListReviewDue14dSubKind},
+		{7, types.NotificationIdentifierPrefixAccessListDueReminder7d, types.NotificationAccessListReviewDue7dSubKind},
+		{3, types.NotificationIdentifierPrefixAccessListDueReminder3d, types.NotificationAccessListReviewDue3dSubKind},
+		{0, types.NotificationIdentifierPrefixAccessListDueReminder0d, types.NotificationAccessListReviewDue0dSubKind},
+		{-3, types.NotificationIdentifierPrefixAccessListOverdue3d, types.NotificationAccessListReviewOverdue3dSubKind},
+		{-7, types.NotificationIdentifierPrefixAccessListOverdue7d, types.NotificationAccessListReviewOverdue7dSubKind},
+	}
+
+	for _, threshold := range reminderThresholds {
+		var relevantLists []*accesslist.AccessList
+
+		// Filter access lists based on due date
+		for _, al := range accessLists {
+			dueDate := al.Spec.Audit.NextAuditDate
+			timeDiff := dueDate.Sub(now)
+			daysDiff := int(timeDiff.Hours() / 24)
+
+			if threshold.days < 0 {
+				if daysDiff <= threshold.days {
+					relevantLists = append(relevantLists, al)
+				}
+			} else {
+				if daysDiff >= 0 && daysDiff <= threshold.days {
+					relevantLists = append(relevantLists, al)
+				}
+			}
+		}
+
+		if len(relevantLists) == 0 {
+			continue
+		}
+
+		// Fetch all identifiers for this treshold prefix.
+		var identifiers []*notificationsv1.UniqueNotificationIdentifier
+		var nextKey string
+		for {
+			identifiersResp, nextKey, err := a.ListUniqueNotificationIdentifiersForPrefix(ctx, threshold.prefix, 0, nextKey)
+			if err != nil {
+				a.logger.WarnContext(ctx, "failed to list notification identifiers", "error", err, "prefix", threshold.prefix)
+				continue
+			}
+			identifiers = append(identifiers, identifiersResp...)
+			if nextKey == "" {
+				break
+			}
+		}
+
+		// Create a map of identifiers for quick lookup
+		identifiersMap := make(map[string]struct{})
+		for _, id := range identifiers {
+			// id.Spec.UniqueIdentifier is the access list ID
+			identifiersMap[id.Spec.UniqueIdentifier] = struct{}{}
+		}
+
+		// owners is the combined list of owners for relevant access lists we are creating the notification for.
+		var owners []string
+
+		// Check for access lists which haven't already been accounted for in a notification
+		var needsNotification bool
+
+		writeLimiter := time.NewTicker(notificationsWriteInterval)
+		for _, accessList := range relevantLists {
+			select {
+			case <-writeLimiter.C:
+			case <-ctx.Done():
+				return
+			}
+
+			if _, exists := identifiersMap[accessList.GetName()]; !exists {
+				needsNotification = true
+				// Create a unique identifier for this access list so that we know it has been accounted for.
+				// Note that if the auth server crashes between creating this identifier and creating the notification,
+				// the notification will be missed.  This has been judged as an acceptable outcome for access lists,
+				// but the same strategy may not be acceptable for other notification types.
+				if _, err := a.CreateUniqueNotificationIdentifier(ctx, threshold.prefix, accessList.GetName()); err != nil {
+					a.logger.WarnContext(ctx, "failed to create notification identifier", "error", err, "access_list", accessList.GetName())
+					continue
+				}
+				for _, owner := range accessList.Spec.Owners {
+					owners = append(owners, owner.Name)
+				}
+			}
+		}
+		writeLimiter.Stop()
+
+		owners = apiutils.Deduplicate(owners)
+
+		var title string
+		if threshold.days == 0 {
+			title = "You have access lists due for review today."
+		} else if threshold.days < 0 {
+			title = fmt.Sprintf("You have access lists that are more than %d days overdue for review", -threshold.days)
+		} else {
+			title = fmt.Sprintf("You have access lists due for review in less than %d days.", threshold.days)
+		}
+
+		// Create the notification for this reminder treshold for all relevant owners.
+		if needsNotification {
+			err := a.createAccessListReminderNotification(ctx, owners, threshold.notificationSubkind, title)
+			if err != nil {
+				a.logger.WarnContext(ctx, "Failed to create access list reminder notification", "error", err)
+			}
+		}
+	}
+}
+
+// createAccessListReminderNotification is a helper function to create a notification for an access list reminder.
+func (a *Server) createAccessListReminderNotification(ctx context.Context, owners []string, subkind string, title string) error {
+	_, err := a.Services.CreateGlobalNotification(ctx, &notificationsv1.GlobalNotification{
+		Spec: &notificationsv1.GlobalNotificationSpec{
+			Matcher: &notificationsv1.GlobalNotificationSpec_ByUsers{
+				ByUsers: &notificationsv1.ByUsers{
+					Users: owners,
+				},
+			},
+			Notification: &notificationsv1.Notification{
+				Spec:    &notificationsv1.NotificationSpec{},
+				SubKind: subkind,
+				Metadata: &headerv1.Metadata{
+					Labels: map[string]string{types.NotificationTitleLabel: title},
+				},
+			},
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	// Also create a notification for users who have CRUD permissions for access lists. This is because they can also review access lists.
+	_, err = a.Services.CreateGlobalNotification(ctx, &notificationsv1.GlobalNotification{
+		Spec: &notificationsv1.GlobalNotificationSpec{
+			Matcher: &notificationsv1.GlobalNotificationSpec_ByPermissions{
+				ByPermissions: &notificationsv1.ByPermissions{
+					RoleConditions: []*types.RoleConditions{
+						{
+							Rules: []types.Rule{
+								{
+									Resources: []string{types.KindAccessList},
+									Verbs:     services.RW(),
+								},
+							},
+						},
+					},
+				},
+			},
+			// Exclude the list of owners so that they don't get a duplicate notification, since we already created a notification for them.
+			ExcludeUsers: owners,
+			Notification: &notificationsv1.Notification{
+				Spec:    &notificationsv1.NotificationSpec{},
+				SubKind: subkind,
+				Metadata: &headerv1.Metadata{
+					Labels: map[string]string{types.NotificationTitleLabel: title},
+				},
+			},
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
