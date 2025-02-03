@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net"
 	"slices"
@@ -29,7 +30,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -153,10 +156,15 @@ func (a *Server) handleJoinFailure(
 	}
 	log.WithError(origErr).WithFields(fields).Warn("Failure to join cluster occurred")
 
+	errorMessage := origErr.Error()
+	if errors.Is(origErr, context.Canceled) || status.Code(origErr) == codes.Canceled {
+		errorMessage = "join attempt timed out or was aborted"
+	}
+
 	var evt apievents.AuditEvent
 	status := apievents.Status{
 		Success: false,
-		Error:   origErr.Error(),
+		Error:   errorMessage,
 	}
 	if req != nil && req.Role == types.RoleBot {
 		botJoinEvent := &apievents.BotJoin{
