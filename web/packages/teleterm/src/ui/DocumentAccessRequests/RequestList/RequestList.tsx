@@ -32,23 +32,29 @@ import {
   BlockedByStartTimeButton,
   ButtonPromotedInfo,
 } from 'shared/components/AccessRequests/Shared/Shared';
-import { Attempt as AsyncAttempt } from 'shared/hooks/useAsync';
-import { Attempt } from 'shared/hooks/useAttemptNext';
+import { Attempt } from 'shared/hooks/useAsync';
 import { AccessRequest, canAssumeNow } from 'shared/services/accessRequests';
 
 export function RequestList({
   attempt,
-  requests,
   getFlags,
   viewRequest,
   assumeRoleAttempt,
   assumeRole,
   getRequests,
   assumeAccessList,
-}: Props) {
+}: {
+  attempt: Attempt<AccessRequest[]>;
+  getFlags(accessRequest: AccessRequest): RequestFlags;
+  assumeRole(request: AccessRequest): void;
+  assumeRoleAttempt: Attempt<void>;
+  getRequests(): void;
+  viewRequest(requestId: string): void;
+  assumeAccessList(): void;
+}) {
   return (
     <Layout mx="auto" px={5} pt={3} height="100%">
-      {attempt.status === 'failed' && (
+      {attempt.status === 'error' && (
         <Alert kind="danger" details={attempt.statusText}>
           Could not fetch access requests
         </Alert>
@@ -69,7 +75,7 @@ export function RequestList({
         </ButtonPrimary>
       </Flex>
       <Table
-        data={requests}
+        data={attempt.data || []}
         columns={[
           {
             key: 'id',
@@ -149,7 +155,7 @@ const renderActionCell = (
   request: AccessRequest,
   flags: RequestFlags,
   assumeRole: (request: AccessRequest) => void,
-  assumeRoleAttempt: AsyncAttempt<void>,
+  assumeRoleAttempt: Attempt<void>,
   viewRequest: (id: string) => void,
   assumeAccessList: () => void
 ) => {
@@ -242,14 +248,3 @@ const Layout = styled(Box)`
     padding-bottom: 24px;
   }
 `;
-
-type Props = {
-  attempt: Attempt;
-  requests: AccessRequest[];
-  getFlags: (accessRequest: AccessRequest) => RequestFlags;
-  assumeRole: (request: AccessRequest) => void;
-  assumeRoleAttempt: AsyncAttempt<void>;
-  getRequests: () => void;
-  viewRequest: (requestId: string) => void;
-  assumeAccessList: () => void;
-};
