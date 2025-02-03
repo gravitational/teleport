@@ -23,12 +23,11 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	gofs "io/fs"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
-
-	gofs "io/fs"
 
 	"github.com/spf13/afero"
 	"golang.org/x/tools/go/ast/astutil"
@@ -497,8 +496,7 @@ func makeYAMLExample(fields []rawField) (string, error) {
 	var buf bytes.Buffer
 
 	for _, field := range fields {
-		var example string
-		example = field.kind.formatForExampleYAML(0) + "\n"
+		example := field.kind.formatForExampleYAML(0) + "\n"
 		buf.WriteString(getJSONTag(field.tags) + ": ")
 		buf.WriteString(example)
 	}
@@ -1018,7 +1016,7 @@ func getReceiverName(exp ast.Expr) (string, error) {
 }
 
 // getAssignments collects all of the assignments made to fields of a method
-// reciever. Assumes that n is the function body of the method. In the resulting
+// receiver. Assumes that n is the function body of the method. In the resulting
 // map, each key is a field name and each value is the assignment value.
 func getAssignments(receiver string, n ast.Node) map[string]string {
 	result := make(map[string]string)
@@ -1083,7 +1081,7 @@ const kindField = "Kind"
 // assign the version and kind fields within the receiver, and returns a map of
 // receiver PackageInfos to the version and kind fields they assign.
 func VersionKindAssignments(decls []DeclarationInfo, methodName string) (map[PackageInfo]VersionKindAssignment, error) {
-	if decls == nil || len(decls) == 0 {
+	if len(decls) == 0 {
 		return map[PackageInfo]VersionKindAssignment{}, nil
 	}
 
