@@ -290,7 +290,7 @@ func TestReporterMachineWorkloadIdentityActivity(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, userActivityReports, 1)
 	slices.SortFunc(userActivityReports[0].Records, func(a, b *prehogv1.UserActivityRecord) int {
-		return bytes.Compare(a.GetUserName(), a.GetUserName())
+		return bytes.Compare(a.GetUserName(), b.GetUserName())
 	})
 	want := []*prehogv1.UserActivityRecord{
 		{
@@ -323,7 +323,7 @@ func TestReporterMachineWorkloadIdentityActivity(t *testing.T) {
 		},
 	}
 	slices.SortFunc(want, func(a, b *prehogv1.UserActivityRecord) int {
-		return bytes.Compare(a.GetUserName(), a.GetUserName())
+		return bytes.Compare(a.GetUserName(), b.GetUserName())
 	})
 	diff := cmp.Diff(
 		userActivityReports[0].Records,
