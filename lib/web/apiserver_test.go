@@ -10205,7 +10205,7 @@ func (pc *proxyClientMock) GetToken(_ context.Context, token string) (types.Prov
 		return tok, nil
 	}
 
-	return nil, trace.NotFound(token)
+	return nil, trace.NotFound("%s", token)
 }
 
 func (pc *proxyClientMock) DeleteToken(_ context.Context, token string) error {
@@ -10214,7 +10214,7 @@ func (pc *proxyClientMock) DeleteToken(_ context.Context, token string) error {
 		delete(pc.tokens, token)
 		return nil
 	}
-	return trace.NotFound(token)
+	return trace.NotFound("%s", token)
 }
 
 func Test_consumeTokenForAPICall(t *testing.T) {

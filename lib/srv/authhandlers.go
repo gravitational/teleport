@@ -292,7 +292,7 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, request
 
 		h.log.WarnContext(h.c.Server.Context(), "Port forwarding request denied", "error", systemErrorMessage)
 
-		return trace.AccessDenied(userErrorMessage)
+		return trace.AccessDenied("%s", userErrorMessage)
 	}
 
 	return nil

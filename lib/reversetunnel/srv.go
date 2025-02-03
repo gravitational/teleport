@@ -977,7 +977,7 @@ func (s *server) checkClientCert(user string, clusterName string, cert *ssh.Cert
 		FIPS: s.FIPS,
 	}
 	if err := checker.CheckCert(user, cert); err != nil {
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	}
 
 	return nil

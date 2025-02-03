@@ -619,7 +619,7 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 	// to the local auth will be disabled by default.
 	if !authPref.GetAllowLocalAuth() && req.Session == nil {
 		a.emitNoLocalAuthEvent(username)
-		return nil, trace.AccessDenied(noLocalAuth)
+		return nil, trace.AccessDenied("%s", noLocalAuth)
 	}
 
 	if req.Session != nil {
@@ -680,7 +680,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 	// Disable all local auth requests, except headless requests.
 	if !authPref.GetAllowLocalAuth() && req.HeadlessAuthenticationID == "" {
 		a.emitNoLocalAuthEvent(username)
-		return nil, trace.AccessDenied(noLocalAuth)
+		return nil, trace.AccessDenied("%s", noLocalAuth)
 	}
 
 	clusterName, err := a.GetClusterName()
@@ -802,7 +802,7 @@ func getErrorByTraceField(err error) error {
 		logger.WarnContext(context.Background(), "Unexpected error type, wanted TraceError", "error", err)
 		return trace.AccessDenied("an error has occurred")
 	case traceErr.GetFields()[ErrFieldKeyUserMaxedAttempts] != nil:
-		return trace.AccessDenied(MaxFailedAttemptsErrMsg)
+		return trace.AccessDenied("%s", MaxFailedAttemptsErrMsg)
 	}
 
 	return nil

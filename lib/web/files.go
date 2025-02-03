@@ -194,7 +194,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 	if err != nil {
 		if errors.Is(err, teleport.ErrNodeIsAmbiguous) {
 			const message = "error: ambiguous host could match multiple nodes\n\nHint: try addressing the node by unique id (ex: user@node-id)\n"
-			return nil, trace.NotFound(message)
+			return nil, trace.NotFound("%s", message)
 		}
 
 		return nil, trace.Wrap(err)
