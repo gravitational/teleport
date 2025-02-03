@@ -23,7 +23,6 @@ import Table, { Cell } from 'design/DataTable';
 import { displayDateTime } from 'design/datetime';
 import { requestMatcher } from 'shared/components/AccessRequests/NewRequest/matcher';
 import {
-  formattedName,
   renderIdCell,
   renderStatusCell,
   renderUserCell,
@@ -32,6 +31,7 @@ import {
 import {
   BlockedByStartTimeButton,
   ButtonPromotedInfo,
+  getResourcesOrRolesFromRequest,
 } from 'shared/components/AccessRequests/Shared/Shared';
 import { Attempt } from 'shared/hooks/useAsync';
 import { AccessRequest, canAssumeNow } from 'shared/services/accessRequests';
@@ -99,9 +99,7 @@ export function RequestList({
           {
             key: 'roles',
             headerText: 'Requested',
-            render: ({ resources, roles, id }) => (
-              <RequestedCell resources={resources} roles={roles} id={id} />
-            ),
+            render: request => <RequestedCell request={request} />,
           },
           {
             key: 'resources',
@@ -209,38 +207,38 @@ const renderActionCell = (
   );
 };
 
-const RequestedCell = ({
-  roles,
-  resources,
-  id,
-}: Pick<AccessRequest, 'roles' | 'resources' | 'id'>) => {
-  if (resources?.length > 0) {
-    return (
-      <Cell key={id}>
-        {resources.map((resource, index) => (
-          <Label
-            mb="0"
-            mr="1"
-            key={`${resource.id.kind}${formattedName(resource)}${index}`}
-            kind="secondary"
-          >
-            {resource.id.kind}: {formattedName(resource)}
-          </Label>
-        ))}
-      </Cell>
-    );
-  }
+const RequestedCell = ({ request }: { request: AccessRequest }) => (
+  <Cell
+    css={`
+      display: flex;
+      flex-wrap: wrap;
+      gap: ${props => props.theme.space[1]}px;
+    `}
+  >
+    {getResourcesOrRolesFromRequest(request).map((r, index) => (
+      <Label
+        kind="secondary"
+        key={`${r.title}${index}`}
+        title={r.title}
+        m={0}
+        css={`
+          display: flex;
+          gap: ${props => props.theme.space[1]}px;
+        `}
+      >
+        <r.Icon size="small" />
+        <span
+          css={`
+            white-space: nowrap;
+          `}
+        >
+          {r.name}
+        </span>
+      </Label>
+    ))}
+  </Cell>
+);
 
-  return (
-    <Cell>
-      {roles.sort().map(role => (
-        <Label mb="0" mr="1" key={role} kind="secondary">
-          role: {role}
-        </Label>
-      ))}
-    </Cell>
-  );
-};
 const Layout = styled(Box)`
   flex-direction: column;
   display: flex;
