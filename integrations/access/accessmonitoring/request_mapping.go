@@ -36,6 +36,14 @@ type accessRequestExpressionEnv struct {
 	RequestReason      string
 	CreationTime       time.Time
 	Expiry             time.Time
+
+	Plugin PluginExpressionEnv
+}
+
+// PluginExpressionEnv holds plugin specific condition variables.
+type PluginExpressionEnv struct {
+	// Name specifies the plugin name.
+	Name string
 }
 
 type accessRequestExpression typical.Expression[accessRequestExpressionEnv, any]
@@ -77,6 +85,11 @@ func newRequestConditionParser() (*typical.Parser[accessRequestExpressionEnv, an
 		"access_request.spec.expiry": typical.DynamicVariable[accessRequestExpressionEnv](func(env accessRequestExpressionEnv) (time.Time, error) {
 			return env.Expiry, nil
 		}),
+
+		// Plugin provided condition variables.
+		"plugin.spec.name": typical.DynamicVariable(func(env accessRequestExpressionEnv) (string, error) {
+			return env.Plugin.Name, nil
+		}),
 	}
 	defParserSpec := expression.DefaultParserSpec[accessRequestExpressionEnv]()
 	defParserSpec.Variables = typicalEnvVar
@@ -88,7 +101,7 @@ func newRequestConditionParser() (*typical.Parser[accessRequestExpressionEnv, an
 	return requestConditionParser, nil
 }
 
-func MatchAccessRequest(expr string, req types.AccessRequest) (bool, error) {
+func MatchAccessRequest(expr string, req types.AccessRequest, pluginEnv PluginExpressionEnv) (bool, error) {
 	parsedExpr, err := parseAccessRequestExpression(expr)
 	if err != nil {
 		return false, trace.Wrap(err)
@@ -102,6 +115,7 @@ func MatchAccessRequest(expr string, req types.AccessRequest) (bool, error) {
 		RequestReason:      req.GetRequestReason(),
 		CreationTime:       req.GetCreationTime(),
 		Expiry:             req.Expiry(),
+		Plugin:             pluginEnv,
 	})
 	if err != nil {
 		return false, trace.Wrap(err, "evaluating access monitoring rule condition expression %q", expr)

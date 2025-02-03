@@ -20,6 +20,7 @@ package accessmonitoring
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"slices"
 	"sync"
@@ -130,6 +131,14 @@ func (amrh *RuleHandler) HandleAccessMonitoringRule(ctx context.Context, event t
 			delete(amrh.accessMonitoringRules.rules, event.Resource.GetName())
 			return nil
 		}
+
+		// The notification.name is deprecated. Use plugin.spec.name condition instead.
+		if req.GetSpec().GetNotification().GetName() != "" {
+			req.Spec.Condition = fmt.Sprintf("plugin.spec.name == %q && %s",
+				req.GetSpec().GetNotification().GetName(),
+				req.GetSpec().GetCondition())
+		}
+
 		amrh.accessMonitoringRules.rules[req.Metadata.Name] = req
 		if amrh.onCacheUpdateCallback != nil {
 			amrh.onCacheUpdateCallback(types.OpPut, req.GetMetadata().Name, req)
@@ -149,7 +158,9 @@ func (amrh *RuleHandler) RecipientsFromAccessMonitoringRules(ctx context.Context
 	recipientSet := common.NewRecipientSet()
 
 	for _, rule := range amrh.getAccessMonitoringRules() {
-		match, err := MatchAccessRequest(rule.Spec.Condition, req)
+		match, err := MatchAccessRequest(rule.Spec.Condition, req, PluginExpressionEnv{
+			Name: amrh.pluginName,
+		})
 		if err != nil {
 			log.WarnContext(ctx, "Failed to parse access monitoring notification rule",
 				"error", err,
@@ -176,7 +187,9 @@ func (amrh *RuleHandler) RawRecipientsFromAccessMonitoringRules(ctx context.Cont
 	log := logger.Get(ctx)
 	recipientSet := stringset.New()
 	for _, rule := range amrh.getAccessMonitoringRules() {
-		match, err := MatchAccessRequest(rule.Spec.Condition, req)
+		match, err := MatchAccessRequest(rule.Spec.Condition, req, PluginExpressionEnv{
+			Name: amrh.pluginName,
+		})
 		if err != nil {
 			log.WarnContext(ctx, "Failed to parse access monitoring notification rule",
 				"error", err,
@@ -225,9 +238,6 @@ func (amrh *RuleHandler) getAccessMonitoringRules() map[string]*accessmonitoring
 }
 
 func (amrh *RuleHandler) ruleApplies(amr *accessmonitoringrulesv1.AccessMonitoringRule) bool {
-	if amr.Spec.Notification.Name != amrh.pluginName {
-		return false
-	}
 	return slices.ContainsFunc(amr.Spec.Subjects, func(subject string) bool {
 		return subject == types.KindAccessRequest
 	})
