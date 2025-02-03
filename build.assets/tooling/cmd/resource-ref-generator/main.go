@@ -21,9 +21,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/reference"
 	"github.com/spf13/afero"
 	"gopkg.in/yaml.v2"
+
+	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/reference"
 )
 
 const configHelp string = `The path to a YAML configuration file with the following fields:

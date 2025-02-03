@@ -29,10 +29,10 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/resource"
 	"github.com/spf13/afero"
-
 	"github.com/stretchr/testify/assert"
+
+	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/resource"
 )
 
 func TestShouldProcess(t *testing.T) {
