@@ -171,7 +171,7 @@ func (s *Service) maybeUpdateStaticCredentials(ctx context.Context, newIg types.
 			}
 			oldId, _ := oldIdSecret.GetOAuthClientSecret()
 			oauthIdSecret.Id = oldId
-			s.logger.DebugContext(ctx, "Using existing OAuth client ID", "integration", newIg.GetName())
+			s.logger.DebugContext(ctx, "Updating integration with existing OAuth client ID", "integration", newIg.GetName())
 		}
 
 		oauthCred, err := buildGitHubOAuthCredentials(oauthIdSecret)
