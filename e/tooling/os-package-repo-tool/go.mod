@@ -3,9 +3,9 @@ module github.com/gravitational/os-package-repo-tool
 go 1.22.0
 
 require (
-	github.com/aws/aws-sdk-go v1.55.5
+	github.com/aws/aws-sdk-go v1.55.6
 	github.com/cavaliergopher/rpm v1.2.0
-	github.com/gravitational/trace v1.4.0
+	github.com/gravitational/trace v1.5.0
 	github.com/inhies/go-bytesize v0.0.0-20220417184213-4913239db9cf
 	github.com/seqsense/s3sync v1.10.0
 	github.com/stretchr/testify v1.10.0
