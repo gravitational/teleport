@@ -1289,7 +1289,8 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 				return nil, trace.Wrap(err)
 			}
 			if err := driver.ForceNop(process.ExitContext()); err != nil {
-				return nil, trace.Wrap(err)
+				process.logger.WarnContext(process.ExitContext(), "Unable to disable the deprecated updater.", "error", err)
+				process.logger.WarnContext(process.ExitContext(), "If the deprecated updater is installed, please ensure /etc/teleport-upgrade.d/schedule contains 'nop'.")
 			}
 		case types.UpgraderKindSystemdUnit:
 			process.RegisterFunc("autoupdates.endpoint.export", func() error {
