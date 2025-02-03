@@ -125,39 +125,10 @@ $ sudo systemctl enable teleport --now
 
 ## Configuring managed agent updates
 
-### Configuring roles
-
 To configure managed updates in your cluster, you must have access to
-the `autoupdate_config` and `autoupdate_version` resources.
-
-1. Create a Teleport role that can manage these resources. No preset Teleport
-   roles provide this ability, so you will need to create one.
-
-   Create a file called `autoupdate-editor.yaml` with the following content:
-
-   ```yaml
-   kind: role
-   version: v7
-   metadata:
-     name: autoupdate-editor
-   spec:
-     allow:
-       rules:
-       - resources: ['autoupdate_config', 'autoupdate_version']
-         verbs: ['create', 'read', 'update', 'delete']
-   ```
-
-   Create the role resource:
-
-   ```code
-   $ tctl create autoupdate-editor.yaml
-   ```
-
-   (!docs/pages/includes/create-role-using-web.mdx!)
-
-1. Add the role to your Teleport user:
-
-(!docs/pages/includes/add-role-to-user.mdx role="autoupdate-editor"!)
+the `autoupdate_config` and `autoupdate_version` resources. By default,
+the `editor` role can modify both resources (self-hosted) or just
+`autoupdate_config` (cloud-hosted).
 
 ### Configuring the schedule
 
@@ -348,7 +319,7 @@ cannot disable the last-generation updater using this file.
 
 </Details>
 
-## Step 4/4. Enroll Kubernetes agents in managed updates
+## Enroll Kubernetes agents in managed updates
 
 This section assumes that the name of your `teleport-kube-agent` release is
 `teleport-agent`, and that you have installed it in the `teleport` namespace.
