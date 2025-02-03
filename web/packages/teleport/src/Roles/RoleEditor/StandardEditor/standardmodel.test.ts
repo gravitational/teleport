@@ -17,6 +17,7 @@
  */
 
 import { execFile } from 'node:child_process';
+import { readFile, readFileSync } from 'node:fs';
 import { promisify } from 'node:util';
 
 import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
@@ -485,10 +486,9 @@ describe('roleToRoleEditorModel', () => {
     async () => {
       // `make` dumps standard output from executed programs into standard error,
       // so we need to read data from there.
-      const { stderr } = await promisify(execFile)('make', [
-        'dump-preset-roles',
-      ]);
-      presetRoles = JSON.parse(stderr.toString());
+      await promisify(execFile)('make', ['dump-preset-roles']);
+      const rolesJSON = await promisify(readFile)('tmp/preset-roles.json');
+      presetRoles = JSON.parse(rolesJSON.toString());
     },
     // Set a long timeout for this one, since `make` may compile Teleport
     // sources from scratch, and it will take a while in the CI environment.
