@@ -36,13 +36,11 @@ module.exports = {
   // 'node_modules/.pnpm/@scope+pkg-b@x.x.x/node_modules/@scope/pkg-b/'.
   transformIgnorePatterns: [`node_modules/(?!.pnpm|${esModules})`],
   coverageReporters: ['text-summary', 'lcov'],
-  testPathIgnorePatterns: [
-    'e2e',
-    'docs/check-redirects',
-    // This is necessary, as this file may be recreated during tests. If we
-    // don't ignore it, `pnpm tdd` may enter a recreate-and-rerun loop.
-    '<rootDir>/tmp/preset-roles.json',
-  ],
+  testPathIgnorePatterns: ['e2e', 'docs/check-redirects'],
+
+  // This is necessary, as this file may be recreated during tests. If we don't
+  // ignore it, `pnpm tdd` may enter a recreate-and-rerun loop.
+  watchPathIgnorePatterns: ['<rootDir>/tmp/preset-roles.json'],
   testEnvironmentOptions: {
     customExportConditions: [''],
   },
