@@ -31,7 +31,6 @@ module.exports = {
     '^e-teleport/(.*)$': '<rootDir>/e/web/teleport/src/$1',
     '^gen-proto-js/(.*)$': '<rootDir>/gen/proto/js/$1',
     '^gen-proto-ts/(.*)$': '<rootDir>/gen/proto/ts/$1',
-    '^tmp/(.*)$': '<rootDir>/tmp/$1',
   },
   // Keep pre-v29 snapshot format to avoid existing snapshots breaking.
   // https://jestjs.io/docs/upgrading-to-jest29#snapshot-format

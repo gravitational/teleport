@@ -14,16 +14,15 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// A tool that dumps preset roles in a temporary JSON file that will later be
-// used in TypeScript tests to make sure that the standard role editor can
-// unambiguously represent a preset role.
+// A tool that dumps preset roles to standard output. It is used in TypeScript
+// tests to make sure that the standard role editor can unambiguously represent
+// a preset role.
 
 package main
 
 import (
 	"encoding/json"
 	"log"
-	"os"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -43,12 +42,5 @@ func main() {
 		log.Fatalf("Could not marshal preset roles as JSON: %s", err)
 	}
 
-	err = os.MkdirAll("./tmp", 0755)
-	if err != nil {
-		log.Fatalf("Could not create the ./tmp directory: %s", err)
-	}
-
-	if err = os.WriteFile("./tmp/preset-roles.json", rolesJSON, 0744); err != nil {
-		log.Fatalf("Could not write JSON for preset roles: %s", err)
-	}
+	println(string(rolesJSON))
 }

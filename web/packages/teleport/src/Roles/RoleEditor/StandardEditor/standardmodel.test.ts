@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import presetRoles from 'tmp/preset-roles.json';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
 import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
 import {
@@ -473,6 +474,19 @@ describe('roleToRoleEditorModel', () => {
     users: [],
     roleVersion: defaultRoleVersion,
   });
+
+  /**
+   * Preset roles that will be initialized using the `dump-preset-roles`
+   * utility.
+   */
+  let presetRoles: Role[];
+
+  beforeAll(async () => {
+    // `make` dumps standard output from executed programs into standard error,
+    // so we need to read data from there.
+    const { stderr } = await promisify(execFile)('make', ['dump-preset-roles']);
+    presetRoles = JSON.parse(stderr.toString());
+  }, 20000 /* timeout */);
 
   test.each<{ name: string; role: Role; model?: RoleEditorModel }>([
     {
