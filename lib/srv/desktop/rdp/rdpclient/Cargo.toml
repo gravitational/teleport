@@ -30,8 +30,7 @@ iso7816 = "0.1.3"
 iso7816-tlv = "0.4.4"
 log = "0.4.25"
 parking_lot = "0.12.3"
-rand = { version = "0.8.5", features = ["getrandom"] }
-rand_chacha = "0.3.1"
+rand = { version = "0.9.0", features = ["os_rng"] }
 rsa = "0.9.7"
 sspi = { version = "0.15.0", features = ["network_client"] }
 tokio = { version = "1.43", features = ["full"] }
