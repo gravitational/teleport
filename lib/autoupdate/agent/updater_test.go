@@ -225,6 +225,7 @@ func TestUpdater_Update(t *testing.T) {
 		flags      autoupdate.InstallFlags
 		inWindow   bool
 		now        bool
+		agpl       bool
 		installErr error
 		setupErr   error
 		reloadErr  error
@@ -527,6 +528,27 @@ func TestUpdater_Update(t *testing.T) {
 			errMatch:    "setup error",
 		},
 		{
+			name: "agpl requires base URL",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Enabled: true,
+				},
+				Status: UpdateStatus{
+					Active: NewRevision("old-version", 0),
+					Backup: toPtr(NewRevision("backup-version", 0)),
+				},
+			},
+			inWindow: true,
+			agpl:     true,
+
+			reloadCalls: 0,
+			revertCalls: 0,
+			setupCalls:  0,
+			errMatch:    "AGPL",
+		},
+		{
 			name: "reload fails",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
@@ -601,8 +623,12 @@ func TestUpdater_Update(t *testing.T) {
 						AgentAutoUpdate: tt.inWindow,
 					},
 				}
+				config.Edition = "community"
 				if tt.flags&autoupdate.FlagEnterprise != 0 {
 					config.Edition = "ent"
+				}
+				if tt.agpl {
+					config.Edition = "oss"
 				}
 				config.FIPS = tt.flags&autoupdate.FlagFIPS != 0
 				err := json.NewEncoder(w).Encode(config)
@@ -1145,6 +1171,7 @@ func TestUpdater_Install(t *testing.T) {
 		cfg        *UpdateConfig // nil -> file not present
 		userCfg    OverrideConfig
 		flags      autoupdate.InstallFlags
+		agpl       bool
 		installErr error
 		setupErr   error
 		reloadErr  error
@@ -1269,6 +1296,15 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			errMatch:          "install error",
+		},
+		{
+			name: "agpl requires base URL",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+			},
+			agpl:     true,
+			errMatch: "AGPL",
 		},
 		{
 			name: "version already installed",
@@ -1443,8 +1479,12 @@ func TestUpdater_Install(t *testing.T) {
 						AgentVersion: "16.3.0",
 					},
 				}
+				config.Edition = "community"
 				if tt.flags&autoupdate.FlagEnterprise != 0 {
 					config.Edition = "ent"
+				}
+				if tt.agpl {
+					config.Edition = "oss"
 				}
 				config.FIPS = tt.flags&autoupdate.FlagFIPS != 0
 				err := json.NewEncoder(w).Encode(config)

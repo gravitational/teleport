@@ -239,4 +239,6 @@ type FindResp struct {
 	InWindow bool `yaml:"in_window"`
 	// Jitter duration before an automated install
 	Jitter time.Duration `yaml:"jitter"`
+	// AGPL installations cannot use the official CDN.
+	AGPL bool `yaml:"agpl,omitempty"`
 }
