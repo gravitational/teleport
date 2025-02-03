@@ -80,6 +80,9 @@ message GlobalNotificationSpec {
     ByRoles by_roles = 2;
     // all represents whether to target all users, regardless of roles or permissions.
     bool all = 3;
+    // by_users represents a list of usernames of the users targeted by this notification.
+    // If only one user is being targeted, please create a user-specific notification instead.
+    ByUsers by_users = 7;
   }
   // match_all_conditions is whether or not all the conditions specified by the matcher must be met,
   // if false, only one of the conditions needs to be met.
@@ -99,6 +102,11 @@ message ByPermissions {
 // ByRoles represents the roles targeted by this notification.
 message ByRoles {
   repeated string roles = 1;
+}
+
+// ByUsers represents the users targeted by this notification.
+message ByUsers {
+  repeated string users = 1;
 }
 
 // UserNotificationState represents a notification's state for a user. This is to keep track
