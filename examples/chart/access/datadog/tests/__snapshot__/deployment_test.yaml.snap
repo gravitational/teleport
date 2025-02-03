@@ -7,8 +7,8 @@ should match the snapshot:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-datadog
-        app.kubernetes.io/version: 17.2.1
-        helm.sh/chart: teleport-plugin-datadog-17.2.1
+        app.kubernetes.io/version: 17.2.1-dev.tcsc.1
+        helm.sh/chart: teleport-plugin-datadog-17.2.1-dev.tcsc.1
       name: RELEASE-NAME-teleport-plugin-datadog
     spec:
       replicas: 1
@@ -22,8 +22,8 @@ should match the snapshot:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-plugin-datadog
-            app.kubernetes.io/version: 17.2.1
-            helm.sh/chart: teleport-plugin-datadog-17.2.1
+            app.kubernetes.io/version: 17.2.1-dev.tcsc.1
+            helm.sh/chart: teleport-plugin-datadog-17.2.1-dev.tcsc.1
         spec:
           containers:
           - command:

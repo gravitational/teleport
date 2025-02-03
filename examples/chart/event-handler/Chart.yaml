@@ -1,4 +1,4 @@
-.version: &version "17.2.1"
+.version: &version "17.2.1-dev.tcsc.1"
 
 apiVersion: v2
 name: teleport-plugin-event-handler
