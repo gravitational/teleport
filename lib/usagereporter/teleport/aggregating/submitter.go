@@ -54,7 +54,7 @@ const (
 )
 
 const (
-	defaultEndpointHostname = "prehog.reporting-dev.teleportinfra.dev"
+	defaultEndpointHostname = "reporting-teleport.teleportinfra.sh"
 	DefaultEndpoint         = "https://" + defaultEndpointHostname
 )
 
