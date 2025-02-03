@@ -20,6 +20,7 @@ import styled from 'styled-components';
 
 import { Alert, Box, ButtonBorder, ButtonPrimary, Flex, Label } from 'design';
 import Table, { Cell } from 'design/DataTable';
+import { displayDateTime } from 'design/datetime';
 import { requestMatcher } from 'shared/components/AccessRequests/NewRequest/matcher';
 import {
   formattedName,
@@ -110,7 +111,9 @@ export function RequestList({
             key: 'created',
             headerText: 'Created',
             isSortable: true,
-            render: ({ createdDuration }) => <Cell>{createdDuration}</Cell>,
+            render: ({ createdDuration, created }) => (
+              <Cell title={displayDateTime(created)}>{createdDuration}</Cell>
+            ),
           },
           {
             key: 'assumeStartTime',
@@ -124,8 +127,10 @@ export function RequestList({
             key: 'expires',
             headerText: 'Expires',
             isSortable: true,
-            render: ({ requestTTLDuration }) => (
-              <Cell>{requestTTLDuration}</Cell>
+            render: ({ requestTTLDuration, requestTTL }) => (
+              <Cell title={displayDateTime(requestTTL)}>
+                {requestTTLDuration}
+              </Cell>
             ),
           },
           {
@@ -236,7 +241,6 @@ const RequestedCell = ({
     </Cell>
   );
 };
-
 const Layout = styled(Box)`
   flex-direction: column;
   display: flex;
