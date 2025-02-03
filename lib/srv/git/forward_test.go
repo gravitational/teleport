@@ -282,11 +282,11 @@ func makeUserCert(t *testing.T, caSigner ssh.Signer) ssh.Signer {
 		PublicUserKey:     clientPrivateKey.MarshalSSHPublicKey(),
 		CertificateFormat: constants.CertificateFormatStandard,
 		Identity: sshca.Identity{
-			Username:      "alice",
-			AllowedLogins: []string{"does-not-matter"},
-			GitHubUserID:  "1234567",
-			Traits:        wrappers.Traits{},
-			Roles:         []string{"editor"},
+			Username:     "alice",
+			Principals:   []string{"does-not-matter"},
+			GitHubUserID: "1234567",
+			Traits:       wrappers.Traits{},
+			Roles:        []string{"editor"},
 		},
 	})
 	require.NoError(t, err)

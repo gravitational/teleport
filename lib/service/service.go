@@ -112,6 +112,7 @@ import (
 	pgrepl "github.com/gravitational/teleport/lib/client/db/postgres/repl"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	awsimds "github.com/gravitational/teleport/lib/cloud/imds/aws"
@@ -2136,11 +2137,6 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
-	cloudClients, err := cloud.NewClients()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id))
 
 	// first, create the AuthServer
@@ -2187,7 +2183,6 @@ func (process *TeleportProcess) initAuthService() error {
 			Clock:                   cfg.Clock,
 			HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
 			Tracer:                  process.TracingProvider.Tracer(teleport.ComponentAuth),
-			CloudClients:            cloudClients,
 			Logger:                  logger,
 		}, func(as *auth.Server) error {
 			if !process.Config.CachePolicy.Enabled {
@@ -2631,7 +2626,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.AccessMonitoringRules = services.AccessMonitoringRules
 	cfg.AppSession = services.Identity
 	cfg.Apps = services.Apps
-	cfg.ClusterConfig = services.ClusterConfiguration
+	cfg.ClusterConfig = services.ClusterConfigurationInternal
 	cfg.CrownJewels = services.CrownJewels
 	cfg.DatabaseObjects = services.DatabaseObjects
 	cfg.DatabaseServices = services.DatabaseServices
@@ -3125,6 +3120,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetTracerProvider(process.TracingProvider),
 			regular.SetSessionController(sessionController),
 			regular.SetPublicAddrs(cfg.SSH.PublicAddrs),
+			regular.SetStableUNIXUsers(conn.Client.StableUNIXUsersClient()),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -3480,6 +3476,10 @@ type promHTTPLogAdapter struct {
 
 // Println implements the promhttp.Logger interface.
 func (l promHTTPLogAdapter) Println(v ...interface{}) {
+	if !l.Handler().Enabled(l.ctx, slog.LevelError) {
+		return
+	}
+
 	//nolint:sloglint // msg cannot be constant
 	l.ErrorContext(l.ctx, fmt.Sprint(v...))
 }
@@ -4890,6 +4890,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 			return awsoidc.NewSessionV1(ctx, conn.Client, region, integration)
 		}
+		awsConfigProvider, err := awsconfig.NewCache(awsconfig.WithDefaults(
+			awsconfig.WithOIDCIntegrationClient(conn.Client),
+		))
+		if err != nil {
+			return trace.Wrap(err, "unable to create AWS config provider cache")
+		}
 
 		connectionsHandler, err := app.NewConnectionsHandler(process.GracefulExitContext(), &app.ConnectionsHandlerConfig{
 			Clock:              process.Clock,
@@ -4904,6 +4910,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			CipherSuites:       cfg.CipherSuites,
 			ServiceComponent:   teleport.ComponentWebProxy,
 			AWSSessionProvider: awsSessionGetter,
+			AWSConfigProvider:  awsConfigProvider,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6219,6 +6226,10 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
+		awsConfigProvider, err := awsconfig.NewCache()
+		if err != nil {
+			return trace.Wrap(err, "unable to create AWS config provider cache")
+		}
 		connectionsHandler, err := app.NewConnectionsHandler(process.ExitContext(), &app.ConnectionsHandlerConfig{
 			Clock:              process.Config.Clock,
 			DataDir:            process.Config.DataDir,
@@ -6233,6 +6244,7 @@ func (process *TeleportProcess) initApps() {
 			ServiceComponent:   teleport.ComponentApp,
 			Logger:             logger,
 			AWSSessionProvider: awsutils.SessionProviderUsingAmbientCredentials(),
+			AWSConfigProvider:  awsConfigProvider,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6675,7 +6687,8 @@ func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBacke
 				types.JoinMethodAzure,
 				types.JoinMethodGCP,
 				types.JoinMethodTPM,
-				types.JoinMethodTerraformCloud:
+				types.JoinMethodTerraformCloud,
+				types.JoinMethodOracle:
 				// Checking error instead of the usual uuid.New() in case uuid generation
 				// fails due to not enough randomness. It's been known to happen happen when
 				// Teleport starts very early in the node initialization cycle and /dev/urandom

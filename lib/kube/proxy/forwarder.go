@@ -342,6 +342,10 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 
 	router.GET("/api/:ver/teleport/join/:session", fwd.withAuthPassthrough(fwd.join))
 
+	for _, method := range allHTTPMethods() {
+		router.Handle(method, "/v1/teleport/:base64Cluster/:base64KubeCluster/*path", fwd.singleCertHandler())
+	}
+
 	router.NotFound = fwd.withAuthStd(fwd.catchAll)
 
 	fwd.router = instrumentHTTPHandler(fwd.cfg.KubeServiceType, router)
@@ -2803,4 +2807,20 @@ func (f formatForwardResponseError) WriteString(s string) (int, error) {
 		return 0, trace.Wrap(err)
 	}
 	return len(s), nil
+}
+
+// allHTTPMethods returns a list of all HTTP methods, useful for creating
+// non-root catch-all handlers.
+func allHTTPMethods() []string {
+	return []string{
+		http.MethodConnect,
+		http.MethodDelete,
+		http.MethodGet,
+		http.MethodHead,
+		http.MethodOptions,
+		http.MethodPatch,
+		http.MethodPost,
+		http.MethodPut,
+		http.MethodTrace,
+	}
 }

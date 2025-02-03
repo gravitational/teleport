@@ -51,10 +51,10 @@ func startDatabaseImporter(ctx context.Context, cfg Config, database types.Datab
 	cfg.Log = cfg.Log.With("database", database.GetName(), "protocol", database.GetProtocol())
 
 	fetcher, err := GetObjectFetcher(ctx, database, ObjectFetcherConfig{
-		ImportRules:  cfg.ImportRules,
-		Auth:         cfg.Auth,
-		CloudClients: cfg.CloudClients,
-		Log:          cfg.Log,
+		ImportRules: cfg.ImportRules,
+		Auth:        cfg.Auth,
+		GCPClients:  cfg.GCPClients,
+		Log:         cfg.Log,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

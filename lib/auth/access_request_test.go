@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/tls"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -32,7 +33,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -760,7 +760,7 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 			}
 			user, err := types.NewUser(userName)
 			require.NoError(t, err)
-			user.SetRoles(maps.Keys(tc.roles))
+			user.SetRoles(slices.Collect(maps.Keys(tc.roles)))
 			_, err = testPack.tlsServer.Auth().UpsertUser(ctx, user)
 			require.NoError(t, err)
 

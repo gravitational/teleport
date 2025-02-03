@@ -43,7 +43,7 @@ require (
 	github.com/aquasecurity/libbpfgo v0.5.1-libbpf-1.2
 	github.com/armon/go-radix v1.0.0
 	github.com/aws/aws-sdk-go v1.55.5
-	github.com/aws/aws-sdk-go-v2 v1.32.8
+	github.com/aws/aws-sdk-go-v2 v1.33.0
 	github.com/aws/aws-sdk-go-v2/config v1.28.7
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.48
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.15.23
@@ -66,6 +66,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/identitystore v1.27.8
 	github.com/aws/aws-sdk-go-v2/service/kms v1.37.8
 	github.com/aws/aws-sdk-go-v2/service/memorydb v1.25.2
+	github.com/aws/aws-sdk-go-v2/service/opensearch v1.45.5
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.37.0
 	github.com/aws/aws-sdk-go-v2/service/rds v1.93.2
 	github.com/aws/aws-sdk-go-v2/service/redshift v1.53.1
@@ -105,7 +106,6 @@ require (
 	github.com/fsouza/fake-gcs-server v1.51.0
 	github.com/fxamacker/cbor/v2 v2.7.0
 	github.com/ghodss/yaml v1.0.0
-	github.com/gizak/termui/v3 v3.1.0
 	github.com/go-git/go-git/v5 v5.13.1
 	github.com/go-jose/go-jose/v3 v3.0.3
 	github.com/go-ldap/ldap/v3 v3.4.10
@@ -150,7 +150,7 @@ require (
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/jcmturner/gokrb5/v8 v8.4.4
 	github.com/johannesboyne/gofakes3 v0.0.0-20240217095638-c55a48f17be6
-	github.com/jonboulle/clockwork v0.4.0
+	github.com/jonboulle/clockwork v0.5.0
 	github.com/joshlf/go-acl v0.0.0-20200411065538-eae00ae38531
 	github.com/json-iterator/go v1.1.12
 	github.com/julienschmidt/httprouter v1.3.0 // replaced
@@ -221,7 +221,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250102185135-69823020774d
 	google.golang.org/grpc v1.69.2
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1
-	google.golang.org/protobuf v1.36.3
+	google.golang.org/protobuf v1.36.4
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/dnaeon/go-vcr.v3 v3.2.0
 	gopkg.in/ini.v1 v1.67.0
@@ -278,8 +278,8 @@ require (
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.7 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.27 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.27 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.28 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.28 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.1 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.26 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.37.0 // indirect
@@ -464,7 +464,6 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/nozzle/throttler v0.0.0-20180817012639-2ea982251481 // indirect
-	github.com/nsf/termbox-go v1.1.1 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/onsi/ginkgo/v2 v2.19.0 // indirect

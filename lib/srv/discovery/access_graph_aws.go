@@ -82,8 +82,10 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 		return trace.Wrap(errNoAccessGraphFetchers)
 	}
 
-	s.awsSyncStatus.iterationStarted(allFetchers, s.clock.Now())
-	for _, discoveryConfigName := range s.awsSyncStatus.discoveryConfigs() {
+	for _, fetcher := range allFetchers {
+		s.tagSyncStatus.syncStarted(fetcher, s.clock.Now())
+	}
+	for _, discoveryConfigName := range s.tagSyncStatus.discoveryConfigs() {
 		s.updateDiscoveryConfigStatus(discoveryConfigName)
 	}
 
@@ -92,7 +94,6 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 	tokens := make(chan struct{}, 3)
 	accountIds := map[string]struct{}{}
 	for _, fetcher := range allFetchers {
-		fetcher := fetcher
 		accountIds[fetcher.GetAccountID()] = struct{}{}
 		tokens <- struct{}{}
 		go func() {
@@ -127,8 +128,10 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 	upsert, toDel := aws_sync.ReconcileResults(currentTAGResources, result)
 	pushErr := push(stream, upsert, toDel)
 
-	s.awsSyncStatus.iterationFinished(allFetchers, pushErr, s.clock.Now())
-	for _, discoveryConfigName := range s.awsSyncStatus.discoveryConfigs() {
+	for _, fetcher := range allFetchers {
+		s.tagSyncStatus.syncFinished(fetcher, pushErr, s.clock.Now())
+	}
+	for _, discoveryConfigName := range s.tagSyncStatus.discoveryConfigs() {
 		s.updateDiscoveryConfigStatus(discoveryConfigName)
 	}
 
@@ -153,8 +156,8 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 }
 
 // getAllAWSSyncFetchers returns all AWS sync fetchers.
-func (s *Server) getAllAWSSyncFetchers() []aws_sync.AWSSync {
-	allFetchers := make([]aws_sync.AWSSync, 0, len(s.dynamicTAGAWSFetchers))
+func (s *Server) getAllAWSSyncFetchers() []*aws_sync.Fetcher {
+	allFetchers := make([]*aws_sync.Fetcher, 0, len(s.dynamicTAGAWSFetchers))
 
 	s.muDynamicTAGAWSFetchers.RLock()
 	for _, fetcherSet := range s.dynamicTAGAWSFetchers {
@@ -483,8 +486,8 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 }
 
 // accessGraphAWSFetchersFromMatchers converts Matchers into a set of AWS Sync Fetchers.
-func (s *Server) accessGraphAWSFetchersFromMatchers(ctx context.Context, matchers Matchers, discoveryConfigName string) ([]aws_sync.AWSSync, error) {
-	var fetchers []aws_sync.AWSSync
+func (s *Server) accessGraphAWSFetchersFromMatchers(ctx context.Context, matchers Matchers, discoveryConfigName string) ([]*aws_sync.Fetcher, error) {
+	var fetchers []*aws_sync.Fetcher
 	var errs []error
 	if matchers.AccessGraph == nil {
 		return fetchers, nil
@@ -498,11 +501,10 @@ func (s *Server) accessGraphAWSFetchersFromMatchers(ctx context.Context, matcher
 				ExternalID: awsFetcher.AssumeRole.ExternalID,
 			}
 		}
-		fetcher, err := aws_sync.NewAWSFetcher(
+		fetcher, err := aws_sync.NewFetcher(
 			ctx,
 			aws_sync.Config{
 				AWSConfigProvider:   s.AWSConfigProvider,
-				CloudClients:        s.CloudClients,
 				GetEKSClient:        s.GetAWSSyncEKSClient,
 				GetEC2Client:        s.GetEC2Client,
 				AssumeRole:          assumeRole,

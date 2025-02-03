@@ -19,6 +19,7 @@
 package client
 
 import (
+	"cmp"
 	"context"
 	"crypto"
 	"crypto/tls"
@@ -3480,13 +3481,7 @@ func (tc *TeleportClient) Login(ctx context.Context) (*KeyRing, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if tc.KeyTTL == 0 {
-		tc.KeyTTL = time.Duration(pr.Auth.DefaultSessionTTL)
-	}
-	// todo(lxea): DELETE IN v15(?) where the auth is guaranteed to send us a valid MaxSessionTTL or the auth is guaranteed to interpret 0 duration as the auth's default?
-	if tc.KeyTTL == 0 {
-		tc.KeyTTL = apidefaults.CertDuration
-	}
+	tc.KeyTTL = cmp.Or(tc.KeyTTL, pr.Auth.DefaultSessionTTL.Duration(), apidefaults.CertDuration)
 
 	// Get the SSHLoginFunc that matches client and cluster settings.
 	sshLoginFunc, err := tc.getSSHLoginFunc(pr)

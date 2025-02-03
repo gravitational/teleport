@@ -237,7 +237,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		}
 	case sessionCtx.Database.IsCloudSQL():
 		// Get the client once for subsequent calls (it acquires a read lock).
-		gcpClient, err := e.CloudClients.GetGCPSQLAdminClient(ctx)
+		gcpClient, err := e.GCPClients.GetGCPSQLAdminClient(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

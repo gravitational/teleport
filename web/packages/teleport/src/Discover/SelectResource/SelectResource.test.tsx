@@ -37,12 +37,10 @@ import * as userUserContext from 'teleport/User/UserContext';
 
 import { ResourceKind } from '../Shared';
 import { resourceKindToPreferredResource } from '../Shared/ResourceKind';
-import {
-  filterResources,
-  SelectResource,
-  sortResources,
-} from './SelectResource';
+import { SelectResource } from './SelectResource';
 import { ResourceSpec } from './types';
+import { filterBySupportedPlatformsAndAuthTypes } from './utils/filters';
+import { sortResourcesByPreferences } from './utils/sort';
 
 const setUp = () => {
   jest
@@ -85,7 +83,7 @@ const onboardDiscoverNoResources: OnboardDiscover = {
   hasVisited: false,
 };
 
-test('sortResources without preferred resources, sorts resources alphabetically with guided resources first', () => {
+test('sortResourcesByPreferences without preferred resources, sorts resources alphabetically with guided resources first', () => {
   setUp();
   const mockIn: ResourceSpec[] = [
     // unguided
@@ -99,7 +97,7 @@ test('sortResources without preferred resources, sorts resources alphabetically 
     makeResourceSpec({ name: 'costco' }),
   ];
 
-  const actual = sortResources(
+  const actual = sortResourcesByPreferences(
     mockIn,
     makeDefaultUserPreferences(),
     onboardDiscoverWithResources
@@ -358,7 +356,7 @@ describe('preferred resources', () => {
   test.each(testCases)('$name', testCase => {
     const preferences = makeDefaultUserPreferences();
     preferences.onboard.preferredResources = testCase.preferred;
-    const actual = sortResources(
+    const actual = sortResourcesByPreferences(
       kindBasedList,
       preferences,
       onboardDiscoverWithResources
@@ -563,7 +561,7 @@ describe('marketing params', () => {
   test.each(testCases)('$name', testCase => {
     const preferences = makeDefaultUserPreferences();
     preferences.onboard = testCase.preferred;
-    const actual = sortResources(
+    const actual = sortResourcesByPreferences(
       kindBasedList,
       preferences,
       onboardDiscoverWithResources
@@ -707,7 +705,7 @@ describe('os sorted resources', () => {
   test.each(testCases)('$name', testCase => {
     OS.mockReturnValue(testCase.userAgent);
 
-    const actual = sortResources(
+    const actual = sortResourcesByPreferences(
       osBasedList,
       makeDefaultUserPreferences(),
       onboardDiscoverWithResources
@@ -726,7 +724,7 @@ describe('os sorted resources', () => {
     ];
     OS.mockReturnValue(UserAgent.macOS);
 
-    const actual = sortResources(
+    const actual = sortResourcesByPreferences(
       mockIn,
       makeDefaultUserPreferences(),
       onboardDiscoverWithResources
@@ -773,7 +771,7 @@ describe('os sorted resources', () => {
       },
     };
 
-    const actual = sortResources(
+    const actual = sortResourcesByPreferences(
       oneOfEachList,
       preferences,
       onboardDiscoverWithResources
@@ -853,7 +851,7 @@ describe('sorting Connect My Computer', () => {
     it('puts the Connect My Computer resource as the first resource if the user has no preferences', () => {
       OS.mockReturnValue(UserAgent.macOS);
 
-      const actual = sortResources(
+      const actual = sortResourcesByPreferences(
         oneOfEachList,
         makeDefaultUserPreferences(),
         onboardDiscoverNoResources
@@ -892,7 +890,7 @@ describe('sorting Connect My Computer', () => {
         },
       };
 
-      const actual = sortResources(
+      const actual = sortResourcesByPreferences(
         oneOfEachList,
         preferences,
         onboardDiscoverNoResources
@@ -935,7 +933,7 @@ describe('sorting Connect My Computer', () => {
         platform: Platform.Linux,
       });
 
-      const actual = sortResources(
+      const actual = sortResourcesByPreferences(
         [
           unguidedA,
           guidedServerForMatchingPlatformB,
@@ -988,7 +986,7 @@ describe('sorting Connect My Computer', () => {
         },
       };
 
-      const actual = sortResources(
+      const actual = sortResourcesByPreferences(
         [
           unguidedA,
           guidedServerForMatchingPlatformB,
@@ -1014,7 +1012,7 @@ describe('sorting Connect My Computer', () => {
     it('puts the Connect My Computer resource as the last guided resource if the user has resources', () => {
       OS.mockReturnValue(UserAgent.macOS);
 
-      const actual = sortResources(
+      const actual = sortResourcesByPreferences(
         oneOfEachList,
         makeDefaultUserPreferences(),
         onboardDiscoverWithResources
@@ -1053,7 +1051,7 @@ describe('sorting Connect My Computer', () => {
         },
       };
 
-      const actual = sortResources(
+      const actual = sortResourcesByPreferences(
         oneOfEachList,
         preferences,
         onboardDiscoverWithResources
@@ -1099,7 +1097,7 @@ describe('sorting Connect My Computer', () => {
         },
       };
 
-      const actual = sortResources(
+      const actual = sortResourcesByPreferences(
         [...oneOfEachList, databaseForAnotherPlatform],
         preferences,
         onboardDiscoverNoResources
@@ -1195,12 +1193,11 @@ describe('filterResources', () => {
       supportedPlatforms: [Platform.macOS],
     });
 
-    const result = filterResources(Platform.macOS, 'local', [
-      winAndLinux,
-      win,
-      macosAndLinux,
-      macos,
-    ]);
+    const result = filterBySupportedPlatformsAndAuthTypes(
+      Platform.macOS,
+      'local',
+      [winAndLinux, win, macosAndLinux, macos]
+    );
 
     expect(result).toContain(macosAndLinux);
     expect(result).toContain(macos);
@@ -1209,24 +1206,28 @@ describe('filterResources', () => {
   });
 
   it('does not filter out resources with supportedPlatforms and supportedAuthTypes that are missing or empty', () => {
-    const result = filterResources(Platform.macOS, 'local', [
-      makeResourceSpec({
-        name: 'Empty supportedPlatforms',
-        supportedPlatforms: [],
-      }),
-      makeResourceSpec({
-        name: 'Missing supportedPlatforms',
-        supportedPlatforms: undefined,
-      }),
-      makeResourceSpec({
-        name: 'Empty supportedAuthTypes',
-        supportedAuthTypes: [],
-      }),
-      makeResourceSpec({
-        name: 'Missing supportedAuthTypes',
-        supportedAuthTypes: undefined,
-      }),
-    ]);
+    const result = filterBySupportedPlatformsAndAuthTypes(
+      Platform.macOS,
+      'local',
+      [
+        makeResourceSpec({
+          name: 'Empty supportedPlatforms',
+          supportedPlatforms: [],
+        }),
+        makeResourceSpec({
+          name: 'Missing supportedPlatforms',
+          supportedPlatforms: undefined,
+        }),
+        makeResourceSpec({
+          name: 'Empty supportedAuthTypes',
+          supportedAuthTypes: [],
+        }),
+        makeResourceSpec({
+          name: 'Missing supportedAuthTypes',
+          supportedAuthTypes: undefined,
+        }),
+      ]
+    );
 
     expect(result).toHaveLength(4);
   });
@@ -1249,12 +1250,11 @@ describe('filterResources', () => {
       supportedAuthTypes: ['local'],
     });
 
-    const result = filterResources(Platform.macOS, 'local', [
-      ssoAndPasswordless,
-      sso,
-      localAndPasswordless,
-      local,
-    ]);
+    const result = filterBySupportedPlatformsAndAuthTypes(
+      Platform.macOS,
+      'local',
+      [ssoAndPasswordless, sso, localAndPasswordless, local]
+    );
 
     expect(result).toContain(localAndPasswordless);
     expect(result).toContain(local);

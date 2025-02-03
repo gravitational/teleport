@@ -51,7 +51,7 @@ func TestRegisterEngine(t *testing.T) {
 		Audit:             &testAudit{},
 		AuthClient:        &authclient.Client{},
 		AWSConfigProvider: &mocks.AWSConfigProvider{},
-		CloudClients:      cloudClients,
+		GCPClients:        cloudClients,
 	}
 	require.NoError(t, ec.CheckAndSetDefaults())
 

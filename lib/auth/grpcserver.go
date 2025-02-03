@@ -68,6 +68,7 @@ import (
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	trustv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userprovisioningv2pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
@@ -101,6 +102,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
+	"github.com/gravitational/teleport/lib/auth/stableunixusers"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate/userloginstatev1"
 	"github.com/gravitational/teleport/lib/auth/userpreferences/userpreferencesv1"
@@ -5308,6 +5310,28 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	dbobjectv1pb.RegisterDatabaseObjectServiceServer(server, dbObjectService)
 
+	stableUNIXUsersServiceServer, err := stableunixusers.New(stableunixusers.Config{
+		Authorizer: cfg.Authorizer,
+		Emitter:    cfg.Emitter,
+		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "stable_unix_users"),
+
+		Backend:       cfg.AuthServer.bk,
+		ReadOnlyCache: cfg.AuthServer.ReadOnlyCache,
+
+		StableUNIXUsers:      cfg.AuthServer.Services.StableUNIXUsersInternal,
+		ClusterConfiguration: cfg.AuthServer.Services.ClusterConfigurationInternal,
+
+		CacheClock:   cfg.AuthServer.clock,
+		CacheContext: cfg.AuthServer.closeCtx,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating stable UNIX user service")
+	}
+	stableunixusersv1.RegisterStableUNIXUsersServiceServer(
+		server,
+		stableUNIXUsersServiceServer,
+	)
+
 	authServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,
 		logger:    logger,
@@ -5538,7 +5562,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	autoupdatev1pb.RegisterAutoUpdateServiceServer(server, autoUpdateServiceServer)
 
 	identityCenterService, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
-		Backend: cfg.AuthServer.bk})
+		Backend: cfg.AuthServer.bk,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

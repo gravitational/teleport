@@ -95,17 +95,7 @@ test('authorizing a session opens its URL and closes document', async () => {
     loggedInUser: makeLoggedInUser({ isDeviceTrusted: true }),
   });
   const appContext = new MockAppContext();
-  appContext.clustersService.setState(draftState => {
-    draftState.clusters.set(rootCluster.uri, rootCluster);
-  });
-  appContext.workspacesService.setState(draftState => {
-    draftState.workspaces[rootCluster.uri] = {
-      localClusterUri: rootCluster.uri,
-      documents: [doc],
-      location: undefined,
-      accessRequests: undefined,
-    };
-  });
+  appContext.addRootClusterWithDoc(rootCluster, doc);
 
   render(
     <MockAppContextProvider appContext={appContext}>

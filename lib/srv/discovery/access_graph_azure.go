@@ -64,6 +64,13 @@ func (s *Server) reconcileAccessGraphAzure(
 		return trace.Wrap(errNoAccessGraphFetchers)
 	}
 
+	for _, fetcher := range allFetchers {
+		s.tagSyncStatus.syncStarted(fetcher, s.clock.Now())
+	}
+	for _, discoveryConfigName := range s.tagSyncStatus.discoveryConfigs() {
+		s.updateDiscoveryConfigStatus(discoveryConfigName)
+	}
+
 	// Fetch results concurrently
 	resultsC := make(chan fetcherResult, len(allFetchers))
 	// Restricts concurrently running fetchers to 3
@@ -106,6 +113,13 @@ func (s *Server) reconcileAccessGraphAzure(
 	// Merge all results into a single result
 	upsert, toDel := azuresync.ReconcileResults(currentTAGResources, result)
 	pushErr := azurePush(stream, upsert, toDel)
+
+	for _, fetcher := range allFetchers {
+		s.tagSyncStatus.syncFinished(fetcher, pushErr, s.clock.Now())
+	}
+	for _, discoveryConfigName := range s.tagSyncStatus.discoveryConfigs() {
+		s.updateDiscoveryConfigStatus(discoveryConfigName)
+	}
 
 	if pushErr != nil {
 		s.Log.ErrorContext(ctx, "Error pushing TAGs", "error", pushErr)
