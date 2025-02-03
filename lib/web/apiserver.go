@@ -2373,6 +2373,8 @@ type CreateSessionResponse struct {
 	Token string `json:"token"`
 	// TokenExpiresIn sets seconds before this token is not valid
 	TokenExpiresIn int `json:"expires_in"`
+	// SessionExpiresIn is the seconds before the session itself expires.
+	SessionExpiresIn int `json:"sessionExpiresIn,omitempty"`
 	// SessionExpires is when this session expires.
 	SessionExpires time.Time `json:"sessionExpires,omitempty"`
 	// SessionInactiveTimeoutMS specifies how long in milliseconds
@@ -2404,10 +2406,15 @@ func newSessionResponse(sctx *SessionContext) (*CreateSessionResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	now := sctx.cfg.Parent.clock.Now()
+	sessionExpiryTime := sctx.cfg.Session.GetExpiryTime()
+
 	return &CreateSessionResponse{
 		TokenType:                roundtrip.AuthBearer,
 		Token:                    token.GetName(),
-		TokenExpiresIn:           int(token.Expiry().Sub(sctx.cfg.Parent.clock.Now()) / time.Second),
+		TokenExpiresIn:           int(token.Expiry().Sub(now) / time.Second),
+		SessionExpiresIn:         int(sessionExpiryTime.Sub(now) / time.Second),
+		SessionExpires:           sessionExpiryTime,
 		SessionInactiveTimeoutMS: int(sctx.cfg.Session.GetIdleTimeout().Milliseconds()),
 		DeviceWebToken:           sctx.cfg.Session.GetDeviceWebToken(),
 		TrustedDeviceRequirement: int32(sctx.cfg.Session.GetTrustedDeviceRequirement()),
@@ -2472,12 +2479,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	res, err := newSessionResponse(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	res.SessionExpires = webSession.GetExpiryTime()
-
-	return res, nil
+	return res, trace.Wrap(err)
 }
 
 func clientMetaFromReq(r *http.Request) *authclient.ForwardedClientMetadata {
@@ -2595,12 +2597,7 @@ func (h *Handler) renewWebSession(w http.ResponseWriter, r *http.Request, params
 	}
 
 	res, err := newSessionResponse(newContext)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	res.SessionExpires = newSession.GetExpiryTime()
-
-	return res, nil
+	return res, trace.Wrap(err)
 }
 
 type changeUserAuthenticationRequest struct {

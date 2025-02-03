@@ -22,48 +22,29 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
-	"net/http"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	awsdynamodb "github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
-	"github.com/gravitational/teleport/lib/utils/aws/migration"
 )
-
-func registerTestDynamoDBEngine() {
-	// Override DynamoDB engine that is used normally with the test one
-	// with custom HTTP client.
-	common.RegisterEngine(newTestDynamoDBEngine, defaults.ProtocolDynamoDB)
-}
-
-func newTestDynamoDBEngine(ec common.EngineConfig) common.Engine {
-	return &dynamodb.Engine{
-		EngineConfig:  ec,
-		RoundTrippers: make(map[string]http.RoundTripper),
-		// inject mock AWS credentials.
-		CredentialsGetter: awsutils.NewStaticCredentialsGetter(
-			migration.NewCredentialsAdapter(
-				credentials.NewStaticCredentialsProvider("AKIDl", "SECRET", "SESSION"),
-			),
-		),
-	}
-}
 
 func TestAccessDynamoDB(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	mockTables := []string{"table-one", "table-two"}
-	testCtx := setupTestContext(ctx, t,
-		withDynamoDB("DynamoDB"))
+	testCtx := setupTestContext(ctx, t)
+	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
+		AWSConfigProvider: &mocks.AWSConfigProvider{},
+		Databases:         []types.Database{withDynamoDB("DynamoDB")(t, ctx, testCtx)},
+	})
 	go testCtx.startHandlingConnections()
 
 	tests := []struct {
@@ -143,8 +124,11 @@ func TestAccessDynamoDB(t *testing.T) {
 
 func TestAuditDynamoDB(t *testing.T) {
 	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t,
-		withDynamoDB("DynamoDB"))
+	testCtx := setupTestContext(ctx, t)
+	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
+		AWSConfigProvider: &mocks.AWSConfigProvider{},
+		Databases:         []types.Database{withDynamoDB("DynamoDB")(t, ctx, testCtx)},
+	})
 	go testCtx.startHandlingConnections()
 
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"admin"}, []string{types.Wildcard})

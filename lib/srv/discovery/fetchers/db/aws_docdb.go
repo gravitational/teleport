@@ -21,9 +21,9 @@ package db
 import (
 	"context"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -64,22 +64,22 @@ func (f *rdsDocumentDBFetcher) GetDatabases(ctx context.Context, cfg *awsFetcher
 	for _, cluster := range clusters {
 		if !libcloudaws.IsDocumentDBClusterSupported(&cluster) {
 			cfg.Logger.DebugContext(ctx, "DocumentDB cluster doesn't support IAM authentication. Skipping.",
-				"cluster", aws.StringValue(cluster.DBClusterIdentifier),
-				"engine_version", aws.StringValue(cluster.EngineVersion))
+				"cluster", aws.ToString(cluster.DBClusterIdentifier),
+				"engine_version", aws.ToString(cluster.EngineVersion))
 			continue
 		}
 
 		if !libcloudaws.IsDBClusterAvailable(cluster.Status, cluster.DBClusterIdentifier) {
 			cfg.Logger.DebugContext(ctx, "DocumentDB cluster is not available. Skipping.",
-				"cluster", aws.StringValue(cluster.DBClusterIdentifier),
-				"status", aws.StringValue(cluster.Status))
+				"cluster", aws.ToString(cluster.DBClusterIdentifier),
+				"status", aws.ToString(cluster.Status))
 			continue
 		}
 
 		dbs, err := common.NewDatabasesFromDocumentDBCluster(&cluster)
 		if err != nil {
 			cfg.Logger.WarnContext(ctx, "Could not convert DocumentDB cluster to database resources.",
-				"cluster", aws.StringValue(cluster.DBClusterIdentifier),
+				"cluster", aws.ToString(cluster.DBClusterIdentifier),
 				"error", err)
 		}
 		databases = append(databases, dbs...)
@@ -101,7 +101,7 @@ func (f *rdsDocumentDBFetcher) getAllDBClusters(ctx context.Context, clt RDSClie
 	for i := 0; i < maxAWSPages && pager.HasMorePages(); i++ {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureErrorV2(err))
+			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 		}
 		clusters = append(clusters, page.DBClusters...)
 	}

@@ -19,6 +19,7 @@ package stableunixusers
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -26,8 +27,10 @@ import (
 
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
@@ -38,6 +41,8 @@ const uidCacheTTL = 30 * time.Second
 // Config contains the parameters for [New].
 type Config struct {
 	Authorizer authz.Authorizer
+	Emitter    apievents.Emitter
+	Logger     *slog.Logger
 
 	Backend       backend.Backend
 	ReadOnlyCache *readonly.Cache
@@ -54,11 +59,33 @@ type Config struct {
 
 // New returns the auth server implementation for the stable UNIX users service,
 // including the gRPC interface, authz enforcement, and business logic.
-func New(params Config) (stableunixusersv1.StableUNIXUsersServiceServer, error) {
+func New(c Config) (stableunixusersv1.StableUNIXUsersServiceServer, error) {
+	if c.Authorizer == nil {
+		return nil, trace.BadParameter("missing Authorizer")
+	}
+	if c.Emitter == nil {
+		return nil, trace.BadParameter("missing Emitter")
+	}
+	if c.Logger == nil {
+		return nil, trace.BadParameter("missing Logger")
+	}
+	if c.Backend == nil {
+		return nil, trace.BadParameter("missing Backend")
+	}
+	if c.ReadOnlyCache == nil {
+		return nil, trace.BadParameter("missing ReadOnlyCache")
+	}
+	if c.StableUNIXUsers == nil {
+		return nil, trace.BadParameter("missing StableUNIXUsers")
+	}
+	if c.ClusterConfiguration == nil {
+		return nil, trace.BadParameter("missing ClusterConfiguration")
+	}
+
 	uidCache, err := utils.NewFnCache(utils.FnCacheConfig{
 		TTL:         uidCacheTTL,
-		Clock:       params.CacheClock,
-		Context:     params.CacheContext,
+		Clock:       c.CacheClock,
+		Context:     c.CacheContext,
 		ReloadOnErr: true,
 	})
 	if err != nil {
@@ -66,13 +93,15 @@ func New(params Config) (stableunixusersv1.StableUNIXUsersServiceServer, error) 
 	}
 
 	return &server{
-		authorizer: params.Authorizer,
+		authorizer: c.Authorizer,
+		emitter:    c.Emitter,
+		logger:     c.Logger,
 
-		backend:       params.Backend,
-		readOnlyCache: params.ReadOnlyCache,
+		backend:       c.Backend,
+		readOnlyCache: c.ReadOnlyCache,
 
-		stableUNIXUsers:      params.StableUNIXUsers,
-		clusterConfiguration: params.ClusterConfiguration,
+		stableUNIXUsers:      c.StableUNIXUsers,
+		clusterConfiguration: c.ClusterConfiguration,
 
 		uidCache: uidCache,
 
@@ -86,6 +115,8 @@ type server struct {
 	stableunixusersv1.UnsafeStableUNIXUsersServiceServer
 
 	authorizer authz.Authorizer
+	emitter    apievents.Emitter
+	logger     *slog.Logger
 
 	backend       backend.Backend
 	readOnlyCache *readonly.Cache
@@ -161,9 +192,17 @@ func (s *server) ObtainUIDForUsername(ctx context.Context, req *stableunixusersv
 // obtainUIDForUsernameCached calls [*server.obtainUIDForUsernameUncached]
 // through the UID FnCache.
 func (s *server) obtainUIDForUsernameCached(ctx context.Context, username string) (int32, error) {
+	idGetter, err := authz.UserFromContext(ctx)
+	if err != nil {
+		idGetter = nil
+	}
+
 	uid, err := utils.FnCacheGet(ctx, s.uidCache, username, func(ctx context.Context) (int32, error) {
 		ctx, cancel := context.WithTimeout(ctx, uidCacheTTL)
 		defer cancel()
+		if idGetter != nil {
+			ctx = authz.ContextWithUser(ctx, idGetter)
+		}
 		return s.obtainUIDForUsernameUncached(ctx, username)
 	})
 	if err != nil {
@@ -192,8 +231,6 @@ func (s *server) obtainUIDForUsernameUncached(ctx context.Context, username stri
 
 		uid, err := s.stableUNIXUsers.GetUIDForUsername(ctx, username)
 		if err == nil {
-			// TODO(espadolini): _potentially_ emit an audit log event with
-			// username and UID (it might spam the audit log unnecessarily)
 			return uid, nil
 		}
 		if !trace.IsNotFound(err) {
@@ -233,8 +270,19 @@ func (s *server) obtainUIDForUsernameUncached(ctx context.Context, username stri
 			return 0, trace.Wrap(err)
 		}
 
-		// TODO(espadolini): emit an audit log event with the username and UID
-		// that was just created
+		if err := s.emitter.EmitAuditEvent(ctx, &apievents.StableUNIXUserCreate{
+			Metadata: apievents.Metadata{
+				Type: events.StableUNIXUserCreateEvent,
+				Code: events.StableUNIXUserCreateCode,
+			},
+			UserMetadata: authz.ClientUserMetadata(ctx),
+			StableUnixUser: &apievents.StableUNIXUser{
+				Username: username,
+				Uid:      uid,
+			},
+		}); err != nil {
+			s.logger.WarnContext(ctx, "Failed to emit stable_unix_user.create", "error", err)
+		}
 
 		return uid, nil
 	}

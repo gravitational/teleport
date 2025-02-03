@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,28 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ButtonPrimary, Flex, ResourceIcon, Text } from 'design';
-
-interface EmptyIdentityListProps {
-  onConnect(): void;
-}
-
-export function EmptyIdentityList(props: EmptyIdentityListProps) {
-  return (
-    <Flex
-      m="auto"
-      flexDirection="column"
-      alignItems="center"
-      width="200px"
-      p={3}
-    >
-      <ResourceIcon width="60px" name="server" />
-      <Text typography="body3" bold mb={2}>
-        No cluster connected
-      </Text>
-      <ButtonPrimary size="small" onClick={props.onConnect}>
-        Connect
-      </ButtonPrimary>
-    </Flex>
-  );
-}
+export * from './databases';
+export * from './resources';
+export * from './resourcesE';

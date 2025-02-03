@@ -36,11 +36,11 @@ import (
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -93,6 +93,11 @@ type rssClient interface {
 	GetWorkgroup(ctx context.Context, params *rss.GetWorkgroupInput, optFns ...func(*rss.Options)) (*rss.GetWorkgroupOutput, error)
 }
 
+// stsClient defines a subset of the AWS STS client API.
+type stsClient interface {
+	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+}
+
 // awsClientProvider is an AWS SDK client provider.
 type awsClientProvider interface {
 	getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient
@@ -102,6 +107,7 @@ type awsClientProvider interface {
 	getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient
 	getRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient
 	getRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) rssClient
+	getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient
 }
 
 type defaultAWSClients struct{}
@@ -134,10 +140,12 @@ func (defaultAWSClients) getRedshiftServerlessClient(cfg aws.Config, optFns ...f
 	return rss.NewFromConfig(cfg, optFns...)
 }
 
+func (defaultAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient {
+	return sts.NewFromConfig(cfg, optFns...)
+}
+
 // MetadataConfig is the cloud metadata service config.
 type MetadataConfig struct {
-	// Clients is an interface for retrieving cloud clients.
-	Clients cloud.Clients
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
 
@@ -147,13 +155,6 @@ type MetadataConfig struct {
 
 // Check validates the metadata service config.
 func (c *MetadataConfig) Check() error {
-	if c.Clients == nil {
-		cloudClients, err := cloud.NewClients()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		c.Clients = cloudClients
-	}
 	if c.AWSConfigProvider == nil {
 		return trace.BadParameter("missing AWSConfigProvider")
 	}

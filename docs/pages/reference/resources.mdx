@@ -308,6 +308,15 @@ spec:
   # Possible values: "local", "oidc", "saml" and "github"
   type: local
 
+  stable_unix_user_config:
+    # If set to true, SSH instances will use the same UID for each given
+    # username when automatically creating users.
+    enabled: false
+
+    # The range of UIDs (including both ends) used for automatic UID assignment.
+    first_uid: 90000
+    last_uid: 95000
+
 version: v2
 ```
 
