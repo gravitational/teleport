@@ -1,4 +1,4 @@
-.version: &version "18.0.0-dev"
+.version: &version "18.0.0-dev.ravicious.6"
 
 name: teleport-cluster
 apiVersion: v2
