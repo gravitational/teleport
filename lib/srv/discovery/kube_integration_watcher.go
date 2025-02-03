@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/webclient"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
@@ -63,25 +64,19 @@ func (s *Server) startKubeIntegrationWatchers() error {
 	}
 	proxyPublicAddr := pingResponse.GetProxyPublicAddr()
 
-	//
-	proxyClt, err := webclient.NewReusableClient(&webclient.Config{
-		Context:   s.ctx,
-		ProxyAddr: proxyPublicAddr,
-	})
-	if err != nil {
-		return trace.Wrap(err, "failed to build proxy client")
-	}
-
-	baseURL, err := url.Parse(fmt.Sprintf("https://%s/webapi/automaticupgrades/channel/%s", proxyPublicAddr, automaticupgrades.DefaultChannelName))
-	if err != nil {
-		return trace.Wrap(err, "crafting the channel base URL (this is a bug)")
-	}
-
-	versionGetter := version.FailoverGetter{
-		// We try getting the version via the new webapi
-		version.NewProxyVersionGetter(proxyClt),
-		// If this is not implemented, we fallback to the release channels
-		version.NewBasicHTTPVersionGetter(baseURL),
+	var versionGetter version.Getter
+	if proxyPublicAddr == "" {
+		// If there are no proxy services running, we might fail to get the proxy URL and build a client.
+		// In this case we "gracefully" fallback to our own version.
+		// This is not supposed to happen outside of tests as the discovery service must join via a proxy.
+		s.Log.WarnContext(s.ctx, "Failed to determine proxy public address, agents will install our own Teleport version instead of the one advertised by the proxy.")
+		versionGetter = version.NewStaticGetter(teleport.Version, nil)
+	} else {
+		versionGetter, err = versionGetterForProxy(s.ctx, proxyPublicAddr)
+		if err != nil {
+			s.Log.ErrorContext(s.ctx, "Failed to build a version client, falling back to Discovery service Teleport version.")
+			versionGetter = version.NewStaticGetter(teleport.Version, nil)
+		}
 	}
 
 	watcher, err := common.NewWatcher(s.ctx, common.WatcherConfig{
@@ -383,4 +378,26 @@ func (s *Server) getKubeIntegrationFetchers() []common.Fetcher {
 
 func (s *Server) getKubeNonIntegrationFetchers() []common.Fetcher {
 	return s.getKubeFetchers(false)
+}
+
+func versionGetterForProxy(ctx context.Context, proxyPublicAddr string) (version.Getter, error) {
+	proxyClt, err := webclient.NewReusableClient(&webclient.Config{
+		Context:   ctx,
+		ProxyAddr: proxyPublicAddr,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to build proxy client")
+	}
+
+	baseURL, err := url.Parse(fmt.Sprintf("https://%s/webapi/automaticupgrades/channel/%s", proxyPublicAddr, automaticupgrades.DefaultChannelName))
+	if err != nil {
+		return nil, trace.Wrap(err, "crafting the channel base URL (this is a bug)")
+	}
+
+	return version.FailoverGetter{
+		// We try getting the version via the new webapi
+		version.NewProxyVersionGetter(proxyClt),
+		// If this is not implemented, we fallback to the release channels
+		version.NewBasicHTTPVersionGetter(baseURL),
+	}, nil
 }
