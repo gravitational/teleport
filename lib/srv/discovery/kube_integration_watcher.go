@@ -78,6 +78,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 		Origin:         types.OriginCloud,
 		TriggerFetchC:  s.newDiscoveryConfigChangedSub(),
 		PreFetchHookFn: s.kubernetesIntegrationWatcherIterationStarted,
+		Clock:          s.clock,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -86,7 +87,6 @@ func (s *Server) startKubeIntegrationWatchers() error {
 
 	go func() {
 		for {
-			discoveryConfigsChanged := map[string]struct{}{}
 			resourcesFoundByGroup := make(map[awsResourceGroup]int)
 			resourcesEnrolledByGroup := make(map[awsResourceGroup]int)
 
@@ -124,7 +124,6 @@ func (s *Server) startKubeIntegrationWatchers() error {
 
 					resourceGroup := awsResourceGroupFromLabels(newCluster.GetStaticLabels())
 					resourcesFoundByGroup[resourceGroup] += 1
-					discoveryConfigsChanged[resourceGroup.discoveryConfigName] = struct{}{}
 
 					if enrollingClusters[newCluster.GetAWSConfig().Name] ||
 						slices.ContainsFunc(existingServers, func(c types.KubeServer) bool { return c.GetName() == newCluster.GetName() }) ||
@@ -175,10 +174,6 @@ func (s *Server) startKubeIntegrationWatchers() error {
 			for group, count := range resourcesEnrolledByGroup {
 				s.awsEKSResourcesStatus.incrementEnrolled(group, count)
 			}
-
-			for dc := range discoveryConfigsChanged {
-				s.updateDiscoveryConfigStatus(dc)
-			}
 		}
 	}()
 	return nil
@@ -203,16 +198,16 @@ func (s *Server) kubernetesIntegrationWatcherIterationStarted() {
 			return resourceGroup, include
 		},
 	)
-	for _, g := range awsResultGroups {
-		s.awsEKSResourcesStatus.iterationStarted(g)
-	}
 
 	discoveryConfigs := libslices.FilterMapUnique(awsResultGroups, func(g awsResourceGroup) (s string, include bool) {
 		return g.discoveryConfigName, true
 	})
 	s.updateDiscoveryConfigStatus(discoveryConfigs...)
-
 	s.awsEKSResourcesStatus.reset()
+	for _, g := range awsResultGroups {
+		s.awsEKSResourcesStatus.iterationStarted(g)
+	}
+
 	s.awsEKSTasks.reset()
 }
 
@@ -232,7 +227,6 @@ func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName stri
 		}
 		mu.Unlock()
 
-		s.updateDiscoveryConfigStatus(discoveryConfigName)
 		s.upsertTasksForAWSEKSFailedEnrollments()
 	}()
 
