@@ -223,7 +223,7 @@ func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL str
 		return trace.Wrap(err, "failed to extract teleport")
 	}
 	// Write the checksum last. This marks the version directory as valid.
-	err = renameio.WriteFile(sumPath, []byte(hex.EncodeToString(newSum)), configFileMode)
+	err = os.WriteFile(sumPath, []byte(hex.EncodeToString(newSum)), configFileMode)
 	if err != nil {
 		return trace.Wrap(err, "failed to write checksum")
 	}
