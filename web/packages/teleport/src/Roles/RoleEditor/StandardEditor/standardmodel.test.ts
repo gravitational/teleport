@@ -481,12 +481,19 @@ describe('roleToRoleEditorModel', () => {
    */
   let presetRoles: Role[];
 
-  beforeAll(async () => {
-    // `make` dumps standard output from executed programs into standard error,
-    // so we need to read data from there.
-    const { stderr } = await promisify(execFile)('make', ['dump-preset-roles']);
-    presetRoles = JSON.parse(stderr.toString());
-  }, 60000 /* timeout */);
+  beforeAll(
+    async () => {
+      // `make` dumps standard output from executed programs into standard error,
+      // so we need to read data from there.
+      const { stderr } = await promisify(execFile)('make', [
+        'dump-preset-roles',
+      ]);
+      presetRoles = JSON.parse(stderr.toString());
+    },
+    // Set a long timeout for this one, since `make` may compile Teleport
+    // sources from scratch, and it will take a while in the CI environment.
+    10 * 60000
+  );
 
   test.each<{ name: string; role: Role; model?: RoleEditorModel }>([
     {
