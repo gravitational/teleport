@@ -25,9 +25,10 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/resource"
 	"github.com/spf13/afero"
 	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/resource"
 )
 
 var tmpl *template.Template
@@ -97,7 +98,7 @@ func (c GeneratorConfig) UnmarshalYAML(value *yaml.Node) error {
 		return errors.New("no destination path provided")
 	case c.FieldAssignmentMethodName == "":
 		return errors.New("must provide a field assignment method name")
-	case c.RequiredFieldTypes == nil || len(c.RequiredFieldTypes) == 0:
+	case len(c.RequiredFieldTypes) == 0:
 		return errors.New("must provide a list of required field types")
 	case c.SourcePath == "":
 		return errors.New("must provide a source path")
