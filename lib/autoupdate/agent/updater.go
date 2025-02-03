@@ -327,7 +327,7 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 		u.Log.InfoContext(ctx, "Initiating installation.", targetKey, target, activeKey, active)
 	}
 
-	if err := u.update(ctx, cfg, target, override.AllowOverwrite); err != nil {
+	if err := u.update(ctx, cfg, target, override.AllowOverwrite, resp.AGPL); err != nil {
 		if errors.Is(err, ErrFilePresent) && !override.AllowOverwrite {
 			u.Log.WarnContext(ctx, "Use --overwrite to force removal of existing binaries installed via script.")
 			u.Log.WarnContext(ctx, "If a teleport rpm or deb package is installed, upgrade it to the latest version and retry. DO NOT USE --overwrite.")
@@ -608,7 +608,7 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 		time.Sleep(resp.Jitter)
 	}
 
-	updateErr := u.update(ctx, cfg, target, false)
+	updateErr := u.update(ctx, cfg, target, false, resp.AGPL)
 	writeErr := writeConfig(u.ConfigPath, cfg)
 	if writeErr != nil {
 		writeErr = trace.Wrap(writeErr, "failed to write %s", updateConfigName)
@@ -642,12 +642,16 @@ func (u *Updater) find(ctx context.Context, cfg *UpdateConfig) (FindResp, error)
 		return FindResp{}, trace.Wrap(err, "failed to request version from proxy")
 	}
 	var flags autoupdate.InstallFlags
+	var agpl bool
 	switch resp.Edition {
 	case modules.BuildEnterprise:
 		flags |= autoupdate.FlagEnterprise
-	case modules.BuildOSS, modules.BuildCommunity:
+	case modules.BuildCommunity:
+	case modules.BuildOSS:
+		agpl = true
 	default:
-		u.Log.WarnContext(ctx, "Unknown edition detected, defaulting to community.", "edition", resp.Edition)
+		agpl = true
+		u.Log.WarnContext(ctx, "Unknown edition detected, defaulting to OSS.", "edition", resp.Edition)
 	}
 	if resp.FIPS {
 		flags |= autoupdate.FlagFIPS
@@ -657,10 +661,19 @@ func (u *Updater) find(ctx context.Context, cfg *UpdateConfig) (FindResp, error)
 		Target:   NewRevision(resp.AutoUpdate.AgentVersion, flags),
 		InWindow: resp.AutoUpdate.AgentAutoUpdate,
 		Jitter:   time.Duration(jitterSec) * time.Second,
+		AGPL:     agpl,
 	}, nil
 }
 
-func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision, force bool) error {
+func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision, force, agpl bool) error {
+	baseURL := cfg.Spec.BaseURL
+	if baseURL == "" {
+		if agpl {
+			return trace.Errorf("--base-url flag must be specified for AGPL edition of Teleport")
+		}
+		baseURL = autoupdate.DefaultBaseURL
+	}
+
 	active := cfg.Status.Active
 	backup := deref(cfg.Status.Backup)
 	switch backup {
@@ -679,10 +692,6 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 
 	// Install and link the desired version (or validate existing installation)
 
-	baseURL := cfg.Spec.BaseURL
-	if baseURL == "" {
-		baseURL = autoupdate.DefaultBaseURL
-	}
 	err := u.Installer.Install(ctx, target, baseURL)
 	if err != nil {
 		return trace.Wrap(err, "failed to install")
