@@ -1641,6 +1641,11 @@ func TestDebugService(t *testing.T) {
 	_, err = process.WaitForEvent(ctx, TeleportOKEvent)
 	require.NoError(t, err)
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	t.Cleanup(cancel)
+	_, err = process.WaitForEvent(ctx, TeleportOKEvent)
+	require.NoError(t, err)
+
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
 		Transport: &http.Transport{
