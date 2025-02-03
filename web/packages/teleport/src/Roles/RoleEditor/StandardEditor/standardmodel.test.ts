@@ -486,7 +486,7 @@ describe('roleToRoleEditorModel', () => {
     // so we need to read data from there.
     const { stderr } = await promisify(execFile)('make', ['dump-preset-roles']);
     presetRoles = JSON.parse(stderr.toString());
-  }, 20000 /* timeout */);
+  }, 60000 /* timeout */);
 
   test.each<{ name: string; role: Role; model?: RoleEditorModel }>([
     {
