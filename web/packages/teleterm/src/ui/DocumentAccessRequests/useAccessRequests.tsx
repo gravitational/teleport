@@ -46,19 +46,22 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
   const loggedInUser = useWorkspaceLoggedInUser();
 
   function goBack() {
-    documentsService.update(doc.uri, {
-      title: `Access Requests`,
+    const updatedDoc = documentsService.createAccessRequestDocument({
+      clusterUri: rootClusterUri,
       state: 'browsing',
-      requestId: '',
     });
+    updatedDoc.uri = doc.uri;
+    documentsService.update(doc.uri, updatedDoc);
   }
 
   function onViewRequest(requestId: string) {
-    documentsService.update(doc.uri, {
-      title: `Request: ${requestId}`,
+    const updatedDoc = documentsService.createAccessRequestDocument({
+      clusterUri: rootClusterUri,
       state: 'reviewing',
       requestId,
     });
+    updatedDoc.uri = doc.uri;
+    documentsService.update(doc.uri, updatedDoc);
   }
 
   useEffect(() => {
