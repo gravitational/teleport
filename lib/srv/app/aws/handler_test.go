@@ -26,10 +26,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
+	credentialsv2 "github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/client"
@@ -49,6 +51,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/srv/app/common"
@@ -56,6 +60,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 type makeRequest func(url string, provider client.ConfigProvider, awsHost string) error
 
@@ -185,12 +194,19 @@ func TestAWSSignerHandler(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	awsOIDCIntegration, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: "my-integration"},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "arn:aws:sts::123456789012:role/TestRole",
+		},
+	)
+	require.NoError(t, err)
 	consoleAppWithIntegration, err := types.NewAppV3(types.Metadata{
 		Name: "awsconsole",
 	}, types.AppSpecV3{
 		URI:         constants.AWSConsoleURL,
 		PublicAddr:  "test.local",
-		Integration: "my-integration",
+		Integration: awsOIDCIntegration.GetName(),
 	})
 	require.NoError(t, err)
 
@@ -198,7 +214,7 @@ func TestAWSSignerHandler(t *testing.T) {
 		name                string
 		app                 types.Application
 		awsClientSession    *session.Session
-		awsSessionProvider  awsutils.AWSSessionProvider
+		awsConfigProvider   awsconfig.Provider
 		request             makeRequest
 		advanceClock        time.Duration
 		wantHost            string
@@ -220,7 +236,7 @@ func TestAWSSignerHandler(t *testing.T) {
 			})),
 			request:             s3Request,
 			wantHost:            "s3.us-west-2.amazonaws.com",
-			wantAuthCredKeyID:   "AKIDl",
+			wantAuthCredKeyID:   "FAKEACCESSKEYID",
 			wantAuthCredService: "s3",
 			wantAuthCredRegion:  "us-west-2",
 			wantEventType:       &events.AppSessionRequest{},
@@ -236,14 +252,14 @@ func TestAWSSignerHandler(t *testing.T) {
 				Region:      aws.String("us-west-2"),
 			})),
 			request: s3Request,
-			awsSessionProvider: func(ctx context.Context, region, integration string) (*session.Session, error) {
-				if integration != "my-integration" {
-					return nil, trace.BadParameter("")
-				}
-				return nil, nil
+			awsConfigProvider: &mocks.AWSConfigProvider{
+				OIDCIntegrationClient: &mocks.FakeOIDCIntegrationClient{
+					Integration: awsOIDCIntegration,
+					Token:       "fake-oidc-token",
+				},
 			},
 			wantHost:            "s3.us-west-2.amazonaws.com",
-			wantAuthCredKeyID:   "AKIDl",
+			wantAuthCredKeyID:   "FAKEACCESSKEYID",
 			wantAuthCredService: "s3",
 			wantAuthCredRegion:  "us-west-2",
 			wantEventType:       &events.AppSessionRequest{},
@@ -260,7 +276,7 @@ func TestAWSSignerHandler(t *testing.T) {
 			})),
 			request:             s3Request,
 			wantHost:            "s3.us-west-1.amazonaws.com",
-			wantAuthCredKeyID:   "AKIDl",
+			wantAuthCredKeyID:   "FAKEACCESSKEYID",
 			wantAuthCredService: "s3",
 			wantAuthCredRegion:  "us-west-1",
 			wantEventType:       &events.AppSessionRequest{},
@@ -308,7 +324,7 @@ func TestAWSSignerHandler(t *testing.T) {
 			})),
 			request:             dynamoRequest,
 			wantHost:            "dynamodb.us-east-1.amazonaws.com",
-			wantAuthCredKeyID:   "AKIDl",
+			wantAuthCredKeyID:   "FAKEACCESSKEYID",
 			wantAuthCredService: "dynamodb",
 			wantAuthCredRegion:  "us-east-1",
 			wantEventType:       &events.AppSessionDynamoDBRequest{},
@@ -325,7 +341,7 @@ func TestAWSSignerHandler(t *testing.T) {
 			})),
 			request:             dynamoRequest,
 			wantHost:            "dynamodb.us-west-1.amazonaws.com",
-			wantAuthCredKeyID:   "AKIDl",
+			wantAuthCredKeyID:   "FAKEACCESSKEYID",
 			wantAuthCredService: "dynamodb",
 			wantAuthCredRegion:  "us-west-1",
 			wantEventType:       &events.AppSessionDynamoDBRequest{},
@@ -373,7 +389,7 @@ func TestAWSSignerHandler(t *testing.T) {
 			})),
 			request:             lambdaRequest,
 			wantHost:            "lambda.us-east-1.amazonaws.com",
-			wantAuthCredKeyID:   "AKIDl",
+			wantAuthCredKeyID:   "FAKEACCESSKEYID",
 			wantAuthCredService: "lambda",
 			wantAuthCredRegion:  "us-east-1",
 			wantEventType:       &events.AppSessionRequest{},
@@ -405,7 +421,7 @@ func TestAWSSignerHandler(t *testing.T) {
 			request:             assumeRoleRequest(2 * time.Hour),
 			advanceClock:        10 * time.Minute,
 			wantHost:            "sts.amazonaws.com",
-			wantAuthCredKeyID:   "AKIDl",
+			wantAuthCredKeyID:   "FAKEACCESSKEYID",
 			wantAuthCredService: "sts",
 			wantAuthCredRegion:  "us-east-1",
 			wantEventType:       &events.AppSessionRequest{},
@@ -423,7 +439,7 @@ func TestAWSSignerHandler(t *testing.T) {
 			})),
 			request:             assumeRoleRequest(32 * time.Minute),
 			wantHost:            "sts.amazonaws.com",
-			wantAuthCredKeyID:   "AKIDl",
+			wantAuthCredKeyID:   "FAKEACCESSKEYID",
 			wantAuthCredService: "sts",
 			wantAuthCredRegion:  "us-east-1",
 			wantEventType:       &events.AppSessionRequest{},
@@ -439,14 +455,10 @@ func TestAWSSignerHandler(t *testing.T) {
 				Credentials: staticAWSCredentialsForClient,
 				Region:      aws.String("us-east-1"),
 			})),
-			request:             assumeRoleRequest(2 * time.Hour),
-			advanceClock:        50 * time.Minute, // identity is expiring in 10m which is less than minimum
-			wantHost:            "sts.amazonaws.com",
-			wantAuthCredKeyID:   "AKIDl",
-			wantAuthCredService: "sts",
-			wantAuthCredRegion:  "us-east-1",
-			wantEventType:       &events.AppSessionRequest{},
+			request:      assumeRoleRequest(2 * time.Hour),
+			advanceClock: 50 * time.Minute, // identity is expiring in 10m which is less than minimum
 			errAssertionFns: []require.ErrorAssertionFunc{
+				// the request is 403 forbidden by Teleport, so the mock AWS handler won't be sent anything.
 				hasStatusCode(http.StatusForbidden),
 			},
 		},
@@ -470,7 +482,9 @@ func TestAWSSignerHandler(t *testing.T) {
 
 				// check that the signature is valid.
 				if !tc.skipVerifySignature {
-					err = awsutils.VerifyAWSSignature(r, staticAWSCredentials)
+					err := awsutils.VerifyAWSSignature(r,
+						credentialsv2.NewStaticCredentialsProvider(tc.wantAuthCredKeyID, "secret", "token"),
+					)
 					if !assert.NoError(t, err) {
 						http.Error(w, err.Error(), trace.ErrorToCode(err))
 						return
@@ -484,12 +498,12 @@ func TestAWSSignerHandler(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			}
 
-			sessionProvider := awsutils.SessionProviderUsingAmbientCredentials()
-			if tc.awsSessionProvider != nil {
-				sessionProvider = tc.awsSessionProvider
+			awsCfgProvider := tc.awsConfigProvider
+			if awsCfgProvider == nil {
+				awsCfgProvider = &mocks.AWSConfigProvider{}
 			}
 
-			suite := createSuite(t, mockAwsHandler, tc.app, fakeClock, sessionProvider)
+			suite := createSuite(t, mockAwsHandler, tc.app, fakeClock, awsCfgProvider)
 			fakeClock.Advance(tc.advanceClock)
 
 			err := tc.request(suite.URL, tc.awsClientSession, tc.wantHost)
@@ -597,7 +611,6 @@ const assumedRoleKeyID = "assumedRoleKeyID"
 
 var (
 	staticAWSCredentialsForAssumedRole = credentials.NewStaticCredentials(assumedRoleKeyID, "assumedRoleKeySecret", "")
-	staticAWSCredentials               = credentials.NewStaticCredentials("AKIDl", "SECRET", "SESSION")
 	staticAWSCredentialsForClient      = credentials.NewStaticCredentials("fakeClientKeyID", "fakeClientSecret", "")
 )
 
@@ -608,7 +621,7 @@ type suite struct {
 	recorder *eventstest.ChannelRecorder
 }
 
-func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Application, clock clockwork.Clock, awsSessionProvider awsutils.AWSSessionProvider) *suite {
+func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Application, clock clockwork.Clock, acp awsconfig.Provider) *suite {
 	recorder := eventstest.NewChannelRecorder(1)
 	identity := tlsca.Identity{
 		Username: "user",
@@ -624,13 +637,6 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 		awsAPIMock.Close()
 	})
 
-	svc, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{
-		SessionProvider:   awsSessionProvider,
-		CredentialsGetter: awsutils.NewStaticCredentialsGetter(staticAWSCredentials),
-		Clock:             clock,
-	})
-	require.NoError(t, err)
-
 	audit, err := common.NewAudit(common.AuditConfig{
 		Emitter:  libevents.NewDiscardEmitter(),
 		Recorder: libevents.WithNoOpPreparer(recorder),
@@ -638,7 +644,7 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 	require.NoError(t, err)
 	signerHandler, err := NewAWSSignerHandler(context.Background(),
 		SignerHandlerConfig{
-			SigningService: svc,
+			AWSConfigProvider: acp,
 			RoundTripper: &http.Transport{
 				TLSClientConfig: &tls.Config{
 					InsecureSkipVerify: true,

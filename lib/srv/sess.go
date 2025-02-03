@@ -30,6 +30,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -284,10 +285,14 @@ func (s *SessionRegistry) WriteSudoersFile(identityContext IdentityContext) (io.
 	}, nil
 }
 
+// ObtainFallbackUIDFunc should return (uid, true, nil) if a fallback UID is
+// configured, (_, false, nil) if no fallback is configured.
+type ObtainFallbackUIDFunc = func(ctx context.Context, username string) (uid int32, ok bool, _ error)
+
 // UpsertHostUser attempts to create or update a local user on the host if needed.
 // If the returned closer is not nil, it must be called at the end of the session to
 // clean up the local user.
-func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext) (bool, io.Closer, error) {
+func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext, obtainFallbackUID ObtainFallbackUIDFunc) (bool, io.Closer, error) {
 	ctx := s.Srv.Context()
 	log := s.logger.With("host_username", identityContext.Login)
 
@@ -300,23 +305,46 @@ func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext) (bool,
 		return false, nil, nil // not an error to not be able to create host users
 	}
 
-	log.DebugContext(ctx, "Attempting to upsert host user")
-	ui, accessErr := identityContext.AccessChecker.HostUsers(s.Srv.GetInfo())
-	if trace.IsAccessDenied(accessErr) {
-		existsErr := s.users.UserExists(identityContext.Login)
-		if existsErr != nil {
-			if trace.IsNotFound(existsErr) {
-				return false, nil, trace.WrapWithMessage(accessErr, "insufficient permissions for host user creation")
+	log.DebugContext(ctx, "Checking if user provisioning is allowed")
+	ui, err := identityContext.AccessChecker.HostUsers(s.Srv.GetInfo())
+	if err != nil {
+		if trace.IsAccessDenied(err) {
+			if existsErr := s.users.UserExists(identityContext.Login); existsErr != nil {
+				if trace.IsNotFound(existsErr) {
+					return false, nil, trace.WrapWithMessage(err, "insufficient permissions for host user creation")
+				}
+
+				return false, nil, trace.Wrap(existsErr)
+			}
+		}
+		return false, nil, trace.Wrap(err)
+	}
+
+	if obtainFallbackUID != nil && ui.Mode == services.HostUserModeKeep && ui.UID == "" {
+		if err := s.users.UserExists(identityContext.Login); err != nil {
+			if !trace.IsNotFound(err) {
+				return false, nil, trace.Wrap(err)
 			}
 
-			return false, nil, trace.Wrap(existsErr)
+			log.DebugContext(ctx, "Host user does not exist and no UID is configured, obtaining UID from control plane")
+			fallbackUID, ok, err := obtainFallbackUID(ctx, identityContext.Login)
+			if err != nil {
+				log.ErrorContext(ctx, "Failed to obtain UID from control plane", "error", err)
+				return false, nil, trace.Wrap(err)
+			}
+			if ok {
+				log.DebugContext(ctx, "Obtained UID from control plane", "uid", fallbackUID)
+				ui.UID = strconv.Itoa(int(fallbackUID))
+				if ui.GID == "" {
+					ui.GID = ui.UID
+				}
+			} else {
+				log.DebugContext(ctx, "No UID configured in the cluster")
+			}
 		}
 	}
 
-	if accessErr != nil {
-		return false, nil, trace.Wrap(accessErr)
-	}
-
+	log.DebugContext(ctx, "Attempting to upsert host user")
 	userCloser, err := s.users.UpsertUser(identityContext.Login, *ui)
 	if err != nil {
 		log.DebugContext(ctx, "Error creating user", "error", err)

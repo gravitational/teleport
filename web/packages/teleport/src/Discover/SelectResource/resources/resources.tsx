@@ -24,19 +24,19 @@ import {
   DiscoverEventResource,
 } from 'teleport/services/userEvent';
 
-import { ResourceKind } from '../Shared/ResourceKind';
-import {
-  DATABASES,
-  DATABASES_UNGUIDED,
-  DATABASES_UNGUIDED_DOC,
-} from './databases';
+import { ResourceKind } from '../../Shared/ResourceKind';
 import {
   DatabaseEngine,
   DatabaseLocation,
   KubeLocation,
   ResourceSpec,
   ServerLocation,
-} from './types';
+} from '../types';
+import {
+  DATABASES,
+  DATABASES_UNGUIDED,
+  DATABASES_UNGUIDED_DOC,
+} from './databases';
 
 const baseServerKeywords = ['server', 'node', 'ssh'];
 const awsKeywords = ['aws', 'amazon', 'amazon web services'];

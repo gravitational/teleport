@@ -94,6 +94,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/redshift v1.53.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.25.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.72.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.34.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.56.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.24.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.29.8 // indirect

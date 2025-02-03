@@ -88,22 +88,23 @@ func (f *elastiCacheFetcher) FetchDatabaseUsers(ctx context.Context, database ty
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	client := f.cfg.awsClients.getElastiCacheClient(awsCfg)
 
-	secrets, err := newSecretStore(ctx, database, f.cfg.Clients, f.cfg.ClusterName)
+	smClt := f.cfg.awsClients.getSecretsManagerClient(awsCfg)
+	secrets, err := newSecretStore(database.GetSecretStore(), smClt, f.cfg.ClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	ecClient := f.cfg.awsClients.getElastiCacheClient(awsCfg)
 	users := []User{}
 	for _, userGroupID := range meta.ElastiCache.UserGroupIDs {
-		managedUsers, err := f.getManagedUsersForGroup(ctx, meta.Region, userGroupID, client)
+		managedUsers, err := f.getManagedUsersForGroup(ctx, meta.Region, userGroupID, ecClient)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		for _, managedUser := range managedUsers {
-			user, err := f.createUser(&managedUser, client, secrets)
+			user, err := f.createUser(&managedUser, ecClient, secrets)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -163,7 +164,7 @@ func (f *elastiCacheFetcher) getUsersForRegion(ctx context.Context, region strin
 		for pager.HasMorePages() {
 			page, err := pager.NextPage(ctx)
 			if err != nil {
-				return nil, trace.Wrap(libaws.ConvertRequestFailureErrorV2(err))
+				return nil, trace.Wrap(libaws.ConvertRequestFailureError(err))
 			}
 			users = append(users, page.Users...)
 		}
@@ -184,7 +185,7 @@ func (f *elastiCacheFetcher) getUserTags(ctx context.Context, user *ectypes.User
 			ResourceName: user.ARN,
 		})
 		if err != nil {
-			return nil, trace.Wrap(libaws.ConvertRequestFailureErrorV2(err))
+			return nil, trace.Wrap(libaws.ConvertRequestFailureError(err))
 		}
 		return output.TagList, nil
 	}
@@ -255,7 +256,7 @@ func (r *elastiCacheUserResource) ModifyUserPassword(ctx context.Context, oldPas
 		NoPasswordRequired: aws.Bool(len(passwords) == 0),
 	}
 	if _, err := r.client.ModifyUser(ctx, input); err != nil {
-		return trace.Wrap(libaws.ConvertRequestFailureErrorV2(err))
+		return trace.Wrap(libaws.ConvertRequestFailureError(err))
 	}
 	return nil
 }

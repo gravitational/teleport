@@ -612,6 +612,7 @@ function roleConditionsToModel(
     // Windows desktop access
     windows_desktop_labels,
     windows_desktop_logins,
+    kubernetes_users,
 
     // GitHub organization access
     github_permissions,

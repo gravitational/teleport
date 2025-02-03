@@ -19,8 +19,8 @@
 import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 import { DiscoverEventResource } from 'teleport/services/userEvent';
 
-import { ResourceKind } from '../Shared';
-import { ResourceSpec } from './types';
+import { ResourceKind } from '../../Shared';
+import { ResourceSpec } from '../types';
 
 export const SAML_APPLICATIONS: ResourceSpec[] = [
   {

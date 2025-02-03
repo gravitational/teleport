@@ -400,7 +400,7 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 			})
 		}
 		if c.Identity == nil {
-			c.Identity, err = awslib.GetIdentityWithClientV2(context.Background(), c.stsClient)
+			c.Identity, err = awslib.GetIdentityWithClient(context.Background(), c.stsClient)
 			if err != nil {
 				return trace.Wrap(err)
 			}

@@ -35,10 +35,10 @@ import (
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -136,9 +136,6 @@ func TestAWSMetadata(t *testing.T) {
 
 	// Create metadata fetcher.
 	metadata, err := NewMetadata(MetadataConfig{
-		Clients: &cloud.TestCloudClients{
-			STS: &fakeSTS.STSClientV1,
-		},
 		AWSConfigProvider: &mocks.AWSConfigProvider{
 			STSClient: fakeSTS,
 		},
@@ -419,9 +416,6 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 
 	// Create metadata fetcher.
 	metadata, err := NewMetadata(MetadataConfig{
-		Clients: &cloud.TestCloudClients{
-			STS: &fakeSTS.STSClientV1,
-		},
 		AWSConfigProvider: &mocks.AWSConfigProvider{
 			STSClient: fakeSTS,
 		},
@@ -511,6 +505,7 @@ type fakeAWSClients struct {
 	rdsClient        rdsClient
 	redshiftClient   redshiftClient
 	rssClient        rssClient
+	stsClient        stsClient
 }
 
 func (f fakeAWSClients) getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient {
@@ -539,4 +534,8 @@ func (f fakeAWSClients) getRedshiftClient(aws.Config, ...func(*redshift.Options)
 
 func (f fakeAWSClients) getRedshiftServerlessClient(aws.Config, ...func(*rss.Options)) rssClient {
 	return f.rssClient
+}
+
+func (f fakeAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient {
+	return f.stsClient
 }

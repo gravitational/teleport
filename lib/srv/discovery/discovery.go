@@ -36,7 +36,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -57,7 +56,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -240,12 +238,7 @@ func (c *Config) CheckAndSetDefaults() error {
 kubernetes matchers are present.`)
 	}
 	if c.CloudClients == nil {
-		awsIntegrationSessionProvider := func(ctx context.Context, region, integration string) (*session.Session, error) {
-			return awsoidc.NewSessionV1(ctx, c.AccessPoint, region, integration)
-		}
-		cloudClients, err := cloud.NewClients(
-			cloud.WithAWSIntegrationSessionProvider(awsIntegrationSessionProvider),
-		)
+		cloudClients, err := cloud.NewClients()
 		if err != nil {
 			return trace.Wrap(err, "unable to create cloud clients")
 		}
@@ -264,7 +257,6 @@ kubernetes matchers are present.`)
 	}
 	if c.AWSDatabaseFetcherFactory == nil {
 		factory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{
-			CloudClients:      c.CloudClients,
 			AWSConfigProvider: c.AWSConfigProvider,
 		})
 		if err != nil {
@@ -584,6 +576,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		server.WithPollInterval(s.PollInterval),
 		server.WithTriggerFetchC(s.newDiscoveryConfigChangedSub()),
 		server.WithPreFetchHookFn(s.ec2WatcherIterationStarted),
+		server.WithClock(s.clock),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -643,15 +636,14 @@ func (s *Server) ec2WatcherIterationStarted() {
 			return resourceGroup, include
 		},
 	)
-	for _, g := range awsResultGroups {
-		s.awsEC2ResourcesStatus.iterationStarted(g)
-	}
-
 	discoveryConfigs := libslices.FilterMapUnique(awsResultGroups, func(g awsResourceGroup) (s string, include bool) {
 		return g.discoveryConfigName, true
 	})
 	s.updateDiscoveryConfigStatus(discoveryConfigs...)
 	s.awsEC2ResourcesStatus.reset()
+	for _, g := range awsResultGroups {
+		s.awsEC2ResourcesStatus.iterationStarted(g)
+	}
 
 	s.awsEC2Tasks.reset()
 }
@@ -799,15 +791,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 		s.ctx, s.getAllAzureServerFetchers,
 		server.WithPollInterval(s.PollInterval),
 		server.WithTriggerFetchC(s.newDiscoveryConfigChangedSub()),
-		server.WithPreFetchHookFn(func() {
-			discoveryConfigs := libslices.FilterMapUnique(
-				s.getAllAzureServerFetchers(),
-				func(f server.Fetcher) (s string, include bool) {
-					return f.GetDiscoveryConfigName(), f.GetDiscoveryConfigName() != ""
-				},
-			)
-			s.updateDiscoveryConfigStatus(discoveryConfigs...)
-		}),
+		server.WithClock(s.clock),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -866,15 +850,7 @@ func (s *Server) initGCPServerWatcher(ctx context.Context, vmMatchers []types.GC
 		s.ctx, s.getAllGCPServerFetchers,
 		server.WithPollInterval(s.PollInterval),
 		server.WithTriggerFetchC(s.newDiscoveryConfigChangedSub()),
-		server.WithPreFetchHookFn(func() {
-			discoveryConfigs := libslices.FilterMapUnique(
-				s.getAllGCPServerFetchers(),
-				func(f server.Fetcher) (s string, include bool) {
-					return f.GetDiscoveryConfigName(), f.GetDiscoveryConfigName() != ""
-				},
-			)
-			s.updateDiscoveryConfigStatus(discoveryConfigs...)
-		}),
+		server.WithClock(s.clock),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1302,7 +1278,6 @@ func (s *Server) handleEC2Discovery() {
 				s.logHandleInstancesErr(err)
 			}
 
-			s.updateDiscoveryConfigStatus(instances.EC2.DiscoveryConfigName)
 			s.upsertTasksForAWSEC2FailedEnrollments()
 		case <-s.ctx.Done():
 			s.ec2Watcher.Stop()
