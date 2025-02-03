@@ -81,10 +81,10 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
     autoStart: false,
   });
 
-  const isSupported = useMemo(
-    () => mainProcessClient.getRuntimeSettings().platform === 'darwin',
-    [mainProcessClient]
-  );
+  const isSupported = useMemo(() => {
+    const { platform } = mainProcessClient.getRuntimeSettings();
+    return platform === 'darwin' || platform === 'win32';
+  }, [mainProcessClient]);
 
   const [startAttempt, start] = useAsync(
     useCallback(async () => {
