@@ -476,25 +476,6 @@ describe('roleToRoleEditorModel', () => {
     roleVersion: defaultRoleVersion,
   });
 
-  /**
-   * Preset roles that will be initialized using the `dump-preset-roles`
-   * utility.
-   */
-  let presetRoles: Role[];
-
-  beforeAll(
-    async () => {
-      // `make` dumps standard output from executed programs into standard error,
-      // so we need to read data from there.
-      await promisify(execFile)('make', ['dump-preset-roles']);
-      const rolesJSON = await promisify(readFile)('tmp/preset-roles.json');
-      presetRoles = JSON.parse(rolesJSON.toString());
-    },
-    // Set a long timeout for this one, since `make` may compile Teleport
-    // sources from scratch, and it will take a while in the CI environment.
-    10 * 60000
-  );
-
   test.each<{ name: string; role: Role; model?: RoleEditorModel }>([
     {
       name: 'unknown fields in Role',
@@ -1093,13 +1074,34 @@ describe('roleToRoleEditorModel', () => {
     } as RoleEditorModel);
   });
 
-  it.each(['access', 'editor', 'auditor'])(
-    'supports the preset "%s" role',
-    roleName => {
-      const { requiresReset } = roleToRoleEditorModel(presetRoles[roleName]);
-      expect(requiresReset).toBe(false);
-    }
-  );
+  describe('preset roles', () => {
+    /**
+     * Preset roles that will be initialized using the `dump-preset-roles`
+     * utility.
+     */
+    let presetRoles: Role[];
+
+    beforeAll(
+      async () => {
+        // `make` dumps standard output from executed programs into standard error,
+        // so we need to read data from there.
+        await promisify(execFile)('make', ['dump-preset-roles']);
+        const rolesJSON = await promisify(readFile)('tmp/preset-roles.json');
+        presetRoles = JSON.parse(rolesJSON.toString());
+      },
+      // Set a long timeout for this one, since `make` may compile Teleport
+      // sources from scratch, and it will take a while in the CI environment.
+      10 * 60000
+    );
+
+    it.each(['access', 'editor', 'auditor'])(
+      'supports the preset "%s" role',
+      roleName => {
+        const { requiresReset } = roleToRoleEditorModel(presetRoles[roleName]);
+        expect(requiresReset).toBe(false);
+      }
+    );
+  });
 });
 
 test('labelsToModel', () => {
