@@ -15,8 +15,8 @@ within your Azure environment. This functionality enables you to address queries
 - Which groups belong to other groups and how does that impact resource access?
 - How broad or narrow is scoping across the subscription when assigning roles to users and groups?
 
-Utilizing the Access Graph to analyze permissions within an Azure subscription necessitates the setup of the Access
-Graph (AG) service, a Discovery Service, and integration with your Azure subscription.
+To use Access Graph to analyze permissions within an Azure subscription, you need to set up the Access
+Graph (AG) service, Teleport Discovery Service, and an integration with your Azure subscription.
 
 Access Graph is a feature of the [Teleport Policy](https://goteleport.com/platform/policy/) product that is available to Teleport Enterprise customers.
 
@@ -44,13 +44,12 @@ low as 15 minutes, it retrieves the following resources from your Azure account:
 - Role Assignments
 - Virtual Machines
 
-Once all the necessary resources are fetched, the Teleport Discovery Service pushes them to the Access Graph, ensuring
+Once all the necessary resources are fetched, the Teleport Discovery Service pushes them to Access Graph, ensuring
 that it remains updated with the latest information from your Azure environment.
 
 ### Importing resources
 
-Teleport Policy’s Access Graph feature delves into the resources retrieved from your Azure subscription, crafting a
-graphical representation thereof.
+Teleport Policy’s Access Graph feature visualizes the resources retrieved from your Azure subscription.
 
 ## Prerequisites
 
@@ -63,7 +62,7 @@ Check the [Teleport Policy page](../teleport-policy.mdx) for details on
 how to set up Access Graph.
 - The node running the Access Graph service must be reachable from the Teleport Auth Service.
 
-## Step 1/2. Configure Discovery Service (Self-hosted only)
+## Step 1/2. Configure the Discovery Service (Self-hosted only)
 
 <Notice type="warning">
   If you have a managed Teleport Enterprise cluster, you can disregard
