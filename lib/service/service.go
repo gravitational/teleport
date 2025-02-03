@@ -3571,7 +3571,6 @@ func (process *TeleportProcess) newProcessStateMachine() (*processState, error) 
 // initDiagnosticService starts diagnostic service currently serving healthz
 // and prometheus endpoints
 func (process *TeleportProcess) initDiagnosticService() error {
-
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDiagnostic, process.id))
 
 	config := diagnosticHandlerConfig{
@@ -3660,11 +3659,11 @@ func (process *TeleportProcess) initDebugService(exposeDebugRoutes bool) error {
 	// socket paths cannot exceed 104 or 108 chars.
 	listener, err := process.importOrCreateListener(ListenerDebug, filepath.Join(process.Config.DataDir, teleport.DebugServiceSocketName))
 	if err != nil {
-		// If the debug service is enabled in the config, this is a hard failure
 		if exposeDebugRoutes {
+			// If the debug service is enabled in the config, this is a hard failure
 			return trace.Wrap(err)
-			// If the debug service was disabled in the config, we issue a warning and will have to continue.
 		} else {
+			// If the debug service was disabled in the config, we issue a warning and will have to continue.
 			logger.WarnContext(process.ExitContext(),
 				"Failed to open the debug socket. teleport-update will not be able to accurately check Teleport health.",
 				"error", err,
