@@ -303,6 +303,12 @@ export interface SessionStartDatabaseMetadata {
      * @generated from protobuf field: string db_origin = 3;
      */
     dbOrigin: string;
+    /**
+     * Indicates the client used on the session.
+     *
+     * @generated from protobuf field: string user_agent = 4;
+     */
+    userAgent: string;
 }
 /**
  * SessionStartDesktop Metadata contains additional information about
@@ -4478,7 +4484,8 @@ class SessionStartDatabaseMetadata$Type extends MessageType<SessionStartDatabase
         super("prehog.v1alpha.SessionStartDatabaseMetadata", [
             { no: 1, name: "db_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "db_protocol", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "db_origin", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 3, name: "db_origin", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "user_agent", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<SessionStartDatabaseMetadata>): SessionStartDatabaseMetadata {
@@ -4486,6 +4493,7 @@ class SessionStartDatabaseMetadata$Type extends MessageType<SessionStartDatabase
         message.dbType = "";
         message.dbProtocol = "";
         message.dbOrigin = "";
+        message.userAgent = "";
         if (value !== undefined)
             reflectionMergePartial<SessionStartDatabaseMetadata>(this, message, value);
         return message;
@@ -4503,6 +4511,9 @@ class SessionStartDatabaseMetadata$Type extends MessageType<SessionStartDatabase
                     break;
                 case /* string db_origin */ 3:
                     message.dbOrigin = reader.string();
+                    break;
+                case /* string user_agent */ 4:
+                    message.userAgent = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -4525,6 +4536,9 @@ class SessionStartDatabaseMetadata$Type extends MessageType<SessionStartDatabase
         /* string db_origin = 3; */
         if (message.dbOrigin !== "")
             writer.tag(3, WireType.LengthDelimited).string(message.dbOrigin);
+        /* string user_agent = 4; */
+        if (message.userAgent !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.userAgent);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
