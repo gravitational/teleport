@@ -26,6 +26,6 @@ should match the snapshot:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-event-handler
-        app.kubernetes.io/version: 17.2.1-dev.tcsc.1
-        helm.sh/chart: teleport-plugin-event-handler-17.2.1-dev.tcsc.1
+        app.kubernetes.io/version: 17.2.1-dev.tcsc.2
+        helm.sh/chart: teleport-plugin-event-handler-17.2.1-dev.tcsc.2
       name: RELEASE-NAME-teleport-plugin-event-handler
