@@ -300,6 +300,12 @@
       "permanent": true
     },
     {
+
+      "source": "/enterprise/sso/",
+      "destination": "/admin-guides/access-controls/sso/",
+      "permanent": true
+    },
+    {
       "source": "/access-controls/guides/headless/",
       "destination": "/admin-guides/access-controls/guides/headless/",
       "permanent": true
