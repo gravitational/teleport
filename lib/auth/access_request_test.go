@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -1235,6 +1236,8 @@ func checkCerts(t *testing.T,
 	// Parse SSH cert.
 	sshCert, err := sshutils.ParseCertificate(certs.SSH)
 	require.NoError(t, err)
+	sshIdentity, err := sshca.DecodeIdentity(sshCert)
+	require.NoError(t, err)
 
 	// Parse TLS cert.
 	tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
@@ -1243,14 +1246,11 @@ func checkCerts(t *testing.T,
 	require.NoError(t, err)
 
 	// Make sure both certs have the expected roles.
-	rawSSHCertRoles := sshCert.Permissions.Extensions[teleport.CertExtensionTeleportRoles]
-	sshCertRoles, err := services.UnmarshalCertRoles(rawSSHCertRoles)
-	require.NoError(t, err)
-	assert.ElementsMatch(t, roles, sshCertRoles)
+	assert.ElementsMatch(t, roles, sshIdentity.Roles)
 	assert.ElementsMatch(t, roles, tlsIdentity.Groups)
 
 	// Make sure both certs have the expected logins/principals.
-	for _, certLogins := range [][]string{sshCert.ValidPrincipals, tlsIdentity.Principals} {
+	for _, certLogins := range [][]string{sshIdentity.Principals, tlsIdentity.Principals} {
 		// filter out invalid logins placed in the cert
 		validCertLogins := []string{}
 		for _, certLogin := range certLogins {
@@ -1262,12 +1262,7 @@ func checkCerts(t *testing.T,
 	}
 
 	// Make sure both certs have the expected access requests, if any.
-	rawSSHCertAccessRequests := sshCert.Permissions.Extensions[teleport.CertExtensionTeleportActiveRequests]
-	sshCertAccessRequests := services.RequestIDs{}
-	if len(rawSSHCertAccessRequests) > 0 {
-		require.NoError(t, sshCertAccessRequests.Unmarshal([]byte(rawSSHCertAccessRequests)))
-	}
-	assert.ElementsMatch(t, accessRequests, sshCertAccessRequests.AccessRequests)
+	assert.ElementsMatch(t, accessRequests, sshIdentity.ActiveRequests)
 	assert.ElementsMatch(t, accessRequests, tlsIdentity.ActiveRequests)
 
 	// Make sure both certs have the expected allowed resources, if any.

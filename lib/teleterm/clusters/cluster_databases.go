@@ -128,7 +128,7 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, proxyClient *client.ProxyC
 	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
 	err := proxyClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
-		AccessRequests: c.status.ActiveRequests.AccessRequests,
+		AccessRequests: c.status.ActiveRequests,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -142,7 +142,7 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, proxyClient *client.ProxyC
 			Protocol:    routeToDatabase.Protocol,
 			Username:    routeToDatabase.Username,
 		},
-		AccessRequests: c.status.ActiveRequests.AccessRequests,
+		AccessRequests: c.status.ActiveRequests,
 	})
 	if err != nil {
 		return trace.Wrap(err)

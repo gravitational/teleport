@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -262,24 +261,27 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 			cert.Permissions.Extensions[teleport.CertExtensionTeleportTraits] = string(traits)
 		}
 		if len(i.Roles) != 0 {
-			roles, err := services.MarshalCertRoles(i.Roles)
+			roles := certRoles{
+				Roles: i.Roles,
+			}
+			rolesExt, err := roles.Marshal()
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles] = roles
+			cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles] = string(rolesExt)
 		}
 		if i.RouteToCluster != "" {
 			cert.Permissions.Extensions[teleport.CertExtensionTeleportRouteToCluster] = i.RouteToCluster
 		}
 		if len(i.ActiveRequests) != 0 {
-			reqs := services.RequestIDs{
+			reqs := requestIDs{
 				AccessRequests: i.ActiveRequests,
 			}
-			requests, err := reqs.Marshal()
+			reqsExt, err := reqs.Marshal()
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			cert.Permissions.Extensions[teleport.CertExtensionTeleportActiveRequests] = string(requests)
+			cert.Permissions.Extensions[teleport.CertExtensionTeleportActiveRequests] = string(reqsExt)
 		}
 	}
 
@@ -391,17 +393,17 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	}
 
 	if v, ok := takeExtension(teleport.CertExtensionTeleportRoles); ok {
-		roles, err := services.UnmarshalCertRoles(v)
-		if err != nil {
+		var roles certRoles
+		if err := roles.Unmarshal([]byte(v)); err != nil {
 			return nil, trace.BadParameter("failed to unmarshal value %q for extension %q as roles: %v", v, teleport.CertExtensionTeleportRoles, err)
 		}
-		ident.Roles = roles
+		ident.Roles = roles.Roles
 	}
 
 	ident.RouteToCluster = takeValue(teleport.CertExtensionTeleportRouteToCluster)
 
 	if v, ok := takeExtension(teleport.CertExtensionTeleportActiveRequests); ok {
-		var reqs services.RequestIDs
+		var reqs requestIDs
 		if err := reqs.Unmarshal([]byte(v)); err != nil {
 			return nil, trace.BadParameter("failed to unmarshal value %q for extension %q as active requests: %v", v, teleport.CertExtensionTeleportActiveRequests, err)
 		}
