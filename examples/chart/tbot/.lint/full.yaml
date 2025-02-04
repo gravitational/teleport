@@ -98,3 +98,14 @@ extraArgs:
 extraEnv:
   - name: "TEST_ENV"
     value: "test-value"
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 9807
+  seccompProfile:
+    type: RuntimeDefault
