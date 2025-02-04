@@ -20,10 +20,12 @@ package autoupdate
 
 import (
 	"bytes"
+	"encoding/json"
 	"runtime"
 	"text/template"
 
 	"github.com/gravitational/trace"
+	"gopkg.in/yaml.v3"
 )
 
 // InstallFlags sets flags for the Teleport installation.
@@ -53,6 +55,82 @@ const (
 	// BaseURLEnvVar allows to override base URL for the Teleport package URL via env var.
 	BaseURLEnvVar = "TELEPORT_CDN_BASE_URL"
 )
+
+// NewInstallFlagsFromStrings returns InstallFlags given a slice of human-readable strings.
+func NewInstallFlagsFromStrings(s []string) InstallFlags {
+	var out InstallFlags
+	for _, f := range s {
+		for _, flag := range []InstallFlags{
+			FlagEnterprise,
+			FlagFIPS,
+		} {
+			if f == flag.String() {
+				out |= flag
+			}
+		}
+	}
+	return out
+}
+
+// Strings converts InstallFlags to a slice of human-readable strings.
+func (i InstallFlags) Strings() []string {
+	var out []string
+	for _, flag := range []InstallFlags{
+		FlagEnterprise,
+		FlagFIPS,
+	} {
+		if i&flag != 0 {
+			out = append(out, flag.String())
+		}
+	}
+	return out
+}
+
+// String returns the string representation of a single InstallFlag flag, or "Unknown".
+func (i InstallFlags) String() string {
+	switch i {
+	case 0:
+		return ""
+	case FlagEnterprise:
+		return "Enterprise"
+	case FlagFIPS:
+		return "FIPS"
+	}
+	return "Unknown"
+}
+
+// DirFlag returns the directory path representation of a single InstallFlag flag, or "unknown".
+func (i InstallFlags) DirFlag() string {
+	switch i {
+	case 0:
+		return ""
+	case FlagEnterprise:
+		return "ent"
+	case FlagFIPS:
+		return "fips"
+	}
+	return "unknown"
+}
+
+func (i InstallFlags) MarshalYAML() (any, error) {
+	return i.Strings(), nil
+}
+
+func (i InstallFlags) MarshalJSON() ([]byte, error) {
+	return json.Marshal(i.Strings())
+}
+
+func (i *InstallFlags) UnmarshalYAML(n *yaml.Node) error {
+	var s []string
+	if err := n.Decode(&s); err != nil {
+		return trace.Wrap(err)
+	}
+	if i == nil {
+		return trace.BadParameter("nil install flags while parsing YAML")
+	}
+	*i = NewInstallFlagsFromStrings(s)
+	return nil
+}
 
 // MakeURL constructs the package download URL from template, base URL and revision.
 func MakeURL(uriTmpl string, baseURL string, pkg string, version string, flags InstallFlags) (string, error) {

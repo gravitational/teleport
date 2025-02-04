@@ -539,7 +539,7 @@ func maybeAddAccessEntry(ctx context.Context, log *slog.Logger, clusterName, rol
 
 	_, err = clt.CreateAccessEntry(ctx, createAccessEntryReq)
 	if err != nil {
-		convertedError := awslib.ConvertRequestFailureErrorV2(err)
+		convertedError := awslib.ConvertRequestFailureError(err)
 		if !trace.IsAccessDenied(convertedError) {
 			return false, trace.Wrap(err)
 		}
@@ -591,8 +591,11 @@ func getHelmActionConfig(ctx context.Context, clientGetter genericclioptions.RES
 	// > func(format string, v ...interface{})
 	// slog.Log does not support it, so it must be added
 	debugLogWithFormat := func(format string, v ...interface{}) {
-		formatString := fmt.Sprintf(format, v...)
-		log.DebugContext(ctx, formatString) //nolint:sloglint // message should be a constant but in this case we are creating it at runtime.
+		if !log.Handler().Enabled(ctx, slog.LevelDebug) {
+			return
+		}
+		//nolint:sloglint // message should be a constant but in this case we are creating it at runtime.
+		log.DebugContext(ctx, fmt.Sprintf(format, v...))
 	}
 	if err := actionConfig.Init(clientGetter, agentNamespace, "secret", debugLogWithFormat); err != nil {
 		return nil, trace.Wrap(err)

@@ -17,12 +17,17 @@ limitations under the License.
 package prompt
 
 import (
+	"bytes"
 	"context"
 	"io"
+	"net/http"
+	"net/http/httptest"
+	urlpkg "net/url"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/term"
@@ -270,4 +275,83 @@ func (t *fakeTerm) ReadPassword(fd int) ([]byte, error) {
 func (t *fakeTerm) Restore(fd int, oldState *term.State) error {
 	t.restoreCalled = true
 	return nil
+}
+
+func TestURL(t *testing.T) {
+	pr, pw := io.Pipe()
+	t.Cleanup(func() { pr.Close() })
+	t.Cleanup(func() { pw.Close() })
+	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("hello"))
+	}))
+	t.Cleanup(httpSrv.Close)
+
+	write := func(t *testing.T, s string) {
+		t.Helper()
+		_, err := pw.Write([]byte(s))
+		assert.NoError(t, err, "Write failed")
+	}
+
+	ctx := context.Background()
+	cr := NewContextReader(pr)
+
+	t.Run("simple read", func(t *testing.T) {
+		go write(t, httpSrv.URL)
+		out := &bytes.Buffer{}
+		gotURL, err := URL(ctx, out, cr, "Enter URL")
+		require.NoError(t, err)
+		require.Equal(t, httpSrv.URL, gotURL)
+		require.Equal(t, "Enter URL: ", out.String())
+	})
+
+	t.Run("read with validator", func(t *testing.T) {
+		go write(t, httpSrv.URL)
+		out := &bytes.Buffer{}
+
+		gotURL, err := URL(ctx, out, cr, "Enter URL", WithURLValidator(func(u *urlpkg.URL) error {
+			rspBody, err := doHTTPCall(ctx, u.String())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if rspBody != "hello" {
+				return trace.BadParameter("unexpected response body: %q", rspBody)
+			}
+			return nil
+		}))
+		require.NoError(t, err)
+		require.Equal(t, httpSrv.URL, gotURL)
+		require.Equal(t, "Enter URL: ", out.String())
+	})
+
+	t.Run("read with failed validator", func(t *testing.T) {
+		go write(t, httpSrv.URL)
+		out := &bytes.Buffer{}
+
+		_, err := URL(ctx, out, cr, "Enter URL", WithURLValidator(func(u *urlpkg.URL) error {
+			rspBody, err := doHTTPCall(ctx, u.String())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if rspBody != "notHello" {
+				return trace.BadParameter("unexpected response body: %q", rspBody)
+			}
+			return nil
+		}))
+		require.Error(t, err)
+	})
+}
+
+func doHTTPCall(ctx context.Context, u string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	rsp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	defer rsp.Body.Close()
+	defer io.Copy(io.Discard, rsp.Body)
+	b, err := io.ReadAll(rsp.Body)
+	return string(b), trace.Wrap(err)
 }

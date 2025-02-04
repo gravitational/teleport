@@ -141,6 +141,13 @@ describe('KubernetesAccessSection', () => {
     await user.type(screen.getByPlaceholderText('label key'), 'some-key');
     await user.type(screen.getByPlaceholderText('label value'), 'some-value');
 
+    await selectEvent.create(screen.getByLabelText('Users'), 'joe', {
+      createOptionText: 'User: joe',
+    });
+    await selectEvent.create(screen.getByLabelText('Users'), 'mary', {
+      createOptionText: 'User: mary',
+    });
+
     await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
     expect(
       reactSelectValueContainer(screen.getByLabelText('Kind'))
@@ -177,6 +184,10 @@ describe('KubernetesAccessSection', () => {
           ],
           roleVersion: 'v7',
         },
+      ],
+      users: [
+        expect.objectContaining({ value: 'joe' }),
+        expect.objectContaining({ value: 'mary' }),
       ],
       roleVersion: 'v7',
     } as KubernetesAccess);
@@ -391,9 +402,12 @@ describe('DatabaseAccessSection', () => {
 
   test('editing', async () => {
     const { user, onChange } = setup();
-    await user.click(screen.getByRole('button', { name: 'Add a Label' }));
-    await user.type(screen.getByPlaceholderText('label key'), 'env');
-    await user.type(screen.getByPlaceholderText('label value'), 'prod');
+
+    const labels = within(screen.getByRole('group', { name: 'Labels' }));
+    await user.click(labels.getByRole('button', { name: 'Add a Label' }));
+    await user.type(labels.getByPlaceholderText('label key'), 'env');
+    await user.type(labels.getByPlaceholderText('label value'), 'prod');
+
     await selectEvent.create(screen.getByLabelText('Database Names'), 'stuff', {
       createOptionText: 'Database Name: stuff',
     });
@@ -403,6 +417,16 @@ describe('DatabaseAccessSection', () => {
     await selectEvent.create(screen.getByLabelText('Database Roles'), 'admin', {
       createOptionText: 'Database Role: admin',
     });
+
+    const dbServiceLabels = within(
+      screen.getByRole('group', { name: 'Database Service Labels' })
+    );
+    await user.click(
+      dbServiceLabels.getByRole('button', { name: 'Add a Label' })
+    );
+    await user.type(dbServiceLabels.getByPlaceholderText('label key'), 'foo');
+    await user.type(dbServiceLabels.getByPlaceholderText('label value'), 'bar');
+
     expect(onChange).toHaveBeenLastCalledWith({
       kind: 'db',
       labels: [{ name: 'env', value: 'prod' }],
@@ -418,18 +442,29 @@ describe('DatabaseAccessSection', () => {
         expect.objectContaining({ value: '{{internal.db_users}}' }),
         expect.objectContaining({ label: 'mary', value: 'mary' }),
       ],
+      dbServiceLabels: [{ name: 'foo', value: 'bar' }],
     } as DatabaseAccess);
   });
 
   test('validation', async () => {
     const { user, validator } = setup();
-    await user.click(screen.getByRole('button', { name: 'Add a Label' }));
+    const labels = within(screen.getByRole('group', { name: 'Labels' }));
+    await user.click(labels.getByRole('button', { name: 'Add a Label' }));
+    const dbServiceLabelsGroup = within(
+      screen.getByRole('group', { name: 'Database Service Labels' })
+    );
+    await user.click(
+      dbServiceLabelsGroup.getByRole('button', { name: 'Add a Label' })
+    );
     await selectEvent.create(screen.getByLabelText('Database Roles'), '*', {
       createOptionText: 'Database Role: *',
     });
     act(() => validator.validate());
     expect(
-      screen.getByPlaceholderText('label key')
+      labels.getByPlaceholderText('label key')
+    ).toHaveAccessibleDescription('required');
+    expect(
+      dbServiceLabelsGroup.getByPlaceholderText('label key')
     ).toHaveAccessibleDescription('required');
     expect(
       screen.getByText('Wildcard is not allowed in database roles')

@@ -218,7 +218,7 @@ func (a *Fetcher) getS3BucketDetails(ctx context.Context, bucket s3types.Bucket,
 	var errs []error
 	var details s3Details
 
-	awsCfg, err := a.AWSConfigProvider.GetConfig(ctx, bucketRegion, a.getAWSV2Options()...)
+	awsCfg, err := a.AWSConfigProvider.GetConfig(ctx, bucketRegion, a.getAWSOptions()...)
 	if err != nil {
 		errs = append(errs,
 			trace.Wrap(err, "failed to create s3 client for bucket %q", aws.ToString(bucket.Name)),
@@ -300,7 +300,7 @@ func (a *Fetcher) listS3Buckets(ctx context.Context) ([]s3types.Bucket, func(*st
 	}
 
 	// use any region to list buckets
-	awsCfg, err := a.AWSConfigProvider.GetConfig(ctx, region, a.getAWSV2Options()...)
+	awsCfg, err := a.AWSConfigProvider.GetConfig(ctx, region, a.getAWSOptions()...)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

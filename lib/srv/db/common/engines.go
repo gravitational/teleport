@@ -106,8 +106,8 @@ type EngineConfig struct {
 	AuthClient *authclient.Client
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
-	// CloudClients provides access to cloud API clients.
-	CloudClients cloud.Clients
+	// GCPClients provides access to Google Cloud API clients.
+	GCPClients cloud.GCPClients
 	// Context is the database server close context.
 	Context context.Context
 	// Clock is the clock interface.
@@ -141,8 +141,8 @@ func (c *EngineConfig) CheckAndSetDefaults() error {
 	if c.AWSConfigProvider == nil {
 		return trace.BadParameter("missing AWSConfigProvider")
 	}
-	if c.CloudClients == nil {
-		return trace.BadParameter("engine config CloudClients are missing")
+	if c.GCPClients == nil {
+		return trace.BadParameter("engine config GCPClients are missing")
 	}
 	if c.Context == nil {
 		c.Context = context.Background()

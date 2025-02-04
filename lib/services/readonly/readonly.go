@@ -49,6 +49,9 @@ type AuthPreference interface {
 	GetDefaultSessionTTL() types.Duration
 	GetHardwareKeySerialNumberValidation() (*types.HardwareKeySerialNumberValidation, error)
 	GetAllowPasswordless() bool
+	GetStableUNIXUserConfig() *types.StableUNIXUserConfig
+
+	GetRevision() string
 	Clone() types.AuthPreference
 }
 

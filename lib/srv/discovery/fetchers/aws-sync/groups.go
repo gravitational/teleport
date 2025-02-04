@@ -94,7 +94,7 @@ func (a *Fetcher) fetchGroups(ctx context.Context) ([]*accessgraphv1alpha.AWSGro
 	awsCfg, err := a.AWSConfigProvider.GetConfig(
 		ctx,
 		"", /* region is empty because groups are global */
-		a.getAWSV2Options()...,
+		a.getAWSOptions()...,
 	)
 	if err != nil {
 		return a.lastResult.Groups, trace.Wrap(err)
@@ -144,7 +144,7 @@ func (a *Fetcher) fetchGroupInlinePolicies(ctx context.Context, group *accessgra
 	awsCfg, err := a.AWSConfigProvider.GetConfig(
 		ctx,
 		"", /* region is empty because users and groups are global */
-		a.getAWSV2Options()...,
+		a.getAWSOptions()...,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -201,7 +201,7 @@ func (a *Fetcher) fetchGroupAttachedPolicies(ctx context.Context, group *accessg
 	awsCfg, err := a.AWSConfigProvider.GetConfig(
 		ctx,
 		"", /* region is empty because users and groups are global */
-		a.getAWSV2Options()...,
+		a.getAWSOptions()...,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

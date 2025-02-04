@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -78,6 +79,7 @@ func NewGCPWatcher(ctx context.Context, fetchersFn func() []Fetcher, opts ...Opt
 		fetchersFn:    fetchersFn,
 		ctx:           cancelCtx,
 		cancel:        cancelFn,
+		clock:         clockwork.NewRealClock(),
 		pollInterval:  time.Minute,
 		triggerFetchC: make(<-chan struct{}),
 		InstancesC:    make(chan Instances),

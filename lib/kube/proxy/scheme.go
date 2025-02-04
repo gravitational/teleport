@@ -22,10 +22,11 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/maps"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -137,7 +138,7 @@ func newClusterSchemaBuilder(log *slog.Logger, client kubernetes.Interface) (*se
 		// In this case, we still want to register the other resources that are
 		// available in the cluster.
 		log.DebugContext(context.Background(), "Failed to discover some API groups",
-			"groups", maps.Keys(discoveryErr.Groups),
+			"groups", slices.Collect(maps.Keys(discoveryErr.Groups)),
 			"error", err,
 		)
 	case err != nil:

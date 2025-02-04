@@ -56,6 +56,7 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -64,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -3764,15 +3766,15 @@ func newTestServices(t *testing.T) Services {
 	require.NoError(t, err)
 
 	return Services{
-		TrustInternal:           local.NewCAService(bk),
-		PresenceInternal:        local.NewPresenceService(bk),
-		Provisioner:             local.NewProvisioningService(bk),
-		Identity:                identityService,
-		Access:                  local.NewAccessService(bk),
-		DynamicAccessExt:        local.NewDynamicAccessService(bk),
-		ClusterConfiguration:    configService,
-		Events:                  local.NewEventsService(bk),
-		AuditLogSessionStreamer: events.NewDiscardAuditLog(),
+		TrustInternal:                local.NewCAService(bk),
+		PresenceInternal:             local.NewPresenceService(bk),
+		Provisioner:                  local.NewProvisioningService(bk),
+		Identity:                     identityService,
+		Access:                       local.NewAccessService(bk),
+		DynamicAccessExt:             local.NewDynamicAccessService(bk),
+		ClusterConfigurationInternal: configService,
+		Events:                       local.NewEventsService(bk),
+		AuditLogSessionStreamer:      events.NewDiscardAuditLog(),
 	}
 }
 
@@ -4335,6 +4337,109 @@ func TestCleanupNotifications(t *testing.T) {
 		// No notifications nor states should remain.
 		verifyNotificationCounts(collectT, 0, 0, 0)
 	}, 3*time.Second, 100*time.Millisecond)
+}
+
+func TestCreateAccessListReminderNotifications(t *testing.T) {
+	ctx := context.Background()
+
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+	})
+
+	// Setup test auth server
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+
+	testRole, err := types.NewRole("test", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:         []string{"user"},
+			ReviewRequests: &types.AccessReviewConditions{},
+		},
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertRole(ctx, testRole)
+	require.NoError(t, err)
+
+	testUsername := "user1"
+	user, err := types.NewUser(testUsername)
+	require.NoError(t, err)
+	user.SetRoles([]string{"test"})
+	_, err = authServer.UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	client, err := testServer.NewClient(TestUser(testUsername))
+	require.NoError(t, err)
+
+	// Helper to create access lists with specific next audit dates
+	createAccessList := func(t *testing.T, name string, nextAuditDate time.Time) {
+		al, err := accesslist.NewAccessList(header.Metadata{
+			Name: name,
+		}, accesslist.Spec{
+			Title:       fmt.Sprintf("Access List %s", name),
+			Description: fmt.Sprintf("Test access list %s", name),
+			Owners: []accesslist.Owner{{
+				Name:           testUsername,
+				Description:    "",
+				MembershipKind: "",
+			}},
+			Audit: accesslist.Audit{
+				NextAuditDate: nextAuditDate,
+				Recurrence:    accesslist.Recurrence{},
+				Notifications: accesslist.Notifications{},
+			},
+			Grants: accesslist.Grants{
+				Roles: []string{"grant"},
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = authServer.UpsertAccessList(ctx, al)
+		require.NoError(t, err)
+	}
+
+	// Create access lists with different expiry times
+	accessLists := []struct {
+		name      string
+		dueInDays int
+	}{
+		{name: "al-due-13d", dueInDays: 13},
+		{name: "al-due-12d", dueInDays: 12},
+		{name: "al-due-5d", dueInDays: 5},
+		{name: "al-due-2d", dueInDays: 2},
+		{name: "al-overdue-4d", dueInDays: -4},
+		{name: "al-overdue-8d", dueInDays: -8},
+		{name: "al-due-60d", dueInDays: 60}, // there should be no notification for this one
+		{name: "al-overdue-today", dueInDays: 0},
+	}
+
+	for _, al := range accessLists {
+		createAccessList(t, al.name, authServer.clock.Now().Add(time.Duration(al.dueInDays)*24*time.Hour))
+	}
+
+	// Run CreateAccessListReminderNotifications()
+	authServer.CreateAccessListReminderNotifications(ctx)
+
+	// Check notifications
+	resp, err := client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
+		PageSize: 50,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Notifications, 6)
+
+	// Run CreateAccessListReminderNotifications() again to verify no duplicates are created if it's run again.
+	authServer.CreateAccessListReminderNotifications(ctx)
+
+	// Check notifications again, counts should remain the same.
+	resp, err = client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
+		PageSize: 50,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Notifications, 6)
 }
 
 func TestServer_GetAnonymizationKey(t *testing.T) {
