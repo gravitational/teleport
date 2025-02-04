@@ -4478,6 +4478,10 @@ var authnWsUpgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin:     func(r *http.Request) bool { return true },
+	// We’re disabling the error handler here since error handling is managed within the handler itself.
+	// Allowing the WS error handler to operate would result in it writing to the response writer,
+	// which conflicts with our custom error handler and leads to unintended errors.
+	Error: func(http.ResponseWriter, *http.Request, int, error) {},
 }
 
 // WithClusterAuthWebSocket wraps a ClusterWebsocketHandler to ensure that a request is authenticated
