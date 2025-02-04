@@ -22,10 +22,12 @@ import (
 	"crypto/x509"
 	"log/slog"
 	"math/big"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -77,6 +79,12 @@ type RevocationService struct {
 	keyStorer           KeyStorer
 	certAuthorityGetter certAuthorityGetter
 	clusterName         string
+
+	mu        sync.RWMutex
+	signedCRL []byte
+	// notifyNewCRL will be closed when a new CRL is available. It is protected
+	// by mu.
+	notifyNewSignedCRL chan struct{}
 }
 
 // NewResourceService returns a new instance of the ResourceService.
@@ -266,6 +274,62 @@ func (s *RevocationService) UpsertWorkloadIdentityX509Revocation(
 	// TODO: Audit log
 
 	return created, nil
+}
+
+func (s *RevocationService) StreamSignedCRL(req *workloadidentityv1pb.StreamSignedCRLRequest, srv grpc.ServerStreamingServer[workloadidentityv1pb.StreamSignedCRLResponse]) error {
+	for {
+		crl, notify := s.getSignedCRL()
+
+		// The CRL may not yet have been signed, so, skip straight to waiting
+		// for an update.
+		if len(crl) != 0 {
+			if err := srv.Send(&workloadidentityv1pb.StreamSignedCRLResponse{
+				Crl: crl,
+			}); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		select {
+		case <-notify:
+		case <-srv.Context().Done():
+			return nil
+		}
+	}
+}
+
+func (s *RevocationService) getSignedCRL() ([]byte, chan struct{}) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.signedCRL, s.notifyNewSignedCRL
+}
+
+func (s *RevocationService) publishSignedCRL(crl []byte) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.signedCRL = crl
+	close(s.notifyNewSignedCRL)
+	s.notifyNewSignedCRL = make(chan struct{})
+}
+
+func (s *RevocationService) runCRLSigner() {
+	ctx := context.Background()
+
+	for {
+		// TODO: Debounce mechanism so we:
+		// - Avoid signing the CRL too frequently. We can afford to wait a few
+		//   seconds to group together multiple successive revocations.
+		// - Avoid spamming the clients with a rapid succession of CRL updates.
+
+		crl, err := s.signCRL(ctx)
+		if err != nil {
+			panic(err)
+		}
+
+		s.publishSignedCRL(crl)
+
+		// TODO: Watch for changes to revocation entries (delete or create)
+	}
 }
 
 func (s *RevocationService) signCRL(ctx context.Context) ([]byte, error) {
