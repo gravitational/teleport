@@ -32,8 +32,10 @@ import (
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/integrations/access/msteams"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -265,6 +267,7 @@ func (h *Handler) integrationStats(w http.ResponseWriter, r *http.Request, p htt
 		discoveryConfigLister: clt.DiscoveryConfigClient(),
 		databaseGetter:        clt,
 		awsOIDCClient:         clt.IntegrationAWSOIDCClient(),
+		userTasksClient:       clt.UserTasksServiceClient(),
 	}
 	summary, err := collectIntegrationStats(r.Context(), req)
 	if err != nil {
@@ -274,12 +277,17 @@ func (h *Handler) integrationStats(w http.ResponseWriter, r *http.Request, p htt
 	return summary, nil
 }
 
+type userTasksByIntegrationLister interface {
+	ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertasksv1.UserTask, string, error)
+}
+
 type collectIntegrationStatsRequest struct {
 	logger                *slog.Logger
 	integration           types.Integration
 	discoveryConfigLister discoveryConfigLister
 	databaseGetter        databaseGetter
 	awsOIDCClient         deployedDatabaseServiceLister
+	userTasksClient       userTasksByIntegrationLister
 }
 
 func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsRequest) (*ui.IntegrationWithSummary, error) {
@@ -292,6 +300,24 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 	ret.Integration = uiIg
 
 	var nextPage string
+	for {
+		userTasks, nextToken, err := req.userTasksClient.ListUserTasksByIntegration(ctx, 0, nextPage, req.integration.GetName())
+		if err != nil {
+			return nil, err
+		}
+		for _, userTask := range userTasks {
+			if userTask.GetSpec().GetState() == usertasks.TaskStateOpen {
+				ret.UnresolvedUserTasks++
+			}
+		}
+
+		if nextToken == "" {
+			break
+		}
+		nextPage = nextToken
+	}
+
+	nextPage = ""
 	for {
 		discoveryConfigs, nextToken, err := req.discoveryConfigLister.ListDiscoveryConfigs(ctx, 0, nextPage)
 		if err != nil {
