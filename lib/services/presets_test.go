@@ -26,7 +26,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -788,7 +787,7 @@ func TestAddRoleDefaults(t *testing.T) {
 
 func TestPresetRolesDumped(t *testing.T) {
 	// This test ensures that the most recent version of selected preset roles
-	// have been correctly dumped to a generated JSON file. We use a generated
+	// has been correctly dumped to a generated JSON file. We use a generated
 	// file, because it's simpler to load it from a TypeScript test this way,
 	// rather than calling a Go binary.
 
@@ -827,7 +826,7 @@ func TestPresetRolesDumped(t *testing.T) {
 	require.NoError(t, err)
 
 	// Finally, compare the roles.
-	assert.Equal(t, rolesFromFile, recreatedRolesByName,
+	require.Equal(t, rolesFromFile, recreatedRolesByName,
 		"The dumped preset roles differ from their representation in code. Please run:\n"+
 			"make dump-preset-roles")
 }

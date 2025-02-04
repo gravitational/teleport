@@ -37,10 +37,6 @@ module.exports = {
   transformIgnorePatterns: [`node_modules/(?!.pnpm|${esModules})`],
   coverageReporters: ['text-summary', 'lcov'],
   testPathIgnorePatterns: ['e2e', 'docs/check-redirects'],
-
-  // This is necessary, as this file may be recreated during tests. If we don't
-  // ignore it, `pnpm tdd` may enter a recreate-and-rerun loop.
-  watchPathIgnorePatterns: ['<rootDir>/tmp/preset-roles.json'],
   testEnvironmentOptions: {
     customExportConditions: [''],
   },
