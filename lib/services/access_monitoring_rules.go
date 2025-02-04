@@ -84,19 +84,6 @@ func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.
 		return trace.BadParameter("accessMonitoringRule condition is missing")
 	}
 
-	// The notification name is deprecated and no longer required.
-	// if accessMonitoringRule.Spec.Notification != nil && accessMonitoringRule.Spec.Notification.Name == "" {
-	// 	return trace.BadParameter("accessMonitoringRule notification plugin name is missing")
-	// }
-
-	// Notification can be omitted if only the auto approval rules are required.
-	// if hasAccessRequestAsSubject := slices.ContainsFunc(accessMonitoringRule.Spec.Subjects, func(subject string) bool {
-	// 	return subject == types.KindAccessRequest
-	// }); hasAccessRequestAsSubject && accessMonitoringRule.Spec.Notification == nil {
-	// 	return trace.BadParameter("accessMonitoringRule notification configuration must be set if subjects contain %q",
-	// 		types.KindAccessRequest)
-	// }
-
 	return nil
 }
 

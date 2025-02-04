@@ -77,8 +77,11 @@ metadata:
   name: your-plugin-name
 spec:
   subjects: ['access_request']
-  condition: 'access_request.spec.roles.contains("your_role_name")'
+  condition: >
+    plugin.spec.name == "slack" &&
+    access_request.spec.roles.contains("your_role_name")
   notification:
+    # Deprecated: Use condition: 'plugin.spec.name == "slack"' instead.
     name: 'slack'
     recipients: ['your_slack_channel']
 ```
@@ -100,6 +103,7 @@ Fields of the Access Request that are currently supported are
 | access_request.spec.request_reason | The request reason. |
 | access_request.spec.creation_time | The creation time of the request. |
 | access_request.spec.expiry | The expiry time of the request. |
+| plugin.spec.name | The name of the plugin that this AMR applies to. |
 
 Predicate expressions used in the condition of Access Monitoring Rules must evaluate to
 either true or false.
