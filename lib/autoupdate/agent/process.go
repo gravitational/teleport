@@ -178,7 +178,7 @@ func (s SystemdService) monitorPID(ctx context.Context, initPID int, tickC <-cha
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	pidC := make(chan int)
-	g := &errgroup.Group{}
+	var g errgroup.Group
 	g.Go(func() error {
 		return tickFile(ctx, s.PIDPath, pidC, tickC)
 	})
