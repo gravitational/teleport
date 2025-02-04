@@ -44,6 +44,8 @@ service WorkloadIdentityRevocationService {
   // ListWorkloadIdentities of all workload identities, pagination semantics are
   // applied.
   rpc ListWorkloadIdentityX509Revocations(ListWorkloadIdentityX509RevocationsRequest) returns (ListWorkloadIdentityX509RevocationsResponse);
+  // foo
+  rpc StreamSignedCRL(StreamSignedCRLRequest) returns (stream StreamSignedCRLResponse);
 }
 
 // The request for CreateWorkloadIdentity.
@@ -92,4 +94,12 @@ message ListWorkloadIdentityX509RevocationsResponse {
   // Token to retrieve the next page of results, or empty if there are no
   // more results in the list.
   string next_page_token = 2;
+}
+
+// foo
+message StreamSignedCRLRequest {}
+
+// foo
+message StreamSignedCRLResponse {
+  bytes crl = 1;
 }

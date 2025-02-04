@@ -18,11 +18,10 @@ package workloadidentityv1
 
 import (
 	"context"
-	"crypto"
 	"crypto/rand"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"log/slog"
+	"math/big"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -34,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type workloadIdentityX509RevocationReadWriter interface {
@@ -47,7 +46,7 @@ type workloadIdentityX509RevocationReadWriter interface {
 }
 
 type certAuthorityGetter interface {
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 }
 
 // RevocationServiceConfig holds configuration options for the RevocationService.
@@ -70,11 +69,14 @@ type RevocationServiceConfig struct {
 type RevocationService struct {
 	workloadidentityv1pb.UnimplementedWorkloadIdentityRevocationServiceServer
 
-	authorizer authz.Authorizer
-	backend    workloadIdentityX509RevocationReadWriter
-	clock      clockwork.Clock
-	emitter    apievents.Emitter
-	logger     *slog.Logger
+	authorizer          authz.Authorizer
+	backend             workloadIdentityX509RevocationReadWriter
+	clock               clockwork.Clock
+	emitter             apievents.Emitter
+	logger              *slog.Logger
+	keyStorer           KeyStorer
+	certAuthorityGetter certAuthorityGetter
+	clusterName         string
 }
 
 // NewResourceService returns a new instance of the ResourceService.
@@ -266,17 +268,69 @@ func (s *RevocationService) UpsertWorkloadIdentityX509Revocation(
 	return created, nil
 }
 
-func (s *RevocationService) signCRL() error {
-	// TODO: fetch
-	ca := &x509.Certificate{}
-	var caSigner crypto.Signer
-
-	tmpl := &x509.RevocationList{
-		ThisUpdate: time.Now(),
+func (s *RevocationService) signCRL(ctx context.Context) ([]byte, error) {
+	pageToken := ""
+	revocations := []*workloadidentityv1pb.WorkloadIdentityX509Revocation{}
+	for {
+		res, token, err := s.backend.ListWorkloadIdentityX509Revocations(
+			ctx, 0, pageToken,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		revocations = append(revocations, res...)
+		if token == "" {
+			break
+		}
+		pageToken = token
 	}
 
-	s.ListWorkloadIdentityX509Revocations(context.Background(), 0, "")
+	// TODO: fetch
+	ca, err := s.certAuthorityGetter.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.SPIFFECA,
+		DomainName: s.clusterName,
+	}, true)
+	tlsCert, tlsSigner, err := s.keyStorer.GetTLSCertAndSigner(ctx, ca)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting CA cert and key")
+	}
+	tlsCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	// TODO: Do we have the correct usage? Yes!
-	x509.CreateRevocationList(rand.Reader, tmpl, ca, caSigner)
+	tmpl := &x509.RevocationList{
+		// https://www.rfc-editor.org/rfc/rfc5280.html#section-5.1.2.6
+		RevokedCertificateEntries: make([]x509.RevocationListEntry, 0, len(revocations)),
+		// https://www.rfc-editor.org/rfc/rfc5280.html#section-5.1.2.4
+		// This field indicates the issue date of this CRL.  thisUpdate may be
+		//  encoded as UTCTime or GeneralizedTime.
+		ThisUpdate: time.Now(),
+		// https://www.rfc-editor.org/rfc/rfc5280.html#section-5.2.3
+		// This is an optional extension we will be omitting for now, at a
+		// future date, we may insert a monotonically increasing identifier.
+		Number: nil,
+	}
+
+	for _, revocation := range revocations {
+		serial := new(big.Int)
+		_, ok := serial.SetString(revocation.Metadata.Name, 16)
+		if !ok {
+			// TODO log and skip?
+			continue
+		}
+
+		tmpl.RevokedCertificateEntries = append(tmpl.RevokedCertificateEntries, x509.RevocationListEntry{
+			SerialNumber:   serial,
+			RevocationTime: revocation.Spec.RevokedAt.AsTime(),
+		})
+	}
+
+	signedCRL, err := x509.CreateRevocationList(
+		rand.Reader, tmpl, tlsCA.Cert, tlsCA.Signer,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return signedCRL, nil
 }

@@ -40,6 +40,7 @@ const (
 	WorkloadIdentityRevocationService_GetWorkloadIdentityX509Revocation_FullMethodName    = "/teleport.workloadidentity.v1.WorkloadIdentityRevocationService/GetWorkloadIdentityX509Revocation"
 	WorkloadIdentityRevocationService_DeleteWorkloadIdentityX509Revocation_FullMethodName = "/teleport.workloadidentity.v1.WorkloadIdentityRevocationService/DeleteWorkloadIdentityX509Revocation"
 	WorkloadIdentityRevocationService_ListWorkloadIdentityX509Revocations_FullMethodName  = "/teleport.workloadidentity.v1.WorkloadIdentityRevocationService/ListWorkloadIdentityX509Revocations"
+	WorkloadIdentityRevocationService_StreamSignedCRL_FullMethodName                      = "/teleport.workloadidentity.v1.WorkloadIdentityRevocationService/StreamSignedCRL"
 )
 
 // WorkloadIdentityRevocationServiceClient is the client API for WorkloadIdentityRevocationService service.
@@ -69,6 +70,8 @@ type WorkloadIdentityRevocationServiceClient interface {
 	// ListWorkloadIdentities of all workload identities, pagination semantics are
 	// applied.
 	ListWorkloadIdentityX509Revocations(ctx context.Context, in *ListWorkloadIdentityX509RevocationsRequest, opts ...grpc.CallOption) (*ListWorkloadIdentityX509RevocationsResponse, error)
+	// foo
+	StreamSignedCRL(ctx context.Context, in *StreamSignedCRLRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamSignedCRLResponse], error)
 }
 
 type workloadIdentityRevocationServiceClient struct {
@@ -139,6 +142,25 @@ func (c *workloadIdentityRevocationServiceClient) ListWorkloadIdentityX509Revoca
 	return out, nil
 }
 
+func (c *workloadIdentityRevocationServiceClient) StreamSignedCRL(ctx context.Context, in *StreamSignedCRLRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamSignedCRLResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &WorkloadIdentityRevocationService_ServiceDesc.Streams[0], WorkloadIdentityRevocationService_StreamSignedCRL_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[StreamSignedCRLRequest, StreamSignedCRLResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type WorkloadIdentityRevocationService_StreamSignedCRLClient = grpc.ServerStreamingClient[StreamSignedCRLResponse]
+
 // WorkloadIdentityRevocationServiceServer is the server API for WorkloadIdentityRevocationService service.
 // All implementations must embed UnimplementedWorkloadIdentityRevocationServiceServer
 // for forward compatibility.
@@ -166,6 +188,8 @@ type WorkloadIdentityRevocationServiceServer interface {
 	// ListWorkloadIdentities of all workload identities, pagination semantics are
 	// applied.
 	ListWorkloadIdentityX509Revocations(context.Context, *ListWorkloadIdentityX509RevocationsRequest) (*ListWorkloadIdentityX509RevocationsResponse, error)
+	// foo
+	StreamSignedCRL(*StreamSignedCRLRequest, grpc.ServerStreamingServer[StreamSignedCRLResponse]) error
 	mustEmbedUnimplementedWorkloadIdentityRevocationServiceServer()
 }
 
@@ -193,6 +217,9 @@ func (UnimplementedWorkloadIdentityRevocationServiceServer) DeleteWorkloadIdenti
 }
 func (UnimplementedWorkloadIdentityRevocationServiceServer) ListWorkloadIdentityX509Revocations(context.Context, *ListWorkloadIdentityX509RevocationsRequest) (*ListWorkloadIdentityX509RevocationsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListWorkloadIdentityX509Revocations not implemented")
+}
+func (UnimplementedWorkloadIdentityRevocationServiceServer) StreamSignedCRL(*StreamSignedCRLRequest, grpc.ServerStreamingServer[StreamSignedCRLResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method StreamSignedCRL not implemented")
 }
 func (UnimplementedWorkloadIdentityRevocationServiceServer) mustEmbedUnimplementedWorkloadIdentityRevocationServiceServer() {
 }
@@ -324,6 +351,17 @@ func _WorkloadIdentityRevocationService_ListWorkloadIdentityX509Revocations_Hand
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorkloadIdentityRevocationService_StreamSignedCRL_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(StreamSignedCRLRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(WorkloadIdentityRevocationServiceServer).StreamSignedCRL(m, &grpc.GenericServerStream[StreamSignedCRLRequest, StreamSignedCRLResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type WorkloadIdentityRevocationService_StreamSignedCRLServer = grpc.ServerStreamingServer[StreamSignedCRLResponse]
+
 // WorkloadIdentityRevocationService_ServiceDesc is the grpc.ServiceDesc for WorkloadIdentityRevocationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -356,6 +394,12 @@ var WorkloadIdentityRevocationService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _WorkloadIdentityRevocationService_ListWorkloadIdentityX509Revocations_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "StreamSignedCRL",
+			Handler:       _WorkloadIdentityRevocationService_StreamSignedCRL_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "teleport/workloadidentity/v1/revocation_service.proto",
 }
