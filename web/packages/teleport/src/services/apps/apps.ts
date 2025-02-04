@@ -46,6 +46,8 @@ const service = {
   async createAppSession(params: CreateAppSessionParams) {
     const createAppSession = {
       ...params,
+      cluster_name: params.clusterId,
+      public_addr: params.publicAddr,
       // TODO(Joerger): DELETE IN v19.0.0.
       // We include a string version of the MFA response for backwards compatibility.
       mfa_response: params.mfaResponse
