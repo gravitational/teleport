@@ -188,7 +188,7 @@ func (p *vnetAppProvider) reissueAppCert(ctx context.Context, tc *client.Telepor
 	appCertParams := client.ReissueParams{
 		RouteToCluster: tc.SiteName,
 		RouteToApp:     routeToApp,
-		AccessRequests: profile.ActiveRequests.AccessRequests,
+		AccessRequests: profile.ActiveRequests,
 		RequesterName:  proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
 		TTL:            tc.KeyTTL,
 	}

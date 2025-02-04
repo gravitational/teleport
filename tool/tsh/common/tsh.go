@@ -1949,7 +1949,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 			}
 			// trigger reissue, preserving any active requests.
 			err = tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, client.ReissueParams{
-				AccessRequests: profile.ActiveRequests.AccessRequests,
+				AccessRequests: profile.ActiveRequests,
 				RouteToCluster: cf.SiteName,
 			})
 			if err != nil {
@@ -5028,7 +5028,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 	out := &profileInfo{
 		ProxyURL:           p.ProxyURL.String(),
 		Username:           p.Username,
-		ActiveRequests:     p.ActiveRequests.AccessRequests,
+		ActiveRequests:     p.ActiveRequests,
 		Cluster:            p.Cluster,
 		Roles:              p.Roles,
 		Traits:             p.Traits,
@@ -5234,7 +5234,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, newRequests []s
 		RouteToCluster:     cf.SiteName,
 	}
 	// If the certificate already had active requests, add them to our inputs parameters.
-	for _, reqID := range profile.ActiveRequests.AccessRequests {
+	for _, reqID := range profile.ActiveRequests {
 		if !slices.Contains(dropRequests, reqID) {
 			params.AccessRequests = append(params.AccessRequests, reqID)
 		}

@@ -35,7 +35,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 )
 
@@ -180,12 +179,12 @@ func (s *AuthSuite) GenerateUserCert(t *testing.T) {
 	require.NoError(t, err)
 	parsedCert, err := sshutils.ParseCertificate(cert)
 	require.NoError(t, err)
-	outRoles, err := services.UnmarshalCertRoles(parsedCert.Extensions[teleport.CertExtensionTeleportRoles])
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(outRoles, inRoles))
 
-	outImpersonator := parsedCert.Extensions[teleport.CertExtensionImpersonator]
-	require.Empty(t, cmp.Diff(outImpersonator, impersonator))
+	parsedIdent, err := sshca.DecodeIdentity(parsedCert)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(parsedIdent.Roles, inRoles))
+
+	require.Empty(t, cmp.Diff(parsedIdent.Impersonator, impersonator))
 
 	// Check that MFAVerified and PreviousIdentityExpires are encoded into ssh cert
 	clock := clockwork.NewFakeClock()
