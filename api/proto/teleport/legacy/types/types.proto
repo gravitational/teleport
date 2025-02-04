@@ -6825,6 +6825,11 @@ message PluginAWSICSettings {
   // NOTE: System users are always filtered out by default and will not be provisioned to AWS IC.
   repeated AWSICUserSyncFilter user_sync_filters = 8 [(gogoproto.jsontag) = "user_sync_filters,omitempty"];
 
+  // AwsAccountFilters is an optional allow-list of AWS accounts to import and
+  // manage. An empty list implies that all accounts managed by the Identity Center
+  // instance will be imported and managed.
+  repeated AWSICResourceFilter aws_accounts_filters = 9;
+
   // GroupSyncLabelsFilter is used to specify filters that determine which AWS groups
   // should be included during synchronization.
   repeated AWSICResourceFilter group_sync_filters = 10 [(gogoproto.jsontag) = "group_sync_filters,omitempty"];
