@@ -21,6 +21,7 @@ import (
 	"crypto"
 	"crypto/x509"
 	"log/slog"
+	"net/http"
 	"os"
 	"time"
 
@@ -40,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join/iam"
+	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/bitbucket"
 	"github.com/gravitational/teleport/lib/circleci"
@@ -811,10 +813,31 @@ func registerUsingTPMMethod(
 	return certs, trace.Wrap(err)
 }
 
+func mapFromHeader(header http.Header) map[string]string {
+	out := make(map[string]string, len(header))
+	for k := range header {
+		out[k] = header.Get(k)
+	}
+	return out
+}
+
 func registerUsingOracleMethod(
 	ctx context.Context, client joinServiceClient, token string, hostKeys *newHostKeys, params RegisterParams,
 ) (*proto.Certs, error) {
-	return nil, trace.NotImplemented("Not implemented")
+	certs, err := client.RegisterUsingOracleMethod(
+		ctx,
+		registerUsingTokenRequestForParams(token, hostKeys, params),
+		func(challenge string) (*proto.OracleSignedRequest, error) {
+			innerHeaders, outerHeaders, err := oracle.CreateSignedRequest(challenge)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &proto.OracleSignedRequest{
+				Headers:        mapFromHeader(outerHeaders),
+				PayloadHeaders: mapFromHeader(innerHeaders),
+			}, nil
+		})
+	return certs, trace.Wrap(err)
 }
 
 // readCA will read in CA that will be used to validate the certificate that
