@@ -132,12 +132,8 @@ func (amrh *RuleHandler) HandleAccessMonitoringRule(ctx context.Context, event t
 			return nil
 		}
 
-		// The notification.name is deprecated. Use plugin.spec.name condition instead.
-		if req.GetSpec().GetNotification().GetName() != "" {
-			req.Spec.Condition = fmt.Sprintf("plugin.spec.name == %q && %s",
-				req.GetSpec().GetNotification().GetName(),
-				req.GetSpec().GetCondition())
-		}
+		// Convert the notification.name requirement into a condition expression.
+		appendPluginNameCondition(req)
 
 		amrh.accessMonitoringRules.rules[req.Metadata.Name] = req
 		if amrh.onCacheUpdateCallback != nil {
@@ -158,11 +154,21 @@ func (amrh *RuleHandler) RecipientsFromAccessMonitoringRules(ctx context.Context
 	recipientSet := common.NewRecipientSet()
 
 	for _, rule := range amrh.getAccessMonitoringRules() {
-		match, err := MatchAccessRequest(rule.Spec.Condition, req, PluginExpressionEnv{
-			Name: amrh.pluginName,
-		})
+		env := AccessRequestExpressionEnv{
+			Roles:              req.GetRoles(),
+			SuggestedReviewers: req.GetSuggestedReviewers(),
+			Annotations:        req.GetSystemAnnotations(),
+			User:               req.GetUser(),
+			RequestReason:      req.GetRequestReason(),
+			CreationTime:       req.GetCreationTime(),
+			Expiry:             req.Expiry(),
+			Plugin: PluginExpressionEnv{
+				Name: amrh.pluginName,
+			},
+		}
+		match, err := IsConditionMatched(rule.GetSpec().GetCondition(), env)
 		if err != nil {
-			log.WarnContext(ctx, "Failed to parse access monitoring notification rule",
+			log.WarnContext(ctx, "Failed to parse/evaluate access monitoring rule",
 				"error", err,
 				"rule", rule.Metadata.Name,
 			)
@@ -187,11 +193,21 @@ func (amrh *RuleHandler) RawRecipientsFromAccessMonitoringRules(ctx context.Cont
 	log := logger.Get(ctx)
 	recipientSet := stringset.New()
 	for _, rule := range amrh.getAccessMonitoringRules() {
-		match, err := MatchAccessRequest(rule.Spec.Condition, req, PluginExpressionEnv{
-			Name: amrh.pluginName,
-		})
+		env := AccessRequestExpressionEnv{
+			Roles:              req.GetRoles(),
+			SuggestedReviewers: req.GetSuggestedReviewers(),
+			Annotations:        req.GetSystemAnnotations(),
+			User:               req.GetUser(),
+			RequestReason:      req.GetRequestReason(),
+			CreationTime:       req.GetCreationTime(),
+			Expiry:             req.Expiry(),
+			Plugin: PluginExpressionEnv{
+				Name: amrh.pluginName,
+			},
+		}
+		match, err := IsConditionMatched(rule.Spec.Condition, env)
 		if err != nil {
-			log.WarnContext(ctx, "Failed to parse access monitoring notification rule",
+			log.WarnContext(ctx, "Failed to parse/evaluate access monitoring rule",
 				"error", err,
 				"rule", rule.Metadata.Name,
 			)
@@ -241,4 +257,17 @@ func (amrh *RuleHandler) ruleApplies(amr *accessmonitoringrulesv1.AccessMonitori
 	return slices.ContainsFunc(amr.Spec.Subjects, func(subject string) bool {
 		return subject == types.KindAccessRequest
 	})
+}
+
+// appendPluginNameCondition converts the notification.name requirement into a
+// condition.
+func appendPluginNameCondition(req *accessmonitoringrulesv1.AccessMonitoringRule) {
+	if req.GetSpec().GetNotification().GetName() == "" {
+		return
+	}
+
+	// The notification.name is deprecated. Use plugin.spec.name condition instead.
+	req.Spec.Condition = fmt.Sprintf("plugin.spec.name == %q && %s",
+		req.GetSpec().GetNotification().GetName(),
+		req.GetSpec().GetCondition())
 }
