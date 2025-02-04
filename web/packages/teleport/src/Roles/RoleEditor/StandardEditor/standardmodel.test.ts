@@ -16,10 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { execFile } from 'node:child_process';
-import { readFile, readFileSync } from 'node:fs';
-import { promisify } from 'node:util';
-
 import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
 import {
   CreateDBUserMode,
@@ -36,6 +32,7 @@ import {
   SSHPortForwarding,
 } from 'teleport/services/resources';
 
+import presetRoles from '../../../../../../../gen/preset-roles.json';
 import {
   createDBUserModeOptionsMap,
   createHostUserModeOptionsMap,
@@ -1074,34 +1071,13 @@ describe('roleToRoleEditorModel', () => {
     } as RoleEditorModel);
   });
 
-  describe('preset roles', () => {
-    /**
-     * Preset roles that will be initialized using the `dump-preset-roles`
-     * utility.
-     */
-    let presetRoles: Role[];
-
-    beforeAll(
-      async () => {
-        // `make` dumps standard output from executed programs into standard error,
-        // so we need to read data from there.
-        await promisify(execFile)('make', ['dump-preset-roles']);
-        const rolesJSON = await promisify(readFile)('tmp/preset-roles.json');
-        presetRoles = JSON.parse(rolesJSON.toString());
-      },
-      // Set a long timeout for this one, since `make` may compile Teleport
-      // sources from scratch, and it will take a while in the CI environment.
-      10 * 60000
-    );
-
-    it.each(['access', 'editor', 'auditor'])(
-      'supports the preset "%s" role',
-      roleName => {
-        const { requiresReset } = roleToRoleEditorModel(presetRoles[roleName]);
-        expect(requiresReset).toBe(false);
-      }
-    );
-  });
+  it.each(['access', 'editor', 'auditor'])(
+    'supports the preset "%s" role',
+    roleName => {
+      const { requiresReset } = roleToRoleEditorModel(presetRoles[roleName]);
+      expect(requiresReset).toBe(false);
+    }
+  );
 });
 
 test('labelsToModel', () => {
