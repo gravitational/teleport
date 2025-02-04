@@ -108,7 +108,7 @@ export function ClusterLoginPresentation({
         )}
         {initAttempt.status === 'success' && (
           <LoginForm
-            {...initAttempt.data}
+            authSettings={initAttempt.data}
             primaryAuthType={getPrimaryAuthType(initAttempt.data)}
             loggedInUserName={loggedInUserName}
             onLoginWithSso={onLoginWithSso}

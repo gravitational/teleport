@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ReactNode } from 'react';
 import styled from 'styled-components';
 
 import { Box, ButtonText, Flex } from 'design';
@@ -39,8 +40,7 @@ export default function LoginForm(props: Props) {
   const {
     loginAttempt,
     onAbort,
-    authProviders,
-    localAuthEnabled = true,
+    authSettings: { authProviders, localAuthEnabled = true },
     shouldPromptSsoStatus,
     passwordlessLoginState,
   } = props;
@@ -123,9 +123,9 @@ const Primary = ({
   hasTransitionEnded,
   ...otherProps
 }: Props & StepComponentProps) => {
-  const ssoEnabled = otherProps.authProviders?.length > 0;
+  const ssoEnabled = otherProps.authSettings.authProviders?.length > 0;
   let otherOptionsAvailable = true;
-  let $primary;
+  let $primary: ReactNode;
 
   switch (otherProps.primaryAuthType) {
     case 'passwordless':
@@ -135,7 +135,8 @@ const Primary = ({
       $primary = <FormSso {...otherProps} autoFocus={true} />;
       break;
     case 'local':
-      otherOptionsAvailable = otherProps.allowPasswordless || ssoEnabled;
+      otherOptionsAvailable =
+        otherProps.authSettings.allowPasswordless || ssoEnabled;
       $primary = (
         <FormLocal
           {...otherProps}
@@ -182,10 +183,13 @@ const Secondary = ({
   refCallback,
   ...otherProps
 }: Props & StepComponentProps) => {
-  const ssoEnabled = otherProps.authProviders?.length > 0;
-  const { primaryAuthType, allowPasswordless } = otherProps;
+  const ssoEnabled = otherProps.authSettings.authProviders?.length > 0;
+  const {
+    primaryAuthType,
+    authSettings: { allowPasswordless },
+  } = otherProps;
 
-  let $secondary;
+  let $secondary: ReactNode;
   switch (primaryAuthType) {
     case 'passwordless':
       if (ssoEnabled) {
@@ -218,7 +222,7 @@ const Secondary = ({
         $secondary = (
           <>
             <FormPasswordless {...otherProps} autoFocus={true} />
-            {otherProps.allowPasswordless && ssoEnabled && <Divider />}
+            {allowPasswordless && ssoEnabled && <Divider />}
             {ssoEnabled && <FormSso {...otherProps} />}
           </>
         );
@@ -287,7 +291,8 @@ const loginViews = { default: [Primary, Secondary] };
 
 type LoginAttempt = Attempt<void>;
 
-export type Props = AuthSettings & {
+export type Props = {
+  authSettings: AuthSettings;
   shouldPromptSsoStatus: boolean;
   passwordlessLoginState: PasswordlessLoginState;
   loginAttempt: LoginAttempt;
