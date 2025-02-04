@@ -4576,15 +4576,6 @@ func (h *Handler) authenticateRequestWithCluster(w http.ResponseWriter, r *http.
 // remote trusted cluster) as specified by the ":site" url parameter.
 func (h *Handler) getSiteByParams(sctx *SessionContext, p httprouter.Params) (reversetunnelclient.RemoteSite, error) {
 	clusterName := p.ByName("site")
-	if clusterName == currentSiteShortcut {
-		res, err := h.cfg.ProxyClient.GetClusterName()
-		if err != nil {
-			h.log.WithError(err).Warn("Failed to query cluster name.")
-			return nil, trace.Wrap(err)
-		}
-		clusterName = res.GetClusterName()
-	}
-
 	site, err := h.getSiteByClusterName(sctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4594,6 +4585,15 @@ func (h *Handler) getSiteByParams(sctx *SessionContext, p httprouter.Params) (re
 }
 
 func (h *Handler) getSiteByClusterName(ctx *SessionContext, clusterName string) (reversetunnelclient.RemoteSite, error) {
+	if clusterName == currentSiteShortcut {
+		res, err := h.cfg.ProxyClient.GetClusterName()
+		if err != nil {
+			h.log.WithError(err).Warn("Failed to get proxy with roles.")
+			return nil, trace.Wrap(err)
+		}
+		clusterName = res.GetClusterName()
+	}
+
 	proxy, err := h.ProxyWithRoles(ctx)
 	if err != nil {
 		h.log.WithError(err).Warn("Failed to get proxy with roles.")
