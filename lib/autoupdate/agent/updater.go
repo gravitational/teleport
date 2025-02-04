@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/autoupdate"
+	"github.com/gravitational/teleport/lib/client/debug"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	libutils "github.com/gravitational/teleport/lib/utils"
@@ -96,6 +97,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		cfg.SystemDir = defaultSystemDir
 	}
 	validator := Validator{Log: cfg.Log}
+	debugClient := debug.NewClient(filepath.Join(ns.dataDir, debugSocketFileName))
 	return &Updater{
 		Log:                cfg.Log,
 		Pool:               certPool,
@@ -118,7 +120,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		Process: &SystemdService{
 			ServiceName: filepath.Base(ns.serviceFile),
 			PIDPath:     ns.pidFile,
-			SocketPath:  filepath.Join(ns.dataDir, debugSocketFileName),
+			Ready:       debugClient,
 			Log:         cfg.Log,
 		},
 		Setup: func(ctx context.Context) error {

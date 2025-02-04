@@ -60,6 +60,7 @@ func NewClient(socketPath string) *Client {
 					var d net.Dialer
 					return d.DialContext(ctx, "unix", socketPath)
 				},
+				DisableKeepAlives: true,
 			},
 			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 				return trace.Errorf("redirect via socket not allowed")
@@ -142,25 +143,33 @@ func (c *Client) CollectProfile(ctx context.Context, profileName string, seconds
 	return result, nil
 }
 
+// Readiness describes the readiness of the Teleport instance.
+type Readiness struct {
+	// Ready is true if the instance is ready.
+	Ready bool `json:"-"`
+	// Status provides more detail about the readiness status.
+	Status string `json:"status"`
+	// PID is the process PID
+	PID int `json:"pid"`
+}
+
 // GetReadiness returns true if the Teleport service is ready.
-func (c *Client) GetReadiness(ctx context.Context) (ready bool, msg string, err error) {
+func (c *Client) GetReadiness(ctx context.Context) (Readiness, error) {
+	var ready Readiness
 	resp, err := c.do(ctx, http.MethodGet, url.URL{Path: "/readyz"}, nil)
 	if err != nil {
-		return false, "", trace.Wrap(err)
+		return ready, trace.Wrap(err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound {
-		return ready, "", trace.NotFound("readiness endpoint not found")
+		return ready, trace.NotFound("readiness endpoint not found")
 	}
-	ready = resp.StatusCode == http.StatusOK
-	var status struct {
-		Status string `json:"status"`
-	}
-	err = json.NewDecoder(resp.Body).Decode(&status)
+	ready.Ready = resp.StatusCode == http.StatusOK
+	err = json.NewDecoder(resp.Body).Decode(&ready)
 	if err != nil {
-		return ready, "", trace.Wrap(err)
+		return ready, trace.Wrap(err)
 	}
-	return ready, status.Status, nil
+	return ready, nil
 }
 
 func (c *Client) do(ctx context.Context, method string, u url.URL, body []byte) (*http.Response, error) {

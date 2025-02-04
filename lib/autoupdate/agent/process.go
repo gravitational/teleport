@@ -60,10 +60,15 @@ type SystemdService struct {
 	ServiceName string
 	// PIDPath is a path to a file containing the service's PID.
 	PIDPath string
-	// SocketPath is a path to a socket that responds to readiness checks.
-	SocketPath string
+	// Ready is a readiness checker.
+	Ready ReadyChecker
 	// Log contains a logger.
 	Log *slog.Logger
+}
+
+// ReadyChecker returns the systemd service readiness status.
+type ReadyChecker interface {
+	GetReadiness(ctx context.Context) (debug.Readiness, error)
 }
 
 // Reload the systemd service.
@@ -134,9 +139,11 @@ func (s SystemdService) monitor(ctx context.Context, initPID int) error {
 	defer cancel()
 	tickC := time.NewTicker(monitorInterval).C
 
+	newPID := 0
 	if initPID != 0 {
 		s.Log.InfoContext(ctx, "Monitoring PID file to detect crashes.", unitKey, s.ServiceName)
-		err := s.monitorPID(ctx, initPID, tickC)
+		var err error
+		newPID, err = s.monitorPID(ctx, initPID, tickC)
 		if errors.Is(err, context.DeadlineExceeded) {
 			s.Log.ErrorContext(ctx, "Timed out monitoring for crashing PID.", unitKey, s.ServiceName)
 			return trace.Wrap(err)
@@ -148,9 +155,8 @@ func (s SystemdService) monitor(ctx context.Context, initPID int) error {
 	}
 
 	s.Log.InfoContext(ctx, "Monitoring diagnostic socket to detect readiness.", unitKey, s.ServiceName)
-	client := debug.NewClient(s.SocketPath)
 	tickC = time.NewTicker(monitorInterval).C
-	err := s.waitForReady(ctx, client, tickC)
+	err := s.waitForReady(ctx, newPID, tickC)
 	if errors.Is(err, context.DeadlineExceeded) {
 		s.Log.ErrorContext(ctx, "Timed out monitoring for process readiness.", unitKey, s.ServiceName)
 		return trace.Wrap(err)
@@ -167,7 +173,8 @@ func (s SystemdService) monitor(ctx context.Context, initPID int) error {
 // For example, the process may crash by failing to fork (non-running PID), or looping (repeatedly changing PID),
 // or getting stuck on quit (no change in PID).
 // initPID is the PID before the restart operation has been issued.
-func (s SystemdService) monitorPID(ctx context.Context, initPID int, tickC <-chan time.Time) error {
+// The final PID is returned.
+func (s SystemdService) monitorPID(ctx context.Context, initPID int, tickC <-chan time.Time) (int, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	pidC := make(chan int)
@@ -175,7 +182,7 @@ func (s SystemdService) monitorPID(ctx context.Context, initPID int, tickC <-cha
 	g.Go(func() error {
 		return tickFile(ctx, s.PIDPath, pidC, tickC)
 	})
-	err := s.waitForStablePID(ctx, minRunningIntervalsBeforeStable, maxCrashesBeforeFailure,
+	stablePID, err := s.waitForStablePID(ctx, minRunningIntervalsBeforeStable, maxCrashesBeforeFailure,
 		initPID, pidC, func(pid int) error {
 			p, err := os.FindProcess(pid)
 			if err != nil {
@@ -187,7 +194,7 @@ func (s SystemdService) monitorPID(ctx context.Context, initPID int, tickC <-cha
 	if err := g.Wait(); err != nil {
 		s.Log.ErrorContext(ctx, "Error monitoring for crashing process.", errorKey, err, unitKey, s.ServiceName)
 	}
-	return trace.Wrap(err)
+	return stablePID, trace.Wrap(err)
 }
 
 // waitForStablePID monitors a service's PID via pidC and determines whether the service is crashing.
@@ -196,14 +203,15 @@ func (s SystemdService) monitorPID(ctx context.Context, initPID int, tickC <-cha
 // baselinePID is the initial PID before any operation that might cause the process to start crashing.
 // minStable is the number of times pidC must return the same running PID before waitForStablePID returns nil.
 // minCrashes is the number of times pidC conveys a process crash or bad state before waitForStablePID returns an error.
-func (s SystemdService) waitForStablePID(ctx context.Context, minStable, maxCrashes, baselinePID int, pidC <-chan int, verifyPID func(pid int) error) error {
+// The last reported PID is returned.
+func (s SystemdService) waitForStablePID(ctx context.Context, minStable, maxCrashes, baselinePID int, pidC <-chan int, verifyPID func(pid int) error) (int, error) {
 	pid := baselinePID
 	var last, stale int
 	var crashes int
 	for stable := 0; stable < minStable; stable++ {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return pid, ctx.Err()
 		case p := <-pidC:
 			last = pid
 			pid = p
@@ -215,7 +223,7 @@ func (s SystemdService) waitForStablePID(ctx context.Context, minStable, maxCras
 			crashes++
 		}
 		if crashes > maxCrashes {
-			return trace.Errorf("detected crashing process")
+			return pid, trace.Errorf("detected crashing process")
 		}
 
 		// PID can only be stable if it is a real PID that is not new,
@@ -242,10 +250,10 @@ func (s SystemdService) waitForStablePID(ctx context.Context, minStable, maxCras
 			continue
 		}
 		if err != nil {
-			return trace.Wrap(err)
+			return pid, trace.Wrap(err)
 		}
 	}
-	return nil
+	return pid, nil
 }
 
 // readInt reads an integer from a file.
@@ -288,14 +296,16 @@ func tickFile(ctx context.Context, path string, ch chan<- int, tickC <-chan time
 
 // waitForReady polls the SocketPath unix domain socket with HTTP requests.
 // If one request returns 200 before the timeout, the service is considered ready.
-func (s SystemdService) waitForReady(ctx context.Context, client *debug.Client, tickC <-chan time.Time) error {
+func (s SystemdService) waitForReady(ctx context.Context, pid int, tickC <-chan time.Time) error {
 	for {
-		ready, msg, err := client.GetReadiness(ctx)
+		ready, err := s.Ready.GetReadiness(ctx)
 		if trace.IsNotFound(err) {
 			s.Log.WarnContext(ctx, "Socket appears to be missing readiness endpoint.", unitKey, s.ServiceName)
 			return nil
 		}
-		if err == nil && ready {
+		if err == nil &&
+			ready.Ready &&
+			equalOrZero(ready.PID, pid) {
 			return nil
 		}
 		select {
@@ -313,13 +323,25 @@ func (s SystemdService) waitForReady(ctx context.Context, client *debug.Client, 
 				s.Log.WarnContext(ctx, "Unexpected error after timeout polling socket. Proceeding without check.", unitKey, s.ServiceName, errorKey, err)
 				return nil
 			}
-			if msg != "" {
-				s.Log.ErrorContext(ctx, "Process not ready by deadline.", unitKey, s.ServiceName, "message", msg)
+			if ready.Status != "" {
+				s.Log.ErrorContext(ctx, "Process not ready by deadline.", unitKey, s.ServiceName, "status", ready.Status)
+			}
+			if !equalOrZero(ready.PID, pid) {
+				s.Log.ErrorContext(ctx, "Readiness PID response does not match PID file.", unitKey, s.ServiceName, "file_pid", pid, "ready_pid", ready.PID)
 			}
 			return ctx.Err()
 		case <-tickC:
 		}
 	}
+}
+
+// equalOrZero returns true if a and b are equal, or if either has the zero-value.
+func equalOrZero[T comparable](a, b T) bool {
+	var empty T
+	if a == empty || b == empty {
+		return true
+	}
+	return a == b
 }
 
 // Sync systemd service configuration by running systemctl daemon-reload.

@@ -21,6 +21,7 @@ package service
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -181,20 +182,24 @@ func (f *processState) readinessHandler() http.HandlerFunc {
 		case stateDegraded:
 			roundtrip.ReplyJSON(w, http.StatusServiceUnavailable, map[string]any{
 				"status": "teleport is in a degraded state, check logs for details",
+				"pid":    os.Getpid(),
 			})
 		// 400
 		case stateRecovering:
 			roundtrip.ReplyJSON(w, http.StatusBadRequest, map[string]any{
 				"status": "teleport is recovering from a degraded state, check logs for details",
+				"pid":    os.Getpid(),
 			})
 		case stateStarting:
 			roundtrip.ReplyJSON(w, http.StatusBadRequest, map[string]any{
 				"status": "teleport is starting and hasn't joined the cluster yet",
+				"pid":    os.Getpid(),
 			})
 		// 200
 		case stateOK:
 			roundtrip.ReplyJSON(w, http.StatusOK, map[string]any{
 				"status": "ok",
+				"pid":    os.Getpid(),
 			})
 		}
 	}
