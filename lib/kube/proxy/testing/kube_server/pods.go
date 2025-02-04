@@ -134,21 +134,12 @@ func (s *KubeMockServer) deletePod(w http.ResponseWriter, req *http.Request, p h
 	return nil, trace.NotFound("pod %q not found", filepath.Join(namespace, name))
 }
 
-func (s *KubeMockServer) DeletedPods(reqID string) []string {
-	s.mu.Lock()
-	key := deletedResource{kind: types.KindKubePod, requestID: reqID}
-	deleted := make([]string, len(s.deletedResources[key]))
-	copy(deleted, s.deletedResources[key])
-	s.mu.Unlock()
-	sort.Strings(deleted)
-	return deleted
-}
-
 // parseDeleteCollectionBody parses the request body targeted to pod collection
 // endpoints.
 func parseDeleteCollectionBody(r *http.Request) (metav1.DeleteOptions, error) {
 	into := metav1.DeleteOptions{}
 	data, err := io.ReadAll(r.Body)
+	_ = r.Body.Close()
 	if err != nil {
 		return into, trace.Wrap(err)
 	}
@@ -159,7 +150,7 @@ func parseDeleteCollectionBody(r *http.Request) (metav1.DeleteOptions, error) {
 	if err != nil {
 		return into, trace.Wrap(err)
 	}
-	objI, _, err := decoder.Decode(data, nil, &into)
+	objI, _, err := decoder.Decode(data, nil /* defaults */, &into)
 	if err != nil {
 		return into, trace.Wrap(err)
 	}
@@ -202,4 +193,14 @@ func newClientNegotiator() runtime.ClientNegotiator {
 			Version: "v1",
 		},
 	)
+}
+
+func (s *KubeMockServer) DeletedPods(reqID string) []string {
+	s.mu.Lock()
+	key := deletedResource{kind: types.KindKubePod, requestID: reqID}
+	deleted := make([]string, len(s.deletedResources[key]))
+	copy(deleted, s.deletedResources[key])
+	s.mu.Unlock()
+	sort.Strings(deleted)
+	return deleted
 }
