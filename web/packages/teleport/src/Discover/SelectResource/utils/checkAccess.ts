@@ -19,7 +19,7 @@
 import { Acl } from 'teleport/services/user';
 
 import { ResourceKind } from '../../Shared';
-import { ResourceSpec } from '../types';
+import { SelectResourceSpec } from '../resources';
 
 function checkHasAccess(acl: Acl, resourceKind: ResourceKind) {
   const basePerm = acl.tokens.create;
@@ -51,8 +51,8 @@ function checkHasAccess(acl: Acl, resourceKind: ResourceKind) {
 
 export function addHasAccessField(
   acl: Acl,
-  resources: ResourceSpec[]
-): ResourceSpec[] {
+  resources: SelectResourceSpec[]
+): SelectResourceSpec[] {
   return resources.map(r => {
     const hasAccess = checkHasAccess(acl, r.kind);
     switch (r.kind) {
