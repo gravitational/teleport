@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMatchAccessRequest(t *testing.T) {
+func TestIsConditionMatched(t *testing.T) {
 	tests := []struct {
 		description string
 		condition   string
