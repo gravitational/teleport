@@ -43,6 +43,8 @@ import (
 // multiplexing mode, the Kube proxy is always reachable on the same address as
 // the web server using the SNI.
 func getWebAddrAndKubeSNI(proxyAddr string) (string, string, error) {
+	// we avoid using utils.SplitHostPort because
+	// we allow the host to be empty
 	addr, port, err := net.SplitHostPort(proxyAddr)
 	if err != nil {
 		return "", "", trace.Wrap(err)
