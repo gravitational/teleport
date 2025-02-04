@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -42,15 +43,23 @@ import (
 // multiplexing mode, the Kube proxy is always reachable on the same address as
 // the web server using the SNI.
 func getWebAddrAndKubeSNI(proxyAddr string) (string, string, error) {
-	addr, port, err := utils.SplitHostPort(proxyAddr)
+	addr, port, err := net.SplitHostPort(proxyAddr)
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
-	sni := client.GetKubeTLSServerName(addr)
+
+	// validate the port
+	if _, err := strconv.Atoi(port); err != nil {
+		return "", "", trace.Wrap(err, "invalid port")
+	}
+
 	// if the proxy is an unspecified address (0.0.0.0, ::), use localhost.
-	if ip := net.ParseIP(addr); ip != nil && ip.IsUnspecified() {
+	if ip := net.ParseIP(addr); ip != nil && ip.IsUnspecified() || addr == "" {
 		addr = string(teleport.PrincipalLocalhost)
 	}
+
+	sni := client.GetKubeTLSServerName(addr)
+
 	return sni, "https://" + net.JoinHostPort(addr, port), nil
 }
 
