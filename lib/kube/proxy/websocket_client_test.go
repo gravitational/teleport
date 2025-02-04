@@ -472,7 +472,7 @@ func (e *wsStreamClient) handlePortForwardRequest(conn net.Conn, remoteConn *gwe
 						return
 					}
 				case portforwardErrChan:
-					err := trace.Errorf(string(buf[1:]))
+					err := trace.Errorf("%s", string(buf[1:]))
 					errChan <- trace.Wrap(err)
 					// Once we receive an error from streamErr, we must stop processing.
 					// The server also stops the execution and closes the connection.

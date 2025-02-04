@@ -80,7 +80,7 @@ func parseProxySubsysRequest(request string) (proxySubsysRequest, error) {
 	const prefix = "proxy:"
 	// get rid of 'proxy:' prefix:
 	if strings.Index(request, prefix) != 0 {
-		return proxySubsysRequest{}, trace.BadParameter(paramMessage)
+		return proxySubsysRequest{}, trace.BadParameter("%s", paramMessage)
 	}
 	requestBody := strings.TrimPrefix(request, prefix)
 	namespace := apidefaults.Namespace
@@ -89,17 +89,17 @@ func parseProxySubsysRequest(request string) (proxySubsysRequest, error) {
 	var err error
 	switch {
 	case len(parts) == 0: // "proxy:"
-		return proxySubsysRequest{}, trace.BadParameter(paramMessage)
+		return proxySubsysRequest{}, trace.BadParameter("%s", paramMessage)
 	case len(parts) == 1: // "proxy:host:22"
 		targetHost, targetPort, err = utils.SplitHostPort(parts[0])
 		if err != nil {
-			return proxySubsysRequest{}, trace.BadParameter(paramMessage)
+			return proxySubsysRequest{}, trace.BadParameter("%s", paramMessage)
 		}
 	case len(parts) == 2: // "proxy:@clustername" or "proxy:host:22@clustername"
 		if parts[0] != "" {
 			targetHost, targetPort, err = utils.SplitHostPort(parts[0])
 			if err != nil {
-				return proxySubsysRequest{}, trace.BadParameter(paramMessage)
+				return proxySubsysRequest{}, trace.BadParameter("%s", paramMessage)
 			}
 		}
 		clusterName = parts[1]
@@ -111,7 +111,7 @@ func parseProxySubsysRequest(request string) (proxySubsysRequest, error) {
 		namespace = parts[1]
 		targetHost, targetPort, err = utils.SplitHostPort(parts[0])
 		if err != nil {
-			return proxySubsysRequest{}, trace.BadParameter(paramMessage)
+			return proxySubsysRequest{}, trace.BadParameter("%s", paramMessage)
 		}
 	}
 
