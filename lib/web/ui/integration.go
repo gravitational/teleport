@@ -71,6 +71,8 @@ func (r *IntegrationAWSOIDCSpec) CheckAndSetDefaults() error {
 // IntegrationWithSummary describes Integration fields and the fields required to return the summary.
 type IntegrationWithSummary struct {
 	*Integration
+	// UnresolvedUserTasks contains the count of unresolved user tasks related to this integration.
+	UnresolvedUserTasks int `json:"unresolvedUserTasks,omitempty"`
 	// AWSEC2 contains the summary for the AWS EC2 resources for this integration.
 	AWSEC2 ResourceTypeSummary `json:"awsec2,omitempty"`
 	// AWSRDS contains the summary for the AWS RDS resources and agents for this integration.
