@@ -37,8 +37,8 @@ import * as userUserContext from 'teleport/User/UserContext';
 
 import { ResourceKind } from '../Shared';
 import { resourceKindToPreferredResource } from '../Shared/ResourceKind';
+import { SelectResourceSpec } from './resources';
 import { SelectResource } from './SelectResource';
-import { ResourceSpec } from './types';
 import { filterBySupportedPlatformsAndAuthTypes } from './utils/filters';
 import { sortResourcesByPreferences } from './utils/sort';
 
@@ -49,10 +49,11 @@ const setUp = () => {
 };
 
 const makeResourceSpec = (
-  overrides: Partial<ResourceSpec> = {}
-): ResourceSpec => {
+  overrides: Partial<SelectResourceSpec> = {}
+): SelectResourceSpec => {
   return Object.assign(
     {
+      id: '',
       name: '',
       kind: ResourceKind.Application,
       icon: '',
@@ -85,7 +86,7 @@ const onboardDiscoverNoResources: OnboardDiscover = {
 
 test('sortResourcesByPreferences without preferred resources, sorts resources alphabetically with guided resources first', () => {
   setUp();
-  const mockIn: ResourceSpec[] = [
+  const mockIn: SelectResourceSpec[] = [
     // unguided
     makeResourceSpec({ name: 'jenkins', unguidedLink: 'test.com' }),
     makeResourceSpec({ name: 'grafana', unguidedLink: 'test.com' }),
@@ -152,7 +153,7 @@ const z_Discovery_NoAccess = makeResourceSpec({
   hasAccess: false,
 });
 
-const NoAccessList: ResourceSpec[] = [
+const NoAccessList: SelectResourceSpec[] = [
   t_Application_NoAccess,
   u_Database_NoAccess,
   v_Desktop_NoAccess,
@@ -209,7 +210,7 @@ const l_Saml = makeResourceSpec({
   kind: ResourceKind.SamlApplication,
 });
 
-const kindBasedList: ResourceSpec[] = [
+const kindBasedList: SelectResourceSpec[] = [
   c_Application,
   a_Database,
   t_Application_NoAccess,
@@ -239,7 +240,7 @@ describe('preferred resources', () => {
   const testCases: {
     name: string;
     preferred: Resource[];
-    expected: ResourceSpec[];
+    expected: SelectResourceSpec[];
   }[] = [
     {
       name: 'preferred server/ssh',
@@ -374,7 +375,7 @@ describe('marketing params', () => {
   const testCases: {
     name: string;
     preferred: OnboardUserPreferences;
-    expected: ResourceSpec[];
+    expected: SelectResourceSpec[];
   }[] = [
     {
       name: 'marketing params instead of preferred resources',
@@ -571,7 +572,7 @@ describe('marketing params', () => {
   });
 });
 
-const osBasedList: ResourceSpec[] = [
+const osBasedList: SelectResourceSpec[] = [
   makeResourceSpec({ name: 'Aaaa' }),
   makeResourceSpec({
     name: 'no-linux-1',
@@ -599,7 +600,7 @@ describe('os sorted resources', () => {
   const testCases: {
     name: string;
     userAgent: UserAgent;
-    expected: ResourceSpec[];
+    expected: SelectResourceSpec[];
   }[] = [
     {
       name: 'running mac',
@@ -714,7 +715,7 @@ describe('os sorted resources', () => {
   });
 
   test('does not prioritize os if the user does not have access', () => {
-    const mockIn: ResourceSpec[] = [
+    const mockIn: SelectResourceSpec[] = [
       makeResourceSpec({
         name: 'macOs',
         platform: Platform.macOS,
@@ -739,7 +740,7 @@ describe('os sorted resources', () => {
     ]);
   });
 
-  const oneOfEachList: ResourceSpec[] = [
+  const oneOfEachList: SelectResourceSpec[] = [
     makeResourceSpec({
       name: 'no access but super matches',
       hasAccess: false,
