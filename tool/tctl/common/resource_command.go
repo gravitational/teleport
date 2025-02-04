@@ -288,6 +288,18 @@ func (rc *ResourceCommand) GetRef() services.Ref {
 
 // Get prints one or many resources of a certain type
 func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) error {
+	// If at least one ref is for a cert authority with secrets, prompt for admin mfa.
+	if rc.withSecrets && slices.ContainsFunc(rc.refs, func(r services.Ref) bool {
+		return r.Kind == types.KindCertAuthority
+	}) {
+		mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true)
+		if err == nil {
+			ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
+		} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
+			return trace.Wrap(err)
+		}
+	}
+
 	if rc.refs.IsAll() {
 		return rc.GetAll(ctx, client)
 	}
@@ -317,6 +329,7 @@ func (rc *ResourceCommand) GetMany(ctx context.Context, client *authclient.Clien
 	if rc.format != teleport.YAML {
 		return trace.BadParameter("mixed resource types only support YAML formatting")
 	}
+
 	var resources []types.Resource
 	for _, ref := range rc.refs {
 		rc.ref = ref
@@ -2242,19 +2255,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &reverseTunnelCollection{tunnels: tunnels}, nil
 	case types.KindCertAuthority:
 		getAll := rc.ref.SubKind == "" && rc.ref.Name == ""
-
-		// Prompt for admin action MFA if secrets were requested.
-		if rc.withSecrets {
-			// allow reuse for multiple calls to GetCertAuthorities with different ca types.
-			allowReuse := getAll
-			mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, allowReuse)
-			if err == nil {
-				ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
-			} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
-				return nil, trace.Wrap(err)
-			}
-		}
-
 		if getAll {
 			var allAuthorities []types.CertAuthority
 			for _, caType := range types.CertAuthTypes {

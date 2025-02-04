@@ -372,6 +372,9 @@ func (s *adminActionTestSuite) testTokens(t *testing.T) {
 	token, err := types.NewProvisionToken("teletoken", []types.SystemRole{types.RoleNode}, time.Time{})
 	require.NoError(t, err)
 
+	token2, err := types.NewProvisionToken("teletoken2", []types.SystemRole{types.RoleNode}, time.Time{})
+	require.NoError(t, err)
+
 	createToken := func() error {
 		return s.authServer.CreateToken(ctx, token)
 	}
@@ -382,6 +385,14 @@ func (s *adminActionTestSuite) testTokens(t *testing.T) {
 
 	deleteToken := func() error {
 		return s.authServer.DeleteToken(ctx, token.GetName())
+	}
+
+	createTokens := func() error {
+		return trace.NewAggregate(s.authServer.CreateToken(ctx, token), s.authServer.CreateToken(ctx, token2))
+	}
+
+	deleteTokens := func() error {
+		return trace.NewAggregate(s.authServer.DeleteToken(ctx, token.GetName()), s.authServer.DeleteToken(ctx, token2.GetName()))
 	}
 
 	t.Run("TokensCommands", func(t *testing.T) {
@@ -410,10 +421,12 @@ func (s *adminActionTestSuite) testTokens(t *testing.T) {
 
 	t.Run("ResourceCommands", func(t *testing.T) {
 		s.testResourceCommand(t, ctx, resourceCommandTestCase{
-			resource:        token,
-			resourceCreate:  createToken,
-			resourceCleanup: deleteToken,
-			testGetList:     true,
+			resource:         token,
+			resourceCreate:   createToken,
+			resourceCleanup:  deleteToken,
+			testGetList:      true,
+			resourcesCreate:  createTokens,
+			resourcesCleanup: deleteTokens,
 		})
 	})
 
@@ -476,6 +489,22 @@ func (s *adminActionTestSuite) testCertAuthority(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	ca2, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.HostCA,
+		ClusterName: "clustername2",
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PrivateKey: sshKey.PrivateKeyPEM(),
+				PublicKey:  sshKey.MarshalSSHPublicKey(),
+			}},
+			TLS: []*types.TLSKeyPair{{
+				Cert: cert,
+				Key:  tlsKey,
+			}},
+		},
+	})
+	require.NoError(t, err)
+
 	createCertAuthority := func() error {
 		return s.authServer.CreateCertAuthority(ctx, ca)
 	}
@@ -488,11 +517,21 @@ func (s *adminActionTestSuite) testCertAuthority(t *testing.T) {
 		return s.authServer.DeleteCertAuthority(ctx, ca.GetID())
 	}
 
+	createCertAuthorities := func() error {
+		return trace.NewAggregate(s.authServer.CreateCertAuthority(ctx, ca), s.authServer.CreateCertAuthority(ctx, ca2))
+	}
+
+	deleteCertAuthorities := func() error {
+		return trace.NewAggregate(s.authServer.DeleteCertAuthority(ctx, ca.GetID()), s.authServer.DeleteCertAuthority(ctx, ca2.GetID()))
+	}
+
 	s.testResourceCommand(t, ctx, resourceCommandTestCase{
-		resource:        ca,
-		resourceCreate:  createCertAuthority,
-		resourceCleanup: deleteCertAuthority,
-		testGetList:     true,
+		resource:         ca,
+		resourceCreate:   createCertAuthority,
+		resourceCleanup:  deleteCertAuthority,
+		testGetList:      true,
+		resourcesCreate:  createCertAuthorities,
+		resourcesCleanup: deleteCertAuthorities,
 	})
 
 	s.testEditCommand(t, ctx, editCommandTestCase{
@@ -864,6 +903,9 @@ type resourceCommandTestCase struct {
 	// Tests get/list resource, for privileged resources
 	// like tokens that should require MFA to be seen.
 	testGetList bool
+	// Used to test listing resources when testGetList is true
+	resourcesCreate  func() error
+	resourcesCleanup func() error
 }
 
 func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Context, tc resourceCommandTestCase) {
@@ -925,8 +967,8 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 			s.testCommand(t, ctx, adminActionTestCase{
 				command:    fmt.Sprintf("get --with-secrets %v", tc.resource.GetKind()),
 				cliCommand: &tctl.ResourceCommand{},
-				setup:      tc.resourceCreate,
-				cleanup:    tc.resourceCleanup,
+				setup:      tc.resourcesCreate,
+				cleanup:    tc.resourcesCleanup,
 			})
 		})
 	}
