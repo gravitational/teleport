@@ -162,6 +162,8 @@ export function validateResourceAccess(
       return runRules(resource, databaseAccessValidationRules);
     case 'windows_desktop':
       return runRules(resource, windowsDesktopAccessValidationRules);
+    case 'git_server':
+      return { valid: true };
     default:
       kind satisfies never;
   }
@@ -172,7 +174,8 @@ export type ResourceAccessValidationResult =
   | KubernetesAccessValidationResult
   | AppAccessValidationResult
   | DatabaseAccessValidationResult
-  | WindowsDesktopAccessValidationResult;
+  | WindowsDesktopAccessValidationResult
+  | GitHubOrganizationAccessValidationResult;
 
 const validKubernetesResource = (res: KubernetesResourceModel) => () => {
   const kind = validKubernetesKind(res.kind.value, res.roleVersion);
@@ -299,6 +302,8 @@ const windowsDesktopAccessValidationRules = {
 export type WindowsDesktopAccessValidationResult = RuleSetValidationResult<
   typeof windowsDesktopAccessValidationRules
 >;
+
+export type GitHubOrganizationAccessValidationResult = ValidationResult;
 
 export function validateAccessRuleList(
   rules: RuleModel[],

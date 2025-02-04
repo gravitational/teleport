@@ -1832,3 +1832,8 @@ create-github-release:
 .PHONY: go-mod-tidy-all
 go-mod-tidy-all:
 	find . -type "f" -name "go.mod" -execdir go mod tidy \;
+
+.PHONY: dump-preset-roles
+dump-preset-roles:
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go run ./build.assets/dump-preset-roles/main.go
+	pnpm test web/packages/teleport/src/Roles/RoleEditor/StandardEditor/standardmodel.test.ts
