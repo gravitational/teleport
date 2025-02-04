@@ -2151,7 +2151,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 			if capabilities.RequestPrompt != "" {
 				msg = msg + ", prompt=" + capabilities.RequestPrompt
 			}
-			err := trace.BadParameter(msg)
+			err := trace.BadParameter("%s", msg)
 			logoutErr := tc.Logout()
 			return trace.NewAggregate(err, logoutErr)
 		}
@@ -2744,8 +2744,7 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 			return trace.Wrap(err)
 		}); err != nil {
 			if strings.Contains(err.Error(), services.InvalidKubernetesKindAccessRequest) {
-				friendlyMsg := fmt.Sprintf("%s\nTry searching for specific kinds with:\n> tsh request search --kube-cluster=KUBE_CLUSTER_NAME --kind=KIND", err.Error())
-				return trace.BadParameter(friendlyMsg)
+				return trace.BadParameter("%s\nTry searching for specific kinds with:\n> tsh request search --kube-cluster=KUBE_CLUSTER_NAME --kind=KIND", err.Error())
 			}
 			return trace.Wrap(err)
 		}
@@ -5299,9 +5298,9 @@ func onRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.Acces
 			msg = fmt.Sprintf("%s, reason=%q", msg, reason)
 		}
 		if req.GetState().IsDenied() {
-			return trace.AccessDenied(msg)
+			return trace.AccessDenied("%s", msg)
 		}
-		return trace.Errorf(msg)
+		return trace.Errorf("%s", msg)
 	}
 
 	msg := "\nApproval received, getting updated certificates...\n\n"

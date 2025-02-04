@@ -137,7 +137,7 @@ func secretKeyFromAWSARN(inputARN string) (string, error) {
 	// elasticache/<region>/<account-id>/user/<user-id>
 	parsed, err := arn.Parse(inputARN)
 	if err != nil {
-		return "", trace.BadParameter(err.Error())
+		return "", trace.BadParameter("%s", err)
 	}
 	return secrets.Key(
 		parsed.Service,

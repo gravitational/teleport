@@ -566,7 +566,7 @@ func (e *Engine) processServerResponse(cmd *redis.Cmd, err error, sessionCtx *co
 
 	switch {
 	case e.isIAMAuthError(err):
-		return common.ConvertConnectError(trace.AccessDenied(err.Error()), sessionCtx), nil
+		return common.ConvertConnectError(trace.AccessDenied("%s", err), sessionCtx), nil
 	case isRedisError(err):
 		// Redis errors should be returned to the client.
 		return err, nil

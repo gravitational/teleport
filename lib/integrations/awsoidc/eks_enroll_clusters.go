@@ -394,7 +394,7 @@ func enrollEKSCluster(ctx context.Context, log *slog.Logger, clock clockwork.Clo
 	if req.IsCloud && !eksCluster.ResourcesVpcConfig.EndpointPublicAccess {
 		return "",
 			usertasks.AutoDiscoverEKSIssueMissingEndpoingPublicAccess,
-			trace.AccessDenied(`can't enroll %q because it is not accessible from Teleport Cloud, please enable endpoint public access in your EKS cluster and try again.`, clusterName)
+			trace.AccessDenied("can't enroll %q because it is not accessible from Teleport Cloud, please enable endpoint public access in your EKS cluster and try again.", clusterName)
 	}
 
 	// When clusters are using CONFIG_MAP, API is not acessible and thus Teleport can't install the Teleport's Helm chart.

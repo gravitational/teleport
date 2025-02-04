@@ -88,9 +88,9 @@ func ConvertError(err error) error {
 func convertGCPError(err *googleapi.Error) error {
 	switch err.Code {
 	case http.StatusForbidden:
-		return trace.AccessDenied(err.Error())
+		return trace.AccessDenied("%s", err)
 	case http.StatusConflict:
-		return trace.CompareFailed(err.Error())
+		return trace.CompareFailed("%s", err)
 	}
 	return err // Return unmodified.
 }
@@ -99,7 +99,7 @@ func convertGCPError(err *googleapi.Error) error {
 func convertPostgresError(err *pgconn.PgError) error {
 	switch err.Code {
 	case pgerrcode.InvalidAuthorizationSpecification, pgerrcode.InvalidPassword:
-		return trace.AccessDenied(err.Error())
+		return trace.AccessDenied("%s", err)
 	}
 	return err // Return unmodified.
 }
@@ -108,7 +108,7 @@ func convertPostgresError(err *pgconn.PgError) error {
 func convertMySQLError(err *mysql.MyError) error {
 	switch err.Code {
 	case mysql.ER_ACCESS_DENIED_ERROR, mysql.ER_DBACCESS_DENIED_ERROR:
-		return trace.AccessDenied(fmtEscape(err))
+		return trace.AccessDenied("%s", fmtEscape(err))
 	}
 	return err // Return unmodified.
 }

@@ -2060,18 +2060,18 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadResourceJSON(r, req); err != nil {
 		logger.ErrorContext(r.Context(), "Error reading json", "error", err)
-		return nil, trace.AccessDenied(SSOLoginFailureMessage)
+		return nil, trace.AccessDenied("%s", SSOLoginFailureMessage)
 	}
 
 	if err := req.CheckAndSetDefaults(); err != nil {
 		logger.ErrorContext(r.Context(), "Missing request parameters", "error", err)
-		return nil, trace.AccessDenied(SSOLoginFailureMessage)
+		return nil, trace.AccessDenied("%s", SSOLoginFailureMessage)
 	}
 
 	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Failed to parse request remote address", "error", err)
-		return nil, trace.AccessDenied(SSOLoginFailureMessage)
+		return nil, trace.AccessDenied("%s", SSOLoginFailureMessage)
 	}
 
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
@@ -2090,9 +2090,9 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Failed to create GitHub auth request", "error", err)
 		if strings.Contains(err.Error(), auth.InvalidClientRedirectErrorMessage) {
-			return nil, trace.AccessDenied(SSOLoginFailureInvalidRedirect)
+			return nil, trace.AccessDenied("%s", SSOLoginFailureInvalidRedirect)
 		}
-		return nil, trace.AccessDenied(SSOLoginFailureMessage)
+		return nil, trace.AccessDenied("%s", SSOLoginFailureMessage)
 	}
 
 	return &client.SSOLoginConsoleResponse{
@@ -4872,7 +4872,7 @@ func (h *Handler) validateCookie(w http.ResponseWriter, r *http.Request) (*Sessi
 	const missingCookieMsg = "missing session cookie"
 	cookie, err := r.Cookie(websession.CookieName)
 	if err != nil || (cookie != nil && cookie.Value == "") {
-		return nil, trace.AccessDenied(missingCookieMsg)
+		return nil, trace.AccessDenied("%s", missingCookieMsg)
 	}
 	decodedCookie, err := websession.DecodeCookie(cookie.Value)
 	if err != nil {

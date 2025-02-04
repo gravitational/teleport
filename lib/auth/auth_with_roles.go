@@ -7748,22 +7748,22 @@ func checkOktaLockTarget(ctx context.Context, authzCtx *authz.Context, users ser
 	target := lock.Target()
 	switch {
 	case !target.Equals(types.LockTarget{User: target.User}):
-		return trace.BadParameter(errorMsg)
+		return trace.BadParameter("%s", errorMsg)
 
 	case target.User == "":
-		return trace.BadParameter(errorMsg)
+		return trace.BadParameter("%s", errorMsg)
 	}
 
 	targetUser, err := users.GetUser(ctx, target.User, false /* withSecrets */)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return trace.AccessDenied(errorMsg)
+			return trace.AccessDenied("%s", errorMsg)
 		}
 		return trace.Wrap(err)
 	}
 
 	if targetUser.Origin() != types.OriginOkta {
-		return trace.AccessDenied(errorMsg)
+		return trace.AccessDenied("%s", errorMsg)
 	}
 
 	return nil
