@@ -1,0 +1,95 @@
+// Copyright 2024 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.workloadidentity.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/workloadidentity/v1/revocation_resource.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1";
+
+// WorkloadIdentityRevocationService provides methods to manage the
+// revocation of issued workload identity credentials.
+service WorkloadIdentityRevocationService {
+  // CreateWorkloadIdentity creates a new workload identity, it will refuse to
+  // create a workload identity if one already exists with the same name.
+  rpc CreateWorkloadIdentityX509Revocation(CreateWorkloadIdentityX509RevocationRequest) returns (WorkloadIdentityX509Revocation);
+  // UpsertWorkloadIdentity creates or updates a workload identity. You should
+  // prefer to call Create or Update.
+  rpc UpsertWorkloadIdentityX509Revocation(UpsertWorkloadIdentityX509RevocationRequest) returns (WorkloadIdentityX509Revocation);
+  // UpdateWorkloadIdentity updates an existing workload identity, it will refuse
+  // to update a workload identity if one does not already exist with the same name.
+  //
+  // ConditionalUpdate semantics are applied, e.g, the update will only succeed
+  // if the revision of the provided WorkloadIdentity matches the revision of
+  // the existing WorkloadIdentity.
+  rpc UpdateWorkloadIdentityX509Revocation(UpdateWorkloadIdentityX509RevocationRequest) returns (WorkloadIdentityX509Revocation);
+  // GetWorkloadIdentity retrieves a workload identity by name.
+  rpc GetWorkloadIdentityX509Revocation(GetWorkloadIdentityX509RevocationRequest) returns (WorkloadIdentityX509Revocation);
+  // DeleteWorkloadIdentity deletes a workload identity by name.
+  rpc DeleteWorkloadIdentityX509Revocation(DeleteWorkloadIdentityX509RevocationRequest) returns (google.protobuf.Empty);
+  // ListWorkloadIdentities of all workload identities, pagination semantics are
+  // applied.
+  rpc ListWorkloadIdentityX509Revocations(ListWorkloadIdentityX509RevocationsRequest) returns (ListWorkloadIdentityX509RevocationsResponse);
+}
+
+// The request for CreateWorkloadIdentity.
+message CreateWorkloadIdentityX509RevocationRequest {
+  // The workload identity to create.
+  WorkloadIdentityX509Revocation workload_identity_x509_revocation = 1;
+}
+
+// The request for UpdateWorkloadIdentity.
+message UpdateWorkloadIdentityX509RevocationRequest {
+  // The workload identity to update.
+  WorkloadIdentityX509Revocation workload_identity_x509_revocation = 1;
+}
+
+// The request for UpsertWorkloadIdentityRequest.
+message UpsertWorkloadIdentityX509RevocationRequest {
+  // The workload identity to upsert.
+  WorkloadIdentityX509Revocation workload_identity_x509_revocation = 1;
+}
+
+// The request for GetWorkloadIdentity.
+message GetWorkloadIdentityX509RevocationRequest {
+  // The name of the workload identity to retrieve.
+  string name = 1;
+}
+
+// The request for DeleteWorkloadIdentity.
+message DeleteWorkloadIdentityX509RevocationRequest {
+  // The name of the workload identity to delete.
+  string name = 1;
+}
+
+// The request for ListWorkloadIdentities.
+message ListWorkloadIdentityX509RevocationsRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The page_token value returned from a previous ListWorkloadIdentities request, if any.
+  string page_token = 2;
+}
+
+// The response for ListWorkloadIdentities.
+message ListWorkloadIdentityX509RevocationsResponse {
+  // The page of workload identities that matched the request.
+  repeated WorkloadIdentityX509Revocation workload_identity_x509_revocations = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}

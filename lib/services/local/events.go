@@ -254,6 +254,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newGitServerParser()
 		case types.KindWorkloadIdentity:
 			parser = newWorkloadIdentityParser()
+		case types.KindWorkloadIdentityX509Revocation:
+			parser = newWorkloadIdentityX509RevocationParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -3209,6 +3211,46 @@ func (p *workloadIdentityParser) parse(event backend.Event) (types.Resource, err
 		}, nil
 	case types.OpPut:
 		resource, err := services.UnmarshalWorkloadIdentity(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision))
+		if err != nil {
+			return nil, trace.Wrap(err, "unmarshalling resource from event")
+		}
+		return types.Resource153ToLegacy(resource), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newWorkloadIdentityX509RevocationParser() *workloadIdentityX509RevocationParser {
+	return &workloadIdentityX509RevocationParser{
+		baseParser: newBaseParser(backend.NewKey(workloadIdentityX509RevocationPrefix)),
+	}
+}
+
+type workloadIdentityX509RevocationParser struct {
+	baseParser
+}
+
+func (p *workloadIdentityX509RevocationParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(workloadIdentityX509RevocationPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindWorkloadIdentityX509Revocation,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		resource, err := services.UnmarshalWorkloadIdentityX509Revocation(
 			event.Item.Value,
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision))
