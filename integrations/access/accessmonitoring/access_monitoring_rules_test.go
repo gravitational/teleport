@@ -44,10 +44,6 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 	rule1, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, &pb.AccessMonitoringRuleSpec{
 		Subjects:  []string{types.KindAccessRequest},
 		Condition: "true",
-		Notification: &pb.Notification{
-			Name:       "fakePluginName",
-			Recipients: []string{"a", "b"},
-		},
 	})
 	require.NoError(t, err)
 	amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
@@ -56,18 +52,11 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 	})
 	require.Len(t, amrh.getAccessMonitoringRules(), 1,
 		"cache AMRs with subject == 'access_request'")
-
-	require.Equal(t, `plugin.spec.name == "fakePluginName" && true`,
-		amrh.getAccessMonitoringRules()["rule1"].GetSpec().GetCondition(),
-		"AMR condition should be modified to include plugin.spec.name validation")
+	require.Equal(t, `true`, amrh.getAccessMonitoringRules()["rule1"].GetSpec().GetCondition())
 
 	rule2, err := services.NewAccessMonitoringRuleWithLabels("rule2", nil, &pb.AccessMonitoringRuleSpec{
 		Subjects:  []string{types.KindAccessList},
 		Condition: "true",
-		Notification: &pb.Notification{
-			Name:       "aDifferentFakePlugin",
-			Recipients: []string{"a", "b"},
-		},
 	})
 	require.NoError(t, err)
 	amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
@@ -82,4 +71,57 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 		Resource: types.Resource153ToLegacy(rule1),
 	})
 	require.Empty(t, amrh.getAccessMonitoringRules())
+}
+
+func TestNotificationRule(t *testing.T) {
+	amrh := NewRuleHandler(RuleHandlerConfig{
+		PluginType:             "fakePluginType",
+		PluginName:             "fakePluginName",
+		FetchRecipientCallback: mockFetchRecipient,
+	})
+
+	// Support empty notification name.
+	rule1, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, &pb.AccessMonitoringRuleSpec{
+		Subjects:  []string{types.KindAccessRequest},
+		Condition: "true",
+		Notification: &pb.Notification{
+			Recipients: []string{"a", "b"},
+		},
+	})
+	require.NoError(t, err)
+	amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
+		Type:     types.OpPut,
+		Resource: types.Resource153ToLegacy(rule1),
+	})
+	require.Equal(t, `true`, amrh.getAccessMonitoringRules()["rule1"].GetSpec().GetCondition())
+
+	// Support nil notification.
+	rule2, err := services.NewAccessMonitoringRuleWithLabels("rule2", nil, &pb.AccessMonitoringRuleSpec{
+		Subjects:  []string{types.KindAccessRequest},
+		Condition: "true",
+	})
+	require.NoError(t, err)
+	amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
+		Type:     types.OpPut,
+		Resource: types.Resource153ToLegacy(rule2),
+	})
+	require.Equal(t, `true`, amrh.getAccessMonitoringRules()["rule2"].GetSpec().GetCondition())
+
+	// Support notification name.
+	rule3, err := services.NewAccessMonitoringRuleWithLabels("rule3", nil, &pb.AccessMonitoringRuleSpec{
+		Subjects:  []string{types.KindAccessRequest},
+		Condition: "true",
+		Notification: &pb.Notification{
+			Name:       "fakePluginName",
+			Recipients: []string{"a", "b"},
+		},
+	})
+	require.NoError(t, err)
+	amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
+		Type:     types.OpPut,
+		Resource: types.Resource153ToLegacy(rule3),
+	})
+	require.Equal(t, `plugin.spec.name == "fakePluginName" && true`,
+		amrh.getAccessMonitoringRules()["rule3"].GetSpec().GetCondition(),
+		"AMR condition should be modified to include plugin.spec.name validation")
 }
