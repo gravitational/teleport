@@ -27,7 +27,6 @@ import type {
   DiscoverDiscoveryConfigMethod,
   DiscoverEventResource,
 } from 'teleport/services/userEvent';
-import { DiscoverGuideId } from 'teleport/services/userPreferences/discoverPreference';
 
 import { ResourceKind } from '../Shared/ResourceKind';
 
@@ -70,11 +69,6 @@ export enum KubeLocation {
 }
 
 export interface ResourceSpec {
-  id: DiscoverGuideId;
-  /**
-   * true if user pinned this guide
-   */
-  pinned?: boolean;
   dbMeta?: { location: DatabaseLocation; engine: DatabaseEngine };
   appMeta?: { awsConsole?: boolean };
   nodeMeta?: {

@@ -23,7 +23,8 @@ import { DiscoverEventResource } from 'teleport/services/userEvent';
 import { DiscoverGuideId } from 'teleport/services/userPreferences/discoverPreference';
 
 import { ResourceKind } from '../../Shared/ResourceKind';
-import { DatabaseEngine, DatabaseLocation, ResourceSpec } from '../types';
+import { DatabaseEngine, DatabaseLocation } from '../types';
+import { SelectResourceSpec } from './resources';
 
 const baseDatabaseKeywords = ['db', 'database', 'databases'];
 const awsKeywords = [...baseDatabaseKeywords, 'aws', 'amazon web services'];
@@ -37,7 +38,7 @@ const azureKeywords = [...baseDatabaseKeywords, 'microsoft azure'];
 
 // DATABASES_UNGUIDED_DOC are documentations that is not specific
 // to one type of database.
-export const DATABASES_UNGUIDED_DOC: ResourceSpec[] = [
+export const DATABASES_UNGUIDED_DOC: SelectResourceSpec[] = [
   {
     id: DiscoverGuideId.DatabaseAwsRdsProxyPostgres,
     dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.Doc },
@@ -98,7 +99,7 @@ export const DATABASES_UNGUIDED_DOC: ResourceSpec[] = [
   },
 ];
 
-export const DATABASES_UNGUIDED: ResourceSpec[] = [
+export const DATABASES_UNGUIDED: SelectResourceSpec[] = [
   {
     id: DiscoverGuideId.DatabaseAwsDynamoDb,
     dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.DynamoDb },
@@ -375,7 +376,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
   },
 ];
 
-export const DATABASES: ResourceSpec[] = [
+export const DATABASES: SelectResourceSpec[] = [
   {
     id: DiscoverGuideId.DatabaseAwsRdsPostgres,
     dbMeta: {

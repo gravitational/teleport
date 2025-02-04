@@ -30,16 +30,16 @@ import {
 
 import { getResourcePretitle } from '.';
 import { DiscoverIcon } from './icons';
-import { type ResourceSpec } from './types';
+import { SelectResourceSpec } from './resources';
 
 export function Tile({
   resourceSpec,
   onChangeShowApp,
   onSelectResource,
 }: {
-  resourceSpec: ResourceSpec;
+  resourceSpec: SelectResourceSpec;
   onChangeShowApp(b: boolean): void;
-  onSelectResource(r: ResourceSpec): void;
+  onSelectResource(r: SelectResourceSpec): void;
 }) {
   const title = resourceSpec.name;
   const pretitle = getResourcePretitle(resourceSpec);

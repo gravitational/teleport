@@ -33,7 +33,7 @@ export enum DiscoverGuideId {
   ServerLinuxRhelCentos = 'server-linux-rhel-centos',
   ServerLinuxAmazon = 'server-linux-amazon',
   ServerMac = 'server-mac',
-  ServerAwsEc2Auto = 'server-aws-ec2-auto',
+  ServerAwsEc2Ssm = 'server-aws-ec2-ssm',
   ConnectMyComputer = 'connect-my-computer',
 
   // Applications:

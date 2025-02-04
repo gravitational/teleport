@@ -21,9 +21,9 @@ import { DiscoverEventResource } from 'teleport/services/userEvent';
 import { DiscoverGuideId } from 'teleport/services/userPreferences/discoverPreference';
 
 import { ResourceKind } from '../../Shared';
-import { ResourceSpec } from '../types';
+import { SelectResourceSpec } from './resources';
 
-export const SAML_APPLICATIONS: ResourceSpec[] = [
+export const SAML_APPLICATIONS: SelectResourceSpec[] = [
   {
     id: DiscoverGuideId.ApplicationSamlGeneric,
     name: 'SAML Application (Generic)',

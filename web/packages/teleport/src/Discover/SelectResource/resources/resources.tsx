@@ -39,11 +39,19 @@ import {
   DATABASES_UNGUIDED_DOC,
 } from './databases';
 
+export type SelectResourceSpec = ResourceSpec & {
+  id: DiscoverGuideId;
+  /**
+   * true if user pinned this guide
+   */
+  pinned?: boolean;
+};
+
 const baseServerKeywords = ['server', 'node', 'ssh'];
 const awsKeywords = ['aws', 'amazon', 'amazon web services'];
 const kubeKeywords = ['kubernetes', 'k8s', 'kubes', 'cluster'];
 
-export const SERVERS: ResourceSpec[] = [
+export const SERVERS: SelectResourceSpec[] = [
   {
     id: DiscoverGuideId.ServerLinuxUbuntu,
     name: 'Ubuntu 18.04+',
@@ -98,7 +106,7 @@ export const SERVERS: ResourceSpec[] = [
     platform: Platform.macOS,
   },
   {
-    id: DiscoverGuideId.ServerAwsEc2Auto,
+    id: DiscoverGuideId.ServerAwsEc2Ssm,
     name: 'EC2 Auto Enrollment via SSM',
     kind: ResourceKind.Server,
     keywords: [
@@ -135,7 +143,7 @@ export const SERVERS: ResourceSpec[] = [
   },
 ];
 
-export const APPLICATIONS: ResourceSpec[] = [
+export const APPLICATIONS: SelectResourceSpec[] = [
   {
     id: DiscoverGuideId.ApplicationWebHttpProxy,
     name: 'Web Application',
@@ -156,7 +164,7 @@ export const APPLICATIONS: ResourceSpec[] = [
   },
 ];
 
-export const WINDOWS_DESKTOPS: ResourceSpec[] = [
+export const WINDOWS_DESKTOPS: SelectResourceSpec[] = [
   {
     id: DiscoverGuideId.WindowsDesktopsActiveDirectory,
     name: 'Active Directory Users',
@@ -179,7 +187,7 @@ export const WINDOWS_DESKTOPS: ResourceSpec[] = [
   },
 ];
 
-export const KUBERNETES: ResourceSpec[] = [
+export const KUBERNETES: SelectResourceSpec[] = [
   {
     id: DiscoverGuideId.Kubernetes,
     name: 'Kubernetes',
@@ -200,7 +208,7 @@ export const KUBERNETES: ResourceSpec[] = [
   },
 ];
 
-export const BASE_RESOURCES: ResourceSpec[] = [
+export const BASE_RESOURCES: SelectResourceSpec[] = [
   ...APPLICATIONS,
   ...KUBERNETES,
   ...WINDOWS_DESKTOPS,
@@ -210,7 +218,7 @@ export const BASE_RESOURCES: ResourceSpec[] = [
   ...DATABASES_UNGUIDED_DOC,
 ];
 
-export function getResourcePretitle(r: ResourceSpec) {
+export function getResourcePretitle(r: SelectResourceSpec) {
   if (!r) {
     return '';
   }
