@@ -23,7 +23,6 @@ fi
 /bin/aws s3 sync \
     --exact-timestamps \
     --exclude="debug.sock" \
-    --exclude="*.sock" \
     s3://${TELEPORT_S3_BUCKET}/live/${TELEPORT_DOMAIN_NAME} /var/lib/teleport || {
     echo "Error during AWS S3 sync operation" >&2
     exit 1
