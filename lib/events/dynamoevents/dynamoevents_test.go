@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 const dynamoDBLargeQueryRetries int = 10
@@ -608,12 +609,23 @@ func randStringAlpha(n int) string {
 
 func TestEndpoints(t *testing.T) {
 	tests := []struct {
-		name string
-		fips bool
+		name          string
+		fips          bool
+		env           map[string]string
+		wantFIPSError bool
 	}{
 		{
-			name: "fips",
+			name:          "fips",
+			fips:          true,
+			wantFIPSError: true,
+		},
+		{
+			name: "fips with env skip",
 			fips: true,
+			env: map[string]string{
+				awsutils.EnvVarDisableDynamoDBFIPS: "yes",
+			},
+			wantFIPSError: false,
 		},
 		{
 			name: "without fips",
@@ -629,6 +641,10 @@ func TestEndpoints(t *testing.T) {
 				modules.SetTestModules(t, &modules.TestModules{
 					FIPS: true,
 				})
+			}
+
+			for k, v := range tt.env {
+				t.Setenv(k, v)
 			}
 
 			mux := http.NewServeMux()
@@ -655,15 +671,13 @@ func TestEndpoints(t *testing.T) {
 			})
 			// FIPS mode should fail because it is a violation to enable FIPS
 			// while also setting a custom endpoint.
-			if tt.fips {
-				assert.Error(t, err)
-				require.ErrorContains(t, err, "FIPS")
+			if tt.wantFIPSError {
+				assert.ErrorContains(t, err, "FIPS")
 				return
 			}
 
-			assert.Error(t, err)
-			assert.Nil(t, b)
-			require.ErrorContains(t, err, fmt.Sprintf("StatusCode: %d", http.StatusTeapot))
+			assert.ErrorContains(t, err, fmt.Sprintf("StatusCode: %d", http.StatusTeapot))
+			assert.Nil(t, b, "backend not nil")
 		})
 	}
 }
