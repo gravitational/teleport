@@ -23,7 +23,9 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/client"
 )
 
 // Login logs in a user to a cluster
@@ -116,7 +118,7 @@ func (s *Handler) GetAuthSettings(ctx context.Context, req *api.GetAuthSettingsR
 		return nil, trace.Wrap(err)
 	}
 
-	preferences, err := cluster.SyncAuthPreference(ctx)
+	preferences, pr, err := cluster.SyncAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -136,6 +138,24 @@ func (s *Handler) GetAuthSettings(ctx context.Context, req *api.GetAuthSettingsR
 		})
 	}
 
+	versions := client.Versions{
+		MinClient: pr.MinClientVersion,
+		Client:    teleport.Version,
+		Server:    pr.ServerVersion,
+	}
+
+	clientVersionStatus, err := client.GetClientVersionStatus(versions)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	result.ClientVersionStatus = libclientVersionStatusToAPIVersionStatus(clientVersionStatus)
+	result.Versions = &api.Versions{
+		MinClient: versions.MinClient,
+		Client:    versions.Client,
+		Server:    versions.Server,
+	}
+
 	return result, nil
 }
 
@@ -149,4 +169,19 @@ func (s *Handler) StartHeadlessWatcher(_ context.Context, req *api.StartHeadless
 	}
 
 	return &api.StartHeadlessWatcherResponse{}, nil
+}
+
+func libclientVersionStatusToAPIVersionStatus(vs client.ClientVersionStatus) api.ClientVersionStatus {
+	switch vs {
+	case client.ClientVersionOK:
+		return api.ClientVersionStatus_CLIENT_VERSION_STATUS_OK
+
+	case client.ClientVersionTooOld:
+		return api.ClientVersionStatus_CLIENT_VERSION_STATUS_TOO_OLD
+
+	case client.ClientVersionTooNew:
+		return api.ClientVersionStatus_CLIENT_VERSION_STATUS_TOO_NEW
+	}
+
+	return api.ClientVersionStatus_CLIENT_VERSION_STATUS_COMPAT_UNSPECIFIED
 }

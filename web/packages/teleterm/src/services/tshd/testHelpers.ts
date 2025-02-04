@@ -17,7 +17,10 @@
  */
 
 import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
-import { AuthSettings } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
+import {
+  AuthSettings,
+  ClientVersionStatus,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 import {
   ACL,
   ShowResources,
@@ -359,5 +362,6 @@ export const makeAuthSettings = (
   authType: 'local',
   allowPasswordless: false,
   localConnectorName: '',
+  clientVersionStatus: ClientVersionStatus.OK,
   ...props,
 });
