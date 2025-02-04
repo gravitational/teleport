@@ -388,11 +388,17 @@ func (s *adminActionTestSuite) testTokens(t *testing.T) {
 	}
 
 	createTokens := func() error {
-		return trace.NewAggregate(s.authServer.CreateToken(ctx, token), s.authServer.CreateToken(ctx, token2))
+		return trace.NewAggregate(
+			s.authServer.CreateToken(ctx, token),
+			s.authServer.CreateToken(ctx, token2),
+		)
 	}
 
 	deleteTokens := func() error {
-		return trace.NewAggregate(s.authServer.DeleteToken(ctx, token.GetName()), s.authServer.DeleteToken(ctx, token2.GetName()))
+		return trace.NewAggregate(
+			s.authServer.DeleteToken(ctx, token.GetName()),
+			s.authServer.DeleteToken(ctx, token2.GetName()),
+		)
 	}
 
 	t.Run("TokensCommands", func(t *testing.T) {
@@ -518,11 +524,17 @@ func (s *adminActionTestSuite) testCertAuthority(t *testing.T) {
 	}
 
 	createCertAuthorities := func() error {
-		return trace.NewAggregate(s.authServer.CreateCertAuthority(ctx, ca), s.authServer.CreateCertAuthority(ctx, ca2))
+		return trace.NewAggregate(
+			s.authServer.CreateCertAuthority(ctx, ca),
+			s.authServer.CreateCertAuthority(ctx, ca2),
+		)
 	}
 
 	deleteCertAuthorities := func() error {
-		return trace.NewAggregate(s.authServer.DeleteCertAuthority(ctx, ca.GetID()), s.authServer.DeleteCertAuthority(ctx, ca2.GetID()))
+		return trace.NewAggregate(
+			s.authServer.DeleteCertAuthority(ctx, ca.GetID()),
+			s.authServer.DeleteCertAuthority(ctx, ca2.GetID()),
+		)
 	}
 
 	s.testResourceCommand(t, ctx, resourceCommandTestCase{
