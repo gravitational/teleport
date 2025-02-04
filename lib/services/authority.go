@@ -22,7 +22,6 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
@@ -316,24 +315,6 @@ func CertPool(ca types.CertAuthority) (*x509.CertPool, error) {
 		certPool.AddCert(cert)
 	}
 	return certPool, nil
-}
-
-// MarshalCertRoles marshal roles list to OpenSSH
-func MarshalCertRoles(roles []string) (string, error) {
-	out, err := json.Marshal(types.CertRoles{Version: types.V1, Roles: roles})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return string(out), err
-}
-
-// UnmarshalCertRoles marshals roles list to OpenSSH format
-func UnmarshalCertRoles(data string) ([]string, error) {
-	var certRoles types.CertRoles
-	if err := utils.FastUnmarshal([]byte(data), &certRoles); err != nil {
-		return nil, trace.BadParameter("%s", err)
-	}
-	return certRoles.Roles, nil
 }
 
 // UnmarshalCertAuthority unmarshals the CertAuthority resource to JSON.

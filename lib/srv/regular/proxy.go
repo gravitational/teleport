@@ -249,7 +249,8 @@ func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, clientSrc
 	}
 	identity := t.ctx.Identity
 
-	signer := agentless.SignerFromSSHCertificate(identity.Certificate, authClient, t.clusterName, identity.TeleportUser)
+	signer := agentless.SignerFromSSHIdentity(identity.UnmappedIdentity, authClient, t.clusterName, identity.TeleportUser)
+
 	aGetter := t.ctx.StartAgentChannel
 	conn, err := t.router.DialHost(ctx, clientSrcAddr, clientDstAddr, t.host, t.port, t.clusterName, t.ctx.Identity.AccessChecker, aGetter, signer)
 	if err != nil {

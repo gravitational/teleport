@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
@@ -178,7 +179,13 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signer := agentless.SignerFromSSHCertificate(cert, h.auth.accessPoint, tc.SiteName, tc.Username)
+
+	ident, err := sshca.DecodeIdentity(cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	signer := agentless.SignerFromSSHIdentity(ident, h.auth.accessPoint, tc.SiteName, tc.Username)
 
 	conn, err := h.cfg.Router.DialHost(
 		ctx,
