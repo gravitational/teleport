@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
@@ -157,11 +156,7 @@ func TestAWS(t *testing.T) {
 func TestAWSConsoleLogins(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	isInsecure := lib.IsInsecureDevMode()
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() {
-		lib.SetInsecureDevMode(isInsecure)
-	})
+
 	tmpHomePath := t.TempDir()
 	connector := mockConnector(t)
 

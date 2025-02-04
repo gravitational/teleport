@@ -5234,7 +5234,7 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 			name: "/webapi/mfa/authenticatechallenge",
 			clt:  authnClt,
 			ep:   []string{"webapi", "mfa", "authenticatechallenge"},
-			reqBody: createAuthenticateChallengeRequest{
+			reqBody: CreateAuthenticateChallengeRequest{
 				ChallengeScope: int(mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN),
 			},
 		},
@@ -8821,12 +8821,12 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 	for _, test := range []struct {
 		name       string
 		errMsg     string
-		getRequest func() isMFARequiredRequest
+		getRequest func() IsMFARequiredRequest
 	}{
 		{
 			name: "valid db req",
-			getRequest: func() isMFARequiredRequest {
-				return isMFARequiredRequest{
+			getRequest: func() IsMFARequiredRequest {
+				return IsMFARequiredRequest{
 					Database: &isMFARequiredDatabase{
 						ServiceName: "name",
 						Protocol:    "protocol",
@@ -8837,14 +8837,14 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 		{
 			name:   "invalid db req",
 			errMsg: "missing service_name",
-			getRequest: func() isMFARequiredRequest {
-				return isMFARequiredRequest{Database: &isMFARequiredDatabase{}}
+			getRequest: func() IsMFARequiredRequest {
+				return IsMFARequiredRequest{Database: &isMFARequiredDatabase{}}
 			},
 		},
 		{
 			name: "valid node req",
-			getRequest: func() isMFARequiredRequest {
-				return isMFARequiredRequest{
+			getRequest: func() IsMFARequiredRequest {
+				return IsMFARequiredRequest{
 					Node: &isMFARequiredNode{
 						NodeName: "name",
 						Login:    "login",
@@ -8855,14 +8855,14 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 		{
 			name:   "invalid node req",
 			errMsg: "missing login",
-			getRequest: func() isMFARequiredRequest {
-				return isMFARequiredRequest{Node: &isMFARequiredNode{}}
+			getRequest: func() IsMFARequiredRequest {
+				return IsMFARequiredRequest{Node: &isMFARequiredNode{}}
 			},
 		},
 		{
 			name: "valid kube req",
-			getRequest: func() isMFARequiredRequest {
-				return isMFARequiredRequest{
+			getRequest: func() IsMFARequiredRequest {
+				return IsMFARequiredRequest{
 					Kube: &isMFARequiredKube{
 						ClusterName: "name",
 					},
@@ -8872,14 +8872,14 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 		{
 			name:   "invalid kube req",
 			errMsg: "missing cluster_name",
-			getRequest: func() isMFARequiredRequest {
-				return isMFARequiredRequest{Kube: &isMFARequiredKube{}}
+			getRequest: func() IsMFARequiredRequest {
+				return IsMFARequiredRequest{Kube: &isMFARequiredKube{}}
 			},
 		},
 		{
 			name: "valid windows desktop req",
-			getRequest: func() isMFARequiredRequest {
-				return isMFARequiredRequest{
+			getRequest: func() IsMFARequiredRequest {
+				return IsMFARequiredRequest{
 					WindowsDesktop: &isMFARequiredWindowsDesktop{
 						DesktopName: "name",
 						Login:       "login",
@@ -8890,15 +8890,15 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 		{
 			name:   "invalid windows desktop req",
 			errMsg: "missing desktop_name",
-			getRequest: func() isMFARequiredRequest {
-				return isMFARequiredRequest{WindowsDesktop: &isMFARequiredWindowsDesktop{}}
+			getRequest: func() IsMFARequiredRequest {
+				return IsMFARequiredRequest{WindowsDesktop: &isMFARequiredWindowsDesktop{}}
 			},
 		},
 		{
 			name: "valid app req - resolve addr",
-			getRequest: func() isMFARequiredRequest {
-				return isMFARequiredRequest{
-					App: &isMFARequiredApp{
+			getRequest: func() IsMFARequiredRequest {
+				return IsMFARequiredRequest{
+					App: &IsMFARequiredApp{
 						ResolveAppParams: ResolveAppParams{
 							PublicAddr:  app.GetPublicAddr(),
 							ClusterName: env.server.ClusterName(),
@@ -8909,9 +8909,9 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 		},
 		{
 			name: "valid app req - resolve fqdn",
-			getRequest: func() isMFARequiredRequest {
-				return isMFARequiredRequest{
-					App: &isMFARequiredApp{
+			getRequest: func() IsMFARequiredRequest {
+				return IsMFARequiredRequest{
+					App: &IsMFARequiredApp{
 						ResolveAppParams: ResolveAppParams{
 							FQDNHint: fmt.Sprintf("%v.%v", app.GetName(), "proxy-1.example.com"),
 						},
@@ -8922,14 +8922,14 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 		{
 			name:   "invalid app req",
 			errMsg: "no inputs to resolve application",
-			getRequest: func() isMFARequiredRequest {
-				return isMFARequiredRequest{App: &isMFARequiredApp{}}
+			getRequest: func() IsMFARequiredRequest {
+				return IsMFARequiredRequest{App: &IsMFARequiredApp{}}
 			},
 		},
 		{
 			name: "valid admin action req",
-			getRequest: func() isMFARequiredRequest {
-				return isMFARequiredRequest{
+			getRequest: func() IsMFARequiredRequest {
+				return IsMFARequiredRequest{
 					AdminAction: &isMFARequiredAdminAction{},
 				}
 			},
@@ -8937,15 +8937,15 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 		{
 			name:   "invalid empty req",
 			errMsg: "missing target",
-			getRequest: func() isMFARequiredRequest {
-				return isMFARequiredRequest{}
+			getRequest: func() IsMFARequiredRequest {
+				return IsMFARequiredRequest{}
 			},
 		},
 		{
 			name:   "invalid multi field",
 			errMsg: "only one target is allowed",
-			getRequest: func() isMFARequiredRequest {
-				return isMFARequiredRequest{
+			getRequest: func() IsMFARequiredRequest {
+				return IsMFARequiredRequest{
 					Kube: &isMFARequiredKube{
 						ClusterName: "name",
 					},
