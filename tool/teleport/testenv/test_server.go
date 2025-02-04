@@ -26,6 +26,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -408,9 +410,52 @@ func WithProxyKube(t *testing.T) TestServerOptFunc {
 	})
 }
 
+// WithDebugApp enables the app service and the debug app.
+func WithDebugApp() TestServerOptFunc {
+	return WithConfig(func(cfg *servicecfg.Config) {
+		cfg.Apps.Enabled = true
+		cfg.Apps.DebugApp = true
+	})
+}
+
+// WithTestApp enables the app service and adds a test app server
+// with the given name.
+func WithTestApp(t *testing.T, name string) TestServerOptFunc {
+	appUrl := startDummyHTTPServer(t, name)
+	return WithConfig(func(cfg *servicecfg.Config) {
+		cfg.Apps.Enabled = true
+		cfg.Apps.Apps = append(cfg.Apps.Apps,
+			servicecfg.App{
+				Name: name,
+				URI:  appUrl,
+				StaticLabels: map[string]string{
+					"name": name,
+				},
+			})
+	})
+}
+
+func startDummyHTTPServer(t *testing.T, name string) string {
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Server", name)
+		_, _ = w.Write([]byte("hello"))
+	}))
+
+	srv.Start()
+
+	t.Cleanup(func() {
+		srv.Close()
+	})
+
+	return srv.URL
+}
+
 func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServer *service.TeleportProcess, additionalRoleMappings ...types.RoleMapping) {
-	// TODO(noah): This function relies on extremely specific cluster names
-	// being used, it should be more resilient.
+	// Use insecure mode so that the trusted cluster can establish trust over reverse tunnel.
+	isInsecure := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(isInsecure) })
+
 	rootProxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
 	rootProxyTunnelAddr, err := rootServer.ProxyTunnelAddr()
@@ -434,9 +479,15 @@ func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServ
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		rt, err := rootServer.GetAuthServer().GetTunnelConnections("leaf")
+		rt, err := rootServer.GetAuthServer().GetTunnelConnections(leafServer.Config.Auth.ClusterName.GetClusterName())
 		assert.NoError(t, err)
 		assert.Len(t, rt, 1)
+	}, time.Second*10, time.Second)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rts, err := rootServer.GetAuthServer().GetRemoteClusters(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, rts, 1)
 	}, time.Second*10, time.Second)
 }
 

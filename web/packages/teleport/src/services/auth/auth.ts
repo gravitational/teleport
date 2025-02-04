@@ -390,6 +390,9 @@ function base64EncodeUnicode(str: string) {
 
 export default auth;
 
+// TODO(Joerger): In order to check if mfa is required for a leaf host, the leaf
+// clusterID must be included in the request. Currently, only IsMfaRequiredApp
+// supports this functionality.
 export type IsMfaRequiredRequest =
   | IsMfaRequiredDatabase
   | IsMfaRequiredNode
