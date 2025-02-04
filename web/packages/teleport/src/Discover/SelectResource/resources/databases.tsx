@@ -169,7 +169,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     event: DiscoverEventResource.DatabaseRedisAzureCache,
   },
   {
-    id: DiscoverGuideId.DatabaseAzurePostgresSql,
+    id: DiscoverGuideId.DatabaseAzurePostgres,
     dbMeta: {
       location: DatabaseLocation.Azure,
       engine: DatabaseEngine.Postgres,
@@ -377,7 +377,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
 
 export const DATABASES: ResourceSpec[] = [
   {
-    id: DiscoverGuideId.DatabaseAwsRdsPostgresSql,
+    id: DiscoverGuideId.DatabaseAwsRdsPostgres,
     dbMeta: {
       location: DatabaseLocation.Aws,
       engine: DatabaseEngine.Postgres,
@@ -389,7 +389,7 @@ export const DATABASES: ResourceSpec[] = [
     event: DiscoverEventResource.DatabasePostgresRds,
   },
   {
-    id: DiscoverGuideId.DatabaseAwsRdsAuroraPostgresSql,
+    id: DiscoverGuideId.DatabaseAwsRdsAuroraPostgres,
     dbMeta: {
       location: DatabaseLocation.Aws,
       engine: DatabaseEngine.AuroraPostgres,
@@ -422,7 +422,7 @@ export const DATABASES: ResourceSpec[] = [
     event: DiscoverEventResource.DatabaseMysqlRds,
   },
   {
-    id: DiscoverGuideId.DatabasePostgresSql,
+    id: DiscoverGuideId.DatabasePostgres,
     dbMeta: {
       location: DatabaseLocation.SelfHosted,
       engine: DatabaseEngine.Postgres,

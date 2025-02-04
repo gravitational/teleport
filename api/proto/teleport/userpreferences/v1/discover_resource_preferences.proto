@@ -18,13 +18,8 @@ package teleport.userpreferences.v1;
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1;userpreferencesv1";
 
-// DiscoverGuidePreferences holds preferences related to discover resource guides.
-message DiscoverGuidePreferences {
-  // pinned_guides is a list of ids of pinned guides.
-  repeated string pinned_guides = 1;
-}
-
 // DiscoverResourcePreferences holds preferences related to discovering resource.
 message DiscoverResourcePreferences {
-  DiscoverGuidePreferences discover_guide_preferences = 1;
+  // pinned_guides is a list of ids of pinned guides.
+  repeated string pinned_guides = 1;
 }

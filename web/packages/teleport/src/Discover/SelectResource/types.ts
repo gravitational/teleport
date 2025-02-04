@@ -70,6 +70,7 @@ export enum KubeLocation {
 }
 
 export interface ResourceSpec {
+  id: DiscoverGuideId;
   /**
    * true if user pinned this guide
    */
@@ -132,7 +133,6 @@ export interface ResourceSpec {
    * An empty array or undefined means that the resource supports all auth types.
    */
   supportedAuthTypes?: AuthType[];
-  id: DiscoverGuideId;
 }
 
 export enum SearchResource {

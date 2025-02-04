@@ -58,9 +58,9 @@ export enum DiscoverGuideId {
   DatabaseAwsRedshiftServerless = 'database-aws-redshift-serverless',
   DatabaseAwsSqlServerAd = 'database-aws-sql-server-ad',
   DatabaseAwsPostgresRedshift = 'database-aws-postgres-redshift',
-  DatabaseAwsRdsPostgresSql = 'database-aws-rds-postgres-sql',
+  DatabaseAwsRdsPostgres = 'database-aws-rds-postgres',
   DatabaseAwsRdsProxyPostgres = 'database-aws-rds-proxy-postgres',
-  DatabaseAwsRdsAuroraPostgresSql = 'database-aws-rds-aurora-postgres-sql',
+  DatabaseAwsRdsAuroraPostgres = 'database-aws-rds-aurora-postgres',
   DatabaseAwsRdsProxySqlServer = 'database-aws-rds-proxy-sql-server',
   DatabaseAwsRdsProxyMariaMySql = 'database-aws-rds-proxy-maria-mysql',
   DatabaseAwsRdsAuroraMysql = 'database-aws-rds-aurora-mysql',
@@ -70,7 +70,7 @@ export enum DiscoverGuideId {
   DatabaseDynamicRegistration = 'database-dynamic-registration',
 
   DatabaseAzureRedis = 'database-azure-redis',
-  DatabaseAzurePostgresSql = 'database-azure-postgres-sql',
+  DatabaseAzurePostgres = 'database-azure-postgres',
   DatabaseAzureMysql = 'database-azure-mysql',
   DatabaseAzureSqlServerAd = 'database-azure-sql-server-ad',
 
@@ -85,6 +85,6 @@ export enum DiscoverGuideId {
   DatabaseRedis = 'database-redis',
   DatabaseRedisCluster = 'database-redis-cluster',
   DatabaseSnowflake = 'database-snowflake',
-  DatabasePostgresSql = 'database-postgres-sql',
+  DatabasePostgres = 'database-postgres',
   DatabaseMysql = 'database-mysql',
 }
