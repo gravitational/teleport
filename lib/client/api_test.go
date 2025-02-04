@@ -1563,7 +1563,7 @@ Future versions of tsh will fail when incompatible versions are detected.
 			minClientVersion, err := semver.NewVersion(test.serverVersion)
 			require.NoError(t, err)
 			minClientVersion.Major = minClientVersion.Major - 1
-			warning, err := getClientIncompatibilityWarning(versions{
+			warning, err := getClientIncompatibilityWarning(Versions{
 				MinClient: minClientVersion.String(),
 				Client:    test.clientVersion,
 				Server:    test.serverVersion,
