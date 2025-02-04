@@ -299,10 +299,6 @@ func tickFile(ctx context.Context, path string, ch chan<- int, tickC <-chan time
 func (s SystemdService) waitForReady(ctx context.Context, pid int, tickC <-chan time.Time) error {
 	for {
 		ready, err := s.Ready.GetReadiness(ctx)
-		if trace.IsNotFound(err) {
-			s.Log.WarnContext(ctx, "Socket appears to be missing readiness endpoint.", unitKey, s.ServiceName)
-			return nil
-		}
 		if err == nil &&
 			ready.Ready &&
 			equalOrZero(ready.PID, pid) {
@@ -311,6 +307,10 @@ func (s SystemdService) waitForReady(ctx context.Context, pid int, tickC <-chan 
 		select {
 		case <-ctx.Done():
 			var netError net.Error
+			if trace.IsNotFound(err) {
+				s.Log.WarnContext(ctx, "Socket appears to be missing readiness endpoint.", unitKey, s.ServiceName)
+				return nil
+			}
 			if errors.Is(err, os.ErrNotExist) ||
 				errors.Is(err, syscall.EINVAL) ||
 				errors.Is(err, os.ErrInvalid) ||
