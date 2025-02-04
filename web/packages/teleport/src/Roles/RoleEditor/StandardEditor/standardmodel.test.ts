@@ -20,6 +20,7 @@ import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
 import {
   CreateDBUserMode,
   CreateHostUserMode,
+  GitHubPermission,
   KubernetesResource,
   Labels,
   RequireMFAType,
@@ -31,6 +32,7 @@ import {
   SSHPortForwarding,
 } from 'teleport/services/resources';
 
+import presetRoles from '../../../../../../../gen/preset-roles.json';
 import {
   createDBUserModeOptionsMap,
   createHostUserModeOptionsMap,
@@ -246,6 +248,31 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
           logins: [
             { label: 'alice', value: 'alice' },
             { label: 'bob', value: 'bob' },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    name: 'GitHub organization',
+    role: {
+      ...minimalRole(),
+      spec: {
+        ...minimalRole().spec,
+        allow: {
+          github_permissions: [{ orgs: ['illuminati', 'reptilians'] }],
+        },
+      },
+    },
+    model: {
+      ...minimalRoleModel(),
+      resources: [
+        {
+          kind: 'git_server',
+          organizations: [
+            { label: 'illuminati', value: 'illuminati' },
+            { label: 'reptilians', value: 'reptilians' },
           ],
         },
       ],
@@ -559,6 +586,31 @@ describe('roleToRoleEditorModel', () => {
                 verbs: [kubernetesVerbOptionsMap.get('get')],
               }),
             ],
+          },
+        ],
+      },
+    },
+
+    {
+      name: 'unknown field in github_permissions',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          allow: {
+            ...minRole.spec.allow,
+            github_permissions: [
+              { orgs: ['foo'], unknownField: 123 } as GitHubPermission,
+            ],
+          },
+        },
+      },
+      model: {
+        ...roleModelWithReset,
+        resources: [
+          {
+            kind: 'git_server',
+            organizations: [{ label: 'foo', value: 'foo' }],
           },
         ],
       },
@@ -992,6 +1044,40 @@ describe('roleToRoleEditorModel', () => {
       ],
     } as RoleEditorModel);
   });
+
+  test('multiple github_permissions', () => {
+    expect(
+      roleToRoleEditorModel({
+        ...minimalRole(),
+        spec: {
+          ...minimalRole().spec,
+          allow: {
+            ...minimalRole().spec.allow,
+            github_permissions: [{ orgs: ['foo'] }, { orgs: ['bar'] }],
+          },
+        },
+      })
+    ).toEqual({
+      ...minimalRoleModel(),
+      resources: [
+        {
+          kind: 'git_server',
+          organizations: [
+            { label: 'foo', value: 'foo' },
+            { label: 'bar', value: 'bar' },
+          ],
+        },
+      ],
+    } as RoleEditorModel);
+  });
+
+  it.each(['access', 'editor', 'auditor'])(
+    'supports the preset "%s" role',
+    roleName => {
+      const { requiresReset } = roleToRoleEditorModel(presetRoles[roleName]);
+      expect(requiresReset).toBe(false);
+    }
+  );
 });
 
 test('labelsToModel', () => {

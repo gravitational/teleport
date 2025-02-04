@@ -27,6 +27,7 @@ import { RoleVersion } from 'teleport/services/resources';
 import {
   AppAccessSection,
   DatabaseAccessSection,
+  GitHubOrganizationAccessSection,
   KubernetesAccessSection,
   ServerAccessSection,
   WindowsDesktopAccessSection,
@@ -35,6 +36,7 @@ import {
   AppAccess,
   DatabaseAccess,
   defaultRoleVersion,
+  GitHubOrganizationAccess,
   KubernetesAccess,
   newResourceAccess,
   ServerAccess,
@@ -42,6 +44,7 @@ import {
 } from './standardmodel';
 import { StatefulSection } from './StatefulSection';
 import {
+  GitHubOrganizationAccessValidationResult,
   ResourceAccessValidationResult,
   validateResourceAccess,
 } from './validation';
@@ -515,6 +518,46 @@ describe('WindowsDesktopAccessSection', () => {
     expect(
       screen.getByPlaceholderText('label key')
     ).toHaveAccessibleDescription('required');
+  });
+});
+
+describe('GitHubOrganizationAccessSection', () => {
+  const setup = () => {
+    const onChange = jest.fn();
+    let validator: Validator;
+    render(
+      <StatefulSection<
+        GitHubOrganizationAccess,
+        GitHubOrganizationAccessValidationResult
+      >
+        component={GitHubOrganizationAccessSection}
+        defaultValue={newResourceAccess('git_server', defaultRoleVersion)}
+        onChange={onChange}
+        validatorRef={v => {
+          validator = v;
+        }}
+        validate={validateResourceAccess}
+      />
+    );
+    return { user: userEvent.setup(), onChange, validator };
+  };
+
+  test('editing', async () => {
+    const { onChange } = setup();
+    await selectEvent.create(
+      screen.getByLabelText('Organization Names'),
+      'illuminati',
+      {
+        createOptionText: 'Organization: illuminati',
+      }
+    );
+    expect(onChange).toHaveBeenLastCalledWith({
+      kind: 'git_server',
+      organizations: [
+        expect.objectContaining({ value: '{{internal.github_orgs}}' }),
+        expect.objectContaining({ label: 'illuminati', value: 'illuminati' }),
+      ],
+    } as GitHubOrganizationAccess);
   });
 });
 
