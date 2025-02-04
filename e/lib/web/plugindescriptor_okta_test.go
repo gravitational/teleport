@@ -35,7 +35,7 @@ import (
 )
 
 const (
-	oktaTestOrg         = "https://example-org.okta.com"
+	oktaTestOrg         = "https://test-okta-org.example.com"
 	oktaTestClusterName = "okta-test.teleport.com"
 	oktaAPIToken        = "001ABCdefGh_IJkLmnoPQRst23UVwxyz456"
 	oktaAppID           = "0oafxqCAJWWGELFTYASJ"
@@ -172,10 +172,10 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 		},
 		{
 			name:                      "missing URL scheme is fixed",
-			orgURL:                    "example-org.okta.com",
+			orgURL:                    "test-okta-org.example.com",
 			enableOktaSCIMEntitlement: true,
 			enabledAccessListSync:     false,
-			correctedOrgURL:           "https://example-org.okta.com",
+			correctedOrgURL:           "https://test-okta-org.example.com",
 			expectSCIMToken:           requireEqualTo(oktaSCIMToken),
 			expectSCIMTokenCred:       require.NoError,
 			expectAppFilters:          require.Empty,
@@ -992,6 +992,6 @@ const testEntityDescriptor = `
 		</ds:KeyInfo>
 	</md:KeyDescriptor>
 	<md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
-	<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="http://example.com/saml/acs/example"/>
+	<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://test-okta-org.example.com/saml/acs/example"/>
 	</md:IDPSSODescriptor>
 </md:EntityDescriptor>`

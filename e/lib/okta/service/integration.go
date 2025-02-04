@@ -3,7 +3,7 @@ package oktaservice
 import (
 	"context"
 	"log/slog"
-	"net/url"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -89,23 +89,30 @@ func (s *Service) GetApps(ctx context.Context, req *oktapb.GetAppsRequest) (*okt
 }
 
 func validateCreateIntegrationRequest(req *oktapb.CreateIntegrationRequest) error {
-	// Plugin can be setup only based on the SSO metadata URL or Okta organization URL.
-	if req.GetSsoMetadataUrl() == "" {
-		// If SSO metadata URL is not provided, Okta organization URL is required because
-		// it can be extracted from the SSO metadata URL.
-		if req.GetOktaOrganizationUrl() == "" {
-			return trace.BadParameter("missing Okta organization URL")
-		}
-		u, err := url.Parse(req.GetOktaOrganizationUrl())
+	var err error
+	if req.GetOktaOrganizationUrl() != "" {
+		req.OktaOrganizationUrl, err = validateAndSanitizeUrl(req.GetOktaOrganizationUrl())
 		if err != nil {
-			return trace.BadParameter("invalid Okta organization URL: %v", err)
-		}
-		if u.Scheme == "" {
-			u.Scheme = "https"
-			req.OktaOrganizationUrl = u.String()
+			return trace.Wrap(err)
 		}
 	}
-
+	if req.GetSsoMetadataUrl() != "" {
+		req.SsoMetadataUrl, err = validateAndSanitizeUrl(req.GetSsoMetadataUrl())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if req.GetOktaOrganizationUrl() == "" {
+			req.OktaOrganizationUrl, err = sso.ExtractOktaOrganizationFromURL(req.GetSsoMetadataUrl())
+			if err != nil {
+				return trace.Wrap(err, "extracting Okta org URL from SSO meatadata URL")
+			}
+		}
+	}
+	if req.GetOktaOrganizationUrl() != "" && req.GetSsoMetadataUrl() != "" {
+		if !strings.HasPrefix(req.GetSsoMetadataUrl(), req.GetOktaOrganizationUrl()) {
+			return trace.BadParameter("SSO metadata URL must have the same hostname as Okta ")
+		}
+	}
 	if req.GetApiCredentials() == nil {
 		// Credentials are required for access list sync, user sync, and group sync.
 		// Otherwise, the plugin will not be able to fetch and sync required data.

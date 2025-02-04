@@ -287,7 +287,7 @@ func fetchAndSetClientScopes(client *okta.Client) error {
 		Scopes:           client.GetConfig().Okta.Client.Scopes,
 	})
 	if err := auth.Authorize(); err != nil {
-		return trace.Wrap(err, "failed to authorize")
+		return trace.Wrap(err, "failed to authorize with scopes %v", client.GetConfig().Okta.Client.Scopes)
 	}
 	client.GetConfig().Okta.Client.Scopes = strings.Split(tr.accessToken.Scope, " ")
 	return nil

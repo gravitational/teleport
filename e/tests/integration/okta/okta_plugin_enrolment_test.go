@@ -135,7 +135,6 @@ func TestPluginEnrolmentSSOMetadataURL(t *testing.T) {
 
 	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
 	_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-		OktaOrganizationUrl:  "https://trial-1234567.okta.com",
 		ApiCredentials:       apiCredentials,
 		EnableAccessListSync: true,
 		EnableAppGroupSync:   true,
@@ -200,7 +199,6 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 
 	t.Run("enroll okta integration with SCIM only", func(t *testing.T) {
 		_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-			OktaOrganizationUrl:  "https://trial-1234567.okta.com",
 			ScimToken:            scimToken,
 			EnableAccessListSync: false,
 			EnableAppGroupSync:   false,

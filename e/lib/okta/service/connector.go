@@ -95,7 +95,7 @@ func (s *Service) pluginInstallReuseExistingSAMLConnector(ctx context.Context, r
 	if err != nil {
 		msg := err.Error()
 		if trace.IsAccessDenied(err) {
-			msg = fmt.Sprintf("Could not access Okta SAML application. Please ensure that your API token has \"Manage applications\" permission or, if your token is scoped to a resource set, that it grants access to all apps. These permissions are only required during this integration setup flow and can be removed afterwards.\n\n%s", err)
+			msg = fmt.Sprintf("Could not access Okta SAML application. Please ensure that your API Services app or your API token has \"Manage applications\" permission and the assigned resource set grants access to all apps. These permissions are only required during this integration setup flow and can be removed afterwards.\n\n%s", err)
 		}
 		// Using the CompareFailed error here results in the HTTP response
 		// returning http.StatusPreconditionFailed, which we can use as a signal
@@ -134,12 +134,21 @@ func (s *Service) getOrCreateSAMLConnector(ctx context.Context, req *oktapb.Crea
 		connInfo, createErr := s.pluginInstallCreateSAMLConnector(ctx, req, connectorName, pingInfo.ClusterName, publicURL)
 		if createErr != nil {
 			if trace.IsAccessDenied(err) {
-				return nil, trace.AccessDenied("Could not create Okta SAML application. Please ensure that your API token has \"Manage applications\" permission or, if your token is scoped to a resource set, that it grants access to all apps. These permissions are only required during this integration setup flow and can be removed afterwards.\n\n%s", err)
+				return nil, trace.AccessDenied("Could not create Okta SAML application. Please ensure that your API Services app or your API token has \"Manage applications\" permission and the assigned resource set grants access to all apps. These permissions are only required during this integration setup flow and can be removed afterwards.\n\n%s", err)
 			}
 			return nil, trace.Wrap(createErr, "creating SAML connector %s", connectorName)
 		}
 		return connInfo, nil
 	default:
+		orgUrl, err := sso.ExtractOktaOrganizationFromURL(samlConnector.GetSSO())
+		if err != nil {
+			return nil, trace.Wrap(err, "extracting Okta org URL from connector %q", samlConnector.GetName())
+		}
+		if req.GetOktaOrganizationUrl() == "" {
+			req.OktaOrganizationUrl = orgUrl
+		} else if req.GetOktaOrganizationUrl() != orgUrl {
+			return nil, trace.BadParameter("request Okta org URL %q does not match existing connector Okta org URL %q", req.GetOktaOrganizationUrl(), orgUrl)
+		}
 		// If the connector already exists, reuse it.
 		// And try to fetch additional details about Okta setup like Okta Application Name or Okta Application ID
 		// that are usable to display Okta plugins status page.
