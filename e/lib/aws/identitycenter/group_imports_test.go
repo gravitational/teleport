@@ -656,7 +656,7 @@ func TestMaybeImportGroupAndGroupMembersPropagatesError(t *testing.T) {
 	const errorMsg = "invalid credential"
 	// maybeImportGroupAndGroupMembers eventually calls ListPermissionSets method to fetch permission sets.
 	sdkClient.MonkeyPatch.ListPermissionSets = func(context.Context) ([]*icsdk.PermissionSet, error) {
-		return nil, trace.AccessDenied(errorMsg)
+		return nil, trace.AccessDenied("%s", errorMsg)
 	}
 	tEnv.setICSDKClient(sdkClient)
 

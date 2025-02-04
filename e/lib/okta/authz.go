@@ -77,7 +77,7 @@ func (a *assignmentProcessor) getOktaAppIDFromAppServer(ctx context.Context, nam
 		return oktaAppID(appID), nil
 	}
 
-	return "", trace.BadParameter(`app_server %q does not have an Okta App ID`, name)
+	return "", trace.BadParameter("app_server %q does not have an Okta App ID", name)
 }
 
 // getAppServer will return the singular app server given a name.
@@ -94,7 +94,7 @@ func (a *assignmentProcessor) getAppServer(ctx context.Context, name string) (ty
 	}
 
 	if len(resp.Resources) != 1 {
-		return nil, trace.NotFound(`app_server %q doesn't exist`, name)
+		return nil, trace.NotFound("app_server %q doesn't exist", name)
 	}
 
 	appServers, err := types.ResourcesWithLabels(resp.Resources).AsAppServers()

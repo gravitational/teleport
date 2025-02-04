@@ -167,7 +167,7 @@ func (c *authnCeremony) authenticate(
 	case dev.EnrollStatus != devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED:
 		const deviceNotEnrolled = "device not enrolled"
 		return nil, auditStatusError{
-			Err:         trace.BadParameter(deviceNotEnrolled),
+			Err:         trace.BadParameter("%s", deviceNotEnrolled),
 			UserMessage: deviceNotEnrolled,
 		}
 	// Sanity check, this shouldn't happen for an enrolled device.
@@ -181,7 +181,7 @@ func (c *authnCeremony) authenticate(
 	case dev.Credential.Id != initReq.CredentialId:
 		const unknownCredential = "unknown device credential"
 		return nil, auditStatusError{
-			Err:         trace.BadParameter(unknownCredential),
+			Err:         trace.BadParameter("%s", unknownCredential),
 			UserMessage: unknownCredential,
 		}
 	}

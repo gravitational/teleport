@@ -813,7 +813,7 @@ func TestSynchronizeUsers(t *testing.T) {
 		// while enumerating Okta users...
 		client.MonkeyPatch.IterateAppUsers =
 			func(context.Context, oktaAppID, func(*okta.AppUser) error) error {
-				return trace.AccessDenied(errorText)
+				return trace.AccessDenied("%s", errorText)
 			}
 
 		// WHEN I try to sync the Teleport user DB with Okta

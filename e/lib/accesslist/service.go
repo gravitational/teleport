@@ -523,7 +523,7 @@ func (s *Service) updateOrUpsertAccessList(ctx context.Context, accessList *acce
 	}
 
 	if !oktaModificationAllowed(*authCtx, oldAccessList, newAccessList) {
-		return nil, trace.AccessDenied(oktaErrorMsg)
+		return nil, trace.AccessDenied("%s", oktaErrorMsg)
 	}
 
 	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
@@ -1391,7 +1391,7 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 	}
 
 	if accessListModified && !oktaModificationAllowed(*authCtx, oldAccessList, newAccessList) {
-		return nil, updated, accessListModified, nil, trace.AccessDenied(oktaErrorMsg)
+		return nil, updated, accessListModified, nil, trace.AccessDenied("%s", oktaErrorMsg)
 	}
 
 	hasRBAC := authErrOld == nil && authErrNew == nil

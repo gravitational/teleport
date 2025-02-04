@@ -49,11 +49,11 @@ func extractBearerToken(authHeader string) (string, error) {
 
 	parts := strings.Split(authHeader, " ")
 	if len(parts) != 2 {
-		return "", trace.BadParameter(errMsg)
+		return "", trace.BadParameter("%s", errMsg)
 	}
 
 	if strings.ToLower(parts[0]) != hdrBearer {
-		return "", trace.BadParameter(errMsg)
+		return "", trace.BadParameter("%s", errMsg)
 	}
 
 	return strings.TrimSpace(parts[1]), nil

@@ -64,18 +64,18 @@ func (p *Plugin) oidcLoginConsole(w http.ResponseWriter, r *http.Request, params
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadJSON(r, req); err != nil {
 		logger.ErrorContext(r.Context(), "Error reading json", "error", err)
-		return nil, trace.AccessDenied(web.SSOLoginFailureMessage)
+		return nil, trace.AccessDenied("%s", web.SSOLoginFailureMessage)
 	}
 
 	if err := req.CheckAndSetDefaults(); err != nil {
 		logger.ErrorContext(r.Context(), "Missing request parameters", "error", err)
-		return nil, trace.AccessDenied(web.SSOLoginFailureMessage)
+		return nil, trace.AccessDenied("%s", web.SSOLoginFailureMessage)
 	}
 
 	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Failed to parse request remote address", "error", err)
-		return nil, trace.AccessDenied(web.SSOLoginFailureMessage)
+		return nil, trace.AccessDenied("%s", web.SSOLoginFailureMessage)
 	}
 
 	proxyClient := p.h.GetProxyClient()
@@ -103,9 +103,9 @@ func (p *Plugin) oidcLoginConsole(w http.ResponseWriter, r *http.Request, params
 			return nil, trace.Wrap(err)
 		}
 		if strings.Contains(err.Error(), auth.InvalidClientRedirectErrorMessage) {
-			return nil, trace.AccessDenied(web.SSOLoginFailureInvalidRedirect)
+			return nil, trace.AccessDenied("%s", web.SSOLoginFailureInvalidRedirect)
 		}
-		return nil, trace.AccessDenied(web.SSOLoginFailureMessage)
+		return nil, trace.AccessDenied("%s", web.SSOLoginFailureMessage)
 	}
 
 	return &client.SSOLoginConsoleResponse{
@@ -236,18 +236,18 @@ func (p *Plugin) samlSSOConsole(w http.ResponseWriter, r *http.Request, params h
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadJSON(r, req); err != nil {
 		logger.ErrorContext(r.Context(), "Error reading json", "error", err)
-		return nil, trace.AccessDenied(web.SSOLoginFailureMessage)
+		return nil, trace.AccessDenied("%s", web.SSOLoginFailureMessage)
 	}
 
 	if err := req.CheckAndSetDefaults(); err != nil {
 		logger.ErrorContext(r.Context(), "Missing request parameters", "error", err)
-		return nil, trace.AccessDenied(web.SSOLoginFailureMessage)
+		return nil, trace.AccessDenied("%s", web.SSOLoginFailureMessage)
 	}
 
 	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Failed to parse request remote address", "error", err)
-		return nil, trace.AccessDenied(web.SSOLoginFailureMessage)
+		return nil, trace.AccessDenied("%s", web.SSOLoginFailureMessage)
 	}
 
 	proxyClient := p.h.GetProxyClient()
@@ -273,9 +273,9 @@ func (p *Plugin) samlSSOConsole(w http.ResponseWriter, r *http.Request, params h
 			return nil, trace.Wrap(err)
 		}
 		if strings.Contains(err.Error(), auth.InvalidClientRedirectErrorMessage) {
-			return nil, trace.AccessDenied(web.SSOLoginFailureInvalidRedirect)
+			return nil, trace.AccessDenied("%s", web.SSOLoginFailureInvalidRedirect)
 		}
-		return nil, trace.AccessDenied(web.SSOLoginFailureMessage)
+		return nil, trace.AccessDenied("%s", web.SSOLoginFailureMessage)
 	}
 
 	return &client.SSOLoginConsoleResponse{RedirectURL: response.RedirectURL}, nil

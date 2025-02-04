@@ -554,7 +554,7 @@ func TestGroupUpdate(t *testing.T) {
 			name:         "updating a non-existent group is an error",
 			resourceID:   newACLID,
 			makeResource: setID(newACLID, mkGroup(newACLDisplayName, 5)),
-			getACLResult: []any{nil, trace.NotFound(newACLID)},
+			getACLResult: []any{nil, trace.NotFound("%s", newACLID)},
 			expectError:  requireNotFound,
 			expectValue:  require.Nil,
 		},
@@ -702,7 +702,7 @@ func TestGroupDelete(t *testing.T) {
 		{
 			name:         "deleting a non-existent group is an error",
 			resourceID:   newACLID,
-			getACLResult: []any{nil, trace.NotFound(newACLID)},
+			getACLResult: []any{nil, trace.NotFound("%s", newACLID)},
 			expectError:  requireNotFound,
 		},
 		{

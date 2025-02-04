@@ -102,7 +102,7 @@ func TestSSOConnectorCreation(t *testing.T) {
 		samlConnectors := &mockSamlConnectors{}
 		samlConnectors.
 			On("GetSAMLConnector", mock.Anything, testConnectorName).
-			Return(nil, trace.NotFound(testConnectorName))
+			Return(nil, trace.NotFound("%s", testConnectorName))
 		samlConnectors.
 			On("CreateSAMLConnector", mock.Anything, mock.Anything).
 			Run(func(args mock.Arguments) {
@@ -231,7 +231,7 @@ func TestSSOConnectorCreation(t *testing.T) {
 		samlConnectors := &mockSamlConnectors{}
 		samlConnectors.
 			On("GetSAMLConnector", mock.Anything, testConnectorName).
-			Return(nil, trace.NotFound(testConnectorName))
+			Return(nil, trace.NotFound("%s", testConnectorName))
 		samlConnectors.
 			On("CreateSAMLConnector", mock.Anything, mock.Anything).
 			Return(nil, nil)

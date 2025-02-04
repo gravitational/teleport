@@ -44,7 +44,7 @@ func configureLicense(cfg *servicecfg.Config) (*licensefile.LicenseFile, error) 
 
 	if isLicenseDeprecated(licenseFile) {
 		log.DebugContext(ctx, "tried to start auth server with a deprecated license")
-		return nil, trace.AccessDenied(DeprecatedLicenseWarning)
+		return nil, trace.AccessDenied("%s", DeprecatedLicenseWarning)
 	}
 
 	log.InfoContext(ctx, "Successfully loaded license.", "license", licenseFile.License)

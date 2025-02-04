@@ -1459,7 +1459,7 @@ func (s *Service) redactDataDriftErr(dev *devicepb.Device, err error) error {
 		"device_id", dev.GetId(),
 		"asset_tag", dev.GetAssetTag(),
 	)
-	return trace.AccessDenied(DataDriftDetectedMessage)
+	return trace.AccessDenied("%s", DataDriftDetectedMessage)
 }
 
 // authorizeAccess authorizes the ctx user, verifies the Device Trust feature
