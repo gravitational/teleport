@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -55,6 +56,9 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 	require.NoError(t, err)
 
 	cert, err := apisshutils.ParseCertificate([]byte(fixtures.UserCertificateStandard))
+	require.NoError(t, err)
+
+	ident, err := sshca.DecodeIdentity(cert)
 	require.NoError(t, err)
 
 	sshConn := &mockSSHConn{}
@@ -76,9 +80,9 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 		srv:                    srv,
 		sessionID:              rsession.NewID(),
 		Identity: IdentityContext{
-			Login:        usr.Username,
-			TeleportUser: "teleportUser",
-			Certificate:  cert,
+			UnmappedIdentity: ident,
+			Login:            usr.Username,
+			TeleportUser:     "teleportUser",
 			// roles do not actually exist in mock backend, just need a non-nil
 			// access checker to avoid panic
 			AccessChecker: services.NewAccessCheckerWithRoleSet(
