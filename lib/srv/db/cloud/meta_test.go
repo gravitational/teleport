@@ -28,16 +28,17 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/memorydb"
 	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
+	opensearch "github.com/aws/aws-sdk-go-v2/service/opensearch"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -135,9 +136,6 @@ func TestAWSMetadata(t *testing.T) {
 
 	// Create metadata fetcher.
 	metadata, err := NewMetadata(MetadataConfig{
-		Clients: &cloud.TestCloudClients{
-			STS: &fakeSTS.STSClientV1,
-		},
 		AWSConfigProvider: &mocks.AWSConfigProvider{
 			STSClient: fakeSTS,
 		},
@@ -418,9 +416,6 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 
 	// Create metadata fetcher.
 	metadata, err := NewMetadata(MetadataConfig{
-		Clients: &cloud.TestCloudClients{
-			STS: &fakeSTS.STSClientV1,
-		},
 		AWSConfigProvider: &mocks.AWSConfigProvider{
 			STSClient: fakeSTS,
 		},
@@ -503,12 +498,14 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 }
 
 type fakeAWSClients struct {
-	ecClient       elasticacheClient
-	iamClient      iamClient
-	mdbClient      memoryDBClient
-	rdsClient      rdsClient
-	redshiftClient redshiftClient
-	rssClient      rssClient
+	ecClient         elasticacheClient
+	iamClient        iamClient
+	mdbClient        memoryDBClient
+	openSearchClient openSearchClient
+	rdsClient        rdsClient
+	redshiftClient   redshiftClient
+	rssClient        rssClient
+	stsClient        stsClient
 }
 
 func (f fakeAWSClients) getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient {
@@ -523,6 +520,10 @@ func (f fakeAWSClients) getMemoryDBClient(cfg aws.Config, optFns ...func(*memory
 	return f.mdbClient
 }
 
+func (f fakeAWSClients) getOpenSearchClient(cfg aws.Config, optFns ...func(*opensearch.Options)) openSearchClient {
+	return f.openSearchClient
+}
+
 func (f fakeAWSClients) getRDSClient(aws.Config, ...func(*rds.Options)) rdsClient {
 	return f.rdsClient
 }
@@ -533,4 +534,8 @@ func (f fakeAWSClients) getRedshiftClient(aws.Config, ...func(*redshift.Options)
 
 func (f fakeAWSClients) getRedshiftServerlessClient(aws.Config, ...func(*rss.Options)) rssClient {
 	return f.rssClient
+}
+
+func (f fakeAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient {
+	return f.stsClient
 }

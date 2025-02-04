@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 )
 
@@ -44,7 +43,6 @@ type urlChecker struct {
 	// awsClients is an SDK client provider.
 	awsClients awsClientProvider
 
-	clients     cloud.Clients
 	logger      *slog.Logger
 	warnOnError bool
 
@@ -60,7 +58,6 @@ func newURLChecker(cfg DiscoveryResourceCheckerConfig) *urlChecker {
 	return &urlChecker{
 		awsConfigProvider: cfg.AWSConfigProvider,
 		awsClients:        defaultAWSClients{},
-		clients:           cfg.Clients,
 		logger:            cfg.Logger,
 		warnOnError:       getWarnOnError(),
 	}

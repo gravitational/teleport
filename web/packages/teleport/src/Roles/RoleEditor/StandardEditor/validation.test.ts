@@ -19,11 +19,16 @@
 import { ResourceKind } from 'teleport/services/resources';
 
 import {
+  defaultRoleVersion,
+  kubernetesResourceKindOptionsMap,
+  kubernetesVerbOptionsMap,
+  newKubernetesResourceModel,
   ResourceAccess,
   roleToRoleEditorModel,
   RuleModel,
 } from './standardmodel';
 import {
+  KubernetesAccessValidationResult,
   validateAccessRule,
   validateResourceAccess,
   validateRoleEditorModel,
@@ -32,7 +37,10 @@ import { withDefaults } from './withDefaults';
 
 const minimalRoleModel = () =>
   roleToRoleEditorModel(
-    withDefaults({ metadata: { name: 'role-name' }, version: 'v7' })
+    withDefaults({
+      metadata: { name: 'role-name' },
+      version: defaultRoleVersion,
+    })
   );
 
 const validity = (arr: { valid: boolean }[]) => arr.map(it => it.valid);
@@ -58,6 +66,7 @@ describe('validateRoleEditorModel', () => {
         kind: 'kube_cluster',
         labels: [{ name: 'foo', value: 'bar' }],
         groups: [],
+        users: [],
         resources: [
           {
             id: 'dummy-id',
@@ -65,8 +74,10 @@ describe('validateRoleEditorModel', () => {
             name: 'res-name',
             namespace: 'dummy-namespace',
             verbs: [],
+            roleVersion: defaultRoleVersion,
           },
         ],
+        roleVersion: defaultRoleVersion,
       },
       {
         kind: 'node',
@@ -86,6 +97,7 @@ describe('validateRoleEditorModel', () => {
         roles: [{ label: 'some-role', value: 'some-role' }],
         names: [],
         users: [],
+        dbServiceLabels: [{ name: 'asdf', value: 'qwer' }],
       },
       {
         kind: 'windows_desktop',
@@ -98,6 +110,7 @@ describe('validateRoleEditorModel', () => {
         id: 'dummy-id',
         resources: [{ label: ResourceKind.Node, value: ResourceKind.Node }],
         verbs: [{ label: '*', value: '*' }],
+        where: '',
       },
     ];
     const result = validateRoleEditorModel(model, undefined, undefined);
@@ -129,6 +142,76 @@ describe('validateRoleEditorModel', () => {
     expect(result.isValid).toBe(false);
   });
 
+  test('forbids mixing "*" and other Kubernetes verbs', () => {
+    const model = minimalRoleModel();
+    model.resources = [
+      {
+        kind: 'kube_cluster',
+        groups: [],
+        labels: [],
+        users: [],
+        resources: [
+          {
+            ...newKubernetesResourceModel(defaultRoleVersion),
+            verbs: [
+              kubernetesVerbOptionsMap.get('*'),
+              kubernetesVerbOptionsMap.get('get'),
+            ],
+          },
+        ],
+        roleVersion: defaultRoleVersion,
+      },
+    ];
+    const result = validateRoleEditorModel(model, undefined, undefined);
+    expect(validity(result.resources)).toEqual([false]);
+  });
+
+  test.each`
+    roleVersion | results
+    ${'v3'}     | ${[false, true, false]}
+    ${'v4'}     | ${[false, true, false]}
+    ${'v5'}     | ${[false, true, false]}
+    ${'v6'}     | ${[false, true, false]}
+    ${'v7'}     | ${[true, true, true]}
+  `(
+    'correct types of resources allowed for $roleVersion',
+    ({ roleVersion, results }) => {
+      const model = minimalRoleModel();
+      model.resources = [
+        {
+          kind: 'kube_cluster',
+          groups: [],
+          labels: [],
+          users: [],
+          roleVersion,
+          resources: [
+            {
+              ...newKubernetesResourceModel(defaultRoleVersion),
+              kind: kubernetesResourceKindOptionsMap.get('job'),
+              roleVersion,
+            },
+            {
+              ...newKubernetesResourceModel(defaultRoleVersion),
+              kind: kubernetesResourceKindOptionsMap.get('pod'),
+              roleVersion,
+            },
+            {
+              ...newKubernetesResourceModel(defaultRoleVersion),
+              kind: kubernetesResourceKindOptionsMap.get('service'),
+              roleVersion,
+            },
+          ],
+        },
+      ];
+      const result = validateRoleEditorModel(model, undefined, undefined);
+      const resourceResult = result
+        .resources[0] as KubernetesAccessValidationResult;
+      expect(validity(resourceResult.fields.resources.results)).toEqual(
+        results
+      );
+    }
+  );
+
   test('invalid access rule', () => {
     const model = minimalRoleModel();
     model.rules = [
@@ -136,6 +219,7 @@ describe('validateRoleEditorModel', () => {
         id: 'dummy-id',
         resources: [],
         verbs: [{ label: '*', value: '*' }],
+        where: '',
       },
     ];
     const result = validateRoleEditorModel(model, undefined, undefined);
@@ -165,7 +249,12 @@ describe('validateResourceAccess', () => {
 
 describe('validateAccessRule', () => {
   it('reuses previously computed results', () => {
-    const rule: RuleModel = { id: 'some-id', resources: [], verbs: [] };
+    const rule: RuleModel = {
+      id: 'some-id',
+      resources: [],
+      verbs: [],
+      where: '',
+    };
     const result1 = validateAccessRule(rule, undefined, undefined);
     const result2 = validateAccessRule(rule, rule, result1);
     expect(result2).toBe(result1);

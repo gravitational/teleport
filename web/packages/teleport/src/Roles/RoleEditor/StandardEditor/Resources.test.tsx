@@ -22,6 +22,8 @@ import selectEvent from 'react-select-event';
 import { render, screen, userEvent } from 'design/utils/testing';
 import { Validator } from 'shared/components/Validation';
 
+import { RoleVersion } from 'teleport/services/resources';
+
 import {
   AppAccessSection,
   DatabaseAccessSection,
@@ -32,6 +34,7 @@ import {
 import {
   AppAccess,
   DatabaseAccess,
+  defaultRoleVersion,
   KubernetesAccess,
   newResourceAccess,
   ServerAccess,
@@ -50,7 +53,7 @@ describe('ServerAccessSection', () => {
     render(
       <StatefulSection<ServerAccess, ResourceAccessValidationResult>
         component={ServerAccessSection}
-        defaultValue={newResourceAccess('node')}
+        defaultValue={newResourceAccess('node', defaultRoleVersion)}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
@@ -104,13 +107,16 @@ describe('ServerAccessSection', () => {
 });
 
 describe('KubernetesAccessSection', () => {
-  const setup = () => {
+  const setup = (roleVersion: RoleVersion = defaultRoleVersion) => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
       <StatefulSection<KubernetesAccess, ResourceAccessValidationResult>
         component={KubernetesAccessSection}
-        defaultValue={newResourceAccess('kube_cluster')}
+        defaultValue={{
+          ...newResourceAccess('kube_cluster', defaultRoleVersion),
+          roleVersion,
+        }}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
@@ -134,6 +140,13 @@ describe('KubernetesAccessSection', () => {
     await user.click(screen.getByRole('button', { name: 'Add a Label' }));
     await user.type(screen.getByPlaceholderText('label key'), 'some-key');
     await user.type(screen.getByPlaceholderText('label value'), 'some-value');
+
+    await selectEvent.create(screen.getByLabelText('Users'), 'joe', {
+      createOptionText: 'User: joe',
+    });
+    await selectEvent.create(screen.getByLabelText('Users'), 'mary', {
+      createOptionText: 'User: mary',
+    });
 
     await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
     expect(
@@ -169,8 +182,14 @@ describe('KubernetesAccessSection', () => {
             expect.objectContaining({ value: 'create' }),
             expect.objectContaining({ value: 'delete' }),
           ],
+          roleVersion: 'v7',
         },
       ],
+      users: [
+        expect.objectContaining({ value: 'joe' }),
+        expect.objectContaining({ value: 'mary' }),
+      ],
+      roleVersion: 'v7',
     } as KubernetesAccess);
   });
 
@@ -228,12 +247,20 @@ describe('KubernetesAccessSection', () => {
   });
 
   test('validation', async () => {
-    const { user, validator } = setup();
+    const { user, validator } = setup(RoleVersion.V6);
     await user.click(screen.getByRole('button', { name: 'Add a Label' }));
     await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
+    await selectEvent.select(screen.getByLabelText('Kind'), 'Service');
     await user.clear(screen.getByLabelText('Name'));
     await user.clear(screen.getByLabelText('Namespace'));
+    await selectEvent.select(screen.getByLabelText('Verbs'), [
+      'All verbs',
+      'create',
+    ]);
     act(() => validator.validate());
+    expect(
+      screen.getByText('Only pods are allowed for role version v6')
+    ).toBeVisible();
     expect(
       screen.getByPlaceholderText('label key')
     ).toHaveAccessibleDescription('required');
@@ -243,6 +270,9 @@ describe('KubernetesAccessSection', () => {
     expect(screen.getByLabelText('Namespace')).toHaveAccessibleDescription(
       'Namespace is required for resources of this kind'
     );
+    expect(
+      screen.getByText('Mixing "All verbs" with other options is not allowed')
+    ).toBeVisible();
   });
 });
 
@@ -253,7 +283,7 @@ describe('AppAccessSection', () => {
     render(
       <StatefulSection<AppAccess, ResourceAccessValidationResult>
         component={AppAccessSection}
-        defaultValue={newResourceAccess('app')}
+        defaultValue={newResourceAccess('app', defaultRoleVersion)}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
@@ -359,7 +389,7 @@ describe('DatabaseAccessSection', () => {
     render(
       <StatefulSection<DatabaseAccess, ResourceAccessValidationResult>
         component={DatabaseAccessSection}
-        defaultValue={newResourceAccess('db')}
+        defaultValue={newResourceAccess('db', defaultRoleVersion)}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
@@ -372,9 +402,12 @@ describe('DatabaseAccessSection', () => {
 
   test('editing', async () => {
     const { user, onChange } = setup();
-    await user.click(screen.getByRole('button', { name: 'Add a Label' }));
-    await user.type(screen.getByPlaceholderText('label key'), 'env');
-    await user.type(screen.getByPlaceholderText('label value'), 'prod');
+
+    const labels = within(screen.getByRole('group', { name: 'Labels' }));
+    await user.click(labels.getByRole('button', { name: 'Add a Label' }));
+    await user.type(labels.getByPlaceholderText('label key'), 'env');
+    await user.type(labels.getByPlaceholderText('label value'), 'prod');
+
     await selectEvent.create(screen.getByLabelText('Database Names'), 'stuff', {
       createOptionText: 'Database Name: stuff',
     });
@@ -384,6 +417,16 @@ describe('DatabaseAccessSection', () => {
     await selectEvent.create(screen.getByLabelText('Database Roles'), 'admin', {
       createOptionText: 'Database Role: admin',
     });
+
+    const dbServiceLabels = within(
+      screen.getByRole('group', { name: 'Database Service Labels' })
+    );
+    await user.click(
+      dbServiceLabels.getByRole('button', { name: 'Add a Label' })
+    );
+    await user.type(dbServiceLabels.getByPlaceholderText('label key'), 'foo');
+    await user.type(dbServiceLabels.getByPlaceholderText('label value'), 'bar');
+
     expect(onChange).toHaveBeenLastCalledWith({
       kind: 'db',
       labels: [{ name: 'env', value: 'prod' }],
@@ -399,18 +442,29 @@ describe('DatabaseAccessSection', () => {
         expect.objectContaining({ value: '{{internal.db_users}}' }),
         expect.objectContaining({ label: 'mary', value: 'mary' }),
       ],
+      dbServiceLabels: [{ name: 'foo', value: 'bar' }],
     } as DatabaseAccess);
   });
 
   test('validation', async () => {
     const { user, validator } = setup();
-    await user.click(screen.getByRole('button', { name: 'Add a Label' }));
+    const labels = within(screen.getByRole('group', { name: 'Labels' }));
+    await user.click(labels.getByRole('button', { name: 'Add a Label' }));
+    const dbServiceLabelsGroup = within(
+      screen.getByRole('group', { name: 'Database Service Labels' })
+    );
+    await user.click(
+      dbServiceLabelsGroup.getByRole('button', { name: 'Add a Label' })
+    );
     await selectEvent.create(screen.getByLabelText('Database Roles'), '*', {
       createOptionText: 'Database Role: *',
     });
     act(() => validator.validate());
     expect(
-      screen.getByPlaceholderText('label key')
+      labels.getByPlaceholderText('label key')
+    ).toHaveAccessibleDescription('required');
+    expect(
+      dbServiceLabelsGroup.getByPlaceholderText('label key')
     ).toHaveAccessibleDescription('required');
     expect(
       screen.getByText('Wildcard is not allowed in database roles')
@@ -425,7 +479,7 @@ describe('WindowsDesktopAccessSection', () => {
     render(
       <StatefulSection<WindowsDesktopAccess, ResourceAccessValidationResult>
         component={WindowsDesktopAccessSection}
-        defaultValue={newResourceAccess('windows_desktop')}
+        defaultValue={newResourceAccess('windows_desktop', defaultRoleVersion)}
         onChange={onChange}
         validatorRef={v => {
           validator = v;

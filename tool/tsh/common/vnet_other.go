@@ -24,7 +24,7 @@ import (
 )
 
 // Satisfy unused linter.
-var _ = newVnetAppProvider
+var _ = newVnetClientApplication
 
 func newPlatformVnetAdminSetupCommand(app *kingpin.Application) vnetCLICommand {
 	return vnetCommandNotSupported{}

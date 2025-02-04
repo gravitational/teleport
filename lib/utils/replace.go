@@ -19,13 +19,13 @@
 package utils
 
 import (
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
 	lru "github.com/hashicorp/golang-lru/v2"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -128,7 +128,7 @@ func KubeResourceMatchesRegexWithVerbsCollector(input types.KubernetesResource, 
 		}
 	}
 
-	return matchedAny, maps.Keys(verbs), nil
+	return matchedAny, slices.Collect(maps.Keys(verbs)), nil
 }
 
 const (

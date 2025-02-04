@@ -35,7 +35,7 @@ export type SectionProps<Model, ValidationResult> = {
   value: Model;
   isProcessing: boolean;
   validation?: ValidationResult;
-  onChange?(value: Model): void;
+  onChange(value: Model): void;
 };
 
 /** Properties of a section that uses a dispatcher to change the model. */

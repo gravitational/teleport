@@ -232,25 +232,38 @@ var allowedCRLCertificateTypes = []string{
 	string(types.UserCA),
 }
 
+func (a *AuthCommand) exportAuthorities(ctx context.Context, clt authCommandClient) ([]*client.ExportedAuthority, error) {
+	switch {
+	case client.IsIntegrationAuthorityType(a.authType):
+		if a.exportPrivateKeys {
+			return nil, trace.BadParameter("exporting private keys is not supported for integration authorities")
+		}
+		return client.ExportIntegrationAuthorities(ctx, clt, client.ExportIntegrationAuthoritiesRequest{
+			AuthType:         a.authType,
+			MatchFingerprint: a.exportAuthorityFingerprint,
+			Integration:      a.integration,
+		})
+
+	case a.exportPrivateKeys:
+		return client.ExportAllAuthoritiesSecrets(ctx, clt, client.ExportAuthoritiesRequest{
+			AuthType:                   a.authType,
+			ExportAuthorityFingerprint: a.exportAuthorityFingerprint,
+			UseCompatVersion:           a.compatVersion == "1.0",
+		})
+	default:
+		return client.ExportAllAuthorities(ctx, clt, client.ExportAuthoritiesRequest{
+			AuthType:                   a.authType,
+			ExportAuthorityFingerprint: a.exportAuthorityFingerprint,
+			UseCompatVersion:           a.compatVersion == "1.0",
+		})
+	}
+}
+
 // ExportAuthorities outputs the list of authorities in OpenSSH compatible formats
 // If --type flag is given, only prints keys for CAs of this type, otherwise
 // prints all keys
 func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt authCommandClient) error {
-	exportFunc := client.ExportAllAuthorities
-	if a.exportPrivateKeys {
-		exportFunc = client.ExportAllAuthoritiesSecrets
-	}
-
-	authorities, err := exportFunc(
-		ctx,
-		clt,
-		client.ExportAuthoritiesRequest{
-			AuthType:                   a.authType,
-			ExportAuthorityFingerprint: a.exportAuthorityFingerprint,
-			UseCompatVersion:           a.compatVersion == "1.0",
-			Integration:                a.integration,
-		},
-	)
+	authorities, err := a.exportAuthorities(ctx, clt)
 	if err != nil {
 		return trace.Wrap(err)
 	}

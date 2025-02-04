@@ -32,3 +32,22 @@ var ErrVnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not imp
 func runPlatformUserProcess(_ context.Context, _ *UserProcessConfig) (*ProcessManager, error) {
 	return nil, trace.Wrap(ErrVnetNotImplemented)
 }
+
+func platformConfigureOS(_ context.Context, _ *osConfig) error {
+	return trace.Wrap(ErrVnetNotImplemented)
+}
+
+// Satisfy unused linter.
+var (
+	_ = osConfig{
+		tunName:    "",
+		tunIPv4:    "",
+		tunIPv6:    "",
+		dnsAddr:    "",
+		cidrRanges: nil,
+		dnsZones:   nil,
+	}
+	_ = tunIPv6ForPrefix
+	_ = newOSConfigurator
+	_ = (*osConfigurator).runOSConfigurationLoop
+)

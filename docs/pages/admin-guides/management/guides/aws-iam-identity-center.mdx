@@ -248,11 +248,11 @@ spec:
   allow:
     account_assignments:
     - account: "<account_id>" # AWS identity center account ID
-      name: AdministratorAccess # name of the permission set in AWS
-      permission_set: arn:aws:sso:::permissionSet/ssoins-1234/ps-5678 # permission set ARN
+      # permission set ARN of AdministratorAccess
+      permission_set: arn:aws:sso:::permissionSet/ssoins-1234/ps-5678
     - account: "<account_id>"
-      name: ReadOnlyAccess
-      permission_set: arn:aws:sso:::permissionSet/ssoins-1234/ps-8765
+      # permission set ARN of ReadOnlyAccess
+      permission_set: arn:aws:sso:::permissionSet/ssoins-1234/ps-8765 
 ```
 
 These roles can be assigned to users and Access Lists or requested by users
