@@ -33,7 +33,7 @@ func UnmarshalUserTokenSecrets(bytes []byte, opts ...MarshalOption) (types.UserT
 
 	var secrets types.UserTokenSecretsV3
 	if err := utils.FastUnmarshal(bytes, &secrets); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	if err := secrets.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

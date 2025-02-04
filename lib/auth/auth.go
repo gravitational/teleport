@@ -3756,7 +3756,7 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 			log.Debugf("%v exceeds %v failed login attempts, locked until %v",
 				user.GetName(), defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
 
-			err := trace.AccessDenied(MaxFailedAttemptsErrMsg)
+			err := trace.AccessDenied("%s", MaxFailedAttemptsErrMsg)
 			return trace.WithField(err, ErrFieldKeyUserMaxedAttempts, true)
 		}
 	}
@@ -3800,7 +3800,7 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 		return trace.Wrap(fnErr)
 	}
 
-	retErr := trace.AccessDenied(MaxFailedAttemptsErrMsg)
+	retErr := trace.AccessDenied("%s", MaxFailedAttemptsErrMsg)
 	return trace.WithField(retErr, ErrFieldKeyUserMaxedAttempts, true)
 }
 
@@ -5113,12 +5113,12 @@ func (a *Server) ValidateToken(ctx context.Context, token string) (types.Provisi
 	tok, err := a.GetToken(ctx, token)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.AccessDenied(TokenExpiredOrNotFound)
+			return nil, trace.AccessDenied("%s", TokenExpiredOrNotFound)
 		}
 		return nil, trace.Wrap(err)
 	}
 	if !a.checkTokenTTL(tok) {
-		return nil, trace.AccessDenied(TokenExpiredOrNotFound)
+		return nil, trace.AccessDenied("%s", TokenExpiredOrNotFound)
 	}
 
 	return tok, nil
@@ -7886,7 +7886,7 @@ func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	if usage >= int(monthlyLimit) {
-		return trace.AccessDenied(limitReachedMessage)
+		return trace.AccessDenied("%s", limitReachedMessage)
 	}
 
 	return nil

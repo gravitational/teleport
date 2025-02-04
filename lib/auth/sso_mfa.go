@@ -86,14 +86,14 @@ func (a *Server) verifySSOMFASession(ctx context.Context, username, sessionID, t
 	const notFoundErrMsg = "mfa sso session data not found"
 	mfaSess, err := a.GetSSOMFASessionData(ctx, sessionID)
 	if trace.IsNotFound(err) {
-		return nil, trace.AccessDenied(notFoundErrMsg)
+		return nil, trace.AccessDenied("%s", notFoundErrMsg)
 	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Verify the user's name and sso device matches.
 	if mfaSess.Username != username {
-		return nil, trace.AccessDenied(notFoundErrMsg)
+		return nil, trace.AccessDenied("%s", notFoundErrMsg)
 	}
 
 	// Check if the MFA session matches the user's SSO MFA settings.
