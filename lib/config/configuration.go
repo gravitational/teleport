@@ -2784,14 +2784,15 @@ func isCmdLabelSpec(spec string) (types.CommandLabel, error) {
 func applyListenIP(ip net.IP, cfg *servicecfg.Config) {
 	listeningAddresses := []*utils.NetAddr{
 		&cfg.Auth.ListenAddr,
-		&cfg.Auth.ListenAddr,
 		&cfg.Proxy.SSHAddr,
 		&cfg.Proxy.WebAddr,
 		&cfg.SSH.Addr,
 		&cfg.Proxy.ReverseTunnelListenAddr,
 	}
 	for _, addr := range listeningAddresses {
-		replaceHost(addr, ip.String())
+		if !addr.IsEmpty() {
+			replaceHost(addr, ip.String())
+		}
 	}
 }
 
