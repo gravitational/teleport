@@ -17,6 +17,7 @@
  */
 
 import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
+import { AuthSettings } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 import {
   ACL,
   ShowResources,
@@ -346,5 +347,17 @@ export const makeAccessRequest = (
   maxDuration: { seconds: 1729026573n, nanos: 0 },
   requestTtl: { seconds: 1729026573n, nanos: 0 },
   sessionTtl: { seconds: 1729026573n, nanos: 0 },
+  ...props,
+});
+
+export const makeAuthSettings = (
+  props: Partial<AuthSettings> = {}
+): AuthSettings => ({
+  localAuthEnabled: true,
+  authProviders: [],
+  hasMessageOfTheDay: false,
+  authType: 'local',
+  allowPasswordless: false,
+  localConnectorName: '',
   ...props,
 });

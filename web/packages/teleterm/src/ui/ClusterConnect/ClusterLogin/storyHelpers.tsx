@@ -20,6 +20,8 @@ import { FC, PropsWithChildren } from 'react';
 
 import Dialog from 'design/Dialog';
 
+import { makeAuthSettings } from 'teleterm/services/tshd/testHelpers';
+
 import { dialogCss } from '../spacing';
 import { ClusterLoginPresentationProps } from './ClusterLogin';
 
@@ -42,14 +44,7 @@ export function makeProps(): ClusterLoginPresentationProps {
     initAttempt: {
       status: 'success',
       statusText: '',
-      data: {
-        localAuthEnabled: true,
-        authProviders: [],
-        hasMessageOfTheDay: false,
-        allowPasswordless: true,
-        localConnectorName: '',
-        authType: 'local',
-      },
+      data: makeAuthSettings(),
     },
 
     loggedInUserName: null,

@@ -21,6 +21,7 @@ import styled from 'styled-components';
 import { Box, ButtonText, Flex } from 'design';
 import * as Alerts from 'design/Alert';
 import { StepSlider, type StepComponentProps } from 'design/StepSlider';
+import { AuthSettings } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 import { Attempt } from 'shared/hooks/useAsync';
 import type { PrimaryAuthType } from 'shared/services';
 
@@ -286,7 +287,7 @@ const loginViews = { default: [Primary, Secondary] };
 
 type LoginAttempt = Attempt<void>;
 
-export type Props = types.AuthSettings & {
+export type Props = AuthSettings & {
   shouldPromptSsoStatus: boolean;
   passwordlessLoginState: PasswordlessLoginState;
   loginAttempt: LoginAttempt;

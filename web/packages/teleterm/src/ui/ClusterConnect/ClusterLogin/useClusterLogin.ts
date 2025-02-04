@@ -28,7 +28,7 @@ import { assertUnreachable } from 'teleterm/ui/utils';
 
 export default function useClusterLogin(props: Props) {
   const { onSuccess, clusterUri } = props;
-  const { clustersService } = useAppContext();
+  const { clustersService, tshd } = useAppContext();
   const cluster = clustersService.findCluster(clusterUri);
   const refAbortCtrl = useRef<AbortController>(null);
   const loggedInUserName =
@@ -38,7 +38,7 @@ export default function useClusterLogin(props: Props) {
     useState<PasswordlessLoginState>();
 
   const [initAttempt, init] = useAsync(() =>
-    clustersService.getAuthSettings(clusterUri)
+    tshd.getAuthSettings({ clusterUri }).then(({ response }) => response)
   );
 
   const [loginAttempt, login, setAttempt] = useAsync(
