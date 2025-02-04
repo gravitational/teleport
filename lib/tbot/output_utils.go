@@ -477,7 +477,7 @@ func chooseOneResource[T types.ResourceWithLabels](resources []T, name, resDesc 
 	default:
 		var out T
 		errMsg := formatAmbiguousMessage(name, resDesc, matches)
-		return out, trace.BadParameter(errMsg)
+		return out, trace.BadParameter("%s", errMsg)
 	}
 }
 
