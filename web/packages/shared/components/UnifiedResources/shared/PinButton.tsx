@@ -25,21 +25,30 @@ import { HoverTooltip } from 'design/Tooltip';
 import { PinningSupport } from '../types';
 import { PINNING_NOT_SUPPORTED_MESSAGE } from '../UnifiedResources';
 
+// TODO(kimlisa): move this out of the UnifiedResources directory,
+// since it is also used outside of UnifiedResources
+// (eg: Discover/SelectResource.tsx)
 export function PinButton({
   pinned,
   pinningSupport,
+  notSupportedTipContent,
   hovered,
   setPinned,
   className,
 }: {
   pinned: boolean;
   pinningSupport: PinningSupport;
+  notSupportedTipContent?: string;
   hovered: boolean;
   setPinned: () => void;
   className?: string;
 }) {
   const copyAnchorEl = useRef(null);
-  const tipContent = getTipContent(pinningSupport, pinned);
+  const tipContent = getTipContent(
+    pinningSupport,
+    pinned,
+    notSupportedTipContent
+  );
 
   const shouldShowButton =
     pinningSupport !== PinningSupport.Hidden && (pinned || hovered);
@@ -55,10 +64,18 @@ export function PinButton({
 
   return (
     <ButtonIcon
+      data-testid="pin-button"
       disabled={shouldDisableButton}
       setRef={copyAnchorEl}
       size={0}
-      onClick={setPinned}
+      onClick={e => {
+        // This ButtonIcon can be used within another
+        // button (stops propagating click action to the outer button) or
+        // within an anchor element (prevents browser default to go the link).
+        e.stopPropagation();
+        e.preventDefault();
+        setPinned();
+      }}
       className={className}
       css={`
         visibility: ${shouldShowButton ? 'visible' : 'hidden'};
@@ -79,11 +96,12 @@ export function PinButton({
 
 function getTipContent(
   pinningSupport: PinningSupport,
-  pinned: boolean
+  pinned: boolean,
+  notSupportedTipContent?: string
 ): string {
   switch (pinningSupport) {
     case PinningSupport.NotSupported:
-      return PINNING_NOT_SUPPORTED_MESSAGE;
+      return notSupportedTipContent || PINNING_NOT_SUPPORTED_MESSAGE;
     case PinningSupport.Supported:
       return pinned ? 'Unpin' : 'Pin';
     default:
