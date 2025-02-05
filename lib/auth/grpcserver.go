@@ -5301,6 +5301,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err, "creating workload identity issuance service")
 	}
 	workloadidentityv1pb.RegisterWorkloadIdentityRevocationServiceServer(server, workloadIdentityRevocationService)
+	go workloadIdentityRevocationService.RunCRLSigner(cfg.AuthServer.closeCtx)
 
 	dbObjectImportRuleService, err := dbobjectimportrulev1.NewDatabaseObjectImportRuleService(dbobjectimportrulev1.DatabaseObjectImportRuleServiceConfig{
 		Authorizer: cfg.Authorizer,

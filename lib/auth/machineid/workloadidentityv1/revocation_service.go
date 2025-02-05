@@ -327,7 +327,21 @@ func (s *RevocationService) publishSignedCRL(crl []byte) {
 	s.notifyNewSignedCRL = make(chan struct{})
 }
 
-func (s *RevocationService) watchAndSignLoop() {
+func (s *RevocationService) RunCRLSigner(ctx context.Context) {
+	for {
+		err := s.watchAndSign(ctx)
+		if err == nil {
+			if ctx.Err() != nil {
+				return
+			}
+			err = trace.BadParameter("watchAndSign exited unexpectedly")
+		}
+		if err != nil {
+			s.logger.Error("CRL signer failed exited with error", "error", err)
+		}
+
+		// TODO: Backoff
+	}
 
 }
 
@@ -335,9 +349,7 @@ const (
 	debounceDuration = time.Second * 5
 )
 
-func (s *RevocationService) watchAndSign() error {
-	ctx := context.Background()
-
+func (s *RevocationService) watchAndSign(ctx context.Context) error {
 	w, err := s.eventsWatcher.NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{{
 			Kind: types.KindWorkloadIdentityX509Revocation,
@@ -353,7 +365,7 @@ func (s *RevocationService) watchAndSign() error {
 		if err := w.Error(); err != nil {
 			return trace.Wrap(err, "watcher failed")
 		}
-		return trace.BadParameter("watcher closed unexpectedly")
+		return nil
 	case evt := <-w.Events():
 		if evt.Type == types.OpInit {
 			break
@@ -429,7 +441,7 @@ func (s *RevocationService) watchAndSign() error {
 			if err := w.Error(); err != nil {
 				return trace.Wrap(err, "watcher failed")
 			}
-			return trace.BadParameter("watcher closed unexpectedly")
+			return nil
 		case <-debounceCh:
 			crl, err := s.signCRL(ctx, revocationsMap)
 			if err != nil {
