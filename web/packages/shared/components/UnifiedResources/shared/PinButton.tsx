@@ -23,7 +23,6 @@ import { PushPin, PushPinFilled } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 
 import { PinningSupport } from '../types';
-import { PINNING_NOT_SUPPORTED_MESSAGE } from '../UnifiedResources';
 
 // TODO(kimlisa): move this out of the UnifiedResources directory,
 // since it is also used outside of UnifiedResources
@@ -31,24 +30,18 @@ import { PINNING_NOT_SUPPORTED_MESSAGE } from '../UnifiedResources';
 export function PinButton({
   pinned,
   pinningSupport,
-  notSupportedTipContent,
   hovered,
   setPinned,
   className,
 }: {
   pinned: boolean;
   pinningSupport: PinningSupport;
-  notSupportedTipContent?: string;
   hovered: boolean;
   setPinned: () => void;
   className?: string;
 }) {
   const copyAnchorEl = useRef(null);
-  const tipContent = getTipContent(
-    pinningSupport,
-    pinned,
-    notSupportedTipContent
-  );
+  const tipContent = getTipContent(pinningSupport, pinned);
 
   const shouldShowButton =
     pinningSupport !== PinningSupport.Hidden && (pinned || hovered);
@@ -69,9 +62,9 @@ export function PinButton({
       setRef={copyAnchorEl}
       size={0}
       onClick={e => {
-        // This ButtonIcon can be used within another
-        // button (stops propagating click action to the outer button) or
-        // within an anchor element (prevents browser default to go the link).
+        // This ButtonIcon can be used within another element that also has a
+        // onClick handler (stops propagating click event) or within an
+        // anchor element (prevents browser default to go the link).
         e.stopPropagation();
         e.preventDefault();
         setPinned();
@@ -96,12 +89,11 @@ export function PinButton({
 
 function getTipContent(
   pinningSupport: PinningSupport,
-  pinned: boolean,
-  notSupportedTipContent?: string
+  pinned: boolean
 ): string {
   switch (pinningSupport) {
     case PinningSupport.NotSupported:
-      return notSupportedTipContent || PINNING_NOT_SUPPORTED_MESSAGE;
+      return 'To enable pinning support, upgrade to 17.3 or newer.';
     case PinningSupport.Supported:
       return pinned ? 'Unpin' : 'Pin';
     default:
