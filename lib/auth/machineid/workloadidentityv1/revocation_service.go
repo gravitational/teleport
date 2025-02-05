@@ -442,7 +442,7 @@ func (s *RevocationService) watchAndSign(ctx context.Context) error {
 			}
 			if triggerSign {
 				s.logger.DebugContext(ctx, "Received change to WorkloadIdentityX509Revocation indicating new CRL should be signed", "workload_identity_revocation_name", e.Resource.GetName())
-				if debounceCh != nil {
+				if debounceCh == nil {
 					s.logger.DebugContext(ctx, "Starting debounce timer for signing of new CRL")
 					debounceCh = s.clock.After(debounceDuration)
 				}

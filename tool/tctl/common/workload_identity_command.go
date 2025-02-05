@@ -18,6 +18,7 @@ package common
 
 import (
 	"context"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"math/big"
@@ -149,6 +150,8 @@ func (c *WorkloadIdentityCommand) TryRun(
 		commandFunc = c.AddRevocation
 	case c.revocationsLsCmd.FullCommand():
 		commandFunc = c.ListRevocations
+	case c.revocationsCrlCmd.FullCommand():
+		commandFunc = c.StreamRevocationsCrl
 	default:
 		return false, nil
 	}
@@ -342,4 +345,33 @@ func (c *WorkloadIdentityCommand) ListRevocations(
 		}
 	}
 	return nil
+}
+
+func (c *WorkloadIdentityCommand) StreamRevocationsCrl(
+	ctx context.Context, client *authclient.Client,
+) error {
+
+	revocationsClient := client.WorkloadIdentityRevocationServiceClient()
+
+	req := &workloadidentityv1pb.StreamSignedCRLRequest{}
+	stream, err := revocationsClient.StreamSignedCRL(ctx, req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for {
+		res, err := stream.Recv()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		pemData := pem.EncodeToMemory(&pem.Block{
+			Type:  "X509 CRL",
+			Bytes: res.Crl,
+		})
+		fmt.Println(string(pemData))
+
+		if !c.revocationsFollow {
+			return nil
+		}
+	}
 }
