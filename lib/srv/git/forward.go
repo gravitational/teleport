@@ -28,6 +28,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -37,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -44,6 +46,38 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+)
+
+var (
+	execSessionCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: teleport.ComponentGit,
+		Name:      "exec_sessions_total",
+	})
+
+	execFailureCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: teleport.ComponentGit,
+		Name:      "exec_failures_total",
+	})
+
+	userKeyAuthFailureCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: teleport.ComponentGit,
+		Name:      "userkeyauth_failures_total",
+	})
+
+	rbacFailureCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: teleport.ComponentGit,
+		Name:      "rbac_failures_total",
+	})
+
+	forwardServerPrometheusCollectors = []prometheus.Collector{
+		execSessionCounter,
+		userKeyAuthFailureCounter,
+		rbacFailureCounter,
+	}
 )
 
 // ForwardServerConfig is the configuration for the ForwardServer.
@@ -172,6 +206,10 @@ func NewForwardServer(cfg *ForwardServerConfig) (*ForwardServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if err := metrics.RegisterPrometheusCollectors(forwardServerPrometheusCollectors...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	serverConn, clientConn, err := utils.DualPipeNetConn(cfg.SrcAddr, cfg.DstAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -282,6 +320,7 @@ func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*
 	// Use auth.UserKeyAuth to verify user cert is signed by UserCA.
 	permissions, err := s.auth.UserKeyAuth(conn, key)
 	if err != nil {
+		userKeyAuthFailureCounter.Inc()
 		return nil, trace.Wrap(err)
 	}
 
@@ -295,6 +334,8 @@ func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*
 			"fingerprint", sshutils.Fingerprint(key),
 			"user", cert.KeyId,
 		)
+		rbacFailureCounter.Inc()
+		s.emitEvent(srv.MakeAuthAttemptFailureEvent(conn, ident, err))
 		return nil, trace.Wrap(err)
 	}
 	return permissions, nil
@@ -445,7 +486,10 @@ func (s *ForwardServer) handleExec(ctx context.Context, sctx *sessionContext, re
 	var r sshutils.ExecReq
 	defer func() {
 		if err != nil {
+			execFailureCounter.Inc()
 			s.emitEvent(s.makeGitCommandEvent(sctx, r.Command, err))
+		} else {
+			execSessionCounter.Inc()
 		}
 	}()
 

@@ -136,6 +136,14 @@ func TestForwardServer(t *testing.T) {
 			clientLogin:        "git",
 			verifyRemoteHost:   ssh.InsecureIgnoreHostKey(),
 			wantNewClientError: true,
+			verifyEvent: func(t *testing.T, event apievents.AuditEvent) {
+				authFailureEvent, ok := event.(*apievents.AuthAttempt)
+				require.True(t, ok)
+				assert.Equal(t, libevents.AuthAttemptEvent, authFailureEvent.Metadata.Type)
+				assert.Equal(t, libevents.AuthAttemptFailureCode, authFailureEvent.Metadata.Code)
+				assert.Equal(t, "alice", authFailureEvent.User)
+				assert.Contains(t, authFailureEvent.Error, "access denied")
+			},
 		},
 		{
 			name:               "failed client login check",
