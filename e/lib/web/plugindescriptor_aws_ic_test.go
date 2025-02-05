@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -599,6 +600,104 @@ func TestInstallationFailsOnInvalidAWSCredential(t *testing.T) {
 				require.Contains(t, respMessage.Error.Message, errorMsg)
 			} else {
 				require.Equal(t, http.StatusOK, resp.Code())
+			}
+		})
+	}
+}
+
+func TestMissingIntegrationCreateAccess(t *testing.T) {
+	wSuite, aPack, _ := newAWSIdentityCenterPluginTestSuite(t)
+	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
+	// "foo" is username of a user created with aPack. This user is
+	// assigned with editor role.
+	fooUserRole, err := authClient.GetRole(wSuite.ctx, "editor")
+	require.NoError(t, err)
+	fooUserRole.SetRules(types.Deny, []types.Rule{{Resources: []string{types.KindIntegration}, Verbs: []string{types.VerbCreate}}})
+	_, err = authClient.UpsertRole(wSuite.ctx, fooUserRole)
+	require.NoError(t, err)
+
+	const errMsg = "access denied"
+	jsonReq := awsicui.FetchICResourceRequest{
+		IntegrationName: icOIDCIntegrationName,
+		Region:          "ca-central-1",
+		Arn:             "arn:aws:sso:::instance/ssoins-8824xxxxxd4dd99a",
+	}
+	accessDeniedResp := func(t *testing.T, resp *roundtrip.Response) {
+		require.Equal(t, http.StatusForbidden, resp.Code())
+		var respMessage errorResp
+		require.NoError(t, json.Unmarshal(resp.Bytes(), &respMessage))
+		require.Contains(t, respMessage.Error.Message, errMsg)
+	}
+	// all test cases include valid request data.
+	tests := []struct {
+		name         string
+		path         string
+		jsonReq      awsicui.FetchICResourceRequest
+		formReq      url.Values
+		errAssertion require.ErrorAssertionFunc
+		respContains func(t *testing.T, resp *roundtrip.Response)
+	}{
+		{
+			name:    "fetch groups with assignment",
+			path:    aPack.clt.Endpoint("enterprise/pluginconfig/aws-ic/preview/groups-with-assignments"),
+			jsonReq: jsonReq,
+			errAssertion: func(t require.TestingT, err error, v ...interface{}) {
+				require.ErrorContains(t, err, errMsg)
+			},
+		},
+		{
+			name:    "fetch accounts with perm sets",
+			path:    aPack.clt.Endpoint("enterprise/pluginconfig/aws-ic/preview/accounts-with-permission-sets"),
+			jsonReq: jsonReq,
+			errAssertion: func(t require.TestingT, err error, v ...interface{}) {
+				require.ErrorContains(t, err, errMsg)
+			},
+		},
+		{
+			name:    "fetch perm sets",
+			path:    aPack.clt.Endpoint("enterprise/pluginconfig/aws-ic/preview/permission-sets"),
+			jsonReq: jsonReq,
+			errAssertion: func(t require.TestingT, err error, v ...interface{}) {
+				require.ErrorContains(t, err, errMsg)
+			},
+		},
+		{
+			name: "validate scim config",
+			path: aPack.clt.Endpoint("enterprise/plugins/validate"),
+			formReq: func() url.Values {
+				form := installRequestValidURLValues(t, validICSCIMBaseURLFormat)
+				form.Set("resourceToValidate", pluginConfigAWSICValidateSCIM)
+				return form
+			}(),
+			respContains: accessDeniedResp,
+		},
+		{
+			name: "validate resource sync credential config",
+			path: aPack.clt.Endpoint("enterprise/plugins/validate"),
+			formReq: func() url.Values {
+				form := installRequestValidURLValues(t, validICSCIMBaseURLFormat)
+				form.Set("resourceToValidate", pluginConfigAWSICValidateResourceSyncCredential)
+				return form
+			}(),
+			respContains: accessDeniedResp,
+		},
+		{
+			name:         "validate install plugin",
+			path:         aPack.clt.Endpoint("enterprise/plugin"),
+			formReq:      installRequestValidURLValues(t, validICSCIMBaseURLFormat),
+			respContains: accessDeniedResp,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if len(tc.formReq) > 0 {
+				resp, err := aPack.clt.PostForm(wSuite.ctx, tc.path, tc.formReq)
+				require.NoError(t, err)
+				tc.respContains(t, resp)
+			} else {
+				_, err = aPack.clt.PostJSON(wSuite.ctx, tc.path, tc.jsonReq)
+				tc.errAssertion(t, err)
 			}
 		})
 	}

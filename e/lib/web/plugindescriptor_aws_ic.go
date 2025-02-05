@@ -10,6 +10,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/common"
@@ -39,6 +40,13 @@ type awsICPluginDescriptor struct {
 // HandleInstallRequest implements pluginDescriptor.
 // Creates SAML service provider first and then creates the plugin.
 func (a awsICPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
+	// we query external APIs to validate AWS credential before
+	// installing the plugin. Only users who have access to create
+	// integration should be allowed to connect to such external systems.
+	if err := checkIntegrationCreateAccess(sessCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	authClient, err := sessCtx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -121,6 +129,12 @@ const (
 
 // HandleValidateConfigRequest handles requests for "/enterprise/plugins/validate" path.
 func (a awsICPluginDescriptor) HandleValidateConfigRequest(ctx context.Context, sessCtx *web.SessionContext, form url.Values, p *Plugin) error {
+	// we query external APIs to validate AWS credentials during
+	// credential validation. Only users who have access to create
+	// integration should be allowed to connect to such external systems.
+	if err := checkIntegrationCreateAccess(sessCtx); err != nil {
+		return trace.Wrap(err)
+	}
 	client, err := sessCtx.GetClient()
 	if err != nil {
 		return trace.Wrap(err)
@@ -415,6 +429,12 @@ func (a awsICPluginDescriptor) awsICPluginIdentityCenterClient(ctx context.Conte
 
 // awsICPluginListPermissionSets lists Identity Center permissions sets.
 func (p *Plugin) awsICPluginListPermissionSets(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
+	// Only users who have access to create integration
+	// should be allowed to use OIDC credential and fetch AWS resources.
+	if err := checkIntegrationCreateAccess(sessCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var req awsicui.FetchICResourceRequest
 	defer r.Body.Close()
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -435,6 +455,12 @@ func (p *Plugin) awsICPluginListPermissionSets(w http.ResponseWriter, r *http.Re
 
 // awsICPluginAccountsWithAssignedPermSets lists Identity Center accounts with assigned permission sets.
 func (p *Plugin) awsICPluginAccountsWithAssignedPermSets(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
+	// Only users who have access to create integration
+	// should be allowed to use OIDC credential and fetch AWS resources.
+	if err := checkIntegrationCreateAccess(sessCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var req awsicui.FetchICResourceRequest
 	defer r.Body.Close()
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -461,6 +487,12 @@ func (p *Plugin) awsICPluginAccountsWithAssignedPermSets(w http.ResponseWriter, 
 
 // awsICPluginGroupsWithAssignment lists Identity Center groups with assigned accounts and permission sets.
 func (p *Plugin) awsICPluginGroupsWithAccountAndPermAssignment(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
+	// Only users who have access to create integration
+	// should be allowed to use OIDC credential and fetch AWS resources.
+	if err := checkIntegrationCreateAccess(sessCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var req awsicui.FetchICResourceRequest
 	defer r.Body.Close()
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -487,4 +519,15 @@ func (p *Plugin) awsICPluginGroupsWithAccountAndPermAssignment(w http.ResponseWr
 	}
 
 	return awsicui.GroupAccountAndPermAssignments(groupWithAssignments, icsdk.ToAccountMap(accounts), icsdk.ToPermissionSetMap(psermSets)), nil
+}
+
+func checkIntegrationCreateAccess(sessCtx *web.SessionContext) error {
+	accessChecker, err := sessCtx.GetUserAccessChecker()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := accessChecker.CheckAccessToRule(&services.Context{}, apidefaults.Namespace, types.KindIntegration, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
