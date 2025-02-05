@@ -288,17 +288,24 @@ func (rc *ResourceCommand) GetRef() services.Ref {
 
 // Get prints one or many resources of a certain type
 func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) error {
-	// If at least one ref is for a cert authority with secrets, prompt for admin mfa.
-	if _, err := mfa.MFAResponseFromContext(ctx); trace.IsNotFound(err) {
-		if rc.withSecrets && slices.ContainsFunc(rc.refs, func(r services.Ref) bool {
-			return r.Kind == types.KindCertAuthority
-		}) {
-			mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
-			if err == nil {
-				ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
-			} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
-				return trace.Wrap(err)
-			}
+	// Some resources require MFA to list with secrets. Check if we are trying to
+	// get any such resources so we can prompt for MFA preemptively.
+	mfaKinds := []string{types.KindToken, types.KindCertAuthority}
+	mfaRequired := rc.withSecrets && slices.ContainsFunc(rc.refs, func(r services.Ref) bool {
+		return slices.Contains(mfaKinds, r.Kind)
+	})
+
+	// Check if MFA has already been provided.
+	if _, err := mfa.MFAResponseFromContext(ctx); err == nil {
+		mfaRequired = false
+	}
+
+	if mfaRequired {
+		mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
+		if err == nil {
+			ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
+		} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
+			return trace.Wrap(err)
 		}
 	}
 
