@@ -54,8 +54,8 @@ type mfaResponsePromiseWithResolvers = {
  * be used to display options to the user and prompt for them to complete
  * the MFA check.
  */
-export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
-  const [mfaRequired, setMfaRequired] = useState<boolean>(isMfaRequired);
+export function useMfa(props: MfaProps): MfaState {
+  const [mfaRequired, setMfaRequired] = useState<boolean>(props.isMfaRequired);
   const [options, setMfaOptions] = useState<MfaOption[]>();
   const [challenge, setMfaChallenge] = useState<MfaAuthenticateChallenge>();
 
@@ -75,7 +75,9 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
         // required, this is a noop.
         if (mfaRequired === false && !challenge) return;
 
-        challenge = challenge ? challenge : await auth.getMfaChallenge(req);
+        challenge = challenge
+          ? challenge
+          : await auth.getMfaChallenge(props.req);
         if (!challenge) {
           setMfaRequired(false);
           return;
@@ -107,7 +109,7 @@ export function useMfa({ req, isMfaRequired }: MfaProps): MfaState {
           setMfaChallenge(null);
         }
       },
-      [req, mfaRequired]
+      [props, mfaRequired]
     )
   );
 
