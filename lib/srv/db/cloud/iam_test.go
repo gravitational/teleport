@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
@@ -33,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -58,9 +60,7 @@ func TestAWSIAM(t *testing.T) {
 
 	// Configure mocks.
 	stsClient := &mocks.STSClient{
-		STSClientV1: mocks.STSClientV1{
-			ARN: "arn:aws:iam::123456789012:role/test-role",
-		},
+		ARN: "arn:aws:iam::123456789012:role/test-role",
 	}
 
 	clt := &mocks.RDSClient{
@@ -152,9 +152,10 @@ func TestAWSIAM(t *testing.T) {
 	}
 	configurator, err := NewIAM(ctx, IAMConfig{
 		AccessPoint: &mockAccessPoint{},
-		AWSConfigProvider: &mocks.AWSConfigProvider{
-			STSClient: stsClient,
-		},
+		AWSConfigProvider: withStaticCredentials(
+			&mocks.AWSConfigProvider{
+				STSClient: stsClient,
+			}),
 		HostID: "host-id",
 		onProcessedTask: func(iamTask, error) {
 			taskChan <- struct{}{}
@@ -289,9 +290,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 
 	// Create unauthorized mocks for AWS services.
 	stsClient := &mocks.STSClient{
-		STSClientV1: mocks.STSClientV1{
-			ARN: "arn:aws:iam::123456789012:role/test-role",
-		},
+		ARN: "arn:aws:iam::123456789012:role/test-role",
 	}
 	tests := []struct {
 		name       string
@@ -361,9 +360,10 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			configurator, err := NewIAM(ctx, IAMConfig{
 				AccessPoint: &mockAccessPoint{},
 				HostID:      "host-id",
-				AWSConfigProvider: &mocks.AWSConfigProvider{
-					STSClient: stsClient,
-				},
+				AWSConfigProvider: withStaticCredentials(
+					&mocks.AWSConfigProvider{
+						STSClient: stsClient,
+					}),
 				awsClients: test.awsClients,
 			})
 			require.NoError(t, err)
@@ -424,4 +424,16 @@ func (m *mockAccessPoint) AcquireSemaphore(ctx context.Context, params types.Acq
 
 func (m *mockAccessPoint) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
 	return nil
+}
+
+func withStaticCredentials(p awsconfig.Provider) awsconfig.Provider {
+	return awsconfig.ProviderFunc(
+		func(ctx context.Context, region string, optFns ...awsconfig.OptionsFn) (aws.Config, error) {
+			cfg, err := p.GetConfig(ctx, region, optFns...)
+			if err != nil {
+				return aws.Config{}, trace.Wrap(err)
+			}
+			cfg.Credentials = credentials.NewStaticCredentialsProvider("FAKE_ID", "FAKE_KEY", "FAKE_TOKEN")
+			return cfg, nil
+		})
 }

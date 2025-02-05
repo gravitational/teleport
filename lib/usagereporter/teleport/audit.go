@@ -110,6 +110,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 				DbType:     e.DatabaseType,
 				DbProtocol: e.DatabaseProtocol,
 				DbOrigin:   e.DatabaseOrigin,
+				UserAgent:  e.UserAgent,
 			},
 			UserKind: prehogUserKindFromEventKind(e.UserKind),
 		}

@@ -1993,7 +1993,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 			}
 			// trigger reissue, preserving any active requests.
 			err = tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, client.ReissueParams{
-				AccessRequests: profile.ActiveRequests.AccessRequests,
+				AccessRequests: profile.ActiveRequests,
 				RouteToCluster: cf.SiteName,
 			})
 			if err != nil {
@@ -2151,7 +2151,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 			if capabilities.RequestPrompt != "" {
 				msg = msg + ", prompt=" + capabilities.RequestPrompt
 			}
-			err := trace.BadParameter(msg)
+			err := trace.BadParameter("%s", msg)
 			logoutErr := tc.Logout()
 			return trace.NewAggregate(err, logoutErr)
 		}
@@ -2744,8 +2744,7 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 			return trace.Wrap(err)
 		}); err != nil {
 			if strings.Contains(err.Error(), services.InvalidKubernetesKindAccessRequest) {
-				friendlyMsg := fmt.Sprintf("%s\nTry searching for specific kinds with:\n> tsh request search --kube-cluster=KUBE_CLUSTER_NAME --kind=KIND", err.Error())
-				return trace.BadParameter(friendlyMsg)
+				return trace.BadParameter("%s\nTry searching for specific kinds with:\n> tsh request search --kube-cluster=KUBE_CLUSTER_NAME --kind=KIND", err.Error())
 			}
 			return trace.Wrap(err)
 		}
@@ -5120,7 +5119,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 	out := &profileInfo{
 		ProxyURL:           p.ProxyURL.String(),
 		Username:           p.Username,
-		ActiveRequests:     p.ActiveRequests.AccessRequests,
+		ActiveRequests:     p.ActiveRequests,
 		Cluster:            p.Cluster,
 		Roles:              p.Roles,
 		Traits:             p.Traits,
@@ -5299,9 +5298,9 @@ func onRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.Acces
 			msg = fmt.Sprintf("%s, reason=%q", msg, reason)
 		}
 		if req.GetState().IsDenied() {
-			return trace.AccessDenied(msg)
+			return trace.AccessDenied("%s", msg)
 		}
-		return trace.Errorf(msg)
+		return trace.Errorf("%s", msg)
 	}
 
 	msg := "\nApproval received, getting updated certificates...\n\n"
@@ -5327,7 +5326,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, newRequests []s
 		RouteToCluster:     cf.SiteName,
 	}
 	// If the certificate already had active requests, add them to our inputs parameters.
-	for _, reqID := range profile.ActiveRequests.AccessRequests {
+	for _, reqID := range profile.ActiveRequests {
 		if !slices.Contains(dropRequests, reqID) {
 			params.AccessRequests = append(params.AccessRequests, reqID)
 		}

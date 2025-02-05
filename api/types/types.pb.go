@@ -17239,7 +17239,7 @@ type PluginOktaSyncSettings struct {
 	AppFilters []string `protobuf:"bytes,7,rep,name=app_filters,json=appFilters,proto3" json:"app_filters,omitempty"`
 	// AppName is the Okta-assigned unique name of the Okta App that Teleport uses
 	// as a gateway to interact with Okta for SAML login, SCIM provisioning and user
-	// sync. May be missing for old Okta integration installs.
+	// sync.
 	AppName string `protobuf:"bytes,8,opt,name=app_name,json=appName,proto3" json:"app_name,omitempty"`
 	// DisableSyncAppGroups disables syncing of app groups from Okta.
 	// This is useful when the app groups are not needed in Teleport.
@@ -18816,7 +18816,9 @@ type PluginOktaStatusDetailsSSO struct {
 	// AppId is the unique Okta application ID of the Okta Applicaion used for
 	// SSO login.
 	AppId string `protobuf:"bytes,2,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
-	// AppName is the human-readable name of the Okta Applicaion used for SSO.
+	// AppName is the Okta-assigned unique name of the Okta App that Teleport uses
+	// as a gateway to interact with Okta for SAML login, SCIM provisioning and user
+	// sync.
 	AppName              string   `protobuf:"bytes,3,opt,name=app_name,json=appName,proto3" json:"app_name,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

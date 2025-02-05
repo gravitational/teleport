@@ -105,6 +105,7 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 			DbType:     u.Database.DbType,
 			DbProtocol: u.Database.DbProtocol,
 			DbOrigin:   u.Database.DbOrigin,
+			UserAgent:  u.Database.UserAgent,
 		}
 	}
 	if u.Desktop != nil {

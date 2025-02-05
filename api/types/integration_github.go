@@ -15,7 +15,11 @@ limitations under the License.
 */
 package types
 
-import "regexp"
+import (
+	"regexp"
+
+	"github.com/gravitational/trace"
+)
 
 // validGitHubOrganizationName filters the allowed characters in GitHub
 // organization name.
@@ -28,5 +32,9 @@ var validGitHubOrganizationName = regexp.MustCompile(`^[a-zA-Z0-9]([-a-zA-Z0-9]*
 // ValidateGitHubOrganizationName returns an error if a given string is not a
 // valid GitHub organization name.
 func ValidateGitHubOrganizationName(name string) error {
+	const maxGitHubOrgNameLength = 39
+	if len(name) > maxGitHubOrgNameLength {
+		return trace.BadParameter("GitHub organization name cannot exceed %d characters", maxGitHubOrgNameLength)
+	}
 	return ValidateResourceName(validGitHubOrganizationName, name)
 }

@@ -316,16 +316,16 @@ func convertSecretsManagerError(err error) error {
 
 	var resourceExistsErr *smtypes.ResourceExistsException
 	if errors.As(err, &resourceExistsErr) {
-		return trace.AlreadyExists(resourceExistsErr.Error())
+		return trace.AlreadyExists("%s", resourceExistsErr)
 	}
 
 	var notFoundErr *smtypes.ResourceNotFoundException
 	if errors.As(err, &notFoundErr) {
-		return trace.NotFound(notFoundErr.Error())
+		return trace.NotFound("%s", notFoundErr)
 	}
 
 	// Match by status code.
-	return trace.Wrap(libaws.ConvertRequestFailureErrorV2(err))
+	return trace.Wrap(libaws.ConvertRequestFailureError(err))
 }
 
 const (

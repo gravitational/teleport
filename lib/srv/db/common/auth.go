@@ -35,12 +35,11 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	rdsauth "github.com/aws/aws-sdk-go-v2/feature/rds/auth"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/oauth2"
@@ -63,12 +62,18 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
-	"github.com/gravitational/teleport/lib/utils/aws/migration"
 )
 
-// azureVirtualMachineCacheTTL is the default TTL for Azure virtual machine
-// cache entries.
-const azureVirtualMachineCacheTTL = 5 * time.Minute
+const (
+	// azureVirtualMachineCacheTTL is the default TTL for Azure virtual machine
+	// cache entries.
+	azureVirtualMachineCacheTTL = 5 * time.Minute
+
+	// emptyPayloadHash is the SHA-256 for an empty element (as in echo -n | sha256sum).
+	// PresignHTTP requires the hash of the body, but when there is no body we hash the empty string.
+	// https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html
+	emptyPayloadHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+)
 
 // Auth defines interface for creating auth tokens and TLS configurations.
 type Auth interface {
@@ -659,14 +664,14 @@ func (a *dbAuth) GetElastiCacheRedisToken(ctx context.Context, database types.Da
 	tokenReq := &awsRedisIAMTokenRequest{
 		// For IAM-enabled ElastiCache users, the username and user id properties must be identical.
 		// https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth-iam.html#auth-iam-limits
-		userID:      databaseUser,
-		targetID:    meta.ElastiCache.ReplicationGroupID,
-		serviceName: "elasticache",
-		region:      meta.Region,
-		credentials: migration.NewCredentialsAdapter(awsCfg.Credentials),
-		clock:       a.cfg.Clock,
+		userID:       databaseUser,
+		targetID:     meta.ElastiCache.ReplicationGroupID,
+		serviceName:  "elasticache",
+		region:       meta.Region,
+		credProvider: awsCfg.Credentials,
+		clock:        a.cfg.Clock,
 	}
-	token, err := tokenReq.toSignedRequestURI()
+	token, err := tokenReq.toSignedRequestURI(ctx)
 	return token, trace.Wrap(err)
 }
 
@@ -685,14 +690,14 @@ func (a *dbAuth) GetMemoryDBToken(ctx context.Context, database types.Database, 
 		"database_user", databaseUser,
 	)
 	tokenReq := &awsRedisIAMTokenRequest{
-		userID:      databaseUser,
-		targetID:    meta.MemoryDB.ClusterName,
-		serviceName: "memorydb",
-		region:      meta.Region,
-		credentials: migration.NewCredentialsAdapter(awsCfg.Credentials),
-		clock:       a.cfg.Clock,
+		userID:       databaseUser,
+		targetID:     meta.MemoryDB.ClusterName,
+		serviceName:  "memorydb",
+		region:       meta.Region,
+		credProvider: awsCfg.Credentials,
+		clock:        a.cfg.Clock,
 	}
-	token, err := tokenReq.toSignedRequestURI()
+	token, err := tokenReq.toSignedRequestURI(ctx)
 	return token, trace.Wrap(err)
 }
 
@@ -1158,7 +1163,7 @@ func (a *dbAuth) buildAWSRoleARNFromDatabaseUser(ctx context.Context, database t
 			}
 			clt := a.cfg.awsClients.getSTSClient(awsCfg)
 
-			identity, err := awslib.GetIdentityWithClientV2(ctx, clt)
+			identity, err := awslib.GetIdentityWithClient(ctx, clt)
 			if err != nil {
 				return "", trace.Wrap(err)
 			}
@@ -1270,8 +1275,8 @@ type awsRedisIAMTokenRequest struct {
 	targetID string
 	// region is the AWS region.
 	region string
-	// credentials are used to presign with AWS SigV4.
-	credentials *credentials.Credentials
+	// credProvider are used to presign with AWS SigV4.
+	credProvider aws.CredentialsProvider
 	// clock is the clock implementation.
 	clock clockwork.Clock
 	// serviceName is the AWS service name used for signing.
@@ -1289,8 +1294,8 @@ func (r *awsRedisIAMTokenRequest) checkAndSetDefaults() error {
 	if r.region == "" {
 		return trace.BadParameter("missing region")
 	}
-	if r.credentials == nil {
-		return trace.BadParameter("missing credentials")
+	if r.credProvider == nil {
+		return trace.BadParameter("missing credentials provider")
 	}
 	if r.serviceName == "" {
 		return trace.BadParameter("missing service name")
@@ -1304,7 +1309,7 @@ func (r *awsRedisIAMTokenRequest) checkAndSetDefaults() error {
 // toSignedRequestURI creates a new AWS SigV4 pre-signed request URI.
 // This pre-signed request URI can then be used to authenticate as an
 // ElastiCache Redis or MemoryDB user.
-func (r *awsRedisIAMTokenRequest) toSignedRequestURI() (string, error) {
+func (r *awsRedisIAMTokenRequest) toSignedRequestURI(ctx context.Context) (string, error) {
 	if err := r.checkAndSetDefaults(); err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -1312,17 +1317,16 @@ func (r *awsRedisIAMTokenRequest) toSignedRequestURI() (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	s := v4.NewSigner(r.credentials)
-	_, err = s.Presign(req, nil, r.serviceName, r.region, time.Minute*15, r.clock.Now())
+	signer := v4.NewSigner()
+	creds, err := r.credProvider.Retrieve(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	res := url.URL{
-		Host:     req.URL.Host,
-		Path:     "/",
-		RawQuery: req.URL.RawQuery,
+	signedURI, _, err := signer.PresignHTTP(ctx, creds, req, emptyPayloadHash, r.serviceName, r.region, r.clock.Now())
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
-	return strings.TrimPrefix(res.String(), "//"), nil
+	return strings.TrimPrefix(signedURI, "http://"), nil
 }
 
 // getSignableRequest creates a new request suitable for pre-signing with SigV4.
