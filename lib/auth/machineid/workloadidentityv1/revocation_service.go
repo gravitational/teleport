@@ -331,6 +331,10 @@ func (s *RevocationService) watchAndSignLoop() {
 
 }
 
+const (
+	debounceDuration = time.Second * 5
+)
+
 func (s *RevocationService) watchAndSign() error {
 	ctx := context.Background()
 
@@ -359,32 +363,80 @@ func (s *RevocationService) watchAndSign() error {
 		return nil
 	}
 
-	eventWatcherEvent := make(chan struct{})
-	for {
-		select {
-		case <-eventWatcherEvent:
-			for {
+	revocationsSlice, err := s.fetchAllRevocations(ctx)
+	if err != nil {
+		return trace.Wrap(err, "initially fetching revocations")
+	}
+	revocationsMap := make(map[string]*workloadidentityv1pb.WorkloadIdentityX509Revocation, len(revocationsSlice))
+	for _, revocation := range revocationsSlice {
+		revocationsMap[revocation.Metadata.Name] = revocation
+	}
 
+	handleEvent := func(e types.Event) (bool, error) {
+		switch e.Type {
+		case types.OpPut:
+			unwrapper, ok := e.Resource.(types.Resource153Unwrapper)
+			if !ok {
+				return false, trace.BadParameter(
+					"expected event resource (%s) to implement Resource153Wrapper",
+					e.Resource.GetName(),
+				)
 			}
-		case <-s.clock.After(time.Minute):
+			unwrapped := unwrapper.Unwrap()
+			revocation, ok := unwrapped.(*workloadidentityv1pb.WorkloadIdentityX509Revocation)
+			if !ok {
+				return false, trace.BadParameter(
+					"expected event resource (%s) to be a WorkloadIdentityX509Revocation, but it was %T",
+					e.Resource.GetName(),
+					unwrapped,
+				)
+			}
+			revocationsMap[revocation.Metadata.Name] = revocation
+			return true, nil
+		case types.OpDelete:
+			delete(revocationsMap, e.Resource.GetName())
+			return true, nil
+		default:
 		}
+		return false, nil
+	}
 
-		// TODO: Debounce mechanism so we:
-		// - Avoid signing the CRL too frequently. We can afford to wait a few
-		//   seconds to group together multiple successive revocations.
+	// Perform initial signing of the CRL
+	crl, err := s.signCRL(ctx, revocationsMap)
+	if err != nil {
+		panic(err)
+	}
+	s.publishSignedCRL(crl)
+
+	for {
+		// Perform a short, simple debounce so that we:
+		// - Avoid signing the CRL too frequently. This is computationally
+		//   expensive and we can afford to wait a few seconds to group together
+		//  multiple successive revocations.
 		// - Avoid spamming the clients with a rapid succession of CRL updates.
-
-		crl, err := s.signCRL(ctx)
-		if err != nil {
-			panic(err)
-		}
-		s.publishSignedCRL(crl)
-
+		var debounceCh <-chan time.Time
 		select {
-		case <-s.clock.After(time.Second * 5):
-
+		case e := <-w.Events():
+			triggerSign, err := handleEvent(e)
+			if err != nil {
+				return trace.Wrap(err, "handling event")
+			}
+			if triggerSign {
+				debounceCh = s.clock.After(debounceDuration)
+			}
+			continue
+		case <-w.Done():
+			if err := w.Error(); err != nil {
+				return trace.Wrap(err, "watcher failed")
+			}
+			return trace.BadParameter("watcher closed unexpectedly")
+		case <-debounceCh:
+			crl, err := s.signCRL(ctx, revocationsMap)
+			if err != nil {
+				panic(err)
+			}
+			s.publishSignedCRL(crl)
 		}
-		// TODO: Watch for changes to revocation entries (delete or create)
 	}
 }
 
@@ -409,12 +461,8 @@ func (s *RevocationService) fetchAllRevocations(ctx context.Context) ([]*workloa
 
 func (s *RevocationService) signCRL(
 	ctx context.Context,
-	revocations []*workloadidentityv1pb.WorkloadIdentityX509Revocation,
+	revocations map[string]*workloadidentityv1pb.WorkloadIdentityX509Revocation,
 ) ([]byte, error) {
-	pageToken := ""
-	revocations
-
-	// TODO: fetch
 	ca, err := s.certAuthorityGetter.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.SPIFFECA,
 		DomainName: s.clusterName,
