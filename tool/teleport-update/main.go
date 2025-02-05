@@ -246,6 +246,8 @@ func initConfig(ccfg *cliConfig) (updater *autoupdate.Updater, lockFile string, 
 	updater, err = autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
 		SelfSetup: ccfg.SelfSetup,
 		Log:       plog,
+		LogFormat: ccfg.LogFormat,
+		Debug:     ccfg.Debug,
 	}, ns)
 	return updater, lockFile, trace.Wrap(err)
 }
@@ -258,6 +260,8 @@ func statusConfig(ccfg *cliConfig) (*autoupdate.Updater, error) {
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
 		SelfSetup: ccfg.SelfSetup,
 		Log:       plog,
+		LogFormat: ccfg.LogFormat,
+		Debug:     ccfg.Debug,
 	}, ns)
 	return updater, trace.Wrap(err)
 }
@@ -422,6 +426,8 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
 		SelfSetup: ccfg.SelfSetup,
 		Log:       plog,
+		LogFormat: ccfg.LogFormat,
+		Debug:     ccfg.Debug,
 	}, ns)
 	if err != nil {
 		return trace.Wrap(err)

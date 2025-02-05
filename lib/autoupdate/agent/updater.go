@@ -132,8 +132,12 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 				"--data-dir", ns.dataDir,
 				"--link-dir", ns.linkDir,
 				"--install-suffix", ns.name,
-				"setup",
+				"--log-format", cfg.LogFormat,
 			}
+			if cfg.Debug {
+				args = append(args, "--debug")
+			}
+			args = append(args, "setup")
 			if restart {
 				args = append(args, "--restart")
 			}
@@ -163,6 +167,10 @@ type LocalUpdaterConfig struct {
 	SystemDir string
 	// SelfSetup mode for using the current version of the teleport-update to setup the update service.
 	SelfSetup bool
+	// Debug logs enabled.
+	Debug bool
+	// LogFormat controls the format of logging. Can be either `json` or `text`.
+	LogFormat string
 }
 
 // Updater implements the agent-local logic for Teleport agent auto-updates.
