@@ -99,14 +99,14 @@ func routeMessageToDest(rm *route.RouteMessage) (RouteDest, error) {
 	return &RouteDestPrefix{Prefix: prefix, ifaceIndex: rm.Index}, nil
 }
 
-// InterfaceApp returns desc field of NetworkExtension that's included in the output of `ifconfig -v
+// interfaceApp returns desc field of NetworkExtension that's included in the output of `ifconfig -v
 // <ifaceName>` if the interface was created by an app that uses the NetworkExtension macOS
 // framework. Returns an empty string if no description was found.
 //
 // According to a post from Apple Developer Forums from 2019, that's the only way this description
 // can be extracted given an interface name.
 // https://developer.apple.com/forums/thread/113491
-func (n *NetInterfaces) InterfaceApp(ctx context.Context, ifaceName string) (string, error) {
+func (n *NetInterfaces) interfaceApp(ctx context.Context, ifaceName string) (string, error) {
 	cmd := exec.CommandContext(ctx, "ifconfig", "-v", ifaceName)
 	stdout, err := cmd.Output()
 	if err != nil {

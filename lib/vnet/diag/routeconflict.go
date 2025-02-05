@@ -285,6 +285,15 @@ func (n *NetInterfaces) InterfaceByIndex(index int) (*net.Interface, error) {
 	return iface, trace.Wrap(err)
 }
 
+// InterfaceApp attempts to return the name of the app that created the interface given the name of
+// the interface.
+//
+// InterfaceApp is expected to return [UnstableIfaceError] if the interface cannot be found.
+func (n *NetInterfaces) InterfaceApp(ctx context.Context, ifaceName string) (string, error) {
+	appName, err := n.interfaceApp(ctx, ifaceName)
+	return appName, trace.Wrap(err)
+}
+
 // extractNetworkExtDescFromIfconfigOutput is used by [getIfaceNetworkExtDesc] on macOS.
 // The function is defined here so that we can run tests against it on other platforms too.
 func extractNetworkExtDescFromIfconfigOutput(stdout []byte) string {

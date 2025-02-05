@@ -25,6 +25,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func (n *NetInterfaces) InterfaceApp(ctx context.Context, ifaceName string) (string, error) {
+func (n *NetInterfaces) interfaceApp(ctx context.Context, ifaceName string) (string, error) {
 	return "", trace.NotImplemented("InterfaceApp is not implemented")
 }
