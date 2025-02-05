@@ -76,7 +76,8 @@ export interface IVnetServiceClient {
      */
     getBackgroundItemStatus(input: GetBackgroundItemStatusRequest, options?: RpcOptions): UnaryCall<GetBackgroundItemStatusRequest, GetBackgroundItemStatusResponse>;
     /**
-     * TODO: Comment.
+     * RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
+     * is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
      *
      * @generated from protobuf rpc: RunDiagnostics(teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest) returns (teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse);
      */
@@ -139,7 +140,8 @@ export class VnetServiceClient implements IVnetServiceClient, ServiceInfo {
         return stackIntercept<GetBackgroundItemStatusRequest, GetBackgroundItemStatusResponse>("unary", this._transport, method, opt, input);
     }
     /**
-     * TODO: Comment.
+     * RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
+     * is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
      *
      * @generated from protobuf rpc: RunDiagnostics(teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest) returns (teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse);
      */

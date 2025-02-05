@@ -71,7 +71,8 @@ export interface IVnetService extends grpc.UntypedServiceImplementation {
      */
     getBackgroundItemStatus: grpc.handleUnaryCall<GetBackgroundItemStatusRequest, GetBackgroundItemStatusResponse>;
     /**
-     * TODO: Comment.
+     * RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
+     * is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
      *
      * @generated from protobuf rpc: RunDiagnostics(teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest) returns (teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse);
      */

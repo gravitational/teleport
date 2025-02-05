@@ -65,7 +65,8 @@ type VnetServiceClient interface {
 	// GetBackgroundItemStatus returns the status of the background item responsible for launching
 	// VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
 	GetBackgroundItemStatus(ctx context.Context, in *GetBackgroundItemStatusRequest, opts ...grpc.CallOption) (*GetBackgroundItemStatusResponse, error)
-	// TODO: Comment.
+	// RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
+	// is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
 	RunDiagnostics(ctx context.Context, in *RunDiagnosticsRequest, opts ...grpc.CallOption) (*RunDiagnosticsResponse, error)
 }
 
@@ -150,7 +151,8 @@ type VnetServiceServer interface {
 	// GetBackgroundItemStatus returns the status of the background item responsible for launching
 	// VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
 	GetBackgroundItemStatus(context.Context, *GetBackgroundItemStatusRequest) (*GetBackgroundItemStatusResponse, error)
-	// TODO: Comment.
+	// RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
+	// is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
 	RunDiagnostics(context.Context, *RunDiagnosticsRequest) (*RunDiagnosticsResponse, error)
 	mustEmbedUnimplementedVnetServiceServer()
 }

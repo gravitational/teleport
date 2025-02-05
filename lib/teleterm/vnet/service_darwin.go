@@ -26,6 +26,8 @@ import (
 	"github.com/gravitational/teleport/lib/vnet/diag"
 )
 
+// RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
+// is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
 func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsRequest) (*api.RunDiagnosticsResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

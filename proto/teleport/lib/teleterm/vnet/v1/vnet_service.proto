@@ -43,7 +43,8 @@ service VnetService {
   // VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
   rpc GetBackgroundItemStatus(GetBackgroundItemStatusRequest) returns (GetBackgroundItemStatusResponse);
 
-  // TODO: Comment.
+  // RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
+  // is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
   rpc RunDiagnostics(RunDiagnosticsRequest) returns (RunDiagnosticsResponse);
 }
 
