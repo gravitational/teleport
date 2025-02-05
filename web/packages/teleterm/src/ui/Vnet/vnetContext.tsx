@@ -102,7 +102,7 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
     }, [vnet, setAppState, appCtx])
   );
 
-  const [diagnosticsAttempt, runDiagnostics] = useAsync(
+  const [, runDiagnostics] = useAsync(
     useCallback(async () => {
       await vnet.runDiagnostics({});
     }, [vnet])
