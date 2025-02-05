@@ -265,7 +265,7 @@ exports[`empty state 1`] = `
           </a>
           <a
             class="c17"
-            href="https://goteleport.com/docs/server-access/getting-started/"
+            href="https://goteleport.com/docs/enroll-resources/server-access/getting-started/"
             kind="border"
             rel="noreferrer"
             target="_blank"
