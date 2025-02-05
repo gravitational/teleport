@@ -55,12 +55,12 @@ Teleport includes an identity-aware access proxy, a CA that issues short-lived c
 
 We have implemented Teleport as a single Go binary that integrates with multiple protocols and cloud services:
 
-* [SSH nodes](https://goteleport.com/docs/server-access/introduction/).
-* [Kubernetes clusters](https://goteleport.com/docs/kubernetes-access/introduction/)
-* [PostgreSQL, MongoDB, CockroachDB and MySQL databases](https://goteleport.com/docs/database-access/introduction/).
-* [Internal Web apps](https://goteleport.com/docs/application-access/introduction/).
-* [Windows Hosts](https://goteleport.com/docs/desktop-access/introduction/).
-* [Networked servers](https://goteleport.com/docs/server-access/introduction/).
+* [SSH nodes](https://goteleport.com/docs/enroll-resources/server-access/).
+* [Kubernetes clusters](https://goteleport.com/docs/enroll-resources/kubernetes-access/)
+* [PostgreSQL, MongoDB, CockroachDB and MySQL databases](https://goteleport.com/docs/enroll-resources/database-access/).
+* [Internal Web apps](https://goteleport.com/docs/enroll-resources/application-access/).
+* [Windows Hosts](https://goteleport.com/docs/enroll-resources/desktop-access/).
+* [Networked servers](https://goteleport.com/docs/enroll-resources/server-access/).
 
 You can set up Teleport as a [Linux daemon](https://goteleport.com/docs/admin-guides/deploy-a-cluster/linux-demo) or a [Kubernetes deployment](https://goteleport.com/docs/admin-guides/deploy-a-cluster/helm-deployments/).
 
