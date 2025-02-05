@@ -78,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -2237,9 +2238,10 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 	sshCert, err := sshutils.ParseCertificate(resp.SSH)
 	require.NoError(t, err)
 
-	roles, err := services.UnmarshalCertRoles(sshCert.Extensions[teleport.CertExtensionTeleportRoles])
+	sshIdent, err := sshca.DecodeIdentity(sshCert)
 	require.NoError(t, err)
-	require.Equal(t, []string{role.GetName()}, roles)
+
+	require.Equal(t, []string{role.GetName()}, sshIdent.Roles)
 
 	traits := wrappers.Traits{}
 	err = wrappers.UnmarshalTraits([]byte(sshCert.Extensions[teleport.CertExtensionTeleportTraits]), &traits)
@@ -2295,9 +2297,9 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 	sshCert, err = sshutils.ParseCertificate(resp.SSH)
 	require.NoError(t, err)
 
-	roles, err = services.UnmarshalCertRoles(sshCert.Extensions[teleport.CertExtensionTeleportRoles])
+	sshIdent, err = sshca.DecodeIdentity(sshCert)
 	require.NoError(t, err)
-	require.Equal(t, []string{role.GetName(), "uls-role1", "uls-role2"}, roles)
+	require.Equal(t, []string{role.GetName(), "uls-role1", "uls-role2"}, sshIdent.Roles)
 
 	traits = wrappers.Traits{}
 	err = wrappers.UnmarshalTraits([]byte(sshCert.Extensions[teleport.CertExtensionTeleportTraits]), &traits)

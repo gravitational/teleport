@@ -67,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -1782,14 +1783,12 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, baseWebClient.Close()) })
 
 	expectRolesAndResources := func(t *testing.T, sess types.WebSession, expectRoles []string, expectResources []types.ResourceID) {
-		sshCert, err := sshutils.ParseCertificate(sess.GetPub())
+		sshcert, err := sshutils.ParseCertificate(sess.GetPub())
 		require.NoError(t, err)
-		gotRoles, err := services.ExtractRolesFromCert(sshCert)
+		ident, err := sshca.DecodeIdentity(sshcert)
 		require.NoError(t, err)
-		gotResources, err := services.ExtractAllowedResourcesFromCert(sshCert)
-		require.NoError(t, err)
-		assert.ElementsMatch(t, expectRoles, gotRoles)
-		assert.ElementsMatch(t, expectResources, gotResources)
+		assert.ElementsMatch(t, expectRoles, ident.Roles)
+		assert.ElementsMatch(t, expectResources, ident.AllowedResourceIDs)
 	}
 
 	type extendSessionFunc func(*testing.T, *authclient.Client, types.WebSession) (*authclient.Client, types.WebSession)
@@ -1974,13 +1973,13 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	require.NoError(t, err)
 
 	// Roles extracted from cert should contain the initial role and the role assigned with access request.
-	roles, err := services.ExtractRolesFromCert(sshcert)
+	ident, err := sshca.DecodeIdentity(sshcert)
 	require.NoError(t, err)
-	require.Len(t, roles, 2)
+	require.Len(t, ident.Roles, 2)
 
 	mappedRole := map[string]string{
-		roles[0]: "",
-		roles[1]: "",
+		ident.Roles[0]: "",
+		ident.Roles[1]: "",
 	}
 
 	_, hasRole := mappedRole[initialRole]
@@ -2015,9 +2014,9 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	sshcert, err = sshutils.ParseCertificate(sess2.GetPub())
 	require.NoError(t, err)
 
-	roles, err = services.ExtractRolesFromCert(sshcert)
+	ident, err = sshca.DecodeIdentity(sshcert)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(roles, []string{initialRole}))
+	require.Empty(t, cmp.Diff(ident.Roles, []string{initialRole}))
 
 	require.Empty(t, certRequests(sess2.GetTLSCert()))
 }
@@ -2080,13 +2079,12 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	// Check traits has been updated to latest.
 	sshcert, err := sshutils.ParseCertificate(sess1.GetPub())
 	require.NoError(t, err)
-	traits, err := services.ExtractTraitsFromCert(sshcert)
+
+	ident, err := sshca.DecodeIdentity(sshcert)
 	require.NoError(t, err)
-	roles, err := services.ExtractRolesFromCert(sshcert)
-	require.NoError(t, err)
-	require.Equal(t, []string{"apple", "banana"}, traits[constants.TraitLogins])
-	require.Equal(t, []string{"llama", "alpaca"}, traits[constants.TraitDBUsers])
-	require.Contains(t, roles, newRoleName)
+	require.Equal(t, []string{"apple", "banana"}, ident.Traits[constants.TraitLogins])
+	require.Equal(t, []string{"llama", "alpaca"}, ident.Traits[constants.TraitDBUsers])
+	require.Contains(t, ident.Roles, newRoleName)
 }
 
 func TestExtendWebSessionWithMaxDuration(t *testing.T) {

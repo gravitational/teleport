@@ -87,7 +87,7 @@ func (c *DBCertChecker) renewCerts(ctx context.Context, lp *alpnproxy.LocalProxy
 	if profile, err := c.tc.ProfileStatus(); err != nil {
 		log.WithError(err).Warn("unable to load profile, requesting database certs without access requests")
 	} else {
-		accessRequests = profile.ActiveRequests.AccessRequests
+		accessRequests = profile.ActiveRequests
 	}
 
 	var key *Key
