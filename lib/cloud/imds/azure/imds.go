@@ -221,7 +221,6 @@ type InstanceInfo struct {
 	SubscriptionID    string `json:"subscriptionId"`
 	VMID              string `json:"vmId"`
 	ResourceID        string `json:"resourceId"`
-	ScaleSetName      string `json:"vmScaleSetName"`
 }
 
 // GetInstanceInfo gets the Azure Instance information.
