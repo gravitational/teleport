@@ -144,6 +144,10 @@ const (
 	// ComponentDiagnostic is a diagnostic service
 	ComponentDiagnostic = "diag"
 
+	// ComponentDiagnosticHealth is the health monitor used by the diagnostic
+	// and debug services.
+	ComponentDiagnosticHealth = "diag:health"
+
 	// ComponentDebug is the debug service, which exposes debugging
 	// configuration over a Unix socket.
 	ComponentDebug = "debug"
