@@ -25,10 +25,11 @@ import { OnboardDiscover } from 'teleport/services/user';
 import { ResourceKind } from '../../Shared';
 import { resourceKindToPreferredResource } from '../../Shared/ResourceKind';
 import { getMarketingTermMatches } from '../getMarketingTermMatches';
-import { PrioritizedResources, ResourceSpec, SearchResource } from '../types';
+import { SelectResourceSpec } from '../resources';
+import { PrioritizedResources, SearchResource } from '../types';
 
 function isConnectMyComputerAvailable(
-  accessibleResources: ResourceSpec[]
+  accessibleResources: SelectResourceSpec[]
 ): boolean {
   return !!accessibleResources.find(
     resource => resource.kind === ResourceKind.ConnectMyComputer
@@ -36,7 +37,7 @@ function isConnectMyComputerAvailable(
 }
 
 export function sortResourcesByPreferences(
-  resources: ResourceSpec[],
+  resources: SelectResourceSpec[],
   preferences: UserPreferences,
   onboardDiscover: OnboardDiscover | undefined
 ) {
@@ -70,7 +71,7 @@ export function sortResourcesByPreferences(
   // When available on the given platform, Connect My Computer is put either as the first resource
   // if the user has no resources, otherwise it's at the end of the guided group.
   accessible.sort((a, b) => {
-    const compareAB = (predicate: (r: ResourceSpec) => boolean) =>
+    const compareAB = (predicate: (r: SelectResourceSpec) => boolean) =>
       comparePredicate(a, b, predicate);
     const areBothGuided = !a.unguidedLink && !b.unguidedLink;
 
@@ -223,9 +224,9 @@ function comparePredicate<ElementType>(
 
 export function sortResourcesByKind(
   resourceKind: SearchResource,
-  resources: ResourceSpec[]
+  resources: SelectResourceSpec[]
 ) {
-  let sorted: ResourceSpec[] = [];
+  let sorted: SelectResourceSpec[] = [];
   switch (resourceKind) {
     case SearchResource.SERVER:
       sorted = [

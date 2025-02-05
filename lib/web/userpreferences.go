@@ -64,15 +64,23 @@ type AccessGraphPreferencesResponse struct {
 	HasBeenRedirected bool `json:"hasBeenRedirected"`
 }
 
+// DiscoverResourcePreferencesResponse is the JSON response for discover resource preference
+// as part of the user preference request.
+type DiscoverResourcePreferencesResponse struct {
+	// PinnedGuides is a list of ids of pinned guides.
+	PinnedGuides []string `json:"pinnedGuides"`
+}
+
 // UserPreferencesResponse is the JSON response for the user preferences.
 type UserPreferencesResponse struct {
-	Assist                     AssistUserPreferencesResponse       `json:"assist"`
-	Theme                      userpreferencesv1.Theme             `json:"theme"`
-	UnifiedResourcePreferences UnifiedResourcePreferencesResponse  `json:"unifiedResourcePreferences"`
-	Onboard                    OnboardUserPreferencesResponse      `json:"onboard"`
-	ClusterPreferences         ClusterUserPreferencesResponse      `json:"clusterPreferences,omitempty"`
-	AccessGraph                AccessGraphPreferencesResponse      `json:"accessGraph,omitempty"`
-	SideNavDrawerMode          userpreferencesv1.SideNavDrawerMode `json:"sideNavDrawerMode"`
+	Assist                      AssistUserPreferencesResponse       `json:"assist"`
+	Theme                       userpreferencesv1.Theme             `json:"theme"`
+	UnifiedResourcePreferences  UnifiedResourcePreferencesResponse  `json:"unifiedResourcePreferences"`
+	Onboard                     OnboardUserPreferencesResponse      `json:"onboard"`
+	ClusterPreferences          ClusterUserPreferencesResponse      `json:"clusterPreferences,omitempty"`
+	DiscoverResourcePreferences DiscoverResourcePreferencesResponse `json:"discoverResourcePreferences"`
+	AccessGraph                 AccessGraphPreferencesResponse      `json:"accessGraph,omitempty"`
+	SideNavDrawerMode           userpreferencesv1.SideNavDrawerMode `json:"sideNavDrawerMode"`
 }
 
 func (h *Handler) getUserClusterPreferences(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
@@ -154,6 +162,9 @@ func makePreferenceRequest(req UserPreferencesResponse) *userpreferencesv1.Upser
 				HasBeenRedirected: req.AccessGraph.HasBeenRedirected,
 			},
 			SideNavDrawerMode: req.SideNavDrawerMode,
+			DiscoverResourcePreferences: &userpreferencesv1.DiscoverResourcePreferences{
+				PinnedGuides: req.DiscoverResourcePreferences.PinnedGuides,
+			},
 		},
 	}
 }
@@ -182,12 +193,13 @@ func (h *Handler) updateUserPreferences(_ http.ResponseWriter, r *http.Request, 
 // userPreferencesResponse creates a JSON response for the user preferences.
 func userPreferencesResponse(resp *userpreferencesv1.UserPreferences) *UserPreferencesResponse {
 	jsonResp := &UserPreferencesResponse{
-		Theme:                      resp.Theme,
-		Onboard:                    onboardUserPreferencesResponse(resp.Onboard),
-		ClusterPreferences:         clusterPreferencesResponse(resp.ClusterPreferences),
-		UnifiedResourcePreferences: unifiedResourcePreferencesResponse(resp.UnifiedResourcePreferences),
-		AccessGraph:                accessGraphPreferencesResponse(resp.AccessGraph),
-		SideNavDrawerMode:          resp.SideNavDrawerMode,
+		Theme:                       resp.Theme,
+		Onboard:                     onboardUserPreferencesResponse(resp.Onboard),
+		ClusterPreferences:          clusterPreferencesResponse(resp.ClusterPreferences),
+		UnifiedResourcePreferences:  unifiedResourcePreferencesResponse(resp.UnifiedResourcePreferences),
+		AccessGraph:                 accessGraphPreferencesResponse(resp.AccessGraph),
+		SideNavDrawerMode:           resp.SideNavDrawerMode,
+		DiscoverResourcePreferences: discoverResourcePreferenceResponse(resp.DiscoverResourcePreferences),
 	}
 
 	return jsonResp
@@ -241,5 +253,16 @@ func accessGraphPreferencesResponse(resp *userpreferencesv1.AccessGraphUserPrefe
 
 	return AccessGraphPreferencesResponse{
 		HasBeenRedirected: resp.HasBeenRedirected,
+	}
+}
+
+// discoverResourcePreferenceResponse creates a JSON response for the discover resource preferences.
+func discoverResourcePreferenceResponse(resp *userpreferencesv1.DiscoverResourcePreferences) DiscoverResourcePreferencesResponse {
+	if resp == nil || resp.GetPinnedGuides() == nil {
+		return DiscoverResourcePreferencesResponse{}
+	}
+
+	return DiscoverResourcePreferencesResponse{
+		PinnedGuides: resp.GetPinnedGuides(),
 	}
 }

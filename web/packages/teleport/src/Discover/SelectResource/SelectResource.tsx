@@ -27,7 +27,10 @@ import { getPlatform } from 'design/platform';
 import AddApp from 'teleport/Apps/AddApp';
 import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
-import { BASE_RESOURCES } from 'teleport/Discover/SelectResource/resources';
+import {
+  BASE_RESOURCES,
+  SelectResourceSpec,
+} from 'teleport/Discover/SelectResource/resources';
 import { HeaderSubtitle } from 'teleport/Discover/Shared';
 import { storageService } from 'teleport/services/storageService';
 import { useUser } from 'teleport/User/UserContext';
@@ -35,13 +38,13 @@ import useTeleport from 'teleport/useTeleport';
 
 import { SAML_APPLICATIONS } from './resources';
 import { Tile } from './Tile';
-import { SearchResource, type ResourceSpec } from './types';
+import { SearchResource } from './types';
 import { addHasAccessField } from './utils/checkAccess';
 import { filterBySupportedPlatformsAndAuthTypes } from './utils/filters';
 import { sortResourcesByKind, sortResourcesByPreferences } from './utils/sort';
 
 interface SelectResourceProps {
-  onSelect: (resource: ResourceSpec) => void;
+  onSelect: (resource: SelectResourceSpec) => void;
 }
 
 type UrlLocationState = {
@@ -51,7 +54,7 @@ type UrlLocationState = {
 
 function getDefaultResources(
   includeEnterpriseResources: boolean
-): ResourceSpec[] {
+): SelectResourceSpec[] {
   const RESOURCES = includeEnterpriseResources
     ? [...BASE_RESOURCES, ...SAML_APPLICATIONS]
     : BASE_RESOURCES;
@@ -67,7 +70,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
   const [search, setSearch] = useState('');
   const { acl, authType } = ctx.storeUser.state;
   const platform = getPlatform();
-  const defaultResources: ResourceSpec[] = useMemo(
+  const defaultResources: SelectResourceSpec[] = useMemo(
     () =>
       sortResourcesByPreferences(
         // Apply access check to each resource.
@@ -93,7 +96,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
 
   const [showApp, setShowApp] = useState(false);
 
-  function onSearch(s: string, customList?: ResourceSpec[]) {
+  function onSearch(s: string, customList?: SelectResourceSpec[]) {
     const list = customList || defaultResources;
     const search = s.split(' ').map(s => s.toLowerCase());
     const found = list.filter(r =>

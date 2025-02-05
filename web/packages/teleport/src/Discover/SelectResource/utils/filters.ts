@@ -20,12 +20,12 @@ import { Platform } from 'design/platform';
 
 import { AuthType } from 'teleport/services/user';
 
-import { type ResourceSpec } from '../types';
+import { SelectResourceSpec } from '../resources';
 
 export function filterBySupportedPlatformsAndAuthTypes(
   platform: Platform,
   authType: AuthType,
-  resources: ResourceSpec[]
+  resources: SelectResourceSpec[]
 ) {
   return resources.filter(resource => {
     const resourceSupportsPlatform =
