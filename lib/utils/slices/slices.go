@@ -35,3 +35,39 @@ func FilterMapUnique[T any, S comparable](ts []T, fn func(T) (s S, include bool)
 
 	return ss
 }
+
+// ToPointers converts a slice of values to a slice of pointers to those values
+func ToPointers[T any](in []T) []*T {
+	out := make([]*T, len(in))
+	for i := range in {
+		out[i] = &in[i]
+	}
+	return out
+}
+
+// FromPointers converts a slice of pointers to values to a slice of values.
+// Nil pointers are converted to zero-values.
+func FromPointers[T any](in []*T) []T {
+	out := make([]T, len(in))
+	for i := range in {
+		if in[i] == nil {
+			continue
+		}
+		out[i] = *in[i]
+	}
+	return out
+}
+
+// DeduplicateKey returns a deduplicated slice by comparing key values from the key function
+func DeduplicateKey[T any](s []T, key func(T) string) []T {
+	out := make([]T, 0, len(s))
+	seen := make(map[string]struct{})
+	for _, v := range s {
+		if _, ok := seen[key(v)]; ok {
+			continue
+		}
+		seen[key(v)] = struct{}{}
+		out = append(out, v)
+	}
+	return out
+}

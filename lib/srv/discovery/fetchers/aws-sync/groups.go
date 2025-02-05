@@ -33,7 +33,7 @@ import (
 
 // pollAWSGroups is a function that returns a function that fetches
 // AWS groups and their inline and attached policies.
-func (a *awsFetcher) pollAWSGroups(ctx context.Context, result *Resources, collectErr func(error)) func() error {
+func (a *Fetcher) pollAWSGroups(ctx context.Context, result *Resources, collectErr func(error)) func() error {
 	return func() error {
 		var err error
 
@@ -89,7 +89,7 @@ func (a *awsFetcher) pollAWSGroups(ctx context.Context, result *Resources, colle
 
 // fetchGroups fetches AWS groups and returns them as a slice of accessgraphv1alpha.AWSGroupV1.
 // It uses ListGroupsPagesWithContext to iterate over all groups.
-func (a *awsFetcher) fetchGroups(ctx context.Context) ([]*accessgraphv1alpha.AWSGroupV1, error) {
+func (a *Fetcher) fetchGroups(ctx context.Context) ([]*accessgraphv1alpha.AWSGroupV1, error) {
 	var groups []*accessgraphv1alpha.AWSGroupV1
 
 	iamClient, err := a.CloudClients.GetAWSIAMClient(
@@ -132,7 +132,7 @@ func awsGroupToProtoGroup(group *iam.Group, accountID string) *accessgraphv1alph
 // as a slice of accessgraphv1alpha.AWSGroupInlinePolicyV1.
 // It uses ListGroupPoliciesPagesWithContext to iterate over all inline policies
 // associated with the group.
-func (a *awsFetcher) fetchGroupInlinePolicies(ctx context.Context, group *accessgraphv1alpha.AWSGroupV1) ([]*accessgraphv1alpha.AWSGroupInlinePolicyV1, error) {
+func (a *Fetcher) fetchGroupInlinePolicies(ctx context.Context, group *accessgraphv1alpha.AWSGroupV1) ([]*accessgraphv1alpha.AWSGroupInlinePolicyV1, error) {
 	var policies []*accessgraphv1alpha.AWSGroupInlinePolicyV1
 	var errs []error
 	errCollect := func(err error) {
@@ -183,7 +183,7 @@ func awsGroupPolicyToProtoGroupPolicy(policy *iam.GetGroupPolicyOutput, accountI
 }
 
 // fetchGroupAttachedPolicies fetches attached policies for a group.
-func (a *awsFetcher) fetchGroupAttachedPolicies(ctx context.Context, group *accessgraphv1alpha.AWSGroupV1) (*accessgraphv1alpha.AWSGroupAttachedPolicies, error) {
+func (a *Fetcher) fetchGroupAttachedPolicies(ctx context.Context, group *accessgraphv1alpha.AWSGroupV1) (*accessgraphv1alpha.AWSGroupAttachedPolicies, error) {
 	rsp := &accessgraphv1alpha.AWSGroupAttachedPolicies{
 		Group:        group,
 		AccountId:    a.AccountID,

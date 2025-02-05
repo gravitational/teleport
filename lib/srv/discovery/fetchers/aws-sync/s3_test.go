@@ -166,7 +166,7 @@ func TestPollAWSS3(t *testing.T) {
 				defer mu.Unlock()
 				errs = append(errs, err)
 			}
-			a := &awsFetcher{
+			a := &Fetcher{
 				Config: Config{
 					AccountID:    accountID,
 					CloudClients: mockedClients,

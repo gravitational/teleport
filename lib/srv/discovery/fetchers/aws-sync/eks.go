@@ -34,7 +34,7 @@ import (
 
 // pollAWSEKSClusters is a function that returns a function that fetches
 // eks clusters and their access scope levels.
-func (a *awsFetcher) pollAWSEKSClusters(ctx context.Context, result *Resources, collectErr func(error)) func() error {
+func (a *Fetcher) pollAWSEKSClusters(ctx context.Context, result *Resources, collectErr func(error)) func() error {
 	return func() error {
 		output, err := a.fetchAWSSEKSClusters(ctx)
 		if err != nil {
@@ -55,7 +55,7 @@ type fetchAWSEKSClustersOutput struct {
 }
 
 // fetchAWSSEKSClusters fetches eks instances from all regions.
-func (a *awsFetcher) fetchAWSSEKSClusters(ctx context.Context) (fetchAWSEKSClustersOutput, error) {
+func (a *Fetcher) fetchAWSSEKSClusters(ctx context.Context) (fetchAWSEKSClustersOutput, error) {
 	var (
 		output   fetchAWSEKSClustersOutput
 		hostsMu  sync.Mutex
@@ -203,7 +203,7 @@ func awsEKSClusterToProtoCluster(cluster *eks.Cluster, region, accountID string)
 }
 
 // fetchAccessEntries fetches the access entries for the given cluster.
-func (a *awsFetcher) fetchAccessEntries(ctx context.Context, eksClient eksiface.EKSAPI, cluster *accessgraphv1alpha.AWSEKSClusterV1) ([]*accessgraphv1alpha.AWSEKSClusterAccessEntryV1, error) {
+func (a *Fetcher) fetchAccessEntries(ctx context.Context, eksClient eksiface.EKSAPI, cluster *accessgraphv1alpha.AWSEKSClusterV1) ([]*accessgraphv1alpha.AWSEKSClusterAccessEntryV1, error) {
 	var accessEntries []string
 	var errs []error
 
@@ -277,7 +277,7 @@ func awsAccessEntryToProtoAccessEntry(accessEntry *eks.AccessEntry, cluster *acc
 }
 
 // fetchAccessEntries fetches the access entries for the given cluster.
-func (a *awsFetcher) fetchAssociatedPolicies(ctx context.Context, eksClient eksiface.EKSAPI, cluster *accessgraphv1alpha.AWSEKSClusterV1, arns []string) ([]*accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1, error) {
+func (a *Fetcher) fetchAssociatedPolicies(ctx context.Context, eksClient eksiface.EKSAPI, cluster *accessgraphv1alpha.AWSEKSClusterV1, arns []string) ([]*accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1, error) {
 	var associatedPolicies []*accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1
 	var errs []error
 	for _, arn := range arns {

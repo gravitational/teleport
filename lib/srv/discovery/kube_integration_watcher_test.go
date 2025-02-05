@@ -503,6 +503,11 @@ func (m *mockIntegrationsTokenGenerator) GenerateAWSOIDCToken(ctx context.Contex
 	return uuid.NewString(), nil
 }
 
+// GenerateAzureOIDCToken generates a token to be used to execute an Azure OIDC Integration action.
+func (m *mockIntegrationsTokenGenerator) GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error) {
+	return uuid.NewString(), nil
+}
+
 type mockEnrollEKSClusterClient struct {
 	createAccessEntry           func(context.Context, *eks.CreateAccessEntryInput, ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error)
 	associateAccessPolicy       func(context.Context, *eks.AssociateAccessPolicyInput, ...func(*eks.Options)) (*eks.AssociateAccessPolicyOutput, error)
