@@ -73,7 +73,7 @@ func (m *mockAzureVMClient) Get(_ context.Context, resourceID string) (*azure.Vi
 	return vm, nil
 }
 
-func (m *mockAzureVMClient) GetByVMID(_ context.Context, vmID string, opts ...azure.GetByVMIDOption) (*azure.VirtualMachine, error) {
+func (m *mockAzureVMClient) GetByVMID(_ context.Context, vmID string) (*azure.VirtualMachine, error) {
 	for _, vm := range m.vms {
 		if vm.VMID == vmID {
 			return vm, nil

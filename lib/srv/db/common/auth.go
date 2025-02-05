@@ -57,7 +57,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	libazure "github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
-	azureimds "github.com/gravitational/teleport/lib/cloud/imds/azure"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
@@ -1114,17 +1113,12 @@ func (a *dbAuth) getCurrentAzureVM(ctx context.Context) (*libazure.VirtualMachin
 		return nil, trace.BadParameter("fetching Azure identity resource ID is only supported on Azure")
 	}
 
-	azureClient, ok := metadataClient.(*azureimds.InstanceMetadataClient)
-	if !ok {
-		return nil, trace.BadParameter("failed to fetch Azure IMDS client")
-	}
-
-	info, err := azureClient.GetInstanceInfo(ctx)
+	instanceID, err := metadataClient.GetID(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	parsedInstanceID, err := arm.ParseResourceID(info.ResourceID)
+	parsedInstanceID, err := arm.ParseResourceID(instanceID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1134,16 +1128,7 @@ func (a *dbAuth) getCurrentAzureVM(ctx context.Context) (*libazure.VirtualMachin
 		return nil, trace.Wrap(err)
 	}
 
-	if info.ScaleSetName != "" {
-		vm, err := vmClient.GetByVMID(ctx, info.VMID, libazure.WithVMScaleSetName(info.ScaleSetName))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return vm, nil
-	}
-
-	vm, err := vmClient.Get(ctx, info.ResourceID)
+	vm, err := vmClient.Get(ctx, instanceID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

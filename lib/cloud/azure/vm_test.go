@@ -149,18 +149,17 @@ func TestGetVirtualMachine(t *testing.T) {
 func TestGetScaleSetVirtualMachine(t *testing.T) {
 	ctx := context.Background()
 	validResourceID := "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Compute/virtualMachineScaleSets/vmss/virtualMachines/0"
-	validVMID := "00000000-0000-0000-0000-000000000000"
 
 	for _, tc := range []struct {
 		desc        string
-		vmID        string
+		resourceID  string
 		client      *ARMScaleSetMock
 		assertError require.ErrorAssertionFunc
 		assertVM    require.ValueAssertionFunc
 	}{
 		{
-			desc: "vm with valid user identities",
-			vmID: validVMID,
+			desc:       "vm with valid user identities",
+			resourceID: validResourceID,
 			client: &ARMScaleSetMock{
 				GetResult: armcompute.VirtualMachineScaleSetVM{
 					ID:   to.Ptr(validResourceID),
@@ -190,8 +189,8 @@ func TestGetScaleSetVirtualMachine(t *testing.T) {
 			},
 		},
 		{
-			desc: "vm without identity",
-			vmID: validVMID,
+			desc:       "vm without identity",
+			resourceID: validResourceID,
 			client: &ARMScaleSetMock{
 				GetResult: armcompute.VirtualMachineScaleSetVM{
 					ID:   to.Ptr(validResourceID),
@@ -209,8 +208,8 @@ func TestGetScaleSetVirtualMachine(t *testing.T) {
 			},
 		},
 		{
-			desc: "vm with only user managed identities",
-			vmID: validVMID,
+			desc:       "vm with only user managed identities",
+			resourceID: validResourceID,
 			client: &ARMScaleSetMock{
 				GetResult: armcompute.VirtualMachineScaleSetVM{
 					ID:   to.Ptr(validResourceID),
@@ -237,8 +236,8 @@ func TestGetScaleSetVirtualMachine(t *testing.T) {
 			},
 		},
 		{
-			desc: "client error",
-			vmID: validVMID,
+			desc:       "client error",
+			resourceID: validResourceID,
 			client: &ARMScaleSetMock{
 				GetErr: fmt.Errorf("client error"),
 			},
@@ -249,7 +248,7 @@ func TestGetScaleSetVirtualMachine(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			vmClient := NewVirtualMachinesClientByAPI(nil /* api */, tc.client)
 
-			vm, err := vmClient.GetByVMID(ctx, tc.vmID, WithVMScaleSetName("vmss"))
+			vm, err := vmClient.Get(ctx, tc.resourceID)
 			tc.assertError(t, err)
 			tc.assertVM(t, vm)
 		})

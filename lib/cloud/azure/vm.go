@@ -31,6 +31,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+// virtualScaleSetVMResourceType represents the resource type of virtual scale
+// set VMs.
+const virtualScaleSetVMResourceType = "virtualMachineScaleSets/virtualMachines"
+
 // armCompute provides an interface for an Azure virtual machine client.
 type armCompute interface {
 	// Get retrieves information about an Azure virtual machine.
@@ -52,25 +56,9 @@ type VirtualMachinesClient interface {
 	// Get returns the virtual machine for the given resource ID.
 	Get(ctx context.Context, resourceID string) (*VirtualMachine, error)
 	// GetByVMID returns the virtual machine for a given VM ID.
-	GetByVMID(ctx context.Context, vmID string, opts ...GetByVMIDOption) (*VirtualMachine, error)
+	GetByVMID(ctx context.Context, vmID string) (*VirtualMachine, error)
 	// ListVirtualMachines gets all of the virtual machines in the given resource group.
 	ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*armcompute.VirtualMachine, error)
-}
-
-// GetByVMID represents a GetByVIMID option.
-type GetByVMIDOption func(*GetByVMIDConfig)
-
-// GetByVMIDConfig is the configuration used to retrieve a VM by ID.
-type GetByVMIDConfig struct {
-	// VMScaleSetName represents the scale set the VM is related to.
-	VMScaleSetName string
-}
-
-// WithVMScaleSetName sets the scale set name.
-func WithVMScaleSetName(scaleSetName string) GetByVMIDOption {
-	return func(c *GetByVMIDConfig) {
-		c.VMScaleSetName = scaleSetName
-	}
 }
 
 // VirtualMachine represents an Azure virtual machine.
@@ -96,8 +84,6 @@ type Identity struct {
 }
 
 type vmClient struct {
-	// resourceGroupName represents the VMs resource group name.
-	resourceGroupName string
 	// api is the Azure virtual machine client.
 	api armCompute
 	// scaleSetAPI is the Azure VM scale set client.
@@ -191,6 +177,10 @@ func (c *vmClient) Get(ctx context.Context, resourceID string) (*VirtualMachine,
 		return nil, trace.Wrap(err)
 	}
 
+	if parsedResourceID.ResourceType.Type == virtualScaleSetVMResourceType {
+		return c.getScaleSetVM(ctx, parsedResourceID)
+	}
+
 	resp, err := c.api.Get(ctx, parsedResourceID.ResourceGroupName, parsedResourceID.Name, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -201,16 +191,7 @@ func (c *vmClient) Get(ctx context.Context, resourceID string) (*VirtualMachine,
 }
 
 // GetByVMID returns the virtual machine for a given VM ID.
-func (c *vmClient) GetByVMID(ctx context.Context, vmID string, opts ...GetByVMIDOption) (*VirtualMachine, error) {
-	cfg := &GetByVMIDConfig{}
-	for _, opt := range opts {
-		opt(cfg)
-	}
-
-	if cfg.VMScaleSetName != "" {
-		return c.getScaleSetVM(ctx, vmID, cfg.VMScaleSetName)
-	}
-
+func (c *vmClient) GetByVMID(ctx context.Context, vmID string) (*VirtualMachine, error) {
 	pager := newListAllPager(c.api.NewListAllPager(&armcompute.VirtualMachinesClientListAllOptions{}))
 	for pager.more() {
 		res, err := pager.nextPage(ctx)
@@ -228,8 +209,12 @@ func (c *vmClient) GetByVMID(ctx context.Context, vmID string, opts ...GetByVMID
 	return nil, trace.NotFound("no VM with ID %q", vmID)
 }
 
-func (c *vmClient) getScaleSetVM(ctx context.Context, vmID, scaleSetName string) (*VirtualMachine, error) {
-	resp, err := c.scaleSetAPI.Get(ctx, c.resourceGroupName, scaleSetName, vmID, nil)
+func (c *vmClient) getScaleSetVM(ctx context.Context, resourceID *arm.ResourceID) (*VirtualMachine, error) {
+	if resourceID.Parent == nil {
+		return nil, trace.BadParameter("expected resource ID to include scale set as parent resource")
+	}
+
+	resp, err := c.scaleSetAPI.Get(ctx, resourceID.ResourceGroupName, resourceID.Parent.Name, resourceID.Name, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
