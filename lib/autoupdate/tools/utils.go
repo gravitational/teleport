@@ -40,6 +40,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+var errNoBaseURL = errors.New("baseURL is not defined")
+
 // Dir returns the path to client tools in $TELEPORT_HOME/bin.
 func Dir() (string, error) {
 	home := os.Getenv(types.HomeEnvVar)
@@ -128,6 +130,11 @@ type packageURL struct {
 
 // teleportPackageURLs returns the URL for the Teleport archive to download.
 func teleportPackageURLs(uriTmpl string, baseURL, version string) ([]packageURL, error) {
+	envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar)
+	if modules.GetModules().BuildType() == modules.BuildOSS && envBaseURL == "" {
+		return nil, errNoBaseURL
+	}
+
 	var flags autoupdate.InstallFlags
 	m := modules.GetModules()
 	if m.IsBoringBinary() {
