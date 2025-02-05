@@ -17,7 +17,7 @@ jobs:
     environment: docs-amplify
     steps:    
     - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4
+      uses: aws-actions/configure-aws-credentials@4fc4975a852c8cd99761e2de1f4ba73402e44dd9 # v4
       with:
         aws-region: us-west-2
         role-to-assume: ${{ vars.IAM_ROLE }}

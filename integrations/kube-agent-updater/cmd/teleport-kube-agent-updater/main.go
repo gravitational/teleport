@@ -30,6 +30,7 @@ import (
 	"github.com/distribution/reference"
 	"github.com/go-logr/logr"
 	"github.com/gravitational/trace"
+	"golang.org/x/mod/semver"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -238,6 +239,11 @@ func main() {
 		maintenance.FailoverTrigger(plannedMaintenanceTriggers),
 	}
 
+	kc, err := img.GetKeychain(credSource)
+	if err != nil {
+		ctrl.Log.Error(err, "failed to get keychain for registry auth")
+	}
+
 	var imageValidators img.Validators
 	switch {
 	case insecureNoResolve:
@@ -245,12 +251,17 @@ func main() {
 		imageValidators = append(imageValidators, img.NewNopValidator("insecure no resolution"))
 	case insecureNoVerify:
 		ctrl.Log.Info("INSECURE: Image validation disabled")
-		imageValidators = append(imageValidators, img.NewInsecureValidator("insecure always verified"))
-	default:
-		kc, err := img.GetKeychain(credSource)
+		imageValidators = append(imageValidators, img.NewInsecureValidator("insecure always verified", kc))
+	case semver.Prerelease("v"+kubeversionupdater.Version) != "":
+		ctrl.Log.Info("This is a pre-release updater version, the key usied to sign dev and pre-release builds of Teleport will be trusted.")
+		validator, err := img.NewCosignSingleKeyValidator(teleportStageOCIPubKey, "staging cosign signature validator", kc)
 		if err != nil {
-			ctrl.Log.Error(err, "failed to get keychain for registry auth")
+			ctrl.Log.Error(err, "failed to build pre-release image validator, exiting")
+			os.Exit(1)
 		}
+		imageValidators = append(imageValidators, validator)
+		fallthrough
+	default:
 		validator, err := img.NewCosignSingleKeyValidator(teleportProdOCIPubKey, "cosign signature validator", kc)
 		if err != nil {
 			ctrl.Log.Error(err, "failed to build image validator, exiting")

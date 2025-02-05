@@ -157,7 +157,7 @@ func UnmarshalTrustedCluster(bytes []byte, opts ...MarshalOption) (types.Trusted
 	}
 
 	if err := utils.FastUnmarshal(bytes, &trustedCluster); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	// DELETE IN(7.0)
 	// temporarily allow to read trusted cluster with no role map

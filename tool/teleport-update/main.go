@@ -115,6 +115,8 @@ func Run(args []string) int {
 		Short('g').Envar(updateGroupEnvVar).StringVar(&ccfg.Group)
 	enableCmd.Flag("base-url", "Base URL used to override the Teleport download URL.").
 		Short('b').Envar(common.BaseURLEnvVar).StringVar(&ccfg.BaseURL)
+	enableCmd.Flag("overwrite", "Allow existing installed Teleport binaries to be overwritten.").
+		Short('o').BoolVar(&ccfg.AllowOverwrite)
 	enableCmd.Flag("force-version", "Force the provided version instead of using the version provided by the Teleport cluster.").
 		Short('f').Envar(updateVersionEnvVar).Hidden().StringVar(&ccfg.ForceVersion)
 	enableCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for auto-updates.").

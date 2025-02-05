@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -184,6 +185,7 @@ func writeConfig(filename string, cfg *UpdateConfig) error {
 	opts := []renameio.Option{
 		renameio.WithPermissions(configFileMode),
 		renameio.WithExistingPermissions(),
+		renameio.WithTempDir(filepath.Dir(filename)),
 	}
 	t, err := renameio.NewPendingFile(filename, opts...)
 	if err != nil {
@@ -239,4 +241,6 @@ type FindResp struct {
 	InWindow bool `yaml:"in_window"`
 	// Jitter duration before an automated install
 	Jitter time.Duration `yaml:"jitter"`
+	// AGPL installations cannot use the official CDN.
+	AGPL bool `yaml:"agpl,omitempty"`
 }

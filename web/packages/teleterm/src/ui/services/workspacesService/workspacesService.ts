@@ -38,6 +38,7 @@ import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import {
+  PersistedWorkspace,
   StatePersistenceService,
   WorkspacesPersistedState,
 } from 'teleterm/ui/services/statePersistence';
@@ -54,6 +55,7 @@ import {
   getEmptyPendingAccessRequest,
   PendingAccessRequest,
 } from './accessRequestsService';
+import { parseWorkspaceColor, WorkspaceColor } from './color';
 import {
   createClusterDocument,
   Document,
@@ -82,6 +84,7 @@ export interface WorkspacesState {
 
 export interface Workspace {
   localClusterUri: ClusterUri;
+  color: WorkspaceColor;
   documents: Document[];
   location: DocumentUri | undefined;
   accessRequests: {
@@ -173,6 +176,15 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   ): void {
     this.setState(draftState => {
       draftState.workspaces[clusterUri].localClusterUri = localClusterUri;
+    });
+  }
+
+  changeWorkspaceColor(
+    rootClusterUri: RootClusterUri,
+    color: WorkspaceColor
+  ): void {
+    this.setState(draftState => {
+      draftState.workspaces[rootClusterUri].color = color;
     });
   }
 
@@ -373,10 +385,14 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       }
     }
     // If we don't have a workspace for this cluster, add it.
+    // TODO(gzdunek): Creating a workspace here might not be necessary
+    // after we started calling workspacesService.addWorkspace in ClusterAdd.
     this.setState(draftState => {
       if (!draftState.workspaces[clusterUri]) {
-        draftState.workspaces[clusterUri] =
-          getWorkspaceDefaultState(clusterUri);
+        draftState.workspaces[clusterUri] = getWorkspaceDefaultState(
+          clusterUri,
+          draftState.workspaces
+        );
       }
       draftState.rootClusterUri = clusterUri;
     });
@@ -421,6 +437,18 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     return { isAtDesiredWorkspace: true };
   }
 
+  addWorkspace(clusterUri: RootClusterUri): void {
+    if (this.state.workspaces[clusterUri]) {
+      return;
+    }
+    this.setState(draftState => {
+      draftState.workspaces[clusterUri] = getWorkspaceDefaultState(
+        clusterUri,
+        draftState.workspaces
+      );
+    });
+  }
+
   removeWorkspace(clusterUri: RootClusterUri): void {
     this.setState(draftState => {
       delete draftState.workspaces[clusterUri];
@@ -459,6 +487,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         const restoredWorkspace = this.restoredState.workspaces[cluster.uri];
         workspaces[cluster.uri] = getWorkspaceDefaultState(
           cluster.uri,
+          workspaces,
           restoredWorkspace
         );
         return workspaces;
@@ -558,6 +587,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       stateToSave.workspaces[w] = {
         localClusterUri: workspace.localClusterUri,
         location: workspace.location,
+        color: workspace.color,
         documents: documentsToPersist,
         connectMyComputer: workspace.connectMyComputer,
         unifiedResourcePreferences: workspace.unifiedResourcePreferences,
@@ -633,7 +663,8 @@ function getLocationToRestore(
 
 function getWorkspaceDefaultState(
   rootClusterUri: RootClusterUri,
-  restoredWorkspace?: Immutable<Omit<Workspace, 'accessRequests'>>
+  workspaces: Record<string, Workspace>,
+  restoredWorkspace?: Immutable<PersistedWorkspace>
 ): Workspace {
   const defaultDocument = createClusterDocument({ clusterUri: rootClusterUri });
   const defaultWorkspace: Workspace = {
@@ -647,6 +678,7 @@ function getWorkspaceDefaultState(
     hasDocumentsToReopen: false,
     localClusterUri: rootClusterUri,
     unifiedResourcePreferences: parseUnifiedResourcePreferences(undefined),
+    color: parseWorkspaceColor(undefined, workspaces),
   };
   if (!restoredWorkspace) {
     return defaultWorkspace;
@@ -655,6 +687,10 @@ function getWorkspaceDefaultState(
   defaultWorkspace.localClusterUri = restoredWorkspace.localClusterUri;
   defaultWorkspace.unifiedResourcePreferences = parseUnifiedResourcePreferences(
     restoredWorkspace.unifiedResourcePreferences
+  );
+  defaultWorkspace.color = parseWorkspaceColor(
+    restoredWorkspace.color,
+    workspaces
   );
   defaultWorkspace.connectMyComputer = restoredWorkspace.connectMyComputer;
   defaultWorkspace.hasDocumentsToReopen = hasDocumentsToReopen({

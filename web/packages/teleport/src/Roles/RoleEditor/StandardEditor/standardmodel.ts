@@ -29,6 +29,7 @@ import {
 import {
   CreateDBUserMode,
   CreateHostUserMode,
+  GitHubPermission,
   KubernetesResourceKind,
   KubernetesVerb,
   RequireMFAType,
@@ -87,7 +88,8 @@ export type ResourceAccess =
   | ServerAccess
   | AppAccess
   | DatabaseAccess
-  | WindowsDesktopAccess;
+  | WindowsDesktopAccess
+  | GitHubOrganizationAccess;
 
 /**
  * A base for all resource section models. Contains a type discriminator field.
@@ -95,7 +97,7 @@ export type ResourceAccess =
 type ResourceAccessBase<T extends ResourceAccessKind> = {
   /**
    * Determines kind of resource that is accessed using this spec. Intended to
-   * be mostly consistent with UnifiedResources.kind, but that has no real
+   * be mostly consistent with UnifiedResourceKind, but that has no real
    * meaning on the server side; we needed some discriminator, so we picked
    * this one.
    */
@@ -107,13 +109,15 @@ export type ResourceAccessKind =
   | 'kube_cluster'
   | 'app'
   | 'db'
-  | 'windows_desktop';
+  | 'windows_desktop'
+  | 'git_server';
 
 /** Model for the Kubernetes resource section. */
 export type KubernetesAccess = ResourceAccessBase<'kube_cluster'> & {
   groups: readonly Option[];
   labels: UILabel[];
   resources: KubernetesResourceModel[];
+  users: readonly Option[];
 
   /**
    * Version of the role that owns this section. Required to propagate it to
@@ -265,11 +269,16 @@ export type DatabaseAccess = ResourceAccessBase<'db'> & {
   names: readonly Option[];
   users: readonly Option[];
   roles: readonly Option[];
+  dbServiceLabels: UILabel[];
 };
 
 export type WindowsDesktopAccess = ResourceAccessBase<'windows_desktop'> & {
   labels: UILabel[];
   logins: readonly Option[];
+};
+
+export type GitHubOrganizationAccess = ResourceAccessBase<'git_server'> & {
+  organizations: readonly Option[];
 };
 
 export type RuleModel = {
@@ -283,6 +292,7 @@ export type RuleModel = {
    */
   resources: readonly ResourceKindOption[];
   verbs: readonly VerbOption[];
+  where: string;
 };
 
 export type OptionsModel = {
@@ -432,6 +442,11 @@ export function newResourceAccess(
 ): WindowsDesktopAccess;
 
 export function newResourceAccess(
+  kind: 'git_server',
+  roleVersion: RoleVersion
+): GitHubOrganizationAccess;
+
+export function newResourceAccess(
   kind: ResourceAccessKind,
   roleVersion: RoleVersion
 ): AppAccess;
@@ -453,6 +468,7 @@ export function newResourceAccess(
         groups: [stringToOption('{{internal.kubernetes_groups}}')],
         labels: [],
         resources: [],
+        users: [],
         roleVersion,
       };
     case 'app':
@@ -470,12 +486,18 @@ export function newResourceAccess(
         names: [stringToOption('{{internal.db_names}}')],
         users: [stringToOption('{{internal.db_users}}')],
         roles: [stringToOption('{{internal.db_roles}}')],
+        dbServiceLabels: [],
       };
     case 'windows_desktop':
       return {
         kind: 'windows_desktop',
         labels: [],
         logins: [stringToOption('{{internal.windows_logins}}')],
+      };
+    case 'git_server':
+      return {
+        kind: 'git_server',
+        organizations: [stringToOption('{{internal.github_orgs}}')],
       };
     default:
       kind satisfies never;
@@ -500,6 +522,7 @@ export function newRuleModel(): RuleModel {
     id: crypto.randomUUID(),
     resources: [],
     verbs: [],
+    where: '',
   };
 }
 
@@ -563,26 +586,37 @@ function roleConditionsToModel(
   roleVersion: RoleVersion
 ): Pick<RoleEditorModel, 'resources' | 'rules' | 'requiresReset'> {
   const {
+    // Server access
     node_labels,
     logins,
 
+    // Kubernetes access
     kubernetes_groups,
     kubernetes_labels,
     kubernetes_resources,
+    kubernetes_users,
 
+    // App access
     app_labels,
     aws_role_arns,
     azure_identities,
     gcp_service_accounts,
 
+    // Database access
     db_labels,
     db_names,
     db_users,
     db_roles,
+    db_service_labels,
 
+    // Windows desktop access
     windows_desktop_labels,
     windows_desktop_logins,
 
+    // GitHub organization access
+    github_permissions,
+
+    // Access rules
     rules,
 
     ...unsupportedConditions
@@ -606,12 +640,21 @@ function roleConditionsToModel(
     model: kubeResourcesModel,
     requiresReset: kubernetesResourcesRequireReset,
   } = kubernetesResourcesToModel(kubernetes_resources, roleVersion);
-  if (someNonEmpty(kubeGroupsModel, kubeLabelsModel, kubeResourcesModel)) {
+  const kubeUsersModel = stringsToOptions(kubernetes_users ?? []);
+  if (
+    someNonEmpty(
+      kubeGroupsModel,
+      kubeLabelsModel,
+      kubeResourcesModel,
+      kubeUsersModel
+    )
+  ) {
     resources.push({
       kind: 'kube_cluster',
       groups: kubeGroupsModel,
       labels: kubeLabelsModel,
       resources: kubeResourcesModel,
+      users: kubeUsersModel,
       roleVersion,
     });
   }
@@ -641,13 +684,23 @@ function roleConditionsToModel(
   const dbNamesModel = db_names ?? [];
   const dbUsersModel = db_users ?? [];
   const dbRolesModel = db_roles ?? [];
-  if (someNonEmpty(dbLabelsModel, dbNamesModel, dbUsersModel, dbRolesModel)) {
+  const dbServiceLabelsModel = labelsToModel(db_service_labels);
+  if (
+    someNonEmpty(
+      dbLabelsModel,
+      dbNamesModel,
+      dbUsersModel,
+      dbRolesModel,
+      dbServiceLabelsModel
+    )
+  ) {
     resources.push({
       kind: 'db',
       labels: dbLabelsModel,
       names: stringsToOptions(dbNamesModel),
       users: stringsToOptions(dbUsersModel),
       roles: stringsToOptions(dbRolesModel),
+      dbServiceLabels: dbServiceLabelsModel,
     });
   }
 
@@ -663,6 +716,17 @@ function roleConditionsToModel(
     });
   }
 
+  const {
+    model: gitHubOrganizationsModel,
+    requiresReset: gitHubOrgsRequireReset,
+  } = gitHubOrganizationsToModel(github_permissions);
+  if (someNonEmpty(gitHubOrganizationsModel)) {
+    resources.push({
+      kind: 'git_server',
+      organizations: gitHubOrganizationsModel,
+    });
+  }
+
   const { model: rulesModel, requiresReset: rulesRequireReset } =
     rulesToModel(rules);
 
@@ -671,6 +735,7 @@ function roleConditionsToModel(
     rules: rulesModel,
     requiresReset:
       kubernetesResourcesRequireReset ||
+      gitHubOrgsRequireReset ||
       rulesRequireReset ||
       !isEmpty(unsupportedConditions),
   };
@@ -749,6 +814,34 @@ function kubernetesResourceToModel(
   };
 }
 
+/**
+ * Converts a {@link GitHubPermission} array to a list of organizations.
+ * Technically, there can be more than one `GitHubPermission` object, but we
+ * simply glue the underlying organization arrays into one. Note that the
+ * object's semantics may further be extended to the point where there's a
+ * difference between multiple such objects and one object containing all the
+ * organizations; however, since this would require adding additional fields to
+ * the `GitHubPermission` object (otherwise, such change wouldn't make sense),
+ * this function is protected anyway from attempting to interpret such an
+ * extended object, and it would return `requiresReset: true` anyway.
+ */
+function gitHubOrganizationsToModel(gitHubPermissions: GitHubPermission[]): {
+  model: Option[];
+  requiresReset: boolean;
+} {
+  const permissions = gitHubPermissions ?? [];
+  let requiresReset = false;
+  const model: Option[] = [];
+  for (const { orgs, ...rest } of permissions) {
+    if (!isEmpty(rest)) {
+      requiresReset = true;
+    }
+    model.push(...stringsToOptions(orgs));
+  }
+
+  return { model, requiresReset };
+}
+
 function rulesToModel(rules: Rule[]): {
   model: RuleModel[];
   requiresReset: boolean;
@@ -761,7 +854,7 @@ function rulesToModel(rules: Rule[]): {
 }
 
 function ruleToModel(rule: Rule): { model: RuleModel; requiresReset: boolean } {
-  const { resources = [], verbs = [], ...unsupported } = rule;
+  const { resources = [], verbs = [], where = '', ...unsupported } = rule;
   const resourcesModel = resources.map(
     k => resourceKindOptionsMap.get(k) ?? { label: k, value: k }
   );
@@ -774,6 +867,7 @@ function ruleToModel(rule: Rule): { model: RuleModel; requiresReset: boolean } {
       id: crypto.randomUUID(),
       resources: resourcesModel,
       verbs: knownVerbsModel,
+      where,
     },
     requiresReset,
   };
@@ -970,6 +1064,7 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
             verbs: optionsToStrings(verbs),
           })
         );
+        role.spec.allow.kubernetes_users = optionsToStrings(res.users);
         break;
 
       case 'app':
@@ -984,6 +1079,9 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
         role.spec.allow.db_names = optionsToStrings(res.names);
         role.spec.allow.db_users = optionsToStrings(res.users);
         role.spec.allow.db_roles = optionsToStrings(res.roles);
+        role.spec.allow.db_service_labels = labelsModelToLabels(
+          res.dbServiceLabels
+        );
         break;
 
       case 'windows_desktop':
@@ -991,6 +1089,12 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
           res.labels
         );
         role.spec.allow.windows_desktop_logins = optionsToStrings(res.logins);
+        break;
+
+      case 'git_server':
+        role.spec.allow.github_permissions = [
+          { orgs: optionsToStrings(res.organizations) },
+        ];
         break;
 
       default:
@@ -1002,6 +1106,7 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
     role.spec.allow.rules = roleModel.rules.map(role => ({
       resources: role.resources.map(r => r.value),
       verbs: role.verbs.map(v => v.value),
+      where: role.where || undefined,
     }));
   }
 

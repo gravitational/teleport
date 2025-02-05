@@ -20,6 +20,7 @@ import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
 import {
   CreateDBUserMode,
   CreateHostUserMode,
+  GitHubPermission,
   KubernetesResource,
   Labels,
   RequireMFAType,
@@ -31,6 +32,7 @@ import {
   SSHPortForwarding,
 } from 'teleport/services/resources';
 
+import presetRoles from '../../../../../../../gen/preset-roles.json';
 import {
   createDBUserModeOptionsMap,
   createHostUserModeOptionsMap,
@@ -197,6 +199,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
           db_names: ['stuff', 'knickknacks'],
           db_users: ['joe', 'mary'],
           db_roles: ['admin', 'auditor'],
+          db_service_labels: { foo: 'bar' },
         },
       },
     },
@@ -218,6 +221,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
             { label: 'admin', value: 'admin' },
             { label: 'auditor', value: 'auditor' },
           ],
+          dbServiceLabels: [{ name: 'foo', value: 'bar' }],
         },
       ],
     },
@@ -244,6 +248,31 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
           logins: [
             { label: 'alice', value: 'alice' },
             { label: 'bob', value: 'bob' },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    name: 'GitHub organization',
+    role: {
+      ...minimalRole(),
+      spec: {
+        ...minimalRole().spec,
+        allow: {
+          github_permissions: [{ orgs: ['illuminati', 'reptilians'] }],
+        },
+      },
+    },
+    model: {
+      ...minimalRoleModel(),
+      resources: [
+        {
+          kind: 'git_server',
+          organizations: [
+            { label: 'illuminati', value: 'illuminati' },
+            { label: 'reptilians', value: 'reptilians' },
           ],
         },
       ],
@@ -440,6 +469,7 @@ describe('roleToRoleEditorModel', () => {
     groups: [],
     labels: [],
     resources: [],
+    users: [],
     roleVersion: defaultRoleVersion,
   });
 
@@ -556,6 +586,31 @@ describe('roleToRoleEditorModel', () => {
                 verbs: [kubernetesVerbOptionsMap.get('get')],
               }),
             ],
+          },
+        ],
+      },
+    },
+
+    {
+      name: 'unknown field in github_permissions',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          allow: {
+            ...minRole.spec.allow,
+            github_permissions: [
+              { orgs: ['foo'], unknownField: 123 } as GitHubPermission,
+            ],
+          },
+        },
+      },
+      model: {
+        ...roleModelWithReset,
+        resources: [
+          {
+            kind: 'git_server',
+            organizations: [{ label: 'foo', value: 'foo' }],
           },
         ],
       },
@@ -868,6 +923,7 @@ describe('roleToRoleEditorModel', () => {
                 name: 'some-node',
               },
             ],
+            kubernetes_users: ['alice', 'bob'],
           },
         },
       })
@@ -901,6 +957,10 @@ describe('roleToRoleEditorModel', () => {
               verbs: [],
               roleVersion: defaultRoleVersion,
             },
+          ],
+          users: [
+            { label: 'alice', value: 'alice' },
+            { label: 'bob', value: 'bob' },
           ],
           roleVersion: defaultRoleVersion,
         },
@@ -948,6 +1008,11 @@ describe('roleToRoleEditorModel', () => {
                 verbs: ['read', 'list'],
               },
               { resources: [ResourceKind.Lock], verbs: ['create'] },
+              {
+                resources: [ResourceKind.Session],
+                verbs: ['read', 'list'],
+                where: 'contains(session.participants, user.metadata.name)',
+              },
             ],
           },
         },
@@ -962,15 +1027,57 @@ describe('roleToRoleEditorModel', () => {
             resourceKindOptionsMap.get(ResourceKind.DatabaseService),
           ],
           verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+          where: '',
         },
         {
           id: expect.any(String),
           resources: [resourceKindOptionsMap.get(ResourceKind.Lock)],
           verbs: [verbOptionsMap.get('create')],
+          where: '',
+        },
+        {
+          id: expect.any(String),
+          resources: [resourceKindOptionsMap.get(ResourceKind.Session)],
+          verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+          where: 'contains(session.participants, user.metadata.name)',
         },
       ],
     } as RoleEditorModel);
   });
+
+  test('multiple github_permissions', () => {
+    expect(
+      roleToRoleEditorModel({
+        ...minimalRole(),
+        spec: {
+          ...minimalRole().spec,
+          allow: {
+            ...minimalRole().spec.allow,
+            github_permissions: [{ orgs: ['foo'] }, { orgs: ['bar'] }],
+          },
+        },
+      })
+    ).toEqual({
+      ...minimalRoleModel(),
+      resources: [
+        {
+          kind: 'git_server',
+          organizations: [
+            { label: 'foo', value: 'foo' },
+            { label: 'bar', value: 'bar' },
+          ],
+        },
+      ],
+    } as RoleEditorModel);
+  });
+
+  it.each(['access', 'editor', 'auditor'])(
+    'supports the preset "%s" role',
+    roleName => {
+      const { requiresReset } = roleToRoleEditorModel(presetRoles[roleName]);
+      expect(requiresReset).toBe(false);
+    }
+  );
 });
 
 test('labelsToModel', () => {
@@ -1042,6 +1149,10 @@ describe('roleEditorModelToRole', () => {
                 roleVersion: defaultRoleVersion,
               },
             ],
+            users: [
+              { label: 'alice', value: 'alice' },
+              { label: 'bob', value: 'bob' },
+            ],
             roleVersion: defaultRoleVersion,
           },
         ],
@@ -1067,6 +1178,7 @@ describe('roleEditorModelToRole', () => {
               verbs: [],
             },
           ],
+          kubernetes_users: ['alice', 'bob'],
         },
       },
     } as Role);
@@ -1084,11 +1196,19 @@ describe('roleEditorModelToRole', () => {
               resourceKindOptionsMap.get(ResourceKind.DatabaseService),
             ],
             verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+            where: '',
           },
           {
             id: 'dummy-id-2',
             resources: [resourceKindOptionsMap.get(ResourceKind.Lock)],
             verbs: [verbOptionsMap.get('create')],
+            where: '',
+          },
+          {
+            id: expect.any(String),
+            resources: [resourceKindOptionsMap.get(ResourceKind.Session)],
+            verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+            where: 'contains(session.participants, user.metadata.name)',
           },
         ],
       })
@@ -1100,6 +1220,11 @@ describe('roleEditorModelToRole', () => {
           rules: [
             { resources: ['user', 'db_service'], verbs: ['read', 'list'] },
             { resources: ['lock'], verbs: ['create'] },
+            {
+              resources: ['session'],
+              verbs: ['read', 'list'],
+              where: 'contains(session.participants, user.metadata.name)',
+            },
           ],
         },
       },

@@ -34,9 +34,9 @@ import (
 )
 
 type connector struct {
-	auth         common.Auth
-	cloudClients libcloud.Clients
-	log          *slog.Logger
+	auth       common.Auth
+	gcpClients libcloud.GCPClients
+	log        *slog.Logger
 
 	certExpiry    time.Time
 	database      types.Database
@@ -91,7 +91,7 @@ func (c *connector) getConnectConfig(ctx context.Context) (*pgconn.Config, error
 			return nil, trace.Wrap(err)
 		}
 		// Get the client once for subsequent calls (it acquires a read lock).
-		gcpClient, err := c.cloudClients.GetGCPSQLAdminClient(ctx)
+		gcpClient, err := c.gcpClients.GetGCPSQLAdminClient(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -121,14 +121,9 @@ type AWSFetcherFactoryConfig struct {
 	AWSConfigProvider awsconfig.Provider
 	// AWSClients provides AWS SDK clients.
 	AWSClients AWSClientProvider
-	// CloudClients is an interface for retrieving AWS SDK v1 cloud clients.
-	CloudClients cloud.AWSClients
 }
 
 func (c *AWSFetcherFactoryConfig) checkAndSetDefaults() error {
-	if c.CloudClients == nil {
-		return trace.BadParameter("missing CloudClients")
-	}
 	if c.AWSConfigProvider == nil {
 		return trace.BadParameter("missing AWSConfigProvider")
 	}
@@ -173,7 +168,6 @@ func (f *AWSFetcherFactory) MakeFetchers(ctx context.Context, matchers []types.A
 			for _, makeFetcher := range makeFetchers {
 				for _, region := range matcher.Regions {
 					fetcher, err := makeFetcher(awsFetcherConfig{
-						AWSClients:          f.cfg.CloudClients,
 						Type:                matcherType,
 						AssumeRole:          assumeRole,
 						Labels:              matcher.Tags,

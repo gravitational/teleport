@@ -22,15 +22,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sync/atomic"
-	"syscall"
 
 	"github.com/gravitational/trace"
 )
 
-// configureOS configures the host OS according to [cfg]. It is safe to call repeatedly, and it is meant to be
-// called with an empty [osConfig] to deconfigure anything necessary before exiting.
-func configureOS(ctx context.Context, cfg *osConfig) error {
+// platformConfigureOS configures the host OS according to cfg. It is safe to
+// call repeatedly, and it is meant to be called with an empty osConfig to
+// deconfigure anything necessary before exiting.
+func platformConfigureOS(ctx context.Context, cfg *osConfig) error {
 	// There is no need to remove IP addresses or routes, they will automatically be cleaned up when the
 	// process exits and the TUN is deleted.
 
@@ -140,43 +139,4 @@ func vnetManagedResolverFiles() (map[string]struct{}, error) {
 		}
 	}
 	return matchingFiles, nil
-}
-
-var hasDroppedPrivileges atomic.Bool
-
-// doWithDroppedRootPrivileges drops the privileges of the current process to those of the client
-// process that called the VNet daemon.
-func (c *osConfigurator) doWithDroppedRootPrivileges(ctx context.Context, fn func() error) (err error) {
-	if !hasDroppedPrivileges.CompareAndSwap(false, true) {
-		// At the moment of writing, the VNet daemon wasn't expected to do multiple things in parallel
-		// with dropped privileges. If you run into this error, consider if employing a mutex is going
-		// to be enough or if a more elaborate refactoring is required.
-		return trace.CompareFailed("privileges are being temporarily dropped already")
-	}
-	defer hasDroppedPrivileges.Store(false)
-
-	rootEgid := os.Getegid()
-	rootEuid := os.Geteuid()
-
-	log.InfoContext(ctx, "Temporarily dropping root privileges.", "egid", c.daemonClientCred.Egid, "euid", c.daemonClientCred.Euid)
-
-	if err := syscall.Setegid(c.daemonClientCred.Egid); err != nil {
-		panic(trace.Wrap(err, "setting egid"))
-	}
-	if err := syscall.Seteuid(c.daemonClientCred.Euid); err != nil {
-		panic(trace.Wrap(err, "setting euid"))
-	}
-
-	defer func() {
-		if err := syscall.Seteuid(rootEuid); err != nil {
-			panic(trace.Wrap(err, "reverting euid"))
-		}
-		if err := syscall.Setegid(rootEgid); err != nil {
-			panic(trace.Wrap(err, "reverting egid"))
-		}
-
-		log.InfoContext(ctx, "Restored root privileges.", "egid", rootEgid, "euid", rootEuid)
-	}()
-
-	return trace.Wrap(fn())
 }
