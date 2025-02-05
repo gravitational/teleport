@@ -311,7 +311,7 @@ func (c *Cluster) GetLoggedInUser() LoggedInUser {
 		Name:           c.status.Username,
 		SSHLogins:      c.status.Logins,
 		Roles:          c.status.Roles,
-		ActiveRequests: c.status.ActiveRequests.AccessRequests,
+		ActiveRequests: c.status.ActiveRequests,
 	}
 }
 
