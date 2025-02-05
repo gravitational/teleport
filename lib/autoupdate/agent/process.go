@@ -334,6 +334,8 @@ func (s SystemdService) waitForReady(ctx context.Context, pid int, tickC <-chan 
 			}
 			if !equalOrZero(readiness.PID, pid) {
 				s.Log.ErrorContext(ctx, "Readiness PID response does not match PID file.", unitKey, s.ServiceName, "file_pid", pid, "ready_pid", readiness.PID)
+			} else {
+				s.Log.DebugContext(ctx, "PIDs are not mismatched.", unitKey, s.ServiceName, "file_pid", pid, "ready_pid", readiness.PID)
 			}
 			return ctx.Err()
 		case <-tickC:
