@@ -227,3 +227,10 @@ extraArgs: []
 #     value: "http://username:password@my.proxy.host:3128"
 # ```
 extraEnv: []
+
+# securityContext(object) -- sets the container security context for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
+# for more details.
+#
+# By default, this is unset.
+securityContext: null
