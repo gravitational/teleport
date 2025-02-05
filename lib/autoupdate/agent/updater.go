@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/autoupdate"
+	"github.com/gravitational/teleport/lib/client/debug"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	libutils "github.com/gravitational/teleport/lib/utils"
@@ -55,7 +56,9 @@ const (
 	// reservedFreeDisk is the minimum required free space left on disk during downloads.
 	// TODO(sclevine): This value is arbitrary and could be replaced by, e.g., min(1%, 200mb) in the future
 	//   to account for a range of disk sizes.
-	reservedFreeDisk = 10_000_000 // 10 MB
+	reservedFreeDisk = 10_000_000
+	// debugSocketFileName is the name of Teleport's debug socket in the data dir.
+	debugSocketFileName = "debug.sock" // 10 MB
 )
 
 // Log keys
@@ -94,6 +97,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		cfg.SystemDir = defaultSystemDir
 	}
 	validator := Validator{Log: cfg.Log}
+	debugClient := debug.NewClient(filepath.Join(ns.dataDir, debugSocketFileName))
 	return &Updater{
 		Log:                cfg.Log,
 		Pool:               certPool,
@@ -116,6 +120,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		Process: &SystemdService{
 			ServiceName: filepath.Base(ns.serviceFile),
 			PIDPath:     ns.pidFile,
+			Ready:       debugClient,
 			Log:         cfg.Log,
 		},
 		Setup: func(ctx context.Context) error {
