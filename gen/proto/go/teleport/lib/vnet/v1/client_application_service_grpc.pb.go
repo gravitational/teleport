@@ -35,13 +35,14 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ClientApplicationService_AuthenticateProcess_FullMethodName = "/teleport.lib.vnet.v1.ClientApplicationService/AuthenticateProcess"
-	ClientApplicationService_Ping_FullMethodName                = "/teleport.lib.vnet.v1.ClientApplicationService/Ping"
-	ClientApplicationService_ResolveAppInfo_FullMethodName      = "/teleport.lib.vnet.v1.ClientApplicationService/ResolveAppInfo"
-	ClientApplicationService_ReissueAppCert_FullMethodName      = "/teleport.lib.vnet.v1.ClientApplicationService/ReissueAppCert"
-	ClientApplicationService_SignForApp_FullMethodName          = "/teleport.lib.vnet.v1.ClientApplicationService/SignForApp"
-	ClientApplicationService_OnNewConnection_FullMethodName     = "/teleport.lib.vnet.v1.ClientApplicationService/OnNewConnection"
-	ClientApplicationService_OnInvalidLocalPort_FullMethodName  = "/teleport.lib.vnet.v1.ClientApplicationService/OnInvalidLocalPort"
+	ClientApplicationService_AuthenticateProcess_FullMethodName      = "/teleport.lib.vnet.v1.ClientApplicationService/AuthenticateProcess"
+	ClientApplicationService_Ping_FullMethodName                     = "/teleport.lib.vnet.v1.ClientApplicationService/Ping"
+	ClientApplicationService_ResolveAppInfo_FullMethodName           = "/teleport.lib.vnet.v1.ClientApplicationService/ResolveAppInfo"
+	ClientApplicationService_ReissueAppCert_FullMethodName           = "/teleport.lib.vnet.v1.ClientApplicationService/ReissueAppCert"
+	ClientApplicationService_SignForApp_FullMethodName               = "/teleport.lib.vnet.v1.ClientApplicationService/SignForApp"
+	ClientApplicationService_OnNewConnection_FullMethodName          = "/teleport.lib.vnet.v1.ClientApplicationService/OnNewConnection"
+	ClientApplicationService_OnInvalidLocalPort_FullMethodName       = "/teleport.lib.vnet.v1.ClientApplicationService/OnInvalidLocalPort"
+	ClientApplicationService_GetTargetOSConfiguration_FullMethodName = "/teleport.lib.vnet.v1.ClientApplicationService/GetTargetOSConfiguration"
 )
 
 // ClientApplicationServiceClient is the client API for ClientApplicationService service.
@@ -73,6 +74,8 @@ type ClientApplicationServiceClient interface {
 	// to a multi-port TCP app because the provided port does not match any of the
 	// TCP ports in the app spec.
 	OnInvalidLocalPort(ctx context.Context, in *OnInvalidLocalPortRequest, opts ...grpc.CallOption) (*OnInvalidLocalPortResponse, error)
+	// GetTargetOSConfiguration gets the target OS configuration.
+	GetTargetOSConfiguration(ctx context.Context, in *GetTargetOSConfigurationRequest, opts ...grpc.CallOption) (*GetTargetOSConfigurationResponse, error)
 }
 
 type clientApplicationServiceClient struct {
@@ -153,6 +156,16 @@ func (c *clientApplicationServiceClient) OnInvalidLocalPort(ctx context.Context,
 	return out, nil
 }
 
+func (c *clientApplicationServiceClient) GetTargetOSConfiguration(ctx context.Context, in *GetTargetOSConfigurationRequest, opts ...grpc.CallOption) (*GetTargetOSConfigurationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetTargetOSConfigurationResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_GetTargetOSConfiguration_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClientApplicationServiceServer is the server API for ClientApplicationService service.
 // All implementations must embed UnimplementedClientApplicationServiceServer
 // for forward compatibility.
@@ -182,6 +195,8 @@ type ClientApplicationServiceServer interface {
 	// to a multi-port TCP app because the provided port does not match any of the
 	// TCP ports in the app spec.
 	OnInvalidLocalPort(context.Context, *OnInvalidLocalPortRequest) (*OnInvalidLocalPortResponse, error)
+	// GetTargetOSConfiguration gets the target OS configuration.
+	GetTargetOSConfiguration(context.Context, *GetTargetOSConfigurationRequest) (*GetTargetOSConfigurationResponse, error)
 	mustEmbedUnimplementedClientApplicationServiceServer()
 }
 
@@ -212,6 +227,9 @@ func (UnimplementedClientApplicationServiceServer) OnNewConnection(context.Conte
 }
 func (UnimplementedClientApplicationServiceServer) OnInvalidLocalPort(context.Context, *OnInvalidLocalPortRequest) (*OnInvalidLocalPortResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method OnInvalidLocalPort not implemented")
+}
+func (UnimplementedClientApplicationServiceServer) GetTargetOSConfiguration(context.Context, *GetTargetOSConfigurationRequest) (*GetTargetOSConfigurationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetTargetOSConfiguration not implemented")
 }
 func (UnimplementedClientApplicationServiceServer) mustEmbedUnimplementedClientApplicationServiceServer() {
 }
@@ -361,6 +379,24 @@ func _ClientApplicationService_OnInvalidLocalPort_Handler(srv interface{}, ctx c
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClientApplicationService_GetTargetOSConfiguration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetTargetOSConfigurationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClientApplicationServiceServer).GetTargetOSConfiguration(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClientApplicationService_GetTargetOSConfiguration_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClientApplicationServiceServer).GetTargetOSConfiguration(ctx, req.(*GetTargetOSConfigurationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClientApplicationService_ServiceDesc is the grpc.ServiceDesc for ClientApplicationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -395,6 +431,10 @@ var ClientApplicationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "OnInvalidLocalPort",
 			Handler:    _ClientApplicationService_OnInvalidLocalPort_Handler,
+		},
+		{
+			MethodName: "GetTargetOSConfiguration",
+			Handler:    _ClientApplicationService_GetTargetOSConfiguration_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
