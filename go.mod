@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport
 
-go 1.22.11
+go 1.22.12
 
 require (
 	cloud.google.com/go/cloudsqlconn v1.9.0
