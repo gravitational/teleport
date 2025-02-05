@@ -51,7 +51,7 @@ import (
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1")
 
 // KeyStorer is an interface that provides methods to retrieve keys and
-// certificates from the backend.
+// certificates from the store.
 type KeyStorer interface {
 	GetTLSCertAndSigner(ctx context.Context, ca types.CertAuthority) ([]byte, crypto.Signer, error)
 	GetJWTSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error)

@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -51,10 +52,15 @@ type certAuthorityGetter interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 }
 
+type eventsWatcher interface {
+	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+}
+
 // RevocationServiceConfig holds configuration options for the RevocationService.
 type RevocationServiceConfig struct {
 	Authorizer authz.Authorizer
-	Backend    workloadIdentityX509RevocationReadWriter
+	Store      workloadIdentityX509RevocationReadWriter
+	Backend    backend.Backend
 	Clock      clockwork.Clock
 	Emitter    apievents.Emitter
 	Logger     *slog.Logger
@@ -63,6 +69,10 @@ type RevocationServiceConfig struct {
 	// CertAuthorityGetter is used to get the certificate authority needed to
 	// sign the CRL.
 	CertAuthorityGetter certAuthorityGetter
+	// ClusterName is the name of the cluster, used to fetch the correct CA.
+	ClusterName string
+
+	EventsWatcher eventsWatcher
 }
 
 // RevocationService is the gRPC service for managing workload identity
@@ -72,13 +82,16 @@ type RevocationService struct {
 	workloadidentityv1pb.UnimplementedWorkloadIdentityRevocationServiceServer
 
 	authorizer          authz.Authorizer
-	backend             workloadIdentityX509RevocationReadWriter
+	backend             backend.Backend
+	store               workloadIdentityX509RevocationReadWriter
 	clock               clockwork.Clock
 	emitter             apievents.Emitter
 	logger              *slog.Logger
 	keyStorer           KeyStorer
 	certAuthorityGetter certAuthorityGetter
 	clusterName         string
+
+	eventsWatcher eventsWatcher
 
 	mu        sync.RWMutex
 	signedCRL []byte
@@ -87,11 +100,11 @@ type RevocationService struct {
 	notifyNewSignedCRL chan struct{}
 }
 
-// NewResourceService returns a new instance of the ResourceService.
+// NewRevocationService returns a new instance of the RevocationService.
 func NewRevocationService(cfg *RevocationServiceConfig) (*RevocationService, error) {
 	switch {
 	case cfg.Backend == nil:
-		return nil, trace.BadParameter("backend service is required")
+		return nil, trace.BadParameter("store service is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
 	case cfg.Emitter == nil:
@@ -99,17 +112,19 @@ func NewRevocationService(cfg *RevocationServiceConfig) (*RevocationService, err
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = slog.With(teleport.ComponentKey, "workload_identity_resource.service")
+		cfg.Logger = slog.With(teleport.ComponentKey, "workload_identity_revocation.service")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 	return &RevocationService{
 		authorizer: cfg.Authorizer,
-		backend:    cfg.Backend,
+		store:      cfg.Store,
 		clock:      cfg.Clock,
 		emitter:    cfg.Emitter,
 		logger:     cfg.Logger,
+
+		notifyNewSignedCRL: make(chan struct{}),
 	}, nil
 }
 
@@ -130,7 +145,7 @@ func (s *RevocationService) GetWorkloadIdentityX509Revocation(
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
-	resource, err := s.backend.GetWorkloadIdentityX509Revocation(ctx, req.Name)
+	resource, err := s.store.GetWorkloadIdentityX509Revocation(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -152,7 +167,7 @@ func (s *RevocationService) ListWorkloadIdentityX509Revocations(
 		return nil, trace.Wrap(err)
 	}
 
-	resources, nextToken, err := s.backend.ListWorkloadIdentityX509Revocations(
+	resources, nextToken, err := s.store.ListWorkloadIdentityX509Revocations(
 		ctx,
 		int(req.PageSize),
 		req.PageToken,
@@ -187,7 +202,7 @@ func (s *RevocationService) DeleteWorkloadIdentityX509Revocation(
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
-	if err := s.backend.DeleteWorkloadIdentityX509Revocation(ctx, req.Name); err != nil {
+	if err := s.store.DeleteWorkloadIdentityX509Revocation(ctx, req.Name); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -212,7 +227,7 @@ func (s *RevocationService) CreateWorkloadIdentityX509Revocation(
 		return nil, trace.Wrap(err)
 	}
 
-	created, err := s.backend.CreateWorkloadIdentityX509Revocation(ctx, req.WorkloadIdentityX509Revocation)
+	created, err := s.store.CreateWorkloadIdentityX509Revocation(ctx, req.WorkloadIdentityX509Revocation)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -238,7 +253,7 @@ func (s *RevocationService) UpdateWorkloadIdentityX509Revocation(
 		return nil, trace.Wrap(err)
 	}
 
-	created, err := s.backend.UpdateWorkloadIdentityX509Revocation(ctx, req.WorkloadIdentityX509Revocation)
+	created, err := s.store.UpdateWorkloadIdentityX509Revocation(ctx, req.WorkloadIdentityX509Revocation)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -266,7 +281,7 @@ func (s *RevocationService) UpsertWorkloadIdentityX509Revocation(
 		return nil, trace.Wrap(err)
 	}
 
-	created, err := s.backend.UpsertWorkloadIdentityX509Revocation(ctx, req.WorkloadIdentityX509Revocation)
+	created, err := s.store.UpsertWorkloadIdentityX509Revocation(ctx, req.WorkloadIdentityX509Revocation)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -312,10 +327,48 @@ func (s *RevocationService) publishSignedCRL(crl []byte) {
 	s.notifyNewSignedCRL = make(chan struct{})
 }
 
-func (s *RevocationService) runCRLSigner() {
+func (s *RevocationService) watchAndSignLoop() {
+
+}
+
+func (s *RevocationService) watchAndSign() error {
 	ctx := context.Background()
 
+	w, err := s.eventsWatcher.NewWatcher(ctx, types.Watch{
+		Kinds: []types.WatchKind{{
+			Kind: types.KindWorkloadIdentityX509Revocation,
+		}},
+	})
+	if err != nil {
+		return trace.Wrap(err, "creating events watcher")
+	}
+
+	// Wait for initial "Init" event to indicate we're now receiving events.
+	select {
+	case <-w.Done():
+		if err := w.Error(); err != nil {
+			return trace.Wrap(err, "watcher failed")
+		}
+		return trace.BadParameter("watcher closed unexpectedly")
+	case evt := <-w.Events():
+		if evt.Type == types.OpInit {
+			break
+		}
+		return trace.BadParameter("expected init event, got %v", evt.Type)
+	case <-ctx.Done():
+		return nil
+	}
+
+	eventWatcherEvent := make(chan struct{})
 	for {
+		select {
+		case <-eventWatcherEvent:
+			for {
+
+			}
+		case <-s.clock.After(time.Minute):
+		}
+
 		// TODO: Debounce mechanism so we:
 		// - Avoid signing the CRL too frequently. We can afford to wait a few
 		//   seconds to group together multiple successive revocations.
@@ -325,18 +378,21 @@ func (s *RevocationService) runCRLSigner() {
 		if err != nil {
 			panic(err)
 		}
-
 		s.publishSignedCRL(crl)
 
+		select {
+		case <-s.clock.After(time.Second * 5):
+
+		}
 		// TODO: Watch for changes to revocation entries (delete or create)
 	}
 }
 
-func (s *RevocationService) signCRL(ctx context.Context) ([]byte, error) {
+func (s *RevocationService) fetchAllRevocations(ctx context.Context) ([]*workloadidentityv1pb.WorkloadIdentityX509Revocation, error) {
 	pageToken := ""
 	revocations := []*workloadidentityv1pb.WorkloadIdentityX509Revocation{}
 	for {
-		res, token, err := s.backend.ListWorkloadIdentityX509Revocations(
+		res, token, err := s.store.ListWorkloadIdentityX509Revocations(
 			ctx, 0, pageToken,
 		)
 		if err != nil {
@@ -348,6 +404,15 @@ func (s *RevocationService) signCRL(ctx context.Context) ([]byte, error) {
 		}
 		pageToken = token
 	}
+	return revocations, nil
+}
+
+func (s *RevocationService) signCRL(
+	ctx context.Context,
+	revocations []*workloadidentityv1pb.WorkloadIdentityX509Revocation,
+) ([]byte, error) {
+	pageToken := ""
+	revocations
 
 	// TODO: fetch
 	ca, err := s.certAuthorityGetter.GetCertAuthority(ctx, types.CertAuthID{

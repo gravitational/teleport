@@ -74,7 +74,7 @@ type ResourceService struct {
 func NewResourceService(cfg *ResourceServiceConfig) (*ResourceService, error) {
 	switch {
 	case cfg.Backend == nil:
-		return nil, trace.BadParameter("backend service is required")
+		return nil, trace.BadParameter("store service is required")
 	case cfg.Cache == nil:
 		return nil, trace.BadParameter("cache service is required")
 	case cfg.Authorizer == nil:
