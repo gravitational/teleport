@@ -342,7 +342,7 @@ destinations:
 			},
 		},
 		{
-			name: "backwards compat with https://goteleport.com/docs/machine-id/guides/databases/",
+			name: "backwards compat with https://goteleport.com/docs/enroll-resources/machine-id/access-guides/databases/",
 			input: `
 auth_server: "teleport.example.com:443"
 onboarding:
@@ -388,7 +388,7 @@ destinations:
 			},
 		},
 		{
-			name: "backwards compat with https://goteleport.com/docs/machine-id/guides/databases/ - mongo",
+			name: "backwards compat with https://goteleport.com/docs/enroll-resources/machine-id/access-guides/databases/ - mongo",
 			input: `
 auth_server: "teleport.example.com:443"
 onboarding:
@@ -439,7 +439,7 @@ destinations:
 			},
 		},
 		{
-			name: "backwards compat with https://goteleport.com/docs/machine-id/guides/databases/ - cockroach",
+			name: "backwards compat with https://goteleport.com/docs/enroll-resources/machine-id/access-guides/databases/ - cockroach",
 			input: `
 auth_server: "teleport.example.com:443"
 onboarding:
@@ -489,7 +489,7 @@ destinations:
 			},
 		},
 		{
-			name: "backwards compat with https://goteleport.com/docs/machine-id/guides/databases/ - tls",
+			name: "backwards compat with https://goteleport.com/docs/enroll-resources/machine-id/access-guides/databases/ - tls",
 			input: `
 auth_server: "teleport.example.com:443"
 onboarding:
@@ -539,7 +539,7 @@ destinations:
 			},
 		},
 		{
-			name: "backwards compat with https://goteleport.com/docs/machine-id/guides/host-certificate/",
+			name: "backwards compat with https://goteleport.com/docs/enroll-resources/machine-id - host-certificate",
 			input: `
 onboarding:
   token: "1234abcd5678efgh9"
@@ -594,7 +594,7 @@ oneshot: false
 			},
 		},
 		{
-			name: "backwards compat with https://goteleport.com/docs/machine-id/guides/applications/",
+			name: "backwards compat with https://goteleport.com/docs/enroll-resources/machine-id/access-guides/applications/",
 			input: `
 auth_server: "teleport.example.com:443"
 onboarding:
@@ -634,7 +634,7 @@ destinations:
 			},
 		},
 		{
-			name: "backwards compat with https://goteleport.com/docs/machine-id/guides/applications/ - with tls config",
+			name: "backwards compat with https://goteleport.com/docs/enroll-resources/machine-id/access-guides/applications/ - with tls config",
 			input: `
 auth_server: "teleport.example.com:443"
 onboarding:
@@ -678,7 +678,7 @@ destinations:
 			},
 		},
 		{
-			name: "backwards compat with https://goteleport.com/docs/machine-id/guides/kubernetes/",
+			name: "backwards compat with https://goteleport.com/docs/enroll-resources/machine-id/access-guides/kubernetes/",
 			input: `
 auth_server: "teleport.example.com:443"
 onboarding:
