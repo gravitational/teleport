@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -220,7 +222,7 @@ type ProfileStatus struct {
 
 	// ActiveRequests tracks the privilege escalation requests applied
 	// during certificate construction.
-	ActiveRequests services.RequestIDs
+	ActiveRequests []string
 
 	// AWSRoleARNs is a list of allowed AWS role ARNs user can assume.
 	AWSRolesARNs []string
@@ -267,45 +269,18 @@ func profileStatusFromKey(key *Key, opts profileOptions) (*ProfileStatus, error)
 		return nil, trace.Wrap(err)
 	}
 
-	// Extract from the certificate how much longer it will be valid for.
-	validUntil := time.Unix(int64(sshCert.ValidBefore), 0)
-
-	// Extract roles from certificate. Note, if the certificate is in old format,
-	// this will be empty.
-	var roles []string
-	rawRoles, ok := sshCert.Extensions[teleport.CertExtensionTeleportRoles]
-	if ok {
-		roles, err = services.UnmarshalCertRoles(rawRoles)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	sort.Strings(roles)
-
-	// Extract traits from the certificate. Note if the certificate is in the
-	// old format, this will be empty.
-	var traits wrappers.Traits
-	rawTraits, ok := sshCert.Extensions[teleport.CertExtensionTeleportTraits]
-	if ok {
-		err = wrappers.UnmarshalTraits([]byte(rawTraits), &traits)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	var activeRequests services.RequestIDs
-	rawRequests, ok := sshCert.Extensions[teleport.CertExtensionTeleportActiveRequests]
-	if ok {
-		if err := activeRequests.Unmarshal([]byte(rawRequests)); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	allowedResourcesStr := sshCert.Extensions[teleport.CertExtensionAllowedResources]
-	allowedResourceIDs, err := types.ResourceIDsFromString(allowedResourcesStr)
+	sshIdent, err := sshca.DecodeIdentity(sshCert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Extract from the certificate how much longer it will be valid for.
+	validUntil := time.Unix(int64(sshIdent.ValidBefore), 0)
+
+	// Extract roles from certificate. Note, if the certificate is in old format,
+	// this will be empty.
+	roles := slices.Clone(sshIdent.Roles)
+	sort.Strings(roles)
 
 	// Extract extensions from certificate. This lists the abilities of the
 	// certificate (like can the user request a PTY, port forwarding, etc.)
@@ -365,8 +340,8 @@ func profileStatusFromKey(key *Key, opts profileOptions) (*ProfileStatus, error)
 		CriticalOptions:         sshCert.CriticalOptions,
 		Roles:                   roles,
 		Cluster:                 opts.SiteName,
-		Traits:                  traits,
-		ActiveRequests:          activeRequests,
+		Traits:                  sshIdent.Traits,
+		ActiveRequests:          sshIdent.ActiveRequests,
 		KubeEnabled:             opts.KubeProxyAddr != "",
 		KubeUsers:               tlsID.KubernetesUsers,
 		KubeGroups:              tlsID.KubernetesGroups,
@@ -376,7 +351,7 @@ func profileStatusFromKey(key *Key, opts profileOptions) (*ProfileStatus, error)
 		AzureIdentities:         tlsID.AzureIdentities,
 		GCPServiceAccounts:      tlsID.GCPServiceAccounts,
 		IsVirtual:               opts.IsVirtual,
-		AllowedResourceIDs:      allowedResourceIDs,
+		AllowedResourceIDs:      sshIdent.AllowedResourceIDs,
 		SAMLSingleLogoutEnabled: opts.SAMLSingleLogoutEnabled,
 	}, nil
 }

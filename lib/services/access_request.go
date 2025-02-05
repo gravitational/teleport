@@ -143,40 +143,6 @@ func NewAccessRequestWithResources(user string, roles []string, resourceIDs []ty
 	return req, nil
 }
 
-// RequestIDs is a collection of IDs for privilege escalation requests.
-type RequestIDs struct {
-	AccessRequests []string `json:"access_requests,omitempty"`
-}
-
-func (r *RequestIDs) Marshal() ([]byte, error) {
-	data, err := utils.FastMarshal(r)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return data, nil
-}
-
-func (r *RequestIDs) Unmarshal(data []byte) error {
-	if err := utils.FastUnmarshal(data, r); err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(r.Check())
-}
-
-func (r *RequestIDs) Check() error {
-	for _, id := range r.AccessRequests {
-		_, err := uuid.Parse(id)
-		if err != nil {
-			return trace.BadParameter("invalid request id %q", id)
-		}
-	}
-	return nil
-}
-
-func (r *RequestIDs) IsEmpty() bool {
-	return len(r.AccessRequests) < 1
-}
-
 // AccessRequestGetter defines the interface for fetching access request resources.
 type AccessRequestGetter interface {
 	// GetAccessRequests gets all currently active access requests.

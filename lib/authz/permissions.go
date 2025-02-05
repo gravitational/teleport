@@ -694,7 +694,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		return nil, trace.Wrap(err)
 	}
 
-	accessInfo, err := services.AccessInfoFromRemoteIdentity(u.Identity, ca.CombinedMapping())
+	accessInfo, err := services.AccessInfoFromRemoteTLSIdentity(u.Identity, ca.CombinedMapping())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1331,7 +1331,7 @@ func ContextForLocalUser(ctx context.Context, u LocalUser, accessPoint Authorize
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromLocalIdentity(u.Identity, accessPoint)
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(u.Identity, accessPoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

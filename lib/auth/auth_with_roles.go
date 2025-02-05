@@ -2970,7 +2970,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 	// considering new or dropped access requests. This will include roles from
 	// currently assumed role access requests, and allowed resources from
 	// currently assumed resource access requests.
-	accessInfo, err := services.AccessInfoFromLocalIdentity(currentIdentity, a.authServer)
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(currentIdentity, a.authServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -37,7 +37,6 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -850,20 +849,6 @@ type RoleGetter interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 }
 
-// ExtractFromCertificate will extract roles and traits from a *ssh.Certificate.
-func ExtractFromCertificate(cert *ssh.Certificate) ([]string, wrappers.Traits, error) {
-	roles, err := ExtractRolesFromCert(cert)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	traits, err := ExtractTraitsFromCert(cert)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return roles, traits, nil
-}
-
 // ExtractFromIdentity will extract roles and traits from the *x509.Certificate
 // which Teleport passes along as a *tlsca.Identity. If roles and traits do not
 // exist in the certificates, they are extracted from the backend.
@@ -917,39 +902,6 @@ func FetchRoles(roleNames []string, access RoleGetter, traits map[string][]strin
 		return nil, trace.Wrap(err)
 	}
 	return NewRoleSet(roles...), nil
-}
-
-// ExtractRolesFromCert extracts roles from certificate metadata extensions.
-func ExtractRolesFromCert(cert *ssh.Certificate) ([]string, error) {
-	data, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]
-	if !ok {
-		return nil, trace.NotFound("no roles found")
-	}
-	return UnmarshalCertRoles(data)
-}
-
-// ExtractTraitsFromCert extracts traits from the certificate extensions.
-func ExtractTraitsFromCert(cert *ssh.Certificate) (wrappers.Traits, error) {
-	rawTraits, ok := cert.Extensions[teleport.CertExtensionTeleportTraits]
-	if !ok {
-		return nil, trace.NotFound("no traits found")
-	}
-	var traits wrappers.Traits
-	err := wrappers.UnmarshalTraits([]byte(rawTraits), &traits)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return traits, nil
-}
-
-func ExtractAllowedResourcesFromCert(cert *ssh.Certificate) ([]types.ResourceID, error) {
-	allowedResourcesStr, ok := cert.Extensions[teleport.CertExtensionAllowedResources]
-	if !ok {
-		// if not present in the cert, there are no resource-based restrictions
-		return nil, nil
-	}
-	allowedResources, err := types.ResourceIDsFromString(allowedResourcesStr)
-	return allowedResources, trace.Wrap(err)
 }
 
 // NewRoleSet returns new RoleSet based on the roles
