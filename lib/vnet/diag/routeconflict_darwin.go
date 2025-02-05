@@ -19,6 +19,7 @@ package diag
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/netip"
 	"os/exec"
@@ -53,11 +54,16 @@ func (dr *DarwinRouting) GetRouteDestinations() ([]RouteDest, error) {
 	for _, m := range messages {
 		rm, ok := m.(*route.RouteMessage)
 		if !ok {
-			return nil, trace.Errorf("expected *route.RouteMessage, got %T", m)
+			log.WarnContext(context.Background(), "Skipping message of unexpected type",
+				"message_type", fmt.Sprintf("%T", m), "message", m)
+			continue
 		}
+
 		rd, err := routeMessageToDest(rm)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			log.WarnContext(context.Background(), "Skipping route message as it couldn't be converted to RouteDest",
+				"route_message", rm, "error", err)
+			continue
 		}
 
 		rds = append(rds, rd)
