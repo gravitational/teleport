@@ -235,7 +235,7 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		// AWS OIDC Integration can be used as source of credentials to access AWS Web/CLI.
 		// This creates a new AppServer whose endpoint is <integrationName>.<proxyURL>, which can fail if integrationName is not a valid DNS Label.
 		// Instead of failing when the integration is already created, it fails at creation time.
-		if len(validation.IsDNS1035Label(req.GetIntegration().GetName())) > 0 {
+		if errs := validation.IsDNS1035Label(req.GetIntegration().GetName()); len(errs) > 0 {
 			return nil, trace.BadParameter("integration name %q must be a valid DNS subdomain so that it can be used to allow Web/CLI access", req.GetIntegration().GetName())
 		}
 	}
