@@ -113,7 +113,7 @@ func updateAndReExec(ctx context.Context, updater *Updater, toolsVersion string,
 	err := updater.UpdateWithLock(ctxUpdate, toolsVersion)
 	if err != nil && errors.Is(err, errNoBaseURL) {
 		// If base URL wasn't defined we have to cancel update and re-execution with warning.
-		slog.WarnContext(ctx, "Client tools updates are disabled because the server is licensed under AGPL "+
+		slog.WarnContext(ctx, "client tools updates are disabled because the server is licensed under AGPL "+
 			"but Teleport-distributed binaries are licensed under Community Edition. To use Community Edition "+
 			"builds or custom binaries, set the 'TELEPORT_CDN_BASE_URL' environment variable.")
 		return nil
