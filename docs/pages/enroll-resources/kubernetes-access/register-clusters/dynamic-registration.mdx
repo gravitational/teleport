@@ -68,18 +68,15 @@ Install the Teleport Kubernetes Service on your Linux host:
 
 On the host where you will run the Teleport Kubernetes Service, run the
 following command to create a base configuration for your Teleport instance,
-assigning `PROXY_SERVICE` to the host and port of your Teleport Proxy Service or
-Teleport Cloud tenant and `TOKEN` to the join token we created earlier:
+assigning <Var name="example.teleport.sh:443" /> to the host and port of your
+Teleport Proxy Service or Teleport Cloud tenant and <Var name="join-token" /> to
+the join token we created earlier:
 
 ```code
-# e.g., teleport.example.com:443
-$ PROXY_SERVICE=<Var name="proxy-addr"/>
-# e.g., (=presets.tokens.first=);
-$ TOKEN=<Var name="join-token"/>;
 $ sudo teleport configure \
---proxy=${PROXY_SERVICE?} \
+--proxy=<Var name="example.teleport.sh:443" /> \
 --roles=kube \
---token=${TOKEN?} \
+--token=<Var name="join-token" /> \
 -o file
 ```
 
@@ -201,6 +198,8 @@ Create the role:
 ```code
 $ tctl create -f kube-manager.yaml
 ```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
 
 (!docs/pages/includes/add-role-to-user.mdx role="kube-manager"!)
 

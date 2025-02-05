@@ -334,6 +334,10 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		return gateway, nil
 	}
 
+	if err := s.checkIfGatewayAlreadyExists(targetURI, params); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clusterClient, err := s.GetCachedClient(ctx, targetURI.GetClusterURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -517,6 +521,13 @@ func (s *Service) SetGatewayTargetSubresourceName(ctx context.Context, gatewayUR
 
 	gateway, err := s.findGateway(gatewayURI)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.checkIfGatewayAlreadyExists(gateway.TargetURI(), CreateGatewayParams{
+		TargetURI:             gateway.TargetURI().String(),
+		TargetSubresourceName: targetSubresourceName,
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -809,6 +820,28 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 
 	if err := cluster.AssumeRole(ctx, proxyClient, req); err != nil {
 		return trace.Wrap(err)
+	}
+
+	// Clear certs in kube gateways.
+	// Access requests may grant elevated permissions for accessing a kube cluster.
+	// To allow the user to use these permissions, we clear the existing certs.
+	// When a kube proxy receives a new request, it will issue new certs,
+	// similarly to the process when certs expire.
+	//
+	// We don't know which gateways are affected by the access request,
+	// so we need to clear certs for all of them.
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, gw := range s.gateways {
+		targetURI := gw.TargetURI()
+		if !(targetURI.IsKube() && targetURI.GetRootClusterURI() == cluster.URI) {
+			continue
+		}
+		kubeGw, err := gateway.AsKube(gw)
+		if err != nil {
+			s.cfg.Logger.ErrorContext(ctx, "Could not clear certs for kube when assuming request", "error", err, "target_uri", targetURI)
+		}
+		kubeGw.ClearCerts()
 	}
 
 	// We have to reconnect using the updated cert.

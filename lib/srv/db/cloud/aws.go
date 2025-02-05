@@ -23,15 +23,13 @@ import (
 	"encoding/json"
 	"log/slog"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/iam"
-	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
@@ -41,8 +39,6 @@ import (
 type awsConfig struct {
 	// awsConfigProvider provides [aws.Config] for AWS SDK service clients.
 	awsConfigProvider awsconfig.Provider
-	// clients is an interface for creating AWS clients.
-	clients cloud.Clients
 	// identity is AWS identity this database agent is running as.
 	identity awslib.Identity
 	// database is the database instance to configure.
@@ -56,9 +52,6 @@ type awsConfig struct {
 
 // Check validates the config.
 func (c *awsConfig) Check() error {
-	if c.clients == nil {
-		return trace.BadParameter("missing parameter clients")
-	}
 	if c.identity == nil {
 		return trace.BadParameter("missing parameter identity")
 	}
@@ -93,17 +86,18 @@ func newAWS(ctx context.Context, config awsConfig) (*awsClient, error) {
 	}
 
 	meta := config.database.GetAWS()
-	iam, err := config.clients.GetAWSIAMClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := config.awsConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	iamClt := config.awsClients.getIAMClient(awsCfg)
 	return &awsClient{
 		cfg:            config,
 		dbConfigurator: dbConfigurator,
-		iam:            iam,
+		iam:            iamClt,
 		logger:         logger,
 	}, nil
 }
@@ -130,7 +124,7 @@ func getDBConfigurator(logger *slog.Logger, cfg awsConfig) (dbIAMAuthConfigurato
 type awsClient struct {
 	cfg            awsConfig
 	dbConfigurator dbIAMAuthConfigurator
-	iam            iamiface.IAMAPI
+	iam            iamClient
 	logger         *slog.Logger
 }
 
@@ -242,7 +236,7 @@ func (r *awsClient) getIAMPolicy(ctx context.Context) (*awslib.PolicyDocument, e
 	var policyDocument string
 	switch r.cfg.identity.(type) {
 	case awslib.Role:
-		out, err := r.iam.GetRolePolicyWithContext(ctx, &iam.GetRolePolicyInput{
+		out, err := r.iam.GetRolePolicy(ctx, &iam.GetRolePolicyInput{
 			PolicyName: aws.String(r.cfg.policyName),
 			RoleName:   aws.String(r.cfg.identity.GetName()),
 		})
@@ -252,9 +246,9 @@ func (r *awsClient) getIAMPolicy(ctx context.Context) (*awslib.PolicyDocument, e
 			}
 			return nil, awslib.ConvertIAMError(err)
 		}
-		policyDocument = aws.StringValue(out.PolicyDocument)
+		policyDocument = aws.ToString(out.PolicyDocument)
 	case awslib.User:
-		out, err := r.iam.GetUserPolicyWithContext(ctx, &iam.GetUserPolicyInput{
+		out, err := r.iam.GetUserPolicy(ctx, &iam.GetUserPolicyInput{
 			PolicyName: aws.String(r.cfg.policyName),
 			UserName:   aws.String(r.cfg.identity.GetName()),
 		})
@@ -264,7 +258,7 @@ func (r *awsClient) getIAMPolicy(ctx context.Context) (*awslib.PolicyDocument, e
 			}
 			return nil, awslib.ConvertIAMError(err)
 		}
-		policyDocument = aws.StringValue(out.PolicyDocument)
+		policyDocument = aws.ToString(out.PolicyDocument)
 	default:
 		return nil, trace.BadParameter("can only fetch policies for roles or users, got %v", r.cfg.identity)
 	}
@@ -280,13 +274,13 @@ func (r *awsClient) updateIAMPolicy(ctx context.Context, policy *awslib.PolicyDo
 	}
 	switch r.cfg.identity.(type) {
 	case awslib.Role:
-		_, err = r.iam.PutRolePolicyWithContext(ctx, &iam.PutRolePolicyInput{
+		_, err = r.iam.PutRolePolicy(ctx, &iam.PutRolePolicyInput{
 			PolicyName:     aws.String(r.cfg.policyName),
 			PolicyDocument: aws.String(string(document)),
 			RoleName:       aws.String(r.cfg.identity.GetName()),
 		})
 	case awslib.User:
-		_, err = r.iam.PutUserPolicyWithContext(ctx, &iam.PutUserPolicyInput{
+		_, err = r.iam.PutUserPolicy(ctx, &iam.PutUserPolicyInput{
 			PolicyName:     aws.String(r.cfg.policyName),
 			PolicyDocument: aws.String(string(document)),
 			UserName:       aws.String(r.cfg.identity.GetName()),
@@ -303,12 +297,12 @@ func (r *awsClient) detachIAMPolicy(ctx context.Context) error {
 	var err error
 	switch r.cfg.identity.(type) {
 	case awslib.Role:
-		_, err = r.iam.DeleteRolePolicyWithContext(ctx, &iam.DeleteRolePolicyInput{
+		_, err = r.iam.DeleteRolePolicy(ctx, &iam.DeleteRolePolicyInput{
 			PolicyName: aws.String(r.cfg.policyName),
 			RoleName:   aws.String(r.cfg.identity.GetName()),
 		})
 	case awslib.User:
-		_, err = r.iam.DeleteUserPolicyWithContext(ctx, &iam.DeleteUserPolicyInput{
+		_, err = r.iam.DeleteUserPolicy(ctx, &iam.DeleteUserPolicyInput{
 			PolicyName: aws.String(r.cfg.policyName),
 			UserName:   aws.String(r.cfg.identity.GetName()),
 		})
@@ -357,7 +351,7 @@ func (r *rdsDBConfigurator) enableIAMAuth(ctx context.Context, db types.Database
 			EnableIAMDatabaseAuthentication: aws.Bool(true),
 			ApplyImmediately:                aws.Bool(true),
 		})
-		return awslib.ConvertRequestFailureErrorV2(err)
+		return awslib.ConvertRequestFailureError(err)
 	}
 	if meta.RDS.InstanceID != "" {
 		_, err = clt.ModifyDBInstance(ctx, &rds.ModifyDBInstanceInput{
@@ -365,7 +359,7 @@ func (r *rdsDBConfigurator) enableIAMAuth(ctx context.Context, db types.Database
 			EnableIAMDatabaseAuthentication: aws.Bool(true),
 			ApplyImmediately:                aws.Bool(true),
 		})
-		return awslib.ConvertRequestFailureErrorV2(err)
+		return awslib.ConvertRequestFailureError(err)
 	}
 	return nil
 }

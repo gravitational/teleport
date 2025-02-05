@@ -28,6 +28,10 @@ import {
 import { makeDatabaseGateway } from 'teleterm/services/tshd/testHelpers';
 
 import { OfflineGateway } from '../components/OfflineGateway';
+import {
+  formSchema,
+  makeRenderFormControlsFromDefaultPort,
+} from './DocumentGateway';
 import { OnlineDocumentGateway } from './OnlineDocumentGateway';
 
 type StoryProps = {
@@ -99,9 +103,10 @@ export function Story(props: StoryProps) {
     const offlineGatewayProps: ComponentProps<typeof OfflineGateway> = {
       connectAttempt: makeEmptyAttempt(),
       reconnect: () => {},
-      gatewayPort: { isSupported: true, defaultPort: '1337' },
       targetName: gateway.targetName,
       gatewayKind: 'database',
+      formSchema,
+      renderFormControls: makeRenderFormControlsFromDefaultPort('1337'),
     };
 
     if (props.connectAttempt === 'error') {

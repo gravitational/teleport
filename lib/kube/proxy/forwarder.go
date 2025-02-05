@@ -342,6 +342,10 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 
 	router.GET("/api/:ver/teleport/join/:session", fwd.withAuthPassthrough(fwd.join))
 
+	for _, method := range allHTTPMethods() {
+		router.Handle(method, "/v1/teleport/:base64Cluster/:base64KubeCluster/*path", fwd.singleCertHandler())
+	}
+
 	router.NotFound = fwd.withAuthStd(fwd.catchAll)
 
 	fwd.router = instrumentHTTPHandler(fwd.cfg.KubeServiceType, router)
@@ -429,6 +433,9 @@ type authContext struct {
 	recordingConfig   types.SessionRecordingConfig
 	// clientIdleTimeout sets information on client idle timeout
 	clientIdleTimeout time.Duration
+	// clientIdleTimeoutMessage is the message to be displayed to the user
+	// when the client idle timeout is reached
+	clientIdleTimeoutMessage string
 	// disconnectExpiredCert if set, controls the time when the connection
 	// should be disconnected because the client cert expires
 	disconnectExpiredCert time.Time
@@ -541,7 +548,7 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 	userTypeI, err := authz.UserFromContext(ctx)
 	if err != nil {
 		f.log.WarnContext(ctx, "error getting user from context", "error", err)
-		return nil, trace.AccessDenied(accessDeniedMsg)
+		return nil, trace.AccessDenied("%s", accessDeniedMsg)
 	}
 	switch userTypeI.(type) {
 	case authz.LocalUser:
@@ -552,10 +559,10 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 		f.log.WarnContext(ctx, "Denying proxy access to unauthenticated user - this can sometimes be caused by inadvertently using an HTTP load balancer instead of a TCP load balancer on the Kubernetes port",
 			"user_type", logutils.TypeAttr(userTypeI),
 		)
-		return nil, trace.AccessDenied(accessDeniedMsg)
+		return nil, trace.AccessDenied("%s", accessDeniedMsg)
 	default:
 		f.log.WarnContext(ctx, "Denying proxy access to unsupported user type", "user_type", logutils.TypeAttr(userTypeI))
-		return nil, trace.AccessDenied(accessDeniedMsg)
+		return nil, trace.AccessDenied("%s", accessDeniedMsg)
 	}
 
 	userContext, err := f.cfg.Authz.Authorize(ctx)
@@ -567,7 +574,7 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 	if err != nil {
 		f.log.WarnContext(ctx, "Unable to setup context", "error", err)
 		if trace.IsAccessDenied(err) {
-			return nil, trace.AccessDenied(accessDeniedMsg)
+			return nil, trace.AccessDenied("%s", accessDeniedMsg)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -819,13 +826,14 @@ func (f *Forwarder) setupContext(
 	}
 
 	return &authContext{
-		clientIdleTimeout:     roles.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
-		sessionTTL:            sessionTTL,
-		Context:               authCtx,
-		recordingConfig:       recordingConfig,
-		kubeClusterName:       kubeCluster,
-		certExpires:           identity.Expires,
-		disconnectExpiredCert: authCtx.GetDisconnectCertExpiry(authPref),
+		clientIdleTimeout:        roles.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		clientIdleTimeoutMessage: netConfig.GetClientIdleTimeoutMessage(),
+		sessionTTL:               sessionTTL,
+		Context:                  authCtx,
+		recordingConfig:          recordingConfig,
+		kubeClusterName:          kubeCluster,
+		certExpires:              identity.Expires,
+		disconnectExpiredCert:    authCtx.GetDisconnectCertExpiry(authPref),
 		teleportCluster: teleportClusterClient{
 			name:       teleportClusterName,
 			remoteAddr: utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
@@ -1080,16 +1088,16 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		kubeAccessDetails, err := f.getKubeAccessDetails(actx.kubeServers, actx.Checker, actx.kubeClusterName, actx.sessionTTL, actx.kubeResource)
 		if err != nil && !trace.IsNotFound(err) {
 			if actx.kubeResource != nil {
-				return trace.AccessDenied(notFoundMessage)
+				return trace.AccessDenied("%s", notFoundMessage)
 			}
 			// TODO (tigrato): should return another message here.
-			return trace.AccessDenied(accessDeniedMsg)
+			return trace.AccessDenied("%s", accessDeniedMsg)
 			// roles.CheckKubeGroupsAndUsers returns trace.NotFound if the user does
 			// does not have at least one configured kubernetes_users or kubernetes_groups.
 		} else if trace.IsNotFound(err) {
 			const errMsg = "Your user's Teleport role does not allow Kubernetes access." +
 				" Please ask cluster administrator to ensure your role has appropriate kubernetes_groups and kubernetes_users set."
-			return trace.NotFound(errMsg)
+			return trace.NotFound("%s", errMsg)
 		}
 
 		kubeUsers = kubeAccessDetails.kubeUsers
@@ -1117,7 +1125,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		case errors.Is(err, services.ErrTrustedDeviceRequired):
 			return trace.Wrap(err)
 		case err != nil:
-			return trace.AccessDenied(notFoundMessage)
+			return trace.AccessDenied("%s", notFoundMessage)
 		}
 
 		// If the user has active Access requests we need to validate that they allow
@@ -1133,7 +1141,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 			// list will be empty.
 			allowed, denied := actx.Checker.GetKubeResources(ks)
 			if result, err := matchKubernetesResource(*actx.kubeResource, allowed, denied); err != nil || !result {
-				return trace.AccessDenied(notFoundMessage)
+				return trace.AccessDenied("%s", notFoundMessage)
 			}
 		}
 		// store a copy of the Kubernetes Cluster.
@@ -1146,7 +1154,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		)
 		return nil
 	}
-	return trace.AccessDenied(notFoundMessage)
+	return trace.AccessDenied("%s", notFoundMessage)
 }
 
 // matchKubernetesResource checks if the Kubernetes Resource does not match any
@@ -1690,6 +1698,8 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 
 	return upgradeRequestToRemoteCommandProxy(request,
 		func(proxy *remoteCommandProxy) error {
+			sess.sendErrStatus = proxy.writeStatus
+
 			if !sess.isLocalKubernetesCluster {
 				// We're forwarding this to another kubernetes_service instance or Teleport proxy, let it handle session recording.
 				return f.remoteExec(req, sess, proxy)
@@ -2362,6 +2372,8 @@ type clusterSession struct {
 	connCtx context.Context
 	// connMonitorCancel is the conn monitor connMonitorCancel function.
 	connMonitorCancel context.CancelCauseFunc
+	// sendErrStatus is a function that sends an error status to the client.
+	sendErrStatus func(status *kubeerrors.StatusError) error
 }
 
 // close cancels the connection monitor context if available.
@@ -2400,6 +2412,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (n
 		LockTargets:           lockTargets,
 		DisconnectExpiredCert: s.disconnectExpiredCert,
 		ClientIdleTimeout:     s.clientIdleTimeout,
+		IdleTimeoutMessage:    s.clientIdleTimeoutMessage,
 		Clock:                 s.parent.cfg.Clock,
 		Tracker:               tc,
 		Conn:                  tc,
@@ -2409,6 +2422,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (n
 		Logger:                s.parent.log,
 		Emitter:               s.parent.cfg.AuthClient,
 		EmitterContext:        s.parent.ctx,
+		MessageWriter:         formatForwardResponseError(s.sendErrStatus),
 	})
 	if err != nil {
 		tc.CloseWithCause(err)
@@ -2768,5 +2782,45 @@ func errorToKubeStatusReason(err error, code int) metav1.StatusReason {
 		return metav1.StatusReasonInternalError
 	default:
 		return metav1.StatusReasonUnknown
+	}
+}
+
+// formatForwardResponseError formats the error response from the connection
+// monitor to a Kubernetes API error response.
+type formatForwardResponseError func(status *kubeerrors.StatusError) error
+
+func (f formatForwardResponseError) WriteString(s string) (int, error) {
+	if f == nil {
+		return len(s), nil
+	}
+	err := f(
+		&kubeerrors.StatusError{
+			ErrStatus: metav1.Status{
+				Status:  metav1.StatusFailure,
+				Code:    http.StatusInternalServerError,
+				Reason:  metav1.StatusReasonInternalError,
+				Message: s,
+			},
+		},
+	)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	return len(s), nil
+}
+
+// allHTTPMethods returns a list of all HTTP methods, useful for creating
+// non-root catch-all handlers.
+func allHTTPMethods() []string {
+	return []string{
+		http.MethodConnect,
+		http.MethodDelete,
+		http.MethodGet,
+		http.MethodHead,
+		http.MethodOptions,
+		http.MethodPatch,
+		http.MethodPost,
+		http.MethodPut,
+		http.MethodTrace,
 	}
 }

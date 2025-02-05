@@ -31,6 +31,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
+	common "github.com/gravitational/teleport/lib/autoupdate"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
@@ -47,8 +48,6 @@ The Teleport Updater supports upgrade schedules and automated rollbacks.
 Find out more at https://goteleport.com/docs/updater`
 
 const (
-	// templateEnvVar allows the template for the Teleport tgz to be specified via env var.
-	templateEnvVar = "TELEPORT_URL_TEMPLATE"
 	// proxyServerEnvVar allows the proxy server address to be specified via env var.
 	proxyServerEnvVar = "TELEPORT_PROXY"
 	// updateGroupEnvVar allows the update group to be specified via env var.
@@ -114,8 +113,10 @@ func Run(args []string) int {
 		Short('p').Envar(proxyServerEnvVar).StringVar(&ccfg.Proxy)
 	enableCmd.Flag("group", "Update group for this agent installation.").
 		Short('g').Envar(updateGroupEnvVar).StringVar(&ccfg.Group)
-	enableCmd.Flag("template", "Go template used to override the Teleport download URL.").
-		Short('t').Envar(templateEnvVar).StringVar(&ccfg.URLTemplate)
+	enableCmd.Flag("base-url", "Base URL used to override the Teleport download URL.").
+		Short('b').Envar(common.BaseURLEnvVar).StringVar(&ccfg.BaseURL)
+	enableCmd.Flag("overwrite", "Allow existing installed Teleport binaries to be overwritten.").
+		Short('o').BoolVar(&ccfg.AllowOverwrite)
 	enableCmd.Flag("force-version", "Force the provided version instead of using the version provided by the Teleport cluster.").
 		Short('f').Envar(updateVersionEnvVar).Hidden().StringVar(&ccfg.ForceVersion)
 	enableCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for auto-updates.").
@@ -127,8 +128,8 @@ func Run(args []string) int {
 		Short('p').Envar(proxyServerEnvVar).StringVar(&ccfg.Proxy)
 	pinCmd.Flag("group", "Update group for this agent installation.").
 		Short('g').Envar(updateGroupEnvVar).StringVar(&ccfg.Group)
-	pinCmd.Flag("template", "Go template used to override Teleport download URL.").
-		Short('t').Envar(templateEnvVar).StringVar(&ccfg.URLTemplate)
+	pinCmd.Flag("base-url", "Base URL used to override the Teleport download URL.").
+		Short('b').Envar(common.BaseURLEnvVar).StringVar(&ccfg.BaseURL)
 	pinCmd.Flag("force-version", "Force the provided version instead of using the version provided by the Teleport cluster.").
 		Short('f').Envar(updateVersionEnvVar).StringVar(&ccfg.ForceVersion)
 	pinCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for auto-updates.").

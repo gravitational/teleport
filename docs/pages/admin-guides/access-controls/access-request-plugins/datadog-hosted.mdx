@@ -59,8 +59,8 @@ For the purpose of this guide, we will define an `editor-requester` role, which
 can request the built-in `editor` role, and an `editor-reviewer` role that can
 review requests for the `editor` role.
 
-In the Teleport WebUI navigate to **Management -> Access -> Roles**. Then select
-**Create New Role** and create the desired roles.
+In the Teleport WebUI navigate to **Access -> Roles**. Then select **Create New
+Role** and create the desired roles.
 
 
 ```yaml
@@ -247,6 +247,8 @@ spec:
         - approve: 1
           deny: 1
 ```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
 
 ### Trigger an auto-approval
 

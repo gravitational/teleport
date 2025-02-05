@@ -542,10 +542,10 @@ func (l *Log) handleAWSValidationError(ctx context.Context, err error, sessionID
 
 	se, ok := trimEventSize(in)
 	if !ok {
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	}
 	if err := l.putAuditEvent(context.WithValue(ctx, largeEventHandledContextKey, true), sessionID, se); err != nil {
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	}
 	l.logger.InfoContext(ctx, "Uploaded trimmed event to DynamoDB backend.", "event_id", in.GetID(), "event_type", in.GetType())
 	events.MetricStoredTrimmedEvents.Inc()
@@ -1315,27 +1315,27 @@ func convertError(err error) error {
 
 	var conditionalCheckFailedError *dynamodbtypes.ConditionalCheckFailedException
 	if errors.As(err, &conditionalCheckFailedError) {
-		return trace.AlreadyExists(conditionalCheckFailedError.ErrorMessage())
+		return trace.AlreadyExists("%s", conditionalCheckFailedError.ErrorMessage())
 	}
 
 	var throughputExceededError *dynamodbtypes.ProvisionedThroughputExceededException
 	if errors.As(err, &throughputExceededError) {
-		return trace.ConnectionProblem(throughputExceededError, throughputExceededError.ErrorMessage())
+		return trace.ConnectionProblem(throughputExceededError, "%s", throughputExceededError.ErrorMessage())
 	}
 
 	var notFoundError *dynamodbtypes.ResourceNotFoundException
 	if errors.As(err, &notFoundError) {
-		return trace.NotFound(notFoundError.ErrorMessage())
+		return trace.NotFound("%s", notFoundError.ErrorMessage())
 	}
 
 	var collectionLimitExceededError *dynamodbtypes.ItemCollectionSizeLimitExceededException
 	if errors.As(err, &notFoundError) {
-		return trace.BadParameter(collectionLimitExceededError.ErrorMessage())
+		return trace.BadParameter("%s", collectionLimitExceededError.ErrorMessage())
 	}
 
 	var internalError *dynamodbtypes.InternalServerError
 	if errors.As(err, &internalError) {
-		return trace.BadParameter(internalError.ErrorMessage())
+		return trace.BadParameter("%s", internalError.ErrorMessage())
 	}
 
 	var ae smithy.APIError

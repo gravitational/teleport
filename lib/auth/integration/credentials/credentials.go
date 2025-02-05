@@ -86,7 +86,8 @@ func GetByPurpose(ctx context.Context, ref *types.PluginStaticCredentialsRef, pu
 	if ref == nil {
 		return nil, trace.BadParameter("missing credentials ref")
 	}
-	labels := ref.Labels
+	// Clone the labels to avoid setting the source.
+	labels := maps.Clone(ref.Labels)
 	if len(labels) == 0 {
 		return nil, trace.BadParameter("missing labels from credentials ref")
 	}

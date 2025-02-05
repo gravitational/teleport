@@ -163,7 +163,7 @@ type Config struct {
 	// UsageReporter is a service that reports usage events.
 	UsageReporter usagereporter.UsageReporter
 	// ClusterConfiguration is a service that provides cluster configuration
-	ClusterConfiguration services.ClusterConfiguration
+	ClusterConfiguration services.ClusterConfigurationInternal
 
 	// AutoUpdateService is a service that provides auto update configuration and version.
 	AutoUpdateService services.AutoUpdateService
@@ -521,10 +521,6 @@ func ApplyDefaults(cfg *Config) {
 
 	if cfg.LoggerLevel == nil {
 		cfg.LoggerLevel = new(slog.LevelVar)
-	}
-
-	if cfg.MetricsRegistry == nil {
-		cfg.MetricsRegistry = prometheus.NewRegistry()
 	}
 
 	// Remove insecure and (borderline insecure) cryptographic primitives from

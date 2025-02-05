@@ -192,7 +192,6 @@ export function LabelsCreater({
         label={labels.length === 0 ? 'Add a Label' : 'Add Another Label'}
         onClick={addLabel}
         disabled={disableBtns}
-        iconSize="small"
       />
     </>
   );

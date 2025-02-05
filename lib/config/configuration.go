@@ -210,10 +210,6 @@ type CommandLineFlags struct {
 	// `teleport integration configure deployservice-iam` command
 	IntegrationConfDeployServiceIAMArguments IntegrationConfDeployServiceIAM
 
-	// IntegrationConfEICEIAMArguments contains the arguments of
-	// `teleport integration configure eice-iam` command
-	IntegrationConfEICEIAMArguments IntegrationConfEICEIAM
-
 	// IntegrationConfAWSAppAccessIAMArguments contains the arguments of
 	// `teleport integration configure aws-app-access-iam` command
 	IntegrationConfAWSAppAccessIAMArguments IntegrationConfAWSAppAccessIAM
@@ -241,6 +237,10 @@ type CommandLineFlags struct {
 	// IntegrationConfAccessGraphAWSSyncArguments contains the arguments of
 	// `teleport integration configure access-graph aws-iam` command
 	IntegrationConfAccessGraphAWSSyncArguments IntegrationConfAccessGraphAWSSync
+
+	// IntegrationConfAccessGarphAzureSyncArguments contains the arguments of
+	// `teleport integration configure access-graph azure` command
+	IntegrationConfAccessGraphAzureSyncArguments IntegrationConfAccessGraphAzureSync
 
 	// IntegrationConfAzureOIDCArguments contains the arguments of
 	// `teleport integration configure azure-oidc` command
@@ -271,6 +271,19 @@ type IntegrationConfAccessGraphAWSSync struct {
 	// AccountID is the AWS account ID.
 	AccountID string
 	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
+}
+
+// IntegrationConfAccessGraphAzureSync contains the arguments of
+// `teleport integration configure access-graph azure` command.
+type IntegrationConfAccessGraphAzureSync struct {
+	// ManagedIdentity is the principal performing the discovery
+	ManagedIdentity string
+	// RoleName is the name of the Azure Role to create and assign to the managed identity
+	RoleName string
+	// SubscriptionID is the Azure subscription containing resources for sync
+	SubscriptionID string
+	// AutoConfirm skips user confirmation of the operation plan if true
 	AutoConfirm bool
 }
 
@@ -306,19 +319,6 @@ type IntegrationConfDeployServiceIAM struct {
 	Role string
 	// TaskRole is the AWS Role to be used by the deployed service.
 	TaskRole string
-	// AccountID is the AWS account ID.
-	AccountID string
-	// AutoConfirm skips user confirmation of the operation plan if true.
-	AutoConfirm bool
-}
-
-// IntegrationConfEICEIAM contains the arguments of
-// `teleport integration configure eice-iam` command
-type IntegrationConfEICEIAM struct {
-	// Region is the AWS Region used to set up the client.
-	Region string
-	// Role is the AWS Role associated with the Integration
-	Role string
 	// AccountID is the AWS account ID.
 	AccountID string
 	// AutoConfirm skips user confirmation of the operation plan if true.
@@ -1417,13 +1417,13 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 					"Teleport binary was built without PAM support. To continue either download a \n" +
 					"Teleport binary build with PAM support from https://goteleport.com/teleport \n" +
 					"or disable PAM in file configuration."
-				return trace.BadParameter(errorMessage)
+				return trace.BadParameter("%s", errorMessage)
 			}
 			if !pam.SystemHasPAM() {
 				const errorMessage = "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
 					"system does not have the needed PAM library installed. To continue either \n" +
 					"install libpam or disable PAM in file configuration."
-				return trace.BadParameter(errorMessage)
+				return trace.BadParameter("%s", errorMessage)
 			}
 		}
 	}
@@ -2784,14 +2784,15 @@ func isCmdLabelSpec(spec string) (types.CommandLabel, error) {
 func applyListenIP(ip net.IP, cfg *servicecfg.Config) {
 	listeningAddresses := []*utils.NetAddr{
 		&cfg.Auth.ListenAddr,
-		&cfg.Auth.ListenAddr,
 		&cfg.Proxy.SSHAddr,
 		&cfg.Proxy.WebAddr,
 		&cfg.SSH.Addr,
 		&cfg.Proxy.ReverseTunnelListenAddr,
 	}
 	for _, addr := range listeningAddresses {
-		replaceHost(addr, ip.String())
+		if !addr.IsEmpty() {
+			replaceHost(addr, ip.String())
+		}
 	}
 }
 

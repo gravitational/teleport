@@ -312,6 +312,7 @@ export const eventCodes = {
   CONTACT_DELETE: 'TCTC002I',
   GIT_COMMAND: 'TGIT001I',
   GIT_COMMAND_FAILURE: 'TGIT001E',
+  STABLE_UNIX_USER_CREATE: 'TSUU001I',
 } as const;
 
 /**
@@ -1785,6 +1786,15 @@ export type RawEvents = {
       exitError: string;
     }
   >;
+  [eventCodes.STABLE_UNIX_USER_CREATE]: RawEvent<
+    typeof eventCodes.STABLE_UNIX_USER_CREATE,
+    {
+      stable_unix_user: {
+        username: string;
+        uid: number;
+      };
+    }
+  >;
 };
 
 /**
@@ -1991,7 +2001,7 @@ type RawSpannerRPCEvent<T extends EventCode> = RawEvent<
 export type Formatters = {
   [key in EventCode]: {
     type: string;
-    desc: string;
+    desc: string | ((json: RawEvents[key]) => string);
     format: (json: RawEvents[key]) => string;
   };
 };

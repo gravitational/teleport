@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/uacc"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
@@ -189,6 +190,10 @@ type Server interface {
 // IdentityContext holds all identity information associated with the user
 // logged on the connection.
 type IdentityContext struct {
+	// UnmappedIdentity is the base identity of the user derived from the cert, without any
+	// cross-cluster mapping applied.
+	UnmappedIdentity *sshca.Identity
+
 	// TeleportUser is the Teleport user associated with the connection.
 	TeleportUser string
 
@@ -197,10 +202,6 @@ type IdentityContext struct {
 
 	// Login is the operating system user associated with the connection.
 	Login string
-
-	// Certificate is the SSH user certificate bytes marshaled in the OpenSSH
-	// authorized_keys format.
-	Certificate *ssh.Certificate
 
 	// CertAuthority is the Certificate Authority that signed the Certificate.
 	CertAuthority types.CertAuthority
@@ -840,7 +841,9 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 	// Never emit session data events for the proxy or from a Teleport node if
 	// sessions are being recorded at the proxy (this would result in double
 	// events).
-	if c.GetServer().Component() == teleport.ComponentProxy {
+	// Do not emit session data for git commands as they have their own events.
+	if c.GetServer().Component() == teleport.ComponentProxy ||
+		c.GetServer().Component() == teleport.ComponentForwardingGit {
 		return
 	}
 	if services.IsRecordAtProxy(c.SessionRecordingConfig.GetMode()) &&
@@ -972,11 +975,6 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 	environment["TELEPORT_LOGIN"] = c.Identity.Login
 	environment["TELEPORT_ROLES"] = strings.Join(roleNames, " ")
 	if localPAMConfig.Environment != nil {
-		traits, err := services.ExtractTraitsFromCert(c.Identity.Certificate)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
 		for key, value := range localPAMConfig.Environment {
 			expr, err := parse.NewTraitsTemplateExpression(value)
 			if err != nil {
@@ -990,7 +988,7 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 				return nil
 			}
 
-			result, err := expr.Interpolate(varValidation, traits)
+			result, err := expr.Interpolate(varValidation, c.Identity.UnmappedIdentity.Traits)
 			if err != nil {
 				// If the trait isn't passed by the IdP due to misconfiguration
 				// we fallback to setting a value which will indicate this.
@@ -1068,22 +1066,19 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 	}, nil
 }
 
-func eventDeviceMetadataFromCert(cert *ssh.Certificate) *apievents.DeviceMetadata {
-	if cert == nil {
+func eventDeviceMetadataFromIdentity(ident *sshca.Identity) *apievents.DeviceMetadata {
+	if ident == nil {
 		return nil
 	}
 
-	devID := cert.Extensions[teleport.CertExtensionDeviceID]
-	assetTag := cert.Extensions[teleport.CertExtensionDeviceAssetTag]
-	credID := cert.Extensions[teleport.CertExtensionDeviceCredentialID]
-	if devID == "" && assetTag == "" && credID == "" {
+	if ident.DeviceID == "" && ident.DeviceAssetTag == "" && ident.DeviceCredentialID == "" {
 		return nil
 	}
 
 	return &apievents.DeviceMetadata{
-		DeviceId:     devID,
-		AssetTag:     assetTag,
-		CredentialId: credID,
+		DeviceId:     ident.DeviceID,
+		AssetTag:     ident.DeviceAssetTag,
+		CredentialId: ident.DeviceCredentialID,
 	}
 }
 
@@ -1098,7 +1093,7 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 		User:           id.TeleportUser,
 		Impersonator:   id.Impersonator,
 		AccessRequests: id.ActiveRequests,
-		TrustedDevice:  eventDeviceMetadataFromCert(id.Certificate),
+		TrustedDevice:  eventDeviceMetadataFromIdentity(id.UnmappedIdentity),
 		UserKind:       userKind,
 		BotName:        id.BotName,
 		BotInstanceID:  id.BotInstanceID,
@@ -1197,10 +1192,10 @@ func ComputeLockTargets(clusterName, serverID string, id IdentityContext) []type
 		{Node: serverID, ServerID: serverID},
 		{Node: authclient.HostFQDN(serverID, clusterName), ServerID: authclient.HostFQDN(serverID, clusterName)},
 	}
-	if mfaDevice := id.Certificate.Extensions[teleport.CertExtensionMFAVerified]; mfaDevice != "" {
+	if mfaDevice := id.UnmappedIdentity.MFAVerified; mfaDevice != "" {
 		lockTargets = append(lockTargets, types.LockTarget{MFADevice: mfaDevice})
 	}
-	if trustedDevice := id.Certificate.Extensions[teleport.CertExtensionDeviceID]; trustedDevice != "" {
+	if trustedDevice := id.UnmappedIdentity.DeviceID; trustedDevice != "" {
 		lockTargets = append(lockTargets, types.LockTarget{Device: trustedDevice})
 	}
 	roles := apiutils.Deduplicate(append(id.AccessChecker.RoleNames(), id.UnmappedRoles...))
@@ -1262,24 +1257,24 @@ func (c *ServerContext) GetExecRequest() (Exec, error) {
 func (c *ServerContext) GetSessionMetadata() apievents.SessionMetadata {
 	return apievents.SessionMetadata{
 		SessionID:        string(c.SessionID()),
-		WithMFA:          c.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
-		PrivateKeyPolicy: c.Identity.Certificate.Extensions[teleport.CertExtensionPrivateKeyPolicy],
+		WithMFA:          c.Identity.UnmappedIdentity.MFAVerified,
+		PrivateKeyPolicy: string(c.Identity.UnmappedIdentity.PrivateKeyPolicy),
 	}
 }
 
-func (c *ServerContext) GetPortForwardEvent() apievents.PortForward {
+func (c *ServerContext) GetPortForwardEvent(evType, code, addr string) apievents.PortForward {
 	sconn := c.ConnectionContext.ServerConn
 	return apievents.PortForward{
 		Metadata: apievents.Metadata{
-			Type: events.PortForwardEvent,
-			Code: events.PortForwardCode,
+			Type: evType,
+			Code: code,
 		},
 		UserMetadata: c.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  sconn.LocalAddr().String(),
 			RemoteAddr: sconn.RemoteAddr().String(),
 		},
-		Addr: c.DstAddr,
+		Addr: addr,
 		Status: apievents.Status{
 			Success: true,
 		},

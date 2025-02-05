@@ -183,29 +183,64 @@ Click "Create profile".
 Now we need to configure Teleport to allow a X.509 certificate to be issued
 containing the SPIFFE ID we have chosen.
 
-Create `role.yaml` with the following content:
+First, you'll create a Workload Identity resource to define the identity and
+its characteristics. Create a new file called `workload-identity.yaml`:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: example-workload-identity
+  labels:
+    example: getting-started
+spec:
+  spiffe:
+    id: /svc/example-service
+```
+
+Replace:
+
+- `example-workload-identity` with a descriptive name for the Workload Identity.
+- `/svc/example-service` with the path part of the SPIFFE ID you have chosen.
+
+Apply this to your cluster using `tctl`:
+
+```code
+$ tctl create -f workload-identity.yaml
+```
+
+Next, you'll create a role which grants access to this Workload Identity. Create
+`role.yaml` with the following content:
 
 ```yaml
 kind: role
 version: v6
 metadata:
-  name: my-workload-roles-anywhere
+  name: example-workload-identity-issuer
 spec:
   allow:
-    spiffe:
-      - path: /svc/example-service
+    workload_identity_labels:
+      example: ["getting-started"]
+    rules:
+    - resources:
+      - workload_identity
+      verbs:
+      - list
+      - read
 ```
 
 Replace:
 
-- `my-workload-roles-anywhere` with a descriptive name for the role.
-- `/my-workload` with the path part of the SPIFFE ID you have chosen.
+- `example-workload-identity-issuer` with a descriptive name for the role.
+- The labels selector if you have modified the labels of the Workload Identity.
 
 Apply this role to your Teleport cluster using `tctl`:
 
 ```code
 $ tctl create -f role.yaml
 ```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
 
 If you intend this SPIFFE ID to be issued by a human, you now need to assign
 this role to their user:
@@ -219,7 +254,7 @@ If you intend this SPIFFE ID to be issued by a machine, you now need to assign
 this role to the bot:
 
 ```code
-$ tctl bots update my-bot --add-roles my-workload-roles-anywhere
+$ tctl bots update my-bot --add-roles example-workload-identity-issuer
 ```
 
 ## Step 3/4. Issue Workload Identity certificates
@@ -234,13 +269,19 @@ by adding the following to the `tbot` configuration file:
 
 ```yaml
 outputs:
-  - type: spiffe-svid
+  - type: workload-identity-x509
     destination:
       type: directory
       path: /opt/roles-anywhere-svid
-    svid:
-      path: /svc/example-service
+    selector:
+      name: example-workload-identity
 ```
+Replace:
+
+- /opt/roles-anywhere-svid with the directory where you want the X509 to be
+  written.
+- example-workload-identity with the name of the Workload Identity you have
+  created
 
 Restart your `tbot` service to apply the new configuration.
 

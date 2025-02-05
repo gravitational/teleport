@@ -27,7 +27,7 @@ import { H2, Subtitle2 } from 'design/Text';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { CtaEvent } from 'teleport/services/userEvent';
 
-export default function CTAConnectors() {
+export function CtaConnectors() {
   return (
     <AuthConnectorsCTABox>
       <CTALogosContainer>

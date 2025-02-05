@@ -61,7 +61,6 @@ import (
 // NodeClient implements ssh client to a ssh node (teleport or any regular ssh node)
 // NodeClient can run shell and commands or upload and download files.
 type NodeClient struct {
-	Namespace   string
 	Tracer      oteltrace.Tracer
 	Client      *tracessh.Client
 	TC          *TeleportClient
@@ -257,8 +256,6 @@ func nodeName(node TargetNode) string {
 type NodeDetails struct {
 	// Addr is an address to dial
 	Addr string
-	// Namespace is the node namespace
-	Namespace string
 	// Cluster is the name of the target cluster
 	Cluster string
 
@@ -282,10 +279,7 @@ func (n NodeDetails) String() string {
 // ProxyFormat returns the address in the format
 // used by the proxy subsystem
 func (n *NodeDetails) ProxyFormat() string {
-	parts := []string{n.Addr}
-	if n.Namespace != "" {
-		parts = append(parts, n.Namespace)
-	}
+	parts := []string{n.Addr, apidefaults.Namespace}
 	if n.Cluster != "" {
 		parts = append(parts, n.Cluster)
 	}
@@ -339,7 +333,7 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 				"target_host", nodeName,
 				"error", err,
 			)
-			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, sshConfig.User, nodeName)
+			return nil, trace.AccessDenied("access denied to %v connecting to %v", sshConfig.User, nodeName)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -351,7 +345,6 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 
 	nc := &NodeClient{
 		Client:          tracessh.NewClient(sshconn, chans, emptyCh),
-		Namespace:       apidefaults.Namespace,
 		TC:              tc,
 		Tracer:          tc.Tracer,
 		FIPSEnabled:     fipsEnabled,
@@ -729,7 +722,18 @@ func (c *NodeClient) TransferFiles(ctx context.Context, cfg *sftp.Config) error 
 	)
 	defer span.End()
 
-	return trace.Wrap(cfg.TransferFiles(ctx, c.Client.Client))
+	if err := cfg.TransferFiles(ctx, c.Client.Client); err != nil {
+		// TODO(tross): DELETE IN 19.0.0 - Older versions of Teleport would return
+		// a trace.BadParameter error when ~user path expansion was rejected, and
+		// reauthentication logic is attempted on BadParameter errors.
+		if trace.IsBadParameter(err) && strings.Contains(err.Error(), "expanding remote ~user paths is not supported") {
+			return trace.Wrap(&NonRetryableError{Err: err})
+		}
+
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 type netDialer interface {

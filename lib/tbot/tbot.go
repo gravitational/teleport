@@ -48,7 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/teleport/lib/tbot/spiffe"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -281,14 +281,14 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 
 	// We only want to create this service if it's needed by a dependent
 	// service.
-	var trustBundleCache *spiffe.TrustBundleCache
-	setupTrustBundleCache := func() (*spiffe.TrustBundleCache, error) {
+	var trustBundleCache *workloadidentity.TrustBundleCache
+	setupTrustBundleCache := func() (*workloadidentity.TrustBundleCache, error) {
 		if trustBundleCache != nil {
 			return trustBundleCache, nil
 		}
 
 		var err error
-		trustBundleCache, err = spiffe.NewTrustBundleCache(spiffe.TrustBundleCacheConfig{
+		trustBundleCache, err = workloadidentity.NewTrustBundleCache(workloadidentity.TrustBundleCacheConfig{
 			FederationClient: b.botIdentitySvc.GetClient().SPIFFEFederationServiceClient(),
 			TrustClient:      b.botIdentitySvc.GetClient().TrustClient(),
 			EventsClient:     b.botIdentitySvc.GetClient(),
@@ -374,6 +374,21 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, svc)
 		case *config.KubernetesOutput:
 			svc := &KubernetesOutputService{
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               svcCfg,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				proxyPingCache:    proxyPingCache,
+				reloadBroadcaster: reloadBroadcaster,
+				resolver:          resolver,
+				executablePath:    os.Executable,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
+		case *config.KubernetesV2Output:
+			svc := &KubernetesV2OutputService{
 				botAuthClient:     b.botIdentitySvc.GetClient(),
 				botCfg:            b.cfg,
 				cfg:               svcCfg,
@@ -481,6 +496,76 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				resolver:       resolver,
 				botCfg:         b.cfg,
 				cfg:            svcCfg,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
+		case *config.WorkloadIdentityX509Service:
+			svc := &WorkloadIdentityX509Service{
+				botAuthClient:  b.botIdentitySvc.GetClient(),
+				botCfg:         b.cfg,
+				cfg:            svcCfg,
+				getBotIdentity: b.botIdentitySvc.GetIdentity,
+				resolver:       resolver,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			if !b.cfg.Oneshot {
+				tbCache, err := setupTrustBundleCache()
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				svc.trustBundleCache = tbCache
+			}
+			services = append(services, svc)
+		case *config.WorkloadIdentityJWTService:
+			svc := &WorkloadIdentityJWTService{
+				botAuthClient:  b.botIdentitySvc.GetClient(),
+				botCfg:         b.cfg,
+				cfg:            svcCfg,
+				getBotIdentity: b.botIdentitySvc.GetIdentity,
+				resolver:       resolver,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			if !b.cfg.Oneshot {
+				tbCache, err := setupTrustBundleCache()
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				svc.trustBundleCache = tbCache
+			}
+			services = append(services, svc)
+		case *config.WorkloadIdentityAPIService:
+			clientCredential := &config.UnstableClientCredentialOutput{}
+			svcIdentity := &ClientCredentialOutputService{
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               clientCredential,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				reloadBroadcaster: reloadBroadcaster,
+			}
+			svcIdentity.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(
+					componentTBot, "svc", svcIdentity.String(),
+				),
+			)
+			services = append(services, svcIdentity)
+
+			tbCache, err := setupTrustBundleCache()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			svc := &WorkloadIdentityAPIService{
+				svcIdentity:      clientCredential,
+				botCfg:           b.cfg,
+				cfg:              svcCfg,
+				resolver:         resolver,
+				trustBundleCache: tbCache,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),

@@ -340,11 +340,6 @@ func userFromUserItems(name string, items userItems) (*types.UserV2, error) {
 	}
 	user.SetLocalAuth(auth)
 
-	if auth != nil {
-		// when reading with secrets, we can populate the data automatically.
-		user.SetWeakestDevice(getWeakestMFADeviceKind(auth.MFA))
-	}
-
 	return user, nil
 }
 

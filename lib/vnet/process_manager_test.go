@@ -70,8 +70,6 @@ func TestProcessManager_Close(t *testing.T) {
 	})
 
 	pm.Close()
-
 	err := pm.Wait()
-	require.ErrorIs(t, err, context.Canceled)
-	require.ErrorIs(t, err, context.Cause(pmCtx))
+	require.NoError(t, err)
 }

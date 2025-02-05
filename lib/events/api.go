@@ -264,10 +264,13 @@ const (
 	X11ForwardErr     = "error"
 
 	// Port forwarding event
-	PortForwardEvent   = "port"
-	PortForwardAddr    = "addr"
-	PortForwardSuccess = "success"
-	PortForwardErr     = "error"
+	PortForwardEvent           = "port"
+	PortForwardLocalEvent      = "port.local"
+	PortForwardRemoteEvent     = "port.remote"
+	PortForwardRemoteConnEvent = "port.remote_conn"
+	PortForwardAddr            = "addr"
+	PortForwardSuccess         = "success"
+	PortForwardErr             = "error"
 
 	// AuthAttemptEvent is authentication attempt that either
 	// succeeded or failed based on event status
@@ -858,6 +861,9 @@ const (
 
 	// GitCommandEvent is emitted when a Git command is executed.
 	GitCommandEvent = "git.command"
+
+	// StableUNIXUserCreateEvent is emitted when a stable UNIX user is created.
+	StableUNIXUserCreateEvent = "stable_unix_user.create"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

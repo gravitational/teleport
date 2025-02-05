@@ -22,44 +22,64 @@ import (
 	"maps"
 	"slices"
 
+	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
+	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
+	opensearchtypes "github.com/aws/aws-sdk-go-v2/service/opensearch/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
+	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
 )
+
+func LabelsToTags[T any](labels map[string]string, convert func(string, string) T) []T {
+	keys := slices.Sorted(maps.Keys(labels))
+
+	ret := make([]T, 0, len(keys))
+	for _, key := range keys {
+		value := labels[key]
+
+		ret = append(ret, convert(key, value))
+	}
+	return ret
+}
 
 // LabelsToRedshiftTags converts labels into [redshifttypes.Tag] list.
 func LabelsToRedshiftTags(labels map[string]string) []redshifttypes.Tag {
-	keys := slices.Collect(maps.Keys(labels))
-	slices.Sort(keys)
-
-	ret := make([]redshifttypes.Tag, 0, len(keys))
-	for _, key := range keys {
-		key := key
-		value := labels[key]
-
-		ret = append(ret, redshifttypes.Tag{
-			Key:   &key,
-			Value: &value,
-		})
-	}
-
-	return ret
+	return LabelsToTags(labels, func(key, value string) redshifttypes.Tag {
+		return redshifttypes.Tag{Key: &key, Value: &value}
+	})
 }
 
 // LabelsToRDSTags converts labels into a [rdstypes.Tag] list.
 func LabelsToRDSTags(labels map[string]string) []rdstypes.Tag {
-	keys := slices.Collect(maps.Keys(labels))
-	slices.Sort(keys)
+	return LabelsToTags(labels, func(key, value string) rdstypes.Tag {
+		return rdstypes.Tag{Key: &key, Value: &value}
+	})
+}
 
-	ret := make([]rdstypes.Tag, 0, len(keys))
-	for _, key := range keys {
-		key := key
-		value := labels[key]
+// LabelsToRedshiftServerlessTags converts labels into a [rsstypes.Tag] list.
+func LabelsToRedshiftServerlessTags(labels map[string]string) []rsstypes.Tag {
+	return LabelsToTags(labels, func(key, value string) rsstypes.Tag {
+		return rsstypes.Tag{Key: &key, Value: &value}
+	})
+}
 
-		ret = append(ret, rdstypes.Tag{
-			Key:   &key,
-			Value: &value,
-		})
-	}
+// LabelsToElastiCacheTags converts labels into a [ectypes.Tag] list.
+func LabelsToElastiCacheTags(labels map[string]string) []ectypes.Tag {
+	return LabelsToTags(labels, func(key, value string) ectypes.Tag {
+		return ectypes.Tag{Key: &key, Value: &value}
+	})
+}
 
-	return ret
+// LabelsToMemoryDBTags converts labels into a [memorydbtypes.Tag] list.
+func LabelsToMemoryDBTags(labels map[string]string) []memorydbtypes.Tag {
+	return LabelsToTags(labels, func(key, value string) memorydbtypes.Tag {
+		return memorydbtypes.Tag{Key: &key, Value: &value}
+	})
+}
+
+// LabelsToOpenSearchTags converts labels into a [opensearchtypes.Tag] list.
+func LabelsToOpenSearchTags(labels map[string]string) []opensearchtypes.Tag {
+	return LabelsToTags(labels, func(key, value string) opensearchtypes.Tag {
+		return opensearchtypes.Tag{Key: &key, Value: &value}
+	})
 }

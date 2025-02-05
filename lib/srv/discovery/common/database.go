@@ -29,13 +29,13 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
+	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
+	opensearchtypes "github.com/aws/aws-sdk-go-v2/service/opensearch/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
-	"github.com/aws/aws-sdk-go/aws/arn"
-	"github.com/aws/aws-sdk-go/service/elasticache"
-	"github.com/aws/aws-sdk-go/service/memorydb"
-	"github.com/aws/aws-sdk-go/service/opensearchservice"
-	"github.com/aws/aws-sdk-go/service/redshiftserverless"
+	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -802,7 +802,7 @@ func NewDatabaseFromRedshiftCluster(cluster *redshifttypes.Cluster) (types.Datab
 
 // NewDatabaseFromElastiCacheConfigurationEndpoint creates a database resource
 // from ElastiCache configuration endpoint.
-func NewDatabaseFromElastiCacheConfigurationEndpoint(cluster *elasticache.ReplicationGroup, extraLabels map[string]string) (types.Database, error) {
+func NewDatabaseFromElastiCacheConfigurationEndpoint(cluster *ectypes.ReplicationGroup, extraLabels map[string]string) (types.Database, error) {
 	if cluster.ConfigurationEndpoint == nil {
 		return nil, trace.BadParameter("missing configuration endpoint")
 	}
@@ -812,7 +812,7 @@ func NewDatabaseFromElastiCacheConfigurationEndpoint(cluster *elasticache.Replic
 
 // NewDatabasesFromElastiCacheNodeGroups creates database resources from
 // ElastiCache node groups.
-func NewDatabasesFromElastiCacheNodeGroups(cluster *elasticache.ReplicationGroup, extraLabels map[string]string) (types.Databases, error) {
+func NewDatabasesFromElastiCacheNodeGroups(cluster *ectypes.ReplicationGroup, extraLabels map[string]string) (types.Databases, error) {
 	var databases types.Databases
 	for _, nodeGroup := range cluster.NodeGroups {
 		if nodeGroup.PrimaryEndpoint != nil {
@@ -836,7 +836,7 @@ func NewDatabasesFromElastiCacheNodeGroups(cluster *elasticache.ReplicationGroup
 
 // NewDatabasesFromElastiCacheReplicationGroup creates all database resources
 // from an ElastiCache ReplicationGroup.
-func NewDatabasesFromElastiCacheReplicationGroup(cluster *elasticache.ReplicationGroup, extraLabels map[string]string) (types.Databases, error) {
+func NewDatabasesFromElastiCacheReplicationGroup(cluster *ectypes.ReplicationGroup, extraLabels map[string]string) (types.Databases, error) {
 	// Create database using configuration endpoint for Redis with cluster
 	// mode enabled.
 	if aws.ToBool(cluster.ClusterEnabled) {
@@ -856,7 +856,7 @@ func NewDatabasesFromElastiCacheReplicationGroup(cluster *elasticache.Replicatio
 }
 
 // newElastiCacheDatabase returns a new ElastiCache database.
-func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *elasticache.Endpoint, endpointType string, extraLabels map[string]string) (types.Database, error) {
+func newElastiCacheDatabase(cluster *ectypes.ReplicationGroup, endpoint *ectypes.Endpoint, endpointType string, extraLabels map[string]string) (types.Database, error) {
 	metadata, err := MetadataFromElastiCacheCluster(cluster, endpointType)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -872,13 +872,13 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *ela
 		Labels:      labelsFromMetaAndEndpointType(metadata, endpointType, extraLabels),
 	}, aws.ToString(cluster.ReplicationGroupId), suffix...), types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
-		URI:      fmt.Sprintf("%v:%v", aws.ToString(endpoint.Address), aws.ToInt64(endpoint.Port)),
+		URI:      fmt.Sprintf("%v:%v", aws.ToString(endpoint.Address), aws.ToInt32(endpoint.Port)),
 		AWS:      *metadata,
 	})
 }
 
 // NewDatabasesFromOpenSearchDomain creates database resources from an OpenSearch domain.
-func NewDatabasesFromOpenSearchDomain(domain *opensearchservice.DomainStatus, tags []*opensearchservice.Tag) (types.Databases, error) {
+func NewDatabasesFromOpenSearchDomain(domain *opensearchtypes.DomainStatus, tags []opensearchtypes.Tag) (types.Databases, error) {
 	var databases types.Databases
 
 	if aws.ToString(domain.Endpoint) != "" {
@@ -933,7 +933,7 @@ func NewDatabasesFromOpenSearchDomain(domain *opensearchservice.DomainStatus, ta
 		databases = append(databases, db)
 	}
 
-	for name, url := range domain.Endpoints {
+	for name, endpoint := range domain.Endpoints {
 		metadata, err := MetadataFromOpenSearchDomain(domain, apiawsutils.OpenSearchVPCEndpoint)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -951,7 +951,7 @@ func NewDatabasesFromOpenSearchDomain(domain *opensearchservice.DomainStatus, ta
 		meta = setAWSDBName(meta, aws.ToString(domain.DomainName), name)
 		spec := types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolOpenSearch,
-			URI:      fmt.Sprintf("%v:443", aws.ToString(url)),
+			URI:      fmt.Sprintf("%v:443", endpoint),
 			AWS:      *metadata,
 		}
 
@@ -968,7 +968,7 @@ func NewDatabasesFromOpenSearchDomain(domain *opensearchservice.DomainStatus, ta
 
 // NewDatabaseFromMemoryDBCluster creates a database resource from a MemoryDB
 // cluster.
-func NewDatabaseFromMemoryDBCluster(cluster *memorydb.Cluster, extraLabels map[string]string) (types.Database, error) {
+func NewDatabaseFromMemoryDBCluster(cluster *memorydbtypes.Cluster, extraLabels map[string]string) (types.Database, error) {
 	endpointType := apiawsutils.MemoryDBClusterEndpoint
 
 	metadata, err := MetadataFromMemoryDBCluster(cluster, endpointType)
@@ -983,14 +983,14 @@ func NewDatabaseFromMemoryDBCluster(cluster *memorydb.Cluster, extraLabels map[s
 		}, aws.ToString(cluster.Name)),
 		types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolRedis,
-			URI:      fmt.Sprintf("%v:%v", aws.ToString(cluster.ClusterEndpoint.Address), aws.ToInt64(cluster.ClusterEndpoint.Port)),
+			URI:      fmt.Sprintf("%v:%d", aws.ToString(cluster.ClusterEndpoint.Address), cluster.ClusterEndpoint.Port),
 			AWS:      *metadata,
 		})
 }
 
 // NewDatabaseFromRedshiftServerlessWorkgroup creates a database resource from
 // a Redshift Serverless Workgroup.
-func NewDatabaseFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Workgroup, tags []*redshiftserverless.Tag) (types.Database, error) {
+func NewDatabaseFromRedshiftServerlessWorkgroup(workgroup *rsstypes.Workgroup, tags []rsstypes.Tag) (types.Database, error) {
 	if workgroup.Endpoint == nil {
 		return nil, trace.BadParameter("missing endpoint")
 	}
@@ -1007,14 +1007,14 @@ func NewDatabaseFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Wo
 		}, metadata.RedshiftServerless.WorkgroupName),
 		types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolPostgres,
-			URI:      fmt.Sprintf("%v:%v", aws.ToString(workgroup.Endpoint.Address), aws.ToInt64(workgroup.Endpoint.Port)),
+			URI:      fmt.Sprintf("%v:%v", aws.ToString(workgroup.Endpoint.Address), aws.ToInt32(workgroup.Endpoint.Port)),
 			AWS:      *metadata,
 		})
 }
 
 // NewDatabaseFromRedshiftServerlessVPCEndpoint creates a database resource from
 // a Redshift Serverless VPC endpoint.
-func NewDatabaseFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.EndpointAccess, workgroup *redshiftserverless.Workgroup, tags []*redshiftserverless.Tag) (types.Database, error) {
+func NewDatabaseFromRedshiftServerlessVPCEndpoint(endpoint *rsstypes.EndpointAccess, workgroup *rsstypes.Workgroup, tags []rsstypes.Tag) (types.Database, error) {
 	if workgroup.Endpoint == nil {
 		return nil, trace.BadParameter("missing endpoint")
 	}
@@ -1031,7 +1031,7 @@ func NewDatabaseFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.E
 		}, metadata.RedshiftServerless.WorkgroupName, metadata.RedshiftServerless.EndpointName),
 		types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolPostgres,
-			URI:      fmt.Sprintf("%v:%v", aws.ToString(endpoint.Address), aws.ToInt64(endpoint.Port)),
+			URI:      fmt.Sprintf("%v:%v", aws.ToString(endpoint.Address), aws.ToInt32(endpoint.Port)),
 			AWS:      *metadata,
 
 			// Use workgroup's default address as the server name.
@@ -1153,7 +1153,7 @@ func MetadataFromRedshiftCluster(cluster *redshifttypes.Cluster) (*types.AWS, er
 
 // MetadataFromElastiCacheCluster creates AWS metadata for the provided
 // ElastiCache cluster.
-func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, endpointType string) (*types.AWS, error) {
+func MetadataFromElastiCacheCluster(cluster *ectypes.ReplicationGroup, endpointType string) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.ToString(cluster.ARN))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1165,7 +1165,7 @@ func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, endpo
 	// messages don't fail.
 	var userGroupIDs []string
 	if len(cluster.UserGroupIds) != 0 {
-		userGroupIDs = aws.ToStringSlice(cluster.UserGroupIds)
+		userGroupIDs = cluster.UserGroupIds
 	}
 
 	return &types.AWS{
@@ -1181,7 +1181,7 @@ func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, endpo
 }
 
 // MetadataFromOpenSearchDomain creates AWS metadata for the provided OpenSearch domain.
-func MetadataFromOpenSearchDomain(domain *opensearchservice.DomainStatus, endpointType string) (*types.AWS, error) {
+func MetadataFromOpenSearchDomain(domain *opensearchtypes.DomainStatus, endpointType string) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.ToString(domain.ARN))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1200,7 +1200,7 @@ func MetadataFromOpenSearchDomain(domain *opensearchservice.DomainStatus, endpoi
 
 // MetadataFromMemoryDBCluster creates AWS metadata for the provided MemoryDB
 // cluster.
-func MetadataFromMemoryDBCluster(cluster *memorydb.Cluster, endpointType string) (*types.AWS, error) {
+func MetadataFromMemoryDBCluster(cluster *memorydbtypes.Cluster, endpointType string) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.ToString(cluster.ARN))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1220,7 +1220,7 @@ func MetadataFromMemoryDBCluster(cluster *memorydb.Cluster, endpointType string)
 
 // MetadataFromRedshiftServerlessWorkgroup creates AWS metadata for the
 // provided Redshift Serverless Workgroup.
-func MetadataFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Workgroup) (*types.AWS, error) {
+func MetadataFromRedshiftServerlessWorkgroup(workgroup *rsstypes.Workgroup) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.ToString(workgroup.WorkgroupArn))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1238,7 +1238,7 @@ func MetadataFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Workg
 
 // MetadataFromRedshiftServerlessVPCEndpoint creates AWS metadata for the
 // provided Redshift Serverless VPC endpoint.
-func MetadataFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.EndpointAccess, workgroup *redshiftserverless.Workgroup) (*types.AWS, error) {
+func MetadataFromRedshiftServerlessVPCEndpoint(endpoint *rsstypes.EndpointAccess, workgroup *rsstypes.Workgroup) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.ToString(endpoint.EndpointArn))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1257,7 +1257,7 @@ func MetadataFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.Endp
 
 // ExtraElastiCacheLabels returns a list of extra labels for provided
 // ElastiCache cluster.
-func ExtraElastiCacheLabels(cluster *elasticache.ReplicationGroup, tags []*elasticache.Tag, allNodes []*elasticache.CacheCluster, allSubnetGroups []*elasticache.CacheSubnetGroup) map[string]string {
+func ExtraElastiCacheLabels(cluster *ectypes.ReplicationGroup, tags []ectypes.Tag, allNodes []ectypes.CacheCluster, allSubnetGroups []ectypes.CacheSubnetGroup) map[string]string {
 	replicationGroupID := aws.ToString(cluster.ReplicationGroupId)
 	subnetGroupName := ""
 	labels := make(map[string]string)
@@ -1283,13 +1283,14 @@ func ExtraElastiCacheLabels(cluster *elasticache.ReplicationGroup, tags []*elast
 		}
 	}
 
+	labels[types.DiscoveryLabelEngine] = aws.ToString(cluster.Engine)
 	// Add AWS resource tags.
 	return addLabels(labels, libcloudaws.TagsToLabels(tags))
 }
 
 // ExtraMemoryDBLabels returns a list of extra labels for provided MemoryDB
 // cluster.
-func ExtraMemoryDBLabels(cluster *memorydb.Cluster, tags []*memorydb.Tag, allSubnetGroups []*memorydb.SubnetGroup) map[string]string {
+func ExtraMemoryDBLabels(cluster *memorydbtypes.Cluster, tags []memorydbtypes.Tag, allSubnetGroups []memorydbtypes.SubnetGroup) map[string]string {
 	labels := make(map[string]string)
 
 	// Engine version.
@@ -1303,6 +1304,7 @@ func ExtraMemoryDBLabels(cluster *memorydb.Cluster, tags []*memorydb.Tag, allSub
 		}
 	}
 
+	labels[types.DiscoveryLabelEngine] = aws.ToString(cluster.Engine)
 	// Add AWS resource tags.
 	return addLabels(labels, libcloudaws.TagsToLabels(tags))
 }
@@ -1472,7 +1474,7 @@ func labelsFromRedshiftCluster(cluster *redshifttypes.Cluster, meta *types.AWS) 
 	return addLabels(labels, libcloudaws.TagsToLabels(cluster.Tags))
 }
 
-func labelsFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Workgroup, meta *types.AWS, tags []*redshiftserverless.Tag) map[string]string {
+func labelsFromRedshiftServerlessWorkgroup(workgroup *rsstypes.Workgroup, meta *types.AWS, tags []rsstypes.Tag) map[string]string {
 	labels := labelsFromAWSMetadata(meta)
 	labels[types.DiscoveryLabelEndpointType] = services.RedshiftServerlessWorkgroupEndpoint
 	labels[types.DiscoveryLabelNamespace] = aws.ToString(workgroup.NamespaceName)
@@ -1482,7 +1484,7 @@ func labelsFromRedshiftServerlessWorkgroup(workgroup *redshiftserverless.Workgro
 	return addLabels(labels, libcloudaws.TagsToLabels(tags))
 }
 
-func labelsFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.EndpointAccess, workgroup *redshiftserverless.Workgroup, meta *types.AWS, tags []*redshiftserverless.Tag) map[string]string {
+func labelsFromRedshiftServerlessVPCEndpoint(endpoint *rsstypes.EndpointAccess, workgroup *rsstypes.Workgroup, meta *types.AWS, tags []rsstypes.Tag) map[string]string {
 	labels := labelsFromAWSMetadata(meta)
 	labels[types.DiscoveryLabelEndpointType] = services.RedshiftServerlessVPCEndpoint
 	labels[types.DiscoveryLabelWorkgroup] = aws.ToString(endpoint.WorkgroupName)
@@ -1504,7 +1506,7 @@ func labelsFromAWSMetadata(meta *types.AWS) map[string]string {
 	return labels
 }
 
-func labelsFromOpenSearchDomain(domain *opensearchservice.DomainStatus, meta *types.AWS, endpointType string, tags []*opensearchservice.Tag) map[string]string {
+func labelsFromOpenSearchDomain(domain *opensearchtypes.DomainStatus, meta *types.AWS, endpointType string, tags []opensearchtypes.Tag) map[string]string {
 	labels := labelsFromMetaAndEndpointType(meta, endpointType, libcloudaws.TagsToLabels(tags))
 	labels[types.DiscoveryLabelEngineVersion] = aws.ToString(domain.EngineVersion)
 	return labels

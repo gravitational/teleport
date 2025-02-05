@@ -90,15 +90,6 @@ export function Notification({
       });
   });
 
-  function onMarkAsClicked() {
-    if (notification.localNotification) {
-      ctx.storeNotifications.markNotificationAsClicked(notification.id);
-      markNotificationAsClicked(notification.id);
-      return;
-    }
-    markAsClicked();
-  }
-
   // Whether to show the text content dialog. This is only ever used for user-created notifications which only contain informational text
   // and don't redirect to any page.
   const [showTextContentDialog, setShowTextContentDialog] = useState(false);
@@ -159,10 +150,10 @@ export function Notification({
   function onClick() {
     if (content.kind === 'text') {
       setShowTextContentDialog(true);
-      onMarkAsClicked();
+      markAsClicked();
       return;
     }
-    onMarkAsClicked();
+    markAsClicked();
     closeNotificationsList();
     history.push(content.redirectRoute);
   }
@@ -192,7 +183,7 @@ export function Notification({
           <ContentBody>
             <Text>{content.title}</Text>
             {content.kind === 'redirect' && content.QuickAction && (
-              <content.QuickAction markAsClicked={onMarkAsClicked} />
+              <content.QuickAction markAsClicked={markAsClicked} />
             )}
             {hideNotificationAttempt.status === 'error' && (
               <Text typography="body4" color="error.main">
@@ -211,31 +202,29 @@ export function Notification({
             {!content?.hideDate && (
               <Text typography="body4">{formattedDate}</Text>
             )}
-            {!notification.localNotification && (
-              <MenuIcon
-                menuProps={{
-                  anchorOrigin: { vertical: 'bottom', horizontal: 'right' },
-                  transformOrigin: { vertical: 'top', horizontal: 'right' },
-                  backdropProps: { className: IGNORE_CLICK_CLASSNAME },
-                }}
-                buttonIconProps={{ style: { borderRadius: '4px' } }}
-              >
-                {!isClicked && (
-                  <MenuItem
-                    onClick={onMarkAsClicked}
-                    className={IGNORE_CLICK_CLASSNAME}
-                  >
-                    Mark as read
-                  </MenuItem>
-                )}
+            <MenuIcon
+              menuProps={{
+                anchorOrigin: { vertical: 'bottom', horizontal: 'right' },
+                transformOrigin: { vertical: 'top', horizontal: 'right' },
+                backdropProps: { className: IGNORE_CLICK_CLASSNAME },
+              }}
+              buttonIconProps={{ style: { borderRadius: '4px' } }}
+            >
+              {!isClicked && (
                 <MenuItem
-                  onClick={hideNotification}
+                  onClick={markAsClicked}
                   className={IGNORE_CLICK_CLASSNAME}
                 >
-                  Hide this notification
+                  Mark as read
                 </MenuItem>
-              </MenuIcon>
-            )}
+              )}
+              <MenuItem
+                onClick={hideNotification}
+                className={IGNORE_CLICK_CLASSNAME}
+              >
+                Hide this notification
+              </MenuItem>
+            </MenuIcon>
           </SideContent>
         </ContentContainer>
       </Container>

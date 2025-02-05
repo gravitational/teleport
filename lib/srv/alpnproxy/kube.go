@@ -157,12 +157,23 @@ func writeKubeError(ctx context.Context, rw http.ResponseWriter, kubeError *apie
 	}
 }
 
+// ClearCerts clears the middleware certs.
+// It will try to reissue them when a new request comes in.
+func (m *KubeMiddleware) ClearCerts() {
+	m.certsMu.Lock()
+	defer m.certsMu.Unlock()
+	clear(m.certs)
+}
+
 // HandleRequest checks if middleware has valid certificate for this request and
 // reissues it if needed. In case of reissuing error we write directly to the response and return true,
 // so caller won't continue processing the request.
 func (m *KubeMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request) bool {
 	cert, err := m.getCertForRequest(req)
-	if err != nil {
+	// If the cert is cleared using m.ClearCerts(), it won't be found.
+	// This forces the middleware to issue a new cert on a new request.
+	// This is used in access requests in Connect where we want to refresh certs without closing the proxy.
+	if err != nil && !trace.IsNotFound(err) {
 		return false
 	}
 
@@ -220,23 +231,38 @@ func (m *KubeMiddleware) OverwriteClientCerts(req *http.Request) ([]tls.Certific
 var ErrUserInputRequired = errors.New("user input required")
 
 // reissueCertIfExpired checks if provided certificate has expired and reissues it if needed and replaces in the middleware certs.
+// serverName has a form of <hex-encoded-kube-cluster>.<teleport-cluster>.
 func (m *KubeMiddleware) reissueCertIfExpired(ctx context.Context, cert tls.Certificate, serverName string) error {
-	x509Cert, err := utils.TLSCertLeaf(cert)
-	if err != nil {
-		return trace.Wrap(err)
+	needsReissue := false
+	if len(cert.Certificate) == 0 {
+		m.logger.InfoContext(ctx, "missing TLS certificate, attempting to reissue a new one")
+		needsReissue = true
+	} else {
+		x509Cert, err := utils.TLSCertLeaf(cert)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := utils.VerifyCertificateExpiry(x509Cert, m.clock); err != nil {
+			needsReissue = true
+		}
 	}
-	if err := utils.VerifyCertificateExpiry(x509Cert, m.clock); err == nil {
+	if !needsReissue {
 		return nil
 	}
 
 	if m.certReissuer == nil {
-		return trace.BadParameter("can't reissue expired proxy certificate - reissuer is not available")
+		return trace.BadParameter("can't reissue proxy certificate - reissuer is not available")
 	}
-
-	// If certificate has expired we try to reissue it.
-	identity, err := tlsca.FromSubject(x509Cert.Subject, x509Cert.NotAfter)
+	teleportCluster := common.TeleportClusterFromKubeLocalProxySNI(serverName)
+	if teleportCluster == "" {
+		return trace.BadParameter("can't reissue proxy certificate - teleport cluster is empty")
+	}
+	kubeCluster, err := common.KubeClusterFromKubeLocalProxySNI(serverName)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "can't reissue proxy certificate - kube cluster name is invalid")
+	}
+	if kubeCluster == "" {
+		return trace.BadParameter("can't reissue proxy certificate - kube cluster is empty")
 	}
 
 	errCh := make(chan error, 1)
@@ -247,11 +273,7 @@ func (m *KubeMiddleware) reissueCertIfExpired(ctx context.Context, cert tls.Cert
 		go func() {
 			defer m.isCertReissuingRunning.Store(false)
 
-			cluster := identity.TeleportCluster
-			if identity.RouteToCluster != "" {
-				cluster = identity.RouteToCluster
-			}
-			newCert, err := m.certReissuer(m.closeContext, cluster, identity.KubernetesCluster)
+			newCert, err := m.certReissuer(m.closeContext, teleportCluster, kubeCluster)
 			if err == nil {
 				m.certsMu.Lock()
 				m.certs[serverName] = newCert

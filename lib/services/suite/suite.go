@@ -202,7 +202,7 @@ type ServicesTestSuite struct {
 	UsersS        services.UsersService
 	RestrictionsS services.Restrictions
 	ChangesC      chan interface{}
-	Clock         clockwork.FakeClock
+	Clock         *clockwork.FakeClock
 }
 
 func (s *ServicesTestSuite) Users() services.UsersService {
@@ -830,32 +830,6 @@ func (s *ServicesTestSuite) RolesCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = s.Access.GetRole(ctx, role.Metadata.Name)
-	require.True(t, trace.IsNotFound(err))
-}
-
-func (s *ServicesTestSuite) NamespacesCRUD(t *testing.T) {
-	out, err := s.PresenceS.GetNamespaces()
-	require.NoError(t, err)
-	require.Empty(t, out)
-
-	ns := types.Namespace{
-		Kind:    types.KindNamespace,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name:      apidefaults.Namespace,
-			Namespace: apidefaults.Namespace,
-		},
-	}
-	err = s.PresenceS.UpsertNamespace(ns)
-	require.NoError(t, err)
-	nsout, err := s.PresenceS.GetNamespace(ns.Metadata.Name)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(nsout, &ns))
-
-	err = s.PresenceS.DeleteNamespace(ns.Metadata.Name)
-	require.NoError(t, err)
-
-	_, err = s.PresenceS.GetNamespace(ns.Metadata.Name)
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -1715,32 +1689,6 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 		},
 		{
-			name: "Namespace",
-			kind: types.WatchKind{
-				Kind: types.KindNamespace,
-			},
-			crud: func(context.Context) types.Resource {
-				ns := types.Namespace{
-					Kind:    types.KindNamespace,
-					Version: types.V2,
-					Metadata: types.Metadata{
-						Name:      "testnamespace",
-						Namespace: apidefaults.Namespace,
-					},
-				}
-				err := s.PresenceS.UpsertNamespace(ns)
-				require.NoError(t, err)
-
-				out, err := s.PresenceS.GetNamespace(ns.Metadata.Name)
-				require.NoError(t, err)
-
-				err = s.PresenceS.DeleteNamespace(ns.Metadata.Name)
-				require.NoError(t, err)
-
-				return out
-			},
-		},
-		{
 			name: "Static tokens",
 			kind: types.WatchKind{
 				Kind: types.KindStaticTokens,
@@ -1926,38 +1874,6 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 		Kinds:               append(eventsTestKinds(testCases), types.WatchKind{Kind: "unknown"}),
 		AllowPartialSuccess: true,
 	})
-
-	// Namespace with a name
-	testCases = []eventTest{
-		{
-			name: "Namespace with a name",
-			kind: types.WatchKind{
-				Kind: types.KindNamespace,
-				Name: "shmest",
-			},
-			crud: func(context.Context) types.Resource {
-				ns := types.Namespace{
-					Kind:    types.KindNamespace,
-					Version: types.V2,
-					Metadata: types.Metadata{
-						Name:      "shmest",
-						Namespace: apidefaults.Namespace,
-					},
-				}
-				err := s.PresenceS.UpsertNamespace(ns)
-				require.NoError(t, err)
-
-				out, err := s.PresenceS.GetNamespace(ns.Metadata.Name)
-				require.NoError(t, err)
-
-				err = s.PresenceS.DeleteNamespace(ns.Metadata.Name)
-				require.NoError(t, err)
-
-				return out
-			},
-		},
-	}
-	s.runEventsTests(t, testCases, types.Watch{Kinds: eventsTestKinds(testCases)})
 
 	// tests that a watch fails given an unknown kind when the partial success mode is not enabled
 	s.runUnknownEventsTest(t, types.Watch{Kinds: []types.WatchKind{

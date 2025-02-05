@@ -16,14 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useId } from 'react';
+import { memo, useId } from 'react';
+import { components, OptionProps } from 'react-select';
 import styled, { useTheme } from 'styled-components';
 
 import Box from 'design/Box';
 import Input from 'design/Input';
 import LabelInput from 'design/LabelInput';
 import { RadioGroup } from 'design/RadioGroup';
-import { H4 } from 'design/Text';
+import Text, { H4 } from 'design/Text';
 import Select from 'shared/components/Select';
 
 import { SectionProps } from './sections';
@@ -33,9 +34,15 @@ import {
   OptionsModel,
   requireMFATypeOptions,
   sessionRecordingModeOptions,
+  SSHPortForwardingModeOption,
+  sshPortForwardingModeOptions,
 } from './standardmodel';
 
-export function Options({
+/**
+ * Options tab. This component is memoized to optimize performance; make sure
+ * that the properties don't change unless necessary.
+ */
+export const Options = memo(function Options({
   value,
   isProcessing,
   onChange,
@@ -49,6 +56,8 @@ export function Options({
   const createDBUserModeId = `${id}-create-db-user-mode`;
   const defaultSessionRecordingModeId = `${id}-default-session-recording-mode`;
   const sshSessionRecordingModeId = `${id}-ssh-session-recording-mode`;
+  const sshPortForwardingModeId = `${id}-ssh-port-forwarding-mode`;
+
   return (
     <OptionsGridContainer
       border={1}
@@ -136,6 +145,18 @@ export function Options({
         onChange={m => onChange?.({ ...value, sshSessionRecordingMode: m })}
       />
 
+      <OptionLabel htmlFor={sshPortForwardingModeId}>
+        Port Forwarding Mode
+      </OptionLabel>
+      <Select
+        components={sshPortForwardingModeComponents}
+        inputId={sshPortForwardingModeId}
+        isDisabled={isProcessing}
+        options={sshPortForwardingModeOptions}
+        value={value.sshPortForwardingMode}
+        onChange={m => onChange?.({ ...value, sshPortForwardingMode: m })}
+      />
+
       <OptionsHeader separator>Database</OptionsHeader>
 
       <Box>Create Database User</Box>
@@ -189,7 +210,21 @@ export function Options({
       />
     </OptionsGridContainer>
   );
-}
+});
+
+const SSHPortForwardingModeOptionComponent = (
+  props: OptionProps<SSHPortForwardingModeOption, false>
+) => {
+  return (
+    <components.Option {...props}>
+      {props.label} <Text typography="body3">{props.data.description}</Text>
+    </components.Option>
+  );
+};
+
+const sshPortForwardingModeComponents = {
+  Option: SSHPortForwardingModeOptionComponent,
+};
 
 const OptionsGridContainer = styled(Box)`
   display: grid;

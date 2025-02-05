@@ -77,6 +77,14 @@ function processSVGFiles() {
     return;
   }
 
+  // Before generating Icon components, delete all the existing ones. This is to prevent Icon components for now-deleted SVG files from persisting.
+  const iconComponentsDir = path.join(basePath, '/Icons/');
+  const files = fs.readdirSync(iconComponentsDir);
+  for (const file of files) {
+    const filePath = path.join(iconComponentsDir, file);
+    fs.unlinkSync(filePath);
+  }
+
   svgFiles.forEach(svgFile => {
     const svgFilePath = path.join(svgAssetsPath, svgFile);
     createIconComponent(svgFilePath);

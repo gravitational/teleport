@@ -33,7 +33,6 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/prometheus/client_golang/prometheus"
 	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/grpc"
@@ -69,6 +68,7 @@ import (
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	trustv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userprovisioningv2pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
@@ -79,6 +79,7 @@ import (
 	userpreferencesv1pb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -101,6 +102,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
+	"github.com/gravitational/teleport/lib/auth/stableunixusers"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate/userloginstatev1"
 	"github.com/gravitational/teleport/lib/auth/userpreferences/userpreferencesv1"
@@ -524,6 +526,24 @@ func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, a
 		AllowPartialSuccess: watch.AllowPartialSuccess,
 	}
 
+	// KindNamespace is being removed but v17 agents will still try to include
+	// it in their cache and they will occasionally do a GetNamespace, so we
+	// pretend to support it as a resource kind here; it's sound to do so
+	// because there will never be any events coming, and the GetNamespace and
+	// GetNamespaces APIs return static data
+	//
+	// TODO(espadolini): remove in v19
+	var removedNamespaceWatch bool
+	filteredKinds := watch.Kinds[:0]
+	for _, k := range watch.Kinds {
+		if k.Kind == types.KindNamespace {
+			removedNamespaceWatch = true
+			continue
+		}
+		filteredKinds = append(filteredKinds, k)
+	}
+	watch.Kinds = filteredKinds
+
 	events, err := auth.NewStream(stream.Context(), servicesWatch)
 	if err != nil {
 		return trace.Wrap(err)
@@ -538,6 +558,16 @@ func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, a
 
 	for events.Next() {
 		event := events.Item()
+		// TODO(espadolini): remove in v19
+		if removedNamespaceWatch {
+			if status, ok := event.Resource.(*types.WatchStatusV1); ok {
+				status.Spec.Kinds = append(status.Spec.Kinds, types.WatchKind{Kind: types.KindNamespace})
+			}
+			// there's only exactly one event of type OpInit and WatchStatus
+			// meta-resource (at the beginning of the stream), so we don't need
+			// to keep checking
+			removedNamespaceWatch = false
+		}
 		if role, ok := event.Resource.(*types.RoleV6); ok {
 			downgraded, err := maybeDowngradeRole(stream.Context(), role)
 			if err != nil {
@@ -5280,6 +5310,28 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	dbobjectv1pb.RegisterDatabaseObjectServiceServer(server, dbObjectService)
 
+	stableUNIXUsersServiceServer, err := stableunixusers.New(stableunixusers.Config{
+		Authorizer: cfg.Authorizer,
+		Emitter:    cfg.Emitter,
+		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "stable_unix_users"),
+
+		Backend:       cfg.AuthServer.bk,
+		ReadOnlyCache: cfg.AuthServer.ReadOnlyCache,
+
+		StableUNIXUsers:      cfg.AuthServer.Services.StableUNIXUsersInternal,
+		ClusterConfiguration: cfg.AuthServer.Services.ClusterConfigurationInternal,
+
+		CacheClock:   cfg.AuthServer.clock,
+		CacheContext: cfg.AuthServer.closeCtx,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating stable UNIX user service")
+	}
+	stableunixusersv1.RegisterStableUNIXUsersServiceServer(
+		server,
+		stableUNIXUsersServiceServer,
+	)
+
 	authServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,
 		logger:    logger,
@@ -5510,7 +5562,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	autoupdatev1pb.RegisterAutoUpdateServiceServer(server, autoUpdateServiceServer)
 
 	identityCenterService, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
-		Backend: cfg.AuthServer.bk})
+		Backend: cfg.AuthServer.bk,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

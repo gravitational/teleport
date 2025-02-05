@@ -28,6 +28,7 @@ import (
 	"log/slog"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -43,7 +44,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -58,7 +58,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/migration"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -73,9 +72,7 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var (
-	logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentAuth)
-)
+var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentAuth)
 
 // VersionStorage local storage for saving the version.
 type VersionStorage interface {
@@ -159,7 +156,7 @@ type InitConfig struct {
 	Events types.Events
 
 	// ClusterConfiguration is a services that holds cluster wide configuration.
-	ClusterConfiguration services.ClusterConfiguration
+	ClusterConfiguration services.ClusterConfigurationInternal
 
 	// AutoUpdateService is a service of autoupdate configuration and version.
 	AutoUpdateService services.AutoUpdateService
@@ -305,9 +302,6 @@ type InitConfig struct {
 	// AccessMonitoringRules is a service that manages access monitoring rules.
 	AccessMonitoringRules services.AccessMonitoringRules
 
-	// CloudClients provides clients for various cloud providers.
-	CloudClients cloud.Clients
-
 	// KubeWaitingContainers is a service that manages
 	// Kubernetes ephemeral containers that are waiting
 	// to be created until moderated session conditions are met.
@@ -346,6 +340,9 @@ type InitConfig struct {
 
 	// GitServers manages git servers.
 	GitServers services.GitServers
+
+	// StableUNIXUsers handles the storage for stable UNIX users.
+	StableUNIXUsers services.StableUNIXUsersInternal
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -499,13 +496,6 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		defer span.End()
 		asrv.logger.InfoContext(ctx, "Updating cluster configuration", "static_tokens", cfg.StaticTokens)
 		return trace.Wrap(asrv.SetStaticTokens(cfg.StaticTokens))
-	})
-
-	g.Go(func() error {
-		_, span := cfg.Tracer.Start(gctx, "auth/SetClusterNamespace")
-		defer span.End()
-		asrv.logger.InfoContext(ctx, "Creating namespace", "namespace", apidefaults.Namespace)
-		return trace.Wrap(asrv.UpsertNamespace(types.DefaultNamespace()))
 	})
 
 	var cn types.ClusterName
@@ -731,7 +721,7 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 	if numKeyTypes > 1 {
 		const msg = "CA contains a combination of key types. If you are attempting to" +
 			" configure HSM or KMS key storage, make sure it is configured on all auth servers in" +
-			" this cluster and then perform a CA rotation: https://goteleport.com/docs/management/operations/ca-rotation/"
+			" this cluster and then perform a CA rotation: https://goteleport.com/docs/admin-guides/management/operations/ca-rotation/"
 		asrv.logger.WarnContext(ctx, msg,
 			"ca_type", caID.Type,
 			"key_types", []string{strings.Join(allKeyTypes[:numKeyTypes-1], ", "), allKeyTypes[numKeyTypes-1]},
@@ -783,7 +773,7 @@ auth_service:
       rp_id: example.com
 
 For more information:
-- https://goteleport.com/docs/access-controls/guides/webauthn/
+- https://goteleport.com/docs/admin-guides/access-controls/guides/webauthn/
 `
 
 func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
@@ -800,7 +790,7 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 		}
 
 		if !shouldReplace {
-			if os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "true" {
+			if allowNoSecondFactor, _ := strconv.ParseBool(os.Getenv(teleport.EnvVarAllowNoSecondFactor)); allowNoSecondFactor {
 				err := modules.ValidateResource(storedAuthPref)
 				if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
 					return trace.Wrap(err, secondFactorUpgradeInstructions)
@@ -1047,6 +1037,7 @@ func GetPresetRoles() []types.Role {
 		services.NewSystemOktaRequesterRole(),
 		services.NewPresetTerraformProviderRole(),
 		services.NewSystemIdentityCenterAccessRole(),
+		services.NewPresetWildcardWorkloadIdentityIssuerRole(),
 	}
 
 	// Certain `New$FooRole()` functions will return a nil role if the
@@ -1445,9 +1436,9 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		case types.Role:
 			_, err = service.Access.UpsertRole(ctx, r)
 		case types.ClusterNetworkingConfig:
-			_, err = service.ClusterConfiguration.UpsertClusterNetworkingConfig(ctx, r)
+			_, err = service.ClusterConfigurationInternal.UpsertClusterNetworkingConfig(ctx, r)
 		case types.AuthPreference:
-			_, err = service.ClusterConfiguration.UpsertAuthPreference(ctx, r)
+			_, err = service.ClusterConfigurationInternal.UpsertAuthPreference(ctx, r)
 		case *machineidv1pb.Bot:
 			_, err = machineidv1.UpsertBot(ctx, service, r, time.Now(), "system")
 		case *dbobjectimportrulev1pb.DatabaseObjectImportRule:

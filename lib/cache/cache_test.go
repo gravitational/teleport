@@ -187,10 +187,6 @@ func newPackForAuth(t *testing.T) *testPack {
 	return newTestPack(t, ForAuth)
 }
 
-func newPackForProxy(t *testing.T) *testPack {
-	return newTestPack(t, ForProxy)
-}
-
 func newTestPack(t *testing.T, setupConfig SetupConfigFn) *testPack {
 	pack, err := newPack(t.TempDir(), setupConfig)
 	require.NoError(t, err)
@@ -1602,66 +1598,6 @@ func TestClusterName(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Empty(t, cmp.Diff(outName, clusterName, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-}
-
-// TestNamespaces tests caching of namespaces
-func TestNamespaces(t *testing.T) {
-	t.Parallel()
-
-	p := newPackForProxy(t)
-	t.Cleanup(p.Close)
-
-	v, err := types.NewNamespace("universe")
-	require.NoError(t, err)
-	ns := &v
-	err = p.presenceS.UpsertNamespace(*ns)
-	require.NoError(t, err)
-
-	ns, err = p.presenceS.GetNamespace(ns.GetName())
-	require.NoError(t, err)
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err := p.cache.GetNamespace(ns.GetName())
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(ns, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-	// update namespace metadata
-	ns.Metadata.Labels = map[string]string{"a": "b"}
-	require.NoError(t, err)
-	err = p.presenceS.UpsertNamespace(*ns)
-	require.NoError(t, err)
-
-	ns, err = p.presenceS.GetNamespace(ns.GetName())
-	require.NoError(t, err)
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetNamespace(ns.GetName())
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(ns, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-	err = p.presenceS.DeleteNamespace(ns.GetName())
-	require.NoError(t, err)
-
-	select {
-	case <-p.eventsC:
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	_, err = p.cache.GetNamespace(ns.GetName())
-	require.True(t, trace.IsNotFound(err))
 }
 
 // TestUsers tests caching of users
@@ -3279,7 +3215,6 @@ func TestRelativeExpiryOnlyForAuth(t *testing.T) {
 		c.Clock = clock
 		c.target = "llama"
 		c.Watches = []types.WatchKind{
-			{Kind: types.KindNamespace},
 			{Kind: types.KindNode},
 			{Kind: types.KindCertAuthority},
 		}

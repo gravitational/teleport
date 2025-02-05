@@ -126,7 +126,11 @@ export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
   }
 
   function setUpGateway(targetPort?: number): void {
-    setUpAppGateway(appContext, props.app, {
+    if (!targetPort && props.app.tcpPorts.length > 0) {
+      targetPort = props.app.tcpPorts[0].port;
+    }
+
+    setUpAppGateway(appContext, props.app.uri, {
       telemetry: { origin: 'resource_table' },
       targetPort,
     });

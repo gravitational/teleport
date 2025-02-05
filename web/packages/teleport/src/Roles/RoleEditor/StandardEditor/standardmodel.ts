@@ -29,24 +29,30 @@ import {
 import {
   CreateDBUserMode,
   CreateHostUserMode,
+  GitHubPermission,
   KubernetesResourceKind,
   KubernetesVerb,
   RequireMFAType,
   ResourceKind,
   RoleOptions,
+  RoleVersion,
   Rule,
   SessionRecordingMode,
+  SSHPortForwarding,
   Verb,
 } from 'teleport/services/resources/types';
 
+import { RoleEditorModelValidationResult } from './validation';
 import { defaultOptions } from './withDefaults';
 
 export type StandardEditorModel = {
   roleModel: RoleEditorModel;
+  originalRole: Role;
   /**
    * Will be true if fields have been modified from the original.
    */
   isDirty: boolean;
+  validationResult: RoleEditorModelValidationResult;
 };
 
 /**
@@ -73,6 +79,7 @@ export type MetadataModel = {
   description?: string;
   revision?: string;
   labels: UILabel[];
+  version: RoleVersionOption;
 };
 
 /** A model for resource section. */
@@ -81,7 +88,8 @@ export type ResourceAccess =
   | ServerAccess
   | AppAccess
   | DatabaseAccess
-  | WindowsDesktopAccess;
+  | WindowsDesktopAccess
+  | GitHubOrganizationAccess;
 
 /**
  * A base for all resource section models. Contains a type discriminator field.
@@ -89,7 +97,7 @@ export type ResourceAccess =
 type ResourceAccessBase<T extends ResourceAccessKind> = {
   /**
    * Determines kind of resource that is accessed using this spec. Intended to
-   * be mostly consistent with UnifiedResources.kind, but that has no real
+   * be mostly consistent with UnifiedResourceKind, but that has no real
    * meaning on the server side; we needed some discriminator, so we picked
    * this one.
    */
@@ -101,13 +109,23 @@ export type ResourceAccessKind =
   | 'kube_cluster'
   | 'app'
   | 'db'
-  | 'windows_desktop';
+  | 'windows_desktop'
+  | 'git_server';
 
 /** Model for the Kubernetes resource section. */
 export type KubernetesAccess = ResourceAccessBase<'kube_cluster'> & {
   groups: readonly Option[];
   labels: UILabel[];
   resources: KubernetesResourceModel[];
+  users: readonly Option[];
+
+  /**
+   * Version of the role that owns this section. Required to propagate it to
+   * {@link KubernetesResourceModel}. It's the responsibility of
+   * `useStandardModel` reducer to keep this value consistent with the actual
+   * role version.
+   */
+  roleVersion: RoleVersion;
 };
 
 export type KubernetesResourceModel = {
@@ -117,6 +135,14 @@ export type KubernetesResourceModel = {
   name: string;
   namespace: string;
   verbs: readonly KubernetesVerbOption[];
+
+  /**
+   * Version of the role that owns this section. Required in order to support
+   * version-specific validation rules. It's the responsibility of
+   * `useStandardModel` reducer to keep this value consistent with the actual
+   * role version.
+   */
+  roleVersion: RoleVersion;
 };
 
 type KubernetesResourceKindOption = Option<KubernetesResourceKind, string>;
@@ -163,11 +189,11 @@ export const kubernetesResourceKindOptions: KubernetesResourceKindOption[] = [
 const optionsToMap = <K, V>(opts: Option<K, V>[]) =>
   new Map(opts.map(o => [o.value, o]));
 
-const kubernetesResourceKindOptionsMap = optionsToMap(
+export const kubernetesResourceKindOptionsMap = optionsToMap(
   kubernetesResourceKindOptions
 );
 
-type KubernetesVerbOption = Option<KubernetesVerb, string>;
+export type KubernetesVerbOption = Option<KubernetesVerb, string>;
 /**
  * All possible Kubernetes verb drop-down options. This array needs to be kept
  * in sync with `KubernetesVerbs` in `api/types/constants.go.
@@ -197,7 +223,7 @@ export const kubernetesVerbOptions: KubernetesVerbOption[] = [
     .toSorted((a, b) => a.localeCompare(b))
     .map(stringToOption),
 ];
-const kubernetesVerbOptionsMap = optionsToMap(kubernetesVerbOptions);
+export const kubernetesVerbOptionsMap = optionsToMap(kubernetesVerbOptions);
 
 export type ResourceKindOption = Option<ResourceKind, string>;
 export const resourceKindOptions: ResourceKindOption[] = Object.values(
@@ -223,7 +249,7 @@ export const verbOptions: VerbOption[] = (
     'use',
   ] as const
 ).map(stringToOption);
-const verbOptionsMap = optionsToMap(verbOptions);
+export const verbOptionsMap = optionsToMap(verbOptions);
 
 /** Model for the server resource access section. */
 export type ServerAccess = ResourceAccessBase<'node'> & {
@@ -243,11 +269,16 @@ export type DatabaseAccess = ResourceAccessBase<'db'> & {
   names: readonly Option[];
   users: readonly Option[];
   roles: readonly Option[];
+  dbServiceLabels: UILabel[];
 };
 
 export type WindowsDesktopAccess = ResourceAccessBase<'windows_desktop'> & {
   labels: UILabel[];
   logins: readonly Option[];
+};
+
+export type GitHubOrganizationAccess = ResourceAccessBase<'git_server'> & {
+  organizations: readonly Option[];
 };
 
 export type RuleModel = {
@@ -261,6 +292,7 @@ export type RuleModel = {
    */
   resources: readonly ResourceKindOption[];
   verbs: readonly VerbOption[];
+  where: string;
 };
 
 export type OptionsModel = {
@@ -278,6 +310,7 @@ export type OptionsModel = {
   sshSessionRecordingMode: SessionRecordingModeOption;
   recordDesktopSessions: boolean;
   forwardAgent: boolean;
+  sshPortForwardingMode: SSHPortForwardingModeOption;
 };
 
 type RequireMFATypeOption = Option<RequireMFAType>;
@@ -291,7 +324,7 @@ export const requireMFATypeOptions: RequireMFATypeOption[] = [
     label: 'Hardware Key (touch and PIN)',
   },
 ];
-const requireMFATypeOptionsMap = optionsToMap(requireMFATypeOptions);
+export const requireMFATypeOptionsMap = optionsToMap(requireMFATypeOptions);
 
 type CreateHostUserModeOption = Option<CreateHostUserMode>;
 export const createHostUserModeOptions: CreateHostUserModeOption[] = [
@@ -300,7 +333,9 @@ export const createHostUserModeOptions: CreateHostUserModeOption[] = [
   { value: 'keep', label: 'Keep' },
   { value: 'insecure-drop', label: 'Drop (insecure)' },
 ];
-const createHostUserModeOptionsMap = optionsToMap(createHostUserModeOptions);
+export const createHostUserModeOptionsMap = optionsToMap(
+  createHostUserModeOptions
+);
 
 type CreateDBUserModeOption = Option<CreateDBUserMode>;
 export const createDBUserModeOptions: CreateDBUserModeOption[] = [
@@ -309,7 +344,7 @@ export const createDBUserModeOptions: CreateDBUserModeOption[] = [
   { value: 'keep', label: 'Keep' },
   { value: 'best_effort_drop', label: 'Drop (best effort)' },
 ];
-const createDBUserModeOptionsMap = optionsToMap(createDBUserModeOptions);
+export const createDBUserModeOptionsMap = optionsToMap(createDBUserModeOptions);
 
 type SessionRecordingModeOption = Option<SessionRecordingMode>;
 export const sessionRecordingModeOptions: SessionRecordingModeOption[] = [
@@ -317,11 +352,51 @@ export const sessionRecordingModeOptions: SessionRecordingModeOption[] = [
   { value: 'best_effort', label: 'Best Effort' },
   { value: 'strict', label: 'Strict' },
 ];
-const sessionRecordingModeOptionsMap = optionsToMap(
+export const sessionRecordingModeOptionsMap = optionsToMap(
   sessionRecordingModeOptions
 );
 
-const roleVersion = 'v7';
+export type SSHPortForwardingMode =
+  | ''
+  | 'none'
+  | 'local-only'
+  | 'remote-only'
+  | 'local-and-remote'
+  | 'deprecated-on'
+  | 'deprecated-off';
+export type SSHPortForwardingModeOption = Option<SSHPortForwardingMode> & {
+  description?: string;
+};
+export const sshPortForwardingModeOptions: SSHPortForwardingModeOption[] = [
+  { value: '', label: 'Unspecified' },
+  { value: 'none', label: 'None' },
+  { value: 'local-only', label: 'Local only' },
+  { value: 'remote-only', label: 'Remote only' },
+  { value: 'local-and-remote', label: 'Local and remote' },
+  {
+    value: 'deprecated-off',
+    label: 'Off (deprecated)',
+    description:
+      'Changes the implicit default behavior for other roles assigned to a user from "allow all" to "deny all"',
+  },
+  {
+    value: 'deprecated-on',
+    label: 'On (deprecated)',
+    description: 'Overrides all other roles applied to a user',
+  },
+];
+export const sshPortForwardingModeOptionsMap = optionsToMap(
+  sshPortForwardingModeOptions
+);
+
+export type RoleVersionOption = Option<RoleVersion>;
+export const roleVersionOptions = Object.values(RoleVersion)
+  .toSorted()
+  .toReversed()
+  .map(o => ({ value: o, label: o }));
+export const roleVersionOptionsMap = optionsToMap(roleVersionOptions);
+
+export const defaultRoleVersion = RoleVersion.V7;
 
 /**
  * Returns the role object with required fields defined with empty values.
@@ -337,19 +412,49 @@ export function newRole(): Role {
       deny: {},
       options: defaultOptions(),
     },
-    version: roleVersion,
+    version: defaultRoleVersion,
   };
 }
 
-export function newResourceAccess(kind: 'node'): ServerAccess;
-export function newResourceAccess(kind: 'kube_cluster'): KubernetesAccess;
-export function newResourceAccess(kind: 'app'): AppAccess;
-export function newResourceAccess(kind: 'db'): DatabaseAccess;
 export function newResourceAccess(
-  kind: 'windows_desktop'
+  kind: 'node',
+  roleVersion: RoleVersion
+): ServerAccess;
+
+export function newResourceAccess(
+  kind: 'kube_cluster',
+  roleVersion: RoleVersion
+): KubernetesAccess;
+
+export function newResourceAccess(
+  kind: 'app',
+  roleVersion: RoleVersion
+): AppAccess;
+
+export function newResourceAccess(
+  kind: 'db',
+  roleVersion: RoleVersion
+): DatabaseAccess;
+
+export function newResourceAccess(
+  kind: 'windows_desktop',
+  roleVersion: RoleVersion
 ): WindowsDesktopAccess;
-export function newResourceAccess(kind: ResourceAccessKind): AppAccess;
-export function newResourceAccess(kind: ResourceAccessKind): ResourceAccess {
+
+export function newResourceAccess(
+  kind: 'git_server',
+  roleVersion: RoleVersion
+): GitHubOrganizationAccess;
+
+export function newResourceAccess(
+  kind: ResourceAccessKind,
+  roleVersion: RoleVersion
+): AppAccess;
+
+export function newResourceAccess(
+  kind: ResourceAccessKind,
+  roleVersion: RoleVersion
+): ResourceAccess {
   switch (kind) {
     case 'node':
       return {
@@ -363,6 +468,8 @@ export function newResourceAccess(kind: ResourceAccessKind): ResourceAccess {
         groups: [stringToOption('{{internal.kubernetes_groups}}')],
         labels: [],
         resources: [],
+        users: [],
+        roleVersion,
       };
     case 'app':
       return {
@@ -379,6 +486,7 @@ export function newResourceAccess(kind: ResourceAccessKind): ResourceAccess {
         names: [stringToOption('{{internal.db_names}}')],
         users: [stringToOption('{{internal.db_users}}')],
         roles: [stringToOption('{{internal.db_roles}}')],
+        dbServiceLabels: [],
       };
     case 'windows_desktop':
       return {
@@ -386,18 +494,26 @@ export function newResourceAccess(kind: ResourceAccessKind): ResourceAccess {
         labels: [],
         logins: [stringToOption('{{internal.windows_logins}}')],
       };
+    case 'git_server':
+      return {
+        kind: 'git_server',
+        organizations: [stringToOption('{{internal.github_orgs}}')],
+      };
     default:
       kind satisfies never;
   }
 }
 
-export function newKubernetesResourceModel(): KubernetesResourceModel {
+export function newKubernetesResourceModel(
+  roleVersion: RoleVersion
+): KubernetesResourceModel {
   return {
     id: crypto.randomUUID(),
     kind: kubernetesResourceKindOptions.find(k => k.value === '*'),
     name: '*',
     namespace: '*',
     verbs: [],
+    roleVersion,
   };
 }
 
@@ -406,6 +522,7 @@ export function newRuleModel(): RuleModel {
     id: crypto.randomUUID(),
     resources: [],
     verbs: [],
+    where: '',
   };
 }
 
@@ -430,9 +547,10 @@ export function roleToRoleEditorModel(
     resources,
     rules,
     requiresReset: allowRequiresReset,
-  } = roleConditionsToModel(allow);
+  } = roleConditionsToModel(allow, version);
   const { model: optionsModel, requiresReset: optionsRequireReset } =
     optionsToModel(options);
+  const versionOption = roleVersionOptionsMap.get(version);
 
   return {
     metadata: {
@@ -440,13 +558,14 @@ export function roleToRoleEditorModel(
       description,
       revision: originalRole?.metadata?.revision,
       labels: labelsToModel(labels),
+      version: versionOption ?? roleVersionOptionsMap.get(RoleVersion.V7),
     },
     resources,
     rules,
     options: optionsModel,
     requiresReset:
       revision !== originalRole?.metadata?.revision ||
-      version !== roleVersion ||
+      versionOption === undefined ||
       !(
         isEmpty(unsupported) &&
         isEmpty(unsupportedMetadata) &&
@@ -463,29 +582,41 @@ export function roleToRoleEditorModel(
  * specific) to a part of the role editor model.
  */
 function roleConditionsToModel(
-  conditions: RoleConditions
+  conditions: RoleConditions,
+  roleVersion: RoleVersion
 ): Pick<RoleEditorModel, 'resources' | 'rules' | 'requiresReset'> {
   const {
+    // Server access
     node_labels,
     logins,
 
+    // Kubernetes access
     kubernetes_groups,
     kubernetes_labels,
     kubernetes_resources,
+    kubernetes_users,
 
+    // App access
     app_labels,
     aws_role_arns,
     azure_identities,
     gcp_service_accounts,
 
+    // Database access
     db_labels,
     db_names,
     db_users,
     db_roles,
+    db_service_labels,
 
+    // Windows desktop access
     windows_desktop_labels,
     windows_desktop_logins,
 
+    // GitHub organization access
+    github_permissions,
+
+    // Access rules
     rules,
 
     ...unsupportedConditions
@@ -508,13 +639,23 @@ function roleConditionsToModel(
   const {
     model: kubeResourcesModel,
     requiresReset: kubernetesResourcesRequireReset,
-  } = kubernetesResourcesToModel(kubernetes_resources);
-  if (someNonEmpty(kubeGroupsModel, kubeLabelsModel, kubeResourcesModel)) {
+  } = kubernetesResourcesToModel(kubernetes_resources, roleVersion);
+  const kubeUsersModel = stringsToOptions(kubernetes_users ?? []);
+  if (
+    someNonEmpty(
+      kubeGroupsModel,
+      kubeLabelsModel,
+      kubeResourcesModel,
+      kubeUsersModel
+    )
+  ) {
     resources.push({
       kind: 'kube_cluster',
       groups: kubeGroupsModel,
       labels: kubeLabelsModel,
       resources: kubeResourcesModel,
+      users: kubeUsersModel,
+      roleVersion,
     });
   }
 
@@ -543,13 +684,23 @@ function roleConditionsToModel(
   const dbNamesModel = db_names ?? [];
   const dbUsersModel = db_users ?? [];
   const dbRolesModel = db_roles ?? [];
-  if (someNonEmpty(dbLabelsModel, dbNamesModel, dbUsersModel, dbRolesModel)) {
+  const dbServiceLabelsModel = labelsToModel(db_service_labels);
+  if (
+    someNonEmpty(
+      dbLabelsModel,
+      dbNamesModel,
+      dbUsersModel,
+      dbRolesModel,
+      dbServiceLabelsModel
+    )
+  ) {
     resources.push({
       kind: 'db',
       labels: dbLabelsModel,
       names: stringsToOptions(dbNamesModel),
       users: stringsToOptions(dbUsersModel),
       roles: stringsToOptions(dbRolesModel),
+      dbServiceLabels: dbServiceLabelsModel,
     });
   }
 
@@ -565,6 +716,17 @@ function roleConditionsToModel(
     });
   }
 
+  const {
+    model: gitHubOrganizationsModel,
+    requiresReset: gitHubOrgsRequireReset,
+  } = gitHubOrganizationsToModel(github_permissions);
+  if (someNonEmpty(gitHubOrganizationsModel)) {
+    resources.push({
+      kind: 'git_server',
+      organizations: gitHubOrganizationsModel,
+    });
+  }
+
   const { model: rulesModel, requiresReset: rulesRequireReset } =
     rulesToModel(rules);
 
@@ -573,6 +735,7 @@ function roleConditionsToModel(
     rules: rulesModel,
     requiresReset:
       kubernetesResourcesRequireReset ||
+      gitHubOrgsRequireReset ||
       rulesRequireReset ||
       !isEmpty(unsupportedConditions),
   };
@@ -609,16 +772,22 @@ function stringsToOptions<T extends string>(arr: T[]): Option<T>[] {
 }
 
 function kubernetesResourcesToModel(
-  resources: KubernetesResource[] | undefined
+  resources: KubernetesResource[] | undefined,
+  roleVersion: RoleVersion
 ): { model: KubernetesResourceModel[]; requiresReset: boolean } {
-  const result = (resources ?? []).map(kubernetesResourceToModel);
+  const result = (resources ?? []).map(res =>
+    kubernetesResourceToModel(res, roleVersion)
+  );
   return {
     model: result.map(r => r.model).filter(m => m !== undefined),
     requiresReset: result.some(r => r.requiresReset),
   };
 }
 
-function kubernetesResourceToModel(res: KubernetesResource): {
+function kubernetesResourceToModel(
+  res: KubernetesResource,
+  roleVersion: RoleVersion
+): {
   model?: KubernetesResourceModel;
   requiresReset: boolean;
 } {
@@ -635,6 +804,7 @@ function kubernetesResourceToModel(res: KubernetesResource): {
             name,
             namespace,
             verbs: knownVerbOptions,
+            roleVersion,
           }
         : undefined,
     requiresReset:
@@ -642,6 +812,34 @@ function kubernetesResourceToModel(res: KubernetesResource): {
       verbOptions.length !== knownVerbOptions.length ||
       !isEmpty(unsupported),
   };
+}
+
+/**
+ * Converts a {@link GitHubPermission} array to a list of organizations.
+ * Technically, there can be more than one `GitHubPermission` object, but we
+ * simply glue the underlying organization arrays into one. Note that the
+ * object's semantics may further be extended to the point where there's a
+ * difference between multiple such objects and one object containing all the
+ * organizations; however, since this would require adding additional fields to
+ * the `GitHubPermission` object (otherwise, such change wouldn't make sense),
+ * this function is protected anyway from attempting to interpret such an
+ * extended object, and it would return `requiresReset: true` anyway.
+ */
+function gitHubOrganizationsToModel(gitHubPermissions: GitHubPermission[]): {
+  model: Option[];
+  requiresReset: boolean;
+} {
+  const permissions = gitHubPermissions ?? [];
+  let requiresReset = false;
+  const model: Option[] = [];
+  for (const { orgs, ...rest } of permissions) {
+    if (!isEmpty(rest)) {
+      requiresReset = true;
+    }
+    model.push(...stringsToOptions(orgs));
+  }
+
+  return { model, requiresReset };
 }
 
 function rulesToModel(rules: Rule[]): {
@@ -656,7 +854,7 @@ function rulesToModel(rules: Rule[]): {
 }
 
 function ruleToModel(rule: Rule): { model: RuleModel; requiresReset: boolean } {
-  const { resources = [], verbs = [], ...unsupported } = rule;
+  const { resources = [], verbs = [], where = '', ...unsupported } = rule;
   const resourcesModel = resources.map(
     k => resourceKindOptionsMap.get(k) ?? { label: k, value: k }
   );
@@ -669,6 +867,7 @@ function ruleToModel(rule: Rule): { model: RuleModel; requiresReset: boolean } {
       id: crypto.randomUUID(),
       resources: resourcesModel,
       verbs: knownVerbsModel,
+      where,
     },
     requiresReset,
   };
@@ -692,6 +891,8 @@ function optionsToModel(options: RoleOptions): {
     desktop_directory_sharing,
     record_session,
     forward_agent,
+    port_forwarding,
+    ssh_port_forwarding,
 
     // These options must keep their default values, as we don't support them
     // in the standard editor.
@@ -699,7 +900,6 @@ function optionsToModel(options: RoleOptions): {
     enhanced_recording,
     idp,
     pin_source_ip,
-    ssh_port_forwarding,
     ssh_file_copy,
 
     ...unsupported
@@ -723,6 +923,10 @@ function optionsToModel(options: RoleOptions): {
     sessionRecordingModeOptionsMap.get(defaultRecordingMode);
   const sshSessionRecordingModeOption =
     sessionRecordingModeOptionsMap.get(sshRecordingMode);
+  const {
+    model: sshPortForwardingMode,
+    requiresReset: sshPortForwardingModeRequiresReset,
+  } = portForwardingOptionsToModel(ssh_port_forwarding, port_forwarding);
 
   const defaultOpts = defaultOptions();
 
@@ -748,6 +952,9 @@ function optionsToModel(options: RoleOptions): {
         sshSessionRecordingModeOption ?? sessionRecordingModeOptionsMap.get(''),
       recordDesktopSessions,
       forwardAgent: forward_agent,
+      sshPortForwardingMode: sshPortForwardingModeOptionsMap.get(
+        sshPortForwardingMode
+      ),
     },
 
     requiresReset:
@@ -755,7 +962,6 @@ function optionsToModel(options: RoleOptions): {
       !equalsDeep(enhanced_recording, defaultOpts.enhanced_recording) ||
       !equalsDeep(idp, defaultOpts.idp) ||
       pin_source_ip !== defaultOpts.pin_source_ip ||
-      !equalsDeep(ssh_port_forwarding, defaultOpts.ssh_port_forwarding) ||
       ssh_file_copy !== defaultOpts.ssh_file_copy ||
       requireMFATypeOption === undefined ||
       createHostUserModeOption === undefined ||
@@ -763,8 +969,48 @@ function optionsToModel(options: RoleOptions): {
       !isEmpty(unsupported) ||
       !isEmpty(unsupportedRecordingOptions) ||
       defaultSessionRecordingModeOption === undefined ||
-      sshSessionRecordingModeOption === undefined,
+      sshSessionRecordingModeOption === undefined ||
+      sshPortForwardingModeRequiresReset,
   };
+}
+
+export function portForwardingOptionsToModel(
+  sshPortForwarding?: SSHPortForwarding,
+  legacyPortForwarding?: boolean
+): { model: SSHPortForwardingMode; requiresReset: boolean } {
+  if (sshPortForwarding) {
+    const { local, remote, ...rest } = sshPortForwarding;
+    if (!local || !remote) {
+      return { model: '', requiresReset: true };
+    }
+
+    const { enabled: localEnabled, ...localRest } = sshPortForwarding.local;
+    const { enabled: remoteEnabled, ...remoteRest } = sshPortForwarding.remote;
+    if (localEnabled === undefined || remoteEnabled === undefined) {
+      return { model: '', requiresReset: true };
+    }
+
+    const requiresReset =
+      !isEmpty(rest) || !isEmpty(localRest) || !isEmpty(remoteRest);
+
+    if (!localEnabled && !remoteEnabled) {
+      return { model: 'none', requiresReset };
+    }
+    if (localEnabled && !remoteEnabled) {
+      return { model: 'local-only', requiresReset };
+    }
+    if (!localEnabled && remoteEnabled) {
+      return { model: 'remote-only', requiresReset };
+    }
+    return { model: 'local-and-remote', requiresReset };
+  }
+  if (legacyPortForwarding !== undefined) {
+    return {
+      model: legacyPortForwarding ? 'deprecated-on' : 'deprecated-off',
+      requiresReset: false,
+    };
+  }
+  return { model: '', requiresReset: false };
 }
 
 function isEmpty(obj: object) {
@@ -775,7 +1021,8 @@ function isEmpty(obj: object) {
  * Converts a role editor model to a role. This operation is lossless.
  */
 export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
-  const { name, description, revision, labels, ...mRest } = roleModel.metadata;
+  const { name, description, revision, labels, version, ...mRest } =
+    roleModel.metadata;
   // Compile-time assert that protects us from silently losing fields.
   mRest satisfies Record<any, never>;
 
@@ -795,7 +1042,7 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
       deny: {},
       options: optionsModelToRoleOptions(roleModel.options),
     },
-    version: roleVersion,
+    version: version.value,
   };
 
   for (const res of roleModel.resources) {
@@ -817,6 +1064,7 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
             verbs: optionsToStrings(verbs),
           })
         );
+        role.spec.allow.kubernetes_users = optionsToStrings(res.users);
         break;
 
       case 'app':
@@ -831,6 +1079,9 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
         role.spec.allow.db_names = optionsToStrings(res.names);
         role.spec.allow.db_users = optionsToStrings(res.users);
         role.spec.allow.db_roles = optionsToStrings(res.roles);
+        role.spec.allow.db_service_labels = labelsModelToLabels(
+          res.dbServiceLabels
+        );
         break;
 
       case 'windows_desktop':
@@ -838,6 +1089,12 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
           res.labels
         );
         role.spec.allow.windows_desktop_logins = optionsToStrings(res.logins);
+        break;
+
+      case 'git_server':
+        role.spec.allow.github_permissions = [
+          { orgs: optionsToStrings(res.organizations) },
+        ];
         break;
 
       default:
@@ -849,6 +1106,7 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
     role.spec.allow.rules = roleModel.rules.map(role => ({
       resources: role.resources.map(r => r.value),
       verbs: role.verbs.map(v => v.value),
+      where: role.where || undefined,
     }));
   }
 
@@ -874,7 +1132,7 @@ export function labelsModelToLabels(uiLabels: UILabel[]): Labels {
 }
 
 function optionsModelToRoleOptions(model: OptionsModel): RoleOptions {
-  return {
+  const options = {
     ...defaultOptions(),
 
     // Note: technically, coercing the optional fields to undefined is not
@@ -898,6 +1156,46 @@ function optionsModelToRoleOptions(model: OptionsModel): RoleOptions {
     },
     forward_agent: model.forwardAgent,
   };
+
+  switch (model.sshPortForwardingMode.value) {
+    case 'none':
+      options.ssh_port_forwarding = {
+        local: { enabled: false },
+        remote: { enabled: false },
+      };
+      break;
+
+    case 'local-only':
+      options.ssh_port_forwarding = {
+        local: { enabled: true },
+        remote: { enabled: false },
+      };
+      break;
+
+    case 'remote-only':
+      options.ssh_port_forwarding = {
+        local: { enabled: false },
+        remote: { enabled: true },
+      };
+      break;
+
+    case 'local-and-remote':
+      options.ssh_port_forwarding = {
+        local: { enabled: true },
+        remote: { enabled: true },
+      };
+      break;
+
+    case 'deprecated-off':
+      options.port_forwarding = false;
+      break;
+
+    case 'deprecated-on':
+      options.port_forwarding = true;
+      break;
+  }
+
+  return options;
 }
 
 function optionsToStrings<T = string>(opts: readonly Option<T>[]): T[] {

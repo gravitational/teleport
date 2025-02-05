@@ -255,7 +255,7 @@ Make sure that the touch and PIN policy satisfy the hardware key requirement for
 
 ### `ERROR: private key policy not met`
 
-This error is returned by the Auth and Proxy services if a user does not meet the required private key policy.
+This error is returned by the Auth Service and Proxy Service if a user does not meet the required private key policy.
 Both `tsh` and Teleport Connect automatically catch these errors and require the user to sign in again with a valid hardware-based private key.
 
 ### `ERROR: authenticating with management key: auth challenge: smart card error 6982: security status not satisfied`

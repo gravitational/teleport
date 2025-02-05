@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -25,6 +25,7 @@ import {
 } from 'teleport/Discover/Shared/ResourceKind';
 import type { ResourceLabel } from 'teleport/services/agents';
 import type { JoinMethod, JoinToken } from 'teleport/services/joinToken';
+import { useV1Fallback } from 'teleport/services/version/unsupported';
 
 import { useDiscover } from '../useDiscover';
 
@@ -68,24 +69,44 @@ export function useJoinTokenSuspender({
 
   const [, rerender] = useState(0);
 
+  // TODO(kimlisa): DELETE IN 19.0
+  const { tryV1Fallback } = useV1Fallback();
+
   const kindsKey = resourceKinds.sort().join();
 
   function run() {
     abortController = new AbortController();
 
+    async function fetchJoinToken() {
+      const req = {
+        roles: resourceKinds.map(resourceKindToJoinRole),
+        method: joinMethod,
+        suggestedAgentMatcherLabels,
+        suggestedLabels,
+      };
+
+      let resp: JoinToken;
+      try {
+        resp = await ctx.joinTokenService.fetchJoinTokenV2(
+          req,
+          abortController.signal
+        );
+      } catch (err) {
+        resp = await tryV1Fallback({
+          kind: 'create-join-token',
+          err,
+          req,
+          abortSignal: abortController.signal,
+          ctx,
+        });
+      }
+      return resp;
+    }
+
     const result: SuspendResult = {
       response: null,
       error: null,
-      promise: ctx.joinTokenService
-        .fetchJoinToken(
-          {
-            roles: resourceKinds.map(resourceKindToJoinRole),
-            method: joinMethod,
-            suggestedAgentMatcherLabels,
-            suggestedLabels,
-          },
-          abortController.signal
-        )
+      promise: fetchJoinToken()
         .then(token => {
           // Probably will never happen, but just in case, otherwise
           // querying for the resource can return a false positive.

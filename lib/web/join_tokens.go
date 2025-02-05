@@ -636,7 +636,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 	// we need to return an error.
 	if settings.appInstallMode {
 		if errs := validation.IsDNS1035Label(settings.appName); len(errs) > 0 {
-			return "", trace.BadParameter("appName %q must be a valid DNS subdomain: https://goteleport.com/docs/application-access/guides/connecting-apps/#application-name", settings.appName)
+			return "", trace.BadParameter("appName %q must be a valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", settings.appName)
 		}
 		if !appURIPattern.MatchString(settings.appURI) {
 			return "", trace.BadParameter("appURI %q contains invalid characters", settings.appURI)

@@ -41,8 +41,11 @@ import (
 	"gvisor.dev/gvisor/pkg/waiter"
 
 	"github.com/gravitational/teleport"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/vnet/dns"
 )
+
+var log = logutils.NewPackageLogger(teleport.ComponentKey, "vnet")
 
 const (
 	nicID                            = 1
@@ -84,26 +87,30 @@ func (c *networkStackConfig) checkAndSetDefaults() error {
 }
 
 // tcpHandlerResolver describes a type that can resolve a fully-qualified domain
-// name to a [tcpHandlerSpec] that defines the CIDR range to assign an IP to
+// name to a tcpHandlerSpec that defines the CIDR range to assign an IP to
 // that handler from, and a handler for all future connections to that IP
 // address.
 //
 // Implementations beware - an FQDN always ends with a '.'.
 type tcpHandlerResolver interface {
-	// resolveTCPHandler decides if [fqdn] should match a TCP handler.
+	// resolveTCPHandler decides if fqdn should match a TCP handler.
 	//
-	// If [fqdn] matches a Teleport-managed TCP app it must return a
-	// [tcpHandlerSpec] defining the range to
-	// assign an IP from, and a handler for future connections to any assigned IPs.
+	// If fqdn matches a Teleport-managed TCP app it must return a
+	// tcpHandlerSpec defining the CIDR range to assign an IP from, and a
+	// handler for future connections to any assigned IPs.
 	//
-	// If [fqdn] does not match it must return ErrNoTCPHandler.
+	// If fqdn does not match it must return errNoTCPHandler. Avoid using
+	// [trace.Wrap] on errNoTCPHandler to prevent collecting a full stack trace
+	// on every unhandled query.
 	resolveTCPHandler(ctx context.Context, fqdn string) (*tcpHandlerSpec, error)
 }
 
-// errNoTCPHandler should be returned by [tcpHandlerResolver]s when no handler matches the FQDN.
-// Avoid using [trace.Wrap] on errNoTCPHandler where possible, this isn't an unexpected error that we would
-// expect to need to debug and [trace.Wrap] incurs overhead to collect a full stack trace.
-var errNoTCPHandler = errors.New("no handler for address")
+// errNoTCPHandler should be returned by tcpHandlerResolvers when no handler
+// matches the FQDN.
+//
+// Avoid using [trace.Wrap] on errNoTCPHandler where possible, this isn't an
+// unexpected error that should require the overhead of collecting a stack trace.
+var errNoTCPHandler = &trace.NotFoundError{Message: "no handler for address"}
 
 // tcpHandlerSpec specifies a VNet TCP handler.
 type tcpHandlerSpec struct {

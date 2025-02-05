@@ -68,7 +68,6 @@ func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
 		// This runs as root so we need to be configured with the user's home path.
 		return trace.BadParameter("%s must be set", types.HomeEnvVar)
 	}
-
 	config := daemon.Config{
 		SocketPath: c.socketPath,
 		IPv6Prefix: c.ipv6Prefix,
@@ -80,18 +79,7 @@ func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
 			Euid:  c.euid,
 		},
 	}
-
-	return trace.Wrap(vnet.RunAdminProcess(cf.Context, config))
-}
-
-// the vnet-install-service command is only supported on windows.
-func newPlatformVnetInstallServiceCommand(app *kingpin.Application) vnetCommandNotSupported {
-	return vnetCommandNotSupported{}
-}
-
-// the vnet-uninstall-service command is only supported on windows.
-func newPlatformVnetUninstallServiceCommand(app *kingpin.Application) vnetCommandNotSupported {
-	return vnetCommandNotSupported{}
+	return trace.Wrap(vnet.RunDarwinAdminProcess(cf.Context, config))
 }
 
 // the vnet-service command is only supported on windows.

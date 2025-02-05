@@ -31,15 +31,14 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"runtime"
 	"syscall"
-	"text/template"
 	"time"
 
 	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -89,6 +88,8 @@ type LocalInstaller struct {
 	// ValidateBinary returns true if a file is a linkable binary, or
 	// false if a file should not be linked.
 	ValidateBinary func(ctx context.Context, path string) (bool, error)
+	// Template is download URI Template of Teleport packages.
+	Template string
 }
 
 // Remove a Teleport version directory from InstallDir.
@@ -127,15 +128,15 @@ func (li *LocalInstaller) Remove(ctx context.Context, rev Revision) error {
 // Install a Teleport version directory in InstallDir.
 // This function is idempotent.
 // See Installer interface for additional specs.
-func (li *LocalInstaller) Install(ctx context.Context, rev Revision, template string) (err error) {
+func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL string) (err error) {
 	versionDir, err := li.revisionDir(rev)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	sumPath := filepath.Join(versionDir, checksumType)
 
-	// generate download URI from template
-	uri, err := makeURL(template, rev)
+	// generate download URI from Template
+	uri, err := autoupdate.MakeURL(li.Template, baseURL, autoupdate.DefaultPackage, rev.Version, rev.Flags)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -222,35 +223,10 @@ func (li *LocalInstaller) Install(ctx context.Context, rev Revision, template st
 		return trace.Wrap(err, "failed to extract teleport")
 	}
 	// Write the checksum last. This marks the version directory as valid.
-	err = renameio.WriteFile(sumPath, []byte(hex.EncodeToString(newSum)), configFileMode)
-	if err != nil {
+	if err := os.WriteFile(sumPath, []byte(hex.EncodeToString(newSum)), configFileMode); err != nil {
 		return trace.Wrap(err, "failed to write checksum")
 	}
 	return nil
-}
-
-// makeURL to download the Teleport tgz.
-func makeURL(uriTmpl string, rev Revision) (string, error) {
-	tmpl, err := template.New("uri").Parse(uriTmpl)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	var uriBuf bytes.Buffer
-	params := struct {
-		OS, Version, Arch string
-		FIPS, Enterprise  bool
-	}{
-		OS:         runtime.GOOS,
-		Version:    rev.Version,
-		Arch:       runtime.GOARCH,
-		FIPS:       rev.Flags&FlagFIPS != 0,
-		Enterprise: rev.Flags&(FlagEnterprise|FlagFIPS) != 0,
-	}
-	err = tmpl.Execute(&uriBuf, params)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return uriBuf.String(), nil
 }
 
 // readChecksum from the version directory.
@@ -354,7 +330,7 @@ func (li *LocalInstaller) download(ctx context.Context, w io.Writer, max int64, 
 	return shaReader.Sum(nil), nil
 }
 
-func (li *LocalInstaller) extract(ctx context.Context, dstDir string, src io.Reader, max int64, flags InstallFlags) error {
+func (li *LocalInstaller) extract(ctx context.Context, dstDir string, src io.Reader, max int64, flags autoupdate.InstallFlags) error {
 	if err := os.MkdirAll(dstDir, systemDirMode); err != nil {
 		return trace.Wrap(err)
 	}
@@ -372,7 +348,7 @@ func (li *LocalInstaller) extract(ctx context.Context, dstDir string, src io.Rea
 	}
 	li.Log.InfoContext(ctx, "Extracting Teleport tarball.", "path", dstDir, "size", max)
 
-	err = utils.Extract(zr, dstDir, tgzExtractPaths(flags&(FlagEnterprise|FlagFIPS) != 0)...)
+	err = utils.Extract(zr, dstDir, tgzExtractPaths(flags&(autoupdate.FlagEnterprise|autoupdate.FlagFIPS) != 0)...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -436,7 +412,7 @@ func (li *LocalInstaller) List(ctx context.Context) (revs []Revision, err error)
 // Link the specified version into the system LinkBinDir and CopyServiceFile.
 // The revert function restores the previous linking.
 // See Installer interface for additional specs.
-func (li *LocalInstaller) Link(ctx context.Context, rev Revision) (revert func(context.Context) bool, err error) {
+func (li *LocalInstaller) Link(ctx context.Context, rev Revision, force bool) (revert func(context.Context) bool, err error) {
 	revert = func(context.Context) bool { return true }
 	versionDir, err := li.revisionDir(rev)
 	if err != nil {
@@ -445,6 +421,7 @@ func (li *LocalInstaller) Link(ctx context.Context, rev Revision) (revert func(c
 	revert, err = li.forceLinks(ctx,
 		filepath.Join(versionDir, "bin"),
 		filepath.Join(versionDir, serviceDir, serviceName),
+		force,
 	)
 	if err != nil {
 		return revert, trace.Wrap(err)
@@ -453,10 +430,11 @@ func (li *LocalInstaller) Link(ctx context.Context, rev Revision) (revert func(c
 }
 
 // LinkSystem links the system (package) version into LinkBinDir and CopyServiceFile.
+// LinkSystem returns ErrInvalid if LinkBinDir is not DefaultLinkDir.
 // The revert function restores the previous linking.
 // See Installer interface for additional specs.
 func (li *LocalInstaller) LinkSystem(ctx context.Context) (revert func(context.Context) bool, err error) {
-	revert, err = li.forceLinks(ctx, li.SystemBinDir, li.SystemServiceFile)
+	revert, err = li.forceLinks(ctx, li.SystemBinDir, li.SystemServiceFile, false)
 	return revert, trace.Wrap(err)
 }
 
@@ -476,6 +454,7 @@ func (li *LocalInstaller) TryLink(ctx context.Context, revision Revision) error 
 
 // TryLinkSystem links the system installation, but only in the case that
 // no installation of Teleport is already linked or partially linked.
+// TryLinkSystem returns ErrInvalid if LinkBinDir is not DefaultLinkDir.
 // See Installer interface for additional specs.
 func (li *LocalInstaller) TryLinkSystem(ctx context.Context) error {
 	return trace.Wrap(li.tryLinks(ctx, li.SystemBinDir, li.SystemServiceFile))
@@ -517,7 +496,7 @@ type smallFile struct {
 // forceLinks will revert any overridden links or files if it hits an error.
 // If successful, forceLinks may also be reverted after it returns by calling revert.
 // The revert function returns true if reverting succeeds.
-func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcPath string) (revert func(context.Context) bool, err error) {
+func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcPath string, force bool) (revert func(context.Context) bool, err error) {
 	// setup revert function
 	var (
 		revertLinks []symlink
@@ -538,7 +517,7 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcPath string
 			}
 		}
 		for _, f := range revertFiles {
-			err := renameio.WriteFile(f.name, f.data, f.mode)
+			err := writeFileAtomicWithinDir(f.name, f.data, f.mode)
 			if err != nil {
 				keepFiles = append(keepFiles, f)
 				li.Log.ErrorContext(ctx, "Failed to revert files", "name", f.name, errorKey, err)
@@ -585,7 +564,7 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcPath string
 		if !exec {
 			continue
 		}
-		orig, err := forceLink(oldname, newname)
+		orig, err := forceLink(oldname, newname, force)
 		if err != nil && !errors.Is(err, os.ErrExist) {
 			return revert, trace.Wrap(err, "failed to create symlink for %s", entry.Name())
 		}
@@ -625,16 +604,18 @@ func (li *LocalInstaller) forceCopyService(dst, src string, n int64) (orig *smal
 }
 
 // forceLink attempts to create a symlink, atomically replacing an existing link if already present.
-// If a non-symlink file or directory exists in newname already, forceLink errors.
+// If a non-symlink file or directory exists in newname already, forceLink errors with ErrFilePresent.
 // If the link is already present with the desired oldname, forceLink returns os.ErrExist.
-func forceLink(oldname, newname string) (orig string, err error) {
+func forceLink(oldname, newname string, force bool) (orig string, err error) {
 	orig, err = os.Readlink(newname)
 	if errors.Is(err, os.ErrInvalid) ||
 		errors.Is(err, syscall.EINVAL) { // workaround missing ErrInvalid wrapper
-		// important: do not attempt to replace a non-linked install of Teleport
-		return "", trace.Errorf("refusing to replace file at %s", newname)
-	}
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		if force {
+			return "", trace.Wrap(renameio.Symlink(oldname, newname))
+		}
+		// important: do not attempt to replace a non-linked install of Teleport without force
+		return "", trace.Wrap(ErrFilePresent, "refusing to replace file at %s", newname)
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", trace.Wrap(err)
 	}
 	if orig == oldname {
@@ -673,11 +654,20 @@ func forceCopy(dst string, srcData []byte, n int64) (orig *smallFile, err error)
 			return nil, trace.Wrap(os.ErrExist)
 		}
 	}
-	err = renameio.WriteFile(dst, srcData, configFileMode)
+	err = writeFileAtomicWithinDir(dst, srcData, configFileMode)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return orig, nil
+}
+
+// writeFileAtomicWithinDir atomically creates a new file with renameio, while ensuring that temporary
+// files use the same directory as the target file (with format: .[base][randints]).
+// This ensures that SELinux contexts for important files are set correctly.
+func writeFileAtomicWithinDir(filename string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(filename)
+	err := renameio.WriteFile(filename, data, perm, renameio.WithTempDir(dir))
+	return trace.Wrap(err)
 }
 
 // readFileAtMost reads a file up to n, or errors if it is too large.
@@ -819,14 +809,14 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcPath string) 
 }
 
 // needsLink returns true when a symlink from oldname to newname needs to be created, or false if it exists.
-// If a non-symlink file or directory exists at newname, needsLink errors.
+// If a non-symlink file or directory exists at newname, needsLink errors with ErrFilePresent.
 // If a symlink to a different location exists, needsLink errors with ErrLinked.
 func needsLink(oldname, newname string) (ok bool, err error) {
 	orig, err := os.Readlink(newname)
 	if errors.Is(err, os.ErrInvalid) ||
 		errors.Is(err, syscall.EINVAL) { // workaround missing ErrInvalid wrapper
 		// important: do not attempt to replace a non-linked install of Teleport
-		return false, trace.Errorf("refusing to replace file at %s", newname)
+		return false, trace.Wrap(ErrFilePresent, "refusing to replace file at %s", newname)
 	}
 	if errors.Is(err, os.ErrNotExist) {
 		return true, nil

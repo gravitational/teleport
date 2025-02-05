@@ -419,6 +419,7 @@ type kubeExecCommand struct {
 	*kingpin.CmdClause
 	target                         string
 	container                      string
+	namespace                      string
 	filename                       string
 	quiet                          bool
 	stdin                          bool
@@ -435,6 +436,9 @@ func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
 	}
 
 	c.Flag("container", "Container name. If omitted, use the kubectl.kubernetes.io/default-container annotation for selecting the container to be attached or the first container in the pod will be chosen").Short('c').StringVar(&c.container)
+	c.Flag("namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
+	// kube-namespace exists for backwards compatibility.
+	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Hidden().StringVar(&c.namespace)
 	c.Flag("filename", "to use to exec into the resource").Short('f').StringVar(&c.filename)
 	c.Flag("quiet", "Only print output from the remote session").Short('q').BoolVar(&c.quiet)
 	c.Flag("stdin", "Pass stdin to the container").Short('s').BoolVar(&c.stdin)
@@ -478,6 +482,10 @@ func (c *kubeExecCommand) run(cf *CLIConf) error {
 	p.Namespace, p.EnforceNamespace, err = f.ToRawKubeConfigLoader().Namespace()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if c.namespace != "" {
+		p.Namespace = c.namespace
 	}
 
 	p.Config, err = f.ToRESTConfig()
@@ -1170,8 +1178,9 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	c.Flag("query", queryHelp).StringVar(&c.predicateExpression)
 	c.Flag("as", "Configure custom Kubernetes user impersonation.").StringVar(&c.impersonateUser)
 	c.Flag("as-groups", "Configure custom Kubernetes group impersonation.").StringsVar(&c.impersonateGroups)
-	// TODO (tigrato): move this back to namespace once teleport drops the namespace flag.
-	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
+	// kube-namespace exists for backwards compatibility.
+	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Hidden().StringVar(&c.namespace)
+	c.Flag("namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
 	c.Flag("all", "Generate a kubeconfig with every cluster the user has access to. Mutually exclusive with --labels or --query.").BoolVar(&c.all)
 	c.Flag("set-context-name", "Define a custom context name. To use it with --all include \"{{.KubeName}}\"").
 		// Use the default context name template if --set-context-name is not set.
@@ -1243,7 +1252,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 			if trace.IsNotFound(err) {
 				// rewrap not found errors as access denied, so we can retry
 				// fetching clusters with an access request.
-				return trace.AccessDenied(err.Error())
+				return trace.AccessDenied("%s", err)
 			}
 			return trace.Wrap(err)
 		}
@@ -1321,10 +1330,10 @@ func checkClusterSelection(cf *CLIConf, clusters types.KubeClusters, name string
 		query:  cf.PredicateExpression,
 	}
 	if len(clusters) == 0 {
-		return trace.NotFound(formatKubeNotFound(cf.SiteName, selectors))
+		return trace.NotFound("%s", formatKubeNotFound(cf.SiteName, selectors))
 	}
 	errMsg := formatAmbiguousKubeCluster(cf, selectors, clusters)
-	return trace.BadParameter(errMsg)
+	return trace.BadParameter("%s", errMsg)
 }
 
 func (c *kubeLoginCommand) getSelectors() resourceSelectors {

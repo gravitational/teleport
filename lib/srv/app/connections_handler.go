@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
@@ -92,6 +93,9 @@ type ConnectionsHandlerConfig struct {
 
 	// AWSSessionProvider is used to provide AWS Sessions.
 	AWSSessionProvider awsutils.AWSSessionProvider
+
+	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
+	AWSConfigProvider awsconfig.Provider
 
 	// TLSConfig is the *tls.Config for this server.
 	TLSConfig *tls.Config
@@ -141,6 +145,9 @@ func (c *ConnectionsHandlerConfig) CheckAndSetDefaults() error {
 	}
 	if c.AWSSessionProvider == nil {
 		return trace.BadParameter("aws session provider missing")
+	}
+	if c.AWSConfigProvider == nil {
+		return trace.BadParameter("aws config provider missing")
 	}
 	if c.Cloud == nil {
 		cloud, err := NewCloud(CloudConfig{
@@ -206,16 +213,9 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		return nil, trace.Wrap(err)
 	}
 
-	awsSigner, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{
-		Clock:           cfg.Clock,
-		SessionProvider: cfg.AWSSessionProvider,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	awsHandler, err := appaws.NewAWSSignerHandler(closeContext, appaws.SignerHandlerConfig{
-		SigningService: awsSigner,
-		Clock:          cfg.Clock,
+		AWSConfigProvider: cfg.AWSConfigProvider,
+		Clock:             cfg.Clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -692,7 +692,7 @@ func (c *ConnectionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// Return a nicer error message for device trust errors.
 			text = `Access to this app requires a trusted device.
 
-See https://goteleport.com/docs/access-controls/device-trust/device-management/#troubleshooting for help.
+See https://goteleport.com/docs/admin-guides/access-controls/device-trust/device-management/#troubleshooting for help.
 `
 		} else {
 			text = http.StatusText(code)

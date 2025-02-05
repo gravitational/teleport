@@ -25,7 +25,7 @@ import {
   isWebApp,
 } from 'teleterm/services/tshd/app';
 import { IAppContext } from 'teleterm/ui/types';
-import { routing } from 'teleterm/ui/uri';
+import { AppUri, routing } from 'teleterm/ui/uri';
 
 import { DocumentOrigin } from './types';
 
@@ -115,35 +115,36 @@ export async function connectToApp(
     return;
   }
 
-  await setUpAppGateway(ctx, target, { telemetry });
+  let targetPort: number;
+  if (target.tcpPorts.length > 0) {
+    targetPort = target.tcpPorts[0].port;
+  }
+
+  await setUpAppGateway(ctx, target.uri, { telemetry, targetPort });
 }
 
 export async function setUpAppGateway(
   ctx: IAppContext,
-  target: App,
+  targetUri: AppUri,
   options: {
     telemetry: { origin: DocumentOrigin };
     /**
-     * targetPort allows the caller to preselect the target port for the gateway. Works only with
-     * multi-port TCP apps. If it's not specified and the app is multi-port, the first port from
-     * it's TCP ports is used instead.
+     * targetPort allows the caller to preselect the target port for the gateway. Should be passed
+     * only for multi-port TCP apps.
      */
     targetPort?: number;
   }
 ) {
-  const rootClusterUri = routing.ensureRootClusterUri(target.uri);
+  const rootClusterUri = routing.ensureRootClusterUri(targetUri);
 
   const documentsService =
     ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
   const doc = documentsService.createGatewayDocument({
-    targetUri: target.uri,
+    targetUri: targetUri,
     origin: options.telemetry.origin,
-    targetName: routing.parseAppUri(target.uri).params.appId,
+    targetName: routing.parseAppUri(targetUri).params.appId,
     targetUser: '',
-    targetSubresourceName:
-      target.tcpPorts.length > 0
-        ? (options.targetPort || target.tcpPorts[0].port).toString()
-        : undefined,
+    targetSubresourceName: options.targetPort?.toString(),
   });
 
   const connectionToReuse = ctx.connectionTracker.findConnectionByDocument(doc);

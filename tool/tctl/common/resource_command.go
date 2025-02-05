@@ -34,7 +34,6 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"google.golang.org/protobuf/encoding/protojson"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
@@ -58,6 +57,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/mfa"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -502,7 +502,7 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client *authclient.Cl
 	}
 	err = services.CheckDynamicLabelsInDenyRules(role)
 	if trace.IsBadParameter(err) {
-		return trace.BadParameter(dynamicLabelWarningMessage(role))
+		return trace.BadParameter("%s", dynamicLabelWarningMessage(role))
 	} else if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2068,7 +2068,7 @@ func resetAuthPreference(ctx context.Context, client *authclient.Client) error {
 
 	managedByStaticConfig := storedAuthPref.Origin() == types.OriginConfigFile
 	if managedByStaticConfig {
-		return trace.BadParameter(managedByStaticDeleteMsg)
+		return trace.BadParameter("%s", managedByStaticDeleteMsg)
 	}
 
 	return trace.Wrap(client.ResetAuthPreference(ctx))
@@ -2082,7 +2082,7 @@ func resetClusterNetworkingConfig(ctx context.Context, client *authclient.Client
 
 	managedByStaticConfig := storedNetConfig.Origin() == types.OriginConfigFile
 	if managedByStaticConfig {
-		return trace.BadParameter(managedByStaticDeleteMsg)
+		return trace.BadParameter("%s", managedByStaticDeleteMsg)
 	}
 
 	return trace.Wrap(client.ResetClusterNetworkingConfig(ctx))
@@ -2096,7 +2096,7 @@ func resetSessionRecordingConfig(ctx context.Context, client *authclient.Client)
 
 	managedByStaticConfig := storedRecConfig.Origin() == types.OriginConfigFile
 	if managedByStaticConfig {
-		return trace.BadParameter(managedByStaticDeleteMsg)
+		return trace.BadParameter("%s", managedByStaticDeleteMsg)
 	}
 
 	return trace.Wrap(client.ResetSessionRecordingConfig(ctx))
@@ -2360,18 +2360,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		warnAboutDynamicLabelsInDenyRule(ctx, rc.config.Logger, role)
 		return &roleCollection{roles: []types.Role{role}}, nil
 	case types.KindNamespace:
-		if rc.ref.Name == "" {
-			namespaces, err := client.GetNamespaces()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &namespaceCollection{namespaces: namespaces}, nil
-		}
-		ns, err := client.GetNamespace(rc.ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &namespaceCollection{namespaces: []types.Namespace{*ns}}, nil
+		return &namespaceCollection{namespaces: []types.Namespace{types.DefaultNamespace()}}, nil
 	case types.KindTrustedCluster:
 		if rc.ref.Name == "" {
 			trustedClusters, err := client.GetTrustedClusters(ctx)
@@ -3530,7 +3519,7 @@ func getOneResourceNameToDelete[T types.ResourceWithLabels](rs []T, ref services
 			names = append(names, r.GetName())
 		}
 		msg := formatAmbiguousDeleteMessage(ref, resDesc, names)
-		return "", trace.BadParameter(msg)
+		return "", trace.BadParameter("%s", msg)
 	}
 }
 

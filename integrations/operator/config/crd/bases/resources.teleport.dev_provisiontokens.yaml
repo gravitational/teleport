@@ -330,6 +330,32 @@ spec:
                       - `in_cluster` - `static_jwks` If unset, this defaults to `in_cluster`.'
                     type: string
                 type: object
+              oracle:
+                description: Oracle allows the configuration of options specific to
+                  the "oracle" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of Rules, nodes using this token
+                      must match one allow rule to use this token.
+                    items:
+                      properties:
+                        parent_compartments:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        regions:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        tenancy:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                type: object
               roles:
                 description: Roles is a list of roles associated with the token, that
                   will be converted to metadata in the SSH and X509 certificates issued

@@ -112,8 +112,8 @@ func newClientKeyRing(t *testing.T, modifiers ...func(*tlsca.Identity)) *client.
 		CASigner:      caSigner,
 		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
 		Identity: sshca.Identity{
-			Username:      "testuser",
-			AllowedLogins: []string{"testuser"},
+			Username:   "testuser",
+			Principals: []string{"testuser"},
 		},
 	})
 	require.NoError(t, err)

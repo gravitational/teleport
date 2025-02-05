@@ -180,6 +180,8 @@ func userTaskToUserTaskStateEvent(ut *usertasksv1.UserTask) *usagereporter.UserT
 		ret.InstancesCount = int32(len(ut.GetSpec().GetDiscoverEc2().GetInstances()))
 	case usertasks.TaskTypeDiscoverEKS:
 		ret.InstancesCount = int32(len(ut.GetSpec().GetDiscoverEks().GetClusters()))
+	case usertasks.TaskTypeDiscoverRDS:
+		ret.InstancesCount = int32(len(ut.GetSpec().GetDiscoverRds().GetDatabases()))
 	}
 	return ret
 }

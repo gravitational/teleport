@@ -19,13 +19,13 @@
 package utils
 
 import (
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
 	lru "github.com/hashicorp/golang-lru/v2"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -72,7 +72,7 @@ func RegexpWithConfig(expression string, config RegexpConfig) (*regexp.Regexp, e
 	}
 	expr, err := regexp.Compile(expression)
 	if err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	return expr, nil
 }
@@ -128,7 +128,7 @@ func KubeResourceMatchesRegexWithVerbsCollector(input types.KubernetesResource, 
 		}
 	}
 
-	return matchedAny, maps.Keys(verbs), nil
+	return matchedAny, slices.Collect(maps.Keys(verbs)), nil
 }
 
 const (
@@ -375,7 +375,7 @@ var exprCache = mustCache[string, *regexp.Regexp](1000)
 func MatchString(input, expression string) (bool, error) {
 	expr, err := compileRegexCached(expression)
 	if err != nil {
-		return false, trace.BadParameter(err.Error())
+		return false, trace.BadParameter("%s", err)
 	}
 
 	// Since the expression is always surrounded by ^ and $ this is an exact
@@ -396,7 +396,7 @@ func CompileExpression(expression string) (*regexp.Regexp, error) {
 
 	expr, err := regexp.Compile(expression)
 	if err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 
 	return expr, nil

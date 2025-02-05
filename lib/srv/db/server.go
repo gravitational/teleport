@@ -165,6 +165,9 @@ type Config struct {
 	// discoveryResourceChecker performs some pre-checks when creating databases
 	// discovered by the discovery service.
 	discoveryResourceChecker cloud.DiscoveryResourceChecker
+	// getEngineFn returns a [common.Engine]. It can be overridden in tests to
+	// customize the returned engine.
+	getEngineFn func(types.Database, common.EngineConfig) (common.Engine, error)
 }
 
 // NewAuditFn defines a function that creates an audit logger.
@@ -207,7 +210,6 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.AWSDatabaseFetcherFactory == nil {
 		factory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{
-			CloudClients:      c.CloudClients,
 			AWSConfigProvider: c.AWSConfigProvider,
 		})
 		if err != nil {
@@ -250,7 +252,6 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.CloudMeta == nil {
 		c.CloudMeta, err = cloud.NewMetadata(cloud.MetadataConfig{
-			Clients:           c.CloudClients,
 			AWSConfigProvider: c.AWSConfigProvider,
 		})
 		if err != nil {
@@ -261,7 +262,6 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		c.CloudIAM, err = cloud.NewIAM(ctx, cloud.IAMConfig{
 			AccessPoint:       c.AccessPoint,
 			AWSConfigProvider: c.AWSConfigProvider,
-			Clients:           c.CloudClients,
 			HostID:            c.HostID,
 		})
 		if err != nil {
@@ -285,9 +285,9 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 			return trace.Wrap(err)
 		}
 		c.CloudUsers, err = users.NewUsers(users.Config{
-			Clients:     c.CloudClients,
-			UpdateMeta:  c.CloudMeta.Update,
-			ClusterName: clusterName.GetClusterName(),
+			AWSConfigProvider: c.AWSConfigProvider,
+			UpdateMeta:        c.CloudMeta.Update,
+			ClusterName:       clusterName.GetClusterName(),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -299,7 +299,7 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 			DatabaseObjectClient: c.AuthClient.DatabaseObjectsClient(),
 			ImportRules:          c.AuthClient,
 			Auth:                 c.Auth,
-			CloudClients:         c.CloudClients,
+			GCPClients:           c.CloudClients,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -309,13 +309,17 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	if c.discoveryResourceChecker == nil {
 		c.discoveryResourceChecker, err = cloud.NewDiscoveryResourceChecker(cloud.DiscoveryResourceCheckerConfig{
 			ResourceMatchers:  c.ResourceMatchers,
-			Clients:           c.CloudClients,
+			AzureClients:      c.CloudClients,
 			AWSConfigProvider: c.AWSConfigProvider,
 			Context:           ctx,
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	if c.getEngineFn == nil {
+		c.getEngineFn = common.GetEngine
 	}
 
 	if c.ShutdownPollPeriod == 0 {
@@ -1191,16 +1195,17 @@ func (s *Server) dispatch(sessionCtx *common.Session, rec events.SessionPreparer
 // createEngine creates a new database engine based on the database protocol.
 // An error is returned when a protocol is not supported.
 func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (common.Engine, error) {
-	return common.GetEngine(sessionCtx.Database, common.EngineConfig{
-		Auth:         common.NewAuthForSession(s.cfg.Auth, sessionCtx),
-		Audit:        audit,
-		AuthClient:   s.cfg.AuthClient,
-		CloudClients: s.cfg.CloudClients,
-		Context:      s.connContext,
-		Clock:        s.cfg.Clock,
-		Log:          sessionCtx.Log,
-		Users:        s.cfg.CloudUsers,
-		DataDir:      s.cfg.DataDir,
+	return s.cfg.getEngineFn(sessionCtx.Database, common.EngineConfig{
+		Auth:              common.NewAuthForSession(s.cfg.Auth, sessionCtx),
+		Audit:             audit,
+		AuthClient:        s.cfg.AuthClient,
+		AWSConfigProvider: s.cfg.AWSConfigProvider,
+		GCPClients:        s.cfg.CloudClients,
+		Context:           s.connContext,
+		Clock:             s.cfg.Clock,
+		Log:               sessionCtx.Log,
+		Users:             s.cfg.CloudUsers,
+		DataDir:           s.cfg.DataDir,
 		GetUserProvisioner: func(aub common.AutoUsers) *common.UserProvisioner {
 			return &common.UserProvisioner{
 				AuthClient: s.cfg.AuthClient,

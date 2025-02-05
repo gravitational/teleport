@@ -16,28 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { memo } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import Box from 'design/Box';
 import { ButtonSecondary } from 'design/Button';
 import ButtonIcon from 'design/ButtonIcon';
 import Flex from 'design/Flex';
-import { Add, Trash } from 'design/Icon';
+import { Add, Plus, Trash } from 'design/Icon';
 import { Mark } from 'design/Mark';
-import Text, { H4 } from 'design/Text';
+import { H4 } from 'design/Text';
 import FieldInput from 'shared/components/FieldInput';
 import { FieldMultiInput } from 'shared/components/FieldMultiInput/FieldMultiInput';
-import FieldSelect, {
+import {
+  FieldSelect,
   FieldSelectCreatable,
 } from 'shared/components/FieldSelect';
+import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { precomputed } from 'shared/components/Validation/rules';
 
 import { LabelsInput } from 'teleport/components/LabelsInput';
 
-import { SectionBox, SectionProps } from './sections';
+import { SectionBox, SectionProps, SectionPropsWithDispatch } from './sections';
 import {
   AppAccess,
   DatabaseAccess,
+  GitHubOrganizationAccess,
   KubernetesAccess,
   kubernetesResourceKindOptions,
   KubernetesResourceModel,
@@ -51,12 +55,95 @@ import {
 import {
   AppAccessValidationResult,
   DatabaseAccessValidationResult,
+  GitHubOrganizationAccessValidationResult,
   KubernetesAccessValidationResult,
   KubernetesResourceValidationResult,
   ResourceAccessValidationResult,
   ServerAccessValidationResult,
   WindowsDesktopAccessValidationResult,
 } from './validation';
+
+/**
+ * Resources tab. This component is memoized to optimize performance; make sure
+ * that the properties don't change unless necessary.
+ */
+export const ResourcesTab = memo(function ResourcesTab({
+  value,
+  isProcessing,
+  validation,
+  dispatch,
+}: SectionPropsWithDispatch<
+  ResourceAccess[],
+  ResourceAccessValidationResult[]
+>) {
+  /** All resource access kinds except those that are already in the role. */
+  const allowedResourceAccessKinds = allResourceAccessKinds.filter(k =>
+    value.every(as => as.kind !== k)
+  );
+
+  const addResourceAccess = (kind: ResourceAccessKind) =>
+    dispatch({ type: 'add-resource-access', payload: { kind } });
+
+  return (
+    <Flex flexDirection="column" gap={3} my={2}>
+      {value.map((res, i) => {
+        return (
+          <ResourceAccessSection
+            key={res.kind}
+            value={res}
+            isProcessing={isProcessing}
+            validation={validation[i]}
+            dispatch={dispatch}
+          />
+        );
+      })}
+      <Box>
+        <MenuButton
+          menuProps={{
+            transformOrigin: {
+              vertical: 'bottom',
+              horizontal: 'right',
+            },
+            anchorOrigin: {
+              vertical: 'top',
+              horizontal: 'right',
+            },
+          }}
+          buttonText={
+            <>
+              <Plus size="small" mr={2} />
+              Add New Resource Access
+            </>
+          }
+          buttonProps={{
+            size: 'medium',
+            fill: 'filled',
+            disabled: isProcessing || allowedResourceAccessKinds.length === 0,
+          }}
+        >
+          {allowedResourceAccessKinds.map(kind => (
+            <MenuItem key={kind} onClick={() => addResourceAccess(kind)}>
+              {resourceAccessSections[kind].title}
+            </MenuItem>
+          ))}
+        </MenuButton>
+      </Box>
+    </Flex>
+  );
+});
+
+/**
+ * All resource access kinds, in order of appearance in the resource kind
+ * dropdown.
+ */
+const allResourceAccessKinds: ResourceAccessKind[] = [
+  'kube_cluster',
+  'node',
+  'app',
+  'db',
+  'windows_desktop',
+  'git_server',
+];
 
 /** Maps resource access kind to UI component configuration. */
 export const resourceAccessSections: Record<
@@ -92,34 +179,45 @@ export const resourceAccessSections: Record<
     tooltip: 'Configures access to Windows desktops',
     component: WindowsDesktopAccessSection,
   },
+  git_server: {
+    title: 'GitHub Organizations',
+    tooltip: 'Configures access to GitHub organizations and their repositories',
+    component: GitHubOrganizationAccessSection,
+  },
 };
 
 /**
  * A generic resource section. Details are rendered by components from the
  * `resourceAccessSections` map.
  */
-export const ResourceAccessSection = <
+export const ResourceAccessSection = memo(function ResourceAccessSectionRaw<
   T extends ResourceAccess,
   V extends ResourceAccessValidationResult,
 >({
   value,
   isProcessing,
   validation,
-  onChange,
-  onRemove,
-}: SectionProps<T, V> & {
-  onRemove?(): void;
-}) => {
+  dispatch,
+}: SectionPropsWithDispatch<T, V>) {
   const {
     component: Body,
     title,
     tooltip,
   } = resourceAccessSections[value.kind];
+
+  function handleChange(val: T) {
+    dispatch({ type: 'set-resource-access', payload: val });
+  }
+
+  function handleRemove() {
+    dispatch({ type: 'remove-resource-access', payload: { kind: value.kind } });
+  }
+
   return (
     <SectionBox
       title={title}
       removable
-      onRemove={onRemove}
+      onRemove={handleRemove}
       tooltip={tooltip}
       isProcessing={isProcessing}
       validation={validation}
@@ -128,11 +226,11 @@ export const ResourceAccessSection = <
         value={value}
         isProcessing={isProcessing}
         validation={validation}
-        onChange={onChange}
+        onChange={handleChange}
       />
     </SectionBox>
   );
-};
+});
 
 export function ServerAccessSection({
   value,
@@ -142,10 +240,8 @@ export function ServerAccessSection({
 }: SectionProps<ServerAccess, ServerAccessValidationResult>) {
   return (
     <>
-      <Text typography="body3" mb={1}>
-        Labels
-      </Text>
       <LabelsInput
+        legend="Labels"
         disableBtns={isProcessing}
         labels={value.labels}
         setLabels={labels => onChange?.({ ...value, labels })}
@@ -154,6 +250,7 @@ export function ServerAccessSection({
       <FieldSelectCreatable
         isMulti
         label="Logins"
+        placeholder="Type a login and press Enter"
         isDisabled={isProcessing}
         formatCreateLabel={label => `Login: ${label}`}
         components={{
@@ -181,6 +278,7 @@ export function KubernetesAccessSection({
       <FieldSelectCreatable
         isMulti
         label="Groups"
+        placeholder="Type a group name and press Enter"
         isDisabled={isProcessing}
         formatCreateLabel={label => `Group: ${label}`}
         components={{
@@ -191,10 +289,22 @@ export function KubernetesAccessSection({
         onChange={groups => onChange?.({ ...value, groups })}
       />
 
-      <Text typography="body3" mb={1}>
-        Labels
-      </Text>
+      <FieldSelectCreatable
+        isMulti
+        label="Users"
+        placeholder="Type a user name and press Enter"
+        isDisabled={isProcessing}
+        formatCreateLabel={label => `User: ${label}`}
+        components={{
+          DropdownIndicator: null,
+        }}
+        openMenuOnClick={false}
+        value={value.users}
+        onChange={users => onChange?.({ ...value, users })}
+      />
+
       <LabelsInput
+        legend="Labels"
         disableBtns={isProcessing}
         labels={value.labels}
         rule={precomputed(validation.fields.labels)}
@@ -232,7 +342,10 @@ export function KubernetesAccessSection({
             onClick={() =>
               onChange?.({
                 ...value,
-                resources: [...value.resources, newKubernetesResourceModel()],
+                resources: [
+                  ...value.resources,
+                  newKubernetesResourceModel(value.roleVersion),
+                ],
               })
             }
           >
@@ -289,6 +402,7 @@ function KubernetesResourceView({
         isDisabled={isProcessing}
         options={kubernetesResourceKindOptions}
         value={kind}
+        rule={precomputed(validation.kind)}
         onChange={k => onChange?.({ ...value, kind: k })}
       />
       <FieldInput
@@ -323,6 +437,7 @@ function KubernetesResourceView({
         isDisabled={isProcessing}
         options={kubernetesVerbOptions}
         value={verbs}
+        rule={precomputed(validation.verbs)}
         onChange={v => onChange?.({ ...value, verbs: v })}
         mb={0}
       />
@@ -338,17 +453,13 @@ export function AppAccessSection({
 }: SectionProps<AppAccess, AppAccessValidationResult>) {
   return (
     <Flex flexDirection="column" gap={3}>
-      <Box>
-        <Text typography="body3" mb={1}>
-          Labels
-        </Text>
-        <LabelsInput
-          disableBtns={isProcessing}
-          labels={value.labels}
-          setLabels={labels => onChange?.({ ...value, labels })}
-          rule={precomputed(validation.fields.labels)}
-        />
-      </Box>
+      <LabelsInput
+        legend="Labels"
+        disableBtns={isProcessing}
+        labels={value.labels}
+        setLabels={labels => onChange?.({ ...value, labels })}
+        rule={precomputed(validation.fields.labels)}
+      />
       <FieldMultiInput
         label="AWS Role ARNs"
         disabled={isProcessing}
@@ -383,10 +494,9 @@ export function DatabaseAccessSection({
   return (
     <>
       <Box mb={3}>
-        <Text typography="body3" mb={1}>
-          Labels
-        </Text>
         <LabelsInput
+          legend="Labels"
+          tooltipContent="Access to databases with these labels will be affected by this role"
           disableBtns={isProcessing}
           labels={value.labels}
           setLabels={labels => onChange?.({ ...value, labels })}
@@ -396,6 +506,7 @@ export function DatabaseAccessSection({
       <FieldSelectCreatable
         isMulti
         label="Database Names"
+        placeholder="Type a database name and press Enter"
         toolTipContent={
           <>
             List of database names that this role is allowed to connect to.
@@ -414,6 +525,7 @@ export function DatabaseAccessSection({
       <FieldSelectCreatable
         isMulti
         label="Database Users"
+        placeholder="Type a user name and press Enter"
         toolTipContent={
           <>
             List of database users that this role is allowed to connect as.
@@ -432,6 +544,7 @@ export function DatabaseAccessSection({
       <FieldSelectCreatable
         isMulti
         label="Database Roles"
+        placeholder="Type a role name and press Enter"
         toolTipContent="If automatic user provisioning is available, this is the list of database roles that will be assigned to the database user after it's created"
         isDisabled={isProcessing}
         formatCreateLabel={label => `Database Role: ${label}`}
@@ -442,7 +555,14 @@ export function DatabaseAccessSection({
         value={value.roles}
         onChange={roles => onChange?.({ ...value, roles })}
         rule={precomputed(validation.fields.roles)}
-        mb={0}
+      />
+      <LabelsInput
+        legend="Database Service Labels"
+        tooltipContent="The database service labels control which Database Services (Teleport Agents) are visible to the user, which is required when adding Databases in the Enroll New Resource wizard. Access to Databases themselves is controlled by the Database Labels field."
+        disableBtns={isProcessing}
+        labels={value.dbServiceLabels}
+        setLabels={dbServiceLabels => onChange?.({ ...value, dbServiceLabels })}
+        rule={precomputed(validation.fields.dbServiceLabels)}
       />
     </>
   );
@@ -457,10 +577,8 @@ export function WindowsDesktopAccessSection({
   return (
     <>
       <Box mb={3}>
-        <Text typography="body3" mb={1}>
-          Labels
-        </Text>
         <LabelsInput
+          legend="Labels"
           disableBtns={isProcessing}
           labels={value.labels}
           setLabels={labels => onChange?.({ ...value, labels })}
@@ -470,6 +588,7 @@ export function WindowsDesktopAccessSection({
       <FieldSelectCreatable
         isMulti
         label="Logins"
+        placeholder="Type a login and press Enter"
         toolTipContent="List of desktop logins that this role is allowed to use"
         isDisabled={isProcessing}
         formatCreateLabel={label => `Login: ${label}`}
@@ -481,6 +600,32 @@ export function WindowsDesktopAccessSection({
         onChange={logins => onChange?.({ ...value, logins })}
       />
     </>
+  );
+}
+
+export function GitHubOrganizationAccessSection({
+  value,
+  isProcessing,
+  onChange,
+}: SectionProps<
+  GitHubOrganizationAccess,
+  GitHubOrganizationAccessValidationResult
+>) {
+  return (
+    <FieldSelectCreatable
+      isMulti
+      label="Organization Names"
+      toolTipContent="A list of GitHub organization names that this role is allowed to use"
+      placeholder="Type an organization name and press Enter"
+      isDisabled={isProcessing}
+      formatCreateLabel={label => `Organization: ${label}`}
+      components={{
+        DropdownIndicator: null,
+      }}
+      openMenuOnClick={false}
+      value={value.organizations}
+      onChange={organizations => onChange?.({ ...value, organizations })}
+    />
   );
 }
 

@@ -45,7 +45,7 @@ export const Success = () => <Component />;
 Success.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.awsAppAccessPath, () =>
+      http.post(cfg.api.awsAppAccess.createV2, () =>
         HttpResponse.json({ name: 'app-1' })
       ),
     ],
@@ -59,7 +59,10 @@ export const Loading = () => {
 Loading.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.awsAppAccessPath, async () => await delay('infinite')),
+      http.post(
+        cfg.api.awsAppAccess.createV2,
+        async () => await delay('infinite')
+      ),
     ],
   },
 };
@@ -68,7 +71,7 @@ export const Failed = () => <Component />;
 Failed.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.awsAppAccessPath, () =>
+      http.post(cfg.api.awsAppAccess.createV2, () =>
         HttpResponse.json(
           {
             message: 'Some kind of error message',

@@ -363,6 +363,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
+		case KubernetesV2OutputType:
+			v := &KubernetesV2Output{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
 		case SPIFFESVIDOutputType:
 			v := &SPIFFESVIDOutput{}
 			if err := node.Decode(v); err != nil {
@@ -395,6 +401,24 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 			out = append(out, v)
 		case ApplicationTunnelServiceType:
 			v := &ApplicationTunnelService{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case WorkloadIdentityX509OutputType:
+			v := &WorkloadIdentityX509Service{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case WorkloadIdentityAPIServiceType:
+			v := &WorkloadIdentityAPIService{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case WorkloadIdentityJWTOutputType:
+			v := &WorkloadIdentityJWTService{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
@@ -564,7 +588,7 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 	case V1, "":
 		if !manualMigration {
 			log.WarnContext(
-				context.TODO(), "Deprecated config version (V1) detected. Attempting to perform an on-the-fly in-memory migration to latest version. Please persist the config migration by following the guidance at https://goteleport.com/docs/machine-id/reference/v14-upgrade-guide/")
+				context.TODO(), "Deprecated config version (V1) detected. Attempting to perform an on-the-fly in-memory migration to latest version. Please persist the config migration by following the guidance at https://goteleport.com/docs/reference/machine-id/v14-upgrade-guide/")
 		}
 		config := &configV1{}
 		if err := decoder.Decode(config); err != nil {
@@ -574,7 +598,7 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 		if err != nil {
 			return nil, trace.WithUserMessage(
 				trace.Wrap(err, "migrating v1 config"),
-				"Failed to migrate. See https://goteleport.com/docs/machine-id/reference/v14-upgrade-guide/",
+				"Failed to migrate. See https://goteleport.com/docs/reference/machine-id/v14-upgrade-guide/",
 			)
 		}
 		return latestConfig, nil

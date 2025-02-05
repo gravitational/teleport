@@ -97,24 +97,33 @@ type SigV4 struct {
 }
 
 // ParseSigV4 AWS SigV4 credentials string sections.
-// AWS SigV4 header example:
-// Authorization: AWS4-HMAC-SHA256
-// Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request,
+// AWS SigV4 header example below adds newlines for readability only - the real
+// header must be a single continuous string with commas (and optional spaces)
+// between the Credential, SignedHeaders, and Signature:
+// Authorization: AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request,
 // SignedHeaders=host;range;x-amz-date,
 // Signature=fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024
 func ParseSigV4(header string) (*SigV4, error) {
 	if header == "" {
 		return nil, trace.BadParameter("empty AWS SigV4 header")
 	}
-	sectionParts := strings.Split(header, " ")
+	if !strings.HasPrefix(header, AmazonSigV4AuthorizationPrefix+" ") {
+		return nil, trace.BadParameter("missing AWS SigV4 authorization algorithm")
+	}
+	header = strings.TrimPrefix(header, AmazonSigV4AuthorizationPrefix+" ")
+
+	components := strings.Split(header, ",")
+	if len(components) != 3 {
+		return nil, trace.BadParameter("expected AWS SigV4 Authorization header with 3 comma-separated components but got %d", len(components))
+	}
 
 	m := make(map[string]string)
-	for _, v := range sectionParts {
-		kv := strings.Split(v, "=")
+	for _, v := range components {
+		kv := strings.Split(strings.Trim(v, " "), "=")
 		if len(kv) != 2 {
 			continue
 		}
-		m[kv[0]] = strings.TrimSuffix(kv[1], ",")
+		m[kv[0]] = kv[1]
 	}
 
 	authParts := strings.Split(m[credentialAuthHeaderElem], "/")
@@ -150,22 +159,17 @@ func IsSignedByAWSSigV4(r *http.Request) bool {
 	return strings.HasPrefix(r.Header.Get(AuthorizationHeader), AmazonSigV4AuthorizationPrefix)
 }
 
-// VerifyAWSSignatureV2 is a temporary AWS SDK migration helper.
-func VerifyAWSSignatureV2(req *http.Request, provider aws.CredentialsProvider) error {
-	return VerifyAWSSignature(req, migration.NewCredentialsAdapter(provider))
-}
-
 // VerifyAWSSignature verifies the request signature ensuring that the request originates from tsh aws command execution
 // AWS CLI signs the request with random generated credentials that are passed to LocalProxy by
 // the AWSCredentials LocalProxyConfig configuration.
-func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials) error {
+func VerifyAWSSignature(req *http.Request, credProvider aws.CredentialsProvider) error {
 	sigV4, err := ParseSigV4(req.Header.Get("Authorization"))
 	if err != nil {
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	}
 
 	// Verifies the request is signed by the expected access key ID.
-	credValue, err := credentials.Get()
+	credValue, err := credProvider.Retrieve(req.Context())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -200,10 +204,10 @@ func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials)
 	// originated from AWS CLI and reuse it as a timestamp during request signing call.
 	t, err := time.Parse(AmzDateTimeFormat, reqCopy.Header.Get(AmzDateHeader))
 	if err != nil {
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	}
 
-	signer := NewSigner(credentials, sigV4.Service)
+	signer := NewSignerV2(credProvider, sigV4.Service)
 	_, err = signer.Sign(reqCopy, bytes.NewReader(payload), sigV4.Service, sigV4.Region, t)
 	if err != nil {
 		return trace.Wrap(err)

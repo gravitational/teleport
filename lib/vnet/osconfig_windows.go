@@ -1,5 +1,5 @@
 // Teleport
-// Copyright (C) 2024 Gravitational, Inc.
+// Copyright (C) 2025 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -14,9 +14,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build windows
-// +build windows
-
 package vnet
 
 import (
@@ -25,12 +22,10 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func configureOS(ctx context.Context, cfg *osConfig) error {
-	// TODO(nklaassen): implement configureOS on Windows.
-	return trace.Wrap(ErrVnetNotImplemented)
-}
-
-func (c *osConfigurator) doWithDroppedRootPrivileges(ctx context.Context, fn func() error) (err error) {
-	// TODO(nklaassen): implement doWithDroppedPrivileges on Windows.
-	return trace.Wrap(ErrVnetNotImplemented)
+// platformConfigureOS configures the host OS according to cfg. It is safe to
+// call repeatedly, and it is meant to be called with an empty osConfig to
+// deconfigure anything necessary before exiting.
+func platformConfigureOS(ctx context.Context, cfg *osConfig) error {
+	// TODO(nklaassen): implement platformConfigureOS for Windows.
+	return trace.NotImplemented("platformConfigureOS is not implemented on Windows")
 }

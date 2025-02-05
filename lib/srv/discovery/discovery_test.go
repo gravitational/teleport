@@ -41,10 +41,14 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
+	"github.com/aws/aws-sdk-go-v2/service/elasticache"
+	"github.com/aws/aws-sdk-go-v2/service/memorydb"
+	"github.com/aws/aws-sdk-go-v2/service/opensearch"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
+	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/google/go-cmp/cmp"
@@ -361,7 +365,6 @@ func TestDiscoveryServer(t *testing.T) {
 		wantInstalledInstances    []string
 		wantDiscoveryConfigStatus *discoveryconfig.Status
 		userTasksDiscoverCheck    require.ValueAssertionFunc
-		cloudClients              cloud.Clients
 		ssmRunError               error
 	}{
 		{
@@ -943,7 +946,6 @@ func TestDiscoveryServer(t *testing.T) {
 				Emitter:          tc.emitter,
 				Log:              logger,
 				DiscoveryGroup:   defaultDiscoveryGroup,
-				CloudClients:     tc.cloudClients,
 				clock:            fakeClock,
 			})
 			require.NoError(t, err)
@@ -972,12 +974,22 @@ func TestDiscoveryServer(t *testing.T) {
 			if tc.wantDiscoveryConfigStatus != nil {
 				// It can take a while for the status to be updated.
 				require.Eventually(t, func() bool {
+					fakeClock.Advance(server.PollInterval)
 					storedDiscoveryConfig, err := tlsServer.Auth().DiscoveryConfigs.GetDiscoveryConfig(ctx, tc.discoveryConfig.GetName())
 					require.NoError(t, err)
 					if len(storedDiscoveryConfig.Status.IntegrationDiscoveredResources) == 0 {
 						return false
 					}
-					require.Equal(t, *tc.wantDiscoveryConfigStatus, storedDiscoveryConfig.Status)
+					want := *tc.wantDiscoveryConfigStatus
+					got := storedDiscoveryConfig.Status
+
+					require.Equal(t, want.State, got.State)
+					require.Equal(t, want.DiscoveredResources, got.DiscoveredResources)
+					require.Equal(t, want.ErrorMessage, got.ErrorMessage)
+					for expectedKey, expectedValue := range want.IntegrationDiscoveredResources {
+						require.Contains(t, got.IntegrationDiscoveredResources, expectedKey)
+						require.Equal(t, expectedValue, got.IntegrationDiscoveredResources[expectedKey])
+					}
 					return true
 				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
@@ -2138,6 +2150,9 @@ func TestDiscoveryDatabase(t *testing.T) {
 	awsRDSDBWithRole.SetAWSAssumeRole("arn:aws:iam::123456789012:role/test-role")
 	awsRDSDBWithRole.SetAWSExternalID("test123")
 
+	awsRDSDBWithIntegration := awsRDSDB.Copy()
+	rewriteCloudResource(t, awsRDSDBWithIntegration, rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, integration: integrationName, discoveryConfigName: discoveryConfigName})
+
 	eksAWSResource, _ := makeEKSCluster(t, "aws-eks", "us-east-1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, integration: integrationName, discoveryConfigName: discoveryConfigName})
 
 	matcherForDiscoveryConfigFn := func(t *testing.T, discoveryGroup string, m Matchers) *discoveryconfig.DiscoveryConfig {
@@ -2157,8 +2172,6 @@ func TestDiscoveryDatabase(t *testing.T) {
 	}
 
 	testCloudClients := &cloud.TestCloudClients{
-		STS:      &mocks.STSClientV1{},
-		MemoryDB: &mocks.MemoryDBMock{},
 		AzureRedis: azure.NewRedisClientByAPI(&azure.ARMRedisMock{
 			Servers: []*armredis.ResourceInfo{azRedisResource},
 		}),
@@ -2169,15 +2182,17 @@ func TestDiscoveryDatabase(t *testing.T) {
 	}
 
 	tcs := []struct {
-		name                        string
-		existingDatabases           []types.Database
-		integrationsOnlyCredentials bool
-		awsMatchers                 []types.AWSMatcher
-		azureMatchers               []types.AzureMatcher
-		expectDatabases             []types.Database
-		discoveryConfigs            func(*testing.T) []*discoveryconfig.DiscoveryConfig
-		discoveryConfigStatusCheck  func(*testing.T, discoveryconfig.Status)
-		wantEvents                  int
+		name                                   string
+		existingDatabases                      []types.Database
+		integrationsOnlyCredentials            bool
+		awsMatchers                            []types.AWSMatcher
+		azureMatchers                          []types.AzureMatcher
+		expectDatabases                        []types.Database
+		discoveryConfigs                       func(*testing.T) []*discoveryconfig.DiscoveryConfig
+		discoveryConfigStatusCheck             func(*testing.T, discoveryconfig.Status)
+		discoveryConfigStatusExpectedResources int
+		userTasksCheck                         func(*testing.T, []*usertasksv1.UserTask)
+		wantEvents                             int
 	}{
 		{
 			name: "discover AWS database",
@@ -2376,11 +2391,11 @@ func TestDiscoveryDatabase(t *testing.T) {
 			},
 			wantEvents: 1,
 			discoveryConfigStatusCheck: func(t *testing.T, s discoveryconfig.Status) {
-				require.Equal(t, uint64(1), s.DiscoveredResources)
 				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsRds.Enrolled)
 				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsRds.Found)
 				require.Zero(t, s.IntegrationDiscoveredResources[integrationName].AwsRds.Failed)
 			},
+			discoveryConfigStatusExpectedResources: 1,
 		},
 		{
 			name:                        "running in integrations-only-mode with a matcher without an integration, must find 1 database",
@@ -2410,18 +2425,18 @@ func TestDiscoveryDatabase(t *testing.T) {
 			expectDatabases: []types.Database{},
 			wantEvents:      0,
 			discoveryConfigStatusCheck: func(t *testing.T, s discoveryconfig.Status) {
-				require.Equal(t, uint64(1), s.DiscoveredResources)
 				require.Equal(t, uint64(1), s.IntegrationDiscoveredResources[integrationName].AwsEks.Found)
 				require.Zero(t, s.IntegrationDiscoveredResources[integrationName].AwsEks.Enrolled)
 			},
+			discoveryConfigStatusExpectedResources: 1,
 		},
 		{
 			name: "discovery config status must be updated even when there are no resources",
 			discoveryConfigs: func(t *testing.T) []*discoveryconfig.DiscoveryConfig {
 				dc1 := matcherForDiscoveryConfigFn(t, mainDiscoveryGroup, Matchers{
 					AWS: []types.AWSMatcher{{
-						// MemoryDB mock client returns no resources.
-						Types:       []string{types.AWSMatcherMemoryDB},
+						// ElastiCache and MemoryDB fake clients return no resources.
+						Types:       []string{types.AWSMatcherElastiCache, types.AWSMatcherMemoryDB},
 						Tags:        map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
 						Regions:     []string{"us-east-1"},
 						Integration: integrationName,
@@ -2432,8 +2447,45 @@ func TestDiscoveryDatabase(t *testing.T) {
 			expectDatabases: []types.Database{},
 			wantEvents:      0,
 			discoveryConfigStatusCheck: func(t *testing.T, s discoveryconfig.Status) {
-				require.Equal(t, uint64(0), s.DiscoveredResources)
 				require.Equal(t, "DISCOVERY_CONFIG_STATE_SYNCING", s.State)
+			},
+			discoveryConfigStatusExpectedResources: 0,
+		},
+		{
+			name: "discover-rds user task must be created when database is not configured to allow IAM DB Authentication",
+			discoveryConfigs: func(t *testing.T) []*discoveryconfig.DiscoveryConfig {
+				dc1 := matcherForDiscoveryConfigFn(t, mainDiscoveryGroup, Matchers{
+					AWS: []types.AWSMatcher{{
+						Types:       []string{types.AWSMatcherRDS},
+						Tags:        map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+						Regions:     []string{"us-west-1"},
+						Integration: integrationName,
+					}},
+				})
+				return []*discoveryconfig.DiscoveryConfig{dc1}
+			},
+			expectDatabases: []types.Database{awsRDSDBWithIntegration},
+			wantEvents:      1,
+			userTasksCheck: func(t *testing.T, uts []*usertasksv1.UserTask) {
+				require.Len(t, uts, 1)
+				gotUserTask := uts[0]
+				require.Equal(t, "3ae76664-b54d-5b74-b59a-bd7bff3be053", gotUserTask.GetMetadata().GetName())
+				require.Equal(t, "OPEN", gotUserTask.GetSpec().GetState())
+				require.Equal(t, "discover-rds", gotUserTask.GetSpec().GetTaskType())
+				require.Equal(t, "rds-iam-auth-disabled", gotUserTask.GetSpec().GetIssueType())
+				require.Equal(t, "my-integration", gotUserTask.GetSpec().GetIntegration())
+
+				require.NotNil(t, gotUserTask.GetSpec().GetDiscoverRds())
+				require.Equal(t, "123456789012", gotUserTask.GetSpec().GetDiscoverRds().GetAccountId())
+				require.Equal(t, "us-west-1", gotUserTask.GetSpec().GetDiscoverRds().GetRegion())
+
+				require.Contains(t, gotUserTask.GetSpec().GetDiscoverRds().GetDatabases(), "aws-rds")
+				gotDatabase := gotUserTask.GetSpec().GetDiscoverRds().GetDatabases()["aws-rds"]
+				require.Equal(t, "my-discovery-config", gotDatabase.DiscoveryConfig)
+				require.Equal(t, "main", gotDatabase.DiscoveryGroup)
+				require.Equal(t, "postgres", gotDatabase.Engine)
+				require.Equal(t, "aws-rds", gotDatabase.Name)
+				require.False(t, gotDatabase.IsCluster)
 			},
 		},
 	}
@@ -2441,6 +2493,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			fakeClock := clockwork.NewFakeClock()
 
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
@@ -2494,8 +2547,9 @@ func TestDiscoveryDatabase(t *testing.T) {
 			}
 			dbFetcherFactory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{
 				AWSConfigProvider: fakeConfigProvider,
-				CloudClients:      testCloudClients,
 				AWSClients: fakeAWSClients{
+					ecClient:  &mocks.ElastiCacheClient{},
+					mdbClient: &mocks.MemoryDBClient{},
 					rdsClient: &mocks.RDSClient{
 						DBInstances: []rdstypes.DBInstance{*awsRDSInstance},
 						DBEngineVersions: []rdstypes.DBEngineVersion{
@@ -2532,6 +2586,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 						waitForReconcile <- struct{}{}
 					},
 					DiscoveryGroup: mainDiscoveryGroup,
+					clock:          fakeClock,
 				})
 
 			require.NoError(t, err)
@@ -2581,10 +2636,34 @@ func TestDiscoveryDatabase(t *testing.T) {
 			}
 
 			if tc.discoveryConfigStatusCheck != nil {
-				dc, err := tlsServer.Auth().GetDiscoveryConfig(ctx, discoveryConfigName)
-				require.NoError(t, err)
+				require.Eventually(t, func() bool {
+					fakeClock.Advance(srv.PollInterval * 2)
+					dc, err := tlsServer.Auth().GetDiscoveryConfig(ctx, discoveryConfigName)
+					require.NoError(t, err)
+					if tc.discoveryConfigStatusExpectedResources != int(dc.Status.DiscoveredResources) {
+						return false
+					}
 
-				tc.discoveryConfigStatusCheck(t, dc.Status)
+					tc.discoveryConfigStatusCheck(t, dc.Status)
+					return true
+				}, time.Second, 100*time.Millisecond)
+
+			}
+			if tc.userTasksCheck != nil {
+				var userTasks []*usertasksv1.UserTask
+				var nextPage string
+				for {
+					userTasksResp, nextPageResp, err := tlsServer.Auth().ListUserTasksByIntegration(ctx, 0, nextPage, integrationName)
+					require.NoError(t, err)
+
+					userTasks = append(userTasks, userTasksResp...)
+
+					if nextPageResp == "" {
+						break
+					}
+					nextPage = nextPageResp
+				}
+				tc.userTasksCheck(t, userTasks)
 			}
 		})
 	}
@@ -2602,12 +2681,8 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 	fakeConfigProvider := &mocks.AWSConfigProvider{
 		STSClient: &mocks.STSClient{},
 	}
-	testCloudClients := &cloud.TestCloudClients{
-		STS: &fakeConfigProvider.STSClient.STSClientV1,
-	}
 	dbFetcherFactory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{
 		AWSConfigProvider: fakeConfigProvider,
-		CloudClients:      testCloudClients,
 		AWSClients: fakeAWSClients{
 			rdsClient: &mocks.RDSClient{
 				DBInstances: []rdstypes.DBInstance{*awsRDSInstance},
@@ -2647,7 +2722,6 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		&Config{
 			AWSConfigProvider:         fakeConfigProvider,
 			AWSDatabaseFetcherFactory: dbFetcherFactory,
-			CloudClients:              testCloudClients,
 			ClusterFeatures:           func() proto.Features { return proto.Features{} },
 			KubernetesClient:          fake.NewSimpleClientset(),
 			AccessPoint:               getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
@@ -3868,8 +3942,24 @@ func newPopulatedGCPProjectsMock() *mockProjectsAPI {
 }
 
 type fakeAWSClients struct {
-	rdsClient      db.RDSClient
-	redshiftClient db.RedshiftClient
+	ecClient         db.ElastiCacheClient
+	mdbClient        db.MemoryDBClient
+	openSearchClient db.OpenSearchClient
+	rdsClient        db.RDSClient
+	redshiftClient   db.RedshiftClient
+	rssClient        db.RSSClient
+}
+
+func (f fakeAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) db.ElastiCacheClient {
+	return f.ecClient
+}
+
+func (f fakeAWSClients) GetMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) db.MemoryDBClient {
+	return f.mdbClient
+}
+
+func (f fakeAWSClients) GetOpenSearchClient(cfg aws.Config, optFns ...func(*opensearch.Options)) db.OpenSearchClient {
+	return f.openSearchClient
 }
 
 func (f fakeAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) db.RDSClient {
@@ -3878,4 +3968,8 @@ func (f fakeAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options
 
 func (f fakeAWSClients) GetRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) db.RedshiftClient {
 	return f.redshiftClient
+}
+
+func (f fakeAWSClients) GetRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) db.RSSClient {
+	return f.rssClient
 }

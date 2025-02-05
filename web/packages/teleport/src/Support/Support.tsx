@@ -303,10 +303,12 @@ const getDocUrls = (version = '', isEnterprise: boolean) => {
   return {
     getStarted: withUTM(`https://goteleport.com/docs/get-started/`),
     tshGuide: withUTM(`https://goteleport.com/docs/connect-your-client/tsh/`),
-    adminGuide: withUTM(`https://goteleport.com/docs/management/admin/`),
+    adminGuide: withUTM(
+      `https://goteleport.com/docs/admin-guides/management/admin/`
+    ),
     faq: withUTM(`https://goteleport.com/docs/faq`),
     troubleshooting: withUTM(
-      `https://goteleport.com/docs/management/admin/troubleshooting/`
+      `https://goteleport.com/docs/admin-guides/management/admin/troubleshooting/`
     ),
 
     // there isn't a version-specific changelog page
@@ -332,8 +334,8 @@ const DownloadLink = ({
   if (isEnterprise) {
     return (
       <ExternalSupportLink
-        title="Download Page"
-        url="https://goteleport.com/docs/choose-an-edition/teleport-enterprise/introduction/?scope=enterprise#dedicated-account-dashboard"
+        title="Self-Hosting Teleport"
+        url="https://goteleport.com/docs/admin-guides/deploy-a-cluster/"
       />
     );
   }

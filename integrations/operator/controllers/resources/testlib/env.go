@@ -28,10 +28,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap/zapcore"
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -42,7 +42,6 @@ import (
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
@@ -58,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // scheme is our own test-specific scheme to avoid using the global
@@ -186,6 +186,7 @@ type TestSetup struct {
 	OperatorCancel           context.CancelFunc
 	OperatorName             string
 	stepByStepReconciliation bool
+	log                      *slog.Logger
 }
 
 // StartKubernetesOperator creates and start a new operator
@@ -207,8 +208,14 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	setupLog := ctrl.Log.WithName("setup")
-	ctrl.SetLogger(zap.New(zap.UseDevMode(true), zap.Level(zapcore.DebugLevel)))
+	slogLogger := s.log
+	if slogLogger == nil {
+		slogLogger = utils.NewSlogLoggerForTests()
+	}
+
+	logger := logr.FromSlogHandler(slogLogger.Handler())
+	ctrl.SetLogger(logger)
+	setupLog := logger.WithName("setup")
 
 	pong, err := s.TeleportClient.Ping(context.Background())
 	require.NoError(t, err)

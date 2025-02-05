@@ -116,7 +116,7 @@ func UnmarshalOktaImportRule(data []byte, opts ...MarshalOption) (types.OktaImpo
 	case types.V1:
 		var i types.OktaImportRuleV1
 		if err := utils.FastUnmarshal(data, &i); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := i.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
@@ -168,7 +168,7 @@ func UnmarshalOktaAssignment(data []byte, opts ...MarshalOption) (types.OktaAssi
 	case types.V1:
 		var a types.OktaAssignmentV1
 		if err := utils.FastUnmarshal(data, &a); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := a.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)

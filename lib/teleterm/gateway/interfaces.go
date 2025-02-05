@@ -92,6 +92,9 @@ type Kube interface {
 	// KubeconfigPath returns the path to the kubeconfig used to connect the
 	// local proxy.
 	KubeconfigPath() string
+	// ClearCerts clears the local proxy middleware certs.
+	// It will try to reissue them when a new request comes in.
+	ClearCerts()
 }
 
 // App defines an app gateway.

@@ -247,7 +247,7 @@ func FormatHostCAPublicKeysForRegistry(hostCAPublicKeys map[string][]string, hos
 // See https://the.earth.li/~sgtatham/putty/0.79/htmldoc/Chapter4.html#config-ssh-cert-valid-expr for details.
 func CheckAndSplitValidityKey(input string, caName string) ([]string, error) {
 	var output []string
-	docsURL := "https://goteleport.com/docs/connect-your-client/putty/#troubleshooting"
+	docsURL := "https://goteleport.com/docs/connect-your-client/putty-winscp/#troubleshooting"
 
 	// if the input string has no content (because the Validity key has no value yet), return the empty list
 	if len(input) == 0 {

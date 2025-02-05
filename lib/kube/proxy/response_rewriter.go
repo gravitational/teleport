@@ -50,7 +50,8 @@ import (
 //
 // Error from server (Forbidden): "GKE Autopilot denied the request because it impersonates the "system:masters" group.
 // Your Teleport Roles [role1,role2] have given access to the "system:masters" group for the cluster "<cluster>".
-// For additional information and resolution, please visit https://goteleport.com/docs/kubernetes-access/troubleshooting/#unable-to-connect-to-gke-autopilot-clusters
+// For additional information and resolution, please visit
+// https://goteleport.com/docs/enroll-resources/kubernetes-access/troubleshooting/#unable-to-connect-to-gke-autopilot-clusters
 func (f *Forwarder) rewriteResponseForbidden(s *clusterSession) func(r *http.Response) error {
 	return func(r *http.Response) error {
 		const (
@@ -100,7 +101,7 @@ func (f *Forwarder) rewriteResponseForbidden(s *clusterSession) func(r *http.Res
 						"Your Teleport Roles %v have given access to the \"system:masters\" group "+
 							"for the cluster %q.\n", collectSystemMastersTeleportRoles(s), s.kubeClusterName) +
 					"For additional information and resolution, " +
-					"please visit https://goteleport.com/docs/kubernetes-access/troubleshooting/#unable-to-connect-to-gke-autopilot-clusters\n",
+					"please visit https://goteleport.com/docs/enroll-resources/kubernetes-access/troubleshooting/#unable-to-connect-to-gke-autopilot-clusters\n",
 			}
 			// Reset the buffer to write the new response.
 			b.Reset()

@@ -23,10 +23,20 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/gitserver"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 )
+
+// GitServerReadOnlyClient returns the read-only client for Git servers.
+//
+// Note that Cache implements GitServerReadOnlyClient to satisfy
+// auth.ProxyAccessPoint but also has the getter functions at top level to
+// satisfy auth.Cache.
+func (c *Cache) GitServerReadOnlyClient() gitserver.ReadOnlyClient {
+	return c
+}
 
 func (c *Cache) GetGitServer(ctx context.Context, name string) (types.Server, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetGitServer")

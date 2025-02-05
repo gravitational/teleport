@@ -20,7 +20,6 @@ package rollout
 
 import (
 	"context"
-	"sync"
 	"testing"
 	"time"
 
@@ -317,9 +316,10 @@ func TestTryReconcile(t *testing.T) {
 			// Test execution: Running the reconciliation
 
 			reconciler := &reconciler{
-				clt:   client,
-				log:   log,
-				clock: clock,
+				clt:     client,
+				log:     log,
+				clock:   clock,
+				metrics: newMetricsForTest(t),
 			}
 
 			require.NoError(t, reconciler.tryReconcile(ctx))
@@ -389,8 +389,10 @@ func TestReconciler_Reconcile(t *testing.T) {
 
 		client := newMockClient(t, stubs)
 		reconciler := &reconciler{
-			clt: client,
-			log: log,
+			clt:     client,
+			log:     log,
+			clock:   clock,
+			metrics: newMetricsForTest(t),
 		}
 
 		// Test execution: run the reconciliation loop
@@ -411,9 +413,10 @@ func TestReconciler_Reconcile(t *testing.T) {
 
 		client := newMockClient(t, stubs)
 		reconciler := &reconciler{
-			clt:   client,
-			log:   log,
-			clock: clock,
+			clt:     client,
+			log:     log,
+			clock:   clock,
+			metrics: newMetricsForTest(t),
 		}
 
 		// Test execution: run the reconciliation loop
@@ -436,9 +439,10 @@ func TestReconciler_Reconcile(t *testing.T) {
 
 		client := newMockClient(t, stubs)
 		reconciler := &reconciler{
-			clt:   client,
-			log:   log,
-			clock: clock,
+			clt:     client,
+			log:     log,
+			clock:   clock,
+			metrics: newMetricsForTest(t),
 		}
 
 		// Test execution: run the reconciliation loop
@@ -477,9 +481,10 @@ func TestReconciler_Reconcile(t *testing.T) {
 
 		client := newMockClient(t, stubs)
 		reconciler := &reconciler{
-			clt:   client,
-			log:   log,
-			clock: clock,
+			clt:     client,
+			log:     log,
+			clock:   clock,
+			metrics: newMetricsForTest(t),
 		}
 
 		// Test execution: run the reconciliation loop
@@ -516,9 +521,10 @@ func TestReconciler_Reconcile(t *testing.T) {
 
 		client := newMockClient(t, stubs)
 		reconciler := &reconciler{
-			clt:   client,
-			log:   log,
-			clock: clock,
+			clt:     client,
+			log:     log,
+			clock:   clock,
+			metrics: newMetricsForTest(t),
 		}
 
 		// Test execution: run the reconciliation loop
@@ -541,9 +547,10 @@ func TestReconciler_Reconcile(t *testing.T) {
 
 		client := newMockClient(t, stubs)
 		reconciler := &reconciler{
-			clt:   client,
-			log:   log,
-			clock: clock,
+			clt:     client,
+			log:     log,
+			clock:   clock,
+			metrics: newMetricsForTest(t),
 		}
 
 		// Test execution: run the reconciliation loop
@@ -572,9 +579,10 @@ func TestReconciler_Reconcile(t *testing.T) {
 
 		client := newMockClient(t, stubs)
 		reconciler := &reconciler{
-			clt:   client,
-			log:   log,
-			clock: clock,
+			clt:     client,
+			log:     log,
+			clock:   clock,
+			metrics: newMetricsForTest(t),
 		}
 
 		// Test execution: run the reconciliation loop
@@ -874,7 +882,7 @@ func Test_reconciler_computeStatus(t *testing.T) {
 				log:               log,
 				clock:             clock,
 				rolloutStrategies: []rolloutStrategy{strategy},
-				mutex:             sync.Mutex{},
+				metrics:           newMetricsForTest(t),
 			}
 			result, err := r.computeStatus(ctx, tt.existingRollout, tt.newSpec, schedules)
 			require.NoError(t, err)

@@ -26,6 +26,7 @@ import { Theme } from '../packages/design/src/theme/themes/types';
 import { ConfiguredThemeProvider } from '../packages/design/src/ThemeProvider';
 import history from '../packages/teleport/src/services/history/history';
 import { UserContextProvider } from '../packages/teleport/src/User';
+import Logger, { ConsoleService } from '../packages/teleterm/src/logger';
 import { StaticThemeProvider as TeletermThemeProvider } from '../packages/teleterm/src/ui/ThemeProvider';
 import {
   darkTheme as teletermDarkTheme,
@@ -35,6 +36,8 @@ import {
 initialize();
 
 history.init();
+
+Logger.init(new ConsoleService());
 
 interface ThemeDecoratorProps {
   theme: string;

@@ -106,7 +106,7 @@ func NewHeadlessAuthenticationWatcher(ctx context.Context, cfg HeadlessAuthentic
 		return nil, trace.Wrap(err)
 	}
 
-	identityService, err := NewIdentityServiceV2(cfg.Backend)
+	identityService, err := NewIdentityService(cfg.Backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

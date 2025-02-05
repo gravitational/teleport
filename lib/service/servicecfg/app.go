@@ -160,7 +160,7 @@ func (a *App) CheckAndSetDefaults() error {
 	// are invalid subdomains because for trusted clusters the name is used to
 	// construct the domain that the application will be available at.
 	if errs := validation.IsDNS1035Label(a.Name); len(errs) > 0 {
-		return trace.BadParameter("application name %q must be a valid DNS subdomain: https://goteleport.com/docs/application-access/guides/connecting-apps/#application-name", a.Name)
+		return trace.BadParameter("application name %q must be a valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", a.Name)
 	}
 	// Parse and validate URL.
 	if _, err := url.Parse(a.URI); err != nil {

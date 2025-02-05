@@ -40,6 +40,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/otel"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -179,21 +180,15 @@ func checkPendingTime(iid *imds.InstanceIdentityDocument, provisionToken types.P
 }
 
 func nodeExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
-	namespaces, err := presence.GetNamespaces()
-	if err != nil {
+	_, err := presence.GetNode(ctx, defaults.Namespace, hostID)
+	switch {
+	case trace.IsNotFound(err):
+		return false, nil
+	case err != nil:
 		return false, trace.Wrap(err)
+	default:
+		return true, nil
 	}
-	for _, namespace := range namespaces {
-		_, err := presence.GetNode(ctx, namespace.GetName(), hostID)
-		if trace.IsNotFound(err) {
-			continue
-		} else if err != nil {
-			return false, trace.Wrap(err)
-		} else {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 func proxyExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
@@ -223,59 +218,46 @@ func kubeExists(ctx context.Context, presence services.Presence, hostID string) 
 }
 
 func appExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
-	namespaces, err := presence.GetNamespaces()
+	apps, err := presence.GetApplicationServers(ctx, defaults.Namespace)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	for _, namespace := range namespaces {
-		apps, err := presence.GetApplicationServers(ctx, namespace.GetName())
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-		for _, app := range apps {
-			if app.GetName() == hostID {
-				return true, nil
-			}
+
+	for _, app := range apps {
+		if app.GetName() == hostID {
+			return true, nil
 		}
 	}
+
 	return false, nil
 }
 
 func dbExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
-	namespaces, err := presence.GetNamespaces()
+	dbs, err := presence.GetDatabaseServers(ctx, defaults.Namespace)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	for _, namespace := range namespaces {
-		dbs, err := presence.GetDatabaseServers(ctx, namespace.GetName())
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-		for _, db := range dbs {
-			if db.GetName() == hostID {
-				return true, nil
-			}
+
+	for _, db := range dbs {
+		if db.GetName() == hostID {
+			return true, nil
 		}
 	}
+
 	return false, nil
 }
 
 func oktaExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
-	namespaces, err := presence.GetNamespaces()
+	apps, err := presence.GetApplicationServers(ctx, defaults.Namespace)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	for _, namespace := range namespaces {
-		apps, err := presence.GetApplicationServers(ctx, namespace.GetName())
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-		for _, app := range apps {
-			if app.GetName() == hostID && app.Origin() == types.OriginOkta {
-				return true, nil
-			}
+	for _, app := range apps {
+		if app.GetName() == hostID && app.Origin() == types.OriginOkta {
+			return true, nil
 		}
 	}
+
 	return false, nil
 }
 

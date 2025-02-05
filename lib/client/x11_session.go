@@ -20,6 +20,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -212,7 +213,8 @@ func (ns *NodeSession) serveX11Channels(ctx context.Context, sess *tracessh.Sess
 			}
 		}()
 
-		if err := utils.ProxyConn(ctx, xconn, xchan); err != nil {
+		// Proxy the connection until the connection is closed or the request is canceled.
+		if err := utils.ProxyConn(ctx, xconn, xchan); err != nil && !errors.Is(err, context.Canceled) {
 			slog.DebugContext(ctx, "Encountered error during X11 forwarding", "err", err)
 		}
 	})

@@ -26,29 +26,29 @@ import { ResourceKind } from 'teleport/services/resources';
 
 import { AccessRules } from './AccessRules';
 import { RuleModel } from './standardmodel';
-import { StatefulSection } from './StatefulSection';
-import { AccessRuleValidationResult, validateAccessRule } from './validation';
+import { StatefulSectionWithDispatch } from './StatefulSection';
+import { AccessRuleValidationResult } from './validation';
 
 describe('AccessRules', () => {
   const setup = () => {
-    const onChange = jest.fn();
+    const modelRef = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<RuleModel[], AccessRuleValidationResult[]>
+      <StatefulSectionWithDispatch<RuleModel[], AccessRuleValidationResult[]>
+        selector={m => m.roleModel.rules}
+        validationSelector={m => m.validationResult.rules}
         component={AccessRules}
-        defaultValue={[]}
-        onChange={onChange}
         validatorRef={v => {
           validator = v;
         }}
-        validate={rules => rules.map(validateAccessRule)}
+        modelRef={modelRef}
       />
     );
-    return { user: userEvent.setup(), onChange, validator };
+    return { user: userEvent.setup(), modelRef, validator };
   };
 
   test('editing', async () => {
-    const { user, onChange } = setup();
+    const { user, modelRef } = setup();
     await user.click(screen.getByRole('button', { name: 'Add New' }));
     await selectEvent.select(screen.getByLabelText('Resources'), [
       'db',
@@ -58,7 +58,8 @@ describe('AccessRules', () => {
       'list',
       'read',
     ]);
-    expect(onChange).toHaveBeenLastCalledWith([
+    await user.type(screen.getByLabelText('Filter'), 'some-filter');
+    expect(modelRef).toHaveBeenLastCalledWith([
       {
         id: expect.any(String),
         resources: [
@@ -69,6 +70,7 @@ describe('AccessRules', () => {
           { label: 'list', value: 'list' },
           { label: 'read', value: 'read' },
         ],
+        where: 'some-filter',
       },
     ] as RuleModel[]);
   });

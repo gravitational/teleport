@@ -25,12 +25,10 @@ import cfg from 'teleport/config';
 import { Discover, DiscoverComponent } from 'teleport/Discover/Discover';
 import { ResourceViewConfig } from 'teleport/Discover/flow';
 import {
+  APPLICATIONS,
   DATABASES,
   DATABASES_UNGUIDED,
   DATABASES_UNGUIDED_DOC,
-} from 'teleport/Discover/SelectResource/databases';
-import {
-  APPLICATIONS,
   KUBERNETES,
   SERVERS,
 } from 'teleport/Discover/SelectResource/resources';

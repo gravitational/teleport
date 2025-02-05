@@ -653,6 +653,8 @@ func (s *session) launch(ephemeralContainerStatus *corev1.ContainerStatus) (retu
 		KubernetesPodMetadata:     eventPodMeta,
 		InitialCommand:            q["command"],
 		SessionRecording:          s.ctx.recordingConfig.GetMode(),
+		Invited:                   s.invitedUsers,
+		Reason:                    s.reason,
 	})
 	if err == nil {
 		if err := s.recorder.RecordEvent(s.forwarder.ctx, sessionStartEvent); err != nil {

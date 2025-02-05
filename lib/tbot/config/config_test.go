@@ -264,6 +264,29 @@ func TestBotConfig_YAML(t *testing.T) {
 						Roles:   []string{"access"},
 						AppName: "my-app",
 					},
+					&WorkloadIdentityX509Service{
+						Destination: &DestinationDirectory{
+							Path: "/an/output/path",
+						},
+						Selector: WorkloadIdentitySelector{
+							Name: "my-workload-identity",
+						},
+					},
+					&WorkloadIdentityAPIService{
+						Listen: "tcp://127.0.0.1:123",
+						Selector: WorkloadIdentitySelector{
+							Name: "my-workload-identity",
+						},
+					},
+					&WorkloadIdentityJWTService{
+						Destination: &DestinationDirectory{
+							Path: "/an/output/path",
+						},
+						Selector: WorkloadIdentitySelector{
+							Name: "my-workload-identity",
+						},
+						Audiences: []string{"audience1", "audience2"},
+					},
 				},
 			},
 		},
@@ -327,7 +350,7 @@ func testYAML[T any](t *testing.T, tests []testYAMLCase[T]) {
 			decoder := yaml.NewDecoder(b)
 			var unmarshalled T
 			require.NoError(t, decoder.Decode(&unmarshalled))
-			require.Equal(t, unmarshalled, tt.in, "unmarshalling did not result in same object as input")
+			require.Equal(t, tt.in, unmarshalled, "unmarshalling did not result in same object as input")
 		})
 	}
 }

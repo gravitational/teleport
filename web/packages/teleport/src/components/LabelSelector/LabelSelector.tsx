@@ -107,14 +107,14 @@ function LabelSelector({ onChange }: LabelSelectorProps) {
                 “env: prod”. For more information, check out our documentation
                 on{' '}
                 <Link
-                  href="https://goteleport.com/docs/setup/admin/trustedclusters/"
+                  href="https://goteleport.com/docs/admin-guides/management/admin/trustedclusters/"
                   target="_blank"
                 >
                   RBAC
                 </Link>{' '}
                 and{' '}
                 <Link
-                  href="https://goteleport.com/docs/setup/admin/labels/"
+                  href="https://goteleport.com/docs/admin-guides/management/admin/labels/"
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -126,7 +126,7 @@ function LabelSelector({ onChange }: LabelSelectorProps) {
           </Flex>
           <Text>
             <Link
-              href="https://goteleport.com/docs/setup/admin/labels/"
+              href="https://goteleport.com/docs/admin-guides/management/admin/labels/"
               target="_blank"
             >
               View Documentation

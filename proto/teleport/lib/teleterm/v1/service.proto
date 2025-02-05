@@ -177,6 +177,10 @@ service TerminalService {
   // See
   // https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
   rpc AuthenticateWebDevice(AuthenticateWebDeviceRequest) returns (AuthenticateWebDeviceResponse);
+
+  // GetApp returns details of an app resource. It does not include information about AWS roles and
+  // FQDN.
+  rpc GetApp(GetAppRequest) returns (GetAppResponse);
 }
 
 message EmptyResponse {}
@@ -659,4 +663,12 @@ message AuthenticateWebDeviceResponse {
   // Device confirmation token to be sent to the browser that originated the
   // authentication attempt.
   teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token = 1;
+}
+
+message GetAppRequest {
+  string app_uri = 1;
+}
+
+message GetAppResponse {
+  App app = 1;
 }

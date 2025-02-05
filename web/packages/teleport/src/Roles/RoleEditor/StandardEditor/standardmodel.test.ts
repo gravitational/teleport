@@ -20,30 +20,50 @@ import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
 import {
   CreateDBUserMode,
   CreateHostUserMode,
+  GitHubPermission,
   KubernetesResource,
   Labels,
   RequireMFAType,
   ResourceKind,
   Role,
+  RoleVersion,
   Rule,
   SessionRecordingMode,
+  SSHPortForwarding,
 } from 'teleport/services/resources';
 
+import presetRoles from '../../../../../../../gen/preset-roles.json';
 import {
+  createDBUserModeOptionsMap,
+  createHostUserModeOptionsMap,
+  defaultRoleVersion,
   KubernetesAccess,
+  kubernetesResourceKindOptionsMap,
+  kubernetesVerbOptionsMap,
   labelsModelToLabels,
   labelsToModel,
+  portForwardingOptionsToModel,
+  requireMFATypeOptionsMap,
+  resourceKindOptionsMap,
   RoleEditorModel,
   roleEditorModelToRole,
   roleToRoleEditorModel,
+  roleVersionOptionsMap,
+  sessionRecordingModeOptionsMap,
+  sshPortForwardingModeOptionsMap,
+  verbOptionsMap,
 } from './standardmodel';
 import { optionsWithDefaults, withDefaults } from './withDefaults';
 
 const minimalRole = () =>
-  withDefaults({ metadata: { name: 'foobar' }, version: 'v7' });
+  withDefaults({ metadata: { name: 'foobar' }, version: defaultRoleVersion });
 
 const minimalRoleModel = (): RoleEditorModel => ({
-  metadata: { name: 'foobar', labels: [] },
+  metadata: {
+    name: 'foobar',
+    labels: [],
+    version: roleVersionOptionsMap.get(defaultRoleVersion),
+  },
   resources: [],
   rules: [],
   requiresReset: false,
@@ -51,26 +71,19 @@ const minimalRoleModel = (): RoleEditorModel => ({
     maxSessionTTL: '30h0m0s',
     clientIdleTimeout: '',
     disconnectExpiredCert: false,
-    requireMFAType: {
-      value: false,
-      label: 'No',
-    },
-    createHostUserMode: {
-      value: '',
-      label: 'Unspecified',
-    },
+    requireMFAType: requireMFATypeOptionsMap.get(false),
+    createHostUserMode: createHostUserModeOptionsMap.get(''),
     createDBUser: false,
-    createDBUserMode: {
-      value: '',
-      label: 'Unspecified',
-    },
+    createDBUserMode: createDBUserModeOptionsMap.get(''),
     desktopClipboard: true,
     createDesktopUser: false,
     desktopDirectorySharing: true,
-    defaultSessionRecordingMode: { value: 'best_effort', label: 'Best Effort' },
-    sshSessionRecordingMode: { value: '', label: 'Unspecified' },
+    defaultSessionRecordingMode:
+      sessionRecordingModeOptionsMap.get('best_effort'),
+    sshSessionRecordingMode: sessionRecordingModeOptionsMap.get(''),
     recordDesktopSessions: true,
     forwardAgent: false,
+    sshPortForwardingMode: sshPortForwardingModeOptionsMap.get(''),
   },
 });
 
@@ -88,6 +101,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
         description: 'role-description',
         labels: { foo: 'bar' },
       },
+      version: RoleVersion.V6,
     },
     model: {
       ...minimalRoleModel(),
@@ -95,6 +109,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
         name: 'role-name',
         description: 'role-description',
         labels: [{ name: 'foo', value: 'bar' }],
+        version: roleVersionOptionsMap.get(RoleVersion.V6),
       },
     },
   },
@@ -184,6 +199,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
           db_names: ['stuff', 'knickknacks'],
           db_users: ['joe', 'mary'],
           db_roles: ['admin', 'auditor'],
+          db_service_labels: { foo: 'bar' },
         },
       },
     },
@@ -205,6 +221,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
             { label: 'admin', value: 'admin' },
             { label: 'auditor', value: 'auditor' },
           ],
+          dbServiceLabels: [{ name: 'foo', value: 'bar' }],
         },
       ],
     },
@@ -238,6 +255,31 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
   },
 
   {
+    name: 'GitHub organization',
+    role: {
+      ...minimalRole(),
+      spec: {
+        ...minimalRole().spec,
+        allow: {
+          github_permissions: [{ orgs: ['illuminati', 'reptilians'] }],
+        },
+      },
+    },
+    model: {
+      ...minimalRoleModel(),
+      resources: [
+        {
+          kind: 'git_server',
+          organizations: [
+            { label: 'illuminati', value: 'illuminati' },
+            { label: 'reptilians', value: 'reptilians' },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
     name: 'Options object',
     role: {
       ...minimalRole(),
@@ -261,6 +303,14 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
             ssh: 'best_effort',
           },
           forward_agent: true,
+          ssh_port_forwarding: {
+            local: {
+              enabled: true,
+            },
+            remote: {
+              enabled: false,
+            },
+          },
         },
       },
     },
@@ -270,20 +320,43 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
         maxSessionTTL: '1h15m30s',
         clientIdleTimeout: '2h30m45s',
         disconnectExpiredCert: true,
-        requireMFAType: { value: 'hardware_key', label: 'Hardware Key' },
-        createHostUserMode: { value: 'keep', label: 'Keep' },
+        requireMFAType: requireMFATypeOptionsMap.get('hardware_key'),
+        createHostUserMode: createHostUserModeOptionsMap.get('keep'),
         createDBUser: true,
-        createDBUserMode: {
-          value: 'best_effort_drop',
-          label: 'Drop (best effort)',
-        },
+        createDBUserMode: createDBUserModeOptionsMap.get('best_effort_drop'),
         desktopClipboard: false,
         createDesktopUser: true,
         desktopDirectorySharing: false,
-        defaultSessionRecordingMode: { value: 'strict', label: 'Strict' },
-        sshSessionRecordingMode: { value: 'best_effort', label: 'Best Effort' },
+        defaultSessionRecordingMode:
+          sessionRecordingModeOptionsMap.get('strict'),
+        sshSessionRecordingMode:
+          sessionRecordingModeOptionsMap.get('best_effort'),
         recordDesktopSessions: false,
         forwardAgent: true,
+        sshPortForwardingMode:
+          sshPortForwardingModeOptionsMap.get('local-only'),
+      },
+    },
+  },
+
+  {
+    name: 'Options object with legacy port forwarding',
+    role: {
+      ...minimalRole(),
+      spec: {
+        ...minimalRole().spec,
+        options: {
+          ...minimalRole().spec.options,
+          port_forwarding: true,
+        },
+      },
+    },
+    model: {
+      ...minimalRoleModel(),
+      options: {
+        ...minimalRoleModel().options,
+        sshPortForwardingMode:
+          sshPortForwardingModeOptionsMap.get('deprecated-on'),
       },
     },
   },
@@ -297,6 +370,93 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
   });
 });
 
+test.each<{
+  name: string;
+  portForwarding?: SSHPortForwarding;
+  legacyPortForwarding?: boolean;
+  expected: ReturnType<typeof portForwardingOptionsToModel>;
+}>([
+  { name: 'unspecified', expected: { model: '', requiresReset: false } },
+  {
+    name: 'none',
+    portForwarding: { local: { enabled: false }, remote: { enabled: false } },
+    expected: { model: 'none', requiresReset: false },
+  },
+  {
+    name: 'local-only',
+    portForwarding: { local: { enabled: true }, remote: { enabled: false } },
+    expected: { model: 'local-only', requiresReset: false },
+  },
+  {
+    name: 'remote-only',
+    portForwarding: { local: { enabled: false }, remote: { enabled: true } },
+    expected: { model: 'remote-only', requiresReset: false },
+  },
+  {
+    name: ' local-and-remote',
+    portForwarding: { local: { enabled: true }, remote: { enabled: true } },
+    expected: { model: 'local-and-remote', requiresReset: false },
+  },
+  {
+    name: 'deprecated-on',
+    legacyPortForwarding: true,
+    expected: { model: 'deprecated-on', requiresReset: false },
+  },
+  {
+    name: 'deprecated-off',
+    legacyPortForwarding: false,
+    expected: { model: 'deprecated-off', requiresReset: false },
+  },
+  {
+    name: 'local-and-remote (overriding deprecated even if specified)',
+    portForwarding: { local: { enabled: true }, remote: { enabled: true } },
+    legacyPortForwarding: false,
+    expected: { model: 'local-and-remote', requiresReset: false },
+  },
+  {
+    name: 'an empty port forwarding object',
+    portForwarding: {},
+    expected: { model: '', requiresReset: true },
+  },
+  {
+    name: 'empty local and remote objects',
+    portForwarding: { local: {}, remote: {} },
+    expected: { model: '', requiresReset: true },
+  },
+  {
+    name: 'unknown fields',
+    portForwarding: {
+      local: { enabled: true },
+      remote: { enabled: true },
+      foo: 'bar',
+    } as SSHPortForwarding,
+    expected: { model: 'local-and-remote', requiresReset: true },
+  },
+  {
+    name: 'unknown fields in local',
+    portForwarding: {
+      local: { enabled: true, foo: 'bar' },
+      remote: { enabled: false },
+    } as SSHPortForwarding,
+    expected: { model: 'local-only', requiresReset: true },
+  },
+  {
+    name: 'unknown fields in remote',
+    portForwarding: {
+      local: { enabled: false },
+      remote: { enabled: false, foo: 'bar' },
+    } as SSHPortForwarding,
+    expected: { model: 'none', requiresReset: true },
+  },
+])(
+  'portForwardingOptionsToModel(): $name',
+  ({ portForwarding, legacyPortForwarding, expected }) => {
+    expect(
+      portForwardingOptionsToModel(portForwarding, legacyPortForwarding)
+    ).toEqual(expected);
+  }
+);
+
 describe('roleToRoleEditorModel', () => {
   const minRole = minimalRole();
   const roleModelWithReset: RoleEditorModel = {
@@ -309,6 +469,8 @@ describe('roleToRoleEditorModel', () => {
     groups: [],
     labels: [],
     resources: [],
+    users: [],
+    roleVersion: defaultRoleVersion,
   });
 
   test.each<{ name: string; role: Role; model?: RoleEditorModel }>([
@@ -421,9 +583,34 @@ describe('roleToRoleEditorModel', () => {
             ...newKubeClusterResourceAccess(),
             resources: [
               expect.objectContaining({
-                verbs: [{ value: 'get', label: 'get' }],
+                verbs: [kubernetesVerbOptionsMap.get('get')],
               }),
             ],
+          },
+        ],
+      },
+    },
+
+    {
+      name: 'unknown field in github_permissions',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          allow: {
+            ...minRole.spec.allow,
+            github_permissions: [
+              { orgs: ['foo'], unknownField: 123 } as GitHubPermission,
+            ],
+          },
+        },
+      },
+      model: {
+        ...roleModelWithReset,
+        resources: [
+          {
+            kind: 'git_server',
+            organizations: [{ label: 'foo', value: 'foo' }],
           },
         ],
       },
@@ -538,7 +725,7 @@ describe('roleToRoleEditorModel', () => {
         ...roleModelWithReset,
         options: {
           ...roleModelWithReset.options,
-          requireMFAType: { value: false, label: 'No' },
+          requireMFAType: requireMFATypeOptionsMap.get(false),
         },
       },
     },
@@ -559,7 +746,7 @@ describe('roleToRoleEditorModel', () => {
         ...roleModelWithReset,
         options: {
           ...roleModelWithReset.options,
-          createHostUserMode: { value: '', label: 'Unspecified' },
+          createHostUserMode: createHostUserModeOptionsMap.get(''),
         },
       },
     },
@@ -580,7 +767,7 @@ describe('roleToRoleEditorModel', () => {
         ...roleModelWithReset,
         options: {
           ...roleModelWithReset.options,
-          createDBUserMode: { value: '', label: 'Unspecified' },
+          createDBUserMode: createDBUserModeOptionsMap.get(''),
         },
       },
     },
@@ -600,7 +787,7 @@ describe('roleToRoleEditorModel', () => {
         ...roleModelWithReset,
         options: {
           ...roleModelWithReset.options,
-          defaultSessionRecordingMode: { value: '', label: 'Unspecified' },
+          defaultSessionRecordingMode: sessionRecordingModeOptionsMap.get(''),
         },
       },
     },
@@ -620,9 +807,23 @@ describe('roleToRoleEditorModel', () => {
         ...roleModelWithReset,
         options: {
           ...roleModelWithReset.options,
-          sshSessionRecordingMode: { value: '', label: 'Unspecified' },
+          sshSessionRecordingMode: sessionRecordingModeOptionsMap.get(''),
         },
       },
+    },
+
+    {
+      name: 'unsupported value in spec.options.ssh_port_forwarding',
+      role: {
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          options: optionsWithDefaults({
+            ssh_port_forwarding: {},
+          }),
+        },
+      },
+      model: roleModelWithReset,
     },
   ])(
     'requires reset because of $name',
@@ -631,8 +832,10 @@ describe('roleToRoleEditorModel', () => {
     }
   );
 
-  test('version change requires reset', () => {
-    expect(roleToRoleEditorModel({ ...minimalRole(), version: 'v1' })).toEqual({
+  test('unsupported version requires reset', () => {
+    expect(
+      roleToRoleEditorModel({ ...minimalRole(), version: 'v1' as RoleVersion })
+    ).toEqual({
       ...minimalRoleModel(),
       requiresReset: true,
     } as RoleEditorModel);
@@ -659,6 +862,7 @@ describe('roleToRoleEditorModel', () => {
         name: 'role-name',
         revision: originalRev,
         labels: [],
+        version: roleVersionOptionsMap.get(defaultRoleVersion),
       },
       requiresReset: true,
     } as RoleEditorModel);
@@ -688,6 +892,7 @@ describe('roleToRoleEditorModel', () => {
         name: 'role-name',
         revision: 'e39ea9f1-79b7-4d28-8f0c-af6848f9e655',
         labels: [],
+        version: roleVersionOptionsMap.get(defaultRoleVersion),
       },
       requiresReset: true,
     } as RoleEditorModel);
@@ -718,6 +923,7 @@ describe('roleToRoleEditorModel', () => {
                 name: 'some-node',
               },
             ],
+            kubernetes_users: ['alice', 'bob'],
           },
         },
       })
@@ -734,22 +940,29 @@ describe('roleToRoleEditorModel', () => {
           resources: [
             {
               id: expect.any(String),
-              kind: { value: 'pod', label: 'Pod' },
+              kind: kubernetesResourceKindOptionsMap.get('pod'),
               name: 'some-pod',
               namespace: '*',
               verbs: [
-                { label: 'get', value: 'get' },
-                { label: 'update', value: 'update' },
+                kubernetesVerbOptionsMap.get('get'),
+                kubernetesVerbOptionsMap.get('update'),
               ],
+              roleVersion: defaultRoleVersion,
             },
             {
               id: expect.any(String),
-              kind: { value: 'kube_node', label: 'Node' },
+              kind: kubernetesResourceKindOptionsMap.get('kube_node'),
               name: 'some-node',
               namespace: '',
               verbs: [],
+              roleVersion: defaultRoleVersion,
             },
           ],
+          users: [
+            { label: 'alice', value: 'alice' },
+            { label: 'bob', value: 'bob' },
+          ],
+          roleVersion: defaultRoleVersion,
         },
       ],
     } as RoleEditorModel);
@@ -781,46 +994,90 @@ describe('roleToRoleEditorModel', () => {
       ],
     } as RoleEditorModel);
   });
-});
 
-it('creates a rule model', () => {
-  expect(
-    roleToRoleEditorModel({
-      ...minimalRole(),
-      spec: {
-        ...minimalRole().spec,
-        allow: {
-          rules: [
-            {
-              resources: [ResourceKind.User, ResourceKind.DatabaseService],
-              verbs: ['read', 'list'],
-            },
-            { resources: [ResourceKind.Lock], verbs: ['create'] },
+  it('creates a rule model', () => {
+    expect(
+      roleToRoleEditorModel({
+        ...minimalRole(),
+        spec: {
+          ...minimalRole().spec,
+          allow: {
+            rules: [
+              {
+                resources: [ResourceKind.User, ResourceKind.DatabaseService],
+                verbs: ['read', 'list'],
+              },
+              { resources: [ResourceKind.Lock], verbs: ['create'] },
+              {
+                resources: [ResourceKind.Session],
+                verbs: ['read', 'list'],
+                where: 'contains(session.participants, user.metadata.name)',
+              },
+            ],
+          },
+        },
+      })
+    ).toEqual({
+      ...minimalRoleModel(),
+      rules: [
+        {
+          id: expect.any(String),
+          resources: [
+            resourceKindOptionsMap.get(ResourceKind.User),
+            resourceKindOptionsMap.get(ResourceKind.DatabaseService),
+          ],
+          verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+          where: '',
+        },
+        {
+          id: expect.any(String),
+          resources: [resourceKindOptionsMap.get(ResourceKind.Lock)],
+          verbs: [verbOptionsMap.get('create')],
+          where: '',
+        },
+        {
+          id: expect.any(String),
+          resources: [resourceKindOptionsMap.get(ResourceKind.Session)],
+          verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+          where: 'contains(session.participants, user.metadata.name)',
+        },
+      ],
+    } as RoleEditorModel);
+  });
+
+  test('multiple github_permissions', () => {
+    expect(
+      roleToRoleEditorModel({
+        ...minimalRole(),
+        spec: {
+          ...minimalRole().spec,
+          allow: {
+            ...minimalRole().spec.allow,
+            github_permissions: [{ orgs: ['foo'] }, { orgs: ['bar'] }],
+          },
+        },
+      })
+    ).toEqual({
+      ...minimalRoleModel(),
+      resources: [
+        {
+          kind: 'git_server',
+          organizations: [
+            { label: 'foo', value: 'foo' },
+            { label: 'bar', value: 'bar' },
           ],
         },
-      },
-    })
-  ).toEqual({
-    ...minimalRoleModel(),
-    rules: [
-      {
-        id: expect.any(String),
-        resources: [
-          { label: 'user', value: 'user' },
-          { label: 'db_service', value: 'db_service' },
-        ],
-        verbs: [
-          { label: 'read', value: 'read' },
-          { label: 'list', value: 'list' },
-        ],
-      },
-      {
-        id: expect.any(String),
-        resources: [{ label: 'lock', value: 'lock' }],
-        verbs: [{ label: 'create', value: 'create' }],
-      },
-    ],
-  } as RoleEditorModel);
+      ],
+    } as RoleEditorModel);
+  });
+
+  it.each(['access', 'editor', 'auditor'])(
+    'supports the preset "%s" role',
+    roleName => {
+      const { requiresReset } = roleToRoleEditorModel(presetRoles[roleName]);
+      expect(requiresReset).toBe(false);
+    }
+  );
 });
 
 test('labelsToModel', () => {
@@ -841,6 +1098,7 @@ describe('roleEditorModelToRole', () => {
           description: 'walks dogs',
           revision: 'e2a3ccf8-09b9-4d97-8e47-6dbe3d53c0e5',
           labels: [{ name: 'kind', value: 'occupation' }],
+          version: roleVersionOptionsMap.get(RoleVersion.V5),
         },
       })
     ).toEqual({
@@ -851,6 +1109,7 @@ describe('roleEditorModelToRole', () => {
         revision: 'e2a3ccf8-09b9-4d97-8e47-6dbe3d53c0e5',
         labels: { kind: 'occupation' },
       },
+      version: 'v5',
     } as Role);
   });
 
@@ -872,22 +1131,29 @@ describe('roleEditorModelToRole', () => {
             resources: [
               {
                 id: 'dummy-id-1',
-                kind: { value: 'pod', label: 'Pod' },
+                kind: kubernetesResourceKindOptionsMap.get('pod'),
                 name: 'some-pod',
                 namespace: '*',
                 verbs: [
-                  { label: 'get', value: 'get' },
-                  { label: 'update', value: 'update' },
+                  kubernetesVerbOptionsMap.get('get'),
+                  kubernetesVerbOptionsMap.get('update'),
                 ],
+                roleVersion: defaultRoleVersion,
               },
               {
                 id: 'dummy-id-2',
-                kind: { value: 'kube_node', label: 'Node' },
+                kind: kubernetesResourceKindOptionsMap.get('kube_node'),
                 name: 'some-node',
                 namespace: '',
                 verbs: [],
+                roleVersion: defaultRoleVersion,
               },
             ],
+            users: [
+              { label: 'alice', value: 'alice' },
+              { label: 'bob', value: 'bob' },
+            ],
+            roleVersion: defaultRoleVersion,
           },
         ],
       })
@@ -912,6 +1178,7 @@ describe('roleEditorModelToRole', () => {
               verbs: [],
             },
           ],
+          kubernetes_users: ['alice', 'bob'],
         },
       },
     } as Role);
@@ -925,18 +1192,23 @@ describe('roleEditorModelToRole', () => {
           {
             id: 'dummy-id-1',
             resources: [
-              { label: 'user', value: ResourceKind.User },
-              { label: 'db_service', value: ResourceKind.DatabaseService },
+              resourceKindOptionsMap.get(ResourceKind.User),
+              resourceKindOptionsMap.get(ResourceKind.DatabaseService),
             ],
-            verbs: [
-              { label: 'read', value: 'read' },
-              { label: 'list', value: 'list' },
-            ],
+            verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+            where: '',
           },
           {
             id: 'dummy-id-2',
-            resources: [{ label: 'lock', value: ResourceKind.Lock }],
-            verbs: [{ label: 'create', value: 'create' }],
+            resources: [resourceKindOptionsMap.get(ResourceKind.Lock)],
+            verbs: [verbOptionsMap.get('create')],
+            where: '',
+          },
+          {
+            id: expect.any(String),
+            resources: [resourceKindOptionsMap.get(ResourceKind.Session)],
+            verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+            where: 'contains(session.participants, user.metadata.name)',
           },
         ],
       })
@@ -948,6 +1220,11 @@ describe('roleEditorModelToRole', () => {
           rules: [
             { resources: ['user', 'db_service'], verbs: ['read', 'list'] },
             { resources: ['lock'], verbs: ['create'] },
+            {
+              resources: ['session'],
+              verbs: ['read', 'list'],
+              where: 'contains(session.participants, user.metadata.name)',
+            },
           ],
         },
       },

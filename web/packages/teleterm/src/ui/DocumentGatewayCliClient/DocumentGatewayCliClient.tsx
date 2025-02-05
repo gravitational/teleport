@@ -50,10 +50,10 @@ export const DocumentGatewayCliClient = (props: {
   const { doc, visible } = props;
   const [hasRenderedTerminal, setHasRenderedTerminal] = useState(false);
 
-  const gateway = clustersService.findGatewayByConnectionParams(
-    doc.targetUri,
-    doc.targetUser
-  );
+  const gateway = clustersService.findGatewayByConnectionParams({
+    targetUri: doc.targetUri,
+    targetUser: doc.targetUser,
+  });
 
   // Once we render the terminal, we want to keep it visible. Otherwise removing the gateway would
   // mean that this document would immediately unmount DocumentTerminal and close the PTY.

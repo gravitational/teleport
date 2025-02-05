@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/autoupdate/tools"
 )
 
@@ -44,8 +45,8 @@ var (
 // TestUpdate verifies the basic update logic. We first download a lower version, then request
 // an update to a newer version, expecting it to re-execute with the updated version.
 func TestUpdate(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
+	t.Setenv(types.HomeEnvVar, t.TempDir())
+	ctx := context.Background()
 
 	// Fetch compiled test binary with updater logic and install to $TELEPORT_HOME.
 	updater := tools.NewUpdater(
@@ -57,7 +58,7 @@ func TestUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify that the installed version is equal to requested one.
-	cmd := exec.CommandContext(ctx, filepath.Join(toolsDir, "tsh"), "version")
+	cmd := exec.CommandContext(ctx, filepath.Join(toolsDir, "tctl"), "version")
 	out, err := cmd.Output()
 	require.NoError(t, err)
 
@@ -85,8 +86,8 @@ func TestUpdate(t *testing.T) {
 // first update is complete, other processes should acquire the lock one by one and re-execute
 // the command with the updated version without any new downloads.
 func TestParallelUpdate(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
+	t.Setenv(types.HomeEnvVar, t.TempDir())
+	ctx := context.Background()
 
 	// Initial fetch the updater binary un-archive and replace.
 	updater := tools.NewUpdater(
@@ -158,8 +159,8 @@ func TestParallelUpdate(t *testing.T) {
 
 // TestUpdateInterruptSignal verifies the interrupt signal send to the process must stop downloading.
 func TestUpdateInterruptSignal(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
+	t.Setenv(types.HomeEnvVar, t.TempDir())
+	ctx := context.Background()
 
 	// Initial fetch the updater binary un-archive and replace.
 	updater := tools.NewUpdater(

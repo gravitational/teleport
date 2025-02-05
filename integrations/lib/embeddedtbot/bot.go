@@ -35,6 +35,7 @@ import (
 
 // EmbeddedBot is an embedded tBot instance to renew the operator certificates.
 type EmbeddedBot struct {
+	log *slog.Logger
 	cfg *config.BotConfig
 
 	credential *config.UnstableClientCredentialOutput
@@ -47,7 +48,10 @@ type EmbeddedBot struct {
 }
 
 // New creates a new EmbeddedBot from a BotConfig.
-func New(botConfig *BotConfig) (*EmbeddedBot, error) {
+func New(botConfig *BotConfig, log *slog.Logger) (*EmbeddedBot, error) {
+	if log == nil {
+		return nil, trace.BadParameter("missing log")
+	}
 	credential := &config.UnstableClientCredentialOutput{}
 
 	cfg := (*config.BotConfig)(botConfig)
@@ -62,6 +66,7 @@ func New(botConfig *BotConfig) (*EmbeddedBot, error) {
 	bot := &EmbeddedBot{
 		cfg:        cfg,
 		credential: credential,
+		log:        log,
 	}
 
 	return bot, nil
@@ -73,7 +78,7 @@ func New(botConfig *BotConfig) (*EmbeddedBot, error) {
 // It allows us to fail fast and validate if something is broken before starting the manager.
 func (b *EmbeddedBot) Preflight(ctx context.Context) (*proto.PingResponse, error) {
 	b.cfg.Oneshot = true
-	bot := tbot.New(b.cfg, slog.Default())
+	bot := tbot.New(b.cfg, b.log)
 	err := bot.Run(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -95,7 +100,7 @@ func (b *EmbeddedBot) start(ctx context.Context) {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 	b.cfg.Oneshot = false
-	bot := tbot.New(b.cfg, slog.Default())
+	bot := tbot.New(b.cfg, b.log)
 
 	botCtx, cancel := context.WithCancel(ctx)
 	b.cancelCtx = cancel

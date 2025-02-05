@@ -62,7 +62,7 @@ type mockLoginChecker struct {
 	rbacChecked bool
 }
 
-func (m *mockLoginChecker) canLoginWithRBAC(_ *ssh.Certificate, _ types.CertAuthority, _ string, _ types.Server, _, _ string) error {
+func (m *mockLoginChecker) canLoginWithRBAC(_ *sshca.Identity, _ types.CertAuthority, _ string, _ types.Server, _ string) error {
 	m.rbacChecked = true
 	return nil
 }
@@ -102,38 +102,58 @@ func (m mockConnMetadata) RemoteAddr() net.Addr {
 func TestRBAC(t *testing.T) {
 	t.Parallel()
 
+	node, err := types.NewNode("testie_node", types.SubKindTeleportNode, types.ServerSpecV2{
+		Addr:     "1.2.3.4:22",
+		Hostname: "testie",
+	}, nil)
+	require.NoError(t, err)
+
+	openSSHNode, err := types.NewNode("openssh", types.SubKindOpenSSHNode, types.ServerSpecV2{
+		Addr:     "1.2.3.4:22",
+		Hostname: "openssh",
+	}, nil)
+	require.NoError(t, err)
+
+	gitServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
+		Integration:  "org",
+		Organization: "org",
+	})
+	require.NoError(t, err)
+
 	tests := []struct {
 		name            string
 		component       string
-		nodeExists      bool
-		openSSHNode     bool
+		targetServer    types.Server
 		assertRBACCheck require.BoolAssertionFunc
 	}{
 		{
 			name:            "teleport node, regular server",
 			component:       teleport.ComponentNode,
-			nodeExists:      true,
-			openSSHNode:     false,
+			targetServer:    node,
 			assertRBACCheck: require.True,
 		},
 		{
 			name:            "teleport node, forwarding server",
 			component:       teleport.ComponentForwardingNode,
-			nodeExists:      true,
-			openSSHNode:     false,
+			targetServer:    node,
 			assertRBACCheck: require.False,
 		},
 		{
 			name:            "registered openssh node, forwarding server",
 			component:       teleport.ComponentForwardingNode,
-			nodeExists:      true,
-			openSSHNode:     true,
+			targetServer:    openSSHNode,
 			assertRBACCheck: require.True,
 		},
 		{
 			name:            "unregistered openssh node, forwarding server",
 			component:       teleport.ComponentForwardingNode,
-			nodeExists:      false,
+			targetServer:    nil,
+			assertRBACCheck: require.False,
+		},
+		{
+			name:            "forwarding git",
+			component:       teleport.ComponentForwardingGit,
+			targetServer:    gitServer,
 			assertRBACCheck: require.False,
 		},
 	}
@@ -176,29 +196,12 @@ func TestRBAC(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// create node resource
-			var target types.Server
-			if tt.nodeExists {
-				n, err := types.NewServer("testie_node", types.KindNode, types.ServerSpecV2{
-					Addr:     "1.2.3.4:22",
-					Hostname: "testie",
-					Version:  types.V2,
-				})
-				require.NoError(t, err)
-				server, ok := n.(*types.ServerV2)
-				require.True(t, ok)
-				if tt.openSSHNode {
-					server.SubKind = types.SubKindOpenSSHNode
-				}
-				target = server
-			}
-
 			config := &AuthHandlerConfig{
 				Server:       server,
 				Component:    tt.component,
 				Emitter:      &eventstest.MockRecorderEmitter{},
 				AccessPoint:  accessPoint,
-				TargetServer: target,
+				TargetServer: tt.targetServer,
 			}
 			ah, err := NewAuthHandlers(config)
 			require.NoError(t, err)
@@ -217,8 +220,8 @@ func TestRBAC(t *testing.T) {
 				CASigner:      caSigner,
 				PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
 				Identity: sshca.Identity{
-					Username:      "testuser",
-					AllowedLogins: []string{"testuser"},
+					Username:   "testuser",
+					Principals: []string{"testuser"},
 				},
 			})
 			require.NoError(t, err)
@@ -392,8 +395,8 @@ func TestRBACJoinMFA(t *testing.T) {
 				PublicUserKey:     privateKey.MarshalSSHPublicKey(),
 				CertificateFormat: constants.CertificateFormatStandard,
 				Identity: sshca.Identity{
-					Username:      username,
-					AllowedLogins: []string{username},
+					Username:   username,
+					Principals: []string{username},
 					Traits: wrappers.Traits{
 						teleport.TraitInternalPrefix: []string{""},
 					},
@@ -405,7 +408,10 @@ func TestRBACJoinMFA(t *testing.T) {
 			cert, err := sshutils.ParseCertificate(c)
 			require.NoError(t, err)
 
-			err = ah.canLoginWithRBAC(cert, userCA, clusterName, node, username, teleport.SSHSessionJoinPrincipal)
+			ident, err := sshca.DecodeIdentity(cert)
+			require.NoError(t, err)
+
+			err = ah.canLoginWithRBAC(ident, userCA, clusterName, node, teleport.SSHSessionJoinPrincipal)
 			tt.testError(t, err)
 		})
 	}

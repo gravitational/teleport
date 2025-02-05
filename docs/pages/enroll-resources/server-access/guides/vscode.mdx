@@ -60,10 +60,12 @@ $ tsh.exe config | out-file .ssh\config -encoding utf8 -append
 </TabItem>
 </Tabs>
 
-You should be able to connect to the desired node using following command, replacing `user` with the username you would like to assume on the node.
+You should be able to connect to the desired node using following command,
+replacing <Var name="user" /> with the username you would like to assume on the
+node and <Var name="example-node" /> with the node name:
 
 ```code
-$ ssh user@<Var name="example-node" description="An SSH node in your Teleport cluster"/>.<Var name="teleport.example.com"/>
+$ ssh <Var name="user" />@<Var name="example-node" description="An SSH node in your Teleport cluster"/>.<Var name="teleport.example.com"/>
 ```
 
 <Details scopeOnly={true} scope={["cloud"]} title="Teleport Cloud">

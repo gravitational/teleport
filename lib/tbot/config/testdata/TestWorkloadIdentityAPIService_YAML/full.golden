@@ -1,0 +1,13 @@
+type: workload-identity-api
+listen: tcp://0.0.0.0:4040
+attestors:
+  kubernetes:
+    enabled: true
+    kubelet:
+      secure_port: 12345
+      token_path: /path/to/token
+      ca_path: /path/to/ca.pem
+      skip_verify: true
+      anonymous: true
+selector:
+  name: my-workload-identity

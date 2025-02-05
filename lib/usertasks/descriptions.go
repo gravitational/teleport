@@ -48,3 +48,10 @@ func DescriptionForDiscoverEC2Issue(issueType string) string {
 func DescriptionForDiscoverEKSIssue(issueType string) string {
 	return loadIssueDescription(issueType)
 }
+
+// DescriptionForDiscoverRDSIssue returns the description of the issue and fixing steps.
+// The returned string contains a markdown document.
+// If issue type is not recognized or doesn't have a specific description, them an empty string is returned.
+func DescriptionForDiscoverRDSIssue(issueType string) string {
+	return loadIssueDescription(issueType)
+}
