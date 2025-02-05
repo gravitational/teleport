@@ -11,6 +11,6 @@ resource "teleport_saml_idp_service_provider" "example" {
 
   spec = {
     entity_id = "iamshowcase"
-    acs_url = "https://sptest.iamshowcase.com/acs"
+    acs_url   = "https://sptest.iamshowcase.com/acs"
   }
 }
