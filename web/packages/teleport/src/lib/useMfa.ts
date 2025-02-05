@@ -54,8 +54,8 @@ type mfaResponsePromiseWithResolvers = {
  * be used to display options to the user and prompt for them to complete
  * the MFA check.
  */
-export function useMfa(props: MfaProps): MfaState {
-  const [mfaRequired, setMfaRequired] = useState<boolean>(props.isMfaRequired);
+export function useMfa(props?: MfaProps): MfaState {
+  const [mfaRequired, setMfaRequired] = useState<boolean>(props?.isMfaRequired);
   const [options, setMfaOptions] = useState<MfaOption[]>();
   const [challenge, setMfaChallenge] = useState<MfaAuthenticateChallenge>();
 
