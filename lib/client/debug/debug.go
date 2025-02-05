@@ -146,6 +146,7 @@ func (c *Client) CollectProfile(ctx context.Context, profileName string, seconds
 // Readiness describes the readiness of the Teleport instance.
 type Readiness struct {
 	// Ready is true if the instance is ready.
+	// This field is only set by clients, based on status.
 	Ready bool `json:"-"`
 	// Status provides more detail about the readiness status.
 	Status string `json:"status"`

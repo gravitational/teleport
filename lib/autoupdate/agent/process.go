@@ -137,13 +137,14 @@ func (s SystemdService) Reload(ctx context.Context) error {
 func (s SystemdService) monitor(ctx context.Context, initPID int) error {
 	ctx, cancel := context.WithTimeout(ctx, monitorTimeout)
 	defer cancel()
-	tickC := time.NewTicker(monitorInterval).C
+	ticker := time.NewTicker(monitorInterval)
+	defer ticker.Stop()
 
 	newPID := 0
 	if initPID != 0 {
 		s.Log.InfoContext(ctx, "Monitoring PID file to detect crashes.", unitKey, s.ServiceName)
 		var err error
-		newPID, err = s.monitorPID(ctx, initPID, tickC)
+		newPID, err = s.monitorPID(ctx, initPID, ticker.C)
 		if errors.Is(err, context.DeadlineExceeded) {
 			s.Log.ErrorContext(ctx, "Timed out monitoring for crashing PID.", unitKey, s.ServiceName)
 			return trace.Wrap(err)
@@ -155,8 +156,9 @@ func (s SystemdService) monitor(ctx context.Context, initPID int) error {
 	}
 
 	s.Log.InfoContext(ctx, "Monitoring diagnostic socket to detect readiness.", unitKey, s.ServiceName)
-	tickC = time.NewTicker(monitorInterval).C
-	err := s.waitForReady(ctx, newPID, tickC)
+	ticker = time.NewTicker(monitorInterval)
+	defer ticker.Stop()
+	err := s.waitForReady(ctx, newPID, ticker.C)
 	if errors.Is(err, context.DeadlineExceeded) {
 		s.Log.ErrorContext(ctx, "Timed out monitoring for process readiness.", unitKey, s.ServiceName)
 		return trace.Wrap(err)
@@ -306,7 +308,6 @@ func (s SystemdService) waitForReady(ctx context.Context, pid int, tickC <-chan 
 		}
 		select {
 		case <-ctx.Done():
-			var netError net.Error
 			if trace.IsNotFound(err) {
 				s.Log.WarnContext(ctx, "Socket appears to be missing readiness endpoint.", unitKey, s.ServiceName)
 				return nil
@@ -314,7 +315,7 @@ func (s SystemdService) waitForReady(ctx context.Context, pid int, tickC <-chan 
 			if errors.Is(err, os.ErrNotExist) ||
 				errors.Is(err, syscall.EINVAL) ||
 				errors.Is(err, os.ErrInvalid) ||
-				errors.As(err, &netError) {
+				errors.As(err, new(net.Error)) {
 				s.Log.WarnContext(ctx, "Socket appears to be disabled. Proceeding without check.", unitKey, s.ServiceName)
 				s.Log.DebugContext(ctx, "Found error after timeout polling socket.", unitKey, s.ServiceName, errorKey, err)
 				return nil
