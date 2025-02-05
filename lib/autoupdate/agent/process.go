@@ -299,36 +299,41 @@ func tickFile(ctx context.Context, path string, ch chan<- int, tickC <-chan time
 // waitForReady polls the SocketPath unix domain socket with HTTP requests.
 // If one request returns 200 before the timeout, the service is considered ready.
 func (s SystemdService) waitForReady(ctx context.Context, pid int, tickC <-chan time.Time) error {
+	var lastErr error
+	var readiness debug.Readiness
 	for {
-		ready, err := s.Ready.GetReadiness(ctx)
+		resp, err := s.Ready.GetReadiness(ctx)
 		if err == nil &&
-			ready.Ready &&
-			equalOrZero(ready.PID, pid) {
+			resp.Ready &&
+			equalOrZero(resp.PID, pid) {
 			return nil
+		}
+		// If the Readiness check fails to due to intervention, we must not interpret
+		// the error as a disabled socket, which results in a passing check.
+		if !errors.Is(err, context.Canceled) &&
+			!errors.Is(err, context.DeadlineExceeded) {
+			lastErr = err
+			readiness = resp
 		}
 		select {
 		case <-ctx.Done():
-			if trace.IsNotFound(err) {
-				s.Log.WarnContext(ctx, "Socket appears to be missing readiness endpoint.", unitKey, s.ServiceName)
-				return nil
-			}
-			if errors.Is(err, os.ErrNotExist) ||
-				errors.Is(err, syscall.EINVAL) ||
-				errors.Is(err, os.ErrInvalid) ||
-				errors.As(err, new(net.Error)) {
+			if errors.Is(lastErr, os.ErrNotExist) ||
+				errors.Is(lastErr, syscall.EINVAL) ||
+				errors.Is(lastErr, os.ErrInvalid) ||
+				errors.As(lastErr, new(net.Error)) {
 				s.Log.WarnContext(ctx, "Socket appears to be disabled. Proceeding without check.", unitKey, s.ServiceName)
-				s.Log.DebugContext(ctx, "Found error after timeout polling socket.", unitKey, s.ServiceName, errorKey, err)
+				s.Log.DebugContext(ctx, "Found error after timeout polling socket.", unitKey, s.ServiceName, errorKey, lastErr)
 				return nil
 			}
-			if err != nil {
-				s.Log.WarnContext(ctx, "Unexpected error after timeout polling socket. Proceeding without check.", unitKey, s.ServiceName, errorKey, err)
+			if lastErr != nil {
+				s.Log.WarnContext(ctx, "Unexpected error after timeout polling socket. Proceeding without check.", unitKey, s.ServiceName, errorKey, lastErr)
 				return nil
 			}
-			if ready.Status != "" {
-				s.Log.ErrorContext(ctx, "Process not ready by deadline.", unitKey, s.ServiceName, "status", ready.Status)
+			if readiness.Status != "" {
+				s.Log.ErrorContext(ctx, "Process not ready by deadline.", unitKey, s.ServiceName, "status", readiness.Status)
 			}
-			if !equalOrZero(ready.PID, pid) {
-				s.Log.ErrorContext(ctx, "Readiness PID response does not match PID file.", unitKey, s.ServiceName, "file_pid", pid, "ready_pid", ready.PID)
+			if !equalOrZero(readiness.PID, pid) {
+				s.Log.ErrorContext(ctx, "Readiness PID response does not match PID file.", unitKey, s.ServiceName, "file_pid", pid, "ready_pid", readiness.PID)
 			}
 			return ctx.Err()
 		case <-tickC:
