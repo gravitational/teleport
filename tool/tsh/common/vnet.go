@@ -70,15 +70,16 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 			fmt.Printf("Running diagnostics in %s.\n", timeout)
 			select {
 			case <-cf.Context.Done():
+				return
 			case <-time.After(timeout):
-				// Sleep is needed to give the admin process time to actually set up the routes.
-				// TODO(ravicious): Figure out how to guarantee that routes are set up without sleeping.
-				if err := runVnetDiagnostics(cf.Context, nsi); err != nil {
-					logger.ErrorContext(cf.Context, "Ran into a problem while running diagnostics", "error", err)
-				} else {
-					fmt.Println("Done running diagnostics.")
-				}
 			}
+			// Sleep is needed to give the admin process time to actually set up the routes.
+			// TODO(ravicious): Figure out how to guarantee that routes are set up without sleeping.
+			if err := runVnetDiagnostics(cf.Context, nsi); err != nil {
+				logger.ErrorContext(cf.Context, "Ran into a problem while running diagnostics", "error", err)
+				return
+			}
+			fmt.Println("Done running diagnostics.")
 		}()
 	}
 
