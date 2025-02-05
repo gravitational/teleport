@@ -233,7 +233,7 @@ func (ns *Namespace) Setup(ctx context.Context) error {
 		}
 		// If the old teleport-upgrade script is detected, disable it to ensure they do not interfere.
 		// Note that the schedule is also set to nop by the Teleport agent -- this just prevents restarts.
-		enabled, err := oldTimer.IsEnabled(ctx)
+		enabled, err := isActiveOrEnabled(ctx, oldTimer)
 		if err != nil {
 			return trace.Wrap(err, "failed to determine if deprecated teleport-upgrade systemd timer is enabled")
 		}
@@ -305,15 +305,15 @@ func (ns *Namespace) writeConfigFiles(ctx context.Context) error {
 		UpdaterCommand:    ns.updaterBinFile + args + " update",
 		UpdaterConfigFile: ns.updaterConfigFile,
 	}
-	err := writeTemplate(ns.updaterServiceFile, updateServiceTemplate, params)
+	err := writeSystemTemplate(ns.updaterServiceFile, updateServiceTemplate, params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = writeTemplate(ns.updaterTimerFile, updateTimerTemplate, params)
+	err = writeSystemTemplate(ns.updaterTimerFile, updateTimerTemplate, params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = writeTemplate(ns.dropInFile, teleportDropInTemplate, params)
+	err = writeSystemTemplate(ns.dropInFile, teleportDropInTemplate, params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -327,7 +327,7 @@ func (ns *Namespace) writeConfigFiles(ctx context.Context) error {
 		return nil
 	}
 	ns.log.InfoContext(ctx, "Disabling needrestart.", unitKey, teleportService)
-	err = writeTemplate(ns.needrestartConfFile, needrestartConfTemplate, params)
+	err = writeSystemTemplate(ns.needrestartConfFile, needrestartConfTemplate, params)
 	if err != nil {
 		ns.log.ErrorContext(ctx, "Unable to disable needrestart.", errorKey, err)
 		return nil
@@ -335,7 +335,9 @@ func (ns *Namespace) writeConfigFiles(ctx context.Context) error {
 	return nil
 }
 
-func writeTemplate(path, t string, values any) error {
+// writeSystemTemplate atomically writes a template to a system file, creating any needed directories.
+// Temporarily files are stored in the target path to ensure the file has needed SELinux contexts.
+func writeSystemTemplate(path, t string, values any) error {
 	dir, file := filepath.Split(path)
 	if err := os.MkdirAll(dir, systemDirMode); err != nil {
 		return trace.Wrap(err)
@@ -343,6 +345,7 @@ func writeTemplate(path, t string, values any) error {
 	opts := []renameio.Option{
 		renameio.WithPermissions(configFileMode),
 		renameio.WithExistingPermissions(),
+		renameio.WithTempDir(dir),
 	}
 	f, err := renameio.NewPendingFile(path, opts...)
 	if err != nil {

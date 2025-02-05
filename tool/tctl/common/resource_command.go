@@ -502,7 +502,7 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client *authclient.Cl
 	}
 	err = services.CheckDynamicLabelsInDenyRules(role)
 	if trace.IsBadParameter(err) {
-		return trace.BadParameter(dynamicLabelWarningMessage(role))
+		return trace.BadParameter("%s", dynamicLabelWarningMessage(role))
 	} else if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2068,7 +2068,7 @@ func resetAuthPreference(ctx context.Context, client *authclient.Client) error {
 
 	managedByStaticConfig := storedAuthPref.Origin() == types.OriginConfigFile
 	if managedByStaticConfig {
-		return trace.BadParameter(managedByStaticDeleteMsg)
+		return trace.BadParameter("%s", managedByStaticDeleteMsg)
 	}
 
 	return trace.Wrap(client.ResetAuthPreference(ctx))
@@ -2082,7 +2082,7 @@ func resetClusterNetworkingConfig(ctx context.Context, client *authclient.Client
 
 	managedByStaticConfig := storedNetConfig.Origin() == types.OriginConfigFile
 	if managedByStaticConfig {
-		return trace.BadParameter(managedByStaticDeleteMsg)
+		return trace.BadParameter("%s", managedByStaticDeleteMsg)
 	}
 
 	return trace.Wrap(client.ResetClusterNetworkingConfig(ctx))
@@ -2096,7 +2096,7 @@ func resetSessionRecordingConfig(ctx context.Context, client *authclient.Client)
 
 	managedByStaticConfig := storedRecConfig.Origin() == types.OriginConfigFile
 	if managedByStaticConfig {
-		return trace.BadParameter(managedByStaticDeleteMsg)
+		return trace.BadParameter("%s", managedByStaticDeleteMsg)
 	}
 
 	return trace.Wrap(client.ResetSessionRecordingConfig(ctx))
@@ -3519,7 +3519,7 @@ func getOneResourceNameToDelete[T types.ResourceWithLabels](rs []T, ref services
 			names = append(names, r.GetName())
 		}
 		msg := formatAmbiguousDeleteMessage(ref, resDesc, names)
-		return "", trace.BadParameter(msg)
+		return "", trace.BadParameter("%s", msg)
 	}
 }
 

@@ -23,13 +23,16 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net"
 	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -157,10 +160,15 @@ func (a *Server) handleJoinFailure(
 	}
 	a.logger.LogAttrs(ctx, slog.LevelWarn, "Failure to join cluster occurred", attrs...)
 
+	errorMessage := origErr.Error()
+	if errors.Is(origErr, context.Canceled) || status.Code(origErr) == codes.Canceled {
+		errorMessage = "join attempt timed out or was aborted"
+	}
+
 	var evt apievents.AuditEvent
 	status := apievents.Status{
 		Success: false,
-		Error:   origErr.Error(),
+		Error:   errorMessage,
 	}
 	if req != nil && req.Role == types.RoleBot {
 		botJoinEvent := &apievents.BotJoin{
@@ -238,8 +246,8 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		if err := a.checkEC2JoinRequest(ctx, req); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case types.JoinMethodIAM, types.JoinMethodAzure, types.JoinMethodTPM:
-		// IAM and Azure join methods must use gRPC register methods
+	case types.JoinMethodIAM, types.JoinMethodAzure, types.JoinMethodTPM, types.JoinMethodOracle:
+		// These join methods must use gRPC register methods
 		return nil, trace.AccessDenied("this token is only valid for the %s "+
 			"join method but the node has connected to the wrong endpoint, make "+
 			"sure your node is configured to use the %s join method", method, method)

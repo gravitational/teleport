@@ -62,7 +62,7 @@ type mockLoginChecker struct {
 	rbacChecked bool
 }
 
-func (m *mockLoginChecker) canLoginWithRBAC(_ *ssh.Certificate, _ types.CertAuthority, _ string, _ types.Server, _, _ string) error {
+func (m *mockLoginChecker) canLoginWithRBAC(_ *sshca.Identity, _ types.CertAuthority, _ string, _ types.Server, _ string) error {
 	m.rbacChecked = true
 	return nil
 }
@@ -408,7 +408,10 @@ func TestRBACJoinMFA(t *testing.T) {
 			cert, err := sshutils.ParseCertificate(c)
 			require.NoError(t, err)
 
-			err = ah.canLoginWithRBAC(cert, userCA, clusterName, node, username, teleport.SSHSessionJoinPrincipal)
+			ident, err := sshca.DecodeIdentity(cert)
+			require.NoError(t, err)
+
+			err = ah.canLoginWithRBAC(ident, userCA, clusterName, node, teleport.SSHSessionJoinPrincipal)
 			tt.testError(t, err)
 		})
 	}

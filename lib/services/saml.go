@@ -220,6 +220,10 @@ func CheckSAMLEntityDescriptor(entityDescriptor string) ([]*x509.Certificate, er
 		return nil, trace.Wrap(err, "failed to parse entity_descriptor")
 	}
 
+	if metadata.IDPSSODescriptor == nil {
+		return nil, nil
+	}
+
 	var roots []*x509.Certificate
 
 	for _, kd := range metadata.IDPSSODescriptor.KeyDescriptors {
@@ -354,7 +358,7 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (types.SAMLConn
 	case types.V2:
 		var c types.SAMLConnectorV2
 		if err := utils.FastUnmarshal(bytes, &c); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 
 		if err := ValidateSAMLConnector(&c, nil); err != nil {

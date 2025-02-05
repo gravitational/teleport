@@ -108,7 +108,7 @@ func (a *Fetcher) fetchUsers(ctx context.Context) ([]*accessgraphv1alpha.AWSUser
 	awsCfg, err := a.AWSConfigProvider.GetConfig(
 		ctx,
 		"", /* region is empty because users are global */
-		a.getAWSV2Options()...,
+		a.getAWSOptions()...,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -174,7 +174,7 @@ func (a *Fetcher) fetchUserInlinePolicies(ctx context.Context, user *accessgraph
 	awsCfg, err := a.AWSConfigProvider.GetConfig(
 		ctx,
 		"", /* region is empty because users and groups are global */
-		a.getAWSV2Options()...,
+		a.getAWSOptions()...,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -231,7 +231,7 @@ func (a *Fetcher) fetchUserAttachedPolicies(ctx context.Context, user *accessgra
 	awsCfg, err := a.AWSConfigProvider.GetConfig(
 		ctx,
 		"", /* region is empty because users and groups are global */
-		a.getAWSV2Options()...,
+		a.getAWSOptions()...,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -280,7 +280,7 @@ func (a *Fetcher) fetchGroupsForUser(ctx context.Context, user *accessgraphv1alp
 	awsCfg, err := a.AWSConfigProvider.GetConfig(
 		ctx,
 		"", /* region is empty because users and groups are global */
-		a.getAWSV2Options()...,
+		a.getAWSOptions()...,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

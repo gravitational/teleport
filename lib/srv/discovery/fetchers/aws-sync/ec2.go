@@ -89,7 +89,7 @@ func (a *Fetcher) fetchAWSEC2Instances(ctx context.Context) ([]*accessgraphv1alp
 					return h.Region == region && h.AccountId == a.AccountID
 				},
 			)
-			ec2Client, err := a.GetEC2Client(ctx, region, a.getAWSV2Options()...)
+			ec2Client, err := a.GetEC2Client(ctx, region, a.getAWSOptions()...)
 			if err != nil {
 				collectHosts(prevIterationEc2, trace.Wrap(err))
 				return nil
@@ -155,7 +155,7 @@ func (a *Fetcher) fetchInstanceProfiles(ctx context.Context) ([]*accessgraphv1al
 	awsCfg, err := a.AWSConfigProvider.GetConfig(
 		ctx,
 		"", /* region is empty because users and groups are global */
-		a.getAWSV2Options()...,
+		a.getAWSOptions()...,
 	)
 	if err != nil {
 		return existing, trace.Wrap(err)
