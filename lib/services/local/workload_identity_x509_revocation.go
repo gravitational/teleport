@@ -45,8 +45,8 @@ func NewWorkloadIdentityX509RevocationService(
 	service, err := generic.NewServiceWrapper(
 		generic.ServiceWrapperConfig[*workloadidentityv1pb.WorkloadIdentityX509Revocation]{
 			Backend:       b,
-			ResourceKind:  types.KindWorkloadIdentity,
-			BackendPrefix: backend.NewKey(workloadIdentityPrefix),
+			ResourceKind:  types.KindWorkloadIdentityX509Revocation,
+			BackendPrefix: backend.NewKey(workloadIdentityX509RevocationPrefix),
 			MarshalFunc:   services.MarshalWorkloadIdentityX509Revocation,
 			UnmarshalFunc: services.UnmarshalWorkloadIdentityX509Revocation,
 			ValidateFunc:  services.ValidateWorkloadIdentityX509Revocation,

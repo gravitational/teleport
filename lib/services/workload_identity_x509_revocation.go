@@ -45,7 +45,7 @@ type WorkloadIdentityX509Revocations interface {
 	CreateWorkloadIdentityX509Revocation(
 		ctx context.Context,
 		workloadIdentityX509Revocation *workloadidentityv1pb.WorkloadIdentityX509Revocation,
-	) (*workloadidentityv1pb.WorkloadIdentity, error)
+	) (*workloadidentityv1pb.WorkloadIdentityX509Revocation, error)
 	// DeleteWorkloadIdentity deletes a SPIFFE Federation by name.
 	DeleteWorkloadIdentityX509Revocation(ctx context.Context, name string) error
 	// UpdateWorkloadIdentity updates a specific WorkloadIdentity. The resource must

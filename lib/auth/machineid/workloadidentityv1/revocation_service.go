@@ -118,11 +118,16 @@ func NewRevocationService(cfg *RevocationServiceConfig) (*RevocationService, err
 		cfg.Clock = clockwork.NewRealClock()
 	}
 	return &RevocationService{
-		authorizer: cfg.Authorizer,
-		store:      cfg.Store,
-		clock:      cfg.Clock,
-		emitter:    cfg.Emitter,
-		logger:     cfg.Logger,
+		authorizer:          cfg.Authorizer,
+		store:               cfg.Store,
+		clock:               cfg.Clock,
+		emitter:             cfg.Emitter,
+		logger:              cfg.Logger,
+		eventsWatcher:       cfg.EventsWatcher,
+		backend:             cfg.Backend,
+		keyStorer:           cfg.KeyStorer,
+		certAuthorityGetter: cfg.CertAuthorityGetter,
+		clusterName:         cfg.ClusterName,
 
 		notifyNewSignedCRL: make(chan struct{}),
 	}, nil
@@ -246,7 +251,7 @@ func (s *RevocationService) UpdateWorkloadIdentityX509Revocation(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.CheckAccessToKind(types.KindWorkloadIdentity, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindWorkloadIdentityX509Revocation, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := authCtx.AuthorizeAdminAction(); err != nil {
@@ -273,7 +278,7 @@ func (s *RevocationService) UpsertWorkloadIdentityX509Revocation(
 		return nil, trace.Wrap(err)
 	}
 	if err := authCtx.CheckAccessToKind(
-		types.KindWorkloadIdentity, types.VerbCreate, types.VerbUpdate,
+		types.KindWorkloadIdentityX509Revocation, types.VerbCreate, types.VerbUpdate,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -341,6 +346,7 @@ func (s *RevocationService) RunCRLSigner(ctx context.Context) {
 		}
 
 		// TODO: Backoff
+		time.Sleep(5 * time.Second)
 	}
 
 }
@@ -416,17 +422,18 @@ func (s *RevocationService) watchAndSign(ctx context.Context) error {
 	// Perform initial signing of the CRL
 	crl, err := s.signCRL(ctx, revocationsMap)
 	if err != nil {
-		panic(err)
+		return trace.Wrap(err, "signing initial CRL")
 	}
 	s.publishSignedCRL(crl)
 
+	// A short, simple debounce so that we:
+	// - Avoid signing the CRL too frequently. This is computationally
+	//   expensive and we can afford to wait a few seconds to group together
+	//  multiple successive revocations.
+	// - Avoid spamming the clients with a rapid succession of CRL updates.
+	var debounceCh <-chan time.Time
 	for {
-		// Perform a short, simple debounce so that we:
-		// - Avoid signing the CRL too frequently. This is computationally
-		//   expensive and we can afford to wait a few seconds to group together
-		//  multiple successive revocations.
-		// - Avoid spamming the clients with a rapid succession of CRL updates.
-		var debounceCh <-chan time.Time
+
 		select {
 		case e := <-w.Events():
 			triggerSign, err := handleEvent(e)
@@ -434,7 +441,11 @@ func (s *RevocationService) watchAndSign(ctx context.Context) error {
 				return trace.Wrap(err, "handling event")
 			}
 			if triggerSign {
-				debounceCh = s.clock.After(debounceDuration)
+				s.logger.DebugContext(ctx, "Received change to WorkloadIdentityX509Revocation indicating new CRL should be signed", "workload_identity_revocation_name", e.Resource.GetName())
+				if debounceCh != nil {
+					s.logger.DebugContext(ctx, "Starting debounce timer for signing of new CRL")
+					debounceCh = s.clock.After(debounceDuration)
+				}
 			}
 			continue
 		case <-w.Done():
@@ -443,9 +454,10 @@ func (s *RevocationService) watchAndSign(ctx context.Context) error {
 			}
 			return nil
 		case <-debounceCh:
+			debounceCh = nil
 			crl, err := s.signCRL(ctx, revocationsMap)
 			if err != nil {
-				panic(err)
+				return trace.Wrap(err, "signing CRL")
 			}
 			s.publishSignedCRL(crl)
 		}
@@ -475,37 +487,45 @@ func (s *RevocationService) signCRL(
 	ctx context.Context,
 	revocations map[string]*workloadidentityv1pb.WorkloadIdentityX509Revocation,
 ) ([]byte, error) {
+	s.logger.InfoContext(ctx, "Starting to generate new CRL")
 	ca, err := s.certAuthorityGetter.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.SPIFFECA,
 		DomainName: s.clusterName,
 	}, true)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting CA")
+	}
 	tlsCert, tlsSigner, err := s.keyStorer.GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting CA cert and key")
 	}
 	tlsCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "creating TLS CA")
 	}
 
+	// RFC 5280 Certificate Revocation List
+	// Ref: https://datatracker.ietf.org/doc/html/rfc5280#section-5
 	tmpl := &x509.RevocationList{
-		// https://www.rfc-editor.org/rfc/rfc5280.html#section-5.1.2.6
+		// Ref: https://www.rfc-editor.org/rfc/rfc5280.html#section-5.1.2.6
 		RevokedCertificateEntries: make([]x509.RevocationListEntry, 0, len(revocations)),
-		// https://www.rfc-editor.org/rfc/rfc5280.html#section-5.1.2.4
-		// This field indicates the issue date of this CRL.  thisUpdate may be
-		//  encoded as UTCTime or GeneralizedTime.
-		ThisUpdate: time.Now(),
-		// https://www.rfc-editor.org/rfc/rfc5280.html#section-5.2.3
+		// Ref: https://www.rfc-editor.org/rfc/rfc5280.html#section-5.1.2.4
+		// 	ThisUpdate: time.Now(),
+		// Ref: https://www.rfc-editor.org/rfc/rfc5280.html#section-5.2.3
 		// This is an optional extension we will be omitting for now, at a
 		// future date, we may insert a monotonically increasing identifier.
-		Number: nil,
+		Number: big.NewInt(s.clock.Now().Unix()),
 	}
 
 	for _, revocation := range revocations {
 		serial := new(big.Int)
 		_, ok := serial.SetString(revocation.Metadata.Name, 16)
 		if !ok {
-			// TODO log and skip?
+			s.logger.WarnContext(
+				ctx,
+				"Encountered WorkloadIdentityX509Revocation with unparsable serial number, it will be omitted from the CRL",
+				"workload_identity_revocation_name", revocation.Metadata.Name,
+			)
 			continue
 		}
 
@@ -521,5 +541,6 @@ func (s *RevocationService) signCRL(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	s.logger.InfoContext(ctx, "Finished generating new CRL", "revocations", len(revocations))
 	return signedCRL, nil
 }
