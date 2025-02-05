@@ -376,6 +376,14 @@ function checkMfaRequired(
   params: IsMfaRequiredRequest,
   abortSignal?
 ): Promise<IsMfaRequiredResponse> {
+  const appParams = params as IsMfaRequiredApp;
+  if (appParams?.app?.cluster_name) {
+    return api.post(
+      cfg.getMfaRequiredUrl(appParams.app.cluster_name),
+      params,
+      abortSignal
+    );
+  }
   return api.post(cfg.getMfaRequiredUrl(), params, abortSignal);
 }
 
