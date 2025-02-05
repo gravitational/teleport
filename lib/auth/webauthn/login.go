@@ -373,11 +373,18 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if credential.Authenticator.CloneWarning && !challengeAllowReuse {
-		log.WarnContext(ctx, "Clone warning detected for device, the device counter may be malfunctioning",
-			"user", user,
-			"device", dev.GetName(),
-		)
+	if credential.Authenticator.CloneWarning {
+		// Reused challenges trigger clone warnings because, after first use, we expect
+		// the counter to be up by one.
+		isReuseCounterMismatch := challengeAllowReuse &&
+			len(u.credentials) == 1 /* sanity check */ &&
+			credential.Authenticator.SignCount != u.credentials[0].Authenticator.SignCount-1
+		if !isReuseCounterMismatch {
+			log.WarnContext(ctx, "Clone warning detected for device, the device counter may be malfunctioning",
+				"user", user,
+				"device", dev.GetName(),
+			)
+		}
 	}
 
 	// Update last used timestamp and device counter.
