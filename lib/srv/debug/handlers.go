@@ -17,6 +17,7 @@
 package debug
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -24,6 +25,7 @@ import (
 	"net/http/pprof"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -38,19 +40,34 @@ type LogLeveler interface {
 	SetLogLevel(slog.Level)
 }
 
-// NewServeMux returns a http mux that handles all the debug service endpoints.
-func NewServeMux(logger *slog.Logger, leveler LogLeveler) *http.ServeMux {
-	mux := http.NewServeMux()
+// RegisterProfilingHandlers registers the debug profiling handlers (/debug/pprof/*)
+// to a given multiplexer.
+func RegisterProfilingHandlers(mux *http.ServeMux, logger *slog.Logger) {
+	noWriteTimeout := func(h http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			rc := http.NewResponseController(w) //nolint:bodyclose // bodyclose gets really confused about NewResponseController
+			if err := rc.SetWriteDeadline(time.Time{}); err == nil {
+				// don't let the pprof handlers know about the WriteTimeout
+				r = r.WithContext(context.WithValue(r.Context(), http.ServerContextKey, nil))
+			}
+			h(w, r)
+		}
+	}
+
 	mux.HandleFunc("/debug/pprof/cmdline", pprofMiddleware(logger, "cmdline", pprof.Cmdline))
-	mux.HandleFunc("/debug/pprof/profile", pprofMiddleware(logger, "profile", pprof.Profile))
+	mux.HandleFunc("/debug/pprof/profile", pprofMiddleware(logger, "profile", noWriteTimeout(pprof.Profile)))
 	mux.HandleFunc("/debug/pprof/symbol", pprofMiddleware(logger, "symbol", pprof.Symbol))
-	mux.HandleFunc("/debug/pprof/trace", pprofMiddleware(logger, "trace", pprof.Trace))
+	mux.HandleFunc("/debug/pprof/trace", pprofMiddleware(logger, "trace", noWriteTimeout(pprof.Trace)))
 	mux.HandleFunc("/debug/pprof/", func(w http.ResponseWriter, r *http.Request) {
 		profile, _ := strings.CutPrefix(r.URL.Path, "/debug/pprof/")
-		pprofMiddleware(logger, profile, pprof.Index)(w, r)
+		pprofMiddleware(logger, profile, noWriteTimeout(pprof.Index))(w, r)
 	})
+}
+
+// RegisterLogLevelHandlers registers log level handlers to a given multiplexer.
+// This allows to dynamically change the process' log level.
+func RegisterLogLevelHandlers(mux *http.ServeMux, logger *slog.Logger, leveler LogLeveler) {
 	mux.Handle("/log-level", handleLog(logger, leveler))
-	return mux
 }
 
 // handleLog returns the http log level handler.
