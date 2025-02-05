@@ -137,3 +137,15 @@ func (c *clientApplicationServiceClient) OnInvalidLocalPort(ctx context.Context,
 	}
 	return nil
 }
+
+// GetTargetOSConfiguration returns the configuration values that should be
+// configured in the OS, including DNS zones that should be handled by the VNet
+// DNS nameserver and the IPv4 CIDR ranges that should be routed to the VNet TUN
+// interface.
+func (c *clientApplicationServiceClient) GetTargetOSConfiguration(ctx context.Context) (*vnetv1.TargetOSConfiguration, error) {
+	resp, err := c.clt.GetTargetOSConfiguration(ctx, &vnetv1.GetTargetOSConfigurationRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err, "calling GetTargetOSConfiguration rpc")
+	}
+	return resp.GetTargetOsConfiguration(), nil
+}
