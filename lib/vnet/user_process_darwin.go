@@ -40,7 +40,7 @@ func runPlatformUserProcess(ctx context.Context, cfg *UserProcessConfig) (pm *Pr
 		}
 	}()
 
-	ipv6Prefix, err := NewIPv6Prefix()
+	ipv6Prefix, err := newIPv6Prefix()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

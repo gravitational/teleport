@@ -96,7 +96,7 @@ loop:
 func newWindowsNetworkStackConfig(tun tunDevice, clt *clientApplicationServiceClient) (*networkStackConfig, error) {
 	appProvider := newRemoteAppProvider(clt)
 	appResolver := newTCPAppResolver(appProvider, clockwork.NewRealClock())
-	ipv6Prefix, err := NewIPv6Prefix()
+	ipv6Prefix, err := newIPv6Prefix()
 	if err != nil {
 		return nil, trace.Wrap(err, "creating new IPv6 prefix")
 	}
