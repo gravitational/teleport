@@ -31,6 +31,12 @@ import (
 
 type DarwinRouting struct{}
 
+// GetRouteDestinations gets routes from the OS and then extracts the only information needed from
+// them: the route destination and the index of the network interface. It operates solely on IPv4
+// routes.
+//
+// It might be called by [RouteConflictDiag] multiple times in case an interface was removed after
+// the routes were fetched.
 func (dr *DarwinRouting) GetRouteDestinations() ([]RouteDest, error) {
 	rib, err := route.FetchRIB(syscall.AF_INET, route.RIBTypeRoute, 0)
 	if err != nil {

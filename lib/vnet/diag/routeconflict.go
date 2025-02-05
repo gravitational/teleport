@@ -34,32 +34,53 @@ import (
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, "vnet:diag")
 
+// RouteConflictConfig includes everything that [RouteConflictDiag] needs to run.
 type RouteConflictConfig struct {
+	// VnetIfaceName is the name of the network interface set up by VNet. [RouteConflictDiag] needs it
+	// to differentiate between routes created by VNet and routes set up by other software.
 	VnetIfaceName string
-	Routing       Routing
-	Interfaces    Interfaces
+	// Routing abstracts away platform-specific logic of obtaining routes with their destinations.
+	Routing Routing
+	// Interfaces abstracts away functions from the net package and calls to ifconfig.
+	Interfaces Interfaces
 }
 
 // Routing abstracts away platform-specific logic of obtaining routes with their destinations,
-// allowing running tests for the general logic behind RouteConflictDiag on any platform.
+// allowing running tests for the general logic behind [RouteConflictDiag] on any platform.
 type Routing interface {
+	// GetRouteDestinations gets routes from the OS and then extracts the only information needed from
+	// them: the route destination and the index of the network interface. It operates solely on IPv4
+	// routes.
+	//
+	// It might be called by [RouteConflictDiag] multiple times in case an interface was removed after
+	// the routes were fetched.
 	GetRouteDestinations() ([]RouteDest, error)
 }
 
 // Interfaces abstracts away functions from the net package and calls to ifconfig, allowing mocking
 // interactions with them in tests.
 type Interfaces interface {
+	// InterfaceByName is rarely used, as the only interface we fetch by name is VNet's interface.
 	InterfaceByName(string) (*net.Interface, error)
+	// InterfaceByIndex is called whenever [RouteConflictDiag] needs to get the name of an interface
+	// for which a conflicting route was set up. [RouteDest] does not include the name of the
+	// interface, only its index.
 	InterfaceByIndex(int) (*net.Interface, error)
 	// InterfaceApp attempts to return the name of the app that created the interface given the name
 	// of the interface.
+	//
+	// InterfaceApp is expected to return [UnstableIfaceError] if the interface cannot be found.
 	InterfaceApp(context.Context, string) (string, error)
 }
 
+// RouteConflictDiag is the diagnostic check which inspects if there are routes that conflict with
+// routes set up by VNet.
 type RouteConflictDiag struct {
 	cfg *RouteConflictConfig
 }
 
+// NewRouteConflictDiag instantiates [RouteConflictDiag] given [RouteConflictConfig] and checks if
+// the config has expected fields present.
 func NewRouteConflictDiag(cfg *RouteConflictConfig) (*RouteConflictDiag, error) {
 	if cfg.VnetIfaceName == "" {
 		return nil, trace.BadParameter("missing VNet interface name")
