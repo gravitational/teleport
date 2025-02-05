@@ -56,29 +56,21 @@ type Interfaces interface {
 	InterfaceApp(context.Context, string) (string, error)
 }
 
-func (c *RouteConflictConfig) CheckAndSetDefaults() error {
-	if c.VnetIfaceName == "" {
-		return trace.BadParameter("missing VNet interface name")
-	}
-
-	if c.Routing == nil {
-		return trace.BadParameter("missing routing")
-	}
-
-	if c.Interfaces == nil {
-		return trace.BadParameter("missing net interfaces")
-	}
-
-	return nil
-}
-
 type RouteConflictDiag struct {
 	cfg *RouteConflictConfig
 }
 
 func NewRouteConflictDiag(cfg *RouteConflictConfig) (*RouteConflictDiag, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+	if cfg.VnetIfaceName == "" {
+		return nil, trace.BadParameter("missing VNet interface name")
+	}
+
+	if cfg.Routing == nil {
+		return nil, trace.BadParameter("missing routing")
+	}
+
+	if cfg.Interfaces == nil {
+		return nil, trace.BadParameter("missing net interfaces")
 	}
 
 	return &RouteConflictDiag{
