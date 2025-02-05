@@ -30,8 +30,10 @@ import (
 // awsICPluginDescriptor implements the AWS Identity Center specific
 // version of the pluginDescriptor interface
 type awsICPluginDescriptor struct {
-	// HTTPClient is used for testing
+	// HTTPClient is used in tests.
 	HTTPClient *http.Client
+	// ICSDKClient is used in tests.
+	ICSDKClient icsdk.Client
 }
 
 // HandleInstallRequest implements pluginDescriptor.
@@ -41,8 +43,7 @@ func (a awsICPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	inputs, err := a.awsICPluginInputs(ctx, r.Form, authClient)
+	inputs, err := a.awsICPluginInputs(ctx, r.Form, authClient, p.GetProxyClient() /* proxy client required to fetch oidc credential */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -113,8 +114,9 @@ func (a awsICPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx
 }
 
 const (
-	pluginConfigAWSICValidateSAML = "validateSAML"
-	pluginConfigAWSICValidateSCIM = "validateSCIM"
+	pluginConfigAWSICValidateSAML                   = "validateSAML"
+	pluginConfigAWSICValidateSCIM                   = "validateSCIM"
+	pluginConfigAWSICValidateResourceSyncCredential = "ValidateResourceSyncCredential"
 )
 
 // HandleValidateConfigRequest handles requests for "/enterprise/plugins/validate" path.
@@ -133,6 +135,12 @@ func (a awsICPluginDescriptor) HandleValidateConfigRequest(ctx context.Context, 
 		return a.validateSAMLServiceProvider(ctx, client, form.Get(awsICPluginSAMLServiceProviderNameField), form.Get(awsICPluginSAMLServiceProviderMetadataField))
 	case pluginConfigAWSICValidateSCIM:
 		return a.validateSCIM(ctx, form.Get(awsICPluginSCIMBaseURLField), form.Get(awsICPluginSCIMAccessTokenField))
+	case pluginConfigAWSICValidateResourceSyncCredential:
+		return a.validateResourceSyncCredential(ctx, p.GetProxyClient(), awsicui.FetchICResourceRequest{
+			IntegrationName: form.Get(awsICPluginOIDCIntegrationNameField),
+			Region:          form.Get(awsICPluginICRegionField),
+			Arn:             form.Get(awsICPluginICARNField),
+		})
 	default:
 		return trace.NotImplemented("validation for %q is not implemented for AWS IC plugin", resourceToValidate)
 	}
@@ -168,7 +176,7 @@ const (
 	awsICPluginSCIMAccessTokenField             = "scimAccessToken"
 )
 
-func (a awsICPluginDescriptor) awsICPluginInputs(ctx context.Context, form url.Values, authClient authclient.ClientI) (*awsICPluginFormData, error) {
+func (a awsICPluginDescriptor) awsICPluginInputs(ctx context.Context, form url.Values, userClient, proxyClient authclient.ClientI) (*awsICPluginFormData, error) {
 	var accessListDefaultOwners []string
 	if err := json.Unmarshal([]byte(form.Get(awsICPluginAccessListDefaultOwnersField)), &accessListDefaultOwners); err != nil {
 		return nil, trace.Wrap(err, "cannot unmarshal accessListDefaultOwners")
@@ -190,11 +198,19 @@ func (a awsICPluginDescriptor) awsICPluginInputs(ctx context.Context, form url.V
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.validateOIDCIntegrationExists(ctx, authClient, parsedInputs.oidcIntegrationName); err != nil {
+	if err := a.validateOIDCIntegrationExists(ctx, userClient, parsedInputs.oidcIntegrationName); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.validateSAMLServiceProvider(ctx, authClient, parsedInputs.samlServiceProviderName, parsedInputs.samlServiceProviderMetadata); err != nil {
+	if err := a.validateResourceSyncCredential(ctx, proxyClient, awsicui.FetchICResourceRequest{
+		IntegrationName: parsedInputs.oidcIntegrationName,
+		Region:          parsedInputs.region,
+		Arn:             parsedInputs.arn,
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.validateSAMLServiceProvider(ctx, userClient, parsedInputs.samlServiceProviderName, parsedInputs.samlServiceProviderMetadata); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -226,6 +242,18 @@ func (e *awsICPluginFormData) check() error {
 		return trace.BadParameter("Identity Center instance ARN is required")
 	}
 
+	return nil
+}
+
+// ValidateResourceSyncCredential verifies that the credential set up for resource sync is valid.
+func (a awsICPluginDescriptor) validateResourceSyncCredential(ctx context.Context, proxyClient authclient.ClientI, req awsicui.FetchICResourceRequest) error {
+	icClient, err := a.awsICPluginIdentityCenterClient(ctx, proxyClient, req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := icClient.ValidateResourceSyncCredential(ctx); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
@@ -361,21 +389,28 @@ func (a awsICPluginDescriptor) getHTTPClient() (*http.Client, error) {
 }
 
 // awsICPluginIdentityCenterClient creates a new Identity Center SDK client.
-func awsICPluginIdentityCenterClient(ctx context.Context, req awsicui.FetchICResourceRequest, authClient authclient.ClientI) (icsdk.Client, error) {
-	awsConfig, err := cloudaws.CreateAWSConfigForIntegration(ctx, credprovider.Config{
-		Region:                req.Region,
-		IntegrationName:       req.IntegrationName,
-		IntegrationGetter:     authClient,
-		AWSOIDCTokenGenerator: authClient,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+func (a awsICPluginDescriptor) awsICPluginIdentityCenterClient(ctx context.Context, proxyClient authclient.ClientI, req awsicui.FetchICResourceRequest) (icsdk.Client, error) {
+	if a.ICSDKClient == nil {
+		cfg, err := cloudaws.CreateAWSConfigForIntegration(ctx, credprovider.Config{
+			Region:                req.Region,
+			IntegrationName:       req.IntegrationName,
+			IntegrationGetter:     proxyClient,
+			AWSOIDCTokenGenerator: proxyClient,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		a.ICSDKClient, err = icsdk.New(icsdk.Config{
+			AWSConfig:   cfg,
+			InstanceARN: req.Arn,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	return icsdk.New(icsdk.Config{
-		AWSConfig:   awsConfig,
-		InstanceARN: req.Arn,
-	})
+	return a.ICSDKClient, nil
 }
 
 // awsICPluginListPermissionSets lists Identity Center permissions sets.
@@ -385,7 +420,8 @@ func (p *Plugin) awsICPluginListPermissionSets(w http.ResponseWriter, r *http.Re
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	icClient, err := awsICPluginIdentityCenterClient(r.Context(), req, p.GetProxyClient())
+	icPD := awsICPluginDescriptor{}
+	icClient, err := icPD.awsICPluginIdentityCenterClient(r.Context(), p.GetProxyClient(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -404,7 +440,9 @@ func (p *Plugin) awsICPluginAccountsWithAssignedPermSets(w http.ResponseWriter, 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	icClient, err := awsICPluginIdentityCenterClient(r.Context(), req, p.GetProxyClient())
+
+	icPD := awsICPluginDescriptor{}
+	icClient, err := icPD.awsICPluginIdentityCenterClient(r.Context(), p.GetProxyClient(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -428,7 +466,8 @@ func (p *Plugin) awsICPluginGroupsWithAccountAndPermAssignment(w http.ResponseWr
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	icClient, err := awsICPluginIdentityCenterClient(r.Context(), req, p.GetProxyClient())
+	icPD := awsICPluginDescriptor{}
+	icClient, err := icPD.awsICPluginIdentityCenterClient(r.Context(), p.GetProxyClient(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -11,6 +12,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
 	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	"github.com/gravitational/trace"
+
+	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 )
 
 type InstanceDescriber interface {
@@ -48,7 +51,6 @@ type Client interface {
 	ListGroupsAssignments(ctx context.Context, groupID string) ([]*Assignment, error)
 	// ListAssignments lists account assignment for a given principal, which can either be a user or a user group.
 	ListAssignments(ctx context.Context, principalID string, principalType ssoadmintypes.PrincipalType) ([]*Assignment, error)
-
 	// CreateAccountAssignment creates an account assignment for a user.
 	CreateAccountAssignment(ctx context.Context, req *CreateAccountAssignmentRequest) (*AccountAssignmentResponse, error)
 	// WaitForCreateAccountAssignmentResult waits until the account assignment creation reaches a terminal state
@@ -59,6 +61,8 @@ type Client interface {
 	// WaitForDeleteAccountAssignmentResult waits until the account assignment deletion reaches a terminal state
 	// by tracking the status of the account assignment operation using the request ID.
 	WaitForDeleteAccountAssignmentResult(ctx context.Context, requestID string) error
+	// ValidateResourceSyncCredential verifies that the credential set up for resource sync is valid.
+	ValidateResourceSyncCredential(ctx context.Context) error
 }
 
 // ClientProvider is a function that creates a new AWS Identity Center SDK client.
@@ -582,4 +586,129 @@ func (c *client) WaitForDeleteAccountAssignmentResult(ctx context.Context, reque
 			continue
 		}
 	}
+}
+
+// ValidateResourceSyncCredential fetches resources (with MaxResults=1) to validate that the credential
+// set up for Identity Center resource sync is correctly configured. Endpoints used for principal
+// permission assignments are not invoked. The following permissions are validated:
+// - "sso:DescribeInstance"
+// - "organizations:ListAccounts"
+// - "identitystore:ListUsers"
+// - "identitystore:ListGroups"
+// - "identitystore:ListGroupMemberships" (skipped if 0 groups found)
+// - "sso:ListPermissionSets"
+// - "sso:DescribePermissionSet" (skipped if 0 permission sets found)
+// - "sso:ListAccountAssignmentsForPrincipal" (skipped if 0 groups and/or 0 users found)
+// - "sso:ListPermissionSetsProvisionedToAccount" (skipped if 0 accounts found)
+// See StatementForAWSIdentityCenterAccess for a full list of permissions required for Identity Center integration.
+func (c *client) ValidateResourceSyncCredential(ctx context.Context) error {
+	c.Logger.InfoContext(ctx, "Validating credential set up for AWS IAM Identity Center integration resource sync.")
+	instance, err := c.ssoAdminClient.DescribeInstance(ctx, &ssoadmin.DescribeInstanceInput{
+		InstanceArn: aws.String(c.InstanceARN),
+	})
+	if err != nil {
+		return trace.Wrap(traceError(err))
+	}
+	resultSize := int32(1)
+	g, err := c.identityStoreClient.ListGroups(ctx, &identitystore.ListGroupsInput{
+		IdentityStoreId: instance.IdentityStoreId,
+		MaxResults:      &resultSize,
+	})
+	if err != nil {
+		return trace.Wrap(traceError(err))
+	}
+	if len(g.Groups) > 0 {
+		if _, err := c.ssoAdminClient.ListAccountAssignmentsForPrincipal(ctx, &ssoadmin.ListAccountAssignmentsForPrincipalInput{
+			InstanceArn:   aws.String(c.InstanceARN),
+			MaxResults:    &resultSize,
+			PrincipalType: ssoadmintypes.PrincipalTypeGroup,
+			PrincipalId:   g.Groups[0].GroupId,
+		}); err != nil {
+			return trace.Wrap(traceError(err))
+		}
+		if _, err := c.identityStoreClient.ListGroupMemberships(ctx, &identitystore.ListGroupMembershipsInput{
+			IdentityStoreId: instance.IdentityStoreId,
+			GroupId:         g.Groups[0].GroupId,
+			MaxResults:      &resultSize,
+		}); err != nil {
+			return trace.Wrap(traceError(err))
+		}
+	} else {
+		c.Logger.DebugContext(ctx, "Groups not found. Group member and permission assignment query will be skipped.")
+	}
+
+	u, err := c.identityStoreClient.ListUsers(ctx, &identitystore.ListUsersInput{
+		IdentityStoreId: instance.IdentityStoreId,
+		MaxResults:      &resultSize,
+	})
+	if err != nil {
+		return trace.Wrap(traceError(err))
+	}
+	if len(u.Users) > 0 {
+		if _, err := c.ssoAdminClient.ListAccountAssignmentsForPrincipal(ctx, &ssoadmin.ListAccountAssignmentsForPrincipalInput{
+			InstanceArn:   aws.String(c.InstanceARN),
+			MaxResults:    &resultSize,
+			PrincipalType: ssoadmintypes.PrincipalTypeUser,
+			PrincipalId:   u.Users[0].UserId,
+		}); err != nil {
+			return trace.Wrap(traceError(err))
+		}
+	} else {
+		c.Logger.DebugContext(ctx, "Users not found. User permission assignment query is skipped.")
+	}
+
+	a, err := c.organizationsClient.ListAccounts(ctx, &organizations.ListAccountsInput{
+		MaxResults: &resultSize,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(a.Accounts) > 0 {
+		if _, err := c.ssoAdminClient.ListPermissionSetsProvisionedToAccount(ctx, &ssoadmin.ListPermissionSetsProvisionedToAccountInput{
+			InstanceArn: aws.String(c.InstanceARN),
+			AccountId:   a.Accounts[0].Id,
+			MaxResults:  &resultSize,
+		}); err != nil {
+			return trace.Wrap(traceError(err))
+		}
+	} else {
+		c.Logger.DebugContext(ctx, "Accounts not found. Account permission assignment query is skipped.")
+	}
+
+	ps, err := c.ssoAdminClient.ListPermissionSets(ctx, &ssoadmin.ListPermissionSetsInput{
+		InstanceArn: aws.String(c.InstanceARN),
+		MaxResults:  &resultSize,
+	})
+	if err != nil {
+		return trace.Wrap(traceError(err))
+	}
+	if len(ps.PermissionSets) > 0 {
+		if _, err := c.ssoAdminClient.DescribePermissionSet(ctx, &ssoadmin.DescribePermissionSetInput{
+			InstanceArn:      aws.String(c.InstanceARN),
+			PermissionSetArn: aws.String(ps.PermissionSets[0]),
+		}); err != nil {
+			return trace.Wrap(traceError(err))
+		}
+	} else {
+		c.Logger.DebugContext(ctx, "Permission sets not found. Describe permission set query is skipped.")
+	}
+
+	return nil
+}
+
+// traceError converts AWS sdk v2 error type to trace error.
+// AccessDeniedException error is converted to bad parameter error.
+// Other error types are returned as their respective trace error types
+// converted by ConvertRequestFailureError.
+func traceError(err error) error {
+	var ssoAdminErr *ssoadmintypes.AccessDeniedException
+	var idStoreErr *identitystoretypes.AccessDeniedException
+	if errors.As(err, &ssoAdminErr) {
+		return trace.BadParameter("Invalid credential. %s", err.Error())
+	}
+	if errors.As(err, &idStoreErr) {
+		return trace.BadParameter("Invalid credential. %s", err.Error())
+	}
+
+	return libcloudaws.ConvertRequestFailureError(err)
 }

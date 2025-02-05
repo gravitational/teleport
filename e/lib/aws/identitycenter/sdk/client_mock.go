@@ -421,3 +421,16 @@ func (c *ClientMock) ListAssignments(ctx context.Context, principalID string, pr
 		return nil, trace.BadParameter("unsupported principal type %q", principalType)
 	}
 }
+
+// ValidateResourceSyncCredential only validates DescribeInstance permission.
+func (c *ClientMock) ValidateResourceSyncCredential(ctx context.Context) error {
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
+	if c.MonkeyPatch.DescribeInstance != nil {
+		if _, err := c.MonkeyPatch.DescribeInstance(ctx); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

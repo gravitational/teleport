@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/samlsp"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter"
+	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	ictestenv "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
 	awsicui "github.com/gravitational/teleport/e/lib/web/ui/awsic"
 	"github.com/gravitational/teleport/entitlements"
@@ -34,16 +35,7 @@ func TestAWSICCreatePlugin(t *testing.T) {
 	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
 
 	ictestenv.CreateSAMLServiceProvider(t, wSuite.ctx, authClient, existingServcieProviderName)
-
-	awsIg, err := types.NewIntegrationAWSOIDC(
-		types.Metadata{Name: icOIDCIntegrationName},
-		&types.AWSOIDCIntegrationSpecV1{
-			RoleARN:     "arn:aws:iam::123456789012:role/DevTeams",
-			IssuerS3URI: "s3://my-bucket/my-prefix",
-		},
-	)
-	require.NoError(t, err)
-	_, err = authClient.CreateIntegration(wSuite.ctx, awsIg)
+	_, err := authClient.CreateIntegration(wSuite.ctx, newOIDCIntegration(t))
 	require.NoError(t, err)
 
 	testCases := []testCase{
@@ -163,6 +155,24 @@ func TestAWSICPluginPreValidation(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("resource sync permission", func(t *testing.T) {
+		form := installRequestValidURLValues(t, validICSCIMBaseURLFormat)
+		form.Set("resourceToValidate", pluginConfigAWSICValidateResourceSyncCredential)
+		resp, err := aPack.clt.PostForm(wSuite.ctx, installPluginEndPoint, form)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.Code())
+
+		const errMsg = "invalid credential"
+		sdkClient := icsdk.NewClientMock(nil /* custom mock data */)
+		sdkClient.MonkeyPatch.DescribeInstance = func(context.Context) (*icsdk.InstanceInfo, error) {
+			return nil, trace.AccessDenied(errMsg)
+		}
+		wSuite, aPack, _ := newAWSIdentityCenterPluginTestSuite(t, withICClient(sdkClient))
+		resp, err = aPack.clt.PostForm(wSuite.ctx, installPluginEndPoint, form)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusForbidden, resp.Code())
+	})
 	testServer.Close()
 }
 
@@ -289,7 +299,15 @@ func TestAWSICDeletePluginResourceCleanup(t *testing.T) {
 	})
 }
 
-func newAWSIdentityCenterPluginTestSuite(t *testing.T) (*webSuite, *authWebPack, *httptest.Server) {
+type icSuitOpt func(cfg *awsICPluginDescriptor)
+
+func withICClient(c icsdk.Client) icSuitOpt {
+	return func(cfg *awsICPluginDescriptor) {
+		cfg.ICSDKClient = c
+	}
+}
+
+func newAWSIdentityCenterPluginTestSuite(t *testing.T, opts ...icSuitOpt) (*webSuite, *authWebPack, *httptest.Server) {
 	t.Helper()
 	s := newWebSuite(t,
 		// Disable retry interval to prevent test from hanging
@@ -317,7 +335,16 @@ func newAWSIdentityCenterPluginTestSuite(t *testing.T) (*webSuite, *authWebPack,
 			return net.Dial("tcp", testSCIMServer.Listener.Addr().String())
 		},
 	}
-	s.webPlugin.pluginDescriptors[types.PluginTypeAWSIdentityCenter] = awsICPluginDescriptor{client}
+
+	cfg := awsICPluginDescriptor{HTTPClient: client}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	if cfg.ICSDKClient == nil {
+		cfg.ICSDKClient = icsdk.NewClientMock(nil /* custom mock data */)
+	}
+
+	s.webPlugin.pluginDescriptors[types.PluginTypeAWSIdentityCenter] = cfg
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
@@ -469,6 +496,19 @@ func installAWSICPlugin(t *testing.T, ctx context.Context, clt *TestWebClient) {
 	require.Equal(t, http.StatusOK, resp.Code())
 }
 
+func newOIDCIntegration(t *testing.T) *types.IntegrationV1 {
+	t.Helper()
+	oidc, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: icOIDCIntegrationName},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "arn:aws:iam::123456789012:role/DevTeams",
+		},
+	)
+	require.NoError(t, err)
+
+	return oidc
+}
+
 func TestAWSICRegionValidation(t *testing.T) {
 	hasRegionValidationError := func(t *testing.T, region string, err error) {
 		t.Helper()
@@ -505,21 +545,61 @@ func TestAWSICRegionValidation(t *testing.T) {
 	wSuite, aPack, _ := newAWSIdentityCenterPluginTestSuite(t)
 	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
 	ictestenv.CreateSAMLServiceProvider(t, wSuite.ctx, authClient, existingServcieProviderName)
-	awsIg, err := types.NewIntegrationAWSOIDC(
-		types.Metadata{Name: icOIDCIntegrationName},
-		&types.AWSOIDCIntegrationSpecV1{
-			RoleARN:     "arn:aws:iam::123456789012:role/DevTeams",
-			IssuerS3URI: "s3://my-bucket/my-prefix",
-		},
-	)
-	require.NoError(t, err)
-	_, err = authClient.CreateIntegration(wSuite.ctx, awsIg)
+	_, err := authClient.CreateIntegration(wSuite.ctx, newOIDCIntegration(t))
 	require.NoError(t, err)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := aPack.clt.PostJSON(wSuite.ctx, aPack.clt.Endpoint(tc.path), tc.req)
 			hasRegionValidationError(t, tc.req.Region, err)
+		})
+	}
+}
+
+func TestInstallationFailsOnInvalidAWSCredential(t *testing.T) {
+	const errorMsg = "invalid credential"
+	tests := []struct {
+		name     string
+		icClient icsdk.Client
+		wantErr  bool
+	}{
+		{
+			name: "invalid credential (with faulty mocked client)",
+			icClient: func() icsdk.Client {
+				sdkClient := icsdk.NewClientMock(nil /* custom mock data */)
+				sdkClient.MonkeyPatch.DescribeInstance = func(context.Context) (*icsdk.InstanceInfo, error) {
+					return nil, trace.AccessDenied(errorMsg)
+				}
+				return sdkClient
+			}(),
+			wantErr: true,
+		},
+		{
+			name:     "valid credential (with valid mocked client)",
+			icClient: icsdk.NewClientMock(nil /* custom mock data */),
+			wantErr:  false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			wSuite, aPack, _ := newAWSIdentityCenterPluginTestSuite(t, withICClient(tc.icClient))
+			authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
+			ictestenv.CreateSAMLServiceProvider(t, wSuite.ctx, authClient, existingServcieProviderName)
+			_, err := authClient.CreateIntegration(wSuite.ctx, newOIDCIntegration(t))
+			require.NoError(t, err)
+
+			installPluginEndPoint := aPack.clt.Endpoint("enterprise", "plugin")
+			resp, err := aPack.clt.PostForm(wSuite.ctx, installPluginEndPoint, installRequestURLValues(t))
+			require.NoError(t, err)
+			if tc.wantErr {
+				require.Equal(t, http.StatusForbidden, resp.Code())
+				var respMessage errorResp
+				require.NoError(t, json.Unmarshal(resp.Bytes(), &respMessage))
+				require.Contains(t, respMessage.Error.Message, errorMsg)
+			} else {
+				require.Equal(t, http.StatusOK, resp.Code())
+			}
 		})
 	}
 }
