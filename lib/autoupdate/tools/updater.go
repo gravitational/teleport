@@ -43,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/autoupdate"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/packaging"
 )
@@ -58,8 +57,6 @@ const (
 	lockFileName = ".lock"
 	// updatePackageSuffix is directory suffix used for package extraction in tools directory.
 	updatePackageSuffix = "-update-pkg"
-	// warnMessageOSSBuild is warning exposed to the user that build type without base url is disabled.
-	warnMessageOSSBuild = "Client tools update is disabled. Use 'TELEPORT_CDN_BASE_URL' environment variable to set CDN base URL"
 )
 
 var (
@@ -265,13 +262,6 @@ func (u *Updater) UpdateWithLock(ctx context.Context, updateToolsVersion string)
 // Update downloads requested version and replace it with existing one and cleanups the previous downloads
 // with defined updater directory suffix.
 func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
-	// Disable update for the OSS build if custom base URL wasn't set.
-	envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar)
-	if modules.GetModules().BuildType() == modules.BuildOSS && envBaseURL == "" {
-		slog.WarnContext(ctx, warnMessageOSSBuild)
-		return nil
-	}
-
 	// Get platform specific download URLs.
 	packages, err := teleportPackageURLs(u.uriTemplate, u.baseURL, toolsVersion)
 	if err != nil {
