@@ -29,7 +29,6 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -37,6 +36,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/services/readonly"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -1189,87 +1189,59 @@ func (a *accessChecker) HostSudoers(s types.Server) ([]string, error) {
 	return sudoers, nil
 }
 
-// AccessInfoFromLocalCertificate returns a new AccessInfo populated from the
-// given ssh certificate. Should only be used for cluster local users as roles
+// AccessInfoFromLocalSSHIdentity returns a new AccessInfo populated from the
+// given sshca.Identity. Should only be used for cluster local users as roles
 // will not be mapped.
-func AccessInfoFromLocalCertificate(cert *ssh.Certificate) (*AccessInfo, error) {
-	traits, err := ExtractTraitsFromCert(cert)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	roles, err := ExtractRolesFromCert(cert)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	allowedResourceIDs, err := ExtractAllowedResourcesFromCert(cert)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func AccessInfoFromLocalSSHIdentity(ident *sshca.Identity) *AccessInfo {
 	return &AccessInfo{
-		Username:           cert.KeyId,
-		Roles:              roles,
-		Traits:             traits,
-		AllowedResourceIDs: allowedResourceIDs,
-	}, nil
+		Username:           ident.Username,
+		Roles:              ident.Roles,
+		Traits:             ident.Traits,
+		AllowedResourceIDs: ident.AllowedResourceIDs,
+	}
 }
 
-// AccessInfoFromRemoteCertificate returns a new AccessInfo populated from the
-// given remote cluster user's ssh certificate. Remote roles will be mapped to
+// AccessInfoFromRemoteSSHIdentity returns a new AccessInfo populated from the
+// given remote cluster user's ssh identity. Remote roles will be mapped to
 // local roles based on the given roleMap.
-func AccessInfoFromRemoteCertificate(cert *ssh.Certificate, roleMap types.RoleMap) (*AccessInfo, error) {
-	// Old-style SSH certificates don't have traits in metadata.
-	traits, err := ExtractTraitsFromCert(cert)
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.AccessDenied("failed to parse certificate traits: %v", err)
+func AccessInfoFromRemoteSSHIdentity(unmappedIdentity *sshca.Identity, roleMap types.RoleMap) (*AccessInfo, error) {
+	// make a shallow copy of traits to avoid modifying the original
+	traits := make(map[string][]string, len(unmappedIdentity.Traits)+1)
+	for k, v := range unmappedIdentity.Traits {
+		traits[k] = v
 	}
-	if traits == nil {
-		traits = make(map[string][]string)
-	}
+
 	// Prior to Teleport 6.2 the only trait passed to the remote cluster
 	// was the "logins" trait set to the SSH certificate principals.
 	//
 	// Keep backwards-compatible behavior and set it in addition to the
 	// traits extracted from the certificate.
-	traits[constants.TraitLogins] = cert.ValidPrincipals
+	traits[constants.TraitLogins] = unmappedIdentity.Principals
 
-	unmappedRoles, err := ExtractRolesFromCert(cert)
+	roles, err := MapRoles(roleMap, unmappedIdentity.Roles)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	roles, err := MapRoles(roleMap, unmappedRoles)
-	if err != nil {
-		return nil, trace.AccessDenied("failed to map roles for user with remote roles %v: %v", unmappedRoles, err)
+		return nil, trace.AccessDenied("failed to map roles for user with remote roles %v: %v", unmappedIdentity.Roles, err)
 	}
 	if len(roles) == 0 {
-		return nil, trace.AccessDenied("no roles mapped for user with remote roles %v", unmappedRoles)
+		return nil, trace.AccessDenied("no roles mapped for user with remote roles %v", unmappedIdentity.Roles)
 	}
 	log.Debugf("Mapped remote roles %v to local roles %v and traits %v.",
-		unmappedRoles, roles, traits)
-
-	allowedResourceIDs, err := ExtractAllowedResourcesFromCert(cert)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+		unmappedIdentity.Roles, roles, traits)
 
 	return &AccessInfo{
-		Username:           cert.KeyId,
+		Username:           unmappedIdentity.Username,
 		Roles:              roles,
 		Traits:             traits,
-		AllowedResourceIDs: allowedResourceIDs,
+		AllowedResourceIDs: unmappedIdentity.AllowedResourceIDs,
 	}, nil
 }
 
-// AccessInfoFromLocalIdentity returns a new AccessInfo populated from the given
+// AccessInfoFromLocalTLSIdentity returns a new AccessInfo populated from the given
 // tlsca.Identity. Should only be used for cluster local users as roles will not
 // be mapped.
-func AccessInfoFromLocalIdentity(identity tlsca.Identity, access UserGetter) (*AccessInfo, error) {
+func AccessInfoFromLocalTLSIdentity(identity tlsca.Identity, access UserGetter) (*AccessInfo, error) {
 	roles := identity.Groups
 	traits := identity.Traits
-	allowedResourceIDs := identity.AllowedResourceIDs
 
 	// Legacy certs are not encoded with roles or traits,
 	// so we fallback to the traits and roles in the backend.
@@ -1293,14 +1265,14 @@ func AccessInfoFromLocalIdentity(identity tlsca.Identity, access UserGetter) (*A
 		Username:           identity.Username,
 		Roles:              roles,
 		Traits:             traits,
-		AllowedResourceIDs: allowedResourceIDs,
+		AllowedResourceIDs: identity.AllowedResourceIDs,
 	}, nil
 }
 
-// AccessInfoFromRemoteIdentity returns a new AccessInfo populated from the
+// AccessInfoFromRemoteTLSIdentity returns a new AccessInfo populated from the
 // given remote cluster user's tlsca.Identity. Remote roles will be mapped to
 // local roles based on the given roleMap.
-func AccessInfoFromRemoteIdentity(identity tlsca.Identity, roleMap types.RoleMap) (*AccessInfo, error) {
+func AccessInfoFromRemoteTLSIdentity(identity tlsca.Identity, roleMap types.RoleMap) (*AccessInfo, error) {
 	// Set internal traits for the remote user. This allows Teleport to work by
 	// passing exact logins, Kubernetes users/groups, database users/names, and
 	// AWS Role ARNs to the remote cluster.
@@ -1338,13 +1310,11 @@ func AccessInfoFromRemoteIdentity(identity tlsca.Identity, roleMap types.RoleMap
 	log.Debugf("Mapped roles %v of remote user %q to local roles %v and traits %v.",
 		unmappedRoles, identity.Username, roles, traits)
 
-	allowedResourceIDs := identity.AllowedResourceIDs
-
 	return &AccessInfo{
 		Username:           identity.Username,
 		Roles:              roles,
 		Traits:             traits,
-		AllowedResourceIDs: allowedResourceIDs,
+		AllowedResourceIDs: identity.AllowedResourceIDs,
 	}, nil
 }
 

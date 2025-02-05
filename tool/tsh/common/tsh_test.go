@@ -4649,7 +4649,7 @@ func TestSerializeProfiles(t *testing.T) {
 	activeProfile := &client.ProfileStatus{
 		ProxyURL:       *p,
 		Username:       "test",
-		ActiveRequests: services.RequestIDs{AccessRequests: []string{"1", "2", "3"}},
+		ActiveRequests: []string{"1", "2", "3"},
 		Cluster:        "main",
 		Roles:          []string{"a", "b", "c"},
 		Traits:         wrappers.Traits{"a": []string{"1", "2", "3"}},

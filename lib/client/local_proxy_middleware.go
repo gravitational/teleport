@@ -211,7 +211,7 @@ func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 	if profile, err := c.Client.ProfileStatus(); err != nil {
 		log.WithError(err).Warn("unable to load profile, requesting database certs without access requests")
 	} else {
-		accessRequests = profile.ActiveRequests.AccessRequests
+		accessRequests = profile.ActiveRequests
 	}
 
 	var keyRing *KeyRing
@@ -283,7 +283,7 @@ func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 	if profile, err := c.Client.ProfileStatus(); err != nil {
 		log.WithError(err).Warn("unable to load profile, requesting app certs without access requests")
 	} else {
-		accessRequests = profile.ActiveRequests.AccessRequests
+		accessRequests = profile.ActiveRequests
 	}
 
 	var keyRing *KeyRing
