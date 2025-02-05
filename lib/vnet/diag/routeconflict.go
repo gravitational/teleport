@@ -289,7 +289,6 @@ func (n *NetInterfaces) InterfaceByIndex(index int) (*net.Interface, error) {
 // The function is defined here so that we can run tests against it on other platforms too.
 func extractNetworkExtDescFromIfconfigOutput(stdout []byte) string {
 	scanner := bufio.NewScanner(bytes.NewReader(stdout))
-	scanner.Split(bufio.ScanLines)
 
 	for scanner.Scan() {
 		line := scanner.Text()
