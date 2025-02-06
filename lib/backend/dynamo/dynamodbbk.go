@@ -291,7 +291,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	}
 
 	// FIPS settings are applied on the individual service instead of the aws config,
-	// as DynamoDB Streams and Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
+	// as Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
 	// See also: https://aws.amazon.com/compliance/fips/#FIPS_Endpoints_by_Service
 	if modules.GetModules().IsBoringBinary() {
 		dynamoOpts = append(dynamoOpts, func(o *dynamodb.Options) {
@@ -312,7 +312,23 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	streamsClient := dynamodbstreams.NewFromConfig(awsConfig, dynamodbstreams.WithEndpointResolverV2(streamsResolver))
+	streamsOpts := []func(*dynamodbstreams.Options){
+		dynamodbstreams.WithEndpointResolverV2(streamsResolver),
+		func(o *dynamodbstreams.Options) {
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		},
+	}
+
+	// FIPS settings are applied on the individual service instead of the aws config,
+	// as Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
+	// See also: https://aws.amazon.com/compliance/fips/#FIPS_Endpoints_by_Service
+	if modules.GetModules().IsBoringBinary() {
+		streamsOpts = append(streamsOpts, func(o *dynamodbstreams.Options) {
+			o.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateEnabled
+		})
+	}
+
+	streamsClient := dynamodbstreams.NewFromConfig(awsConfig, streamsOpts...)
 	b := &Backend{
 		logger:  l,
 		Config:  *cfg,
