@@ -81,8 +81,8 @@ type cliConfig struct {
 	SelfSetup bool
 	// UpdateNow forces an immediate update.
 	UpdateNow bool
-	// Restart forces Teleport to restart
-	Restart bool
+	// Reload reloads Teleport.
+	Reload bool
 }
 
 func Run(args []string) int {
@@ -151,8 +151,8 @@ func Run(args []string) int {
 
 	setupCmd := app.Command("setup", "Write configuration files that run the update subcommand on a timer and verify the Teleport installation.").
 		Hidden()
-	setupCmd.Flag("restart", "Restart the Teleport agent.").
-		Short('r').BoolVar(&ccfg.Restart)
+	setupCmd.Flag("reload", "Reload the Teleport agent. If not set, Teleport is not reloaded or restarted.").
+		Short('r').BoolVar(&ccfg.Reload)
 
 	statusCmd := app.Command("status", "Show Teleport agent auto-update status.")
 
@@ -432,7 +432,7 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = updater.Setup(ctx, ccfg.Restart)
+	err = updater.Setup(ctx, ccfg.Reload)
 	if err != nil {
 		return trace.Wrap(err)
 	}

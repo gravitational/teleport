@@ -681,12 +681,12 @@ func TestUpdater_Update(t *testing.T) {
 				},
 			}
 			var restarted bool
-			updater.ExecSetup = func(_ context.Context, restart bool) error {
+			updater.ReexecSetup = func(_ context.Context, restart bool) error {
 				restarted = restart
 				setupCalls++
 				return tt.setupErr
 			}
-			updater.SetupConfig = func(_ context.Context) error {
+			updater.SetupNamespace = func(_ context.Context) error {
 				revertSetupCalls++
 				return nil
 			}
@@ -1117,7 +1117,7 @@ func TestUpdater_Remove(t *testing.T) {
 					return false, nil
 				},
 			}
-			updater.TeardownConfig = func(_ context.Context) error {
+			updater.TeardownNamespace = func(_ context.Context) error {
 				teardownCalls++
 				return nil
 			}
@@ -1504,12 +1504,12 @@ func TestUpdater_Install(t *testing.T) {
 				},
 			}
 			var restarted bool
-			updater.ExecSetup = func(_ context.Context, restart bool) error {
+			updater.ReexecSetup = func(_ context.Context, restart bool) error {
 				setupCalls++
 				restarted = restart
 				return tt.setupErr
 			}
-			updater.SetupConfig = func(_ context.Context) error {
+			updater.SetupNamespace = func(_ context.Context) error {
 				revertSetupCalls++
 				return nil
 			}
@@ -1646,7 +1646,7 @@ func TestUpdater_Setup(t *testing.T) {
 					return tt.present, tt.presentErr
 				},
 			}
-			updater.SetupConfig = func(_ context.Context) error {
+			updater.SetupNamespace = func(_ context.Context) error {
 				return tt.setupErr
 			}
 

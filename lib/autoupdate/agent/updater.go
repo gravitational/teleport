@@ -123,7 +123,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 			Ready:       debugClient,
 			Log:         cfg.Log,
 		},
-		ExecSetup: func(ctx context.Context, restart bool) error {
+		ReexecSetup: func(ctx context.Context, reload bool) error {
 			name := ns.updaterBinFile
 			if cfg.SelfSetup && runtime.GOOS == constants.LinuxOS {
 				name = "/proc/self/exe"
@@ -138,8 +138,8 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 				args = append(args, "--debug")
 			}
 			args = append(args, "setup")
-			if restart {
-				args = append(args, "--restart")
+			if reload {
+				args = append(args, "--reload")
 			}
 			cmd := exec.CommandContext(ctx, name, args...)
 			cmd.Stderr = os.Stderr
@@ -148,8 +148,8 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 			defer cfg.Log.InfoContext(ctx, "Finished executing new teleport-update binary.")
 			return trace.Wrap(cmd.Run())
 		},
-		SetupConfig:    ns.Setup,
-		TeardownConfig: ns.Teardown,
+		SetupNamespace:    ns.Setup,
+		TeardownNamespace: ns.Teardown,
 	}, nil
 }
 
@@ -187,12 +187,13 @@ type Updater struct {
 	Installer Installer
 	// Process manages a running instance of Teleport.
 	Process Process
-	// ExecSetup execs teleport-update to verify and reload the installation.
-	ExecSetup func(ctx context.Context, restart bool) error
-	// SetupConfig installs the Teleport updater service using the running installation.
-	SetupConfig func(ctx context.Context) error
-	// TeardownConfig removes all traces of the updater and all managed installations.
-	TeardownConfig func(ctx context.Context) error
+	// ReexecSetup re-execs teleport-update with the setup command.
+	// This configures the updater service, verifies the installation, and optionally reloads Teleport.
+	ReexecSetup func(ctx context.Context, reload bool) error
+	// SetupNamespace configures the Teleport updater service for the current Namespace.
+	SetupNamespace func(ctx context.Context) error
+	// TeardownNamespace removes all traces of the updater service in the current Namespace, including Teleport.
+	TeardownNamespace func(ctx context.Context) error
 }
 
 // Installer provides an API for installing Teleport agents.
@@ -373,7 +374,7 @@ func (u *Updater) Remove(ctx context.Context) error {
 	active := cfg.Status.Active
 	if active.Version == "" {
 		u.Log.InfoContext(ctx, "No installation of Teleport managed by the updater. Removing updater configuration.")
-		if err := u.TeardownConfig(ctx); err != nil {
+		if err := u.TeardownNamespace(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 		u.Log.InfoContext(ctx, "Automatic update configuration for Teleport successfully uninstalled.")
@@ -395,7 +396,7 @@ func (u *Updater) Remove(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 		u.Log.InfoContext(ctx, "Teleport uninstalled.", "version", active)
-		if err := u.TeardownConfig(ctx); err != nil {
+		if err := u.TeardownNamespace(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 		u.Log.InfoContext(ctx, "Automatic update configuration for Teleport successfully uninstalled.")
@@ -458,7 +459,8 @@ func (u *Updater) Remove(ctx context.Context) error {
 		}
 		return trace.Wrap(err, "failed to start system package version of Teleport")
 	}
-	if err := u.TeardownConfig(ctx); err != nil {
+	u.Log.InfoContext(ctx, "Auto-updating Teleport removed and replaced by Teleport package.", "version", active)
+	if err := u.TeardownNamespace(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	u.Log.InfoContext(ctx, "Auto-update configuration for Teleport successfully uninstalled.")
@@ -735,7 +737,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 			u.Log.ErrorContext(ctx, "Failed to revert Teleport symlinks. Installation likely broken.")
 			return false
 		}
-		if err := u.SetupConfig(ctx); err != nil {
+		if err := u.SetupNamespace(ctx); err != nil {
 			u.Log.ErrorContext(ctx, "Failed to revert configuration after failed restart.", errorKey, err)
 			return false
 		}
@@ -743,7 +745,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 	}
 
 	if cfg.Status.Active != target {
-		err := u.ExecSetup(ctx, true)
+		err := u.ReexecSetup(ctx, true)
 		if errors.Is(err, context.Canceled) {
 			return trace.Errorf("check canceled")
 		}
@@ -766,7 +768,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 		}
 		cfg.Status.Active = target
 	} else {
-		err := u.ExecSetup(ctx, false)
+		err := u.ReexecSetup(ctx, false)
 		if errors.Is(err, context.Canceled) {
 			return trace.Errorf("check canceled")
 		}
@@ -795,7 +797,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 func (u *Updater) Setup(ctx context.Context, restart bool) error {
 	// Setup teleport-updater configuration and sync systemd.
 
-	err := u.SetupConfig(ctx)
+	err := u.SetupNamespace(ctx)
 	if errors.Is(err, context.Canceled) {
 		return trace.Errorf("sync canceled")
 	}
