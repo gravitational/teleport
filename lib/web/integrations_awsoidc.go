@@ -215,10 +215,16 @@ func (h *Handler) awsOIDCDeployDatabaseServices(w http.ResponseWriter, r *http.R
 	teleportVersionTag := teleport.Version
 	if automaticUpgrades(h.GetClusterFeatures()) {
 		const group, updaterUUID = "", ""
-		teleportVersionTag, err = h.autoUpdateAgentVersion(r.Context(), group, updaterUUID)
+		autoUpdateVersion, err := h.autoUpdateAgentVersion(r.Context(), group, updaterUUID)
 		if err != nil {
-			h.logger.ErrorContext(r.Context(), "Cannot read autoupdate target version", "error", err)
+			h.logger.WarnContext(r.Context(),
+				"Cannot read autoupdate target version, falling back to self version.",
+				"error", err,
+				"version", teleport.Version)
+		} else {
+			teleportVersionTag = autoUpdateVersion
 		}
+
 	}
 
 	iamTokenName := deployserviceconfig.DefaultTeleportIAMTokenName

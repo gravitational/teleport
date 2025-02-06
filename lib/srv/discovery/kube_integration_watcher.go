@@ -76,7 +76,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 	} else {
 		versionGetter, err = versionGetterForProxy(s.ctx, proxyPublicAddr)
 		if err != nil {
-			s.Log.ErrorContext(s.ctx,
+			s.Log.WarnContext(s.ctx,
 				"Failed to build a version client, falling back to Discovery service Teleport version.",
 				"error", err,
 				"version", teleport.Version)
