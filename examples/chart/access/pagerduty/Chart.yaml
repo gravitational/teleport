@@ -1,4 +1,4 @@
-.version: &version "15.4.26"
+.version: &version "15.4.27-dev.codingllama.1"
 
 apiVersion: v2
 name: teleport-plugin-pagerduty
