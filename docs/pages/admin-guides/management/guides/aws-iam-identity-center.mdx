@@ -13,12 +13,26 @@ Access Requests for scenarios requiring temporary elevated AWS privileges.
 
 ## How it works
 
-Identity Center integration builds on top of Teleport's [role-based access controls](../../access-controls/guides/guides.mdx),
+The Identity Center integration builds on top of Teleport's [role-based access controls](../../access-controls/guides/guides.mdx),
 [just-in-time Access Requests](../../access-controls/access-requests/access-requests.mdx)
-and [Access Lists](../../access-controls/access-lists/access-lists.mdx).
+and [Access Lists](../../access-controls/access-lists/access-lists.mdx) to manage
+the creation and deletion of Identity Center _Account Assignments_. 
 
-When enabled, Teleport takes ownership over Identity Center users, groups, and
-permission set assignments:
+An _Account Assignment_ is the combination of a specific AWS Permission Set on a 
+specific AWS account - for example "*AdminAccess on Production*" (where *Production* is 
+an AWS account managed by Identity Center). All possible Account Assignments are
+represented as resources within Teleport. When a user has access to an Account
+Assignment in Teleport, that access is mirrored in AWS Identity Center.
+
+When a Teleport user loses access to an Account Assignment in Teleport, that access
+is similarly deleted in AWS. 
+
+Access to Account Assignments can be granted via Teleport roles, either directly
+to users or through Access Lists, or by Account Assignment resources included in
+an approved Access Request.
+
+When the integration is enabled, Teleport takes ownership over Identity Center 
+users, groups, and permission set assignments:
 
 - All Identity Center groups, along with their members, account and permission
   assignments, are imported into Teleport as Access Lists.
@@ -173,29 +187,52 @@ Clicking the "Log In" button for this app takes you to your Identity Center
 SSO start page which you can use to pick a role and connect to your AWS account
 as usual.
 
-## Background: Account Assignments
-
-The main resource that the Teleport Identity Center integration manages is the
-*Account Assignment*.
-
-An Account Assignment is the combination of a specific Permission Set on a specific
-AWS account - for example "*AdminAccess on Production*" (where *Production* is 
-an AWS account managed by Identity Center). 
-
-When a user has access to an Account Assignment in Teleport, that access is
-mirrored in AWS Identity Center. When a teleport user loses access to an Account
-Assignment in Teleport, that access is similarly deleted in AWS. 
-
-Access to Account Assignments can be granted via Teleport Roles, either directly
-to Users or through Access Lists, or by Account Assignment resources included in
-an approved Access Request.
-
 ## Usage scenarios
 
 Let's take a look at some common usage scenarios enabled by the Identity Center
 integration.
 
-### Just-In-Time Access with resource Access Requests
+### Managing Account Assignments with Access Lists
+
+Teleport creates an Access List for each group imported from the Identity Center
+instance, with group members becoming Access List members. Default Access List 
+owners are configured during the initial integration enrollment flow and can be
+adjusted as necessary after the initial sync completes.
+
+Each imported Access List is automatically assigned a role (or a set of roles)
+that grant all members of that list access to all of the Account Assignments
+assigned to the corresponding AWS Identity Center group during the integration
+setup. 
+
+These Teleport-generated roles each represent a single Account Assignment, and
+are named using `<permission-set-name>-on-<account-name>-<account-id>` convention
+(e.g. `AdministratorAccess-on-MyAccount-012345678`). 
+
+<Admonition type="warning">
+These roles are considered system roles, and any edits or updates to them will
+be automatically reverted. 
+</Admonition>
+
+To give a user permission granted by an already-existing Identity Center synced
+Access List, an owner can add that user as a member which makes Teleport to add
+the user to its corresponding Identity Center group.
+
+<Admonition type="warning">
+Currently all existing Teleport users are synced to Identity Center. Label-based
+user filtering will be supported in a later release.
+</Admonition>
+
+Removing a member from an Identity Center synced Access List removes them
+from the corresponding Identity Center group effectively revoking privileges.
+
+In addition to membership changes, Teleport propagates changes in Access List
+grants back to Identity Center as well. For example, imagine an Access List with
+the roles `AdminAccess-on-my-account` and `ReadOnlyAccess-on-my-account`. If the
+Access List owner removes the `AdminAccess-on-my-account` role from the Access Lists,
+that change will be propagated back to AWS and the corresponding Identity Center
+group will have its assignments updated to remove the `AdminAccess` Permission 
+
+### Just-in-time Access with Resource Access Requests
 
 Teleport represents the imported AWS accounts as Apps in the Teleport Resource
 View, with the permission sets available for each account bundled up inside the
@@ -212,7 +249,7 @@ Teleport-managed resources if necessary.
 
 Once the used has selected their desired Account Assignments, the Access Request
 submission and review process is the same as for any other Teleport-managed
-resource. Assuming the Access Request is approved, teleport will create the
+resource. Assuming the Access Request is approved, Teleport will create the
 appropriate AWS Account Assignments in Identity Center to grant the requested
 access. These AWS Account Assignments will automatically be deleted when the
 Access Request expires.
@@ -226,47 +263,6 @@ by assuming the Access Request roles.
 The AWS Account Assignments will exist for the lifetime of the Access Request,
 regardless of when the user assumes the associated role(s).
 </Admonition>
-
-### Managing access with Access Lists
-
-Teleport creates an Access List for each group found in the Identity Center,
-with group members becoming Access List members. Default Access List owners are
-configured during the initial integration enrollment flow and can be adjusted
-as necessary after the initial sync completes.
-
-Each imported Access List is automatically assigned a role (or a set of roles)
-that grant all members of that list access to all of the Account Assignments
-assigned to the corresponding AWS Identity Center group during the integration
-setup. 
-
-These Teleport-generated roles each represent a single Account Assignment, and
-are named using `<permission-set-name>-on-<account-name>` convention (e.g.
-`AdministratorAccess-on-my-account`). 
-
-<Admonition type="warning">
-These roles are considered system roles, and any edits or updates to them will
-be automatically reverted. 
-</Admonition>
-
-To give a user permission granted by an already-existing Identity Center synced
-Access List, an owner can add that user as a member which makes Teleport to add
-the user to its corresponding Identity Center group.
-
-<Admonition type="note">
-While the integration is running, all existing Teleport users are synced to
-Identity Center.
-</Admonition>
-
-Removing a member from an Identity Center synced Access List removes them
-from the corresponding Identity Center group effectively revoking privileges.
-
-In addition to membership changes, Teleport propagates changes in Access List
-grants back to Identity Center as well. For example, imagine an Access List with
-the roles `AdminAccess-on-my-account` and `ReadOnlyAccess-on-my-account`. If the
-Access List owner removes the `AdminAccess-on-my-account` role from the Access Lists,
-that change will be propagated back to AWS and the corresponding Identity Center
-group will have its assignments updated to remove the `AdminAccess` Permission Set on `my-account`, leaving the `ReadOnlyAccess`
-assignment intact.
 
 ### Just-in-time access with role Access Requests
 
@@ -335,7 +331,7 @@ or removed from nested
 
 <Admonition type="warning">
 Before fully removing the integration, make sure to remember to change the
-identity source in your Identity Center.
+identity source in your Identity Center instance.
 </Admonition>
 
 You can remove the integration by navigating to your cluster's Integrations
