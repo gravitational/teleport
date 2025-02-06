@@ -161,7 +161,7 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 		const group, updaterUUID = "", ""
 		autoUpdateVersion, err := h.autoUpdateAgentVersion(r.Context(), group, updaterUUID)
 		if err != nil {
-			h.logger.ErrorContext(r.Context(),
+			h.logger.WarnContext(r.Context(),
 				"Cannot read autoupdate target version, falling back to our own version",
 				"error", err,
 				"version", teleport.Version)
