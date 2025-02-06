@@ -232,6 +232,8 @@ var (
 	ErrNoBinaries = errors.New("no binaries available to link")
 	// ErrFilePresent is returned when a file is present.
 	ErrFilePresent = errors.New("file present")
+	// ErrInvalid is returned when an operation is invalid.
+	ErrInvalid = errors.New("invalid")
 )
 
 const (
@@ -353,7 +355,7 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 	return trace.Wrap(u.notices(ctx))
 }
 
-// Remove removes everything created by the updater.
+// Remove removes everything created by the updater for the given namespace.
 // Before attempting this, Remove attempts to gracefully recover the system-packaged version of Teleport (if present).
 // This function is idempotent.
 func (u *Updater) Remove(ctx context.Context) error {
@@ -375,7 +377,8 @@ func (u *Updater) Remove(ctx context.Context) error {
 	}
 
 	revert, err := u.Installer.LinkSystem(ctx)
-	if errors.Is(err, ErrNoBinaries) {
+	if errors.Is(err, ErrNoBinaries) ||
+		errors.Is(err, ErrInvalid) {
 		u.Log.InfoContext(ctx, "Updater-managed installation of Teleport detected. Attempting to unlink and remove.")
 		ok, err := isActiveOrEnabled(ctx, u.Process)
 		if err != nil && !errors.Is(err, ErrNotSupported) {
@@ -450,7 +453,7 @@ func (u *Updater) Remove(ctx context.Context) error {
 		}
 		return trace.Wrap(err, "failed to start system package version of Teleport")
 	}
-	u.Log.InfoContext(ctx, "Auto-updating Teleport removed and replaced by Teleport packaged.", "version", active)
+	u.Log.InfoContext(ctx, "Auto-updating Teleport removed and replaced by Teleport package.", "version", active)
 	if err := u.Teardown(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -885,6 +888,8 @@ func (u *Updater) LinkPackage(ctx context.Context) error {
 	if err := u.Installer.TryLinkSystem(ctx); errors.Is(err, ErrLinked) {
 		u.Log.WarnContext(ctx, "Automatic updates is disabled, but a non-package version of Teleport is linked.", activeKey, active)
 		return nil
+	} else if errors.Is(err, ErrInvalid) {
+		return trace.Wrap(err)
 	} else if err != nil {
 		return trace.Wrap(err, "failed to link system package installation")
 	}
