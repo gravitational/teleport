@@ -50,9 +50,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
+	igcredentials "github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/migration"
@@ -637,6 +639,22 @@ func initializeAuthorities(ctx context.Context, asrv *Server, cfg *InitConfig) e
 		return trace.Wrap(err)
 	}
 
+	// Collect CAs from integrations to avoid deleting them.
+	igs, err := clientutils.ListAllResources(ctx, asrv.Services.ListIntegrations)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, ig := range igs {
+		caKeySet, err := igcredentials.GetIntegrationCertAuthorities(ctx, ig, asrv.Services)
+		if err != nil {
+			if !trace.IsNotImplemented(err) {
+				asrv.logger.WarnContext(ctx, "Failed to fetch integration CAs", "ig", ig.GetName(), "error", err)
+			}
+			continue
+		}
+		allKeysInUse = append(allKeysInUse, collectKeysInUse(*caKeySet)...)
+	}
+
 	// Delete any unused keys from the keyStore. This is to avoid exhausting
 	// (or wasting) HSM resources.
 	if err := asrv.keyStore.DeleteUnusedKeys(ctx, allKeysInUse); err != nil {
@@ -728,7 +746,12 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 		)
 	}
 
-	for _, keySet := range []types.CAKeySet{ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys()} {
+	keysInUse = collectKeysInUse(ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys())
+	return usableKeysResult, keysInUse, nil
+}
+
+func collectKeysInUse(cas ...types.CAKeySet) (keysInUse [][]byte) {
+	for _, keySet := range cas {
 		for _, sshKeyPair := range keySet.SSH {
 			keysInUse = append(keysInUse, sshKeyPair.PrivateKey)
 		}
@@ -739,7 +762,7 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 			keysInUse = append(keysInUse, jwtKeyPair.PrivateKey)
 		}
 	}
-	return usableKeysResult, keysInUse, nil
+	return keysInUse
 }
 
 // generateAuthority creates a new self-signed authority of the provided type
