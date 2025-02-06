@@ -51,7 +51,7 @@ export function AwsOidcStatusProvider({ children }: React.PropsWithChildren) {
   );
 
   const [integration, fetchIntegration] = useAsync(() =>
-    integrationService.fetchIntegration(IntegrationKind.AwsOidc, name)
+    integrationService.fetchIntegration<IntegrationAwsOidc>(name)
   );
 
   useEffect(() => {

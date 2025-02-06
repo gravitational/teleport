@@ -25,11 +25,11 @@ import {
   OperationType,
 } from './useIntegrationOperation';
 
-export type Props<T> = {
+export type Props<UpdateRequest> = {
   operation: OperationType;
   integration: Integration;
   close(): void;
-  edit(req: T): Promise<void>;
+  edit(req: UpdateRequest): Promise<void>;
   remove(): Promise<void>;
 };
 

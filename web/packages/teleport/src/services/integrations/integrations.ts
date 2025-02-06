@@ -38,7 +38,6 @@ import {
   Integration,
   IntegrationCreateRequest,
   IntegrationCreateResult,
-  IntegrationFetchResult,
   IntegrationKind,
   IntegrationListResponse,
   IntegrationStatusCode,
@@ -68,13 +67,10 @@ export const integrationService = {
     return api.get(cfg.getIntegrationCaUrl(clusterId, integrationName));
   },
 
-  fetchIntegration<T extends IntegrationKind>(
-    _kind: T,
-    name: string
-  ): Promise<IntegrationFetchResult<T>> {
+  fetchIntegration<T>(name: string): Promise<T> {
     return api
       .get(cfg.getIntegrationsUrl(name))
-      .then(resp => makeIntegration(resp) as IntegrationFetchResult<T>);
+      .then(resp => makeIntegration(resp) as T);
   },
 
   fetchIntegrations(): Promise<IntegrationListResponse> {

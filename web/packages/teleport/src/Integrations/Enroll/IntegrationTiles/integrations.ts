@@ -53,11 +53,11 @@ const integrations: IntegrationTileSpec[] = [
 export function installableIntegrations() {
   const isOnpremEnterprise = cfg.isEnterprise && !cfg.isCloud;
 
-  return integrations.flatMap(i => {
+  return integrations.filter(i => {
+    // We only render external audit storage for OSS (with CTA buttons) or cloud edition.
     if (i.kind === IntegrationKind.ExternalAuditStorage && isOnpremEnterprise) {
-      // We only render external audit storage for OSS (with CTA buttons) or cloud edition.
-      return []; // 0-element array which removes this item when used with flatMap
+      return false;
     }
-    return i;
+    return true;
   });
 }

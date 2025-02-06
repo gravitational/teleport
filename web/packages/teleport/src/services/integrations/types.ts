@@ -30,13 +30,6 @@ export type IntegrationUpdateResult<T extends IntegrationUpdateRequest> =
     ? IntegrationGitHub
     : IntegrationAwsOidc;
 
-export type IntegrationFetchResult<T extends IntegrationKind> =
-  T extends IntegrationKind.GitHub
-    ? IntegrationGitHub
-    : T extends IntegrationKind.AwsOidc
-      ? IntegrationAwsOidc
-      : IntegrationAzureOidc;
-
 export type Integration =
   | IntegrationGitHub
   | IntegrationAwsOidc
