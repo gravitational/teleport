@@ -2,20 +2,20 @@
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  name: {{ .Release.Name }}
+  name: {{ include "teleport-kube-agent.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
   {{- with .Values.podMonitor.additionalLabels }}
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  jobLabel: {{ .Release.Name }}
+  jobLabel: {{ include "teleport-kube-agent.fullname" . }}
   namespaceSelector:
     matchNames:
       - {{ .Release.Namespace }}
   selector:
     matchLabels:
-      app: {{ .Release.Name }}
+      app: {{ include "teleport-kube-agent.fullname" . }}
   podMetricsEndpoints:
     - port: diag
       path: /metrics

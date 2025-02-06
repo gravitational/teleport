@@ -4,7 +4,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ .Release.Name }}-updater
+  name: {{ include "teleport-kube-agent.fullname" . }}-updater
   namespace: {{ .Release.Namespace }}
 {{- if $updater.extraLabels.roleBinding }}
   labels:
@@ -13,7 +13,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: {{ .Release.Name }}-updater
+  name: {{ include "teleport-kube-agent.fullname" . }}-updater
 subjects:
 - kind: ServiceAccount
   name: {{ template "teleport-kube-agent-updater.serviceAccountName" . }}

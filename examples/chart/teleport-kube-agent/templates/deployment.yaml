@@ -7,10 +7,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}
+  name: {{ include "teleport-kube-agent.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    app: {{ .Release.Name }}
+    app: {{ include "teleport-kube-agent.fullname" . }}
   {{- if .Values.extraLabels.deployment }}
     {{- toYaml .Values.extraLabels.deployment | nindent 4 }}
   {{- end }}
@@ -22,7 +22,7 @@ spec:
   replicas: {{ $replicaCount }}
   selector:
     matchLabels:
-      app: {{ .Release.Name }}
+      app: {{ include "teleport-kube-agent.fullname" . }}
   template:
     metadata:
       annotations:
@@ -32,7 +32,7 @@ spec:
   {{- toYaml .Values.annotations.pod | nindent 8 }}
 {{- end }}
       labels:
-        app: {{ .Release.Name }}
+        app: {{ include "teleport-kube-agent.fullname" . }}
 {{- if .Values.extraLabels.pod }}
   {{- toYaml .Values.extraLabels.pod | nindent 8 }}
 {{- end }}
@@ -65,7 +65,7 @@ spec:
               - key: app
                 operator: In
                 values:
-                - {{ .Release.Name }}
+                - {{ include "teleport-kube-agent.fullname" . }}
             topologyKey: "kubernetes.io/hostname"
         {{- else if gt (int $replicaCount) 1 }}
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -76,7 +76,7 @@ spec:
                 - key: app
                   operator: In
                   values:
-                  - {{ .Release.Name }}
+                  - {{ include "teleport-kube-agent.fullname" . }}
               topologyKey: "kubernetes.io/hostname"
         {{- end }}
         {{- end }}
@@ -215,7 +215,7 @@ spec:
       volumes:
       - name: "config"
         configMap:
-          name: {{ .Release.Name }}
+          name: {{ include "teleport-kube-agent.fullname" . }}
       - name: "auth-token"
         secret:
           secretName: {{ coalesce .Values.secretName .Values.joinTokenSecret.name }}
