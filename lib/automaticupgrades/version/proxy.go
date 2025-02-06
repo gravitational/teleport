@@ -53,13 +53,7 @@ func (b *proxyVersionClient) Get(_ context.Context) (string, error) {
 // The Getter returns trace.NotImplementedErr when running against a proxy that does not seem to
 // expose automatic update instructions over the /find endpoint (proxy too old).
 type ProxyVersionGetter struct {
-	name         string
 	cachedGetter func(context.Context) (string, error)
-}
-
-// Name implements Getter
-func (g ProxyVersionGetter) Name() string {
-	return g.name
 }
 
 // GetVersion implements Getter
@@ -69,10 +63,10 @@ func (g ProxyVersionGetter) GetVersion(ctx context.Context) (string, error) {
 
 // NewProxyVersionGetter creates a ProxyVersionGetter from a webclient.
 // The answer is cached for a minute.
-func NewProxyVersionGetter(name string, clt *webclient.ReusableClient) Getter {
+func NewProxyVersionGetter(clt *webclient.ReusableClient) Getter {
 	versionClient := &proxyVersionClient{
 		client: clt,
 	}
 
-	return ProxyVersionGetter{name, cache.NewTimedMemoize[string](versionClient.Get, constants.CacheDuration).Get}
+	return ProxyVersionGetter{cache.NewTimedMemoize[string](versionClient.Get, constants.CacheDuration).Get}
 }
