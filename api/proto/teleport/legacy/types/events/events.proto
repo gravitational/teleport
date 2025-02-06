@@ -4749,9 +4749,10 @@ message OneOf {
     events.GitCommand GitCommand = 197;
     events.UserLoginAccessListInvalid UserLoginAccessListInvalid = 198;
     events.AccessRequestExpire AccessRequestExpire = 199;
-    events.AWSICResourceSync AWSICResourceSync = 200;
-    events.AWSICPermissionAssignment AWSICPermissionAssignment = 201;
-    events.SCIMPrincipalProvisioning SCIMPrincipalProvisioning = 202;
+    events.StableUNIXUserCreate StableUNIXUserCreate = 200;
+    events.AWSICResourceSync AWSICResourceSync = 201;
+    events.AWSICPermissionAssignment AWSICPermissionAssignment = 202;
+    events.SCIMPrincipalProvisioning SCIMPrincipalProvisioning = 203;
   }
 }
 
@@ -7952,6 +7953,31 @@ message UserLoginAccessListInvalid {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+}
+
+// StableUNIXUserCreate is emitted whenever a new stable UNIX user is written in
+// the cluster state storage.
+message StableUNIXUserCreate {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  StableUNIXUser stable_unix_user = 3;
+}
+
+message StableUNIXUser {
+  string username = 1;
+  int32 uid = 2;
 }
 
 // AWSICResourceSyncEvent defines import and reconciliation event data for a

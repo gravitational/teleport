@@ -33,7 +33,7 @@ import (
 )
 
 type mockClients struct {
-	cloud.Clients
+	cloud.AzureClients
 
 	azureClient azure.VirtualMachinesClient
 }

@@ -24,6 +24,8 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"maps"
+	"slices"
 	"time"
 
 	corev3pb "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
@@ -33,7 +35,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	workloadpb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
-	"golang.org/x/exp/maps"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -431,7 +432,7 @@ func (s *spiffeSDSHandler) generateResponse(
 	case names[envoyAllBundlesName]:
 		// Return all the trust bundles as part of a single validation context.
 		// We'll also override the name to match what they requested.
-		bundles := maps.Values(bundleSet.Federated)
+		bundles := slices.Collect(maps.Values(bundleSet.Federated))
 		bundles = append(bundles, bundleSet.Local)
 		validator, err := newTLSV3ValidationContext(
 			bundles, envoyAllBundlesName,
@@ -457,7 +458,7 @@ func (s *spiffeSDSHandler) generateResponse(
 		}
 	} else {
 		// For any remaining names, see if they match any federated trust bundles.
-		for _, name := range maps.Keys(names) {
+		for name := range maps.Keys(names) {
 			var found *spiffebundle.Bundle
 			for _, bundle := range bundleSet.Federated {
 				if name == bundle.TrustDomain().IDString() {
@@ -483,7 +484,7 @@ func (s *spiffeSDSHandler) generateResponse(
 	// If any names are left-over, we've not been able to service them so
 	// we should return an explicit error rather than omitting data.
 	if len(names) > 0 {
-		return nil, trace.BadParameter("unknown resource names: %v", maps.Keys(names))
+		return nil, trace.BadParameter("unknown resource names: %v", slices.Collect(maps.Keys(names)))
 	}
 
 	return &discoveryv3pb.DiscoveryResponse{

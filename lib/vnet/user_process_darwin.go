@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"golang.zx2c4.com/wireguard/tun"
 
 	"github.com/gravitational/teleport/lib/vnet/daemon"
@@ -31,7 +32,7 @@ import (
 // background. To do this, it also needs to launch an admin process in the
 // background. It returns a [ProcessManager] which controls the lifecycle of
 // both background tasks.
-func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm *ProcessManager, err error) {
+func runPlatformUserProcess(ctx context.Context, cfg *UserProcessConfig) (pm *ProcessManager, err error) {
 	// Make sure to close the process manager if returning a non-nil error.
 	defer func() {
 		if pm != nil && err != nil {
@@ -39,7 +40,7 @@ func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm 
 		}
 	}()
 
-	ipv6Prefix, err := NewIPv6Prefix()
+	ipv6Prefix, err := newIPv6Prefix()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -65,7 +66,7 @@ func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm 
 			SocketPath: socketPath,
 			IPv6Prefix: ipv6Prefix.String(),
 			DNSAddr:    dnsIPv6.String(),
-			HomePath:   config.HomePath,
+			HomePath:   cfg.HomePath,
 		}
 		return trace.Wrap(execAdminProcess(processCtx, daemonConfig))
 	})
@@ -106,12 +107,9 @@ func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm 
 		}
 	}
 
-	appResolver, err := newTCPAppResolver(config.AppProvider,
-		WithClusterConfigCache(config.ClusterConfigCache))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	clock := clockwork.NewRealClock()
+	appProvider := newLocalAppProvider(cfg.ClientApplication, clock)
+	appResolver := newTCPAppResolver(appProvider, clock)
 	ns, err := newNetworkStack(&networkStackConfig{
 		tunDevice:          tun,
 		ipv6Prefix:         ipv6Prefix,

@@ -862,6 +862,9 @@ const (
 	// GitCommandEvent is emitted when a Git command is executed.
 	GitCommandEvent = "git.command"
 
+	// StableUNIXUserCreateEvent is emitted when a stable UNIX user is created.
+	StableUNIXUserCreateEvent = "stable_unix_user.create"
+
 	// AWSICAccountSync is emitted when AWS Identity Center accounts are synced.
 	AWSICResourceSync = "aws_identity_center.resource.sync"
 	// AWSICPermissionAssignmentCreate is emitted when a permission assignment is

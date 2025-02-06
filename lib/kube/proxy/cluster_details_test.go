@@ -40,7 +40,7 @@ func TestNewClusterDetails(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	getClusterDetailsConfig := func(c clockwork.FakeClock) (clusterDetailsConfig, *clusterDetailsClientSet) {
+	getClusterDetailsConfig := func(c *clockwork.FakeClock) (clusterDetailsConfig, *clusterDetailsClientSet) {
 		client := &clusterDetailsClientSet{}
 		return clusterDetailsConfig{
 			kubeCreds: &staticKubeCreds{

@@ -46,6 +46,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -2960,6 +2961,8 @@ func TestApplyTraits(t *testing.T) {
 		inSudoers               []string
 		outSudoers              []string
 		outKubeResources        []types.KubernetesResource
+		inGitHubPermissions     []types.GitHubPermission
+		outGitHubPermissions    []types.GitHubPermission
 	}
 	tests := []struct {
 		comment  string
@@ -3728,6 +3731,34 @@ func TestApplyTraits(t *testing.T) {
 				},
 			},
 		},
+		{
+			comment: "GitHub permissions in allow rule",
+			inTraits: map[string][]string{
+				"github_orgs": {"my-org1", "my-org2"},
+			},
+			allow: rule{
+				inGitHubPermissions: []types.GitHubPermission{{
+					Organizations: []string{"{{internal.github_orgs}}"},
+				}},
+				outGitHubPermissions: []types.GitHubPermission{{
+					Organizations: []string{"my-org1", "my-org2"},
+				}},
+			},
+		},
+		{
+			comment: "GitHub permissions in deny rule",
+			inTraits: map[string][]string{
+				"orgs": {"my-org1", "my-org2"},
+			},
+			deny: rule{
+				inGitHubPermissions: []types.GitHubPermission{{
+					Organizations: []string{"{{external.orgs}}"},
+				}},
+				outGitHubPermissions: []types.GitHubPermission{{
+					Organizations: []string{"my-org1", "my-org2"},
+				}},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
@@ -3759,6 +3790,7 @@ func TestApplyTraits(t *testing.T) {
 						Impersonate:          &tt.allow.inImpersonate,
 						HostSudoers:          tt.allow.inSudoers,
 						KubernetesResources:  tt.allow.inKubeResources,
+						GitHubPermissions:    tt.allow.inGitHubPermissions,
 					},
 					Deny: types.RoleConditions{
 						Logins:               tt.deny.inLogins,
@@ -3780,6 +3812,7 @@ func TestApplyTraits(t *testing.T) {
 						Impersonate:          &tt.deny.inImpersonate,
 						HostSudoers:          tt.deny.outSudoers,
 						KubernetesResources:  tt.deny.inKubeResources,
+						GitHubPermissions:    tt.deny.inGitHubPermissions,
 					},
 				},
 			}
@@ -3813,6 +3846,7 @@ func TestApplyTraits(t *testing.T) {
 				require.Equal(t, rule.spec.outImpersonate, outRole.GetImpersonateConditions(rule.condition))
 				require.Equal(t, rule.spec.outSudoers, outRole.GetHostSudoers(rule.condition))
 				require.Equal(t, rule.spec.outKubeResources, outRole.GetRoleConditions(rule.condition).KubernetesResources)
+				require.Equal(t, rule.spec.outGitHubPermissions, outRole.GetRoleConditions(rule.condition).GitHubPermissions)
 			}
 		})
 	}
@@ -3840,26 +3874,26 @@ func TestExtractFrom(t *testing.T) {
 
 	// At this point, services.User and the certificate/identity are still in
 	// sync. The roles and traits returned should be the same as the original.
-	roles, traits, err := ExtractFromCertificate(cert)
+	ident, err := sshca.DecodeIdentity(cert)
 	require.NoError(t, err)
-	require.Equal(t, roles, origRoles)
-	require.Equal(t, traits, origTraits)
+	require.Equal(t, origRoles, ident.Roles)
+	require.Equal(t, origTraits, ident.Traits)
 
-	roles, traits, err = ExtractFromIdentity(ctx, &userGetter{
+	roles, traits, err := ExtractFromIdentity(ctx, &userGetter{
 		roles:  origRoles,
 		traits: origTraits,
 	}, *identity)
 	require.NoError(t, err)
-	require.Equal(t, roles, origRoles)
-	require.Equal(t, traits, origTraits)
+	require.Equal(t, origRoles, roles)
+	require.Equal(t, origTraits, traits)
 
 	// The backend now returns new roles and traits, however because the roles
 	// and traits are extracted from the certificate/identity, the original
 	// roles and traits will be returned.
-	roles, traits, err = ExtractFromCertificate(cert)
+	ident, err = sshca.DecodeIdentity(cert)
 	require.NoError(t, err)
-	require.Equal(t, roles, origRoles)
-	require.Equal(t, traits, origTraits)
+	require.Equal(t, origRoles, ident.Roles)
+	require.Equal(t, origTraits, ident.Traits)
 
 	roles, traits, err = ExtractFromIdentity(ctx, &userGetter{
 		roles:  origRoles,

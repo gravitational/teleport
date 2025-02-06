@@ -288,6 +288,27 @@ func (rc *ResourceCommand) GetRef() services.Ref {
 
 // Get prints one or many resources of a certain type
 func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) error {
+	// Some resources require MFA to list with secrets. Check if we are trying to
+	// get any such resources so we can prompt for MFA preemptively.
+	mfaKinds := []string{types.KindToken, types.KindCertAuthority}
+	mfaRequired := rc.withSecrets && slices.ContainsFunc(rc.refs, func(r services.Ref) bool {
+		return slices.Contains(mfaKinds, r.Kind)
+	})
+
+	// Check if MFA has already been provided.
+	if _, err := mfa.MFAResponseFromContext(ctx); err == nil {
+		mfaRequired = false
+	}
+
+	if mfaRequired {
+		mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
+		if err == nil {
+			ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
+		} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
+			return trace.Wrap(err)
+		}
+	}
+
 	if rc.refs.IsAll() {
 		return rc.GetAll(ctx, client)
 	}
@@ -317,6 +338,7 @@ func (rc *ResourceCommand) GetMany(ctx context.Context, client *authclient.Clien
 	if rc.format != teleport.YAML {
 		return trace.BadParameter("mixed resource types only support YAML formatting")
 	}
+
 	var resources []types.Resource
 	for _, ref := range rc.refs {
 		rc.ref = ref
@@ -348,6 +370,14 @@ func (rc *ResourceCommand) GetAll(ctx context.Context, client *authclient.Client
 
 // Create updates or inserts one or many resources
 func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client) (err error) {
+	// Prompt for admin action MFA if required, allowing reuse for multiple resource creations.
+	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
+	if err == nil {
+		ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
+	} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
+		return trace.Wrap(err)
+	}
+
 	var reader io.Reader
 	if rc.filename == "" {
 		reader = os.Stdin
@@ -502,7 +532,7 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client *authclient.Cl
 	}
 	err = services.CheckDynamicLabelsInDenyRules(role)
 	if trace.IsBadParameter(err) {
-		return trace.BadParameter(dynamicLabelWarningMessage(role))
+		return trace.BadParameter("%s", dynamicLabelWarningMessage(role))
 	} else if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2068,7 +2098,7 @@ func resetAuthPreference(ctx context.Context, client *authclient.Client) error {
 
 	managedByStaticConfig := storedAuthPref.Origin() == types.OriginConfigFile
 	if managedByStaticConfig {
-		return trace.BadParameter(managedByStaticDeleteMsg)
+		return trace.BadParameter("%s", managedByStaticDeleteMsg)
 	}
 
 	return trace.Wrap(client.ResetAuthPreference(ctx))
@@ -2082,7 +2112,7 @@ func resetClusterNetworkingConfig(ctx context.Context, client *authclient.Client
 
 	managedByStaticConfig := storedNetConfig.Origin() == types.OriginConfigFile
 	if managedByStaticConfig {
-		return trace.BadParameter(managedByStaticDeleteMsg)
+		return trace.BadParameter("%s", managedByStaticDeleteMsg)
 	}
 
 	return trace.Wrap(client.ResetClusterNetworkingConfig(ctx))
@@ -2096,7 +2126,7 @@ func resetSessionRecordingConfig(ctx context.Context, client *authclient.Client)
 
 	managedByStaticConfig := storedRecConfig.Origin() == types.OriginConfigFile
 	if managedByStaticConfig {
-		return trace.BadParameter(managedByStaticDeleteMsg)
+		return trace.BadParameter("%s", managedByStaticDeleteMsg)
 	}
 
 	return trace.Wrap(client.ResetSessionRecordingConfig(ctx))
@@ -2234,19 +2264,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &reverseTunnelCollection{tunnels: tunnels}, nil
 	case types.KindCertAuthority:
 		getAll := rc.ref.SubKind == "" && rc.ref.Name == ""
-
-		// Prompt for admin action MFA if secrets were requested.
-		if rc.withSecrets {
-			// allow reuse for multiple calls to GetCertAuthorities with different ca types.
-			allowReuse := getAll
-			mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, allowReuse)
-			if err == nil {
-				ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
-			} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
-				return nil, trace.Wrap(err)
-			}
-		}
-
 		if getAll {
 			var allAuthorities []types.CertAuthority
 			for _, caType := range types.CertAuthTypes {
@@ -3519,7 +3536,7 @@ func getOneResourceNameToDelete[T types.ResourceWithLabels](rs []T, ref services
 			names = append(names, r.GetName())
 		}
 		msg := formatAmbiguousDeleteMessage(ref, resDesc, names)
-		return "", trace.BadParameter(msg)
+		return "", trace.BadParameter("%s", msg)
 	}
 }
 

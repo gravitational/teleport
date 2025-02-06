@@ -50,7 +50,7 @@ type WorkloadIdentityJWTCommand struct {
 // result.
 func NewWorkloadIdentityJWTCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *WorkloadIdentityJWTCommand {
 	// TODO(noah): Unhide this command when feature flag removed
-	cmd := parentCmd.Command("workload-identity-jwt", fmt.Sprintf("%s tbot with a SPIFFE-compatible JWT SVID output.", mode)).Hidden()
+	cmd := parentCmd.Command("workload-identity-jwt", fmt.Sprintf("%s tbot with a SPIFFE-compatible JWT SVID output.", mode))
 
 	c := &WorkloadIdentityJWTCommand{}
 	c.sharedStartArgs = newSharedStartArgs(cmd)

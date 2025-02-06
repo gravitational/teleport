@@ -16,14 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import Box from 'design/Box';
 import Text from 'design/Text';
 import FieldInput from 'shared/components/FieldInput';
+import { FieldSelect } from 'shared/components/FieldSelect';
 import { precomputed } from 'shared/components/Validation/rules';
 
 import { LabelsInput } from 'teleport/components/LabelsInput';
 
 import { SectionBox, SectionProps } from './sections';
-import { MetadataModel } from './standardmodel';
+import { MetadataModel, roleVersionOptions } from './standardmodel';
 import { MetadataValidationResult } from './validation';
 
 export const MetadataSection = ({
@@ -55,14 +57,24 @@ export const MetadataSection = ({
         onChange({ ...value, description: e.target.value })
       }
     />
-    <Text typography="body3" mb={1}>
-      Labels
-    </Text>
-    <LabelsInput
-      disableBtns={isProcessing}
-      labels={value.labels}
-      setLabels={labels => onChange?.({ ...value, labels })}
-      rule={precomputed(validation.fields.labels)}
+    <Box mb={3}>
+      <Text typography="body3" mb={1}>
+        Labels
+      </Text>
+      <LabelsInput
+        disableBtns={isProcessing}
+        labels={value.labels}
+        setLabels={labels => onChange({ ...value, labels })}
+        rule={precomputed(validation.fields.labels)}
+      />
+    </Box>
+    <FieldSelect
+      label="Version"
+      isDisabled={isProcessing}
+      options={roleVersionOptions}
+      value={value.version}
+      onChange={version => onChange({ ...value, version })}
+      mb={0}
     />
   </SectionBox>
 );

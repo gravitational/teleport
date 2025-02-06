@@ -92,7 +92,7 @@ func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (types.Provisio
 	case types.V2:
 		var p types.ProvisionTokenV2
 		if err := utils.FastUnmarshal(data, &p); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := p.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)

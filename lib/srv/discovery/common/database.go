@@ -31,11 +31,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
+	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
+	opensearchtypes "github.com/aws/aws-sdk-go-v2/service/opensearch/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
-	"github.com/aws/aws-sdk-go/service/memorydb"
-	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -878,7 +878,7 @@ func newElastiCacheDatabase(cluster *ectypes.ReplicationGroup, endpoint *ectypes
 }
 
 // NewDatabasesFromOpenSearchDomain creates database resources from an OpenSearch domain.
-func NewDatabasesFromOpenSearchDomain(domain *opensearchservice.DomainStatus, tags []*opensearchservice.Tag) (types.Databases, error) {
+func NewDatabasesFromOpenSearchDomain(domain *opensearchtypes.DomainStatus, tags []opensearchtypes.Tag) (types.Databases, error) {
 	var databases types.Databases
 
 	if aws.ToString(domain.Endpoint) != "" {
@@ -933,7 +933,7 @@ func NewDatabasesFromOpenSearchDomain(domain *opensearchservice.DomainStatus, ta
 		databases = append(databases, db)
 	}
 
-	for name, url := range domain.Endpoints {
+	for name, endpoint := range domain.Endpoints {
 		metadata, err := MetadataFromOpenSearchDomain(domain, apiawsutils.OpenSearchVPCEndpoint)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -951,7 +951,7 @@ func NewDatabasesFromOpenSearchDomain(domain *opensearchservice.DomainStatus, ta
 		meta = setAWSDBName(meta, aws.ToString(domain.DomainName), name)
 		spec := types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolOpenSearch,
-			URI:      fmt.Sprintf("%v:443", aws.ToString(url)),
+			URI:      fmt.Sprintf("%v:443", endpoint),
 			AWS:      *metadata,
 		}
 
@@ -968,7 +968,7 @@ func NewDatabasesFromOpenSearchDomain(domain *opensearchservice.DomainStatus, ta
 
 // NewDatabaseFromMemoryDBCluster creates a database resource from a MemoryDB
 // cluster.
-func NewDatabaseFromMemoryDBCluster(cluster *memorydb.Cluster, extraLabels map[string]string) (types.Database, error) {
+func NewDatabaseFromMemoryDBCluster(cluster *memorydbtypes.Cluster, extraLabels map[string]string) (types.Database, error) {
 	endpointType := apiawsutils.MemoryDBClusterEndpoint
 
 	metadata, err := MetadataFromMemoryDBCluster(cluster, endpointType)
@@ -983,7 +983,7 @@ func NewDatabaseFromMemoryDBCluster(cluster *memorydb.Cluster, extraLabels map[s
 		}, aws.ToString(cluster.Name)),
 		types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolRedis,
-			URI:      fmt.Sprintf("%v:%v", aws.ToString(cluster.ClusterEndpoint.Address), aws.ToInt64(cluster.ClusterEndpoint.Port)),
+			URI:      fmt.Sprintf("%v:%d", aws.ToString(cluster.ClusterEndpoint.Address), cluster.ClusterEndpoint.Port),
 			AWS:      *metadata,
 		})
 }
@@ -1181,7 +1181,7 @@ func MetadataFromElastiCacheCluster(cluster *ectypes.ReplicationGroup, endpointT
 }
 
 // MetadataFromOpenSearchDomain creates AWS metadata for the provided OpenSearch domain.
-func MetadataFromOpenSearchDomain(domain *opensearchservice.DomainStatus, endpointType string) (*types.AWS, error) {
+func MetadataFromOpenSearchDomain(domain *opensearchtypes.DomainStatus, endpointType string) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.ToString(domain.ARN))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1200,7 +1200,7 @@ func MetadataFromOpenSearchDomain(domain *opensearchservice.DomainStatus, endpoi
 
 // MetadataFromMemoryDBCluster creates AWS metadata for the provided MemoryDB
 // cluster.
-func MetadataFromMemoryDBCluster(cluster *memorydb.Cluster, endpointType string) (*types.AWS, error) {
+func MetadataFromMemoryDBCluster(cluster *memorydbtypes.Cluster, endpointType string) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.ToString(cluster.ARN))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1290,7 +1290,7 @@ func ExtraElastiCacheLabels(cluster *ectypes.ReplicationGroup, tags []ectypes.Ta
 
 // ExtraMemoryDBLabels returns a list of extra labels for provided MemoryDB
 // cluster.
-func ExtraMemoryDBLabels(cluster *memorydb.Cluster, tags []*memorydb.Tag, allSubnetGroups []*memorydb.SubnetGroup) map[string]string {
+func ExtraMemoryDBLabels(cluster *memorydbtypes.Cluster, tags []memorydbtypes.Tag, allSubnetGroups []memorydbtypes.SubnetGroup) map[string]string {
 	labels := make(map[string]string)
 
 	// Engine version.
@@ -1304,6 +1304,7 @@ func ExtraMemoryDBLabels(cluster *memorydb.Cluster, tags []*memorydb.Tag, allSub
 		}
 	}
 
+	labels[types.DiscoveryLabelEngine] = aws.ToString(cluster.Engine)
 	// Add AWS resource tags.
 	return addLabels(labels, libcloudaws.TagsToLabels(tags))
 }
@@ -1505,7 +1506,7 @@ func labelsFromAWSMetadata(meta *types.AWS) map[string]string {
 	return labels
 }
 
-func labelsFromOpenSearchDomain(domain *opensearchservice.DomainStatus, meta *types.AWS, endpointType string, tags []*opensearchservice.Tag) map[string]string {
+func labelsFromOpenSearchDomain(domain *opensearchtypes.DomainStatus, meta *types.AWS, endpointType string, tags []opensearchtypes.Tag) map[string]string {
 	labels := labelsFromMetaAndEndpointType(meta, endpointType, libcloudaws.TagsToLabels(tags))
 	labels[types.DiscoveryLabelEngineVersion] = aws.ToString(domain.EngineVersion)
 	return labels

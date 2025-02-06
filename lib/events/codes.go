@@ -693,6 +693,9 @@ const (
 	// GitCommandFailureCode is the git command feature event code.
 	GitCommandFailureCode = "TGIT001E"
 
+	// StableUNIXUserCreateCode is the stable UNIX user create event code.
+	StableUNIXUserCreateCode = "TSUU001I"
+
 	// AWSICAccountSyncCode is the AWS Identity Center account sync event code.
 	AWSICResourceSyncCode = "TAIC001I"
 	// AWSICPermissionAssignmentCreateCode is the AWS Identity Center permission assignment create event code.

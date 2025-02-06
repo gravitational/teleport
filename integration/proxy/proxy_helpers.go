@@ -33,13 +33,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -606,7 +605,7 @@ func mustParseURL(t *testing.T, rawURL string) *url.URL {
 type fakeSTSClient struct {
 	accountID   string
 	arn         string
-	credentials *credentials.Credentials
+	credentials aws.CredentialsProvider
 }
 
 func (f fakeSTSClient) Do(req *http.Request) (*http.Response, error) {
@@ -641,10 +640,10 @@ func mustCreateIAMJoinProvisionToken(t *testing.T, name, awsAccountID, allowedAR
 	return provisionToken
 }
 
-func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token string, credentials *credentials.Credentials) {
+func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token string, credentials aws.CredentialsProvider) {
 	t.Helper()
 
-	cred, err := credentials.Get()
+	cred, err := credentials.Retrieve(context.Background())
 	require.NoError(t, err)
 
 	t.Setenv("AWS_ACCESS_KEY_ID", cred.AccessKeyID)
@@ -771,7 +770,7 @@ func kubeClientForLocalProxy(t *testing.T, kubeconfigPath, teleportCluster, kube
 	require.NoError(t, err)
 
 	contextName := kubeconfig.ContextName(teleportCluster, kubeCluster)
-	require.Contains(t, maps.Keys(config.Clusters), contextName)
+	require.Contains(t, config.Clusters, contextName)
 	proxyURL, err := url.Parse(config.Clusters[contextName].ProxyURL)
 	require.NoError(t, err)
 

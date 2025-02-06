@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 )
 
 var userSessionLimitHitCount = prometheus.NewCounter(
@@ -166,24 +167,19 @@ func WebSessionController(controller *SessionController) func(ctx context.Contex
 			return ctx, trace.Wrap(err)
 		}
 
-		unmappedRoles, err := services.ExtractRolesFromCert(sshCert)
-		if err != nil {
-			return ctx, trace.Wrap(err)
-		}
-
-		accessRequestIDs, err := ParseAccessRequestIDs(sshCert.Extensions[teleport.CertExtensionTeleportActiveRequests])
+		unmappedIdentity, err := sshca.DecodeIdentity(sshCert)
 		if err != nil {
 			return ctx, trace.Wrap(err)
 		}
 
 		identity := IdentityContext{
-			AccessChecker:  accessChecker,
-			TeleportUser:   sctx.GetUser(),
-			Login:          login,
-			Certificate:    sshCert,
-			UnmappedRoles:  unmappedRoles,
-			ActiveRequests: accessRequestIDs,
-			Impersonator:   sshCert.Extensions[teleport.CertExtensionImpersonator],
+			UnmappedIdentity: unmappedIdentity,
+			AccessChecker:    accessChecker,
+			TeleportUser:     sctx.GetUser(),
+			Login:            login,
+			UnmappedRoles:    unmappedIdentity.Roles,
+			ActiveRequests:   unmappedIdentity.ActiveRequests,
+			Impersonator:     unmappedIdentity.Impersonator,
 		}
 		ctx, err = controller.AcquireSessionContext(ctx, identity, localAddr, remoteAddr)
 		return ctx, trace.Wrap(err)
@@ -221,12 +217,11 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 
 	// Check that the required private key policy, defined by roles and auth pref,
 	// is met by this Identity's ssh certificate.
-	identityPolicy := keys.PrivateKeyPolicy(identity.Certificate.Extensions[teleport.CertExtensionPrivateKeyPolicy])
 	requiredPolicy, err := identity.AccessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !requiredPolicy.IsSatisfiedBy(identityPolicy) {
+	if !requiredPolicy.IsSatisfiedBy(identity.UnmappedIdentity.PrivateKeyPolicy) {
 		return ctx, keys.NewPrivateKeyPolicyError(requiredPolicy)
 	}
 
@@ -236,7 +231,7 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 	}
 
 	// Device Trust: authorize device extensions.
-	if err := dtauthz.VerifySSHUser(ctx, authPref.GetDeviceTrust(), identity.Certificate); err != nil {
+	if err := dtauthz.VerifySSHUser(ctx, authPref.GetDeviceTrust(), identity.UnmappedIdentity); err != nil {
 		return ctx, trace.Wrap(err)
 	}
 

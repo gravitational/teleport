@@ -26,6 +26,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -100,14 +102,14 @@ func TestPollAWSRDS(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		fetcherConfigOpt func(*awsFetcher)
+		fetcherConfigOpt func(*Fetcher)
 		want             *Resources
 		checkError       func(*testing.T, error)
 	}{
 		{
 			name: "poll rds databases",
 			want: &resourcesFixture,
-			fetcherConfigOpt: func(a *awsFetcher) {
+			fetcherConfigOpt: func(a *Fetcher) {
 				a.awsClients = fakeAWSClients{
 					rdsClient: &mocks.RDSClient{
 						DBInstances: dbInstances(),
@@ -122,7 +124,7 @@ func TestPollAWSRDS(t *testing.T) {
 		{
 			name: "reuse last synced databases on failure",
 			want: &resourcesFixture,
-			fetcherConfigOpt: func(a *awsFetcher) {
+			fetcherConfigOpt: func(a *Fetcher) {
 				a.awsClients = fakeAWSClients{
 					rdsClient: &mocks.RDSClient{Unauth: true},
 				}
@@ -136,7 +138,7 @@ func TestPollAWSRDS(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			a := &awsFetcher{
+			a := &Fetcher{
 				Config: Config{
 					AccountID: accountID,
 					AWSConfigProvider: &mocks.AWSConfigProvider{
@@ -219,6 +221,8 @@ func dbClusters() []rdstypes.DBCluster {
 type fakeAWSClients struct {
 	iamClient iamClient
 	rdsClient rdsClient
+	s3Client  s3Client
+	stsClient stsClient
 }
 
 func (f fakeAWSClients) getIAMClient(cfg aws.Config, optFns ...func(*iam.Options)) iamClient {
@@ -227,4 +231,12 @@ func (f fakeAWSClients) getIAMClient(cfg aws.Config, optFns ...func(*iam.Options
 
 func (f fakeAWSClients) getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient {
 	return f.rdsClient
+}
+
+func (f fakeAWSClients) getS3Client(cfg aws.Config, optFns ...func(*s3.Options)) s3Client {
+	return f.s3Client
+}
+
+func (f fakeAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient {
+	return f.stsClient
 }

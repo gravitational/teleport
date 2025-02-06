@@ -26,10 +26,14 @@ import {
 } from 'shared/components/Validation/rules';
 
 import { nonEmptyLabels } from 'teleport/components/LabelsInput/LabelsInput';
-import { KubernetesResourceKind } from 'teleport/services/resources';
+import {
+  KubernetesResourceKind,
+  RoleVersion,
+} from 'teleport/services/resources';
 
 import {
   KubernetesResourceModel,
+  KubernetesVerbOption,
   MetadataModel,
   ResourceAccess,
   RoleEditorModel,
@@ -49,6 +53,10 @@ export type RoleEditorModelValidationResult = {
   metadata: MetadataValidationResult;
   resources: ResourceAccessValidationResult[];
   rules: AccessRuleValidationResult[];
+  /**
+   * isValid is true if all the fields in the validation result are valid.
+   */
+  isValid: boolean;
 };
 
 /**
@@ -72,22 +80,32 @@ export function validateRoleEditorModel(
   previousModel: RoleEditorModel | undefined,
   previousResult: RoleEditorModelValidationResult | undefined
 ): RoleEditorModelValidationResult {
+  const metadataResult = validateMetadata(
+    model.metadata,
+    previousModel?.metadata,
+    previousResult?.metadata
+  );
+
+  const resourcesResult = validateResourceAccessList(
+    model.resources,
+    previousModel?.resources,
+    previousResult?.resources
+  );
+
+  const rulesResult = validateAccessRuleList(
+    model.rules,
+    previousModel?.rules,
+    previousResult?.rules
+  );
+
   return {
-    metadata: validateMetadata(
-      model.metadata,
-      previousModel?.metadata,
-      previousResult?.metadata
-    ),
-    resources: validateResourceAccessList(
-      model.resources,
-      previousModel?.resources,
-      previousResult?.resources
-    ),
-    rules: validateAccessRuleList(
-      model.rules,
-      previousModel?.rules,
-      previousResult?.rules
-    ),
+    isValid:
+      metadataResult.valid &&
+      resourcesResult.every(r => r.valid) &&
+      rulesResult.every(r => r.valid),
+    metadata: metadataResult,
+    resources: resourcesResult,
+    rules: rulesResult,
   };
 }
 
@@ -144,6 +162,8 @@ export function validateResourceAccess(
       return runRules(resource, databaseAccessValidationRules);
     case 'windows_desktop':
       return runRules(resource, windowsDesktopAccessValidationRules);
+    case 'git_server':
+      return { valid: true };
     default:
       kind satisfies never;
   }
@@ -154,9 +174,11 @@ export type ResourceAccessValidationResult =
   | KubernetesAccessValidationResult
   | AppAccessValidationResult
   | DatabaseAccessValidationResult
-  | WindowsDesktopAccessValidationResult;
+  | WindowsDesktopAccessValidationResult
+  | GitHubOrganizationAccessValidationResult;
 
 const validKubernetesResource = (res: KubernetesResourceModel) => () => {
+  const kind = validKubernetesKind(res.kind.value, res.roleVersion);
   const name = requiredField(
     'Resource name is required, use "*" for any resource'
   )(res.name)();
@@ -165,15 +187,64 @@ const validKubernetesResource = (res: KubernetesResourceModel) => () => {
     : requiredField('Namespace is required for resources of this kind')(
         res.namespace
       )();
+  const verbs = validKubernetesVerbs(res.verbs);
   return {
-    valid: name.valid && namespace.valid,
+    valid: kind.valid && name.valid && namespace.valid && verbs.valid,
+    kind,
     name,
     namespace,
+    verbs,
   };
 };
 export type KubernetesResourceValidationResult = {
+  kind: ValidationResult;
   name: ValidationResult;
   namespace: ValidationResult;
+  verbs: ValidationResult;
+};
+
+/**
+ * Validates a `kind` field of a `KubernetesResourceModel`. In roles with
+ * version v6, the auth server allows only specifying access for `pod`
+ * Kubernetes resources.
+ */
+const validKubernetesKind = (
+  kind: KubernetesResourceKind,
+  ver: RoleVersion
+): ValidationResult => {
+  switch (ver) {
+    case RoleVersion.V3:
+    case RoleVersion.V4:
+    case RoleVersion.V5:
+    case RoleVersion.V6:
+      const valid = kind === 'pod';
+      return {
+        valid,
+        message: valid
+          ? undefined
+          : `Only pods are allowed for role version ${ver}`,
+      };
+
+    case RoleVersion.V7:
+      return { valid: true };
+
+    default:
+      ver satisfies never;
+      return { valid: true };
+  }
+};
+
+const validKubernetesVerbs = (
+  verbs: readonly KubernetesVerbOption[]
+): ValidationResult => {
+  // Don't allow mixing '*' and other resource types.
+  const valid = verbs.length < 2 || verbs.every(v => v.value !== '*');
+  return {
+    valid,
+    message: valid
+      ? undefined
+      : 'Mixing "All verbs" with other options is not allowed',
+  };
 };
 
 const kubernetesAccessValidationRules = {
@@ -219,6 +290,7 @@ export type AppAccessValidationResult = RuleSetValidationResult<
 const databaseAccessValidationRules = {
   labels: nonEmptyLabels,
   roles: noWildcardOptions('Wildcard is not allowed in database roles'),
+  dbServiceLabels: nonEmptyLabels,
 };
 export type DatabaseAccessValidationResult = RuleSetValidationResult<
   typeof databaseAccessValidationRules
@@ -230,6 +302,8 @@ const windowsDesktopAccessValidationRules = {
 export type WindowsDesktopAccessValidationResult = RuleSetValidationResult<
   typeof windowsDesktopAccessValidationRules
 >;
+
+export type GitHubOrganizationAccessValidationResult = ValidationResult;
 
 export function validateAccessRuleList(
   rules: RuleModel[],

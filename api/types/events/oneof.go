@@ -823,6 +823,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_GitCommand{
 			GitCommand: e,
 		}
+	case *StableUNIXUserCreate:
+		out.Event = &OneOf_StableUNIXUserCreate{
+			StableUNIXUserCreate: e,
+		}
 	case *AWSICResourceSync:
 		out.Event = &OneOf_AWSICResourceSync{
 			AWSICResourceSync: e,

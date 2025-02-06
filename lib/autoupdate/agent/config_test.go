@@ -22,7 +22,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/lib/autoupdate"
 )
 
 func TestNewRevisionFromDir(t *testing.T) {
@@ -46,7 +47,7 @@ func TestNewRevisionFromDir(t *testing.T) {
 			dir:  "1.2.3_ent_fips",
 			rev: Revision{
 				Version: "1.2.3",
-				Flags:   FlagEnterprise | FlagFIPS,
+				Flags:   autoupdate.FlagEnterprise | autoupdate.FlagFIPS,
 			},
 		},
 		{
@@ -54,7 +55,7 @@ func TestNewRevisionFromDir(t *testing.T) {
 			dir:  "1.2.3_ent",
 			rev: Revision{
 				Version: "1.2.3",
-				Flags:   FlagEnterprise,
+				Flags:   autoupdate.FlagEnterprise,
 			},
 		},
 		{
@@ -121,75 +122,6 @@ func TestNewRevisionFromDir(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tt.rev, rev)
 			require.Equal(t, tt.dir, rev.Dir())
-		})
-	}
-}
-
-func TestInstallFlagsYAML(t *testing.T) {
-	t.Parallel()
-
-	for _, tt := range []struct {
-		name     string
-		yaml     string
-		flags    InstallFlags
-		skipYAML bool
-	}{
-		{
-			name:  "both",
-			yaml:  `["Enterprise", "FIPS"]`,
-			flags: FlagEnterprise | FlagFIPS,
-		},
-		{
-			name:     "order",
-			yaml:     `["FIPS", "Enterprise"]`,
-			flags:    FlagEnterprise | FlagFIPS,
-			skipYAML: true,
-		},
-		{
-			name:     "extra",
-			yaml:     `["FIPS", "Enterprise", "bad"]`,
-			flags:    FlagEnterprise | FlagFIPS,
-			skipYAML: true,
-		},
-		{
-			name:  "enterprise",
-			yaml:  `["Enterprise"]`,
-			flags: FlagEnterprise,
-		},
-		{
-			name:  "fips",
-			yaml:  `["FIPS"]`,
-			flags: FlagFIPS,
-		},
-		{
-			name: "empty",
-			yaml: `[]`,
-		},
-		{
-			name:     "nil",
-			skipYAML: true,
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			var flags InstallFlags
-			err := yaml.Unmarshal([]byte(tt.yaml), &flags)
-			require.NoError(t, err)
-			require.Equal(t, tt.flags, flags)
-
-			// verify test YAML
-			var v any
-			err = yaml.Unmarshal([]byte(tt.yaml), &v)
-			require.NoError(t, err)
-			res, err := yaml.Marshal(v)
-			require.NoError(t, err)
-
-			// compare verified YAML to flag output
-			out, err := yaml.Marshal(flags)
-			require.NoError(t, err)
-
-			if !tt.skipYAML {
-				require.Equal(t, string(res), string(out))
-			}
 		})
 	}
 }

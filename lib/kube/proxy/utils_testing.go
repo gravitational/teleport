@@ -507,6 +507,23 @@ func WithResourceAccessRequests(r ...types.ResourceID) GenTestKubeClientTLSCertO
 	}
 }
 
+// WithIdentityRoute allows the user to reset the identity's RouteToCluster
+// and KubernetesCluster fields to empty strings. This is useful when the user
+// wants to test path routing.
+func WithIdentityRoute(routeToCluster, kubernetesCluster string) GenTestKubeClientTLSCertOptions {
+	return func(identity *tlsca.Identity) {
+		identity.RouteToCluster = routeToCluster
+		identity.KubernetesCluster = kubernetesCluster
+	}
+}
+
+// WithMFAVerified sets the MFAVerified identity field,
+func WithMFAVerified() GenTestKubeClientTLSCertOptions {
+	return func(i *tlsca.Identity) {
+		i.MFAVerified = "fake"
+	}
+}
+
 // GenTestKubeClientTLSCert generates a kube client to access kube service
 func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeCluster string, opts ...GenTestKubeClientTLSCertOptions) (*kubernetes.Clientset, *rest.Config) {
 	authServer := c.AuthServer

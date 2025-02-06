@@ -596,7 +596,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 	// done with the user's permissions.
 	localUser, err := user.Lookup(c.Login)
 	if err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.NotFound(err.Error())
+		return errorWriter, teleport.RemoteCommandFailure, trace.NotFound("%s", err)
 	}
 
 	cred, err := getCmdCredential(localUser)

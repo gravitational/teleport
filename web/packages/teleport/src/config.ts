@@ -126,6 +126,8 @@ const cfg = {
     providers: [] as AuthProvider[],
     second_factor: 'off' as Auth2faType,
     authType: 'local' as AuthType,
+    /** defaultConnectorName is the name of the default connector from the cluster's auth preferences. This will empty if the auth type is "local" */
+    defaultConnectorName: '',
     preferredLocalMfa: '' as PreferredMfaType,
     // motd is the message of the day, displayed to users before login.
     motd: '',
@@ -420,6 +422,8 @@ const cfg = {
     msTeamsAppZipPath:
       '/v1/webapi/sites/:clusterId/plugins/:plugin/files/msteams_app.zip',
 
+    defaultConnectorPath: '/v1/webapi/authconnector/default',
+
     yaml: {
       parse: '/v1/webapi/yaml/parse/:kind',
       stringify: '/v1/webapi/yaml/stringify/:kind',
@@ -490,6 +494,10 @@ const cfg = {
 
   getAuth2faType() {
     return cfg.auth ? cfg.auth.second_factor : null;
+  },
+
+  getDefaultConnectorName() {
+    return cfg.auth ? cfg.auth.defaultConnectorName : '';
   },
 
   getPreferredMfaType() {
@@ -1262,8 +1270,9 @@ export interface UrlAppParams {
 
 export interface CreateAppSessionParams {
   fqdn: string;
-  clusterId?: string;
-  publicAddr?: string;
+  // This API requires cluster_name and public_addr with underscores.
+  cluster_name?: string;
+  public_addr?: string;
   arn?: string;
   mfaResponse?: MfaChallengeResponse;
 }

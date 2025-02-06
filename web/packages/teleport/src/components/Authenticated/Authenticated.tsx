@@ -67,6 +67,7 @@ const Authenticated: React.FC<PropsWithChildren> = ({ children }) => {
         if (result.requiresDeviceTrust === TrustedDeviceRequirement.REQUIRED) {
           session.setDeviceTrustRequired();
         }
+        storageService.setLoginTimeOnce();
         setAttempt({ status: 'success' });
       } catch (e) {
         if (e instanceof ApiError && e.response?.status == 403) {

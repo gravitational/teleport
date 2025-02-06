@@ -22,15 +22,12 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
-	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -279,46 +276,6 @@ func GetSSHCheckingKeys(ca types.CertAuthority) [][]byte {
 	return out
 }
 
-// HostCertParams defines all parameters needed to generate a host certificate
-type HostCertParams struct {
-	// CASigner is the signer that will sign the public key of the host with the CA private key.
-	CASigner ssh.Signer
-	// PublicHostKey is the public key of the host
-	PublicHostKey []byte
-	// HostID is used by Teleport to uniquely identify a node within a cluster
-	HostID string
-	// Principals is a list of additional principals to add to the certificate.
-	Principals []string
-	// NodeName is the DNS name of the node
-	NodeName string
-	// ClusterName is the name of the cluster within which a node lives
-	ClusterName string
-	// Role identifies the role of a Teleport instance
-	Role types.SystemRole
-	// TTL defines how long a certificate is valid for
-	TTL time.Duration
-}
-
-// Check checks parameters for errors
-func (c HostCertParams) Check() error {
-	if c.CASigner == nil {
-		return trace.BadParameter("CASigner is required")
-	}
-	if c.HostID == "" && len(c.Principals) == 0 {
-		return trace.BadParameter("HostID [%q] or Principals [%q] are required",
-			c.HostID, c.Principals)
-	}
-	if c.ClusterName == "" {
-		return trace.BadParameter("ClusterName [%q] is required", c.ClusterName)
-	}
-
-	if err := c.Role.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 // CertPoolFromCertAuthorities returns a certificate pool from the TLS certificates
 // set up in the certificate authorities list, as well as the number of certificates
 // that were added to the pool.
@@ -360,24 +317,6 @@ func CertPool(ca types.CertAuthority) (*x509.CertPool, error) {
 	return certPool, nil
 }
 
-// MarshalCertRoles marshal roles list to OpenSSH
-func MarshalCertRoles(roles []string) (string, error) {
-	out, err := json.Marshal(types.CertRoles{Version: types.V1, Roles: roles})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return string(out), err
-}
-
-// UnmarshalCertRoles marshals roles list to OpenSSH format
-func UnmarshalCertRoles(data string) ([]string, error) {
-	var certRoles types.CertRoles
-	if err := utils.FastUnmarshal([]byte(data), &certRoles); err != nil {
-		return nil, trace.BadParameter(err.Error())
-	}
-	return certRoles.Roles, nil
-}
-
 // UnmarshalCertAuthority unmarshals the CertAuthority resource to JSON.
 func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (types.CertAuthority, error) {
 	cfg, err := CollectOptions(opts)
@@ -393,7 +332,7 @@ func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (types.CertAuth
 	case types.V2:
 		var ca types.CertAuthorityV2
 		if err := utils.FastUnmarshal(bytes, &ca); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 
 		if err := ValidateCertAuthority(&ca); err != nil {

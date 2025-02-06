@@ -26,6 +26,10 @@ export default {
 
 export const Loaded = () => <DeleteDialog {...props} />;
 
+export const LoadedDefault = () => (
+  <DeleteDialog {...props} isDefault={true} nextDefault="okta" />
+);
+
 const props = {
   name: 'sample-connector-role',
   kind: 'github' as KindAuthConnectors,
@@ -33,4 +37,6 @@ const props = {
     return Promise.reject(new Error('server error'));
   },
   onClose: () => null,
+  isDefault: false,
+  nextDefault: 'okta',
 };

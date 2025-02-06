@@ -21,6 +21,7 @@ import (
 	"crypto"
 	"crypto/x509"
 	"log/slog"
+	"net/http"
 	"os"
 	"time"
 
@@ -40,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join/iam"
+	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/bitbucket"
 	"github.com/gravitational/teleport/lib/circleci"
@@ -356,8 +358,11 @@ func registerThroughProxy(
 
 	var certs *proto.Certs
 	switch params.JoinMethod {
-	case types.JoinMethodIAM, types.JoinMethodAzure, types.JoinMethodTPM:
-		// IAM and Azure join methods require gRPC client
+	case types.JoinMethodIAM,
+		types.JoinMethodAzure,
+		types.JoinMethodTPM,
+		types.JoinMethodOracle:
+		// These join methods require gRPC client
 		conn, err := proxyinsecureclient.NewConnection(
 			ctx,
 			proxyinsecureclient.ConnectionConfig{
@@ -381,6 +386,8 @@ func registerThroughProxy(
 			certs, err = registerUsingAzureMethod(ctx, joinServiceClient, token, hostKeys, params)
 		case types.JoinMethodTPM:
 			certs, err = registerUsingTPMMethod(ctx, joinServiceClient, token, hostKeys, params)
+		case types.JoinMethodOracle:
+			certs, err = registerUsingOracleMethod(ctx, joinServiceClient, token, hostKeys, params)
 		default:
 			return nil, trace.BadParameter("unhandled join method %q", params.JoinMethod)
 		}
@@ -495,12 +502,12 @@ func getHostAddresses(params RegisterParams) []string {
 // CA on disk. If no CA is found on disk, Teleport will not verify the Auth
 // Server it is connecting to.
 func insecureRegisterClient(ctx context.Context, params RegisterParams) (*authclient.Client, error) {
-	//nolint:sloglint // Conjoined string literals trip up the linter.
-	slog.WarnContext(ctx, "Joining cluster without validating the identity of the Auth "+
-		"Server. This may open you up to a Man-In-The-Middle (MITM) attack if an "+
-		"attacker can gain privileged network access. To remedy this, use the CA pin "+
-		"value provided when join token was generated to validate the identity of "+
-		"the Auth Server or point to a valid Certificate via the CA Path option.")
+	const msg = "Joining cluster without validating the identity of the Auth " +
+		"Server. This may open you up to a Man-In-The-Middle (MITM) attack if an " +
+		"attacker can gain privileged network access. To remedy this, use the CA pin " +
+		"value provided when join token was generated to validate the identity of " +
+		"the Auth Server or point to a valid Certificate via the CA Path option."
+	slog.WarnContext(ctx, msg)
 
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
@@ -647,6 +654,11 @@ type joinServiceClient interface {
 		ctx context.Context,
 		initReq *proto.RegisterUsingTPMMethodInitialRequest,
 		solveChallenge client.RegisterTPMChallengeResponseFunc,
+	) (*proto.Certs, error)
+	RegisterUsingOracleMethod(
+		ctx context.Context,
+		tokenReq *types.RegisterUsingTokenRequest,
+		challengeResponse client.RegisterOracleChallengeResponseFunc,
 	) (*proto.Certs, error)
 }
 
@@ -798,6 +810,33 @@ func registerUsingTPMMethod(
 			}, nil
 		},
 	)
+	return certs, trace.Wrap(err)
+}
+
+func mapFromHeader(header http.Header) map[string]string {
+	out := make(map[string]string, len(header))
+	for k := range header {
+		out[k] = header.Get(k)
+	}
+	return out
+}
+
+func registerUsingOracleMethod(
+	ctx context.Context, client joinServiceClient, token string, hostKeys *newHostKeys, params RegisterParams,
+) (*proto.Certs, error) {
+	certs, err := client.RegisterUsingOracleMethod(
+		ctx,
+		registerUsingTokenRequestForParams(token, hostKeys, params),
+		func(challenge string) (*proto.OracleSignedRequest, error) {
+			innerHeaders, outerHeaders, err := oracle.CreateSignedRequest(challenge)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &proto.OracleSignedRequest{
+				Headers:        mapFromHeader(outerHeaders),
+				PayloadHeaders: mapFromHeader(innerHeaders),
+			}, nil
+		})
 	return certs, trace.Wrap(err)
 }
 

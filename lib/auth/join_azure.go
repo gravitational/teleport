@@ -245,7 +245,7 @@ func parseAndVerifyAttestedData(ctx context.Context, adBytes []byte, challenge s
 }
 
 // verifyVMIdentity verifies that the provided access token came from the
-// correct Azure VM. Returns the Aure join attributes
+// correct Azure VM. Returns the Azure join attributes
 func verifyVMIdentity(
 	ctx context.Context,
 	cfg *azureRegisterConfig,
@@ -291,6 +291,9 @@ func verifyVMIdentity(
 	// from the VM resource.
 	vmSubscription, vmResourceGroup, err := claimsToIdentifiers(tokenClaims)
 	if err == nil {
+		if subscriptionID != vmSubscription {
+			return nil, trace.AccessDenied("subscription ID mismatch between attested data and access token")
+		}
 		return azureJoinToAttrs(vmSubscription, vmResourceGroup), nil
 	}
 	logger.WarnContext(ctx, "Failed to parse VM identifiers from claims. Retrying with Azure VM API.",

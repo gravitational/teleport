@@ -21,6 +21,7 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"errors"
 	"fmt"
 	"net"
@@ -52,7 +53,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join"
-	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/experiment"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	libevents "github.com/gravitational/teleport/lib/events"
@@ -152,9 +152,7 @@ func newIssuanceTestPack(t *testing.T, ctx context.Context) *issuanceTestPack {
 // APIs necessary for a bot to join and then issue a workload identity are
 // functioning correctly.
 func TestIssueWorkloadIdentityE2E(t *testing.T) {
-	experimentStatus := experiment.Enabled()
-	defer experiment.SetEnabled(experimentStatus)
-	experiment.SetEnabled(true)
+	t.Parallel()
 
 	ctx := context.Background()
 	tp := newIssuanceTestPack(t, ctx)
@@ -339,9 +337,7 @@ func TestIssueWorkloadIdentityE2E(t *testing.T) {
 }
 
 func TestIssueWorkloadIdentity(t *testing.T) {
-	experimentStatus := experiment.Enabled()
-	defer experiment.SetEnabled(experimentStatus)
-	experiment.SetEnabled(true)
+	t.Parallel()
 
 	ctx := context.Background()
 	tp := newIssuanceTestPack(t, ctx)
@@ -431,6 +427,27 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 					DnsSans: []string{
 						"example.com",
 						"{{user.name}}.example.com",
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	subjectTemplate, err := tp.srv.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "subject-template",
+		},
+		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+				Id: "/foo",
+				X509: &workloadidentityv1pb.WorkloadIdentitySPIFFEX509{
+					SubjectTemplate: &workloadidentityv1pb.X509DistinguishedNameTemplate{
+						CommonName:         "{{user.name}}",
+						Organization:       "{{user.name}} Inc",
+						OrganizationalUnit: "Team {{user.name}}",
 					},
 				},
 			},
@@ -620,6 +637,8 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 				// 4.4: When included, fields id-kp-serverAuth and id-kp-clientAuth MUST be set.
 				require.Contains(t, cert.ExtKeyUsage, x509.ExtKeyUsageServerAuth)
 				require.Contains(t, cert.ExtKeyUsage, x509.ExtKeyUsageClientAuth)
+				// Expect blank subject field.
+				require.Equal(t, pkix.Name{}, cert.Subject)
 
 				// Check cert signature is valid
 				_, err = cert.Verify(x509.VerifyOptions{
@@ -653,6 +672,119 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 							"example.com",
 							"dog.example.com",
 						},
+					},
+					cmpopts.IgnoreFields(
+						events.SPIFFESVIDIssued{},
+						"ConnectionMetadata",
+						"SerialNumber",
+					),
+				))
+			},
+		},
+		{
+			name:   "x509 svid - subject templating",
+			client: wilcardAccessClient,
+			req: &workloadidentityv1pb.IssueWorkloadIdentityRequest{
+				Name: subjectTemplate.GetMetadata().GetName(),
+				Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams{
+					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+						PublicKey: workloadKeyPubBytes,
+					},
+				},
+				WorkloadAttrs: workloadAttrs(nil),
+			},
+			requireErr: require.NoError,
+			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentityResponse) {
+				cred := res.Credential
+				require.NotNil(t, res.Credential)
+
+				wantSPIFFEID := "spiffe://localhost/foo"
+				wantTTL := time.Hour
+				require.Empty(t, cmp.Diff(
+					cred,
+					&workloadidentityv1pb.Credential{
+						Ttl:                      durationpb.New(wantTTL),
+						SpiffeId:                 wantSPIFFEID,
+						WorkloadIdentityName:     subjectTemplate.GetMetadata().GetName(),
+						WorkloadIdentityRevision: subjectTemplate.GetMetadata().GetRevision(),
+					},
+					protocmp.Transform(),
+					protocmp.IgnoreFields(
+						&workloadidentityv1pb.Credential{},
+						"expires_at",
+					),
+					protocmp.IgnoreOneofs(
+						&workloadidentityv1pb.Credential{},
+						"credential",
+					),
+				))
+				// Check expiry makes sense
+				require.WithinDuration(t, tp.clock.Now().Add(wantTTL), cred.GetExpiresAt().AsTime(), time.Second)
+
+				// Check the X509
+				cert, err := x509.ParseCertificate(cred.GetX509Svid().GetCert())
+				require.NoError(t, err)
+				// Check included public key matches
+				require.Equal(t, workloadKey.Public(), cert.PublicKey)
+				// Check cert expiry
+				require.WithinDuration(t, tp.clock.Now().Add(wantTTL), cert.NotAfter, time.Second)
+				// Check cert nbf
+				require.WithinDuration(t, tp.clock.Now().Add(-1*time.Minute), cert.NotBefore, time.Second)
+				// Check cert TTL
+				require.Equal(t, cert.NotAfter.Sub(cert.NotBefore), wantTTL+time.Minute)
+
+				// Check against SPIFFE SPEC
+				// References are to https://github.com/spiffe/spiffe/blob/main/standards/X509-SVID.md
+				// 2: An X.509 SVID MUST contain exactly one URI SAN, and by extension, exactly one SPIFFE ID
+				require.Len(t, cert.URIs, 1)
+				require.Equal(t, wantSPIFFEID, cert.URIs[0].String())
+				// 4.1: leaf certificates MUST set the cA field to false.
+				require.False(t, cert.IsCA)
+				require.Greater(t, cert.KeyUsage&x509.KeyUsageDigitalSignature, 0)
+				// 4.3: They MAY set keyEncipherment and/or keyAgreement
+				require.Greater(t, cert.KeyUsage&x509.KeyUsageKeyEncipherment, 0)
+				require.Greater(t, cert.KeyUsage&x509.KeyUsageKeyAgreement, 0)
+				// 4.3: Leaf SVIDs MUST NOT set keyCertSign or cRLSign
+				require.EqualValues(t, 0, cert.KeyUsage&x509.KeyUsageCertSign)
+				require.EqualValues(t, 0, cert.KeyUsage&x509.KeyUsageCRLSign)
+				// 4.4: When included, fields id-kp-serverAuth and id-kp-clientAuth MUST be set.
+				require.Contains(t, cert.ExtKeyUsage, x509.ExtKeyUsageServerAuth)
+				require.Contains(t, cert.ExtKeyUsage, x509.ExtKeyUsageClientAuth)
+
+				// Check subject has been templated
+				require.Empty(t, cmp.Diff(pkix.Name{
+					CommonName:         "dog",
+					Organization:       []string{"dog Inc"},
+					OrganizationalUnit: []string{"Team dog"},
+				}, cert.Subject, cmpopts.IgnoreFields(pkix.Name{}, "Names")))
+
+				// Check cert signature is valid
+				_, err = cert.Verify(x509.VerifyOptions{
+					Roots:       tp.spiffeX509CAPool,
+					CurrentTime: tp.srv.Auth().GetClock().Now(),
+				})
+				require.NoError(t, err)
+
+				// Check audit log event
+				evt, ok := tp.eventRecorder.LastEvent().(*events.SPIFFESVIDIssued)
+				require.True(t, ok)
+				require.NotEmpty(t, evt.ConnectionMetadata.RemoteAddr)
+				require.Equal(t, cred.GetX509Svid().GetSerialNumber(), evt.SerialNumber)
+				require.Empty(t, cmp.Diff(
+					evt,
+					&events.SPIFFESVIDIssued{
+						Metadata: events.Metadata{
+							Type: libevents.SPIFFESVIDIssuedEvent,
+							Code: libevents.SPIFFESVIDIssuedSuccessCode,
+						},
+						UserMetadata: events.UserMetadata{
+							User:     wildcardAccess.GetName(),
+							UserKind: events.UserKind_USER_KIND_HUMAN,
+						},
+						SPIFFEID:                 "spiffe://localhost/foo",
+						SVIDType:                 "x509",
+						WorkloadIdentity:         subjectTemplate.GetMetadata().GetName(),
+						WorkloadIdentityRevision: subjectTemplate.GetMetadata().GetRevision(),
 					},
 					cmpopts.IgnoreFields(
 						events.SPIFFESVIDIssued{},
@@ -729,9 +861,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 }
 
 func TestIssueWorkloadIdentities(t *testing.T) {
-	experimentStatus := experiment.Enabled()
-	defer experiment.SetEnabled(experimentStatus)
-	experiment.SetEnabled(true)
+	t.Parallel()
 
 	ctx := context.Background()
 	tp := newIssuanceTestPack(t, ctx)

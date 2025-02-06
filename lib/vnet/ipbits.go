@@ -27,9 +27,9 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
-// NewIPv6Prefix returns a Unique Local IPv6 Unicast Address which will be used as a 64-bit prefix for all v6
+// newIPv6Prefix returns a Unique Local IPv6 Unicast Address which will be used as a 64-bit prefix for all v6
 // IP addresses in the VNet.
-func NewIPv6Prefix() (tcpip.Address, error) {
+func newIPv6Prefix() (tcpip.Address, error) {
 	// |   8 bits   |  40 bits   |  16 bits  |          64 bits           |
 	// +------------+------------+-----------+----------------------------+
 	// | ULA Prefix | Global ID  | Subnet ID |        Interface ID        |
@@ -41,7 +41,7 @@ func NewIPv6Prefix() (tcpip.Address, error) {
 	var bytes [16]byte
 	bytes[0] = 0xfd
 	if _, err := rand.Read(bytes[1:6]); err != nil {
-		return tcpip.Address{}, trace.Wrap(err)
+		return tcpip.Address{}, trace.Wrap(err, "reading random bytes")
 	}
 	return tcpip.AddrFrom16(bytes), nil
 }

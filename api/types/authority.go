@@ -549,14 +549,6 @@ func (s *RotationSchedule) CheckAndSetDefaults(now time.Time) error {
 	return nil
 }
 
-// CertRoles defines certificate roles
-type CertRoles struct {
-	// Version is current version of the roles
-	Version string `json:"version"`
-	// Roles is a list of roles
-	Roles []string `json:"roles"`
-}
-
 // Clone returns a deep copy of TLSKeyPair that can be mutated without
 // modifying the original.
 func (k *TLSKeyPair) Clone() *TLSKeyPair {

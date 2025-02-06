@@ -2435,6 +2435,11 @@ func (m *GitCommand) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
 
+// TrimToMaxSize implements [AuditEvent].
+func (m *StableUNIXUserCreate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
 func (m *AWSICResourceSync) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }

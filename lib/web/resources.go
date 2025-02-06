@@ -29,10 +29,12 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -212,7 +214,66 @@ func (h *Handler) getGithubConnectorsHandle(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	return getGithubConnectors(r.Context(), clt)
+	connectors, err := getGithubConnectors(r.Context(), clt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defaultConnectorName, defaultConnectorType, err := ProcessDefaultConnector(r.Context(), clt, connectors)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ui.ListAuthConnectorsResponse{
+		DefaultConnectorName: defaultConnectorName,
+		DefaultConnectorType: defaultConnectorType,
+		Connectors:           connectors,
+	}, nil
+}
+
+// ProcessDefaultConnector returns the default connector type and validates that the provided connectors list contains the default connector that is set in the auth preference.
+// If it isn't, it will return a fallback connector which should be used as the default, as well as update the actual auth preference to reflect the change.
+func ProcessDefaultConnector(ctx context.Context, clt authclient.ClientI, connectors []ui.ResourceItem) (connectorName string, connectorType string, err error) {
+	authPref, err := clt.GetAuthPreference(ctx)
+	if err != nil {
+		return "", "", trace.Wrap(err, "failed to get auth preference")
+	}
+
+	defaultConnectorName := authPref.GetConnectorName()
+	defaultConnectorType := authPref.GetType()
+
+	if len(connectors) == 0 || defaultConnectorType == constants.Local {
+		// If there are no connectors or the default is already local, default to 'local' as the default connector.
+		defaultConnectorType = constants.Local
+		defaultConnectorName = ""
+	} else {
+		// Ensure that the default connector set in the auth preference exists in the list.
+		found := false
+		for _, c := range connectors {
+			if c.Name == defaultConnectorName && c.Kind == defaultConnectorType {
+				found = true
+				break
+			}
+		}
+		// If the default connector set in the auth preference doesn't exist, use the last connector in the list as the default.
+		if !found {
+			defaultConnectorName = connectors[len(connectors)-1].Name
+			defaultConnectorType = connectors[len(connectors)-1].Kind
+		}
+	}
+
+	// If the default connector we are returning here is different from the initial, also update the actual auth preference so that it's in sync.
+	if defaultConnectorName != authPref.GetConnectorName() || defaultConnectorType != authPref.GetType() {
+		authPref.SetConnectorName(defaultConnectorName)
+		authPref.SetType(defaultConnectorType)
+
+		_, err = clt.UpsertAuthPreference(ctx, authPref)
+		if err != nil {
+			return "", "", trace.Wrap(err, "failed to set fallback auth preference")
+		}
+	}
+
+	return defaultConnectorName, defaultConnectorType, nil
 }
 
 func getGithubConnectors(ctx context.Context, clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
@@ -233,6 +294,26 @@ func (h *Handler) deleteGithubConnector(w http.ResponseWriter, r *http.Request, 
 	connectorName := params.ByName("name")
 	if err := clt.DeleteGithubConnector(r.Context(), connectorName); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	authPref, err := clt.GetAuthPreference(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get auth preference")
+	}
+
+	defaultConnectorName := authPref.GetConnectorName()
+	defaultConnectorType := authPref.GetType()
+	// If the connector being deleted is the default, have the auth preference fallback to another connector.
+	if defaultConnectorType == constants.Github && defaultConnectorName == connectorName {
+		connectors, err := getGithubConnectors(r.Context(), clt)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		_, _, err = ProcessDefaultConnector(r.Context(), clt, connectors)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return OK(), nil
