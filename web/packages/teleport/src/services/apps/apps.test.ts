@@ -156,8 +156,8 @@ test('createAppSession', async () => {
 
   const response = await apps.createAppSession({
     fqdn: 'app-name.example.com',
-    clusterId: 'example.com',
-    publicAddr: 'app-name.example.com',
+    cluster_name: 'example.com',
+    public_addr: 'app-name.example.com',
   });
 
   expect(response.fqdn).toEqual('app-name.example.com');
