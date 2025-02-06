@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/fixtures"
 )
 
 type mockByLabelsGetter struct {
@@ -55,6 +56,31 @@ func mustMakeCred(t *testing.T, labels map[string]string) types.PluginStaticCred
 		types.PluginStaticCredentialsSpecV1{
 			Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
 				APIToken: "token",
+			},
+		},
+	)
+	require.NoError(t, err)
+	return cred
+}
+
+func mustMakeGitHubSSHCA(t *testing.T) types.PluginStaticCredentials {
+	t.Helper()
+	cred, err := types.NewPluginStaticCredentials(
+		types.Metadata{
+			Name: uuid.NewString(),
+			Labels: map[string]string{
+				LabelStaticCredentialsPurpose: PurposeGitHubSSHCA,
+			},
+		},
+		types.PluginStaticCredentialsSpecV1{
+			Credentials: &types.PluginStaticCredentialsSpecV1_SSHCertAuthorities{
+				SSHCertAuthorities: &types.PluginStaticCredentialsSSHCertAuthorities{
+					CertAuthorities: []*types.SSHKeyPair{{
+						PublicKey:      []byte(fixtures.SSHCAPublicKey),
+						PrivateKey:     []byte(fixtures.SSHCAPrivateKey),
+						PrivateKeyType: types.PrivateKeyType_RAW,
+					}},
+				},
 			},
 		},
 	)
@@ -100,7 +126,7 @@ func TestGetByPurpose(t *testing.T) {
 			wantError: trace.IsNotFound,
 		},
 		{
-			name: "too mandy creds found",
+			name: "too many creds found",
 			ref:  ref,
 			setupMock: func(m *mockByLabelsGetter) {
 				m.On("GetPluginStaticCredentialsByLabels", labels).
@@ -134,6 +160,82 @@ func TestGetByPurpose(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, test.wantCred, cred)
+		})
+	}
+}
+
+func metadataWithName(name string) types.Metadata {
+	return types.Metadata{
+		Name: name,
+	}
+}
+
+func TestGetIntegrationCertAuthorities(t *testing.T) {
+	notSupportedIntegration, err := types.NewIntegrationAWSOIDC(
+		metadataWithName("not-supported"),
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
+		},
+	)
+	require.NoError(t, err)
+
+	githubSpec := &types.GitHubIntegrationSpecV1{
+		Organization: "org",
+	}
+	githubIntegrationNoCreds, err := types.NewIntegrationGitHub(
+		metadataWithName("github-no-creds"),
+		githubSpec,
+	)
+	require.NoError(t, err)
+
+	githubIntegration, err := types.NewIntegrationGitHub(
+		metadataWithName("github-success"),
+		githubSpec,
+	)
+	githubIntegration.SetCredentials(&types.PluginCredentialsV1{
+		Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+			StaticCredentialsRef: NewRef(),
+		},
+	})
+
+	m := &mockByLabelsGetter{}
+	m.On("GetPluginStaticCredentialsByLabels", mock.Anything).
+		Return([]types.PluginStaticCredentials{mustMakeGitHubSSHCA(t)}, nil)
+
+	tests := []struct {
+		ig           types.Integration
+		checkError   func(error) bool
+		wantCAKeySet *types.CAKeySet
+	}{
+		{
+			ig:         notSupportedIntegration,
+			checkError: trace.IsNotImplemented,
+		},
+		{
+			ig:         githubIntegrationNoCreds,
+			checkError: trace.IsBadParameter,
+		},
+		{
+			ig: githubIntegration,
+			wantCAKeySet: &types.CAKeySet{
+				SSH: []*types.SSHKeyPair{{
+					PublicKey:      []byte(fixtures.SSHCAPublicKey),
+					PrivateKey:     []byte(fixtures.SSHCAPrivateKey),
+					PrivateKeyType: types.PrivateKeyType_RAW,
+				}},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.ig.GetName(), func(t *testing.T) {
+			actualCAKeySet, err := GetIntegrationCertAuthorities(context.Background(), test.ig, m)
+			if test.checkError != nil {
+				require.True(t, test.checkError(err))
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, test.wantCAKeySet, actualCAKeySet)
 		})
 	}
 }
