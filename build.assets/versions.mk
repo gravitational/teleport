@@ -6,6 +6,7 @@
 GOLANG_VERSION ?= go1.23.6
 GOLANGCI_LINT_VERSION ?= v1.63.4
 
+# NOTE: Remember to update engines.node in package.json to match the major version.
 # TODO(ravicious): When attempting to update Node.js version, see if corepack distributed with this
 # version is > 0.31.0. If so, remove definitions of COREPACK_INTEGRITY_KEYS from CI.
 NODE_VERSION ?= 20.18.0
