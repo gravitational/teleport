@@ -36,7 +36,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
-	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/gravitational/trace"
 
@@ -52,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 const (
@@ -339,7 +339,7 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 		}
 
 		if c.AWSSTSClient == nil {
-			c.AWSSTSClient = sts.New(c.AWSSession)
+			c.AWSSTSClient = stsutils.NewV1(c.AWSSession)
 		}
 		if c.AWSIAMClient == nil {
 			c.AWSIAMClient = iam.New(c.AWSSession)
