@@ -25,6 +25,7 @@ import {
   FileTransferActionBar,
   FileTransferContextProvider,
   FileTransferRequests,
+  useFileTransferContext,
 } from 'shared/components/FileTransfer';
 import { TerminalSearch } from 'shared/components/TerminalSearch';
 
@@ -63,6 +64,8 @@ function DocumentSsh({ doc, visible }: PropTypes) {
     },
   });
   const ft = useFileTransfer(tty, session, doc, mfa);
+  const { openedDialog: ftOpenedDialog } = useFileTransferContext();
+
   const theme = useTheme();
 
   function handleCloseFileTransfer() {
@@ -74,11 +77,12 @@ function DocumentSsh({ doc, visible }: PropTypes) {
   }
 
   useEffect(() => {
-    // when switching tabs or closing tabs, focus on visible terminal
-    if (mfa.attempt.status === 'processing') {
+    // If an MFA attempt starts while switching tabs or closing tabs,
+    // automatically focus on visible terminal.
+    if (mfa.challenge) {
       terminalRef.current?.focus();
     }
-  }, [visible, mfa.attempt.status]);
+  }, [visible, mfa.challenge]);
 
   const onSearchClose = useCallback(() => {
     setShowSearch(false);
@@ -143,7 +147,7 @@ function DocumentSsh({ doc, visible }: PropTypes) {
         mfaState={mfa}
         onClose={() => {
           // Don't close the ssh doc if this is just a file transfer request.
-          if (!ft.openedDialog) {
+          if (!ftOpenedDialog) {
             closeDocument();
           }
         }}
