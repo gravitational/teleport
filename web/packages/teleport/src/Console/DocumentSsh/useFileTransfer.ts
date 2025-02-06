@@ -54,7 +54,7 @@ export const useFileTransfer = (
   currentDoc: DocumentSsh,
   mfa: MfaState
 ) => {
-  const { filesStore, openedDialog } = useFileTransferContext();
+  const { filesStore } = useFileTransferContext();
   const startTransfer = filesStore.start;
   const ctx = useConsoleContext();
   const currentUser = ctx.getStoreUser();
@@ -261,7 +261,6 @@ export const useFileTransfer = (
 
   return {
     fileTransferRequests,
-    openedDialog,
     getUploader,
     getDownloader,
   };
