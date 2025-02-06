@@ -35,6 +35,7 @@ import {
   makeDocumentGatewayKube,
   makeDocumentPtySession,
   makeDocumentTshNode,
+  makeDocumentVnetDiagReport,
 } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 
 import { TabHostContainer } from './TabHost';
@@ -56,6 +57,7 @@ const allDocuments = [
   makeDocumentAccessRequests(),
   makeDocumentPtySession(),
   makeDocumentAuthorizeWebSession(),
+  makeDocumentVnetDiagReport(),
 ];
 
 const cluster = makeRootCluster();
