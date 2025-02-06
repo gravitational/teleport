@@ -152,6 +152,8 @@ func (c *WorkloadIdentityCommand) TryRun(
 		commandFunc = c.ListRevocations
 	case c.revocationsCrlCmd.FullCommand():
 		commandFunc = c.StreamRevocationsCrl
+	case c.revocationsRmCmd.FullCommand():
+		commandFunc = c.DeleteRevocation
 	default:
 		return false, nil
 	}
@@ -291,7 +293,35 @@ func (c *WorkloadIdentityCommand) AddRevocation(
 	return nil
 }
 
-// ListWorkloadIdentities writes a listing of the WorkloadIdentity resources
+func (c *WorkloadIdentityCommand) DeleteRevocation(
+	ctx context.Context,
+	client *authclient.Client,
+) error {
+	if c.revocationType != "x509" {
+		return trace.BadParameter("only x509 revocations are supported")
+	}
+	normalizedSerial, err := normalizeCertificateSerial(c.revocationSerial)
+	if err != nil {
+		return trace.Wrap(err, "normalizing serial")
+	}
+
+	revocationClient := client.WorkloadIdentityRevocationServiceClient()
+	_, err = revocationClient.DeleteWorkloadIdentityX509Revocation(ctx, &workloadidentityv1pb.DeleteWorkloadIdentityX509RevocationRequest{
+		Name: normalizedSerial,
+	})
+	if err != nil {
+		return trace.Wrap(err, "deleting revocation")
+	}
+
+	fmt.Fprintf(
+		c.stdout,
+		"Revocation for the X509 certificate with serial %s deleted\n",
+		normalizedSerial,
+	)
+
+	return nil
+}
+
 func (c *WorkloadIdentityCommand) ListRevocations(
 	ctx context.Context, client *authclient.Client,
 ) error {
