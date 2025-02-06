@@ -410,6 +410,9 @@ func (u *Updater) findAgentProxy(ctx context.Context) string {
 	case len(t.AuthServers) > 0:
 		addr = t.AuthServers[0]
 		port = libdefaults.AuthListenPort
+	default:
+		u.Log.DebugContext(ctx, "Unable to find proxy in Teleport config", "config", u.TeleportConfigPath, errorKey, err)
+		return ""
 	}
 	netaddr, err := libutils.ParseHostPortAddr(addr, port)
 	if err != nil {
