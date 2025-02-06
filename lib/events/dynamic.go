@@ -41,12 +41,10 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	}
 
 	getFieldEmpty := func(field string) string {
-		i, ok := fields[field]
-		if !ok {
-			return ""
+		if s, ok := fields[field].(string); ok {
+			return s
 		}
-		s, _ := i.(string)
-		return s
+		return ""
 	}
 
 	eventType := getFieldEmpty(EventType)
@@ -79,19 +77,13 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.UserUpdate{}
 	case UserPasswordChangeEvent:
 		e = &events.UserPasswordChange{}
-	case AccessRequestCreateEvent:
-		e = &events.AccessRequestCreate{}
-	case AccessRequestReviewEvent:
+	case AccessRequestCreateEvent, AccessRequestReviewEvent, AccessRequestUpdateEvent:
 		// note: access_request.review is a custom code applied on top of the same data as the access_request.create event
 		//       and they are thus functionally identical. There exists no direct gRPC version of access_request.review.
 		e = &events.AccessRequestCreate{}
-	case AccessRequestUpdateEvent:
-		e = &events.AccessRequestCreate{}
 	case AccessRequestResourceSearch:
 		e = &events.AccessRequestResourceSearch{}
-	case BillingCardCreateEvent:
-		e = &events.BillingCardCreate{}
-	case BillingCardUpdateEvent:
+	case BillingCardCreateEvent, BillingCardUpdateEvent:
 		e = &events.BillingCardCreate{}
 	case BillingCardDeleteEvent:
 		e = &events.BillingCardDelete{}
@@ -105,13 +97,7 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.Subsystem{}
 	case X11ForwardEvent:
 		e = &events.X11Forward{}
-	case PortForwardEvent:
-		e = &events.PortForward{}
-	case PortForwardLocalEvent:
-		e = &events.PortForward{}
-	case PortForwardRemoteEvent:
-		e = &events.PortForward{}
-	case PortForwardRemoteConnEvent:
+	case PortForwardEvent, PortForwardLocalEvent, PortForwardRemoteEvent, PortForwardRemoteConnEvent:
 		e = &events.PortForward{}
 	case AuthAttemptEvent:
 		e = &events.AuthAttempt{}
@@ -270,9 +256,7 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.RecoveryCodeGenerate{}
 	case RecoveryCodeUsedEvent:
 		e = &events.RecoveryCodeUsed{}
-	case RecoveryTokenCreateEvent:
-		e = &events.UserTokenCreate{}
-	case PrivilegeTokenCreateEvent:
+	case RecoveryTokenCreateEvent, PrivilegeTokenCreateEvent:
 		e = &events.UserTokenCreate{}
 	case WindowsDesktopSessionStartEvent:
 		e = &events.WindowsDesktopSessionStart{}
@@ -338,15 +322,11 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SAMLIdPServiceProviderDelete{}
 	case SAMLIdPServiceProviderDeleteAllEvent:
 		e = &events.SAMLIdPServiceProviderDeleteAll{}
-	case OktaGroupsUpdateEvent:
-		e = &events.OktaResourcesUpdate{}
-	case OktaApplicationsUpdateEvent:
+	case OktaGroupsUpdateEvent, OktaApplicationsUpdateEvent:
 		e = &events.OktaResourcesUpdate{}
 	case OktaSyncFailureEvent:
 		e = &events.OktaSyncFailure{}
-	case OktaAssignmentProcessEvent:
-		e = &events.OktaAssignmentResult{}
-	case OktaAssignmentCleanupEvent:
+	case OktaAssignmentProcessEvent, OktaAssignmentCleanupEvent:
 		e = &events.OktaAssignmentResult{}
 	case OktaUserSyncEvent:
 		e = &events.OktaUserSync{}
