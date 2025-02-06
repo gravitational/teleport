@@ -436,6 +436,7 @@ func emptyRevert(_ context.Context) bool {
 
 // LinkSystem links the system (package) version into LinkBinDir and CopyServiceFile.
 // LinkSystem returns ErrInvalid if LinkBinDir is not DefaultLinkDir.
+// This prevents namespaced installations in /opt/teleport from linking to the system package.
 // The revert function restores the previous linking.
 // See Installer interface for additional specs.
 func (li *LocalInstaller) LinkSystem(ctx context.Context) (revert func(context.Context) bool, err error) {
