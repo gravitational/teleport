@@ -181,7 +181,7 @@ func main() {
 			"proxy_version", pong.ServerVersion,
 		)
 
-		versionGetters = append(versionGetters, version.NewProxyVersionGetter("proxy update protocol", proxyClt))
+		versionGetters = append(versionGetters, version.NewProxyVersionGetter(proxyClt))
 
 		// In RFD 184, the server is driving the update, so both regular maintenances and
 		// critical ones are fetched from the proxy. Using the same trigger ensures we hit the cache if both triggers
