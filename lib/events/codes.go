@@ -699,12 +699,18 @@ const (
 	AWSICPermissionAssignmentCreateCode = "TAIC002I"
 	// AWSICPermissionAssignmentDeleteCode is the AWS Identity Center permission assignment delete event code.
 	AWSICPermissionAssignmentDeleteCode = "TAIC003I"
-	// AWSICPrincipalProvisioningCreateCode is the AWS Identity Center principal provisioning create event code.
-	AWSICPrincipalProvisioningCreateCode = "TAIC004I"
-	// AWSICPrincipalProvisioningDeleteCode is the AWS Identity Center principal provisioning delete event code.
-	AWSICPrincipalProvisioningDeleteCode = "TAIC005I"
-	// AWSICPrincipalProvisioningUpdateCode is the AWS Identity Center principal provisioning update event code.
-	AWSICPrincipalProvisioningUpdateCode = "TAIC006I"
+	// SCIMUserCreateCode is the SCIM user provisioning create event code.
+	SCIMUserCreateCode = "TSCP001I"
+	// SCIMUserDeleteCode is the SCIM user provisioning delete event code.
+	SCIMUserDeleteCode = "TSCP002I"
+	// SCIMUserUpdateCode is the SCIM user provisioning update event code.
+	SCIMUserUpdateCode = "TSCP003I"
+	// SCIMGroupCreateCode is the SCIM group provisioning create event code.
+	SCIMGroupCreateCode = "TSCP004I"
+	// SCIMGroupDeleteCode is the SCIM group provisioning delete event code.
+	SCIMGroupDeleteCode = "TSCP005I"
+	// SCIMGroupUpdateCode is the SCIM group provisioning update event code.
+	SCIMGroupUpdateCode = "TSCP006I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

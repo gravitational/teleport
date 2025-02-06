@@ -870,12 +870,18 @@ const (
 	// AWSICPermissionAssignmentDelete is emitted when a permission assignment is
 	// deleted in the AWS Identity Center.
 	AWSICPermissionAssignmentDelete = "aws_identity_center.permission_assignment.delete"
-	// AWSICPrincipalProvisioningCreate is emitted when a principal is created in the AWS Identity Center.
-	AWSICPrincipalProvisioningCreate = "aws_identity_center.principal_provisioning.create"
-	// AWSICPrincipalProvisioningDelete is emitted when a principal is deleted in the AWS Identity Center.
-	AWSICPrincipalProvisioningDelete = "aws_identity_center.principal_provisioning.delete"
-	// AWSICPrincipalProvisioningUpdate is emitted when a principal is updated in the AWS Identity Center.
-	AWSICPrincipalProvisioningUpdate = "aws_identity_center.principal_provisioning.update"
+	// SCIMUserCreate is emitted when a user is created in SCIM server.
+	SCIMUserCreate = "scim.user.create"
+	// SCIMUserDelete is emitted when a user is deleted in the SCIM server.
+	SCIMUserDelete = "scim.user.delete"
+	// SCIMUserUpdate is emitted when a user is updated in the SCIM server.
+	SCIMUserUpdate = "scim.user.update"
+	// SCIMGroupCreate is emitted when a user is created in SCIM server.
+	SCIMGroupCreate = "scim.group.create"
+	// SCIMGroupDelete is emitted when a group is deleted in the SCIM server.
+	SCIMGroupDelete = "scim.group.delete"
+	// SCIMGroupUpdate is emitted when a group is updated in the SCIM server.
+	SCIMGroupUpdate = "scim.group.update"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

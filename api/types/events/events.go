@@ -2443,6 +2443,6 @@ func (m *AWSICPermissionAssignment) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
 
-func (m *AWSICPrincipalProvisioning) TrimToMaxSize(_ int) AuditEvent {
+func (m *SCIMPrincipalProvisioning) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }

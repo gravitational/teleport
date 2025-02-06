@@ -4750,8 +4750,8 @@ message OneOf {
     events.UserLoginAccessListInvalid UserLoginAccessListInvalid = 198;
     events.AccessRequestExpire AccessRequestExpire = 199;
     events.AWSICResourceSync AWSICResourceSync = 200;
-    events.AWSICPrincipalProvisioning AWSICPrincipalProvisioning = 201;
-    events.AWSICPermissionAssignment AWSICPermissionAssignment = 202;
+    events.AWSICPermissionAssignment AWSICPermissionAssignment = 201;
+    events.SCIMPrincipalProvisioning SCIMPrincipalProvisioning = 202;
   }
 }
 
@@ -8003,23 +8003,6 @@ message AWSICResourceSync {
   AWSICResourceSyncEvent permission_set = 5 [(gogoproto.jsontag) = "permission_set,omitempty"];
 }
 
-// AWSICPrincipalProvisioning is emitted when a user or an Access List
-// is provisioned to Identity Center.
-message AWSICPrincipalProvisioning {
-  // Metadata is event metadata.
-  Metadata metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // External ID of the principal, i.e. AWS resource ID.
-  string external_id = 2 [(gogoproto.jsontag) = "external_id,omitempty"];
-  // Principal ID is a Teleport resource metadata name of the principal (User or an Access List).
-  string principal_id = 3 [(gogoproto.jsontag) = "principal_id,omitempty"];
-  // PrincipalType identifies a user or an Access List (user group).
-  string principal_type = 4 [(gogoproto.jsontag) = "principal_type,omitempty"];
-}
-
 // AWSICPermissionAssignment is emitted when a user or an Access List
 // is assigned to an AWS account with a permission set. The assignment
 // provisioning happens right after when a user or an Access List is assigned
@@ -8046,4 +8029,45 @@ message AWSICPermissionAssignment {
   string external_id = 4 [(gogoproto.jsontag) = "external_id,omitempty"];
   // Array of principal assignment object.
   repeated Assignment assignments = 5 [(gogoproto.jsontag) = "assignments,omitempty"];
+}
+
+// SCIMPrincipalProvisioning is a user or group provisioning event.
+message SCIMPrincipalProvisioning {
+  // Metadata is event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  //  PrincipalMetadata is metadata of User or Access List.
+  SCIMPrincipalMetadata principal_metadata = 2 [(gogoproto.jsontag) = "principal_metadata,omitempty"];
+  // ProvisioningStatus is status of the provisioning attempt made to the configured SCIM server.
+  // There may be multiple SCIM integration configured at a given time and ProvisioningStatus records
+  // status for each of them.
+  repeated SCIMProvisioningStatus provisioning_status = 6 [(gogoproto.jsontag) = "provisioning_status"];
+}
+
+// SCIMPrincipalMetadata defines principal speific metadata.
+message SCIMPrincipalMetadata {
+  // Name is a resource metadata name of the principal (User or an Access List).
+  string name = 2 [(gogoproto.jsontag) = "name,omitempty"];
+  // FriendlyName is a friendly Teleport resource name of the principal (User or an Access List).
+  // For Access List, title is used as FriendlyName.
+  // User may have save value in Name and FriendlyName.
+  string friendly_name = 3 [(gogoproto.jsontag) = "friendly_name,omitempty"];
+  // ExternalID of the principal. E.g. AWS IAM Identity Center principal ID.
+  string external_id = 1 [(gogoproto.jsontag) = "external_id,omitempty"];
+}
+
+//  SCIMProvisioningStatus is a provisioning status for a given SCIM server
+//  identified by the downstream_id.
+message SCIMProvisioningStatus {
+  // DownstreamID records the ID of SCIM server.
+  string downstream_id = 1 [(gogoproto.jsontag) = "downstream_id"];
+  // Status is a ProvisioningStatus status.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }

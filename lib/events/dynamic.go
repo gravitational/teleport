@@ -488,13 +488,16 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.WorkloadIdentityDelete{}
 	case AWSICResourceSync:
 		e = &events.AWSICResourceSync{}
-	case AWSICPrincipalProvisioningCreate,
-		AWSICPrincipalProvisioningUpdate,
-		AWSICPrincipalProvisioningDelete:
-		e = &events.AWSICPrincipalProvisioning{}
 	case AWSICPermissionAssignmentCreate,
 		AWSICPermissionAssignmentDelete:
 		e = &events.AWSICPermissionAssignment{}
+	case SCIMUserCreate,
+		SCIMUserUpdate,
+		SCIMUserDelete,
+		SCIMGroupCreate,
+		SCIMGroupUpdate,
+		SCIMGroupDelete:
+		e = &events.SCIMPrincipalProvisioning{}
 
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
