@@ -18,7 +18,6 @@ package vnet
 
 import (
 	"context"
-	"net"
 	"os"
 	"sync/atomic"
 	"syscall"
@@ -55,7 +54,7 @@ func newProfileOSConfigProvider(tunName, ipv6Prefix, dnsAddr, homePath string, d
 		// This runs as root so we need to be configured with the user's home path.
 		return nil, trace.BadParameter("homePath must be passed from unprivileged process")
 	}
-	tunIP, err := tunIPv6ForPrefix(ipv6Prefix)
+	tunIPv6, err := tunIPv6ForPrefix(ipv6Prefix)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -65,7 +64,7 @@ func newProfileOSConfigProvider(tunName, ipv6Prefix, dnsAddr, homePath string, d
 		clusterConfigCache: NewClusterConfigCache(clockwork.NewRealClock()),
 		daemonClientCred:   daemonClientCred,
 		tunName:            tunName,
-		tunIPv6:            tunIP,
+		tunIPv6:            tunIPv6,
 		dnsAddr:            dnsAddr,
 		homePath:           homePath,
 	}
@@ -208,17 +207,11 @@ func (p *profileOSConfigProvider) setTunIPv4FromCIDR(cidrRange string) error {
 	if p.tunIPv4 != "" {
 		return nil
 	}
-
-	_, ipnet, err := net.ParseCIDR(cidrRange)
+	ip, err := tunIPv4ForCIDR(cidrRange)
 	if err != nil {
-		return trace.Wrap(err, "parsing CIDR %q", cidrRange)
+		return trace.Wrap(err, "setting TUN IPv4 address for range %s", cidrRange)
 	}
-
-	// ipnet.IP is the network address, ending in 0s, like 100.64.0.0
-	// Add 1 to assign the TUN address, like 100.64.0.1
-	tunAddress := ipnet.IP
-	tunAddress[len(tunAddress)-1]++
-	p.tunIPv4 = tunAddress.String()
+	p.tunIPv4 = ip
 	return nil
 }
 
