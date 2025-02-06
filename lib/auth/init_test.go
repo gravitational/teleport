@@ -1796,6 +1796,12 @@ spec:
   type: local
 version: v2
 `
+	botYAML = `kind: bot
+metadata:
+  name: my-bot
+spec:
+  roles: ["admin"]
+`
 )
 
 func TestInit_ApplyOnStartup(t *testing.T) {
@@ -1807,6 +1813,7 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 	lock := resourceFromYAML(t, lockYAML).(types.Lock)
 	clusterNetworkingConfig := resourceFromYAML(t, clusterNetworkingConfYAML).(types.ClusterNetworkingConfig)
 	authPref := resourceFromYAML(t, authPrefYAML).(types.AuthPreference)
+	bot := resourceFromYAML(t, botYAML)
 
 	tests := []struct {
 		name         string
@@ -1876,9 +1883,18 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name: "Apply HealthCheckConfig",
+			name: "Apply Role+Bot",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, newHealthCheckConfig(t))
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, bot)
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "Apply Bot+Role",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, bot)
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
 			},
 			assertError: require.NoError,
 		},
