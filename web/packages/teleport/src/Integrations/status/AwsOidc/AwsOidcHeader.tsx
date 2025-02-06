@@ -25,9 +25,13 @@ import { HoverTooltip } from 'shared/components/ToolTip';
 
 import cfg from 'teleport/config';
 import { getStatusAndLabel } from 'teleport/Integrations/helpers';
-import { Integration } from 'teleport/services/integrations';
+import { IntegrationAwsOidc } from 'teleport/services/integrations';
 
-export function AwsOidcHeader({ integration }: { integration: Integration }) {
+export function AwsOidcHeader({
+  integration,
+}: {
+  integration: IntegrationAwsOidc;
+}) {
   const { status, labelKind } = getStatusAndLabel(integration);
   return (
     <Flex alignItems="center">

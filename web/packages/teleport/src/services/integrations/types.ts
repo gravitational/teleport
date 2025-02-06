@@ -21,6 +21,21 @@ import { Label } from 'teleport/types';
 import { ResourceLabel } from '../agents';
 import { Node } from '../nodes';
 
+export type IntegrationCreateResult<T extends IntegrationCreateRequest> =
+  T['subKind'] extends IntegrationKind.GitHub
+    ? IntegrationGitHub
+    : IntegrationAwsOidc;
+
+export type IntegrationUpdateResult<T extends IntegrationUpdateRequest> =
+  T['kind'] extends IntegrationKind.GitHub
+    ? IntegrationGitHub
+    : IntegrationAwsOidc;
+
+export type Integration =
+  | IntegrationGitHub
+  | IntegrationAwsOidc
+  | IntegrationAzureOidc;
+
 /**
  * type Integration v. type Plugin:
  *
@@ -42,10 +57,10 @@ import { Node } from '../nodes';
  *  SD is the provider-specific status containing status details
  *   - currently only defined for plugin resource
  */
-export type Integration<
-  T extends string = 'integration',
-  K extends string = IntegrationKind,
-  SP extends Record<string, any> = IntegrationSpecAwsOidc,
+export type IntegrationTemplate<
+  T extends string,
+  K extends string,
+  SP extends Record<string, any> = null,
   SD extends Record<string, any> = null,
 > = {
   resourceType: T;
@@ -66,6 +81,24 @@ export enum IntegrationKind {
   GitHub = 'github',
 }
 
+export type IntegrationSpecGitHub = {
+  /**
+   * name of github organization
+   */
+  organization: string;
+};
+
+export type IntegrationGitHub = IntegrationTemplate<
+  'integration',
+  IntegrationKind.GitHub,
+  IntegrationSpecGitHub
+>;
+
+export type IntegrationAzureOidc = IntegrationTemplate<
+  'integration',
+  IntegrationKind.AzureOidc
+>;
+
 /**
  * IntegrationAudience defines supported audience value for IntegrationSpecAwsOidc
  * audience field.
@@ -84,6 +117,12 @@ export type IntegrationSpecAwsOidc = {
    */
   audience?: IntegrationAudience;
 };
+
+export type IntegrationAwsOidc = IntegrationTemplate<
+  'integration',
+  IntegrationKind.AwsOidc,
+  IntegrationSpecAwsOidc
+>;
 
 export type AwsOidcPingRequest = {
   // Define roleArn if the ping request should
@@ -154,13 +193,13 @@ export type ExternalAuditStorage = {
   athenaResultsURI: string;
 };
 
-export type ExternalAuditStorageIntegration = Integration<
+export type ExternalAuditStorageIntegration = IntegrationTemplate<
   'external-audit-storage',
   IntegrationKind.ExternalAuditStorage,
   ExternalAuditStorage
 >;
 
-export type Plugin<SP = any, D = any> = Integration<
+export type Plugin<SP = any, D = any> = IntegrationTemplate<
   'plugin',
   PluginKind,
   SP,
@@ -275,11 +314,27 @@ export type PluginEmailSpec = {
   fallbackRecipient: string;
 };
 
-export type IntegrationCreateRequest = {
-  name: string;
-  subKind: IntegrationKind;
-  awsoidc?: IntegrationSpecAwsOidc;
+export type IntegrationOAuthCredentials = {
+  id: string;
+  secret: string;
 };
+
+type IntegrationCreateGitHubRequest = {
+  name: string;
+  subKind: IntegrationKind.GitHub;
+  oauth: IntegrationOAuthCredentials;
+  github: { organization: string };
+};
+
+type IntegrationCreateAwsOidcRequest = {
+  name: string;
+  subKind: IntegrationKind.AwsOidc;
+  awsoidc: IntegrationSpecAwsOidc;
+};
+
+export type IntegrationCreateRequest =
+  | IntegrationCreateAwsOidcRequest
+  | IntegrationCreateGitHubRequest;
 
 export type IntegrationListResponse = {
   items: Integration[];
@@ -445,11 +500,22 @@ export type ListAwsRdsFromAllEnginesResponse = {
   oneOfError?: string;
 };
 
-export type IntegrationUpdateRequest = {
+export type UpdateIntegrationAwsOidc = {
+  kind: IntegrationKind.AwsOidc;
   awsoidc: {
     roleArn: string;
   };
 };
+
+export type UpdateIntegrationGithub = {
+  kind: IntegrationKind.GitHub;
+  oauth: IntegrationOAuthCredentials;
+  github: { organization: string };
+};
+
+export type IntegrationUpdateRequest =
+  | UpdateIntegrationAwsOidc
+  | UpdateIntegrationGithub;
 
 export type AwsOidcDeployServiceRequest = {
   deploymentMode: 'database-service';
@@ -771,4 +837,23 @@ export type CreateAwsAppAccessRequest = {
    * resource labels that will be set as app_server's labels
    */
   labels?: Record<string, string>;
+};
+
+export type SshKey = {
+  publicKey: string;
+  fingerprint: string;
+};
+
+export type TlsKey = {
+  cert: string;
+};
+
+export type JwtKey = {
+  publicKey: string;
+};
+
+export type ExportedIntegrationCaResponse = {
+  ssh: SshKey[];
+  tls: TlsKey[];
+  jwt: JwtKey[];
 };
