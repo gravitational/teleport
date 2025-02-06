@@ -21,8 +21,12 @@ import (
 	"net"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sys/windows/registry"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // platformOSConfigState holds state about which addresses and routes have
@@ -38,6 +42,7 @@ type platformOSConfigState struct {
 	configuredV4Address bool
 	configuredV6Address bool
 	configuredRanges    []string
+	configuredDNSZones  []string
 
 	ifaceIndex string
 }
@@ -108,7 +113,12 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 		state.configuredV6Address = true
 	}
 
-	// TODO(nklaassen): configure DNS on Windows.
+	if shouldUpdateDNSConfig(cfg, state) {
+		if err := configureDNS(ctx, cfg.dnsZones, cfg.dnsAddr); err != nil {
+			return trace.Wrap(err, "configuring DNS")
+		}
+		state.configuredDNSZones = cfg.dnsZones
+	}
 
 	return nil
 }
@@ -122,4 +132,93 @@ func addrMaskForCIDR(cidr string) (string, string, error) {
 		return "", "", trace.Wrap(err, "parsing CIDR range %s", cidr)
 	}
 	return ipNet.IP.String(), net.IP(ipNet.Mask).String(), nil
+}
+
+func shouldUpdateDNSConfig(cfg *osConfig, state *platformOSConfigState) bool {
+	// Always reconfigure if there should be no zones, to make sure we clear
+	// any leftover state when starting up.
+	if len(cfg.dnsZones) == 0 {
+		return true
+	}
+	// Otherwise, reconfigure if anything has changed.
+	return !utils.ContainSameUniqueElements(cfg.dnsZones, state.configuredDNSZones)
+}
+
+func configureDNS(ctx context.Context, zones []string, nameserver string) (err error) {
+	if len(nameserver) == 0 && len(zones) > 0 {
+		return trace.BadParameter("empty nameserver with non-empty zones")
+	}
+	log.InfoContext(ctx, "Configuring DNS.", "nameserver", nameserver, "zones", zones)
+
+	// Split DNS is configured via the Name Resolution Policy Table in the
+	// Windows registry. The UUID at the end was randomly generated, we'll
+	// always write to this key and clean it up on shutdown.
+	const nrptRegKey = `SYSTEM\CurrentControlSet\Services\Dnscache\Parameters\DnsPolicyConfig\{ad074e9a-bd1b-447e-9108-14e545bf11a5}`
+
+	if len(zones) == 0 {
+		// Either we have no zones we want to handle (the user is not
+		// currently logged in to any clusters) or VNet is shutting down. Either
+		// way, delete the registry key.
+		return trace.Wrap(deleteRegistryKey(nrptRegKey))
+	}
+
+	// Open the registry key where split DNS is configured for VNet.
+	dnsKey, _ /*alreadyExisted*/, err := registry.CreateKey(registry.LOCAL_MACHINE, nrptRegKey, registry.SET_VALUE)
+	if err != nil {
+		return trace.Wrap(err, "failed to open Windows registry key to configure split DNS")
+	}
+	defer func() {
+		var (
+			origErr             = err
+			deleteErr, closeErr error
+		)
+		// If this function failed for any reason, delete the registry key.
+		if origErr != nil {
+			deleteErr = trace.Wrap(deleteRegistryKey(nrptRegKey))
+		}
+		// Always close the registry key.
+		closeErr = trace.Wrap(dnsKey.Close(), "closing DNS registry key")
+		// Set the named return parameter [err] to the aggregate of all errors.
+		err = trace.NewAggregate(origErr, deleteErr, closeErr)
+	}()
+
+	if err := dnsKey.SetDWordValue("Version", 1); err != nil {
+		return trace.Wrap(err, "failed to set Version in DNS registry key")
+	}
+	if err := dnsKey.SetStringsValue("Name", normalizeDNSZones(zones)); err != nil {
+		return trace.Wrap(err, "failed to set Name in DNS registry key")
+	}
+	if err := dnsKey.SetStringValue("GenericDNSServers", nameserver); err != nil {
+		return trace.Wrap(err, "failed to set GenericDNSServers in DNS registry key")
+	}
+	if err := dnsKey.SetDWordValue("ConfigOptions", 8); err != nil {
+		return trace.Wrap(err, "failed to set ConfigOptions in DNS registry key")
+	}
+
+	return nil
+}
+
+func normalizeDNSZones(zones []string) []string {
+	// For the registry key, zones must start with . and must not end with .
+	out := make([]string, len(zones))
+	for i := range out {
+		out[i] = "." + strings.TrimSuffix(strings.TrimPrefix(zones[i], "."), ".")
+	}
+	return out
+}
+
+func deleteRegistryKey(key string) error {
+	deleteErr := registry.DeleteKey(registry.LOCAL_MACHINE, key)
+	if deleteErr == nil {
+		// Successfully deleted the key.
+		return nil
+	}
+	// Ignore the error if we also can't open the key, meaning it probably
+	// doesn't exist.
+	keyHandle, openErr := registry.OpenKey(registry.LOCAL_MACHINE, key, registry.READ)
+	if openErr != nil {
+		return nil
+	}
+	keyHandle.Close()
+	return trace.Wrap(deleteErr, "failed to delete DNS registry key %s", key)
 }
