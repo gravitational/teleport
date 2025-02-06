@@ -389,7 +389,11 @@ func versionGetterForProxy(ctx context.Context, proxyPublicAddr string) (version
 		return nil, trace.Wrap(err, "failed to build proxy client")
 	}
 
-	baseURL, err := url.Parse(fmt.Sprintf("https://%s/webapi/automaticupgrades/channel/%s", proxyPublicAddr, automaticupgrades.DefaultChannelName))
+	baseURL := &url.URL{
+		Scheme:  "https",
+		Host:    proxyPublicAddr,
+		RawPath: path.Join("/webapi/automaticupgrades/channel", automaticupgrades.DefaultChannelName),
+	}
 	if err != nil {
 		return nil, trace.Wrap(err, "crafting the channel base URL (this is a bug)")
 	}
