@@ -38,4 +38,21 @@ const (
 
 	// ComponentNetIQ is the NetIQ service component.
 	ComponentNetIQ = "netiq"
+
+	// ComponentAWSIC is the AWS IAM Identity Center component.
+	ComponentAWSIC = "aws:ic"
+	// ComponentAWSICPrincipalProvisioner is the AWS IAM Identity Center
+	// principal provisioner component.
+	ComponentAWSICPrincipalProvisioner = ComponentAWSIC + ":pr"
+	// ComponentAWSICAssignmentProvisioner is the AWS IAM Identity Center
+	// permission assignment provisioner component.
+	ComponentAWSICAssignmentProvisioner = ComponentAWSIC + ":ap"
+	// ComponentAWSICAssignmentCalculator is the AWS IAM Identity Center
+	// assignment calculator component.
+	ComponentAWSICAssignmentCalculator = ComponentAWSIC + ":ac"
+	// ComponentAWSICResourceMonitor is the AWS IAM Identity Center
+	// resource monitor component.
+	ComponentAWSICResourceMonitor = ComponentAWSIC + ":rm"
+	// ComponentAWSICSDK is the AWS IAM Identity Center SDK component.
+	ComponentAWSICSDK = ComponentAWSIC + ":sd"
 )

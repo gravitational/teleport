@@ -16,13 +16,12 @@ import (
 	icprov "github.com/gravitational/teleport/e/lib/aws/identitycenter/provisioning"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/e/lib/provisioning"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 const (
-	Component = "AWS:IC"
-
 	// IdentityCenterDownstreamID indicates the downstream ID to be used by the
 	// Identity Center integration when storing provisioning records.
 	IdentityCenterDownstreamID = services.DownstreamID("identitycenter")
@@ -73,7 +72,7 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 		EventsClient:        config.EventsClient,
 		UserPredicate:       config.UserPredicate,
 		AccessListPredicate: aclPredicate,
-		Logger:              config.Log.With(teleport.ComponentKey, Component+":PR"),
+		Logger:              config.Log.With(teleport.ComponentKey, eteleport.ComponentAWSICPrincipalProvisioner),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating provisioner")
@@ -84,7 +83,7 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 		UsersSvcCache:       config.Provisioning.UsersSvcCache,
 		Events:              config.EventsClient,
 		Clock:               config.Clock,
-		Logger:              config.Log.With(teleport.ComponentKey, Component+":RM"),
+		Logger:              config.Log.With(teleport.ComponentKey, eteleport.ComponentAWSICResourceMonitor),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating resource monitor")
@@ -97,7 +96,7 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 		PrincipalAssignmentsSvc: config.IdentityCenterDataSvc,
 		AccountAssignmentCache:  config.IdentityCenterDataSvcCache,
 		RolesGetter:             config.RolesSvc,
-		Logger:                  config.Log.With(teleport.ComponentKey, Component+":AC"),
+		Logger:                  config.Log.With(teleport.ComponentKey, eteleport.ComponentAWSICAssignmentCalculator),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -105,7 +104,7 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 
 	assignmentProvisioner, err := icprov.NewAssignmentProvisioner(icprov.ProvisionerConfig{
 		Assignment: config.IdentityCenterDataSvc,
-		Log:        config.Log.With(teleport.ComponentKey, Component+":AP"),
+		Log:        config.Log.With(teleport.ComponentKey, eteleport.ComponentAWSICAssignmentProvisioner),
 		SDKClient:  config.ICClient,
 	})
 	if err != nil {

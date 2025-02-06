@@ -16,6 +16,7 @@ import (
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	cloudaws "github.com/gravitational/teleport/e/lib/cloud/aws"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/credprovider"
 )
@@ -54,7 +55,7 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 		defer cancel()
 
 		authServer := deps.parentProcess.GetAuthServer()
-		logger := deps.logger.With(teleport.ComponentKey, identitycenter.Component)
+		logger := deps.logger.With(teleport.ComponentKey, eteleport.ComponentAWSIC)
 
 		scimClient, err := scimsdk.New(&scimsdk.Config{
 			Endpoint:        settings.ProvisioningSpec.BaseUrl,
@@ -74,7 +75,7 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 		identityCenterClient, err := icsdk.New(icsdk.Config{
 			InstanceARN: instanceARN.String(),
 			AWSConfig:   awsClientConfig,
-			Logger:      logger,
+			Logger:      logger.With(teleport.ComponentKey, eteleport.ComponentAWSICSDK),
 		})
 		if err != nil {
 			return trace.Wrap(err, "creating Identity Center client")

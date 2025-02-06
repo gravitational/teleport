@@ -11,6 +11,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/teleport"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 )
 
 // Config defines configuration parameters for AWS Identity Center SDK client.
@@ -41,7 +44,7 @@ func (c *Config) checkAndSetDefault() error {
 		c.Clock = clockwork.NewRealClock()
 	}
 	if c.Logger == nil {
-		c.Logger = slog.Default()
+		c.Logger = slog.Default().With(teleport.ComponentKey, eteleport.ComponentAWSICSDK)
 	}
 	return nil
 }

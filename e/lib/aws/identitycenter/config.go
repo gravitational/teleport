@@ -13,6 +13,7 @@ import (
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/e/lib/provisioning"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -154,7 +155,7 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing events client")
 	}
 	if cfg.Log == nil {
-		cfg.Log = slog.Default().With(teleport.ComponentKey, Component)
+		cfg.Log = slog.Default().With(teleport.ComponentKey, eteleport.ComponentAWSIC)
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
