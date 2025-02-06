@@ -25,10 +25,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/types"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
@@ -185,7 +187,7 @@ func TestReporter(t *testing.T) {
 	require.Equal(t, uint64(1), rec2.KubeSessions)
 }
 
-func TestReporterBotInstanceActivity(t *testing.T) {
+func TestReporterMachineWorkloadIdentityActivity(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	clk := clockwork.NewFakeClock()
@@ -248,6 +250,11 @@ func TestReporterBotInstanceActivity(t *testing.T) {
 		BotName:       "bob",
 		BotInstanceId: "0000-01",
 	})
+	r.AnonymizeAndSubmit(&usagereporter.SPIFFESVIDIssuedEvent{
+		UserName: "jen",
+		UserKind: prehogv1a.UserKind_USER_KIND_HUMAN,
+		SpiffeId: "spiffe://clustername/jen",
+	})
 	// Submit for two different bot instances, we expect a useractivity record
 	// with a value of two, and two bot instance activity records with a single
 	// value of 1.
@@ -255,12 +262,22 @@ func TestReporterBotInstanceActivity(t *testing.T) {
 		UserName:      "bot-bob",
 		BotInstanceId: "0000-01",
 		UserKind:      prehogv1a.UserKind_USER_KIND_BOT,
+		SpiffeId:      "spiffe://clustername/bot/bob",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.SPIFFESVIDIssuedEvent{
+		UserName:      "bot-bob",
+		BotInstanceId: "0000-01",
+		UserKind:      prehogv1a.UserKind_USER_KIND_BOT,
+		SpiffeId:      "spiffe://clustername/bot/bob-2",
 	})
 	r.AnonymizeAndSubmit(&usagereporter.SPIFFESVIDIssuedEvent{
 		UserName:      "bot-bob",
 		BotInstanceId: "0000-02",
 		UserKind:      prehogv1a.UserKind_USER_KIND_BOT,
+		SpiffeId:      "spiffe://clustername/bot/bob",
 	})
+	recvIngested()
+	recvIngested()
 	recvIngested()
 	recvIngested()
 	recvIngested()
@@ -275,21 +292,69 @@ func TestReporterBotInstanceActivity(t *testing.T) {
 	userActivityReports, err := svc.listUserActivityReports(ctx, 10)
 	require.NoError(t, err)
 	require.Len(t, userActivityReports, 1)
-	require.Len(t, userActivityReports[0].Records, 1)
-	userActivityRecord := userActivityReports[0].Records[0]
-	require.Equal(t, uint64(1), userActivityRecord.BotJoins)
-	require.Equal(t, uint64(2), userActivityRecord.SpiffeSvidsIssued)
-	require.Equal(t, uint64(1), userActivityRecord.CertificatesIssued)
+	slices.SortFunc(userActivityReports[0].Records, func(a, b *prehogv1.UserActivityRecord) int {
+		return bytes.Compare(a.GetUserName(), b.GetUserName())
+	})
+	want := []*prehogv1.UserActivityRecord{
+		{
+			UserName:           anonymizer.AnonymizeNonEmpty("bot-bob"),
+			UserKind:           prehogv1.UserKind_USER_KIND_BOT,
+			BotJoins:           1,
+			SpiffeSvidsIssued:  3,
+			CertificatesIssued: 1,
+			SpiffeIdsIssued: []*prehogv1.SPIFFEIDRecord{
+				{
+					SpiffeId:    anonymizer.AnonymizeNonEmpty("spiffe://clustername/bot/bob"),
+					SvidsIssued: 2,
+				},
+				{
+					SpiffeId:    anonymizer.AnonymizeNonEmpty("spiffe://clustername/bot/bob-2"),
+					SvidsIssued: 1,
+				},
+			},
+		},
+		{
+			UserName:          anonymizer.AnonymizeNonEmpty("jen"),
+			UserKind:          prehogv1.UserKind_USER_KIND_HUMAN,
+			SpiffeSvidsIssued: 1,
+			SpiffeIdsIssued: []*prehogv1.SPIFFEIDRecord{
+				{
+					SpiffeId:    anonymizer.AnonymizeNonEmpty("spiffe://clustername/jen"),
+					SvidsIssued: 1,
+				},
+			},
+		},
+	}
+	slices.SortFunc(want, func(a, b *prehogv1.UserActivityRecord) int {
+		return bytes.Compare(a.GetUserName(), b.GetUserName())
+	})
+	diff := cmp.Diff(
+		userActivityReports[0].Records,
+		want,
+		protocmp.Transform(),
+		protocmp.SortRepeated(func(u1, u2 *prehogv1.SPIFFEIDRecord) bool {
+			return bytes.Compare(u1.GetSpiffeId(), u2.GetSpiffeId()) == -1
+		}),
+	)
+	if diff != "" {
+		t.Errorf("UserActivityRecords mismatch (-want +got):\n%s", diff)
+	}
+
+	botUserRecordIndex := slices.IndexFunc(userActivityReports[0].Records, func(record *prehogv1.UserActivityRecord) bool {
+		return bytes.Equal(record.UserName, anonymizer.AnonymizeNonEmpty("bot-bob"))
+	})
+	require.GreaterOrEqual(t, botUserRecordIndex, 0)
+	botUserRecord := userActivityReports[0].Records[botUserRecordIndex]
 
 	botInstanceActivityReports, err := svc.listBotInstanceActivityReports(ctx, 10)
 	require.NoError(t, err)
 	require.Len(t, botInstanceActivityReports, 1)
 	require.Len(t, botInstanceActivityReports[0].Records, 2)
 	for _, record := range botInstanceActivityReports[0].Records {
-		require.Equal(t, userActivityRecord.UserName, record.BotUserName)
+		require.Equal(t, botUserRecord.UserName, record.BotUserName)
 	}
 	require.True(t, slices.ContainsFunc(botInstanceActivityReports[0].Records, func(record *prehogv1.BotInstanceActivityRecord) bool {
-		return record.BotJoins == 1 && record.CertificatesIssued == 1 && record.SpiffeSvidsIssued == 1
+		return record.BotJoins == 1 && record.CertificatesIssued == 1 && record.SpiffeSvidsIssued == 2
 	}))
 	require.True(t, slices.ContainsFunc(botInstanceActivityReports[0].Records, func(record *prehogv1.BotInstanceActivityRecord) bool {
 		return record.BotJoins == 0 && record.CertificatesIssued == 0 && record.SpiffeSvidsIssued == 1
