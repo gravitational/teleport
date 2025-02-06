@@ -335,7 +335,25 @@ func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*
 			"user", cert.KeyId,
 		)
 		rbacFailureCounter.Inc()
-		s.emitEvent(srv.MakeAuthAttemptFailureEvent(conn, ident, err))
+		s.emitEvent(&apievents.AuthAttempt{
+			Metadata: apievents.Metadata{
+				Type: events.AuthAttemptEvent,
+				Code: events.AuthAttemptFailureCode,
+			},
+			UserMetadata: apievents.UserMetadata{
+				Login:         gitUser,
+				User:          ident.Username,
+				TrustedDevice: ident.GetDeviceMetadata(),
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				LocalAddr:  conn.LocalAddr().String(),
+				RemoteAddr: conn.RemoteAddr().String(),
+			},
+			Status: apievents.Status{
+				Success: false,
+				Error:   err.Error(),
+			},
+		})
 		return nil, trace.Wrap(err)
 	}
 	return permissions, nil

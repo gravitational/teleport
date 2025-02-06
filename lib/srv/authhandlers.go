@@ -369,8 +369,25 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 			h.log.WarnContext(ctx, "Failed to append Trace to ConnectionDiagnostic", "error", err)
 		}
 
-		failureEvent := MakeAuthAttemptFailureEvent(conn, ident, err)
-		if err := h.c.Emitter.EmitAuditEvent(h.c.Server.Context(), failureEvent); err != nil {
+		if err := h.c.Emitter.EmitAuditEvent(h.c.Server.Context(), &apievents.AuthAttempt{
+			Metadata: apievents.Metadata{
+				Type: events.AuthAttemptEvent,
+				Code: events.AuthAttemptFailureCode,
+			},
+			UserMetadata: apievents.UserMetadata{
+				Login:         principal,
+				User:          ident.Username,
+				TrustedDevice: ident.GetDeviceMetadata(),
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				LocalAddr:  conn.LocalAddr().String(),
+				RemoteAddr: conn.RemoteAddr().String(),
+			},
+			Status: apievents.Status{
+				Success: false,
+				Error:   err.Error(),
+			},
+		}); err != nil {
 			h.log.WarnContext(ctx, "Failed to emit failed login audit event", "error", err)
 		}
 
@@ -698,28 +715,4 @@ func (h *AuthHandlers) authorityForCert(caType types.CertAuthType, key ssh.Publi
 // isProxy returns true if it's a regular SSH proxy.
 func (h *AuthHandlers) isProxy() bool {
 	return h.c.Component == teleport.ComponentProxy
-}
-
-// MakeAuthAttemptFailureEvent creates an auth attempt failure event using
-// provided info.
-func MakeAuthAttemptFailureEvent(conn ssh.ConnMetadata, ident *sshca.Identity, err error) *apievents.AuthAttempt {
-	return &apievents.AuthAttempt{
-		Metadata: apievents.Metadata{
-			Type: events.AuthAttemptEvent,
-			Code: events.AuthAttemptFailureCode,
-		},
-		UserMetadata: apievents.UserMetadata{
-			Login:         conn.User(),
-			User:          ident.Username,
-			TrustedDevice: eventDeviceMetadataFromIdentity(ident),
-		},
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			LocalAddr:  conn.LocalAddr().String(),
-			RemoteAddr: conn.RemoteAddr().String(),
-		},
-		Status: apievents.Status{
-			Success: false,
-			Error:   err.Error(),
-		},
-	}
 }
