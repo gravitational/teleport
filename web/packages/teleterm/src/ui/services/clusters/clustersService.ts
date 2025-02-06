@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import { AccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 import {
   Cluster,
   ShowResources,
@@ -40,7 +40,6 @@ import {
   TshdClient,
 } from 'teleterm/services/tshd';
 import { getGatewayTargetUriKind } from 'teleterm/services/tshd/gateway';
-import { AssumedRequest } from 'teleterm/services/tshd/types';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { UsageService } from 'teleterm/ui/services/usage';
 import * as uri from 'teleterm/ui/uri';
@@ -422,7 +421,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   getAssumedRequests(
     rootClusterUri: uri.RootClusterUri
-  ): Record<string, AssumedRequest> {
+  ): Record<string, AccessRequest> {
     const cluster = this.state.clusters.get(rootClusterUri);
     return cluster?.loggedInUser?.assumedRequests || EMPTY_ASSUMED_REQUESTS;
   }
@@ -765,11 +764,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
         )
       )
     ).reduce((requestsMap, request) => {
-      requestsMap[request.id] = {
-        id: request.id,
-        expires: Timestamp.toDate(request.expires),
-        roles: request.roles,
-      };
+      requestsMap[request.id] = request;
       return requestsMap;
     }, {});
   }

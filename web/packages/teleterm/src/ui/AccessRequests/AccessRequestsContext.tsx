@@ -27,7 +27,6 @@ import {
 import { AccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 import { Attempt, useAsync } from 'shared/hooks/useAsync';
 
-import { AssumedRequest } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 import { RootClusterUri } from 'teleterm/ui/uri';
@@ -41,7 +40,7 @@ export interface AccessRequestsContext {
   fetchRequestsAttempt: Attempt<AccessRequest[]>;
   fetchRequests(): Promise<[AccessRequest[], Error]>;
   /** Maps access request ID to the corresponding request object. */
-  assumed: Map<string, AssumedRequest>;
+  assumed: Map<string, AccessRequest>;
 }
 
 const AccessRequestsContext = createContext<AccessRequestsContext>(null);
