@@ -429,11 +429,19 @@ func (li *LocalInstaller) Link(ctx context.Context, rev Revision, force bool) (r
 	return revert, nil
 }
 
+func emptyRevert(_ context.Context) bool {
+	return true
+}
+
 // LinkSystem links the system (package) version into LinkBinDir and CopyServiceFile.
 // LinkSystem returns ErrInvalid if LinkBinDir is not DefaultLinkDir.
+// This prevents namespaced installations in /opt/teleport from linking to the system package.
 // The revert function restores the previous linking.
 // See Installer interface for additional specs.
 func (li *LocalInstaller) LinkSystem(ctx context.Context) (revert func(context.Context) bool, err error) {
+	if filepath.Clean(li.LinkBinDir) != filepath.Clean(DefaultLinkDir) {
+		return emptyRevert, trace.Wrap(ErrInvalid, "refusing to link into %s instead of %s", li.LinkBinDir, DefaultLinkDir)
+	}
 	revert, err = li.forceLinks(ctx, li.SystemBinDir, li.SystemServiceFile, false)
 	return revert, trace.Wrap(err)
 }
@@ -457,6 +465,9 @@ func (li *LocalInstaller) TryLink(ctx context.Context, revision Revision) error 
 // TryLinkSystem returns ErrInvalid if LinkBinDir is not DefaultLinkDir.
 // See Installer interface for additional specs.
 func (li *LocalInstaller) TryLinkSystem(ctx context.Context) error {
+	if filepath.Clean(li.LinkBinDir) != filepath.Clean(DefaultLinkDir) {
+		return trace.Wrap(ErrInvalid, "refusing to link into %s instead of %s", li.LinkBinDir, DefaultLinkDir)
+	}
 	return trace.Wrap(li.tryLinks(ctx, li.SystemBinDir, li.SystemServiceFile))
 }
 
@@ -534,6 +545,15 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcPath string
 		}
 	}()
 
+	// ensure source directory exists
+	entries, err := os.ReadDir(binDir)
+	if errors.Is(err, os.ErrNotExist) {
+		return revert, trace.Wrap(ErrNoBinaries)
+	}
+	if err != nil {
+		return revert, trace.Wrap(err, "failed to read Teleport binary directory")
+	}
+
 	// ensure target directories exist before trying to create links
 	err = os.MkdirAll(li.LinkBinDir, systemDirMode)
 	if err != nil {
@@ -545,11 +565,6 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcPath string
 	}
 
 	// create binary links
-
-	entries, err := os.ReadDir(binDir)
-	if err != nil {
-		return revert, trace.Wrap(err, "failed to find Teleport binary directory")
-	}
 	var linked int
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -747,8 +762,17 @@ func (li *LocalInstaller) removeLinks(ctx context.Context, binDir, svcPath strin
 // tryLinks will not attempt to create any links if linking could result in an error.
 // However, concurrent changes to links may result in an error with partially-complete linking.
 func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcPath string) error {
+	// ensure source directory exists
+	entries, err := os.ReadDir(binDir)
+	if errors.Is(err, os.ErrNotExist) {
+		return trace.Wrap(ErrNoBinaries)
+	}
+	if err != nil {
+		return trace.Wrap(err, "failed to read Teleport binary directory")
+	}
+
 	// ensure target directories exist before trying to create links
-	err := os.MkdirAll(li.LinkBinDir, systemDirMode)
+	err = os.MkdirAll(li.LinkBinDir, systemDirMode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -758,13 +782,8 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcPath string) 
 	}
 
 	// validate that we can link all system binaries before attempting linking
-
 	var links []symlink
 	var linked int
-	entries, err := os.ReadDir(binDir)
-	if err != nil {
-		return trace.Wrap(err, "failed to find Teleport binary directory")
-	}
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue

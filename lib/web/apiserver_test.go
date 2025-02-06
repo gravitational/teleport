@@ -4648,6 +4648,71 @@ func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
 	require.Empty(t, collectAppSessions(context.Background()))
 }
 
+func TestGetAppDetails(t *testing.T) {
+	ctx := context.Background()
+	s := newWebSuite(t)
+	pack := s.authPack(t, "foo@example.com")
+
+	// Register an application called "api".
+	apiApp, err := types.NewAppV3(types.Metadata{
+		Name: "api",
+	}, types.AppSpecV3{
+		URI:        "http://127.0.0.1:8080",
+		PublicAddr: "api.example.com",
+	})
+	require.NoError(t, err)
+	server, err := types.NewAppServerV3FromApp(apiApp, "host", uuid.New().String())
+	require.NoError(t, err)
+	_, err = s.server.Auth().UpsertApplicationServer(s.ctx, server)
+	require.NoError(t, err)
+
+	// Register an application called "client" and have "api" required.
+	clientApp, err := types.NewAppV3(types.Metadata{
+		Name: "client",
+	}, types.AppSpecV3{
+		URI:              "http://127.0.0.1:8080",
+		PublicAddr:       "client.example.com",
+		RequiredAppNames: []string{"api"},
+	})
+	require.NoError(t, err)
+	server2, err := types.NewAppServerV3FromApp(clientApp, "host", uuid.New().String())
+	require.NoError(t, err)
+	_, err = s.server.Auth().UpsertApplicationServer(s.ctx, server2)
+	require.NoError(t, err)
+
+	clientFQDN := "client.example.com"
+
+	tests := []struct {
+		name     string
+		endpoint string
+	}{
+		{
+			name:     "request app details with clientName and publicAddr",
+			endpoint: pack.clt.Endpoint("webapi", "apps", clientFQDN, s.server.ClusterName(), clientApp.GetPublicAddr()),
+		},
+		{
+			name:     "request app details with fqdn only",
+			endpoint: pack.clt.Endpoint("webapi", "apps", clientFQDN),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			re, err := pack.clt.Get(ctx, tc.endpoint, url.Values{})
+			require.NoError(t, err)
+			resp := GetAppDetailsResponse{}
+
+			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+			require.Equal(t, GetAppDetailsResponse{
+				FQDN:             "client.example.com",
+				RequiredAppFQDNs: []string{"api.example.com", "client.example.com"},
+			}, resp)
+		})
+	}
+}
+
 func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)

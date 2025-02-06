@@ -36,7 +36,7 @@ type clientApplicationService struct {
 	// [vnetv1.ClientApplicationServiceServer]
 	vnetv1.UnsafeClientApplicationServiceServer
 
-	appProvider appProvider
+	localAppProvider *localAppProvider
 
 	// mu protects appSignerCache
 	mu sync.Mutex
@@ -50,10 +50,10 @@ type clientApplicationService struct {
 	appSignerCache map[appKey]crypto.Signer
 }
 
-func newClientApplicationService(appProvider appProvider) *clientApplicationService {
+func newClientApplicationService(localAppProvider *localAppProvider) *clientApplicationService {
 	return &clientApplicationService{
-		appProvider:    appProvider,
-		appSignerCache: make(map[appKey]crypto.Signer),
+		localAppProvider: localAppProvider,
+		appSignerCache:   make(map[appKey]crypto.Signer),
 	}
 }
 
@@ -77,7 +77,7 @@ func (s *clientApplicationService) AuthenticateProcess(ctx context.Context, req 
 
 // ResolveAppInfo implements [vnetv1.ClientApplicationServiceServer.ResolveAppInfo].
 func (s *clientApplicationService) ResolveAppInfo(ctx context.Context, req *vnetv1.ResolveAppInfoRequest) (*vnetv1.ResolveAppInfoResponse, error) {
-	appInfo, err := s.appProvider.ResolveAppInfo(ctx, req.GetFqdn())
+	appInfo, err := s.localAppProvider.ResolveAppInfo(ctx, req.GetFqdn())
 	if err != nil {
 		return nil, trace.Wrap(err, "resolving app info")
 	}
@@ -93,7 +93,7 @@ func (s *clientApplicationService) ReissueAppCert(ctx context.Context, req *vnet
 	if req.AppInfo == nil {
 		return nil, trace.BadParameter("missing AppInfo")
 	}
-	cert, err := s.appProvider.ReissueAppCert(ctx, req.GetAppInfo(), uint16(req.GetTargetPort()))
+	cert, err := s.localAppProvider.ReissueAppCert(ctx, req.GetAppInfo(), uint16(req.GetTargetPort()))
 	if err != nil {
 		return nil, trace.Wrap(err, "reissuing app certificate")
 	}
@@ -153,7 +153,7 @@ func (s *clientApplicationService) getSignerForApp(appKey *vnetv1.AppKey, target
 // OnNewConnection gets called whenever a new connection is about to be
 // established through VNet for observability.
 func (s *clientApplicationService) OnNewConnection(ctx context.Context, req *vnetv1.OnNewConnectionRequest) (*vnetv1.OnNewConnectionResponse, error) {
-	if err := s.appProvider.OnNewConnection(ctx, req.GetAppKey()); err != nil {
+	if err := s.localAppProvider.OnNewConnection(ctx, req.GetAppKey()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &vnetv1.OnNewConnectionResponse{}, nil
@@ -163,7 +163,7 @@ func (s *clientApplicationService) OnNewConnection(ctx context.Context, req *vne
 // to a multi-port TCP app because the provided port does not match any of the
 // TCP ports in the app spec.
 func (s *clientApplicationService) OnInvalidLocalPort(ctx context.Context, req *vnetv1.OnInvalidLocalPortRequest) (*vnetv1.OnInvalidLocalPortResponse, error) {
-	s.appProvider.OnInvalidLocalPort(ctx, req.GetAppInfo(), uint16(req.GetTargetPort()))
+	s.localAppProvider.OnInvalidLocalPort(ctx, req.GetAppInfo(), uint16(req.GetTargetPort()))
 	return &vnetv1.OnInvalidLocalPortResponse{}, nil
 }
 
@@ -181,4 +181,13 @@ func newAppKey(protoAppKey *vnetv1.AppKey, port uint16) appKey {
 		app:         protoAppKey.GetName(),
 		port:        port,
 	}
+}
+
+// GetTargetOSConfiguration returns the configuration values that should be
+// configured in the OS, including DNS zones that should be handled by the VNet
+// DNS nameserver and the IPv4 CIDR ranges that should be routed to the VNet TUN
+// interface.
+func (s *clientApplicationService) GetTargetOSConfiguration(ctx context.Context, _ *vnetv1.GetTargetOSConfigurationRequest) (*vnetv1.GetTargetOSConfigurationResponse, error) {
+	resp, err := s.localAppProvider.getTargetOSConfiguration(ctx)
+	return resp, trace.Wrap(err, "getting target OS configuration")
 }

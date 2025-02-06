@@ -168,16 +168,24 @@ func (h *Handler) getAppDetails(w http.ResponseWriter, r *http.Request, p httpro
 	requiredAppNames := result.App.GetRequiredAppNames()
 
 	if !isRedirectFlow {
+		// TODO (avatus) this would be nice if the string in the RequiredApps spec was the fqdn of the required app
+		// so we could skip the resolution step all together but this would break existing configs.
+
+		// if clusterName is not supplied in the params, the initial app must have been fetched with fqdn hint only.
+		// We can use the clusterName of the initially resolved app
+		if clusterName == "" {
+			clusterName = result.ClusterName
+		}
 		for _, required := range requiredAppNames {
 			res, err := h.resolveApp(r.Context(), ctx, ResolveAppParams{ClusterName: clusterName, AppName: required})
 			if err != nil {
 				h.logger.ErrorContext(r.Context(), "Error getting app details for associated required app", "required_app", required, "app", result.App.GetName())
 				continue
 			}
-			resp.RequiredAppFQDNs = append(resp.RequiredAppFQDNs, res.App.GetPublicAddr())
+			resp.RequiredAppFQDNs = append(resp.RequiredAppFQDNs, res.FQDN)
 		}
 		// append self to end of required apps so that it can be the final entry in the redirect "chain".
-		resp.RequiredAppFQDNs = append(resp.RequiredAppFQDNs, result.App.GetPublicAddr())
+		resp.RequiredAppFQDNs = append(resp.RequiredAppFQDNs, result.FQDN)
 	}
 
 	return resp, nil
