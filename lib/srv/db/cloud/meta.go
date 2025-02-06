@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -141,7 +142,7 @@ func (defaultAWSClients) getRedshiftServerlessClient(cfg aws.Config, optFns ...f
 }
 
 func (defaultAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient {
-	return sts.NewFromConfig(cfg, optFns...)
+	return stsutils.NewFromConfig(cfg, optFns...)
 }
 
 // MetadataConfig is the cloud metadata service config.
