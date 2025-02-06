@@ -122,6 +122,8 @@ message UserActivityRecord {
   uint64 bot_joins = 16;
   // counter of certificates issued for this user
   uint64 certificates_issued = 17;
+  // counter of SVIDs issued for each SPIFFE ID.
+  repeated SPIFFEIDRecord spiffe_ids_issued = 18;
 }
 
 // the kind of a "resource" (e.g. a node, a database, a desktop, etc.)
@@ -231,6 +233,14 @@ message BotInstanceActivityRecord {
   uint64 spiffe_svids_issued = 4;
   // counter of certificates issued for this user
   uint64 certificates_issued = 5;
+}
+
+// Used to record the issuance of a specific SPIFFE ID.
+message SPIFFEIDRecord {
+  // The anonymized SPIFFE ID - HMAC-SHA-256 (32 bytes)
+  bytes spiffe_id = 1;
+  // Number of SVIDs issued for the given spiffe_id.
+  uint32 svids_issued = 2;
 }
 
 message SubmitUsageReportsRequest {
