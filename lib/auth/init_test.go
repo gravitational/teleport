@@ -2283,3 +2283,42 @@ func Test_createPresetDatabaseObjectImportRule(t *testing.T) {
 		})
 	}
 }
+
+// TestInitWithAutoUpdateBootstrap verifies that auth
+func TestInitWithAutoUpdateBootstrap(t *testing.T) {
+	t.Parallel()
+
+	const autoUpdateConfigYAML = `kind: autoupdate_config
+metadata:
+  name: autoupdate-config
+spec:
+  tools:
+    mode: enabled
+version: v1`
+	const autoUpdateVersionYAML = `kind: autoupdate_version
+metadata:
+  name: autoupdate-version
+spec:
+  tools:
+    target_version: 1.2.3
+version: v1`
+
+	ctx := context.Background()
+
+	cfg := setupConfig(t)
+	cfg.BootstrapResources = []types.Resource{
+		resourceFromYAML(t, autoUpdateConfigYAML),
+		resourceFromYAML(t, autoUpdateVersionYAML),
+	}
+
+	auth, err := Init(ctx, cfg)
+	require.NoError(t, err)
+
+	config, err := auth.GetAutoUpdateConfig(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, "enabled", config.GetSpec().GetTools().GetMode())
+
+	version, err := auth.GetAutoUpdateVersion(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, "1.2.3", version.GetSpec().GetTools().GetTargetVersion())
+}
