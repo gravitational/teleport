@@ -374,6 +374,10 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 
 // proxyAddrConfig contains potential proxy server addresses from teleport.yaml.
 type proxyAddrConfig struct {
+	Teleport proxyAddrTeleport `yaml:"teleport"`
+}
+
+type proxyAddrTeleport struct {
 	AuthServers []string `yaml:"auth_servers"`
 	AuthServer  string   `yaml:"auth_server"`
 	ProxyServer string   `yaml:"proxy_server"`
@@ -393,17 +397,18 @@ func (u *Updater) findAgentProxy(ctx context.Context) string {
 		u.Log.DebugContext(ctx, "Unable to parse Teleport config to read proxy", "config", u.TeleportConfigPath, errorKey, err)
 		return ""
 	}
+
 	var addr string
 	var port int
-	switch {
-	case cfg.ProxyServer != "":
-		addr = cfg.ProxyServer
+	switch t := cfg.Teleport; {
+	case t.ProxyServer != "":
+		addr = t.ProxyServer
 		port = libdefaults.HTTPListenPort
-	case cfg.AuthServer != "":
-		addr = cfg.AuthServer
+	case t.AuthServer != "":
+		addr = t.AuthServer
 		port = libdefaults.AuthListenPort
-	case len(cfg.AuthServers) > 0:
-		addr = cfg.AuthServers[0]
+	case len(t.AuthServers) > 0:
+		addr = t.AuthServers[0]
 		port = libdefaults.AuthListenPort
 	}
 	netaddr, err := libutils.ParseHostPortAddr(addr, port)

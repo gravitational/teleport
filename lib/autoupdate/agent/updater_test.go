@@ -1557,47 +1557,47 @@ func TestUpdater_findAgentProxy(t *testing.T) {
 
 	tests := []struct {
 		name string
-		cfg  *proxyAddrConfig
+		cfg  *proxyAddrTeleport
 		want string
 	}{
 		{
 			name: "full",
-			cfg: &proxyAddrConfig{
+			cfg: &proxyAddrTeleport{
 				ProxyServer: "https://example.com:8080",
 			},
 			want: "example.com:8080",
 		},
 		{
 			name: "protocol and host",
-			cfg: &proxyAddrConfig{
+			cfg: &proxyAddrTeleport{
 				ProxyServer: "https://example.com",
 			},
 			want: "example.com:3080",
 		},
 		{
 			name: "host and port",
-			cfg: &proxyAddrConfig{
+			cfg: &proxyAddrTeleport{
 				ProxyServer: "example.com:443",
 			},
 			want: "example.com:443",
 		},
 		{
 			name: "host",
-			cfg: &proxyAddrConfig{
+			cfg: &proxyAddrTeleport{
 				ProxyServer: "example.com",
 			},
 			want: "example.com:3080",
 		},
 		{
 			name: "auth server (v3)",
-			cfg: &proxyAddrConfig{
+			cfg: &proxyAddrTeleport{
 				AuthServer: "example.com",
 			},
 			want: "example.com:3025",
 		},
 		{
 			name: "auth server (v1/2)",
-			cfg: &proxyAddrConfig{
+			cfg: &proxyAddrTeleport{
 				AuthServers: []string{
 					"one.example.com",
 					"two.example.com",
@@ -1607,7 +1607,7 @@ func TestUpdater_findAgentProxy(t *testing.T) {
 		},
 		{
 			name: "proxy priority",
-			cfg: &proxyAddrConfig{
+			cfg: &proxyAddrTeleport{
 				ProxyServer: "one.example.com",
 				AuthServer:  "two.example.com",
 				AuthServers: []string{"three.example.com"},
@@ -1616,7 +1616,7 @@ func TestUpdater_findAgentProxy(t *testing.T) {
 		},
 		{
 			name: "auth priority",
-			cfg: &proxyAddrConfig{
+			cfg: &proxyAddrTeleport{
 				AuthServer:  "two.example.com",
 				AuthServers: []string{"three.example.com"},
 			},
@@ -1632,7 +1632,7 @@ func TestUpdater_findAgentProxy(t *testing.T) {
 				configFile: filepath.Join(t.TempDir(), "teleport.yaml"),
 			}
 			if tt.cfg != nil {
-				out, err := yaml.Marshal(tt.cfg)
+				out, err := yaml.Marshal(proxyAddrConfig{Teleport: *tt.cfg})
 				require.NoError(t, err)
 				err = os.WriteFile(ns.configFile, out, os.ModePerm)
 				require.NoError(t, err)
