@@ -32,6 +32,7 @@ import (
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 	awslibutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 var taskRoleDescription = "Used by Teleport Database Service deployed in Amazon ECS."
@@ -142,7 +143,7 @@ func NewDeployServiceIAMConfigureClient(ctx context.Context, region string) (Dep
 
 	return &defaultDeployServiceIAMConfigureClient{
 		Client:    iam.NewFromConfig(cfg),
-		stsClient: sts.NewFromConfig(cfg),
+		stsClient: stsutils.NewFromConfig(cfg),
 	}, nil
 }
 
