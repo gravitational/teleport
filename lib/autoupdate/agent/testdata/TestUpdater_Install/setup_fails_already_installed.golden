@@ -1,7 +1,7 @@
 version: v1
 kind: update_config
 spec:
-    proxy: localhost
+    proxy: ""
     enabled: false
     pinned: false
 status:
