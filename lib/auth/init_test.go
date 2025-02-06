@@ -2284,7 +2284,8 @@ func Test_createPresetDatabaseObjectImportRule(t *testing.T) {
 	}
 }
 
-// TestInitWithAutoUpdateBootstrap verifies that auth
+// TestInitWithAutoUpdateBootstrap verifies that auth init support bootstrapping `AutoUpdateConfig` and
+// `AutoUpdateVersion` resources as well as unmarshalling them from yaml configuration.
 func TestInitWithAutoUpdateBootstrap(t *testing.T) {
 	t.Parallel()
 

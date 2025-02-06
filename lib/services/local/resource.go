@@ -72,7 +72,15 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 	var item *backend.Item
 	var extItems []backend.Item
 	var err error
-	switch r := resource.(type) {
+
+	// Unwrap "new style" resources.
+	// We always want to switch over the underlying type.
+	var res any = resource
+	if w, ok := res.(types.Resource153Unwrapper); ok {
+		res = w.Unwrap()
+	}
+
+	switch r := res.(type) {
 	case types.User:
 		item, err = itemFromUser(r)
 		if auth := r.GetLocalAuth(); err == nil && auth != nil {
@@ -98,15 +106,10 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 		item, err = itemFromClusterNetworkingConfig(r)
 	case types.AuthPreference:
 		item, err = itemFromAuthPreference(r)
-	case types.Resource153Unwrapper:
-		switch r153 := r.Unwrap().(type) {
-		case *autoupdatev1pb.AutoUpdateConfig:
-			item, err = itemFromAutoUpdateConfig(r153)
-		case *autoupdatev1pb.AutoUpdateVersion:
-			item, err = itemFromAutoUpdateVersion(r153)
-		default:
-			return nil, trace.NotImplemented("cannot itemFrom resource of type %T", resource)
-		}
+	case *autoupdatev1pb.AutoUpdateConfig:
+		item, err = itemFromAutoUpdateConfig(r)
+	case *autoupdatev1pb.AutoUpdateVersion:
+		item, err = itemFromAutoUpdateVersion(r)
 	default:
 		return nil, trace.NotImplemented("cannot itemFrom resource of type %T", resource)
 	}
