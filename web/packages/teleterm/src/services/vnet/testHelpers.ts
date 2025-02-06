@@ -56,7 +56,10 @@ export const makeCheckReport = (
 ): CheckReport => ({
   status: CheckReportStatus.OK,
   report: {
-    oneofKind: undefined,
+    oneofKind: 'routeConflictReport',
+    routeConflictReport: {
+      routeConflicts: [],
+    },
   },
   ...props,
 });

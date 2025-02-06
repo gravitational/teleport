@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Immutable, produce } from 'immer';
+import { castDraft, Immutable, produce } from 'immer';
 import { z } from 'zod';
 
 import {
@@ -513,7 +513,9 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   ): void {
     this.setState(draftState => {
       const workspace = draftState.workspaces[rootClusterUri];
-      workspace.documents = reopen.documents.map(d => {
+      // reopen.documents is immutable, but workspace.documents is a mutable draft, hence the cast.
+      // https://immerjs.github.io/immer/typescript/#cast-utilities
+      workspace.documents = castDraft(reopen.documents).map(d => {
         //TODO: create a function that will prepare a new document, it will be used in:
         // DocumentsService
         // TrackedConnectionOperationsFactory
