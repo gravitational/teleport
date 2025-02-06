@@ -10,11 +10,7 @@ your GitLab environment. This functionality enables you to answer queries such a
 - What projects are accessible to users?
 - Which users have write permissions to projects?
 
-Access Graph is a feature of the [Teleport Policy](https://goteleport.com/platform/policy/) product
-available to Teleport Enterprise edition customers.
-
-After logging in to the Teleport UI, navigate to the Management tab. If enabled, Access Graph options can be found
-under the Permission Management section.
+(!docs/pages/includes/policy/access-graph.mdx!)
 
 ## How it works
 
@@ -41,7 +37,6 @@ Access Graph, ensuring that it remains updated with the latest information from 
 
 Teleport Policy’s Access Graph feature delves into the resources imported and their relationships, crafting a
 graphical representation thereof.
-
 
 ## Prerequisites
 
@@ -84,12 +79,12 @@ The token will be used in the next step to configure the GitLab Sync integration
 
 ## Step 2/3. Set up Access Graph GitLab Sync
 
-To initiate the setup wizard for configuring GitLab Sync, access the Teleport UI,
-navigate to the Management tab, and choose the Access Graph option within the
-Permission Management section.
+To initiate the setup wizard for configuring Gitlab Sync, access the Teleport UI,
+click the Policy sidebar button, and then click Integrations.
 
-In the Access Graph page, you'll notice a button labeled `Integrations`. Click on it to
-to access the Integrations page. On the Integrations page, click on the `Setup` button next to the GitLab integration.
+Click the "Setup new integration" button, and then select "Gitlab". You'll be prompted
+to create a new Teleport Gitlab integration if you haven't configured one already.
+Alternatively, you can opt for a previously established integration.
 
 You'll be prompted to provide the GitLab token created in Step 1 and the GitLab instance domain.
 Once the token is successfully validated, you'll be able to see the resources imported in Access Graph.
