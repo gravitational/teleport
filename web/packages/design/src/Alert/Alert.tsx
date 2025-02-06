@@ -357,10 +357,16 @@ export const ActionButton = ({
   action: { href, content, onClick },
   fill,
   intent,
+  inputAlignment = false,
+  disabled = false,
+  title,
 }: {
   action: Action;
   fill?: ButtonFill;
   intent?: ButtonIntent;
+  inputAlignment?: boolean;
+  disabled?: boolean;
+  title?: string;
 }) =>
   href ? (
     <Button
@@ -370,11 +376,21 @@ export const ActionButton = ({
       fill={fill}
       intent={intent}
       onClick={onClick}
+      inputAlignment={inputAlignment}
+      disabled={disabled}
+      title={title}
     >
       {content}
     </Button>
   ) : (
-    <Button fill={fill} intent={intent} onClick={onClick}>
+    <Button
+      fill={fill}
+      intent={intent}
+      onClick={onClick}
+      inputAlignment={inputAlignment}
+      disabled={disabled}
+      title={title}
+    >
       {content}
     </Button>
   );
