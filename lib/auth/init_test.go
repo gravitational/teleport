@@ -2284,9 +2284,10 @@ func Test_createPresetDatabaseObjectImportRule(t *testing.T) {
 	}
 }
 
-// TestInitWithAutoUpdateBootstrap verifies that auth init support bootstrapping `AutoUpdateConfig` and
-// `AutoUpdateVersion` resources as well as unmarshalling them from yaml configuration.
-func TestInitWithAutoUpdateBootstrap(t *testing.T) {
+// TestInitWithAutoUpdateResources verifies that auth init support bootstrapping and apply
+// `AutoUpdateConfig` and `AutoUpdateVersion` resources as well as unmarshalling them from
+// yaml configuration.
+func TestInitWithAutoUpdateResources(t *testing.T) {
 	t.Parallel()
 
 	const autoUpdateConfigYAML = `kind: autoupdate_config
@@ -2305,21 +2306,31 @@ spec:
 version: v1`
 
 	ctx := context.Background()
-
-	cfg := setupConfig(t)
-	cfg.BootstrapResources = []types.Resource{
+	resources := []types.Resource{
 		resourceFromYAML(t, autoUpdateConfigYAML),
 		resourceFromYAML(t, autoUpdateVersionYAML),
 	}
 
-	auth, err := Init(ctx, cfg)
-	require.NoError(t, err)
+	for _, test := range []struct {
+		name string
+		fn   func(cfg *InitConfig)
+	}{
+		{name: "bootstrap", fn: func(cfg *InitConfig) { cfg.BootstrapResources = resources }},
+		{name: "apply", fn: func(cfg *InitConfig) { cfg.ApplyOnStartupResources = resources }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := setupConfig(t)
+			test.fn(&cfg)
+			auth, err := Init(ctx, cfg)
+			require.NoError(t, err)
 
-	config, err := auth.GetAutoUpdateConfig(ctx)
-	assert.NoError(t, err)
-	assert.Equal(t, "enabled", config.GetSpec().GetTools().GetMode())
+			config, err := auth.GetAutoUpdateConfig(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, "enabled", config.GetSpec().GetTools().GetMode())
 
-	version, err := auth.GetAutoUpdateVersion(ctx)
-	assert.NoError(t, err)
-	assert.Equal(t, "1.2.3", version.GetSpec().GetTools().GetTargetVersion())
+			version, err := auth.GetAutoUpdateVersion(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, "1.2.3", version.GetSpec().GetTools().GetTargetVersion())
+		})
+	}
 }
