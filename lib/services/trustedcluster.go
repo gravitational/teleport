@@ -19,6 +19,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/gravitational/trace"
@@ -133,7 +134,7 @@ func MapRoles(r types.RoleMap, remoteRoles []string) ([]string, error) {
 					}
 					seen[replacement] = struct{}{}
 					outRoles = append(outRoles, replacement)
-				case trace.IsNotFound(err):
+				case errors.Is(err, utils.ErrReplaceRegexNotFound):
 					continue
 				default:
 					return nil, trace.Wrap(err)
