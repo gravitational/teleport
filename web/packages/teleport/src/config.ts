@@ -258,6 +258,11 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     nodesPathNoParams: '/v1/webapi/sites/:clusterId/nodes',
 
+    gitServer: {
+      createOrOverwrite: '/v1/webapi/sites/:clusterId/gitservers',
+      delete: '/v1/webapi/sites/:clusterId/gitservers/:name',
+    },
+
     databaseServicesPath: `/v1/webapi/sites/:clusterId/databaseservices`,
     databaseIamPolicyPath: `/v1/webapi/sites/:clusterId/databases/:database/iam/policy`,
     databasePath: `/v1/webapi/sites/:clusterId/databases/:database`,
@@ -341,6 +346,10 @@ const cfg = {
     webapiPingPath: '/v1/webapi/ping',
 
     headlessLogin: '/v1/webapi/headless/:headless_authentication_id',
+
+    integrationCa: {
+      export: '/v1/webapi/sites/:clusterId/integrations/:name/ca',
+    },
 
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
     integrationStatsPath:
@@ -832,6 +841,20 @@ const cfg = {
     return generatePath(cfg.api.nodesPathNoParams, { clusterId });
   },
 
+  getGitServerUrl(
+    params: { clusterId: string; name?: string },
+    action: 'createOrOverwrite' | 'delete'
+  ) {
+    if (action === 'createOrOverwrite') {
+      return generatePath(cfg.api.gitServer.createOrOverwrite, {
+        clusterId: params.clusterId,
+      });
+    }
+    if (action === 'delete') {
+      return generatePath(cfg.api.gitServer.delete, params);
+    }
+  },
+
   getDatabaseServicesUrl(clusterId: string) {
     return generatePath(cfg.api.databaseServicesPath, {
       clusterId,
@@ -1010,6 +1033,13 @@ const cfg = {
   getMfaCreateRegistrationChallengeUrl(tokenId: string) {
     return generatePath(cfg.api.mfaCreateRegistrationChallengePath, {
       tokenId,
+    });
+  },
+
+  getIntegrationCaUrl(clusterId: string, name: string) {
+    return generatePath(cfg.api.integrationCa.export, {
+      clusterId,
+      name,
     });
   },
 
