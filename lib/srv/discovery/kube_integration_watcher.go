@@ -20,9 +20,9 @@ package discovery
 
 import (
 	"context"
-	"fmt"
 	"maps"
 	"net/url"
+	"path"
 	"slices"
 	"strings"
 	"sync"
