@@ -69,12 +69,17 @@ func (s *Server) startKubeIntegrationWatchers() error {
 		// If there are no proxy services running, we might fail to get the proxy URL and build a client.
 		// In this case we "gracefully" fallback to our own version.
 		// This is not supposed to happen outside of tests as the discovery service must join via a proxy.
-		s.Log.WarnContext(s.ctx, "Failed to determine proxy public address, agents will install our own Teleport version instead of the one advertised by the proxy.")
+		s.Log.WarnContext(s.ctx,
+			"Failed to determine proxy public address, agents will install our own Teleport version instead of the one advertised by the proxy.",
+			"version", teleport.Version)
 		versionGetter = version.NewStaticGetter(teleport.Version, nil)
 	} else {
 		versionGetter, err = versionGetterForProxy(s.ctx, proxyPublicAddr)
 		if err != nil {
-			s.Log.ErrorContext(s.ctx, "Failed to build a version client, falling back to Discovery service Teleport version.")
+			s.Log.ErrorContext(s.ctx,
+				"Failed to build a version client, falling back to Discovery service Teleport version.",
+				"error", err,
+				"version", teleport.Version)
 			versionGetter = version.NewStaticGetter(teleport.Version, nil)
 		}
 	}

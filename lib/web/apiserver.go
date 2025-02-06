@@ -1848,9 +1848,10 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		agentVersion, err := h.autoUpdateAgentVersion(r.Context(), group, updaterUUID)
 		if err != nil {
 			h.logger.ErrorContext(r.Context(), "Cannot read autoupdate target version", "error", err)
+		} else {
+			// agentVersion doesn't have the leading "v" which is expected here.
+			automaticUpgradesTargetVersion = fmt.Sprintf("v%s", agentVersion)
 		}
-		// agentVersion doesn't have the leading "v" which is expected here.
-		automaticUpgradesTargetVersion = fmt.Sprintf("v%s", agentVersion)
 	}
 
 	webCfg := webclient.WebConfig{
