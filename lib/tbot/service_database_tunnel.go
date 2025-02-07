@@ -240,7 +240,7 @@ func (s *DatabaseTunnelService) getRouteToDatabaseWithImpersonation(ctx context.
 		s.botClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateLifetime.TTL,
+		s.certificateLifetime().TTL,
 		nil,
 	)
 	if err != nil {
@@ -280,7 +280,7 @@ func (s *DatabaseTunnelService) issueCert(
 		s.botClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateLifetime.TTL,
+		s.certificateLifetime().TTL,
 		func(req *proto.UserCertsRequest) {
 			req.RouteToDatabase = route
 		})
@@ -296,4 +296,11 @@ func (s *DatabaseTunnelService) issueCert(
 // service.
 func (s *DatabaseTunnelService) String() string {
 	return fmt.Sprintf("%s:%s:%s", config.DatabaseTunnelServiceType, s.cfg.Listen, s.cfg.Service)
+}
+
+func (s *DatabaseTunnelService) certificateLifetime() config.CertificateLifetime {
+	if !s.cfg.CertificateLifetime.IsEmpty() {
+		return s.cfg.CertificateLifetime
+	}
+	return s.botCfg.CertificateLifetime
 }
