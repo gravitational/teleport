@@ -21,6 +21,7 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"io"
 
 	"github.com/gravitational/trace"
@@ -43,6 +44,10 @@ func newRemoteAppProvider(clt *clientApplicationServiceClient) *remoteAppProvide
 // ResolveAppInfo implements [appProvider.ResolveAppInfo].
 func (p *remoteAppProvider) ResolveAppInfo(ctx context.Context, fqdn string) (*vnetv1.AppInfo, error) {
 	appInfo, err := p.clt.ResolveAppInfo(ctx, fqdn)
+	// Avoid wrapping errNoTCPHandler, no need to collect a stack trace.
+	if errors.Is(err, errNoTCPHandler) {
+		return nil, errNoTCPHandler
+	}
 	return appInfo, trace.Wrap(err)
 }
 
