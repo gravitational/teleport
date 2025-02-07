@@ -238,25 +238,14 @@ type YubiKeyPrivateKey struct {
 	attestation     *piv.Attestation
 }
 
-// yubiKeyPrivateKeyData is marshalable data used to retrieve a specific yubiKey PIV private key.
-type yubiKeyPrivateKeyData struct {
-	SerialNumber uint32 `json:"serial_number"`
-	SlotKey      uint32 `json:"slot_key"`
-}
-
-func parseYubiKeyPrivateKeyData(keyDataBytes []byte, prompt HardwareKeyPrompt) (*PrivateKey, error) {
+func getYubiKeyPrivateKey(keyRef *YubiKeyPrivateKeyRef, prompt HardwareKeyPrompt) (*PrivateKey, error) {
 	if prompt == nil {
 		prompt = &cliPrompt{}
 	}
 	cachedKeysMu.Lock()
 	defer cachedKeysMu.Unlock()
 
-	var keyData yubiKeyPrivateKeyData
-	if err := json.Unmarshal(keyDataBytes, &keyData); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	pivSlot, err := parsePIVSlot(keyData.SlotKey)
+	pivSlot, err := parsePIVSlot(keyRef.SlotKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -266,7 +255,7 @@ func parseYubiKeyPrivateKeyData(keyDataBytes []byte, prompt HardwareKeyPrompt) (
 		return key, nil
 	}
 
-	y, err := FindYubiKey(keyData.SerialNumber, prompt)
+	y, err := FindYubiKey(keyRef.SerialNumber, prompt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -468,7 +457,7 @@ func (y *YubiKeyPrivateKey) toPrivateKey() (*PrivateKey, error) {
 }
 
 func (y *YubiKeyPrivateKey) keyPEM() ([]byte, error) {
-	keyDataBytes, err := json.Marshal(yubiKeyPrivateKeyData{
+	keyDataBytes, err := json.Marshal(YubiKeyPrivateKeyRef{
 		SerialNumber: y.serialNumber,
 		SlotKey:      y.pivSlot.Key,
 	})

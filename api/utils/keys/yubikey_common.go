@@ -15,6 +15,7 @@ package keys
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/gravitational/trace"
 )
@@ -57,19 +58,42 @@ type PINAndPUK struct {
 	PUKChanged bool
 }
 
-// GetYubiKeyPrivateKey attempt to retrieve a YubiKey private key matching the given hardware key policy
+// NewYubiKeyPrivateKey generates or retrieves a YubiKey private key matching the given hardware key policy
 // from the given slot. If slot is unspecified, the default slot for the given key policy will be used.
 // If the slot is empty, a new private key matching the given policy will be generated in the slot.
 //   - hardware_key: 9a
 //   - hardware_key_touch: 9c
 //   - hardware_key_pin: 9d
 //   - hardware_key_touch_pin: 9e
-func GetYubiKeyPrivateKey(ctx context.Context, policy PrivateKeyPolicy, slot PIVSlot, customPrompt HardwareKeyPrompt) (*PrivateKey, error) {
+func NewYubiKeyPrivateKey(ctx context.Context, policy PrivateKeyPolicy, slot PIVSlot, customPrompt HardwareKeyPrompt) (*PrivateKey, error) {
 	priv, err := getOrGenerateYubiKeyPrivateKey(ctx, policy, slot, customPrompt)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to get a YubiKey private key")
+		return nil, trace.Wrap(err, "failed to get or generate YubiKey private key")
 	}
 	return priv, nil
+}
+
+// GetYubiKeyPrivateKey retrieves a specific YubiKey private key matching the given key reference.
+func GetYubiKeyPrivateKey(keyRef *YubiKeyPrivateKeyRef, customPrompt HardwareKeyPrompt) (*PrivateKey, error) {
+	priv, err := getYubiKeyPrivateKey(keyRef, customPrompt)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get YubiKey private key")
+	}
+	return priv, nil
+}
+
+// YubiKeyPrivateKeyRef is marshalable data used to retrieve a specific YubiKey PIV private key.
+type YubiKeyPrivateKeyRef struct {
+	SerialNumber uint32 `json:"serial_number"`
+	SlotKey      uint32 `json:"slot_key"`
+}
+
+func parseYubiKeyPrivateKeyRef(keyRefBytes []byte) (*YubiKeyPrivateKeyRef, error) {
+	keyData := &YubiKeyPrivateKeyRef{}
+	if err := json.Unmarshal(keyRefBytes, keyData); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return keyData, nil
 }
 
 // PIVSlot is the string representation of a PIV slot. e.g. "9a".

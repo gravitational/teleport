@@ -47,8 +47,7 @@ func getOrGenerateYubiKeyPrivateKey(_ context.Context, policy PrivateKeyPolicy, 
 	return NewPrivateKey(signer, keyPEM)
 }
 
-func parseYubiKeyPrivateKeyData(_ []byte, _ HardwareKeyPrompt) (*PrivateKey, error) {
-	// TODO(Joerger): add custom marshal/unmarshal logic for fakeYubiKeyPrivateKey (if necessary).
+func getYubiKeyPrivateKey(_ *yubiKeyPrivateKeyRef, _ HardwareKeyPrompt) (*PrivateKey, error) {
 	return nil, trace.Wrap(errPIVUnavailable)
 }
 

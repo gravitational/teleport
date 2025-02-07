@@ -69,7 +69,7 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 					}
 
 					// GetYubiKeyPrivateKey should generate a new YubiKeyPrivateKey.
-					priv, err := keys.GetYubiKeyPrivateKey(ctx, policy, slot, nil)
+					priv, err := keys.NewYubiKeyPrivateKey(ctx, policy, slot, nil)
 					require.NoError(t, err)
 
 					// test HardwareSigner methods
@@ -82,7 +82,7 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 					require.NoError(t, err)
 
 					// Another call to GetYubiKeyPrivateKey should retrieve the previously generated key.
-					retrievePriv, err := keys.GetYubiKeyPrivateKey(ctx, policy, slot, nil)
+					retrievePriv, err := keys.NewYubiKeyPrivateKey(ctx, policy, slot, nil)
 					require.NoError(t, err)
 					require.Equal(t, priv.Public(), retrievePriv.Public())
 
@@ -117,12 +117,12 @@ func TestOverwritePrompt(t *testing.T) {
 	testOverwritePrompt := func(t *testing.T) {
 		// Fail to overwrite slot when user denies
 		prompt.SetStdin(prompt.NewFakeReader().AddString("n"))
-		_, err := keys.GetYubiKeyPrivateKey(ctx, keys.PrivateKeyPolicyHardwareKeyTouch, "" /* slot */, nil)
+		_, err := keys.NewYubiKeyPrivateKey(ctx, keys.PrivateKeyPolicyHardwareKeyTouch, "" /* slot */, nil)
 		require.True(t, trace.IsCompareFailed(err), "Expected compare failed error but got %v", err)
 
 		// Successfully overwrite slot when user accepts
 		prompt.SetStdin(prompt.NewFakeReader().AddString("y"))
-		_, err = keys.GetYubiKeyPrivateKey(ctx, keys.PrivateKeyPolicyHardwareKeyTouch, "" /* slot */, nil)
+		_, err = keys.NewYubiKeyPrivateKey(ctx, keys.PrivateKeyPolicyHardwareKeyTouch, "" /* slot */, nil)
 		require.NoError(t, err)
 	}
 
@@ -140,7 +140,7 @@ func TestOverwritePrompt(t *testing.T) {
 		resetYubikey(t, y)
 
 		// Generate a key that does not require touch in the slot that Teleport expects to require touch.
-		_, err := keys.GetYubiKeyPrivateKey(ctx, keys.PrivateKeyPolicyHardwareKey, keys.PIVSlot(pivSlot.String()), nil)
+		_, err := keys.NewYubiKeyPrivateKey(ctx, keys.PrivateKeyPolicyHardwareKey, keys.PIVSlot(pivSlot.String()), nil)
 		require.NoError(t, err)
 
 		testOverwritePrompt(t)
