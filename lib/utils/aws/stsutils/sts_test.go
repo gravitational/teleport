@@ -67,7 +67,7 @@ func TestNewFromConfig(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			t.Setenv("TELEPORT_UNSTABLE_DISABLE_STS_FIPS", test.envVarValue)
+			t.Setenv("TELEPORT_UNSTABLE_DISABLE_AWS_FIPS", test.envVarValue)
 
 			stsClient := stsutils.NewFromConfig(cfg, opts)
 			require.NotNil(t, stsClient, "*sts.Client")

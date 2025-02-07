@@ -14,26 +14,17 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package stsutils
+package dynamodbutils
 
 import (
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/client"
-	"github.com/aws/aws-sdk-go/service/sts"
-
+	"github.com/gravitational/teleport/lib/modules"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
-// NewV1 wraps [sts.New] and applies FIPS settings according to environment
-// variables.
-//
-// If TELEPORT_UNSTABLE_DISABLE_STS_FIPS is set to "yes" or a true-value
-// (according to [strconv.ParseBool]), then FIPS is disabled for the returned
-// [sts.STS], regardless of any other settings.
-func NewV1(p client.ConfigProvider, cfgs ...*aws.Config) *sts.STS {
-	if awsutils.IsFIPSDisabledByEnv() {
-		// append so it overrides any preceding settings.
-		cfgs = append(cfgs, aws.NewConfig().WithUseFIPSEndpoint(false))
-	}
-	return sts.New(p, cfgs...)
+// IsFIPSEnabled returns true if FIPS should be enabled for DynamoDB.
+// FIPS is enabled is the binary is boring ([modules.Modules.IsBoringBinary])
+// and if FIPS is not disabled by the environment
+// ([awsutils.IsFIPSDisabledByEnv]).
+func IsFIPSEnabled() bool {
+	return !awsutils.IsFIPSDisabledByEnv() && modules.GetModules().IsBoringBinary()
 }

@@ -17,11 +17,10 @@
 package stsutils
 
 import (
-	"os"
-	"strconv"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // NewFromConfig wraps [sts.NewFromConfig] and applies FIPS settings
@@ -31,23 +30,11 @@ import (
 // (according to [strconv.ParseBool]), then FIPS is disabled for the returned
 // [sts.Client], regardless of any other settings.
 func NewFromConfig(cfg aws.Config, optFns ...func(*sts.Options)) *sts.Client {
-	if disableFIPSEndpoint() {
+	if awsutils.IsFIPSDisabledByEnv() {
 		// append so it overrides any preceding settings.
 		optFns = append(optFns, func(opts *sts.Options) {
 			opts.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateDisabled
 		})
 	}
 	return sts.NewFromConfig(cfg, optFns...)
-}
-
-func disableFIPSEndpoint() bool {
-	const envVar = "TELEPORT_UNSTABLE_DISABLE_STS_FIPS"
-
-	// Disable FIPS endpoint?
-	if val := os.Getenv(envVar); val != "" {
-		b, _ := strconv.ParseBool(val)
-		return b || val == "yes"
-	}
-
-	return false
 }

@@ -14,26 +14,29 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package stsutils
+package aws
 
 import (
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/client"
-	"github.com/aws/aws-sdk-go/service/sts"
-
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"os"
+	"strconv"
 )
 
-// NewV1 wraps [sts.New] and applies FIPS settings according to environment
-// variables.
+// IsFIPSDisabled returns true if the TELEPORT_UNSTABLE_DISABLE_AWS_FIPS
+// environment variable is set.
 //
-// If TELEPORT_UNSTABLE_DISABLE_STS_FIPS is set to "yes" or a true-value
-// (according to [strconv.ParseBool]), then FIPS is disabled for the returned
-// [sts.STS], regardless of any other settings.
-func NewV1(p client.ConfigProvider, cfgs ...*aws.Config) *sts.STS {
-	if awsutils.IsFIPSDisabledByEnv() {
-		// append so it overrides any preceding settings.
-		cfgs = append(cfgs, aws.NewConfig().WithUseFIPSEndpoint(false))
+// Either "yes" or a "truthy" value (as defined by [strconv.ParseBool]) are
+// considered true.
+//
+// Prefer using specific functions, such as those in the
+// lib/utils/aws/stsutils or lib/utils/aws/dynamodbutils packages.
+func IsFIPSDisabledByEnv() bool {
+	const envVar = "TELEPORT_UNSTABLE_DISABLE_AWS_FIPS"
+
+	// Disable FIPS endpoint?
+	if val := os.Getenv(envVar); val != "" {
+		b, _ := strconv.ParseBool(val)
+		return b || val == "yes"
 	}
-	return sts.New(p, cfgs...)
+
+	return false
 }
