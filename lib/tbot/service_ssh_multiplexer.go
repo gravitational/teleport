@@ -345,7 +345,7 @@ func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateLifetime.TTL,
+		s.certificateLifetime().TTL,
 		nil,
 	)
 	if err != nil {
@@ -396,7 +396,7 @@ func (s *SSHMultiplexerService) identityRenewalLoop(
 			s.identity.Set(id)
 			return s.writeArtifacts(ctx, proxyHost, authClient)
 		},
-		interval:   s.botCfg.CertificateLifetime.RenewalInterval,
+		interval:   s.certificateLifetime().RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
 		reloadCh:   reloadCh,
@@ -864,4 +864,11 @@ func (s *cyclingHostDialClient) DialHost(ctx context.Context, target string, clu
 	}
 	wrappedConn.parent.Store(currentClt)
 	return wrappedConn, details, nil
+}
+
+func (s *SSHMultiplexerService) certificateLifetime() config.CertificateLifetime {
+	if !s.cfg.CertificateLifetime.IsEmpty() {
+		return s.cfg.CertificateLifetime
+	}
+	return s.botCfg.CertificateLifetime
 }
