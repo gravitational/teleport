@@ -235,14 +235,21 @@ describe('useMfa', () => {
       })
     );
 
-    let resp;
+    let resp: Promise<MfaChallengeResponse>;
     await act(async () => {
       resp = mfa.current.getChallengeResponse();
     });
 
+    // Before calling mfa.current.cancelAttempt(), we need to write code that handles rejection of
+    // resp. Otherwise the test is going to fail because of unhandled promise rejection.
+    // eslint-disable-next-line jest/valid-expect
+    const expectedRespRejection = expect(resp).rejects.toEqual(
+      new MfaCanceledError()
+    );
+
     await act(async () => mfa.current.cancelAttempt());
 
-    await expect(resp).rejects.toThrow(new MfaCanceledError());
+    await expectedRespRejection;
     expect(mfa.current.attempt.status).toEqual('error');
     expect(
       mfa.current.attempt.status === 'error' && mfa.current.attempt.error
