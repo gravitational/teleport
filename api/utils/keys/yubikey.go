@@ -1061,4 +1061,3 @@ func SelfSignedMetadataCertificate(subject pkix.Name) (*x509.Certificate, error)
 	}
 	return cert, nil
 }
-
