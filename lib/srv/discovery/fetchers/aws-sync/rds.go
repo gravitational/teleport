@@ -40,7 +40,7 @@ type rdsClient interface {
 
 // pollAWSRDSDatabases is a function that returns a function that fetches
 // RDS instances and clusters.
-func (a *awsFetcher) pollAWSRDSDatabases(ctx context.Context, result *Resources, collectErr func(error)) func() error {
+func (a *Fetcher) pollAWSRDSDatabases(ctx context.Context, result *Resources, collectErr func(error)) func() error {
 	return func() error {
 		var err error
 		result.RDSDatabases, err = a.fetchAWSRDSDatabases(ctx)
@@ -52,7 +52,7 @@ func (a *awsFetcher) pollAWSRDSDatabases(ctx context.Context, result *Resources,
 }
 
 // fetchAWSRDSDatabases fetches RDS databases from all regions.
-func (a *awsFetcher) fetchAWSRDSDatabases(ctx context.Context) (
+func (a *Fetcher) fetchAWSRDSDatabases(ctx context.Context) (
 	[]*accessgraphv1alpha.AWSRDSDatabaseV1,
 	error,
 ) {
@@ -81,7 +81,7 @@ func (a *awsFetcher) fetchAWSRDSDatabases(ctx context.Context) (
 	for _, region := range a.Regions {
 		region := region
 		eG.Go(func() error {
-			awsCfg, err := a.AWSConfigProvider.GetConfig(ctx, region, a.getAWSV2Options()...)
+			awsCfg, err := a.AWSConfigProvider.GetConfig(ctx, region, a.getAWSOptions()...)
 			if err != nil {
 				collectDBs(nil, trace.Wrap(err))
 				return nil
@@ -155,7 +155,7 @@ func awsRDSClusterToRDS(instance *rdstypes.DBCluster, region, accountID string) 
 	}
 }
 
-func (a *awsFetcher) collectDBInstances(ctx context.Context,
+func (a *Fetcher) collectDBInstances(ctx context.Context,
 	clt rdsClient,
 	region string,
 	collectDBs func([]*accessgraphv1alpha.AWSRDSDatabaseV1, error),
@@ -189,7 +189,7 @@ func (a *awsFetcher) collectDBInstances(ctx context.Context,
 	collectDBs(instances, nil)
 }
 
-func (a *awsFetcher) collectDBClusters(
+func (a *Fetcher) collectDBClusters(
 	ctx context.Context,
 	clt rdsClient,
 	region string,

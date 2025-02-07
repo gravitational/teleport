@@ -19,6 +19,7 @@
 package client
 
 import (
+	"cmp"
 	"context"
 	"crypto"
 	"crypto/tls"
@@ -2477,7 +2478,7 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 			message := "Desktop sessions cannot be played with tsh play." +
 				" Export the recording to video with tsh recordings export" +
 				" or view the recording in your web browser."
-			return trace.BadParameter(message)
+			return trace.BadParameter("%s", message)
 		case *apievents.AppSessionStart, *apievents.AppSessionChunk:
 			return trace.BadParameter("Interactive session replay is not supported for app sessions." +
 				" To play app sessions, specify --format=json or --format=yaml.")
@@ -2497,9 +2498,8 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 			lastTime = evt.Time
 		case *apievents.DatabaseSessionStart:
 			if !slices.Contains(libplayer.SupportedDatabaseProtocols, evt.DatabaseProtocol) {
-				return trace.NotImplemented("Interactive database session replay is only supported for " +
-					strings.Join(libplayer.SupportedDatabaseProtocols, ",") + " databases." +
-					" To play other database sessions, specify --format=json or --format=yaml.")
+				return trace.NotImplemented("Interactive database session replay is only supported for %s databases."+
+					" To play other database sessions, specify --format=json or --format=yaml.", strings.Join(libplayer.SupportedDatabaseProtocols, ","))
 			}
 		default:
 			continue
@@ -3480,13 +3480,7 @@ func (tc *TeleportClient) Login(ctx context.Context) (*KeyRing, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if tc.KeyTTL == 0 {
-		tc.KeyTTL = time.Duration(pr.Auth.DefaultSessionTTL)
-	}
-	// todo(lxea): DELETE IN v15(?) where the auth is guaranteed to send us a valid MaxSessionTTL or the auth is guaranteed to interpret 0 duration as the auth's default?
-	if tc.KeyTTL == 0 {
-		tc.KeyTTL = apidefaults.CertDuration
-	}
+	tc.KeyTTL = cmp.Or(tc.KeyTTL, pr.Auth.DefaultSessionTTL.Duration(), apidefaults.CertDuration)
 
 	// Get the SSHLoginFunc that matches client and cluster settings.
 	sshLoginFunc, err := tc.getSSHLoginFunc(pr)

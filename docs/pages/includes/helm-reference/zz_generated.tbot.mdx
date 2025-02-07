@@ -450,3 +450,15 @@ extraEnv:
   - name: HTTPS_PROXY
     value: "http://username:password@my.proxy.host:3128"
 ```
+
+## `securityContext`
+
+| Type | Default |
+|------|---------|
+| `object` | `null` |
+
+`securityContext` sets the container security context for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
+for more details.
+
+By default, this is unset.

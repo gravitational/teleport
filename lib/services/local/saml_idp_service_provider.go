@@ -131,7 +131,7 @@ func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context
 				"acs_url", sp.GetACSURL(),
 				"error", err,
 			)
-			return trace.BadParameter(errMsg.Error())
+			return trace.BadParameter("%s", errMsg)
 		}
 	}
 

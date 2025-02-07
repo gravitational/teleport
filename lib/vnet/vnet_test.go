@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"math/big"
 	"net"
 	"os"
@@ -42,7 +43,8 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/link/channel"
@@ -53,6 +55,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -119,7 +122,7 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 	require.Nil(t, tcpErr)
 
 	// Route the VNet range to the TUN interface - this emulates the route that will be installed on the host.
-	vnetIPv6Prefix, err := NewIPv6Prefix()
+	vnetIPv6Prefix, err := newIPv6Prefix()
 	require.NoError(t, err)
 	subnet, err := tcpip.NewSubnet(vnetIPv6Prefix, tcpip.MaskFromBytes(net.CIDRMask(64, 128)))
 	require.NoError(t, err)
@@ -282,7 +285,7 @@ func newFakeClientApp(
 
 // ListProfiles lists the names of all profiles saved for the user.
 func (p *fakeClientApp) ListProfiles() ([]string, error) {
-	return maps.Keys(p.clusters), nil
+	return slices.Collect(maps.Keys(p.clusters)), nil
 }
 
 // GetCachedClient returns a [*client.ClusterClient] for the given profile and leaf cluster.
@@ -839,6 +842,84 @@ func TestOnNewConnection(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, conn.Close()) })
 	require.Equal(t, uint32(1), clientApp.onNewConnectionCallCount.Load())
+}
+
+// TestRemoteAppProvider tests basic VNet functionality when remoteAppProvider
+// is used to provider access to the client application over gRPC.
+func TestRemoteAppProvider(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	clock := clockwork.NewFakeClockAt(time.Now())
+	ca := newSelfSignedCA(t)
+	dialOpts := mustStartFakeWebProxy(ctx, t, ca, clock)
+
+	const appCertLifetime = time.Hour
+	reissueClientCert := func() tls.Certificate {
+		return newClientCert(t, ca, "testclient", clock.Now().Add(appCertLifetime))
+	}
+
+	clientApp := newFakeClientApp(map[string]testClusterSpec{
+		"root.example.com": {
+			apps: []appSpec{
+				appSpec{publicAddr: "echo"},
+			},
+			cidrRange: "192.168.2.0/24",
+			leafClusters: map[string]testClusterSpec{
+				"leaf.example.com": {
+					apps: []appSpec{
+						appSpec{publicAddr: "echo"},
+					},
+					cidrRange: "192.168.2.0/24",
+				},
+			},
+		},
+	}, dialOpts, reissueClientCert, clock)
+
+	grpcServer := grpc.NewServer(
+		grpc.Creds(insecure.NewCredentials()),
+		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
+		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
+	)
+	appProvider := newLocalAppProvider(clientApp, clock)
+	svc := newClientApplicationService(appProvider)
+	vnetv1.RegisterClientApplicationServiceServer(grpcServer, svc)
+	listener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+		Name: "user process gRPC server",
+		Task: func(ctx context.Context) error {
+			return trace.Wrap(grpcServer.Serve(listener), "serving VNet user process gRPC service")
+		},
+		Terminate: func() error {
+			grpcServer.Stop()
+			return nil
+		},
+	})
+
+	clt, err := newClientApplicationServiceClient(ctx, listener.Addr().String())
+	require.NoError(t, err)
+	defer clt.close()
+	remoteAppProvider := newRemoteAppProvider(clt)
+
+	p := newTestPack(t, ctx, testPackConfig{
+		clock:       clock,
+		appProvider: remoteAppProvider,
+	})
+
+	for _, app := range []string{
+		"echo.root.example.com",
+		"echo.leaf.example.com",
+	} {
+		conn, err := p.dialHost(ctx, app, 123)
+		require.NoError(t, err)
+		testEchoConnection(t, conn)
+	}
+	dialCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	defer cancel()
+	_, err = p.dialHost(dialCtx, "badapp.root.example.com.", 123)
+	require.Error(t, err)
 }
 
 func randomULAAddress() (tcpip.Address, error) {

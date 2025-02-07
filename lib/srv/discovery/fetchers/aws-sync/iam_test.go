@@ -65,7 +65,7 @@ func TestAWSIAMPollSAMLProviders(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	a := &awsFetcher{
+	a := &Fetcher{
 		Config: Config{
 			AccountID: accountID,
 			AWSConfigProvider: &mocks.AWSConfigProvider{
@@ -203,7 +203,7 @@ func TestAWSIAMPollOIDCProviders(t *testing.T) {
 		defer mu.Unlock()
 		errs = append(errs, err)
 	}
-	a := &awsFetcher{
+	a := &Fetcher{
 		Config: Config{
 			AccountID: accountID,
 			AWSConfigProvider: &mocks.AWSConfigProvider{

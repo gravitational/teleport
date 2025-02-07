@@ -26,11 +26,11 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
+	opensearchtypes "github.com/aws/aws-sdk-go-v2/service/opensearch/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
-	"github.com/aws/aws-sdk-go/service/opensearchservice"
-	"github.com/aws/aws-sdk-go/service/secretsmanager"
+	smtypes "github.com/aws/aws-sdk-go-v2/service/secretsmanager/types"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -45,8 +45,8 @@ type ResourceTag interface {
 		ectypes.Tag |
 		memorydbtypes.Tag |
 		rsstypes.Tag |
-		*opensearchservice.Tag |
-		*secretsmanager.Tag
+		opensearchtypes.Tag |
+		smtypes.Tag
 }
 
 // TagsToLabels converts a list of AWS resource tags to a label map.
@@ -82,9 +82,9 @@ func resourceTagToKeyValue[Tag ResourceTag](tag Tag) (string, string) {
 		return aws.ToString(v.Key), aws.ToString(v.Value)
 	case redshifttypes.Tag:
 		return aws.ToString(v.Key), aws.ToString(v.Value)
-	case *opensearchservice.Tag:
+	case opensearchtypes.Tag:
 		return aws.ToString(v.Key), aws.ToString(v.Value)
-	case *secretsmanager.Tag:
+	case smtypes.Tag:
 		return aws.ToString(v.Key), aws.ToString(v.Value)
 	default:
 		return "", ""

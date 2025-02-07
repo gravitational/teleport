@@ -32,7 +32,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/digitorus/pkcs7"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -923,16 +922,14 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 		}),
 	}
 
-	nodeCredentials, err := credentials.NewStaticCredentials("FAKE_ID", "FAKE_KEY", "FAKE_TOKEN").Get()
-	require.NoError(t, err)
-	t.Setenv("AWS_ACCESS_KEY_ID", nodeCredentials.AccessKeyID)
-	t.Setenv("AWS_SECRET_ACCESS_KEY", nodeCredentials.SecretAccessKey)
-	t.Setenv("AWS_SESSION_TOKEN", nodeCredentials.SessionToken)
+	t.Setenv("AWS_ACCESS_KEY_ID", "FAKE_ID")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "FAKE_KEY")
+	t.Setenv("AWS_SESSION_TOKEN", "FAKE_TOKEN")
 	t.Setenv("AWS_REGION", "us-west-2")
 
 	// Create a bot
 	roleName := "test-role"
-	_, err = CreateRole(ctx, a, roleName, types.RoleSpecV6{})
+	_, err := CreateRole(ctx, a, roleName, types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	botName := "bot"

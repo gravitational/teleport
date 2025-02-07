@@ -47,19 +47,21 @@ service ClientApplicationService {
   // to a multi-port TCP app because the provided port does not match any of the
   // TCP ports in the app spec.
   rpc OnInvalidLocalPort(OnInvalidLocalPortRequest) returns (OnInvalidLocalPortResponse);
+  // GetTargetOSConfiguration gets the target OS configuration.
+  rpc GetTargetOSConfiguration(GetTargetOSConfigurationRequest) returns (GetTargetOSConfigurationResponse);
 }
 
 // AuthenticateProcessRequest is a request for AuthenticateProcess.
 message AuthenticateProcessRequest {
-  // version is the admin process version.
+  // Version is the admin process version.
   string version = 1;
-  // pipe_path is the path to a named pipe used for process authentication.
+  // PipePath is the path to a named pipe used for process authentication.
   string pipe_path = 2;
 }
 
 // AuthenticateProcessResponse is a response for AuthenticateProcess.
 message AuthenticateProcessResponse {
-  // version is the client application version.
+  // Version is the client application version.
   string version = 1;
 }
 
@@ -71,71 +73,72 @@ message PingResponse {}
 
 // ResolveAppInfoRequest is a request for ResolveAppInfo.
 message ResolveAppInfoRequest {
-  // fqdn is the fully-qualified domain name of the app.
+  // Fqdn is the fully-qualified domain name of the app.
   string fqdn = 1;
 }
 
 // ResolveAppInfoResponse is a response for ResolveAppInfo.
 message ResolveAppInfoResponse {
-  // app_info holds all necessary info for making connections to the resolved app.
+  // AppInfo holds all necessary info for making connections to the resolved app.
   AppInfo app_info = 1;
 }
 
 // AppInfo holds all necessary info for making connections to VNet TCP apps.
 message AppInfo {
-  // app_key uniquely identifies a TCP app (and optionally a port for multi-port
+  // AppKey uniquely identifies a TCP app (and optionally a port for multi-port
   // TCP apps).
   AppKey app_key = 1;
-  // cluster is the name of the cluster in which the app is found.
+  // Cluster is the name of the cluster in which the app is found.
   // Iff the app is in a leaf cluster, this will match app_key.leaf_cluster.
   string cluster = 2;
-  // app is the app spec.
+  // App is the app spec.
   types.AppV3 app = 3;
-  // ipv4_cidr_range is the CIDR range from which an IPv4 address should be
+  // Ipv4Cidr_range is the CIDR range from which an IPv4 address should be
   // assigned to the app.
   string ipv4_cidr_range = 4;
-  // dial_options holds options that should be used when dialing the root cluster
+  // DialOptions holds options that should be used when dialing the root cluster
   // of the app.
   DialOptions dial_options = 5;
 }
 
 // AppKey uniquely identifies a TCP app in a specific profile and cluster.
 message AppKey {
-  // profile is the profile in which the app is found.
+  // Profile is the profile in which the app is found.
   string profile = 1;
-  // leaf_cluster is the leaf cluster in which the app is found. If empty, the
+  // LeafCluster is the leaf cluster in which the app is found. If empty, the
   // app is in the root cluster for the profile.
   string leaf_cluster = 2;
-  // name is the name of the app.
+  // Name is the name of the app.
   string name = 3;
 }
 
 // DialOptions holds ALPN dial options for dialing apps.
 message DialOptions {
-  // web_proxy_addr is the address to dial.
+  // WebProxyAddr is the address to dial.
   string web_proxy_addr = 1;
-  // alpn_conn_upgrade_required specifies if ALPN connection upgrade is required.
+  // AlpnConnUpgradeRequired specifies if ALPN connection upgrade is required.
   bool alpn_conn_upgrade_required = 2;
-  // sni is a ServerName value set for upstream TLS connection.
+  // Sni is a ServerName value set for upstream TLS connection.
   string sni = 3;
-  // insecure_skip_verify turns off verification for x509 upstream ALPN proxy service certificate.
+  // InsecureSkipVerify turns off verification for x509 upstream ALPN proxy service certificate.
   bool insecure_skip_verify = 4;
-  // root_cluster_ca_cert_pool overrides the x509 certificate pool used to verify the server.
+  // RootClusterCaCertPool overrides the x509 certificate pool used to verify the server.
+  // It is a PEM-encoded X509 certificate pool.
   bytes root_cluster_ca_cert_pool = 5;
 }
 
 // ReissueAppCertRequest is a request for ReissueAppCert.
 message ReissueAppCertRequest {
-  // app_info contains info about the app, every ReissueAppCertRequest must
+  // AppInfo contains info about the app, every ReissueAppCertRequest must
   // include an app_info as returned from ResolveAppInfo.
   AppInfo app_info = 1;
-  // target_port is the TCP port to issue the cert for.
+  // TargetPort is the TCP port to issue the cert for.
   uint32 target_port = 2;
 }
 
 // ReissueAppCertResponse is a response for ReissueAppCert.
 message ReissueAppCertResponse {
-  // cert is the issued app certificate in x509 DER format.
+  // Cert is the issued app certificate in x509 DER format.
   bytes cert = 1;
 }
 
@@ -145,16 +148,16 @@ message ReissueAppCertResponse {
 // ReissueAppCert. The private key used for the signature will match the subject
 // public key of the issued x509 certificate.
 message SignForAppRequest {
-  // app_key uniquely identifies a TCP app, it must match the key of an app from
+  // AppKey uniquely identifies a TCP app, it must match the key of an app from
   // a previous successful call to ReissueAppCert.
   AppKey app_key = 1;
-  // target_port identifies the TCP port of the app, it must match the
-  // target_port of a previous successful call to ReissueAppCert for an app
+  // TargetPort identifies the TCP port of the app, it must match the
+  // TargetPort of a previous successful call to ReissueAppCert for an app
   // matching AppKey.
   uint32 target_port = 2;
-  // digest is the bytes to sign.
+  // Digest is the bytes to sign.
   bytes digest = 3;
-  // hash is the hash function used to compute digest.
+  // Hash is the hash function used to compute digest.
   Hash hash = 4;
 }
 
@@ -172,13 +175,13 @@ enum Hash {
 
 // SignForAppResponse is a response for SignForApp.
 message SignForAppResponse {
-  // signature is the signature.
+  // Signature is the signature.
   bytes signature = 1;
 }
 
 // OnNewConnectionRequest is a request for OnNewConnection.
 message OnNewConnectionRequest {
-  // app_key identifies the app the connection is being made for.
+  // AppKey identifies the app the connection is being made for.
   AppKey app_key = 1;
 }
 
@@ -187,14 +190,38 @@ message OnNewConnectionResponse {}
 
 // OnInvalidLocalPortRequest is a request for OnInvalidLocalPort.
 message OnInvalidLocalPortRequest {
-  // app_info identifies the app the request was made for. AppInfo is used
+  // AppInfo identifies the app the request was made for. AppInfo is used
   // instaed of AppKey so that the application spec is included, which includes
   // the TCP port ranges allowed for the app, which are ultimately included in
   // the user error message.
   AppInfo app_info = 1;
-  // target_port is the invalid port the request was made for.
+  // TargetPort is the invalid port the request was made for.
   uint32 target_port = 2;
 }
 
 // OnInvalidLocalPortResponse is a response for OnInvalidLocalPort.
 message OnInvalidLocalPortResponse {}
+
+// GetTargetOSConfigurationRequest is a request for the target host OS configuration.
+message GetTargetOSConfigurationRequest {}
+
+// GetTargetOSConfigurationResponse is a response including the target host OS configuration.
+message GetTargetOSConfigurationResponse {
+  // TargetOsConfiguration holds target configuration values for the host OS.
+  TargetOSConfiguration target_os_configuration = 1;
+}
+
+// TargetOSConfiguration holds desired OS configuration parameters that need to
+// be fetched from the client application.
+message TargetOSConfiguration {
+  // DnsZones is a list of all DNS zones that VNet should handle queries for. This
+  // should include the public hostname of every cluster the user is logged in
+  // to, and all configured custom DNS zones from all clusters.
+  repeated string dns_zones = 1;
+  // Ipv4CidrRanges is a list of IPv4 CIDR ranges that VNet addresses may be
+  // assigned from, these ranges should all be routed to the VNet TUN interface.
+  // This should include the custom range configured for each cluster the user
+  // is logged in to, and if any cluster does not configure a custom range it
+  // should also include the default range.
+  repeated string ipv4_cidr_ranges = 2;
+}

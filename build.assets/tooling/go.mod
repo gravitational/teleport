@@ -1,18 +1,17 @@
 module github.com/gravitational/teleport/build.assets/tooling
 
-go 1.23.5
+go 1.23.6
 
 require (
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/alecthomas/kingpin/v2 v2.4.0 // replaced
 	github.com/awalterschulze/goderive v0.5.0
-	github.com/bmatcuk/doublestar/v4 v4.8.0
+	github.com/bmatcuk/doublestar/v4 v4.8.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/google/go-github/v41 v41.0.0
 	github.com/gravitational/trace v1.5.0
 	github.com/stretchr/testify v1.10.0
 	github.com/waigani/diffparser v0.0.0-20190828052634-7391f219313d
-	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
 	golang.org/x/mod v0.22.0
 	golang.org/x/oauth2 v0.25.0
 	helm.sh/helm/v3 v3.17.0

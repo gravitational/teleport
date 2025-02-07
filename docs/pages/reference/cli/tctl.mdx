@@ -1549,6 +1549,36 @@ $ tctl get saml/your-connector-name --with-secrets | tctl sso test
   Make sure to include `--with-secrets` flag, or the exported auth connector will not be testable.
 </Admonition>
 
+## tctl stable-unix-users ls
+
+List the stored usernames and UIDs for automatically created users:
+
+```code
+$ tctl stable-unix-users ls
+```
+
+### Arguments
+
+This command accepts no arguments.
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--format` | `text` | `json` or `text` | Output format |
+
+### Examples
+
+```code
+$ tctl stable-unix-users ls
+Username UID
+-------- -----
+alice    90000
+bob      90002
+carol    90003
+dan      90001
+```
+
 ## tctl status
 
 Report cluster and Certificate Authority status:

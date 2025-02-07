@@ -61,7 +61,7 @@ func UnmarshalNetworkRestrictions(bytes []byte, opts ...MarshalOption) (types.Ne
 	case types.V4:
 		var nr types.NetworkRestrictionsV4
 		if err := utils.FastUnmarshal(bytes, &nr); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := ValidateNetworkRestrictions(&nr); err != nil {
 			return nil, trace.Wrap(err)

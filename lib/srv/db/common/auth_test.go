@@ -34,6 +34,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -591,7 +592,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 				require.Equal(t, "some-user", query.Get("User"))
 				require.Equal(t, "host", query.Get("X-Amz-SignedHeaders"))
 				require.Equal(t, "token", query.Get("X-Amz-Security-Token"))
-				require.Equal(t, "arn:aws:iam::123456789012:role/RedisRole/20010203/ca-central-1/elasticache/aws4_request",
+				require.Equal(t, "FAKEACCESSKEYID/20010203/ca-central-1/elasticache/aws4_request",
 					query.Get("X-Amz-Credential"))
 			},
 			checkSTS: func(t *testing.T, stsMock *mocks.STSClient) {
@@ -608,9 +609,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 		Clock:       clock,
 		AuthClient:  new(authClientMock),
 		AccessPoint: new(accessPointMock),
-		Clients: &cloud.TestCloudClients{
-			STS: &fakeSTS.STSClientV1,
-		},
+		Clients:     &cloud.TestCloudClients{},
 		AWSConfigProvider: &mocks.AWSConfigProvider{
 			STSClient: fakeSTS,
 		},
@@ -622,6 +621,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 			rssClient: &mocks.RedshiftServerlessClient{
 				GetCredentialsOutput: mocks.RedshiftServerlessGetCredentialsOutput("IAM:some-user", "some-password", clock),
 			},
+			stsClient: fakeSTS,
 		},
 	})
 	require.NoError(t, err)
@@ -643,58 +643,51 @@ func TestGetAWSIAMCreds(t *testing.T) {
 
 	for name, tt := range map[string]struct {
 		db                   types.Database
-		stsMock              *mocks.STSClientV1
+		stsMock              *mocks.STSClient
 		username             string
-		expectedKeyId        string
 		expectedAssumedRoles []string
 		expectedExternalIDs  []string
-		expectErr            require.ErrorAssertionFunc
+		wantErrContains      string
 	}{
 		"username is full role ARN": {
 			db:                   newMongoAtlasDatabase(t, types.AWS{}),
-			stsMock:              &mocks.STSClientV1{},
+			stsMock:              &mocks.STSClient{},
 			username:             "arn:aws:iam::123456789012:role/role-name",
-			expectedKeyId:        "arn:aws:iam::123456789012:role/role-name",
 			expectedAssumedRoles: []string{"arn:aws:iam::123456789012:role/role-name"},
 			expectedExternalIDs:  []string{""},
-			expectErr:            require.NoError,
 		},
 		"username is partial role ARN": {
 			db: newMongoAtlasDatabase(t, types.AWS{}),
-			stsMock: &mocks.STSClientV1{
+			stsMock: &mocks.STSClient{
 				// This is the role returned by the STS GetCallerIdentity.
 				ARN: "arn:aws:iam::222222222222:role/teleport-service-role",
 			},
 			username:             "role/role-name",
-			expectedKeyId:        "arn:aws:iam::222222222222:role/role-name",
 			expectedAssumedRoles: []string{"arn:aws:iam::222222222222:role/role-name"},
 			expectedExternalIDs:  []string{""},
-			expectErr:            require.NoError,
 		},
 		"unable to fetch account ID": {
 			db: newMongoAtlasDatabase(t, types.AWS{}),
-			stsMock: &mocks.STSClientV1{
-				ARN: "",
+			stsMock: &mocks.STSClient{
+				Unauth: true,
 			},
-			username:  "role/role-name",
-			expectErr: require.Error,
+			username:        "role/role-name",
+			wantErrContains: "unauthorized",
 		},
 		"chained IAM role": {
 			db: newMongoAtlasDatabase(t, types.AWS{
 				ExternalID:    "123123",
 				AssumeRoleARN: "arn:aws:iam::222222222222:role/teleport-service-role-external",
 			}),
-			stsMock: &mocks.STSClientV1{
+			stsMock: &mocks.STSClient{
 				ARN: "arn:aws:iam::111111111111:role/teleport-service-role",
 			},
-			username:      "role/role-name",
-			expectedKeyId: "arn:aws:iam::222222222222:role/role-name",
+			username: "role/role-name",
 			expectedAssumedRoles: []string{
 				"arn:aws:iam::222222222222:role/teleport-service-role-external",
 				"arn:aws:iam::222222222222:role/role-name",
 			},
 			expectedExternalIDs: []string{"123123", ""},
-			expectErr:           require.NoError,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -702,16 +695,23 @@ func TestGetAWSIAMCreds(t *testing.T) {
 				Clock:       clock,
 				AuthClient:  new(authClientMock),
 				AccessPoint: new(accessPointMock),
-				Clients: &cloud.TestCloudClients{
-					STS: tt.stsMock,
+				Clients:     &cloud.TestCloudClients{},
+				AWSConfigProvider: &mocks.AWSConfigProvider{
+					STSClient: tt.stsMock,
 				},
-				AWSConfigProvider: &mocks.AWSConfigProvider{},
+				awsClients: fakeAWSClients{
+					stsClient: tt.stsMock,
+				},
 			})
 			require.NoError(t, err)
 
 			keyId, _, _, err := auth.GetAWSIAMCreds(ctx, tt.db, tt.username)
-			tt.expectErr(t, err)
-			require.Equal(t, tt.expectedKeyId, keyId)
+			if tt.wantErrContains != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.wantErrContains)
+				return
+			}
+			require.Equal(t, "FAKEACCESSKEYID", keyId)
 			require.ElementsMatch(t, tt.expectedAssumedRoles, tt.stsMock.GetAssumedRoleARNs())
 			require.ElementsMatch(t, tt.expectedExternalIDs, tt.stsMock.GetAssumedRoleExternalIDs())
 		})
@@ -1025,6 +1025,7 @@ func (m *imdsMock) GetType() types.InstanceMetadataType {
 type fakeAWSClients struct {
 	redshiftClient redshiftClient
 	rssClient      rssClient
+	stsClient      stsClient
 }
 
 func (f fakeAWSClients) getRedshiftClient(aws.Config, ...func(*redshift.Options)) redshiftClient {
@@ -1033,4 +1034,8 @@ func (f fakeAWSClients) getRedshiftClient(aws.Config, ...func(*redshift.Options)
 
 func (f fakeAWSClients) getRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) rssClient {
 	return f.rssClient
+}
+
+func (f fakeAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient {
+	return f.stsClient
 }

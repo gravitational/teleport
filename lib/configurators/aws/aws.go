@@ -400,7 +400,7 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 			})
 		}
 		if c.Identity == nil {
-			c.Identity, err = awslib.GetIdentityWithClientV2(context.Background(), c.stsClient)
+			c.Identity, err = awslib.GetIdentityWithClient(context.Background(), c.stsClient)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -699,12 +699,12 @@ func getRoleARNForAssumedRole(iamClient iamClient, identity awslib.Identity) (aw
 		RoleName: aws.String(identity.GetName()),
 	})
 	if err != nil || out == nil || out.Role == nil || out.Role.Arn == nil {
-		return nil, trace.BadParameter(failedToResolveAssumeRoleARN)
+		return nil, trace.BadParameter("%s", failedToResolveAssumeRoleARN)
 	}
 
 	roleIdentity, err := awslib.IdentityFromArn(*out.Role.Arn)
 	if err != nil {
-		return nil, trace.BadParameter(failedToResolveAssumeRoleARN)
+		return nil, trace.BadParameter("%s", failedToResolveAssumeRoleARN)
 	}
 	return roleIdentity, nil
 }
