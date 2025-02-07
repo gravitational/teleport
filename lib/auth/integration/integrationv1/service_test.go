@@ -325,6 +325,63 @@ func TestIntegrationCRUD(t *testing.T) {
 			},
 			ErrAssertion: noError,
 		},
+		{
+			Name: "OAuth secret only update",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbUpdate, types.VerbCreate},
+				}}},
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				oldIg, err := newGitHubIntegration(igName, "id", "secret")
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				_, err = resourceSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: oldIg})
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				newIg, err := newGitHubIntegration(igName, "", "new-secret")
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				_, err = resourceSvc.UpdateIntegration(ctx, &integrationpb.UpdateIntegrationRequest{Integration: newIg})
+				return err
+			},
+			Validate: func(t *testing.T, igName string) {
+				mustFindGitHubCredentials(t, localClient, igName, "id", "new-secret")
+			},
+			ErrAssertion: noError,
+		},
+		{
+			Name: "OAuth update fails when secret is missing",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbUpdate, types.VerbCreate},
+				}}},
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				oldIg, err := newGitHubIntegration(igName, "id", "secret")
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				_, err = resourceSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: oldIg})
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				newIg, err := newGitHubIntegration(igName, "new-id", "")
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				_, err = resourceSvc.UpdateIntegration(ctx, &integrationpb.UpdateIntegrationRequest{Integration: newIg})
+				return err
+			},
+			ErrAssertion: trace.IsBadParameter,
+		},
 
 		// Delete
 		{
@@ -758,7 +815,7 @@ func newGitHubIntegration(name, id, secret string) (*types.IntegrationV1, error)
 		return nil, trace.Wrap(err)
 	}
 
-	if secret != "" {
+	if id != "" || secret != "" {
 		ig.SetCredentials(&types.PluginCredentialsV1{
 			Credentials: &types.PluginCredentialsV1_IdSecret{
 				IdSecret: &types.PluginIdSecretCredential{
