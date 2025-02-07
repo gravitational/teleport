@@ -74,7 +74,7 @@ func (s *IdentityOutputService) Run(ctx context.Context) error {
 	err := runOnInterval(ctx, runOnIntervalConfig{
 		name:       "output-renewal",
 		f:          s.generate,
-		interval:   s.botCfg.CertificateLifetime.RenewalInterval,
+		interval:   s.certificateLifetime().RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
 		reloadCh:   reloadCh,
@@ -116,7 +116,7 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateLifetime.TTL,
+		s.certificateLifetime().TTL,
 		func(req *proto.UserCertsRequest) {
 			req.ReissuableRoleImpersonation = s.cfg.AllowReissue
 		},
@@ -139,7 +139,7 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 			s.botAuthClient,
 			id,
 			roles,
-			s.botCfg.CertificateLifetime.TTL,
+			s.certificateLifetime().TTL,
 			func(req *proto.UserCertsRequest) {
 				req.RouteToCluster = s.cfg.Cluster
 				req.ReissuableRoleImpersonation = s.cfg.AllowReissue
@@ -224,6 +224,13 @@ func (s *IdentityOutputService) render(
 	}
 
 	return nil
+}
+
+func (s *IdentityOutputService) certificateLifetime() config.CertificateLifetime {
+	if !s.cfg.CertificateLifetime.IsEmpty() {
+		return s.cfg.CertificateLifetime
+	}
+	return s.botCfg.CertificateLifetime
 }
 
 type certAuthGetter interface {

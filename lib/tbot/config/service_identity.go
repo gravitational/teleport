@@ -101,6 +101,10 @@ type IdentityOutput struct {
 	//
 	// Defaults to false.
 	AllowReissue bool `yaml:"allow_reissue,omitempty"`
+
+	// CertificateLifetime contains configuration for how long certificates will
+	// last and the frequency at which they'll be renewed.
+	CertificateLifetime CertificateLifetime `yaml:",inline"`
 }
 
 func (o *IdentityOutput) Init(ctx context.Context) error {
@@ -190,4 +194,8 @@ func (o *IdentityOutput) UnmarshalYAML(node *yaml.Node) error {
 
 func (o *IdentityOutput) Type() string {
 	return IdentityOutputType
+}
+
+func (o *IdentityOutput) GetCertificateLifetime() CertificateLifetime {
+	return o.CertificateLifetime
 }
