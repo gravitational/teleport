@@ -1360,7 +1360,7 @@ $(VERSRC): Makefile
 # 5. Make sure it all builds (`make release` or equivalent)
 # 6. Run `make update-tag` to tag repos with $(VERSION)
 # 7. Run `make tag-build` to build the tag on GitHub Actions
-# 8. Run `make tag-publish` after `make-build` tag has completed to
+# 8. Run `make tag-publish` after `make tag-build` tag has completed to
 #    publish the built artifacts.
 #
 # GHA tag builds: https://github.com/gravitational/teleport.e/actions/workflows/tag-build.yaml
