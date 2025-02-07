@@ -283,6 +283,10 @@ type Process interface {
 // If validated, these overrides may be persisted to disk.
 type OverrideConfig struct {
 	UpdateSpec
+
+	// The fields below override the behavior of
+	// Updater.Install for a single run.
+
 	// ForceVersion to the specified version.
 	ForceVersion string
 	// ForceFlags in installed Teleport.
@@ -444,7 +448,7 @@ func sameProxies(a, b string) bool {
 // Remove removes everything created by the updater for the given namespace.
 // Before attempting this, Remove attempts to gracefully recover the system-packaged version of Teleport (if present).
 // This function is idempotent.
-func (u *Updater) Remove(ctx context.Context) error {
+func (u *Updater) Remove(ctx context.Context, force bool) error {
 	cfg, err := readConfig(u.UpdateConfigPath)
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
@@ -465,6 +469,12 @@ func (u *Updater) Remove(ctx context.Context) error {
 	revert, err := u.Installer.LinkSystem(ctx)
 	if errors.Is(err, ErrNoBinaries) ||
 		errors.Is(err, ErrInvalid) {
+		if !force {
+			u.Log.ErrorContext(ctx, "No packaged installation of Teleport was found, and --force was not passed. Refusing to remove Teleport from this system.")
+			return trace.Errorf("unable to remove Teleport completely without --force")
+		} else {
+			u.Log.WarnContext(ctx, "No packaged installation of Teleport was found, and --force was passed. Teleport will be removed from this system.")
+		}
 		u.Log.InfoContext(ctx, "Updater-managed installation of Teleport detected. Attempting to unlink and remove.")
 		ok, err := isActiveOrEnabled(ctx, u.Process)
 		if err != nil && !errors.Is(err, ErrNotSupported) {
