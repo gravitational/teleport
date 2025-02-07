@@ -83,6 +83,8 @@ type cliConfig struct {
 	UpdateNow bool
 	// Reload reloads Teleport.
 	Reload bool
+	// ForceUninstall allows Teleport to be completely removed.
+	ForceUninstall bool
 }
 
 func Run(args []string) int {
@@ -157,6 +159,8 @@ func Run(args []string) int {
 	statusCmd := app.Command("status", "Show Teleport agent auto-update status.")
 
 	uninstallCmd := app.Command("uninstall", "Uninstall the updater-managed installation of Teleport. If the Teleport package is installed, it is restored as the primary installation.")
+	uninstallCmd.Flag("force", "Force complete uninstallation of Teleport, even if there is no packaged version of Teleport to revert to.").
+		Short('f').BoolVar(&ccfg.ForceUninstall)
 
 	libutils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
@@ -470,7 +474,7 @@ func cmdUninstall(ctx context.Context, ccfg *cliConfig) error {
 		}
 	}()
 
-	if err := updater.Remove(ctx); err != nil {
+	if err := updater.Remove(ctx, ccfg.ForceUninstall); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
