@@ -248,6 +248,19 @@ type Event struct {
 	Item Item
 }
 
+// IterationOrder dictates the order in which iteration should
+// return items.
+type IterationOrder int
+
+const (
+	// IterateAscend indicates to [backend.Iterate] that items should be
+	// returned in ascending lexicographical order of the queried key range.
+	IterateAscend IterationOrder = iota
+	// IterateAscend indicates to [backend.Iterate] that items should be
+	// returned in descending lexicographical order of the queried key range.
+	IterateDescend
+)
+
 // Item is a key value item
 type Item struct {
 	// Key is a key of the key value item

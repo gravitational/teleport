@@ -26,6 +26,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"iter"
 	"os"
 	"strconv"
 	"sync"
@@ -36,6 +37,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -140,6 +142,10 @@ func RunBackendComplianceSuite(t *testing.T, newBackend Constructor) {
 
 	t.Run("QueryRange", func(t *testing.T) {
 		testQueryRange(t, newBackend)
+	})
+
+	t.Run("Iterate", func(t *testing.T) {
+		testIterate(t, newBackend)
 	})
 
 	t.Run("DeleteRange", func(t *testing.T) {
@@ -355,6 +361,186 @@ func testQueryRange(t *testing.T, newBackend Constructor) {
 	result, err = uut.GetRange(ctx, backend.RangeEnd(prefix("prefix", "c", "c2")), backend.RangeEnd(prefix("prefix")), 2)
 	require.NoError(t, err)
 	require.Empty(t, result.Items)
+}
+
+func testIterate(t *testing.T, newBackend Constructor) {
+	uut, _, err := newBackend()
+	require.NoError(t, err)
+	defer func() { require.NoError(t, uut.Close()) }()
+
+	it, ok := uut.(interface {
+		Iterate(ctx context.Context, startKey, endKey backend.Key, limit int, order backend.IterationOrder) (iter.Seq2[backend.Item, error], error)
+	})
+	if !ok {
+		t.Skip("Backend does not support iteration")
+	}
+
+	ctx := context.Background()
+	prefix := MakePrefix()
+
+	outOfScope := backend.Item{Key: prefix("a"), Value: []byte("should not show up")}
+	a := backend.Item{Key: prefix("prefix", "a"), Value: []byte("val a")}
+	b := backend.Item{Key: prefix("prefix", "b"), Value: []byte("val b")}
+	c1 := backend.Item{Key: prefix("prefix", "c", "c1"), Value: []byte("val c1")}
+	c2 := backend.Item{Key: prefix("prefix", "c", "c2"), Value: []byte("val c2")}
+
+	// create items and set the revisions received from the lease
+	for _, item := range []*backend.Item{&outOfScope, &a, &b, &c1, &c2} {
+		lease, err := uut.Create(ctx, *item)
+		require.NoError(t, err, "Failed creating value: %q => %q", item.Key, item.Value)
+		item.Revision = lease.Revision
+	}
+
+	t.Run("ascending order", func(t *testing.T) {
+		cases := []struct {
+			name             string
+			startKey, endKey backend.Key
+			limit            int
+			expected         []backend.Item
+		}{
+			{
+				name:     "prefix range fetch",
+				startKey: prefix("prefix"),
+				endKey:   backend.RangeEnd(prefix("prefix")),
+				limit:    backend.NoLimit,
+				expected: []backend.Item{a, b, c1, c2},
+			},
+			{
+				name:     "sub prefix range fetch",
+				startKey: prefix("prefix", "c"),
+				endKey:   backend.RangeEnd(prefix("prefix", "c")),
+				limit:    backend.NoLimit,
+				expected: []backend.Item{c1, c2},
+			},
+			{
+				name:     "range match",
+				startKey: prefix("prefix", "c", "c1"),
+				endKey:   backend.RangeEnd(prefix("prefix", "c", "cz")),
+				limit:    backend.NoLimit,
+				expected: []backend.Item{c1, c2},
+			},
+			{
+				name:     "pagination",
+				startKey: prefix("prefix"),
+				endKey:   backend.RangeEnd(prefix("prefix")),
+				limit:    2,
+				expected: []backend.Item{a, b},
+			},
+			{
+				name:     "fetch next two items",
+				startKey: backend.RangeEnd(prefix("prefix", "b")),
+				endKey:   backend.RangeEnd(prefix("prefix")),
+				limit:    2,
+				expected: []backend.Item{c1, c2},
+			},
+			{
+				name:     "next fetch is empty",
+				startKey: backend.RangeEnd(prefix("prefix", "c", "c2")),
+				endKey:   backend.RangeEnd(prefix("prefix")),
+				limit:    2,
+			},
+		}
+
+		for _, test := range cases {
+			t.Run(test.name, func(t *testing.T) {
+				iterator, err := it.Iterate(ctx, test.startKey, test.endKey, test.limit, backend.IterateAscend)
+				require.NoError(t, err)
+
+				i := 0
+				for item, err := range iterator {
+					require.NoError(t, err)
+
+					if len(test.expected) == 0 {
+						t.Fatal("iterator produced an item when none are expected")
+					}
+					expected := test.expected[i]
+
+					assert.Equal(t, expected.Key, item.Key)
+					assert.Equal(t, expected.Value, item.Value)
+					assert.Equal(t, expected.Revision, item.Revision)
+					i++
+				}
+			})
+		}
+	})
+
+	t.Run("descending order", func(t *testing.T) {
+		cases := []struct {
+			name             string
+			startKey, endKey backend.Key
+			limit            int
+			expected         []backend.Item
+		}{
+			{
+				name:     "prefix range fetch",
+				startKey: prefix("prefix"),
+				endKey:   backend.RangeEnd(prefix("prefix")),
+				limit:    backend.NoLimit,
+				expected: []backend.Item{c2, c1, b, a},
+			},
+			{
+				name:     "sub prefix range fetch",
+				startKey: prefix("prefix", "c"),
+				endKey:   backend.RangeEnd(prefix("prefix", "c")),
+				limit:    backend.NoLimit,
+				expected: []backend.Item{c2, c1},
+			},
+			{
+				name:     "range match",
+				startKey: prefix("prefix", "c", "c1"),
+				endKey:   backend.RangeEnd(prefix("prefix", "c", "cz")),
+				limit:    backend.NoLimit,
+				expected: []backend.Item{c2, c1},
+			},
+			{
+				name:     "pagination",
+				startKey: prefix("prefix"),
+				endKey:   backend.RangeEnd(prefix("prefix")),
+				limit:    2,
+				expected: []backend.Item{c2, c1},
+			},
+			{
+				name:     "fetch next two items",
+				startKey: backend.RangeEnd(prefix("prefix", "b")),
+				endKey:   backend.RangeEnd(prefix("prefix")),
+				limit:    2,
+				expected: []backend.Item{c2, c1},
+			},
+			{
+				name:     "next fetch is empty",
+				startKey: backend.RangeEnd(prefix("prefix", "c", "c2")),
+				endKey:   backend.RangeEnd(prefix("prefix")),
+				limit:    2,
+			},
+		}
+
+		for _, test := range cases {
+			t.Run(test.name, func(t *testing.T) {
+				iterator, err := it.Iterate(ctx, test.startKey, test.endKey, test.limit, backend.IterateDescend)
+				require.NoError(t, err)
+
+				i := 0
+				for item, err := range iterator {
+					require.NoError(t, err)
+
+					if len(test.expected) == 0 {
+						t.Fatal("iterator produced an item when none are expected")
+					}
+
+					if i >= len(test.expected) {
+						t.Fatal("iterator produced more items than expected")
+					}
+
+					expected := test.expected[i]
+
+					assert.Equal(t, expected.Key, item.Key)
+					assert.Equal(t, expected.Value, item.Value)
+					assert.Equal(t, expected.Revision, item.Revision)
+					i++
+				}
+			})
+		}
+	})
 }
 
 // testDeleteRange tests delete items by range
