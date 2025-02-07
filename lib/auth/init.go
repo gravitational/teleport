@@ -45,14 +45,12 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
-	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/migration"
@@ -1421,9 +1419,19 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		// Unwrap "new style" resources.
 		// We always want to switch over the underlying type.
 		var res any = resource
-		if w, ok := res.(interface{ Unwrap() types.Resource153 }); ok {
+		if w, ok := res.(types.Resource153Unwrapper); ok {
 			res = w.Unwrap()
 		}
+
+		// DO NOT ADD EVERY RESOURCE TO THIS SWITCH
+		// Apply-on-startup should not be supported for every resource, this is a way to bootstrap a
+		// minimal cluster (bootstrap IaC user, role, bot, join token, config so you have enough
+		// trust to join core components without human intervention).
+		// Resources not required for a minimal cluster should be created via Infrastructure-as-Code
+		// (tctl, Terraform Provider, Kube Operator)
+		// You MUST also add a test case for your resource in `TestInit_ApplyOnStartup` because adding
+		// your resource to this switch in not enough for the --apply-on-startup flag to work, you also
+		// need to RegisterResourceUnmarshaler() your resource.
 		switch r := res.(type) {
 		case types.ProvisionToken:
 			err = service.Provisioner.UpsertToken(ctx, r)
@@ -1441,8 +1449,6 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 			_, err = service.ClusterConfigurationInternal.UpsertAuthPreference(ctx, r)
 		case *machineidv1pb.Bot:
 			_, err = machineidv1.UpsertBot(ctx, service, r, time.Now(), "system")
-		case *dbobjectimportrulev1pb.DatabaseObjectImportRule:
-			_, err = dbobjectimportrulev1.UpsertDatabaseObjectImportRule(ctx, service, r)
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}
