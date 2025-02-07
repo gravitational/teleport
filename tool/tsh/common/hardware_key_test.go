@@ -27,6 +27,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"os/user"
 	"testing"
 
@@ -44,6 +45,21 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
+
+func startDummyHTTPServer(t *testing.T, name string) string {
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Server", name)
+		_, _ = w.Write([]byte("hello"))
+	}))
+
+	srv.Start()
+
+	t.Cleanup(func() {
+		srv.Close()
+	})
+
+	return srv.URL
+}
 
 // TestHardwareKeyLogin tests Hardware Key login and relogin flows.
 func TestHardwareKeyLogin(t *testing.T) {
