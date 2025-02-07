@@ -54,6 +54,10 @@ type KubernetesOutput struct {
 	// kubeconfig. It does mean that kubectl will not be able to automatically
 	// refresh the credentials within an individual invocation.
 	DisableExecPlugin bool `yaml:"disable_exec_plugin"`
+
+	// CertificateLifetime contains configuration for how long certificates will
+	// last and the frequency at which they'll be renewed.
+	CertificateLifetime CertificateLifetime `yaml:",inline"`
 }
 
 func (o *KubernetesOutput) CheckAndSetDefaults() error {
@@ -116,4 +120,8 @@ func (o *KubernetesOutput) UnmarshalYAML(node *yaml.Node) error {
 
 func (o *KubernetesOutput) Type() string {
 	return KubernetesOutputType
+}
+
+func (o *KubernetesOutput) GetCertificateLifetime() CertificateLifetime {
+	return o.CertificateLifetime
 }
