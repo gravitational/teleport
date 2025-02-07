@@ -57,6 +57,10 @@ type SSHHostOutput struct {
 
 	// Principals is a list of principals to request for the host cert.
 	Principals []string `yaml:"principals"`
+
+	// CertificateLifetime contains configuration for how long certificates will
+	// last and the frequency at which they'll be renewed.
+	CertificateLifetime CertificateLifetime `yaml:",inline"`
 }
 
 func (o *SSHHostOutput) Init(ctx context.Context) error {
@@ -113,4 +117,8 @@ func (o *SSHHostOutput) UnmarshalYAML(node *yaml.Node) error {
 
 func (o *SSHHostOutput) Type() string {
 	return SSHHostOutputType
+}
+
+func (o *SSHHostOutput) GetCertificateLifetime() CertificateLifetime {
+	return o.CertificateLifetime
 }
