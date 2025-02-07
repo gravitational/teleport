@@ -45,8 +45,8 @@ func (c *BotConfig) BindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.AuthServer, "auth-server", "127.0.0.1:3025", "Address of the Teleport Auth Server or Proxy Server")
 	fs.StringVar(&c.Onboarding.TokenValue, "token", "teleport-operator", "A bot join token or path to file with token value.")
 	fs.StringVar((*string)(&c.Onboarding.JoinMethod), "join-method", string(types.JoinMethodKubernetes), "Method to use to join the Teleport cluster.")
-	fs.DurationVar(&c.CertificateTTL, "certificate-ttl", defaultCertificateTTL, "TTL of short-lived machine certificates.")
-	fs.DurationVar(&c.RenewalInterval, "renewal-interval", defaultRenewalInterval, "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.")
+	fs.DurationVar(&c.CertificateLifetime.TTL, "certificate-ttl", defaultCertificateTTL, "TTL of short-lived machine certificates.")
+	fs.DurationVar(&c.CertificateLifetime.RenewalInterval, "renewal-interval", defaultRenewalInterval, "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.")
 	caPinsFlag := StringListVar{
 		list: &c.Onboarding.CAPins,
 	}

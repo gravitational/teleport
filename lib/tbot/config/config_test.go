@@ -42,7 +42,7 @@ func TestConfigFile(t *testing.T) {
 	require.NoError(t, cfg.CheckAndSetDefaults())
 
 	require.Equal(t, "auth.example.com", cfg.AuthServer)
-	require.Equal(t, time.Minute*5, cfg.RenewalInterval)
+	require.Equal(t, time.Minute*5, cfg.CertificateLifetime.RenewalInterval)
 
 	require.NotNil(t, cfg.Onboarding)
 
@@ -197,13 +197,15 @@ func TestBotConfig_YAML(t *testing.T) {
 						Symlinks: botfs.SymlinksSecure,
 					},
 				},
-				FIPS:            true,
-				Debug:           true,
-				Oneshot:         true,
-				AuthServer:      "example.teleport.sh:443",
-				DiagAddr:        "127.0.0.1:1337",
-				CertificateTTL:  time.Minute,
-				RenewalInterval: time.Second * 30,
+				FIPS:       true,
+				Debug:      true,
+				Oneshot:    true,
+				AuthServer: "example.teleport.sh:443",
+				DiagAddr:   "127.0.0.1:1337",
+				CertificateLifetime: CertificateLifetime{
+					TTL:             time.Minute,
+					RenewalInterval: time.Second * 30,
+				},
 				Outputs: ServiceConfigs{
 					&IdentityOutput{
 						Destination: &DestinationDirectory{
@@ -293,10 +295,12 @@ func TestBotConfig_YAML(t *testing.T) {
 		{
 			name: "minimal config",
 			in: BotConfig{
-				Version:         V2,
-				AuthServer:      "example.teleport.sh:443",
-				CertificateTTL:  time.Minute,
-				RenewalInterval: time.Second * 30,
+				Version:    V2,
+				AuthServer: "example.teleport.sh:443",
+				CertificateLifetime: CertificateLifetime{
+					TTL:             time.Minute,
+					RenewalInterval: time.Second * 30,
+				},
 				Outputs: ServiceConfigs{
 					&IdentityOutput{
 						Destination: &DestinationMemory{},
@@ -307,10 +311,12 @@ func TestBotConfig_YAML(t *testing.T) {
 		{
 			name: "minimal config using proxy addr",
 			in: BotConfig{
-				Version:         V2,
-				ProxyServer:     "example.teleport.sh:443",
-				CertificateTTL:  time.Minute,
-				RenewalInterval: time.Second * 30,
+				Version:     V2,
+				ProxyServer: "example.teleport.sh:443",
+				CertificateLifetime: CertificateLifetime{
+					TTL:             time.Minute,
+					RenewalInterval: time.Second * 30,
+				},
 				Outputs: ServiceConfigs{
 					&IdentityOutput{
 						Destination: &DestinationMemory{},

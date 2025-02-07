@@ -521,8 +521,10 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 				AudienceTag: audienceTag,
 			},
 		},
-		CertificateTTL:  time.Hour,
-		RenewalInterval: 20 * time.Minute,
+		CertificateLifetime: tbotconfig.CertificateLifetime{
+			TTL:             time.Hour,
+			RenewalInterval: 20 * time.Minute,
+		},
 	}
 	bot, err := embeddedtbot.New(botConfig)
 	if err != nil {

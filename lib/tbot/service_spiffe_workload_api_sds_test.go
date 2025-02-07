@@ -112,7 +112,9 @@ func TestSDS_FetchSecrets(t *testing.T) {
 		},
 	}
 	botConfig := &config.BotConfig{
-		RenewalInterval: time.Minute,
+		CertificateLifetime: config.CertificateLifetime{
+			RenewalInterval: time.Minute,
+		},
 	}
 
 	tests := []struct {

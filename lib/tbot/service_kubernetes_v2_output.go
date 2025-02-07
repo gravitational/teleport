@@ -78,7 +78,7 @@ func (s *KubernetesV2OutputService) Run(ctx context.Context) error {
 	return trace.Wrap(runOnInterval(ctx, runOnIntervalConfig{
 		name:       "output-renewal",
 		f:          s.generate,
-		interval:   s.botCfg.RenewalInterval,
+		interval:   s.botCfg.CertificateLifetime.RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
 		reloadCh:   reloadCh,
@@ -115,7 +115,7 @@ func (s *KubernetesV2OutputService) generate(ctx context.Context) error {
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateTTL,
+		s.botCfg.CertificateLifetime.TTL,
 		nil,
 	)
 	if err != nil {
