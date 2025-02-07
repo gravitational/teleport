@@ -27,6 +27,10 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 )
 
+const (
+	tunInterfaceName = "TeleportVNet"
+)
+
 type windowsAdminProcessConfig struct {
 	// clientApplicationServiceAddr is the local TCP address of the client
 	// application gRPC service.
@@ -50,7 +54,7 @@ func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig)
 		return trace.Wrap(err, "authenticating user process")
 	}
 
-	device, err := tun.CreateTUN("TeleportVNet", mtu)
+	device, err := tun.CreateTUN(tunInterfaceName, mtu)
 	if err != nil {
 		return trace.Wrap(err, "creating TUN device")
 	}
