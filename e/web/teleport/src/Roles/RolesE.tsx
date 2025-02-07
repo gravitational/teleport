@@ -16,7 +16,9 @@ const emptyDiff: AccessPathDiff = {
 
 export const RolesE = () => {
   const roleTesterEnabled =
-    cfg.isPolicyEnabled && storageService.getAccessGraphRoleTesterEnabled();
+    cfg.isPolicyEnabled &&
+    cfg.isPolicyRoleVisualizerEnabled &&
+    storageService.getAccessGraphRoleTesterEnabled();
 
   const [roleDiffAttempt, updateRoleDiff] = useAsync(
     useCallback(accessGraphService.getRoleDiff, [])
