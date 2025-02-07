@@ -8,7 +8,7 @@ This document describes the next-generation (v2) Teleport Agent updater, which
 is currently in beta.
 
 The original updater uses the `teleport-ent-updater` package and
-`cluster_maintenance_config` resource, while the next-generation updater is
+`cluster_maintenance_config` resource, while the next-generation updater uses
 a binary called `teleport-update` that is included in the `teleport` package and
 configured by the `autoupdate_version` and `autoupdate_config` resources
 described in this document.
@@ -64,7 +64,7 @@ is configured to automatically update the Teleport container.
 - (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
 - (!docs/pages/includes/tctl.mdx!)
 
-## Quick Setup for Connected Linux Servers
+## Quick setup for existing connected Linux servers
 
 Users of cloud-hosted Teleport Enterprise can enable managed updates
 on Linux servers that are already connected with a single command:
@@ -94,11 +94,17 @@ back to manual updates or the original updater (if it has not been removed):
 $ sudo teleport-update uninstall
 ```
 
+If Teleport was installed via the apt/yum package, this will revert the
+running version of Teleport back to the version provided by the package.
+If Teleport was installed using `teleport-update` without the package,
+**this command will remove Teleport entirely, leaving the system disconnected.**
+Do not run `uninstall` without verifying your installation type.
+
 For cloud-hosted Teleport Enterprise, updates will roll out automatically
 during the first chosen maintenance window that is at least 36 hours after
 the cluster version is updated. Keep reading to learn how to customize the time.
 
-## Quick Setup for New Linux Servers
+## Quick setup for new Linux servers
 
 The [Install Script] is the fastest way to onboard new Linux servers with
 a single command. However, you may also use `teleport-update` to setup
