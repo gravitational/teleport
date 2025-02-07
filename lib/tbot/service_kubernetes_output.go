@@ -79,7 +79,7 @@ func (s *KubernetesOutputService) Run(ctx context.Context) error {
 	err := runOnInterval(ctx, runOnIntervalConfig{
 		name:       "output-renewal",
 		f:          s.generate,
-		interval:   s.botCfg.CertificateLifetime.RenewalInterval,
+		interval:   s.certificateLifetime().RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
 		reloadCh:   reloadCh,
@@ -121,7 +121,7 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateLifetime.TTL,
+		s.certificateLifetime().TTL,
 		nil,
 	)
 	if err != nil {
@@ -152,7 +152,7 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 		s.botAuthClient,
 		id,
 		roles,
-		s.botCfg.CertificateLifetime.TTL,
+		s.certificateLifetime().TTL,
 		func(req *proto.UserCertsRequest) {
 			req.KubernetesCluster = kubeClusterName
 		},
@@ -460,4 +460,11 @@ func selectKubeConnectionMethod(proxyPong *proxyPingResponse) (
 	}
 
 	return "", "", trace.BadParameter("unable to determine kubernetes address")
+}
+
+func (s *KubernetesOutputService) certificateLifetime() config.CertificateLifetime {
+	if !s.cfg.CertificateLifetime.IsEmpty() {
+		return s.cfg.CertificateLifetime
+	}
+	return s.botCfg.CertificateLifetime
 }
