@@ -201,7 +201,7 @@ func (s *ApplicationTunnelService) issueCert(
 		s.botClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateLifetime.TTL,
+		s.certificateLifetime().TTL,
 		nil,
 	)
 	if err != nil {
@@ -233,7 +233,7 @@ func (s *ApplicationTunnelService) issueCert(
 		s.botClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateLifetime.TTL,
+		s.certificateLifetime().TTL,
 		func(req *proto.UserCertsRequest) {
 			req.RouteToApp = route
 		})
@@ -249,4 +249,11 @@ func (s *ApplicationTunnelService) issueCert(
 // service.
 func (s *ApplicationTunnelService) String() string {
 	return fmt.Sprintf("%s:%s:%s", config.ApplicationTunnelServiceType, s.cfg.Listen, s.cfg.AppName)
+}
+
+func (s *ApplicationTunnelService) certificateLifetime() config.CertificateLifetime {
+	if !s.cfg.CertificateLifetime.IsEmpty() {
+		return s.cfg.CertificateLifetime
+	}
+	return s.botCfg.CertificateLifetime
 }
