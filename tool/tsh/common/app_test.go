@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"os/user"
 	"strings"
 	"testing"
@@ -48,21 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
-
-func startDummyHTTPServer(t *testing.T, name string) string {
-	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Server", name)
-		_, _ = w.Write([]byte("hello"))
-	}))
-
-	srv.Start()
-
-	t.Cleanup(func() {
-		srv.Close()
-	})
-
-	return srv.URL
-}
 
 func testDummyAppConn(t require.TestingT, addr string, tlsCerts ...tls.Certificate) (resp *http.Response) {
 	clt := &http.Client{
