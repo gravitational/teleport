@@ -1162,6 +1162,12 @@ const (
 	// NotificationUserCreatedWarningSubKind is the subkind for a user-created warning notification.
 	NotificationUserCreatedWarningSubKind = "user-created-warning"
 
+	// NotificationPendingUserTaskIntegrationSubKind is the subkind for a notification that warns the user about pending User Tasks for a given integration.
+	NotificationPendingUserTaskIntegrationSubKind = "pending-user-task-for-integration"
+	// NotificationIntegrationLabel is the label which contains the name of the integration.
+	// To be used with NotificationPendingUserTaskIntegrationSubKind.
+	NotificationIntegrationLabel = "integration-name"
+
 	// NotificationAccessRequestPendingSubKind is the subkind for a notification for an access request pending review.
 	NotificationAccessRequestPendingSubKind = "access-request-pending"
 	// NotificationAccessRequestApprovedSubKind is the subkind for a notification for a user's access request being approved.

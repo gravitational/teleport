@@ -55,6 +55,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -62,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/types/userloginstate"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -4442,6 +4444,63 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, resp.Notifications, 6)
+}
+
+func TestCreateNotificationsForOpenUserTasks(t *testing.T) {
+	ctx := context.Background()
+
+	// Setup test auth server
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+
+	userTaskForIntegration := func(t *testing.T, integration string, accountID string) *usertasksv1.UserTask {
+		userTask, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
+			Integration: integration,
+			TaskType:    "discover-ec2",
+			IssueType:   "ec2-ssm-invocation-failure",
+			State:       "OPEN",
+			DiscoverEc2: &usertasksv1.DiscoverEC2{
+				AccountId: accountID,
+				Region:    "us-east-1",
+				Instances: map[string]*usertasksv1.DiscoverEC2Instance{
+					"i-123": {
+						InstanceId:      "i-123",
+						DiscoveryConfig: "dc01",
+						DiscoveryGroup:  "dg01",
+						SyncTime:        timestamppb.Now(),
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		return userTask
+	}
+
+	// Create multiple user tasks for multiple integrations.
+	integrations := []string{"aws-1", "aws-2", "aws-3", "aws-4", "aws-5", "aws-6"}
+	for _, integration := range integrations {
+		_, err := authServer.CreateUserTask(ctx, userTaskForIntegration(t, integration, "123456789012"))
+		require.NoError(t, err)
+		_, err = authServer.CreateUserTask(ctx, userTaskForIntegration(t, integration, "123456789013"))
+		require.NoError(t, err)
+	}
+
+	authServer.CreateNotificationsForOpenUserTasks(ctx)
+
+	globalNotifications, _, err := authServer.ListGlobalNotifications(ctx, 0, "")
+	require.NoError(t, err)
+	require.Len(t, globalNotifications, len(integrations))
+
+	for _, n := range globalNotifications {
+		require.Equal(t, []types.Rule{{
+			Resources: []string{types.KindIntegration},
+			Verbs:     []string{types.VerbList, types.VerbRead},
+		}}, n.Spec.Matcher.(*notificationsv1.GlobalNotificationSpec_ByPermissions).ByPermissions.RoleConditions[0].Rules)
+
+		require.Equal(t, types.NotificationPendingUserTaskIntegrationSubKind, n.Spec.Notification.SubKind)
+		require.Contains(t, n.Spec.Notification.Metadata.Labels[types.NotificationIntegrationLabel], "aws-")
+		require.Equal(t, "Your integration needs attention.", n.Spec.Notification.Metadata.Labels[types.NotificationTitleLabel])
+	}
 }
 
 func TestServer_GetAnonymizationKey(t *testing.T) {

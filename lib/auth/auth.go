@@ -77,6 +77,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/notifications"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -1362,6 +1364,7 @@ const (
 	upgradeWindowCheckKey
 	roleCountKey
 	accessListReminderNotificationsKey
+	openUserTasksForIntegrationNotificationKey
 )
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -1415,6 +1418,12 @@ func (a *Server) runPeriodicOperations() {
 			Key:           accessListReminderNotificationsKey,
 			Duration:      8 * time.Hour,
 			FirstDuration: retryutils.FullJitter(time.Hour),
+			Jitter:        retryutils.SeventhJitter,
+		},
+		interval.SubInterval[periodicIntervalKey]{
+			Key:           openUserTasksForIntegrationNotificationKey,
+			Duration:      openUserTasksForIntegrationReminderPeriodicInterval,
+			FirstDuration: retryutils.FullJitter(openUserTasksForIntegrationReminderInitialDelay),
 			Jitter:        retryutils.SeventhJitter,
 		},
 	)
@@ -1591,6 +1600,8 @@ func (a *Server) runPeriodicOperations() {
 				go a.tallyRoles(a.closeCtx)
 			case accessListReminderNotificationsKey:
 				go a.CreateAccessListReminderNotifications(a.closeCtx)
+			case openUserTasksForIntegrationNotificationKey:
+				go a.CreateNotificationsForOpenUserTasks(a.closeCtx)
 			}
 		}
 	}
@@ -6388,6 +6399,96 @@ func (a *Server) createAccessListReminderNotification(ctx context.Context, owner
 	}
 
 	return nil
+}
+
+const (
+	// Only a single auth server should be creating notifications.
+	openUserTasksForIntegrationReminderSemaphoreName      = "open-usertasks-for-integration-reminder-check"
+	openUserTasksForIntegrationReminderSemaphoreMaxLeases = 1
+
+	// DiscoveryService, which is responsible for creating UserTasks for integrations, runs every 5 minutes (by default).
+	// Setting the interval to 10 minutes ensures we always run at least one discovery cycle before creating notifications.
+	// Expiration time for notifications will be 10 minutes to
+	openUserTasksForIntegrationReminderPeriodicInterval = 10 * time.Minute
+
+	// Offset for the first iteration.
+	openUserTasksForIntegrationReminderInitialDelay = openUserTasksForIntegrationReminderPeriodicInterval
+
+	// openUserTasksForIntegrationReminderExpiration defines the expiration time for the notification.
+	// This value is less than the interval the process runs to ensure that old notifications are expired before a new one is created.
+	// This prevents notification duplication.
+	openUserTasksForIntegrationReminderExpiration = openUserTasksForIntegrationReminderInitialDelay - 1*time.Minute
+)
+
+// CreateNotificationsForOpenUserTasks creates notifications to alert users of open UserTasks for a given integration.
+// All users with integrations.read and integrations.list will be notified.
+func (a *Server) CreateNotificationsForOpenUserTasks(ctx context.Context) {
+	logger := a.logger.With(
+		teleport.ComponentKey, "notify_users_of_open_usertasks_for_integration",
+		"server_id", a.ServerID,
+	)
+
+	// Ensure only one auth server is running this check at a time.
+	lease, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
+		Service: a,
+		Clock:   a.clock,
+		Expiry:  2 * time.Minute,
+		Params: types.AcquireSemaphoreRequest{
+			SemaphoreKind: types.SemaphoreKindOpenUserTasksForIntegrationNotificationLimiter,
+			SemaphoreName: openUserTasksForIntegrationReminderSemaphoreName,
+			MaxLeases:     openUserTasksForIntegrationReminderSemaphoreMaxLeases,
+			Holder:        a.ServerID,
+		},
+	})
+	if err != nil {
+		logger.WarnContext(ctx, "unable to acquire semaphore, will skip this open user task for integration reminder check")
+		return
+	}
+
+	defer func() {
+		lease.Stop()
+		if err := lease.Wait(); err != nil {
+			logger.WarnContext(ctx, "error cleaning up semaphore", "error", err)
+		}
+	}()
+
+	notificationExpiration := a.clock.Now().Add(openUserTasksForIntegrationReminderExpiration)
+
+	integrationsWithNotification := make(map[string]struct{})
+	var nextToken string
+	for {
+		userTasks, nextPageToken, err := a.Cache.ListUserTasks(ctx, 0, nextToken)
+		if err != nil {
+			logger.ErrorContext(ctx, "failed to list user tasks", "error", err)
+			return
+		}
+
+		for _, userTask := range userTasks {
+			integration := userTask.GetSpec().GetIntegration()
+			tasktState := userTask.GetSpec().GetState()
+
+			if integration == "" || tasktState != usertasks.TaskStateOpen {
+				continue
+			}
+
+			if _, ok := integrationsWithNotification[integration]; ok {
+				continue
+			}
+
+			notification := notifications.NewPendingUserTasksIntegrationNotification(integration, notificationExpiration)
+			if _, err := a.Services.CreateGlobalNotification(ctx, notification); err != nil {
+				logger.ErrorContext(ctx, "failed to create global notification for pending user tasks", "integration", integration, "error", err)
+				return
+			}
+
+			integrationsWithNotification[integration] = struct{}{}
+		}
+
+		nextToken = nextPageToken
+		if nextToken == "" {
+			break
+		}
+	}
 }
 
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
