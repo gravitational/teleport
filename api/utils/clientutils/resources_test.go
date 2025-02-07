@@ -48,16 +48,29 @@ func (m *mockPaginator) List(_ context.Context, pageSize int, token string) ([]b
 	}
 }
 
-func TestListAllResources(t *testing.T) {
+func TestIterateResources(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
+		var count int
 		paginator := mockPaginator{}
-		items, err := ListAllResources(context.Background(), paginator.List)
+		err := IterateResources(context.Background(), paginator.List, func(bool) error {
+			count++
+			return nil
+		})
 		require.NoError(t, err)
-		require.Equal(t, defaults.DefaultChunkSize*2+5, len(items))
+		require.Equal(t, defaults.DefaultChunkSize*2+5, count)
 	})
-	t.Run("error", func(t *testing.T) {
+	t.Run("paginator error", func(t *testing.T) {
 		paginator := mockPaginator{accessDenied: true}
-		_, err := ListAllResources(context.Background(), paginator.List)
+		err := IterateResources(context.Background(), paginator.List, func(bool) error {
+			return nil
+		})
+		require.Error(t, err)
+	})
+	t.Run("callback error", func(t *testing.T) {
+		paginator := mockPaginator{}
+		err := IterateResources(context.Background(), paginator.List, func(bool) error {
+			return trace.BadParameter("error")
+		})
 		require.Error(t, err)
 	})
 }

@@ -26,22 +26,28 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 )
 
-// ListAllResources is a helper that fetches all resources by iterating all
-// pages.
-func ListAllResources[T any](
+// IterateResources is a helper that iterates through each resource from all
+// pages and passes them one by one to the provided callback.
+func IterateResources[T any](
 	ctx context.Context,
 	listPageFunc func(context.Context, int, string) ([]T, string, error),
-) (all []T, err error) {
-	var page []T
-	var nextToken string
+	callback func(T) error,
+) error {
+	var pageToken string
 	for {
-		page, nextToken, err = listPageFunc(ctx, defaults.DefaultChunkSize, nextToken)
+		page, nextToken, err := listPageFunc(ctx, defaults.DefaultChunkSize, pageToken)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
-		all = append(all, page...)
+		for _, resource := range page {
+			if err := callback(resource); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
 		if nextToken == "" {
-			return all, nil
+			return nil
 		}
+		pageToken = nextToken
 	}
 }
