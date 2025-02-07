@@ -16,11 +16,12 @@ import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredAll } from 'shared/components/Validation/rules';
-import { useAsync } from 'shared/hooks/useAsync';
+import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 
 import ecfg from 'e-teleport/config';
 import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
 import { usePlugin } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/usePlugin';
+import { pluginsService } from 'e-teleport/services/plugins';
 import { PluginConfigAwsIc } from 'e-teleport/services/plugins/types';
 import { StyledBox } from 'teleport/Discover/Shared';
 import { useAwsOidcIntegration } from 'teleport/Integrations/Enroll/AwsOidc/useAwsOidcIntegration';
@@ -28,6 +29,7 @@ import {
   RoleArnInput,
   ShowConfigurationScript,
 } from 'teleport/Integrations/shared';
+import { ApiError } from 'teleport/services/api/parseError';
 import {
   AwsOidcPolicyPreset,
   IntegrationAudience,
@@ -103,6 +105,51 @@ export function AwsIcOidcIntegration() {
     formData.get(PluginConfigAwsIc.InstanceArn)?.toString() || ''
   );
 
+  // Setting validation attempt manually to prevent attempt status
+  // changes in case the validation attempt needs retry.
+  const [credValidationAttempt, setCredValidationAttempt] =
+    useState<Attempt<void>>(makeEmptyAttempt());
+
+  // Since the credential validation is done right after creating
+  // integration, the integration resource might not have been propagated
+  // to the cache when the validation service looks for it. So to avoid
+  // such racy "not found" error, we attempt three times with the final
+  // two attempts paused for 5 seconds before firing validation API request.
+  let requestAttemptsLeft = 3;
+  async function validateAwsCredentialAndMoveNext(): Promise<Attempt<void>> {
+    try {
+      requestAttemptsLeft--;
+      await pluginsService.validatePlugin(
+        makeValidateCredentialReq(integrationConfig.name, region, arn)
+      );
+      return {
+        status: 'success',
+        statusText: 'Resource sync credential validated',
+        data: null,
+      };
+    } catch (e) {
+      if (e instanceof ApiError) {
+        if (
+          e.response.status === 404 &&
+          e.message.includes(integrationConfig.name)
+        ) {
+          if (requestAttemptsLeft > 0) {
+            await new Promise(r => setTimeout(r, 5000));
+            const resp = await validateAwsCredentialAndMoveNext();
+            return resp;
+          }
+        }
+      }
+
+      return {
+        status: 'error',
+        error: e,
+        statusText: e.message,
+        data: null,
+      };
+    }
+  }
+
   async function handleNext(v: Validator) {
     if (!v.validate()) {
       return;
@@ -127,10 +174,21 @@ export function AwsIcOidcIntegration() {
           error: err.message,
         });
         return;
+      } else {
+        setExistingIntegrationName(integrationConfig.name);
       }
     }
 
-    nextStep();
+    setCredValidationAttempt({
+      status: 'processing',
+      statusText: 'Validating resource sync credential',
+      data: null,
+    });
+    const result = await validateAwsCredentialAndMoveNext();
+    if (result.status === 'success') {
+      nextStep();
+    }
+    setCredValidationAttempt(result);
   }
 
   function handleBack() {
@@ -147,8 +205,8 @@ export function AwsIcOidcIntegration() {
   }
 
   const nextButtonText = existingIntegrationName
-    ? 'Next'
-    : 'Save integration and proceed to next step';
+    ? 'Validate credential and proceed to the next step'
+    : 'Save integration and proceed to the next step';
 
   const scriptGenButtonText = scriptUrl
     ? 'Edit'
@@ -161,6 +219,31 @@ export function AwsIcOidcIntegration() {
           v,
           AwsOidcPolicyPreset.AwsIdentityCenter
         );
+  }
+
+  function IntegrationExistStatus() {
+    if (existingIntegrationName) {
+      if (createIntegrationAttempt.status === 'success') {
+        return <Info>{`OIDC Integration is created.`}</Info>;
+      }
+
+      if (createIntegrationAttempt.status === '') {
+        return (
+          <Info>{`OIDC Integration '${existingIntegrationName}' already created for AWS IAM Identity Center plugin. You
+        only need to provide the AWS IAM Identity Center instance region and ARN below.`}</Info>
+        );
+      }
+    }
+  }
+
+  function RenderInlineError() {
+    if (createIntegrationAttempt.status === 'error') {
+      return <InlineError errorMsg={createIntegrationAttempt.statusText} />;
+    }
+
+    if (credValidationAttempt.status === 'error') {
+      return <InlineError errorMsg={credValidationAttempt.statusText} />;
+    }
   }
 
   return (
@@ -181,10 +264,7 @@ export function AwsIcOidcIntegration() {
         {fetchIntegrationAttempt.status === 'error' && (
           <Danger>{fetchIntegrationAttempt.statusText}</Danger>
         )}
-        {existingIntegrationName && (
-          <Info>{`OIDC Integration '${existingIntegrationName}' already created for AWS IAM Identity Center plugin. You
-        only need to provide the AWS IAM Identity Center instance region and ARN below.`}</Info>
-        )}
+        <IntegrationExistStatus />
       </Box>
       {fetchIntegrationAttempt.status === 'processing' ? (
         <Box textAlign="center" m={10}>
@@ -217,7 +297,7 @@ export function AwsIcOidcIntegration() {
                       value={region}
                       placeholder="ca-central-1"
                       toolTipContent={identityCenterRegionToolTip}
-                      disabled={!!scriptUrl}
+                      disabled={!!scriptUrl && !existingIntegrationName}
                     />
                     <FieldInput
                       rule={requiredAwsIdentityCenterInstanceArn}
@@ -226,7 +306,7 @@ export function AwsIcOidcIntegration() {
                       value={arn}
                       placeholder="arn:aws:sso:::instance/ssoins-xxxxx"
                       toolTipContent={identityCenterArnToolTip}
-                      disabled={!!scriptUrl}
+                      disabled={!!scriptUrl && !existingIntegrationName}
                     />
                     {!existingIntegrationName && (
                       <FieldInput
@@ -254,7 +334,7 @@ export function AwsIcOidcIntegration() {
                     </ButtonSecondary>
                   )}
                 </StyledBox>
-                {scriptUrl && (
+                {scriptUrl && !existingIntegrationName && (
                   <>
                     <StyledBox mb={4}>
                       <Text bold>
@@ -283,21 +363,14 @@ export function AwsIcOidcIntegration() {
                     </StyledBox>
                   </>
                 )}
-                {createIntegrationAttempt.status === 'error' && (
-                  <Flex>
-                    <Icons.Warning mr={2} color="error.main" size="small" />
-                    <Text color="error.main">
-                      Error: {createIntegrationAttempt.statusText}
-                    </Text>
-                  </Flex>
-                )}
-
+                <RenderInlineError />
                 <Flex mt={6} mb={5} gap={3}>
                   <ButtonPrimary
                     onClick={() => handleNext(validator)}
                     disabled={
-                      !existingIntegrationName &&
-                      integrationConfig.roleArn === ''
+                      (!existingIntegrationName &&
+                        integrationConfig.roleArn === '') ||
+                      credValidationAttempt.status === 'processing'
                     }
                   >
                     {nextButtonText}
@@ -348,3 +421,27 @@ const copyInstallationScriptText: React.ReactNode = (
     </Text>
   </>
 );
+
+function InlineError({ errorMsg }: { errorMsg: string }) {
+  return (
+    <Flex>
+      <Icons.Warning mr={2} color="error.main" size="small" />
+      <Text color="error.main">Error: {errorMsg}</Text>
+    </Flex>
+  );
+}
+
+function makeValidateCredentialReq(
+  integrationName: string,
+  region: string,
+  arn: string
+): FormData {
+  const req = new FormData();
+  req.set(PluginConfigAwsIc.OidcIntegrationName, integrationName);
+  req.set('type', 'aws-identity-center');
+  req.set(PluginConfigAwsIc.InstanceRegion, region);
+  req.set(PluginConfigAwsIc.InstanceArn, arn);
+  req.set('resourceToValidate', 'ValidateResourceSyncCredential');
+
+  return req;
+}

@@ -69,6 +69,20 @@ export const integrationsResponse = {
   nextKey: '',
 };
 
+export const integrationsResponseWithAwsIcAudience = {
+  items: [
+    {
+      name: 'new-integration',
+      subKind: 'aws-oidc',
+      awsoidc: {
+        roleArn: 'arn:aws:iam::026090554232:role/new-integration',
+        audience: 'aws-identity-center',
+      },
+    },
+  ],
+  nextKey: '',
+};
+
 export const users = [
   { name: 'access-user', roles: ['access'], authType: 'local' },
   { name: 'editor-user', roles: ['editor'], authType: 'local' },

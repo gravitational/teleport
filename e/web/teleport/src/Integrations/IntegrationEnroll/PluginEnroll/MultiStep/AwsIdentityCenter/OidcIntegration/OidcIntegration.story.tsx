@@ -1,9 +1,11 @@
 import { delay, http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
 
+import ecfg from 'e-teleport/config';
 import {
   DevNoteOidc,
   integrationsResponse,
+  integrationsResponseWithAwsIcAudience,
 } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/AwsIdentityCenter/shared/fixture';
 import { PluginProvider } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/usePlugin';
 import { pluginMap } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/plugins';
@@ -11,7 +13,6 @@ import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
 import { PluginConfigAwsIc } from 'e-teleport/services/plugins/types';
 import { ContextProvider } from 'teleport';
-import cfg from 'teleport/config';
 
 import { AwsIcOidcIntegration } from './OidcIntegration';
 
@@ -39,49 +40,20 @@ export const ConfigureIntegration = () => {
 ConfigureIntegration.parameters = {
   msw: {
     handlers: [
-      http.get(cfg.getIntegrationsUrl(), () =>
+      http.get(ecfg.oss.getIntegrationsUrl(), () =>
         HttpResponse.json(integrationsResponse)
       ),
-    ],
-  },
-};
-
-export const ConfigureIntegrationExistingIntegration = () => {
-  const ctx = createTeleportContextE();
-  return (
-    <MemoryRouter>
-      <ContextProvider ctx={ctx}>
-        <PluginProvider selectedPlugin={awsIdentityCenterPlugin}>
-          <AwsIcOidcIntegration />
-        </PluginProvider>
-      </ContextProvider>
-    </MemoryRouter>
-  );
-};
-
-ConfigureIntegrationExistingIntegration.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getIntegrationsUrl(), () =>
-        HttpResponse.json({
-          items: [
-            {
-              name: 'new-integration',
-              subKind: 'aws-oidc',
-              awsoidc: {
-                roleArn: 'arn:aws:iam::026090554232:role/new-integration',
-                audience: 'aws-identity-center',
-              },
-            },
-          ],
-          nextKey: '',
-        })
+      http.post(ecfg.oss.getIntegrationsUrl(), () =>
+        HttpResponse.json(integrationsResponse.items[0])
+      ),
+      http.post(ecfg.getPluginValidateUrl(), () =>
+        HttpResponse.json({ message: 'ok' })
       ),
     ],
   },
 };
 
-export const ConfigureIntegrationLoading = () => {
+export const ExistingIntegration = () => {
   const ctx = createTeleportContextE();
   return (
     <MemoryRouter>
@@ -94,10 +66,33 @@ export const ConfigureIntegrationLoading = () => {
   );
 };
 
-ConfigureIntegrationLoading.parameters = {
+ExistingIntegration.parameters = {
   msw: {
     handlers: [
-      http.get(cfg.getIntegrationsUrl(), async () => {
+      http.get(ecfg.oss.getIntegrationsUrl(), () =>
+        HttpResponse.json(integrationsResponseWithAwsIcAudience)
+      ),
+    ],
+  },
+};
+
+export const Loading = () => {
+  const ctx = createTeleportContextE();
+  return (
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <PluginProvider selectedPlugin={awsIdentityCenterPlugin}>
+          <AwsIcOidcIntegration />
+        </PluginProvider>
+      </ContextProvider>
+    </MemoryRouter>
+  );
+};
+
+Loading.parameters = {
+  msw: {
+    handlers: [
+      http.get(ecfg.oss.getIntegrationsUrl(), async () => {
         await delay(5000);
         return HttpResponse.json(integrationsResponse);
       }),
@@ -105,7 +100,7 @@ ConfigureIntegrationLoading.parameters = {
   },
 };
 
-export const ConfigureIntegrationFetchIntegrationFailed = () => {
+export const FetchIntegrationFailed = () => {
   const ctx = createTeleportContextE();
   return (
     <MemoryRouter>
@@ -118,10 +113,10 @@ export const ConfigureIntegrationFetchIntegrationFailed = () => {
   );
 };
 
-ConfigureIntegrationFetchIntegrationFailed.parameters = {
+FetchIntegrationFailed.parameters = {
   msw: {
     handlers: [
-      http.get(cfg.getIntegrationsUrl(), () =>
+      http.get(ecfg.oss.getIntegrationsUrl(), () =>
         HttpResponse.json(
           {
             error: { message: 'Failed to fetch integrations' },
@@ -129,7 +124,7 @@ ConfigureIntegrationFetchIntegrationFailed.parameters = {
           { status: 500 }
         )
       ),
-      http.post(cfg.getIntegrationsUrl(), () =>
+      http.post(ecfg.oss.getIntegrationsUrl(), () =>
         HttpResponse.json(
           {
             error: { message: 'Failed to create new integration' },
@@ -141,7 +136,7 @@ ConfigureIntegrationFetchIntegrationFailed.parameters = {
   },
 };
 
-export const ConfigureIntegrationCreateIntegrationError = () => {
+export const CreateIntegrationError = () => {
   const ctx = createTeleportContextE();
   return (
     <MemoryRouter>
@@ -155,18 +150,86 @@ export const ConfigureIntegrationCreateIntegrationError = () => {
   );
 };
 
-ConfigureIntegrationCreateIntegrationError.parameters = {
+CreateIntegrationError.parameters = {
   msw: {
     handlers: [
-      http.get(cfg.getIntegrationsUrl(), () =>
+      http.get(ecfg.oss.getIntegrationsUrl(), () =>
         HttpResponse.json(integrationsResponse)
       ),
-      http.post(cfg.getIntegrationsUrl(), () =>
+      http.post(ecfg.oss.getIntegrationsUrl(), () =>
         HttpResponse.json(
           {
             error: { message: 'Failed to create new integration' },
           },
           { status: 500 }
+        )
+      ),
+    ],
+  },
+};
+
+export const CredentialValidationFailed = () => {
+  const ctx = createTeleportContextE();
+  return (
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <PluginProvider selectedPlugin={awsIdentityCenterPlugin}>
+          <AwsIcOidcIntegration />
+        </PluginProvider>
+      </ContextProvider>
+    </MemoryRouter>
+  );
+};
+
+CredentialValidationFailed.parameters = {
+  msw: {
+    handlers: [
+      http.get(ecfg.oss.getIntegrationsUrl(), () =>
+        HttpResponse.json(integrationsResponseWithAwsIcAudience)
+      ),
+      http.post(ecfg.getPluginValidateUrl(), () =>
+        HttpResponse.json(
+          {
+            error: {
+              message: `unauthorized`,
+              response: { status: 401 } as Response,
+            },
+          },
+          { status: 401 }
+        )
+      ),
+    ],
+  },
+};
+
+export const CredentialValidationFailedWithNotFoundError = () => {
+  const ctx = createTeleportContextE();
+  return (
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <PluginProvider selectedPlugin={awsIdentityCenterPlugin}>
+          <AwsIcOidcIntegration />
+        </PluginProvider>
+      </ContextProvider>
+    </MemoryRouter>
+  );
+};
+
+CredentialValidationFailedWithNotFoundError.parameters = {
+  msw: {
+    handlers: [
+      http.get(ecfg.oss.getIntegrationsUrl(), () =>
+        HttpResponse.json(integrationsResponseWithAwsIcAudience)
+      ),
+      http.post(ecfg.getPluginValidateUrl(), () =>
+        HttpResponse.json(
+          {
+            error: {
+              message: `integration "aws-oidc" doesn't exist`,
+              response: { status: 404 } as Response,
+            },
+          },
+          { status: 404 }
         )
       ),
     ],
