@@ -13,13 +13,12 @@ This document describes how Teleport will support native automatic approvals for
 access requests.
 
 ## Why
-Currently, Teleport supports automatic approvals of access requests, but it is
-only rudimentarily supported. Automatic approvals requires a separate plugin,
-and only a subset of the plugins support automatic approvals. Users requesting
-this feature do not wish to maintain a separate piece of software, or wish to
-integrate with a separate service to utilize this feature. In order to support
-a wider range of use cases, Teleport should support automatic approvals
-natively.
+Currently, Teleport supports automatic approvals of access requests, but support
+is limited. Automatic approvals requires a separate plugin, and only a subset of
+the plugins support automatic approvals. Users requesting this feature do not
+wish to maintain a separate piece of software, or wish to integrate with a
+separate service to utilize this feature. In order to support a wider range of
+use cases, Teleport should support automatic approvals natively.
 
 Automatic approvals enables teams to enforce zero standing privileges, while
 allowing users to get access to their pre approved resources for a limited
@@ -32,8 +31,8 @@ to renew their certificates to obtain the new roles.
 This feature has also been requested for internal use at Teleport. The Tools
 team enforces gated access to certain pipeline activity. The team would like the
 dev environment to closely mimic the production environment and would like to
-enforce the same gated access, but it would reduice a lot of friction if
-access requests can be automatically approved in the dev environment.
+enforce the same gated access, but it would reduce a lot of friction if access
+requests can be automatically approved in the dev environment.
 
 ## Goals
 1. Native support for automatic approvals. Integration with external service is
@@ -77,7 +76,7 @@ Monitoring Rules (AMR) events and Access Requests (AR) events. If an incoming AR
 matches an existing AMR condition, then the plugin will attempt to automatically
 approve the request.
 
-Note: I've outlined two different appraoches below, describing how we could
+Note: I've outlined two different approaches below, describing how we could
 modify the access monitoring rules to support auto approvals. Approach (A1) is
 more user friendly for configuring auto approval rules. Approach (A2) is less
 user friendly, but it is more easily extensible to support future use cases.
@@ -162,7 +161,7 @@ approval request for the AR.
 Pros (A1):
 - AMR configuration is more intuitive and user friendly.
 - Plugin does not need to request additional user information until after a
-mathcing AMR is found.
+matching AMR is found.
 
 Cons (A1):
 - AMR is less extensible. The AMR will need to be extended with additional spec
@@ -327,7 +326,7 @@ metadata:
   name: cloud-dev-pre-approved
 spec:
   notification:
-    name: slack-defaut
+    name: slack-default
     recipients: ["#dev-cloud"]
   automatic_approval:
     name: access-native
@@ -361,5 +360,5 @@ approvals with an external plugin.
 2. Implement the `access-native` plugin.
 3. Deploy `access-native` plugin as part of Teleport initialization.
 4. Update WebUI to allow users to create and view automatic approvals.
-5. Release guide on how to configure automatic approvals using Access Montioring
-rules.
+5. Release guide on how to configure automatic approvals using Access
+Monitoring Rules.
