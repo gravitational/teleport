@@ -17,7 +17,7 @@
  */
 
 import { ElementType } from 'react';
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 
 import { Flex, Text } from 'design';
 
@@ -112,21 +112,26 @@ export const Separator = styled.div`
   height: 1px;
 `;
 
+const disabledStyles = css`
+  pointer-events: none;
+  cursor: default;
+  color: ${props => props.theme.colors.text.disabled};
+`;
+
 export const MenuItemContainer = styled(ListItem)<{
   disabled: boolean;
 }>`
   min-height: 38px;
   height: auto;
   gap: ${props => props.theme.space[3]}px;
-  padding: 0 ${props => props.theme.space[3]}px;
+  padding: ${props => props.theme.space[1]}px ${props => props.theme.space[3]}px;
   border-radius: 0;
+  text-wrap: wrap;
+  text-align: left;
+
+  ${props => props.disabled && disabledStyles};
 
   &:disabled {
-    cursor: default;
-    color: ${props => props.theme.colors.text.disabled};
-
-    &:hover {
-      background-color: inherit;
-    }
+    ${disabledStyles};
   }
 `;
