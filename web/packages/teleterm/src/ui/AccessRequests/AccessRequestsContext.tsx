@@ -38,7 +38,8 @@ export interface AccessRequestsContext {
   canUse: boolean;
   fetchRequestsAttempt: Attempt<AccessRequest[]>;
   fetchRequests(): Promise<[AccessRequest[], Error]>;
-  assumed: Record<string, AssumedRequest>;
+  /** Maps access request ID to the corresponding request object. */
+  assumed: Map<string, AssumedRequest>;
   rootClusterUri: RootClusterUri;
 }
 
@@ -55,12 +56,11 @@ export const AccessRequestsContextProvider: FC<
     'clustersService',
     useCallback(state => state.clusters.get(rootClusterUri), [rootClusterUri])
   );
-  const assumed = clustersService.getAssumedRequests(rootClusterUri);
-
-  const canUse = !!(
-    rootCluster?.features?.advancedAccessWorkflows ||
-    Object.keys(assumed).length
+  const assumed = new Map(
+    Object.entries(clustersService.getAssumedRequests(rootClusterUri))
   );
+
+  const canUse = !!rootCluster?.features?.advancedAccessWorkflows;
 
   const [fetchRequestsAttempt, fetchRequests] = useAsync(
     useCallback(
@@ -73,7 +73,7 @@ export const AccessRequestsContextProvider: FC<
           });
           return requests;
         }),
-      [tshd, rootClusterUri]
+      [tshd, rootClusterUri, appContext]
     )
   );
 
@@ -97,7 +97,7 @@ export const useAccessRequestsContext = () => {
 
   if (!context) {
     throw new Error(
-      'useAccessRequestsContext must be used within a AccessRequestsContext'
+      'useAccessRequestsContext must be used within an AccessRequestsContext'
     );
   }
 
