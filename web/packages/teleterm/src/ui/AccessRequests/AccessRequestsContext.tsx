@@ -40,7 +40,6 @@ export interface AccessRequestsContext {
   fetchRequests(): Promise<[AccessRequest[], Error]>;
   /** Maps access request ID to the corresponding request object. */
   assumed: Map<string, AssumedRequest>;
-  rootClusterUri: RootClusterUri;
 }
 
 const AccessRequestsContext = createContext<AccessRequestsContext>(null);
@@ -84,7 +83,6 @@ export const AccessRequestsContextProvider: FC<
         fetchRequestsAttempt,
         fetchRequests,
         assumed,
-        rootClusterUri,
       }}
     >
       {children}
