@@ -917,6 +917,7 @@ func TestUpdater_Remove(t *testing.T) {
 		syncErr        error
 		reloadErr      error
 		processEnabled bool
+		force          bool
 
 		unlinkedVersion string
 		teardownCalls   int
@@ -939,7 +940,7 @@ func TestUpdater_Remove(t *testing.T) {
 			teardownCalls: 1,
 		},
 		{
-			name: "no system links, process enabled",
+			name: "no system links, process enabled, force",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
@@ -950,10 +951,11 @@ func TestUpdater_Remove(t *testing.T) {
 			linkSystemErr:   ErrNoBinaries,
 			linkSystemCalls: 1,
 			processEnabled:  true,
+			force:           true,
 			errMatch:        "refusing to remove",
 		},
 		{
-			name: "no system links, process disabled",
+			name: "no system links, process disabled, force",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
@@ -965,9 +967,23 @@ func TestUpdater_Remove(t *testing.T) {
 			linkSystemCalls: 1,
 			unlinkedVersion: version,
 			teardownCalls:   1,
+			force:           true,
 		},
 		{
-			name: "no system links, process disabled, no systemd",
+			name: "no system links, process disabled, no force",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Status: UpdateStatus{
+					Active: NewRevision(version, 0),
+				},
+			},
+			linkSystemErr:   ErrNoBinaries,
+			linkSystemCalls: 1,
+			errMatch:        "unable to remove",
+		},
+		{
+			name: "no system links, process disabled, no systemd, force",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
@@ -980,6 +996,7 @@ func TestUpdater_Remove(t *testing.T) {
 			isEnabledErr:    ErrNotSupported,
 			unlinkedVersion: version,
 			teardownCalls:   1,
+			force:           true,
 		},
 		{
 			name: "active version",
@@ -1123,7 +1140,7 @@ func TestUpdater_Remove(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			err = updater.Remove(ctx)
+			err = updater.Remove(ctx, tt.force)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
