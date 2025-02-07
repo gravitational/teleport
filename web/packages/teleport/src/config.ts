@@ -1326,8 +1326,9 @@ export interface UrlAppParams {
 
 export interface CreateAppSessionParams {
   fqdn: string;
-  clusterId?: string;
-  publicAddr?: string;
+  // This API requires cluster_name and public_addr with underscores.
+  cluster_name?: string;
+  public_addr?: string;
   arn?: string;
   mfaResponse?: MfaChallengeResponse;
 }
