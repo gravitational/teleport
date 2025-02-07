@@ -21,6 +21,7 @@ package memory
 import (
 	"bytes"
 	"context"
+	"iter"
 	"log/slog"
 	"sync"
 	"time"
@@ -276,18 +277,89 @@ func (m *Memory) DeleteRange(ctx context.Context, startKey, endKey backend.Key) 
 	m.Lock()
 	defer m.Unlock()
 	m.removeExpired()
-	re := m.getRange(ctx, startKey, endKey, backend.NoLimit)
-	for _, item := range re.Items {
+
+	var items []*btreeItem
+	startItem := &btreeItem{Item: backend.Item{Key: startKey}}
+	endItem := &btreeItem{Item: backend.Item{Key: endKey}}
+	m.tree.AscendGreaterOrEqual(startItem, func(item *btreeItem) bool {
+		if endItem.Less(item) {
+			return false
+		}
+		items = append(items, item)
+		return true
+	})
+
+	for _, item := range items {
 		event := backend.Event{
 			Type: types.OpDelete,
-			Item: item,
+			Item: item.Item,
 		}
 		m.processEvent(event)
 		if !m.EventsOff {
 			m.buf.Emit(event)
 		}
 	}
+
 	return nil
+}
+
+func (m *Memory) Iterate(ctx context.Context, startKey, endKey backend.Key, limit int, order backend.IterationOrder) (iter.Seq2[backend.Item, error], error) {
+	if startKey.IsZero() {
+		return nil, trace.BadParameter("missing parameter startKey")
+	}
+	if endKey.IsZero() {
+		return nil, trace.BadParameter("missing parameter endKey")
+	}
+
+	const defaultPageSize = 1000
+	return func(yield func(backend.Item, error) bool) {
+		iteratorFn := m.tree.AscendGreaterOrEqual
+		if order == backend.IterateDescend {
+			iteratorFn = m.tree.DescendGreaterThan
+		}
+
+		count := 0
+		startItem := &btreeItem{Item: backend.Item{Key: startKey}}
+		endItem := &btreeItem{Item: backend.Item{Key: endKey}}
+		pageLimit := defaultPageSize
+
+		items := make([]backend.Item, 0, pageLimit)
+		for {
+			if limit != backend.NoLimit {
+				pageLimit = min(limit-count, defaultPageSize)
+			}
+
+			m.Lock()
+			m.removeExpired()
+			iteratorFn(startItem, func(item *btreeItem) bool {
+				if endItem.Less(item) {
+					return false
+				}
+
+				items = append(items, item.Item)
+				return len(items) < pageLimit
+			})
+			m.Unlock()
+
+			for _, item := range items {
+				if !yield(item, nil) {
+					return
+				}
+
+				count++
+				if limit != backend.NoLimit && count >= limit {
+					return
+				}
+			}
+
+			if len(items) < pageLimit {
+				return
+			}
+
+			startItem = &btreeItem{Item: backend.Item{Key: backend.RangeEnd(items[len(items)-1].Key)}}
+			items = items[:0]
+		}
+	}, nil
 }
 
 // GetRange returns query range
@@ -298,17 +370,28 @@ func (m *Memory) GetRange(ctx context.Context, startKey, endKey backend.Key, lim
 	if endKey.IsZero() {
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
+
 	if limit <= 0 {
 		limit = backend.DefaultRangeLimit
 	}
-	m.Lock()
-	defer m.Unlock()
-	m.removeExpired()
-	re := m.getRange(ctx, startKey, endKey, limit)
-	if len(re.Items) == backend.DefaultRangeLimit {
+
+	iter, err := m.Iterate(ctx, startKey, endKey, limit, backend.IterateAscend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var result backend.GetResult
+	for item, err := range iter {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result.Items = append(result.Items, item)
+	}
+
+	if len(result.Items) == backend.DefaultRangeLimit {
 		m.logger.WarnContext(ctx, "Range query hit backend limit. (this is a bug!)", "start_key", startKey, "limit", backend.DefaultRangeLimit)
 	}
-	return &re, nil
+	return &result, nil
 }
 
 // KeepAlive updates TTL on the lease
@@ -437,23 +520,6 @@ func (m *Memory) NewWatcher(ctx context.Context, watch backend.Watch) (backend.W
 		return nil, trace.BadParameter("events are turned off for this backend")
 	}
 	return m.buf.NewWatcher(ctx, watch)
-}
-
-func (m *Memory) getRange(ctx context.Context, startKey, endKey backend.Key, limit int) backend.GetResult {
-	var res backend.GetResult
-	startItem := &btreeItem{Item: backend.Item{Key: startKey}}
-	endItem := &btreeItem{Item: backend.Item{Key: endKey}}
-	m.tree.AscendGreaterOrEqual(startItem, func(item *btreeItem) bool {
-		if endItem.Less(item) {
-			return false
-		}
-		res.Items = append(res.Items, item.Item)
-		if limit > 0 && len(res.Items) >= limit {
-			return false
-		}
-		return true
-	})
-	return res
 }
 
 // removeExpired makes a pass through map and removes expired elements
