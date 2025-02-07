@@ -4827,6 +4827,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 		TunnelPublicAddress:            "",
 		RecoveryCodesEnabled:           false,
 		UI:                             webclient.UIConfig{},
+		IsPolicyRoleVisualizerEnabled:  true,
 		IsDashboard:                    false,
 		IsUsageBasedBilling:            false,
 		AutomaticUpgradesTargetVersion: "",
@@ -5008,7 +5009,8 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 			string(entitlements.UsageReporting):         {Enabled: false},
 			string(entitlements.LicenseAutoUpdate):      {Enabled: false},
 		},
-		PlayableDatabaseProtocols: player.SupportedDatabaseProtocols,
+		PlayableDatabaseProtocols:     player.SupportedDatabaseProtocols,
+		IsPolicyRoleVisualizerEnabled: true,
 	}
 
 	clt := env.proxies[0].newClient(t)
