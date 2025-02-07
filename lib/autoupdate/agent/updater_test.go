@@ -1552,6 +1552,154 @@ func TestUpdater_Install(t *testing.T) {
 	}
 }
 
+func TestUpdater_findAgentProxy(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		cfg  *proxyAddrTeleport
+		want string
+	}{
+		{
+			name: "full",
+			cfg: &proxyAddrTeleport{
+				ProxyServer: "https://example.com:8080",
+			},
+			want: "example.com:8080",
+		},
+		{
+			name: "protocol and host",
+			cfg: &proxyAddrTeleport{
+				ProxyServer: "https://example.com",
+			},
+			want: "example.com:3080",
+		},
+		{
+			name: "host and port",
+			cfg: &proxyAddrTeleport{
+				ProxyServer: "example.com:443",
+			},
+			want: "example.com:443",
+		},
+		{
+			name: "host",
+			cfg: &proxyAddrTeleport{
+				ProxyServer: "example.com",
+			},
+			want: "example.com:3080",
+		},
+		{
+			name: "auth server (v3)",
+			cfg: &proxyAddrTeleport{
+				AuthServer: "example.com",
+			},
+			want: "example.com:3025",
+		},
+		{
+			name: "auth server (v1/2)",
+			cfg: &proxyAddrTeleport{
+				AuthServers: []string{
+					"one.example.com",
+					"two.example.com",
+				},
+			},
+			want: "one.example.com:3025",
+		},
+		{
+			name: "proxy priority",
+			cfg: &proxyAddrTeleport{
+				ProxyServer: "one.example.com",
+				AuthServer:  "two.example.com",
+				AuthServers: []string{"three.example.com"},
+			},
+			want: "one.example.com:3080",
+		},
+		{
+			name: "auth priority",
+			cfg: &proxyAddrTeleport{
+				AuthServer:  "two.example.com",
+				AuthServers: []string{"three.example.com"},
+			},
+			want: "two.example.com:3025",
+		},
+		{
+			name: "missing",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ns := &Namespace{
+				configFile: filepath.Join(t.TempDir(), "teleport.yaml"),
+			}
+			if tt.cfg != nil {
+				out, err := yaml.Marshal(proxyAddrConfig{Teleport: *tt.cfg})
+				require.NoError(t, err)
+				err = os.WriteFile(ns.configFile, out, os.ModePerm)
+				require.NoError(t, err)
+			}
+
+			updater, err := NewLocalUpdater(LocalUpdaterConfig{}, ns)
+			require.NoError(t, err)
+			ctx := context.Background()
+			s := updater.findAgentProxy(ctx)
+			require.Equal(t, tt.want, s)
+		})
+	}
+}
+
+func TestSameProxies(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		a, b  string
+		match bool
+	}{
+		{
+			name:  "protocol missing with port",
+			a:     "https://example.com:8080",
+			b:     "example.com:8080",
+			match: true,
+		},
+		{
+			name:  "protocol missing without port",
+			a:     "https://example.com",
+			b:     "example.com",
+			match: true,
+		},
+		{
+			name:  "same with port",
+			a:     "example.com:443",
+			b:     "example.com:443",
+			match: true,
+		},
+		{
+			name:  "does not set default teleport port",
+			a:     "example.com",
+			b:     "example.com:3080",
+			match: false,
+		},
+		{
+			name:  "does set default standard port",
+			a:     "example.com",
+			b:     "example.com:443",
+			match: true,
+		},
+		{
+			name:  "other formats if equal",
+			a:     "@123",
+			b:     "@123",
+			match: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := sameProxies(tt.a, tt.b)
+			require.Equal(t, tt.match, s)
+		})
+	}
+}
+
 func TestUpdater_Setup(t *testing.T) {
 	t.Parallel()
 
