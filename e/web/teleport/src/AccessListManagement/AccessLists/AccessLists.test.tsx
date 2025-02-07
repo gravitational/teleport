@@ -69,6 +69,7 @@ describe('access list management upsell links', () => {
     expect(
       screen.getByText(/You do not have permission to view Access Lists/i)
     ).toBeInTheDocument();
+    expect(screen.getByText(/What are Access Lists/i)).toBeInTheDocument();
   });
 
   test('unlimited access renders no cta', async () => {
@@ -362,3 +363,18 @@ const mockAccessListBanana: AccessList = {
   membershipRequires: { roles: [], traits: {} },
   inheritedMemberGrants: { roles: [], traits: {} },
 };
+
+test(`should show access list if backend returns it, even if user lacks list and read permission`, async () => {
+  jest
+    .spyOn(accessManagementService, 'fetchAccessLists')
+    .mockResolvedValue([mockAccessListApple]);
+  const ctx = createTeleportContextE({
+    customAcl: getAcl({ noAccess: true }),
+  });
+
+  renderComponent(ctx);
+
+  await waitFor(() => {
+    expect(screen.getByText(/apple/i)).toBeInTheDocument();
+  });
+});

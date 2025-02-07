@@ -97,8 +97,8 @@ export function AccessLists() {
   );
 
   const perm = ctx.storeUser.getAccessListAccess();
-  const canUpsertAsAdmin = perm.create && perm.edit;
-  const canList = perm.list;
+  const canUpsertAsAdmin = perm.create && perm.edit && perm.list && perm.read;
+  const canList = perm.list && perm.read;
 
   const [notificationItem, setNotificationItem] = useState(() => {
     if (location.state?.reviewedAccessList) {
@@ -176,10 +176,10 @@ export function AccessLists() {
         </FeatureHeader>
       )}
       <Box>
-        {!canList && (
+        {!canList && attempt.attempt.statusCode === 403 && (
           <Alert kind="info">
             You do not have permission to view Access Lists. You are missing
-            role permissions: <code>access_list.list</code>
+            role permissions: <code>access_list.read,access_list.list</code>
           </Alert>
         )}
         <MainContent
@@ -216,7 +216,8 @@ function MainContent({
   } = useAccessListManagementContext();
 
   const currentUsername = ctx.storeUser.getUsername();
-  const canList = ctx.storeUser.getAccessListAccess().list;
+  const perms = ctx.storeUser.getAccessListAccess();
+  const canCreate = perms.list && perms.read && perms.create;
 
   const showListTypes = useMemo(
     () =>
@@ -283,33 +284,27 @@ function MainContent({
   const emptyState = (
     <>
       <EmptyState />
-      {cfg.oss.entitlements.AccessLists.limit !== 0 && (
-        <FeatureLimitBlurb limit={cfg.oss.entitlements.AccessLists.limit} />
-      )}
+      {canCreate &&
+        attempt.statusCode !== 403 &&
+        cfg.oss.entitlements.AccessLists.limit !== 0 && (
+          <FeatureLimitBlurb limit={cfg.oss.entitlements.AccessLists.limit} />
+        )}
     </>
   );
 
-  if (attempt.status === '' || !canList) {
-    return emptyState;
-  }
-
-  if (attempt.status === 'processing') {
+  if (attempt.status === 'processing' || attempt.status === '') {
     return (
       <Box textAlign="center" m={10}>
         <Indicator />
       </Box>
     );
   }
-  if (attempt.status === 'failed') {
+  if (attempt.status === 'failed' && attempt.statusCode !== 403) {
     return <Alert children={attempt.statusText} />;
-  }
-  if (attempt.status !== 'success') {
-    return null;
   }
   if (accessLists.length === 0) {
     return emptyState;
   }
-
   return (
     <>
       <Box width="600px" mb={3}>
@@ -405,7 +400,7 @@ function MainContent({
           'No Access Lists Found'
         )}
       </AccessListContainer>
-      {cfg.oss.entitlements.AccessLists.limit !== 0 && (
+      {canCreate && cfg.oss.entitlements.AccessLists.limit !== 0 && (
         <FeatureLimitBlurb limit={cfg.oss.entitlements.AccessLists.limit} />
       )}
     </>

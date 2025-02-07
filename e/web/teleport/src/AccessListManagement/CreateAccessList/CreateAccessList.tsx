@@ -236,7 +236,8 @@ const MainContent = ({
   const ctx = useTeleport();
   const { fetchRoleOptions, userOptions } = useAccessListManagementContext();
   const history = useHistory();
-  const canCreate = ctx.storeUser.getAccessListAccess().create;
+  const perms = ctx.storeUser.getAccessListAccess();
+  const canCreate = perms.create && perms.list && perms.read;
   const accessListCreator = ctx.storeUser.getUsername();
 
   const [spec, setSpec] = useState<Spec>(() => ({

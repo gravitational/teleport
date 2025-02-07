@@ -260,7 +260,11 @@ const fetchAccessListsWithAttempt = async ({
     }
     if (e instanceof ApiError) {
       if (e.response.status === 403) {
-        attempt.setAttempt({ status: '' });
+        attempt.setAttempt({
+          status: 'failed',
+          statusText: e.message,
+          statusCode: 403,
+        });
         return;
       }
     }
