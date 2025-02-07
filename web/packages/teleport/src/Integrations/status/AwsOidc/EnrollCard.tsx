@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useHistory } from 'react-router';
+import { Link as InternalLink } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { ButtonBorder, Card, Flex, H2, ResourceIcon } from 'design';
@@ -24,20 +24,7 @@ import { ButtonBorder, Card, Flex, H2, ResourceIcon } from 'design';
 import cfg from 'teleport/config';
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 
-type EnrollCardProps = {
-  resource: AwsResource;
-};
-
-export function EnrollCard({ resource }: EnrollCardProps) {
-  const history = useHistory();
-
-  const handleClick = () => {
-    history.push({
-      pathname: cfg.routes.discover,
-      state: { searchKeywords: resource },
-    });
-  };
-
+export function EnrollCard({ resource }: { resource: AwsResource }) {
   // todo (michellescripts) update enroll design once ready
   return (
     <Enroll data-testid={`${resource}-enroll`}>
@@ -46,7 +33,14 @@ export function EnrollCard({ resource }: EnrollCardProps) {
           <ResourceIcon name={resource} mr={2} width="32px" height="32px" />
           <H2>{resource.toUpperCase()}</H2>
         </Flex>
-        <ButtonBorder size="large" onClick={handleClick}>
+        <ButtonBorder
+          size="large"
+          as={InternalLink}
+          to={{
+            pathname: cfg.routes.discover,
+            state: { searchKeywords: resource },
+          }}
+        >
           Enroll {resource.toUpperCase()}
         </ButtonBorder>
       </Flex>

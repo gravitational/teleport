@@ -17,67 +17,65 @@
  */
 
 import { within } from '@testing-library/react';
+import { addHours } from 'date-fns';
 
 import { render, screen } from 'design/utils/testing';
+import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
-import { addHours } from 'teleport/components/BannerList/useAlerts';
 import { AwsOidcDashboard } from 'teleport/Integrations/status/AwsOidc/AwsOidcDashboard';
 import { MockAwsOidcStatusProvider } from 'teleport/Integrations/status/AwsOidc/testHelpers/mockAwsOidcStatusProvider';
-import { IntegrationKind } from 'teleport/services/integrations';
+import {
+  IntegrationAwsOidc,
+  IntegrationKind,
+  IntegrationWithSummary,
+} from 'teleport/services/integrations';
 
 test('renders header and stats cards', () => {
   render(
     <MockAwsOidcStatusProvider
       value={{
-        integrationAttempt: {
-          status: 'success',
-          statusText: '',
-          data: {
-            resourceType: 'integration',
-            name: 'integration-one',
-            kind: IntegrationKind.AwsOidc,
-            spec: {
-              roleArn: 'arn:aws:iam::111456789011:role/bar',
-            },
-            statusCode: 1,
+        integrationAttempt: makeSuccessAttempt<IntegrationAwsOidc>({
+          resourceType: 'integration',
+          name: 'integration-one',
+          kind: IntegrationKind.AwsOidc,
+          spec: {
+            roleArn: 'arn:aws:iam::111456789011:role/bar',
           },
-        },
-        statsAttempt: {
-          status: 'success',
-          statusText: '',
-          data: {
-            name: 'integration-one',
-            subKind: IntegrationKind.AwsOidc,
-            awsoidc: {
-              roleArn: 'arn:aws:iam::111456789011:role/bar',
-            },
-            awsec2: {
-              rulesCount: 24,
-              resourcesFound: 12,
-              resourcesEnrollmentFailed: 3,
-              resourcesEnrollmentSuccess: 9,
-              discoverLastSync: new Date().getTime(),
-              ecsDatabaseServiceCount: 0, // irrelevant
-            },
-            awsrds: {
-              rulesCount: 14,
-              resourcesFound: 5,
-              resourcesEnrollmentFailed: 5,
-              resourcesEnrollmentSuccess: 0,
-              discoverLastSync: addHours(new Date().getTime(), -4),
-              ecsDatabaseServiceCount: 8, // relevant
-            },
-            awseks: {
-              rulesCount: 33,
-              resourcesFound: 3,
-              resourcesEnrollmentFailed: 0,
-              resourcesEnrollmentSuccess: 3,
-              discoverLastSync: addHours(new Date().getTime(), -48),
-              ecsDatabaseServiceCount: 0, // irrelevant
-            },
+          statusCode: 1,
+        }),
+        statsAttempt: makeSuccessAttempt<IntegrationWithSummary>({
+          name: 'integration-one',
+          subKind: IntegrationKind.AwsOidc,
+          awsoidc: {
+            roleArn: 'arn:aws:iam::111456789011:role/bar',
           },
-        },
+          awsec2: {
+            rulesCount: 24,
+            resourcesFound: 12,
+            resourcesEnrollmentFailed: 3,
+            resourcesEnrollmentSuccess: 9,
+            discoverLastSync: new Date().getTime(),
+            ecsDatabaseServiceCount: 0, // irrelevant
+          },
+          awsrds: {
+            rulesCount: 14,
+            resourcesFound: 5,
+            resourcesEnrollmentFailed: 5,
+            resourcesEnrollmentSuccess: 0,
+            discoverLastSync: addHours(new Date().getTime(), -4).getTime(),
+            ecsDatabaseServiceCount: 8, // relevant
+          },
+          awseks: {
+            rulesCount: 33,
+            resourcesFound: 3,
+            resourcesEnrollmentFailed: 0,
+            resourcesEnrollmentSuccess: 3,
+            discoverLastSync: addHours(new Date().getTime(), -48).getTime(),
+            ecsDatabaseServiceCount: 0, // irrelevant
+          },
+        }),
       }}
+      path=""
     >
       <AwsOidcDashboard />
     </MockAwsOidcStatusProvider>
@@ -157,51 +155,44 @@ test('renders enroll cards', () => {
   render(
     <MockAwsOidcStatusProvider
       value={{
-        integrationAttempt: {
-          status: 'success',
-          statusText: '',
-          data: {
-            resourceType: 'integration',
-            name: 'integration-one',
-            kind: IntegrationKind.AwsOidc,
-            spec: {
-              roleArn: 'arn:aws:iam::111456789011:role/bar',
-            },
-            statusCode: 1,
+        integrationAttempt: makeSuccessAttempt({
+          resourceType: 'integration',
+          name: 'integration-one',
+          kind: IntegrationKind.AwsOidc,
+          spec: {
+            roleArn: 'arn:aws:iam::111456789011:role/bar',
           },
-        },
-        statsAttempt: {
-          status: 'success',
-          statusText: '',
-          data: {
-            name: 'integration-one',
-            subKind: IntegrationKind.AwsOidc,
-            awsoidc: {
-              roleArn: 'arn:aws:iam::111456789011:role/bar',
-            },
-            awsec2: zeroCount,
-            awsrds: zeroCount,
-            awseks: zeroCount,
+          statusCode: 1,
+        }),
+        statsAttempt: makeSuccessAttempt({
+          name: 'integration-one',
+          subKind: IntegrationKind.AwsOidc,
+          awsoidc: {
+            roleArn: 'arn:aws:iam::111456789011:role/bar',
           },
-        },
+          awsec2: zeroCount,
+          awsrds: zeroCount,
+          awseks: zeroCount,
+        }),
       }}
+      path=""
     >
       <AwsOidcDashboard />
     </MockAwsOidcStatusProvider>
   );
 
   expect(
-    within(screen.getByTestId('ec2-enroll')).getByRole('button', {
+    within(screen.getByTestId('ec2-enroll')).getByRole('link', {
       name: 'Enroll EC2',
     })
   ).toBeInTheDocument();
   expect(
-    within(screen.getByTestId('rds-enroll')).getByRole('button', {
+    within(screen.getByTestId('rds-enroll')).getByRole('link', {
       name: 'Enroll RDS',
     })
   ).toBeInTheDocument();
   expect(
-    within(screen.getByTestId('eks-enroll')).getByRole('button', {
+    within(screen.getByTestId('eks-enroll')).getByRole('link', {
       name: 'Enroll EKS',
     })
   ).toBeInTheDocument();

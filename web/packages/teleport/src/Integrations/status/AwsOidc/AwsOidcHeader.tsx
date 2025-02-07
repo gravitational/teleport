@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useHistory } from 'react-router';
 import { Link as InternalLink } from 'react-router-dom';
 
-import { ButtonIcon, ButtonText, Flex, Text } from 'design';
+import { ButtonText, Flex, Text } from 'design';
 import { Plugs } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 
@@ -29,12 +28,11 @@ import { Integration } from 'teleport/services/integrations';
 
 export function AwsOidcHeader({
   integration,
-  resource = undefined,
+  resource,
 }: {
   integration: Integration;
   resource?: AwsResource;
 }) {
-  const history = useHistory();
   const divider = (
     <Text typography="body3" color="text.slightlyMuted">
       /
@@ -49,10 +47,11 @@ export function AwsOidcHeader({
       width={'100%'}
       pl={5}
       py={1}
+      gap={1}
       data-testid="aws-oidc-header"
     >
       <HoverTooltip position="bottom" tipContent="Back to Integrations">
-        <ButtonIcon
+        <ButtonText
           size="small"
           as={InternalLink}
           to={cfg.routes.integrations}
@@ -60,12 +59,12 @@ export function AwsOidcHeader({
           color="text.slightlyMuted"
         >
           <Plugs size="small" />
-        </ButtonIcon>
+        </ButtonText>
       </HoverTooltip>
       {!resource ? (
         <>
           {divider}
-          <Text typography="body3" color="text.slightlyMuted" ml={2}>
+          <Text typography="body3" color="text.slightlyMuted">
             {integration.name}
           </Text>
         </>
@@ -74,14 +73,11 @@ export function AwsOidcHeader({
           {divider}
           <ButtonText
             size="small"
-            onClick={() =>
-              history.push(
-                cfg.getIntegrationStatusRoute(
-                  integration.kind,
-                  integration.name
-                )
-              )
-            }
+            as={InternalLink}
+            to={cfg.getIntegrationStatusRoute(
+              integration.kind,
+              integration.name
+            )}
           >
             {integration.name}
           </ButtonText>

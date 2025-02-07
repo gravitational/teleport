@@ -45,9 +45,7 @@ export function Details() {
         {integration && (
           <AwsOidcTitle integration={integration} resource={resourceKind} />
         )}
-        {resourceKind == AwsResource.ec2 && <Rules />}
-        {resourceKind == AwsResource.eks && <Rules />}
-        {resourceKind == AwsResource.rds && <Rds />}
+        {resourceKind == AwsResource.rds ? <Rds /> : <Rules />}
       </FeatureBox>
     </>
   );

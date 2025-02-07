@@ -45,14 +45,11 @@ export function Rules() {
     useServerSidePagination<IntegrationDiscoveryRule>({
       pageSize: 20,
       fetchFunc: async () => {
-        // today the rules endpoint requires region. If none are selected, request all.
-        const regions =
-          regionFilter.length === 0 ? Object.keys(awsRegionMap) : regionFilter;
         const { rules, nextKey } =
           await integrationService.fetchIntegrationRules(
             name,
             resourceKind,
-            regions
+            regionFilter
           );
         return { agents: rules, nextKey };
       },
@@ -96,7 +93,7 @@ export function Rules() {
             ),
           },
         ]}
-        emptyText={`No ${resourceKind} rules`}
+        emptyText={`No ${resourceKind.toUpperCase()} rules`}
         fetching={{
           fetchStatus: serverSidePagination.fetchStatus,
           onFetchNext: serverSidePagination.fetchNext,

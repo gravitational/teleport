@@ -83,7 +83,7 @@ export function Agents() {
         tooltip="Filter by region"
       />
       <Table<AWSOIDCDeployedDatabaseService>
-        data={servicesAttempt.data?.services || undefined}
+        data={servicesAttempt.data?.services}
         columns={[
           {
             key: 'name',
@@ -99,7 +99,7 @@ export function Agents() {
             ),
           },
         ]}
-        emptyText="No rds agents"
+        emptyText={`No ${resourceKind.toUpperCase()} agents`}
       />
     </>
   );

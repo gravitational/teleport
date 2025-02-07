@@ -46,6 +46,10 @@ export function Rds() {
   const borderRef = useRef<HTMLDivElement>(null);
   const parentRef = useRef<HTMLDivElement>();
 
+  // todo (michellescripts) the following implementation mimics the implementation of tabs in
+  //  e/web/teleport/src/AccessMonitoring/AccessMonitoring.tsx which is refactored/moved into a shared
+  //  design component, web/packages/design/src/Tabs/Tabs.ts. When refactoring AccessMonitoring to use the shared
+  //  component, consider updating both instances logic to be plain css
   useEffect(() => {
     if (!parentRef.current || !borderRef.current) {
       return;
@@ -94,8 +98,8 @@ export function Rds() {
         </TabContainer>
         <TabBorder ref={borderRef} />
       </TabsContainer>
-      {tab == RdsTab.Rules && <Rules />}
-      {tab == RdsTab.Agents && <Agents />}
+      {tab === RdsTab.Rules && <Rules />}
+      {tab === RdsTab.Agents && <Agents />}
     </>
   );
 }

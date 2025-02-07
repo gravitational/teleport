@@ -17,6 +17,7 @@
  */
 
 import { formatDistanceStrict } from 'date-fns';
+import { Link as InternalLink } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { Card, Flex, H2, Text } from 'design';
@@ -25,7 +26,6 @@ import { ResourceIcon } from 'design/ResourceIcon';
 
 import cfg from 'teleport/config';
 import { EnrollCard } from 'teleport/Integrations/status/AwsOidc/EnrollCard';
-import history from 'teleport/services/history';
 import {
   IntegrationKind,
   ResourceTypeSummary,
@@ -49,22 +49,19 @@ export function StatCard({ name, resource, summary }: StatCardProps) {
     : undefined;
   const term = getResourceTerm(resource);
 
-  if (!foundResource(summary)) {
+  if (!summary || !foundResource(summary)) {
     return <EnrollCard resource={resource} />;
   }
 
   return (
     <SelectCard
       data-testid={`${resource}-stats`}
-      onClick={() => {
-        history.push(
-          cfg.getIntegrationStatusResourcesRoute(
-            IntegrationKind.AwsOidc,
-            name,
-            resource
-          )
-        );
-      }}
+      as={InternalLink}
+      to={cfg.getIntegrationStatusResourcesRoute(
+        IntegrationKind.AwsOidc,
+        name,
+        resource
+      )}
     >
       <Flex
         flexDirection="column"
@@ -148,6 +145,8 @@ export const SelectCard = styled(Card)`
   border-radius: ${props => props.theme.radii[2]}px;
   border: ${props => `1px solid ${props.theme.colors.levels.surface}`};
   cursor: pointer;
+  text-decoration: none;
+  color: ${props => props.theme.colors.text.main};
 
   &:hover {
     background-color: ${props => props.theme.colors.levels.elevated};

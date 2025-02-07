@@ -43,6 +43,10 @@ export function AwsOidcDashboard() {
   }
 
   if (integrationAttempt.status == 'error') {
+    return <Danger>{integrationAttempt.statusText}</Danger>;
+  }
+
+  if (statsAttempt.status == 'error') {
     return <Danger>{statsAttempt.statusText}</Danger>;
   }
 

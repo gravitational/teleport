@@ -15,7 +15,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import { Link as InternalLink } from 'react-router-dom';
 
 import { ButtonIcon, Flex, Label, Text } from 'design';
@@ -25,24 +24,17 @@ import { HoverTooltip } from 'design/Tooltip';
 import cfg from 'teleport/config';
 import { getStatusAndLabel } from 'teleport/Integrations/helpers';
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
-import { Integration } from 'teleport/services/integrations';
+import { IntegrationAwsOidc } from 'teleport/services/integrations';
 
 export function AwsOidcTitle({
   integration,
-  resource = undefined,
+  resource,
 }: {
-  integration: Integration;
+  integration: IntegrationAwsOidc;
   resource?: AwsResource;
 }) {
   const { status, labelKind } = getStatusAndLabel(integration);
-
-  const content = {
-    to: !resource
-      ? cfg.routes.integrations
-      : cfg.getIntegrationStatusRoute(integration.kind, integration.name),
-    helper: !resource ? 'Back to integrations' : 'Back to integration',
-    content: !resource ? integration.name : resource.toUpperCase(),
-  };
+  const content = getContent({ resource, integration });
 
   return (
     <Flex alignItems="center" data-testid="aws-oidc-title">
@@ -59,4 +51,29 @@ export function AwsOidcTitle({
       </Label>
     </Flex>
   );
+}
+
+function getContent({
+  resource,
+  integration,
+}: {
+  resource: AwsResource;
+  integration: IntegrationAwsOidc;
+}): {
+  to: string;
+  helper: string;
+  content: string;
+} {
+  if (resource) {
+    return {
+      to: cfg.getIntegrationStatusRoute(integration.kind, integration.name),
+      helper: 'Back to integration',
+      content: resource.toUpperCase(),
+    };
+  }
+  return {
+    to: cfg.routes.integrations,
+    helper: 'Back to integrations',
+    content: integration.name,
+  };
 }
