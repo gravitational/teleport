@@ -47,6 +47,7 @@ export const allAccessAcl: Acl = {
   roles: fullAccess,
   users: fullAccess,
   trustedClusters: fullAccess,
+  clusterMaintenanceConfig: fullAccess,
   events: fullAccess,
   accessRequests: fullAccess,
   billing: fullAccess,

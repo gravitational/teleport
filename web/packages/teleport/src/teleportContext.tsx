@@ -172,6 +172,8 @@ class TeleportContext implements types.Context {
       authConnector: userContext.getConnectorAccess().list,
       roles: userContext.getRoleAccess().list,
       trustedClusters: userContext.getTrustedClusterAccess().list,
+      clusterMaintenanceConfig:
+        userContext.getClusterMaintenanceConfigAccess()?.list,
       users: userContext.getUserAccess().list,
       applications:
         userContext.getAppServerAccess().list &&
@@ -235,6 +237,7 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   recordings: false,
   roles: false,
   trustedClusters: false,
+  clusterMaintenanceConfig: false,
   users: false,
   newAccessRequest: false,
   tokens: false,

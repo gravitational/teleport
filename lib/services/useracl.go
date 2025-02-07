@@ -48,6 +48,8 @@ type UserACL struct {
 	Users ResourceAccess `json:"users"`
 	// TrustedClusters defines access to trusted clusters.
 	TrustedClusters ResourceAccess `json:"trustedClusters"`
+	// ClusterMaintenanceConfig defines access to update cluster maintenance config.
+	ClusterMaintenanceConfig ResourceAccess `json:"clusterMaintenanceConfig"`
 	// Events defines access to audit logs.
 	Events ResourceAccess `json:"events"`
 	// Tokens defines access to tokens.
@@ -153,6 +155,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	roleAccess := newAccess(userRoles, ctx, types.KindRole)
 	authConnectors := newAccess(userRoles, ctx, types.KindAuthConnector)
 	trustedClusterAccess := newAccess(userRoles, ctx, types.KindTrustedCluster)
+	clusterMaintenanceConfig := newAccess(userRoles, ctx, types.KindClusterMaintenanceConfig)
 	eventAccess := newAccess(userRoles, ctx, types.KindEvent)
 	userAccess := newAccess(userRoles, ctx, types.KindUser)
 	tokenAccess := newAccess(userRoles, ctx, types.KindToken)
@@ -227,48 +230,49 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	contact := newAccess(userRoles, ctx, types.KindContact)
 
 	return UserACL{
-		AccessRequests:          requestAccess,
-		AppServers:              appServerAccess,
-		DBServers:               dbServerAccess,
-		DB:                      dbAccess,
-		ReviewRequests:          reviewRequests,
-		KubeServers:             kubeServerAccess,
-		Desktops:                desktopAccess,
-		AuthConnectors:          authConnectors,
-		TrustedClusters:         trustedClusterAccess,
-		RecordedSessions:        recordedSessionAccess,
-		ActiveSessions:          activeSessionAccess,
-		Roles:                   roleAccess,
-		Events:                  eventAccess,
-		Users:                   userAccess,
-		Tokens:                  tokenAccess,
-		Nodes:                   nodeAccess,
-		Billing:                 billingAccess,
-		ConnectionDiagnostic:    cnDiagnosticAccess,
-		Clipboard:               clipboard,
-		DesktopSessionRecording: desktopSessionRecording,
-		DirectorySharing:        directorySharing,
-		Download:                download,
-		License:                 license,
-		Plugins:                 pluginsAccess,
-		Integrations:            integrationsAccess,
-		UserTasks:               userTasksAccess,
-		DiscoveryConfig:         discoveryConfigsAccess,
-		DeviceTrust:             deviceTrust,
-		Locks:                   lockAccess,
-		SAMLIdpServiceProvider:  samlIdpServiceProviderAccess,
-		AccessList:              accessListAccess,
-		AuditQuery:              auditQuery,
-		SecurityReport:          securityReports,
-		ExternalAuditStorage:    externalAuditStorage,
-		AccessGraph:             accessGraphAccess,
-		Bots:                    bots,
-		BotInstances:            botInstances,
-		AccessMonitoringRule:    accessMonitoringRules,
-		CrownJewel:              crownJewelAccess,
-		AccessGraphSettings:     accessGraphSettings,
-		Contact:                 contact,
-		FileTransferAccess:      fileTransferAccess,
-		GitServers:              gitServersAccess,
+		AccessRequests:           requestAccess,
+		AppServers:               appServerAccess,
+		DBServers:                dbServerAccess,
+		DB:                       dbAccess,
+		ReviewRequests:           reviewRequests,
+		KubeServers:              kubeServerAccess,
+		Desktops:                 desktopAccess,
+		AuthConnectors:           authConnectors,
+		TrustedClusters:          trustedClusterAccess,
+		ClusterMaintenanceConfig: clusterMaintenanceConfig,
+		RecordedSessions:         recordedSessionAccess,
+		ActiveSessions:           activeSessionAccess,
+		Roles:                    roleAccess,
+		Events:                   eventAccess,
+		Users:                    userAccess,
+		Tokens:                   tokenAccess,
+		Nodes:                    nodeAccess,
+		Billing:                  billingAccess,
+		ConnectionDiagnostic:     cnDiagnosticAccess,
+		Clipboard:                clipboard,
+		DesktopSessionRecording:  desktopSessionRecording,
+		DirectorySharing:         directorySharing,
+		Download:                 download,
+		License:                  license,
+		Plugins:                  pluginsAccess,
+		Integrations:             integrationsAccess,
+		UserTasks:                userTasksAccess,
+		DiscoveryConfig:          discoveryConfigsAccess,
+		DeviceTrust:              deviceTrust,
+		Locks:                    lockAccess,
+		SAMLIdpServiceProvider:   samlIdpServiceProviderAccess,
+		AccessList:               accessListAccess,
+		AuditQuery:               auditQuery,
+		SecurityReport:           securityReports,
+		ExternalAuditStorage:     externalAuditStorage,
+		AccessGraph:              accessGraphAccess,
+		Bots:                     bots,
+		BotInstances:             botInstances,
+		AccessMonitoringRule:     accessMonitoringRules,
+		CrownJewel:               crownJewelAccess,
+		AccessGraphSettings:      accessGraphSettings,
+		Contact:                  contact,
+		FileTransferAccess:       fileTransferAccess,
+		GitServers:               gitServersAccess,
 	}
 }

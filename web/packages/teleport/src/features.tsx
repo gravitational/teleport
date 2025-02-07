@@ -556,15 +556,24 @@ export class FeatureClusters implements TeleportFeature {
     title: 'Clusters',
     path: cfg.routes.clusters,
     exact: false,
+    // TODO (avatus) if cloud/dashboard, make this go directly to the manage cluster page
+    // rather than the cluster "list", as this would always only have a single cluster
+    // for cloud users.
     component: Clusters,
   };
 
   hasAccess(flags: FeatureFlags) {
-    return cfg.isDashboard || flags.trustedClusters;
+    return (
+      cfg.isDashboard || flags.trustedClusters || flags.clusterMaintenanceConfig
+    );
   }
 
+  showInDashboard = true;
+
   navigationItem = {
-    title: NavTitle.ManageClusters,
+    title: cfg.isDashboard
+      ? NavTitle.ManageClustersShortened
+      : NavTitle.ManageClusters,
     icon: SlidersVertical,
     exact: false,
     getLink() {

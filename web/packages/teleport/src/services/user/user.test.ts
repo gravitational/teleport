@@ -80,6 +80,13 @@ test('undefined values in context response gives proper default values', async (
       create: false,
       remove: false,
     },
+    clusterMaintenanceConfig: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
     nodes: {
       create: false,
       edit: false,

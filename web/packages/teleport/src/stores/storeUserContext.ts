@@ -56,6 +56,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.trustedClusters;
   }
 
+  getClusterMaintenanceConfigAccess() {
+    return this.state.acl.clusterMaintenanceConfig;
+  }
+
   getUserAccess() {
     return this.state.acl.users;
   }

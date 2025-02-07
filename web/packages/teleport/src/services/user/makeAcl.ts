@@ -23,6 +23,8 @@ export function makeAcl(json): Acl {
   const accessList = json.accessList || defaultAccess;
   const authConnectors = json.authConnectors || defaultAccess;
   const trustedClusters = json.trustedClusters || defaultAccess;
+  const clusterMaintenanceConfig =
+    json.clusterMaintenanceConfig || defaultAccess;
   const roles = json.roles || defaultAccess;
   const recordedSessions = json.recordedSessions || defaultAccess;
   const activeSessions = json.activeSessions || defaultAccess;
@@ -87,6 +89,7 @@ export function makeAcl(json): Acl {
     accessList,
     authConnectors,
     trustedClusters,
+    clusterMaintenanceConfig,
     roles,
     recordedSessions,
     activeSessions,

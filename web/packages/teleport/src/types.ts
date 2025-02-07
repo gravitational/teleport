@@ -94,6 +94,7 @@ export enum NavTitle {
 
   // Clusters
   ManageClusters = 'Manage Clusters',
+  ManageClustersShortened = 'Clusters',
   TrustedClusters = 'Trusted Root Clusters',
 
   // Account
@@ -170,6 +171,7 @@ export interface FeatureFlags {
   authConnector: boolean;
   roles: boolean;
   trustedClusters: boolean;
+  clusterMaintenanceConfig: boolean;
   users: boolean;
   applications: boolean;
   kubernetes: boolean;

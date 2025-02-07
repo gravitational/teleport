@@ -77,6 +77,7 @@ export interface Acl {
   clipboardSharingEnabled: boolean;
   authConnectors: Access;
   trustedClusters: Access;
+  clusterMaintenanceConfig: Access;
   roles: Access;
   recordedSessions: Access;
   activeSessions: Access;
