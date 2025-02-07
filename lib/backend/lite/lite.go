@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"iter"
 	"log/slog"
 	"net/url"
 	"os"
@@ -629,6 +630,86 @@ func (l *Backend) getInTransaction(ctx context.Context, key backend.Key, tx *sql
 	return nil
 }
 
+func (l *Backend) Iterate(ctx context.Context, startKey, endKey backend.Key, limit int, order backend.IterationOrder) (iter.Seq2[backend.Item, error], error) {
+	if startKey.IsZero() {
+		return nil, trace.BadParameter("missing parameter startKey")
+	}
+	if endKey.IsZero() {
+		return nil, trace.BadParameter("missing parameter endKey")
+	}
+
+	const asc = "SELECT key, value, expires, revision FROM kv WHERE (key >= ? and key <= ? and key > ?) AND (expires is NULL or expires > ?) ORDER BY key ASC LIMIT ?"
+	const desc = "SELECT key, value, expires, revision FROM kv WHERE (key >= ? and key <= ? and key > ?) AND (expires is NULL or expires > ?) ORDER BY key DESC LIMIT ?"
+
+	query := asc
+	if order == backend.IterateDescend {
+		query = desc
+	}
+
+	const defaultPageSize = 1000
+	return func(yield func(backend.Item, error) bool) {
+		var exclusiveStartKey string
+		count := 0
+		pageLimit := defaultPageSize
+
+		items := make([]backend.Item, 0, pageLimit)
+		for {
+			if limit != backend.NoLimit {
+				pageLimit = min(limit-count, defaultPageSize)
+			}
+
+			if err := l.inTransaction(ctx, func(tx *sql.Tx) error {
+				q, err := tx.PrepareContext(ctx, query)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				defer q.Close()
+
+				rows, err := q.QueryContext(ctx, startKey.String(), endKey.String(), exclusiveStartKey, l.clock.Now().UTC(), pageLimit)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				defer rows.Close()
+
+				for rows.Next() {
+					var i backend.Item
+					var expires sql.NullTime
+					if err := rows.Scan(&i.Key, &i.Value, &expires, &i.Revision); err != nil {
+						return trace.Wrap(err)
+					}
+					i.Expires = expires.Time
+					if i.Revision == "" {
+						i.Revision = backend.BlankRevision
+					}
+
+					items = append(items, i)
+				}
+				return nil
+			}); err != nil {
+				yield(backend.Item{}, err)
+				return
+			}
+
+			for _, item := range items {
+				if !yield(item, nil) {
+					return
+				}
+
+				count++
+				if limit != backend.NoLimit && count >= limit {
+					return
+				}
+			}
+
+			if len(items) < pageLimit {
+				return
+			}
+			exclusiveStartKey = items[len(items)-1].Key.String()
+			items = items[:0]
+		}
+	}, nil
+}
+
 // GetRange returns query range
 func (l *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
 	if startKey.IsZero() {
@@ -641,38 +722,19 @@ func (l *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, li
 		limit = backend.DefaultRangeLimit
 	}
 
-	var result backend.GetResult
-	err := l.inTransaction(ctx, func(tx *sql.Tx) error {
-		q, err := tx.PrepareContext(ctx,
-			"SELECT key, value, expires, revision FROM kv WHERE (key >= ? and key <= ?) AND (expires is NULL or expires > ?) ORDER BY key LIMIT ?")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer q.Close()
-
-		rows, err := q.QueryContext(ctx, startKey.String(), endKey.String(), l.clock.Now().UTC(), limit)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var i backend.Item
-			var expires sql.NullTime
-			if err := rows.Scan(&i.Key, &i.Value, &expires, &i.Revision); err != nil {
-				return trace.Wrap(err)
-			}
-			i.Expires = expires.Time
-			if i.Revision == "" {
-				i.Revision = backend.BlankRevision
-			}
-			result.Items = append(result.Items, i)
-		}
-		return nil
-	})
+	iter, err := l.Iterate(ctx, startKey, endKey, limit, backend.IterateAscend)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	var result backend.GetResult
+	for item, err := range iter {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result.Items = append(result.Items, item)
+	}
+
 	if len(result.Items) == backend.DefaultRangeLimit {
 		l.logger.WarnContext(ctx, "Range query hit backend limit. (this is a bug!)", "start_key", startKey, "limit", backend.DefaultRangeLimit)
 	}
