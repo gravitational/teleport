@@ -67,7 +67,7 @@ test('displays all resources by default', () => {
   ).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: /Back/i }));
 
-  const samlGrafanaEl = screen.getByText('Grafana');
+  const samlGrafanaEl = screen.getByText(/grafana/i);
   expect(samlGrafanaEl).toBeInTheDocument();
   fireEvent.click(samlGrafanaEl);
   expect(

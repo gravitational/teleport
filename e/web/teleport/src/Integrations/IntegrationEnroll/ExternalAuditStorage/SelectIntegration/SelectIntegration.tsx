@@ -7,7 +7,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
 import {
-  Integration,
+  IntegrationAwsOidc,
   IntegrationKind,
   integrationService,
   IntegrationUrlLocationState,
@@ -16,7 +16,7 @@ import useTeleport from 'teleport/useTeleport';
 
 import { Step, useExternalAuditStorage } from '../useExternalAuditStorage';
 
-type Option = BaseOption<Integration>;
+type Option = BaseOption<IntegrationAwsOidc>;
 
 export function SelectIntegration() {
   const { storeUser } = useTeleport();

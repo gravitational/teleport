@@ -7,7 +7,7 @@ import cfg from 'teleport/config';
 import {
   EditableIntegrationFields,
   ExternalAuditStorageOpType,
-  Operation,
+  OperationType,
   useIntegrationOperation,
 } from 'teleport/Integrations/Operations/useIntegrationOperation';
 import {
@@ -20,6 +20,20 @@ import {
   type IntegrationListResponse,
   type Plugin,
 } from 'teleport/services/integrations';
+
+type OperationE = {
+  type: OperationType;
+  item?: Plugin | Integration | { name: ExternalAuditStorageOpType };
+};
+
+export type GitHubIntegrationEditableFields = {
+  kind: IntegrationKind.GitHub;
+  secret: string;
+};
+
+export type EditableIntegrationFieldsE =
+  | EditableIntegrationFields
+  | GitHubIntegrationEditableFields;
 
 export function useIntegrations() {
   const ctx = useTeleport();
@@ -34,13 +48,14 @@ export function useIntegrations() {
   // only one resolved. This lets the user know why the listing
   // may not be complete.
   const [warning, setWarning] = useState('');
-  const [pluginOps, setPluginOps] = useState({
+  const [pluginOps, setPluginOps] = useState<OperationE>({
     type: 'none',
-  } as Operation);
+  });
 
-  const [externalAuditStorageOps, setExternalAuditStorageOps] = useState({
-    type: 'none',
-  } as Operation);
+  const [externalAuditStorageOps, setExternalAuditStorageOps] =
+    useState<OperationE>({
+      type: 'none',
+    });
 
   useEffect(() => {
     // At least one of these access flag will be true since
@@ -193,23 +208,28 @@ export function useIntegrations() {
     });
   }
 
-  async function editIntegration(
-    integration: Integration,
-    req: EditableIntegrationFields
-  ) {
-    return integrationOps.edit(integration, req).then(updatedIntegration => {
-      const updatedItems = items.map(item => {
-        if (
-          item.resourceType === 'integration' &&
-          item.name == integrationOps.item.name
-        ) {
-          return updatedIntegration;
-        }
-        return item;
-      });
-      setItems(updatedItems);
-      integrationOps.clear();
+  async function editIntegration(req: EditableIntegrationFieldsE) {
+    let updatedIntegration: Integration;
+    if (req.kind === IntegrationKind.GitHub) {
+      updatedIntegration =
+        await integrationService.updateIntegrationOAuthSecret(
+          integrationOps.item.name,
+          req.secret
+        );
+    } else {
+      updatedIntegration = await integrationOps.edit(req);
+    }
+    const updatedItems = items.map(item => {
+      if (
+        item.resourceType === 'integration' &&
+        item.name == integrationOps.item.name
+      ) {
+        return updatedIntegration;
+      }
+      return item;
     });
+    setItems(updatedItems);
+    integrationOps.clear();
   }
 
   function onCancelDeleteExternalAuditStorage() {

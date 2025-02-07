@@ -7,11 +7,14 @@ import {
 } from 'teleport/components/Layout';
 import { IntegrationList } from 'teleport/Integrations';
 import { IntegrationsAddButton } from 'teleport/Integrations/IntegrationsAddButton';
-import { IntegrationOperations } from 'teleport/Integrations/Operations';
-import { ExternalAuditStorageOpType } from 'teleport/Integrations/Operations/useIntegrationOperation';
-import { Integration, Plugin } from 'teleport/services/integrations';
+import {
+  EditableIntegration,
+  ExternalAuditStorageOpType,
+} from 'teleport/Integrations/Operations/useIntegrationOperation';
+import { Plugin } from 'teleport/services/integrations';
 
 import { ExternalAuditStorageDelete } from './ExternalAuditStorageDelete';
+import { IntegrationOperationsE } from './IntegrationOperationsE';
 import { IntegrationsSplash } from './IntegrationsSplash';
 import { PluginDelete } from './PluginDelete';
 import { State, useIntegrations } from './useIntegrations';
@@ -91,9 +94,9 @@ export function Integrations(props: State) {
           }
         />
       )}
-      <IntegrationOperations
+      <IntegrationOperationsE
         operation={integrationOps.type}
-        integration={integrationOps.item as Integration}
+        integration={integrationOps.item as EditableIntegration}
         close={integrationOps.clear}
         remove={integrationOps.removeIntegration}
         edit={integrationOps.editIntegration}

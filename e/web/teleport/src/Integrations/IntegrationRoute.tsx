@@ -4,6 +4,7 @@ import { getRoutesToEnrollIntegrations as getOSSRoutes } from 'teleport/Integrat
 import { IntegrationKind } from 'teleport/services/integrations';
 
 import ExternalAuditStorage from './IntegrationEnroll/ExternalAuditStorage';
+import { GitHub } from './IntegrationEnroll/PluginEnroll/MultiStep/GitHub';
 
 export function getRoutesToEnrollIntegrations() {
   return [
@@ -13,6 +14,12 @@ export function getRoutesToEnrollIntegrations() {
       exact
       path={cfg.getIntegrationEnrollRoute(IntegrationKind.ExternalAuditStorage)}
       component={ExternalAuditStorage}
+    />,
+    <Route
+      key={IntegrationKind.GitHub}
+      exact
+      path={cfg.getIntegrationEnrollRoute(IntegrationKind.GitHub)}
+      component={GitHub}
     />,
   ];
 }

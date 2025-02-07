@@ -30,9 +30,10 @@ import {
 import cfg from 'teleport/config';
 import {
   IntegrationTile,
-  IntegrationTiles,
   NoCodeIntegrationDescription,
 } from 'teleport/Integrations/Enroll';
+import { installableIntegrations } from 'teleport/Integrations/Enroll/IntegrationTiles/integrations';
+import { IntegrationTileWithSpec } from 'teleport/Integrations/Enroll/IntegrationTiles/IntegrationTiles';
 import { MachineIDIntegrationSection } from 'teleport/Integrations/Enroll/MachineIDIntegrationSection';
 import { PluginKind } from 'teleport/services/integrations';
 import {
@@ -41,6 +42,7 @@ import {
 } from 'teleport/services/userEvent';
 
 import { plugins as defaultPlugins } from '../PluginEnroll/plugins';
+import { integrationsE } from './integrations';
 import { PluginIcon } from './PluginIcon';
 
 type Plugins = {
@@ -118,6 +120,35 @@ export function IntegrationPick() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  function getSortedIntegrations() {
+    const sortedIntegrations = [
+      ...plugins.available,
+      ...installableIntegrations(),
+      ...integrationsE,
+    ].toSorted((a, b) => (a.name > b.name ? 1 : -1));
+
+    return sortedIntegrations.map(i => {
+      if (i.type === 'integration') {
+        return (
+          <IntegrationTileWithSpec
+            key={i.kind}
+            spec={i}
+            hasIntegrationAccess={hasIntegrationAccess}
+            hasExternalAuditStorage={hasExternalAuditStorageAccess}
+          />
+        );
+      }
+      return (
+        <PluginTile
+          pluginAlreadyEnrolled={plugins.enrolled.includes(i.type)}
+          key={i.type}
+          type={i}
+          hasAccess={hasPluginAccess}
+        />
+      );
+    });
+  }
+
   let content;
   if (attempt.status === 'processing') {
     content = (
@@ -133,20 +164,7 @@ export function IntegrationPick() {
         <Flex flexDirection="column">
           <NoCodeIntegrationDescription />
           <Flex mb={2} gap={3} flexWrap="wrap">
-            <IntegrationTiles
-              hasIntegrationAccess={hasIntegrationAccess}
-              hasExternalAuditStorage={hasExternalAuditStorageAccess}
-            />
-            {plugins.available
-              .toSorted((a, b) => (a.name > b.name ? 1 : -1))
-              .map(p => (
-                <PluginTile
-                  pluginAlreadyEnrolled={plugins.enrolled.includes(p.type)}
-                  key={p.type}
-                  type={p}
-                  hasAccess={hasPluginAccess}
-                />
-              ))}
+            {getSortedIntegrations()}
           </Flex>
         </Flex>
 

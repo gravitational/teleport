@@ -19,7 +19,7 @@ import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { Header, HeaderSubtitle } from 'teleport/Discover/Shared';
 import {
   ExternalAuditStorage,
-  Integration,
+  IntegrationAwsOidc,
 } from 'teleport/services/integrations';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
@@ -163,7 +163,7 @@ export function ConfigurePermissions() {
 
 function getBootstrapScript(
   externalAuditStorage: ExternalAuditStorage | null,
-  selectedAwsIntegration: Integration | null
+  selectedAwsIntegration: IntegrationAwsOidc | null
 ): string {
   if (!externalAuditStorage || !selectedAwsIntegration) {
     return '';

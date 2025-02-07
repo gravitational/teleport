@@ -5,7 +5,7 @@ import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 import useTeleportE from 'e-teleport/useTeleportE';
 import {
   ExternalAuditStorage,
-  Integration,
+  IntegrationAwsOidc,
   integrationService,
 } from 'teleport/services/integrations';
 
@@ -20,8 +20,8 @@ type ExternalAuditStorageContext = {
   currentStep: Step;
   setCurrentStep: (step: Step) => void;
   nextStep: () => void;
-  selectedAwsIntegration: Integration;
-  setSelectedAwsIntegration: (i: Integration) => void;
+  selectedAwsIntegration: IntegrationAwsOidc;
+  setSelectedAwsIntegration: (i: IntegrationAwsOidc) => void;
   draft: ExternalAuditStorage;
   createDraft: () => Promise<void>;
   continuePreviousDraft: () => Promise<boolean>;
@@ -39,7 +39,7 @@ export function ExternalAuditStorageProvider({
   const { attempt, run } = useAttempt();
 
   const [selectedAwsIntegration, setSelectedAwsIntegration] =
-    useState<Integration>(null);
+    useState<IntegrationAwsOidc>(null);
 
   function nextStep() {
     setCurrentStep(currentStep + 1);
@@ -50,7 +50,7 @@ export function ExternalAuditStorageProvider({
       externalAuditStorageService.getDraft().then(result => {
         run(() => {
           return integrationService
-            .fetchIntegration(result.integrationName)
+            .fetchIntegration<IntegrationAwsOidc>(result.integrationName)
             .then(integration => {
               setSelectedAwsIntegration(integration);
               setDraft(result);

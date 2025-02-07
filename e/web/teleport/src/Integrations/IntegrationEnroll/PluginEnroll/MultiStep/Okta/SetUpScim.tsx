@@ -140,7 +140,7 @@ export function SetUpScim() {
         </StyledBox>
         <OutlineInfo>
           <Text bold>
-            Please set up SCIM before proceeding—you will not be able to view
+            Please set up SCIM before proceeding — you will not be able to view
             the <Mark>Bearer Token</Mark> again!
           </Text>
         </OutlineInfo>
