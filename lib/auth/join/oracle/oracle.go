@@ -19,6 +19,7 @@ package oracle
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -28,8 +29,10 @@ import (
 	"github.com/oracle/oci-go-sdk/v65/common"
 	"github.com/oracle/oci-go-sdk/v65/common/auth"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/lib/defaults"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const teleportUserAgent = "teleport/" + api.Version
@@ -153,20 +156,60 @@ func createAuthHTTPRequest(region string, auth authenticateClientRequest) (*http
 	return &req, nil
 }
 
+type oracleLogger struct {
+	logger *slog.Logger
+}
+
+// LogLevel returns the log level of sdkLogger (always debug).
+func (l *oracleLogger) LogLevel() int {
+	// Oracle SDK encoding of debug level.
+	return 2
+}
+
+// Log logs v with the provided format if the current log level is loglevel
+func (l *oracleLogger) Log(logLevel int, format string, v ...interface{}) error {
+	if !l.logger.Handler().Enabled(context.Background(), slog.LevelDebug) {
+		return nil
+	}
+
+	//nolint:sloglint // msg cannot be constant
+	l.logger.DebugContext(context.Background(), fmt.Sprintf(format, v...))
+
+	return nil
+}
+
+func init() {
+	common.SetSDKLogger(&oracleLogger{
+		logger: logutils.NewPackageLogger().With(teleport.ComponentKey, "oracle"),
+	})
+}
+
 // CreateSignedRequest creates a signed HTTP request to
-// https://auth.<region>.oraclecloud.com/v1/authentication/authenticateClient.
-// The returned headers should be sent to an auth server as part of
-// RegisterUsingOracleMethod.
+// https://auth.<region>.oraclecloud.com/v1/authentication/authenticateClient
+// with an instance principal config provider. The returned headers should be
+// sent to an auth server as part of RegisterUsingOracleMethod.
 func CreateSignedRequest(challenge string) (innerHeaders, outerHeaders http.Header, err error) {
-	provider, err := auth.InstancePrincipalConfigurationProvider()
+	provider, err := auth.InstancePrincipalConfigurationProviderWithCustomClient(
+		func(dispatcher common.HTTPRequestDispatcher) (common.HTTPRequestDispatcher, error) {
+			client, err := defaults.HTTPClient()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			client.Timeout = 10 * time.Second
+			return client, nil
+		})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	inner, outer, err := createSignedRequest(provider, challenge)
+	inner, outer, err := CreateSignedRequestWithProvider(provider, challenge)
 	return inner, outer, trace.Wrap(err)
 }
 
-func createSignedRequest(provider common.ConfigurationProvider, challenge string) (innerHeaders, outerHeaders http.Header, err error) {
+// CreateSignedRequestWithProvider creates a signed HTTP request to
+// https://auth.<region>.oraclecloud.com/v1/authentication/authenticateClient
+// using the given config provider. The returned headers should be sent to an
+// auth server as part of RegisterUsingOracleMethod.
+func CreateSignedRequestWithProvider(provider common.ConfigurationProvider, challenge string) (innerHeaders, outerHeaders http.Header, err error) {
 	signedHeaders := append(common.DefaultGenericHeaders(), DateHeader, ChallengeHeader)
 	signer := common.RequestSigner(provider, signedHeaders, common.DefaultBodyHeaders())
 	region, err := provider.Region()
