@@ -47,6 +47,10 @@ type ApplicationOutput struct {
 	// `tls.key` and `tls.cas`. This is unneeded for most clients which can
 	// be configured with specific paths to use, but exists for compatibility.
 	SpecificTLSExtensions bool `yaml:"specific_tls_naming"`
+
+	// CertificateLifetime contains configuration for how long certificates will
+	// last and the frequency at which they'll be renewed.
+	CertificateLifetime CertificateLifetime `yaml:",inline"`
 }
 
 func (o *ApplicationOutput) Init(ctx context.Context) error {
@@ -120,4 +124,8 @@ func (o *ApplicationOutput) UnmarshalYAML(node *yaml.Node) error {
 
 func (o *ApplicationOutput) Type() string {
 	return ApplicationOutputType
+}
+
+func (o *ApplicationOutput) GetCertificateLifetime() CertificateLifetime {
+	return o.CertificateLifetime
 }
