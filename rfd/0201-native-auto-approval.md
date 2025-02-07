@@ -3,7 +3,7 @@ authors: Bernard Kim (bernard@goteleport.com)
 state: draft
 ---
 
-# RFD 0200 - Native Auto Approval
+# RFD 0201 - Native Auto Approval
 
 ## Required Approvers
 * Engineering: @r0mant && @fheinecke
@@ -316,7 +316,7 @@ both notification routing rules, as well as automatic approval rules. The
 available configuration input for automatic approvals will be toggled depending
 on the selected plugin name/type.
 
-![create-amr](assets/0200-create-amr.png)
+![create-amr](assets/0201-create-amr.png)
 
 The submitted form will be converted into an AMR that would look like:
 
@@ -348,7 +348,7 @@ overview simply displays the access monitoring rule name, plugin/integration
 name, and the roles that are automatically approved. Users will need to click
 on the **View** button to see the actual conditions for auto approval.
 
-![view-amr](assets/0200-view-amr.png)
+![view-amr](assets/0201-view-amr.png)
 
 ## Security
 Automatic approvals is already a supported feature, although it is currently
