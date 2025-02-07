@@ -152,10 +152,9 @@ type BotConfig struct {
 	// ProxyServer is the teleport proxy address. Unlike `AuthServer` this must
 	// explicitly point to a Teleport proxy.
 	// Example: "example.teleport.sh:443"
-	ProxyServer     string        `yaml:"proxy_server,omitempty"`
-	CertificateTTL  time.Duration `yaml:"certificate_ttl"`
-	RenewalInterval time.Duration `yaml:"renewal_interval"`
-	Oneshot         bool          `yaml:"oneshot"`
+	ProxyServer         string              `yaml:"proxy_server,omitempty"`
+	CertificateLifetime CertificateLifetime `yaml:",inline"`
+	Oneshot             bool                `yaml:"oneshot"`
 	// FIPS instructs `tbot` to run in a mode designed to comply with FIPS
 	// regulations. This means the bot should:
 	// - Refuse to run if not compiled with boringcrypto
@@ -259,12 +258,12 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		}
 	}
 
-	if conf.CertificateTTL == 0 {
-		conf.CertificateTTL = DefaultCertificateTTL
+	if conf.CertificateLifetime.TTL == 0 {
+		conf.CertificateLifetime.TTL = DefaultCertificateTTL
 	}
 
-	if conf.RenewalInterval == 0 {
-		conf.RenewalInterval = DefaultRenewInterval
+	if conf.CertificateLifetime.RenewalInterval == 0 {
+		conf.CertificateLifetime.RenewalInterval = DefaultRenewInterval
 	}
 
 	// We require the join method for `configure` and `start` but not for `init`
@@ -291,23 +290,9 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		}
 	}
 
-	// Warn about config where renewals will fail due to weird TTL vs Interval
-	if !conf.Oneshot && conf.RenewalInterval > conf.CertificateTTL {
-		log.WarnContext(
-			context.TODO(),
-			"Certificate TTL is shorter than the renewal interval. This is likely an invalid configuration. Increase the certificate TTL or decrease the renewal interval",
-			"ttl", conf.CertificateTTL,
-			"interval", conf.RenewalInterval,
-		)
-	}
-
-	if conf.CertificateTTL > defaults.MaxRenewableCertTTL {
-		log.WarnContext(
-			context.TODO(),
-			"Requested certificate TTL exceeds the maximum TTL allowed and will likely be reduced by the Teleport server",
-			"requested_ttl", conf.CertificateTTL,
-			"maximum_ttl", defaults.MaxRenewableCertTTL,
-		)
+	// Validate CertificateTTL and RenewalInterval options
+	if err := conf.CertificateLifetime.Validate(conf.Oneshot); err != nil {
+		return err
 	}
 
 	return nil
@@ -615,4 +600,59 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 	default:
 		return nil, trace.BadParameter("unrecognized config version %q", version.Version)
 	}
+}
+
+// CertificateLifetime contains configuration for how long certificates will
+// last and the frequency at which they'll be renewed.
+//
+// It's a member on the BotConfig and service config structs, marked with the
+// `inline` YAML tag so its fields become individual fields in the YAML config
+// format.
+type CertificateLifetime struct {
+	TTL             time.Duration `yaml:"certificate_ttl,omitempty"`
+	RenewalInterval time.Duration `yaml:"renewal_interval,omitempty"`
+}
+
+// IsEmpty returns whether none of the fields is set (i.e. it is unconfigured).
+func (l CertificateLifetime) IsEmpty() bool {
+	return l == CertificateLifetime{}
+}
+
+// Validate checks whether the combination of the fields is valid.
+func (l CertificateLifetime) Validate(oneShot bool) error {
+	if l.IsEmpty() {
+		return nil
+	}
+
+	if l.TTL == 0 || l.RenewalInterval == 0 {
+		return trace.BadParameter("certificate_ttl and renewal_interval must both be specified if either is")
+	}
+
+	if l.TTL < 0 {
+		return trace.BadParameter("certificate_ttl must be positive")
+	}
+
+	if l.RenewalInterval < 0 {
+		return trace.BadParameter("renewal_interval must be positive")
+	}
+
+	if l.TTL < l.RenewalInterval && !oneShot {
+		log.WarnContext(
+			context.TODO(),
+			"Certificate TTL is shorter than the renewal interval. This is likely an invalid configuration. Increase the certificate TTL or decrease the renewal interval",
+			"ttl", l.TTL,
+			"interval", l.RenewalInterval,
+		)
+	}
+
+	if l.TTL > defaults.MaxRenewableCertTTL {
+		log.WarnContext(
+			context.TODO(),
+			"Requested certificate TTL exceeds the maximum TTL allowed and will likely be reduced by the Teleport server",
+			"requested_ttl", l.TTL,
+			"maximum_ttl", defaults.MaxRenewableCertTTL,
+		)
+	}
+
+	return nil
 }

@@ -188,29 +188,29 @@ func (c *LegacyCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error
 	}
 
 	if c.CertificateTTL != 0 {
-		if cfg.CertificateTTL != 0 {
+		if cfg.CertificateLifetime.TTL != 0 {
 			log.WarnContext(
 				context.TODO(),
 				"CLI parameters are overriding configuration",
 				"flag", "certificate-ttl",
-				"config_value", cfg.CertificateTTL,
+				"config_value", cfg.CertificateLifetime.TTL,
 				"cli_value", c.CertificateTTL,
 			)
 		}
-		cfg.CertificateTTL = c.CertificateTTL
+		cfg.CertificateLifetime.TTL = c.CertificateTTL
 	}
 
 	if c.RenewalInterval != 0 {
-		if cfg.RenewalInterval != 0 {
+		if cfg.CertificateLifetime.RenewalInterval != 0 {
 			log.WarnContext(
 				context.TODO(),
 				"CLI parameters are overriding configuration",
 				"flag", "renewal-interval",
-				"config_value", cfg.RenewalInterval,
+				"config_value", cfg.CertificateLifetime.RenewalInterval,
 				"cli_value", c.RenewalInterval,
 			)
 		}
-		cfg.RenewalInterval = c.RenewalInterval
+		cfg.CertificateLifetime.RenewalInterval = c.RenewalInterval
 	}
 
 	// DataDir overrides any previously-configured storage config

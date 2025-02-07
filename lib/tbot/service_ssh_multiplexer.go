@@ -345,7 +345,7 @@ func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateTTL,
+		s.botCfg.CertificateLifetime.TTL,
 		nil,
 	)
 	if err != nil {
@@ -396,7 +396,7 @@ func (s *SSHMultiplexerService) identityRenewalLoop(
 			s.identity.Set(id)
 			return s.writeArtifacts(ctx, proxyHost, authClient)
 		},
-		interval:   s.botCfg.RenewalInterval,
+		interval:   s.botCfg.CertificateLifetime.RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
 		reloadCh:   reloadCh,

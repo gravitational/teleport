@@ -201,7 +201,7 @@ func (s *spiffeSDSHandler) StreamSecrets(
 		}
 	}()
 
-	renewalTimer := time.NewTimer(s.botCfg.RenewalInterval)
+	renewalTimer := time.NewTimer(s.botCfg.CertificateLifetime.RenewalInterval)
 	// Stop the timer immediately so we can start timing after the first
 	// response is sent.
 	renewalTimer.Stop()
@@ -335,7 +335,7 @@ func (s *spiffeSDSHandler) StreamSecrets(
 			),
 		)
 
-		renewalTimer.Reset(s.botCfg.RenewalInterval)
+		renewalTimer.Reset(s.botCfg.CertificateLifetime.RenewalInterval)
 	}
 }
 

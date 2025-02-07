@@ -62,7 +62,7 @@ func (s *ApplicationOutputService) Run(ctx context.Context) error {
 	err := runOnInterval(ctx, runOnIntervalConfig{
 		name:       "output-renewal",
 		f:          s.generate,
-		interval:   s.botCfg.RenewalInterval,
+		interval:   s.botCfg.CertificateLifetime.RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
 		reloadCh:   reloadCh,
@@ -104,7 +104,7 @@ func (s *ApplicationOutputService) generate(ctx context.Context) error {
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateTTL,
+		s.botCfg.CertificateLifetime.TTL,
 		nil,
 	)
 	if err != nil {
@@ -134,7 +134,7 @@ func (s *ApplicationOutputService) generate(ctx context.Context) error {
 		s.botAuthClient,
 		id,
 		roles,
-		s.botCfg.CertificateTTL,
+		s.botCfg.CertificateLifetime.TTL,
 		func(req *proto.UserCertsRequest) {
 			req.RouteToApp = routeToApp
 		},

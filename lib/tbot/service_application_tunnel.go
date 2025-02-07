@@ -201,7 +201,7 @@ func (s *ApplicationTunnelService) issueCert(
 		s.botClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateTTL,
+		s.botCfg.CertificateLifetime.TTL,
 		nil,
 	)
 	if err != nil {
@@ -233,7 +233,7 @@ func (s *ApplicationTunnelService) issueCert(
 		s.botClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateTTL,
+		s.botCfg.CertificateLifetime.TTL,
 		func(req *proto.UserCertsRequest) {
 			req.RouteToApp = route
 		})

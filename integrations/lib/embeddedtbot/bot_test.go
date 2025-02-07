@@ -123,11 +123,13 @@ func TestBotJoinAuth(t *testing.T) {
 			TokenValue: tokenName,
 			JoinMethod: types.JoinMethodToken,
 		},
-		AuthServer:      authAddr.Addr,
-		CertificateTTL:  defaultCertificateTTL,
-		RenewalInterval: defaultRenewalInterval,
-		Oneshot:         true,
-		Debug:           true,
+		AuthServer: authAddr.Addr,
+		CertificateLifetime: config.CertificateLifetime{
+			TTL:             defaultCertificateTTL,
+			RenewalInterval: defaultRenewalInterval,
+		},
+		Oneshot: true,
+		Debug:   true,
 	}
 	bot, err := New(botConfig, logger)
 	require.NoError(t, err)
