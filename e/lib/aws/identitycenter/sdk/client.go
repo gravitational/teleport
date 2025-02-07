@@ -428,6 +428,9 @@ func (c *client) ListGroupsAssignments(ctx context.Context, groupID string) ([]*
 }
 
 // ListAssignments lists account assignment for a given principal, which can either be a user or a user group.
+// Note: The assignment struct returned by this method should always be aligned with convertToICSDKAssignments
+// function in provisioning package. Otherwise the difference in field type will make diff calculator
+// produce incorrect diff value.
 func (c *client) ListAssignments(ctx context.Context, principalID string, principalType ssoadmintypes.PrincipalType) ([]*Assignment, error) {
 	var nextToken *string
 	var out []*Assignment

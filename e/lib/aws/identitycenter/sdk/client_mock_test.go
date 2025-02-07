@@ -105,7 +105,7 @@ func TestAccountAssignmentMock(t *testing.T) {
 			{
 				User: &User{ID: "user2", UserName: "user_two"},
 				Assignments: []*Assignment{
-					{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly"},
+					{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly", PrincipalType: "USER"},
 				},
 			},
 		}

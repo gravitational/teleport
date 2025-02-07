@@ -73,7 +73,7 @@ func (a *AssignmentProvisioner) Provision(ctx context.Context, principal *pb.Pri
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	teleportAssignments := convertToICSDKAssignments(principal.GetStatus().GetAssignments())
+	teleportAssignments := convertToICSDKAssignments(principal.GetStatus().GetAssignments(), principalType)
 
 	diffCalc := assignmentDiffCalculator{
 		teleportAssignments: utils.NewSet(dereferenceSlice(teleportAssignments)...),
@@ -219,12 +219,16 @@ func toSSOAdminPrincipalType(principal *pb.PrincipalAssignment) (ssoadmintypes.P
 	return "", trace.BadParameter("unsupported principal type %q", principal.GetSpec().GetPrincipalType())
 }
 
-func convertToICSDKAssignments(in []*pb.AccountAssignmentRef) []*icsdk.Assignment {
+// Note: icsdk.Assignment struct returned by this function should always be aligned with
+// icsdk.Assignment type returned from icsdk ListAssignments method. Otherwise the difference in
+// struct field will make diff calculator produce incorrect diff value.
+func convertToICSDKAssignments(in []*pb.AccountAssignmentRef, principalType ssoadmintypes.PrincipalType) []*icsdk.Assignment {
 	out := make([]*icsdk.Assignment, 0, len(in))
 	for _, v := range in {
 		out = append(out, &icsdk.Assignment{
 			AccountID:        v.GetAccountId(),
 			PermissionSetARN: v.GetPermissionSetArn(),
+			PrincipalType:    principalType,
 		})
 	}
 	return out

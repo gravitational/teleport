@@ -25,6 +25,8 @@ func TestAssignmentProvisioner_Provision_CreateAndDeleteAssignments(t *testing.T
 		calculatedAssignments []*pb.AccountAssignmentRef
 		initialAssignments    []*icsdk.Assignment
 		expectedAssignments   []*icsdk.Assignment
+		expectedCreateCount   int
+		expectedDeleteCount   int
 	}{
 		{
 			name:          "user-create",
@@ -37,20 +39,25 @@ func TestAssignmentProvisioner_Provision_CreateAndDeleteAssignments(t *testing.T
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly", PrincipalType: ssoadmintypes.PrincipalTypeUser},
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::0987654321:permissionSet/Admin", PrincipalType: ssoadmintypes.PrincipalTypeUser},
 			},
+			expectedDeleteCount: 0,
+			expectedCreateCount: 2,
 		},
 		{
 			name:          "user-delete",
 			principalType: ssoadmintypes.PrincipalTypeUser,
 			calculatedAssignments: []*pb.AccountAssignmentRef{
-				{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
+				{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::0987654323:permissionSet/NetworkAdmin"},
 			},
 			initialAssignments: []*icsdk.Assignment{
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly", PrincipalType: ssoadmintypes.PrincipalTypeUser},
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::0987654321:permissionSet/Admin", PrincipalType: ssoadmintypes.PrincipalTypeUser},
+				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::0987654323:permissionSet/NetworkAdmin", PrincipalType: ssoadmintypes.PrincipalTypeUser},
 			},
 			expectedAssignments: []*icsdk.Assignment{
-				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly", PrincipalType: ssoadmintypes.PrincipalTypeUser},
+				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::0987654323:permissionSet/NetworkAdmin", PrincipalType: ssoadmintypes.PrincipalTypeUser},
 			},
+			expectedDeleteCount: 2,
+			expectedCreateCount: 0,
 		},
 		{
 			name:          "group-create",
@@ -63,20 +70,24 @@ func TestAssignmentProvisioner_Provision_CreateAndDeleteAssignments(t *testing.T
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly", PrincipalType: ssoadmintypes.PrincipalTypeGroup},
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::0987654321:permissionSet/Admin", PrincipalType: ssoadmintypes.PrincipalTypeGroup},
 			},
+			expectedDeleteCount: 0,
+			expectedCreateCount: 2,
 		},
 		{
 			name:          "group-delete",
 			principalType: ssoadmintypes.PrincipalTypeGroup,
 			calculatedAssignments: []*pb.AccountAssignmentRef{
-				{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
+				{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::0987654323:permissionSet/NetworkAdmin"},
 			},
 			initialAssignments: []*icsdk.Assignment{
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly", PrincipalType: ssoadmintypes.PrincipalTypeGroup},
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::0987654321:permissionSet/Admin", PrincipalType: ssoadmintypes.PrincipalTypeGroup},
 			},
 			expectedAssignments: []*icsdk.Assignment{
-				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly", PrincipalType: ssoadmintypes.PrincipalTypeGroup},
+				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::0987654323:permissionSet/NetworkAdmin", PrincipalType: ssoadmintypes.PrincipalTypeGroup},
 			},
+			expectedDeleteCount: 2,
+			expectedCreateCount: 1,
 		},
 		{
 			name:          "delete-all",
@@ -84,7 +95,10 @@ func TestAssignmentProvisioner_Provision_CreateAndDeleteAssignments(t *testing.T
 			initialAssignments: []*icsdk.Assignment{
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly", PrincipalType: ssoadmintypes.PrincipalTypeGroup},
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::0987654321:permissionSet/Admin", PrincipalType: ssoadmintypes.PrincipalTypeGroup},
+				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::0987654323:permissionSet/NetworkAdmin", PrincipalType: ssoadmintypes.PrincipalTypeGroup},
 			},
+			expectedDeleteCount: 3,
+			expectedCreateCount: 0,
 		},
 	}
 
@@ -93,7 +107,14 @@ func TestAssignmentProvisioner_Provision_CreateAndDeleteAssignments(t *testing.T
 
 			// GIVEN a mock AWS client...
 			sdkMockClient := icsdk.NewClientMock(nil /* custom mock data */)
-
+			createCount := 0
+			deleteCount := 0
+			sdkMockClient.MonkeyPatch.CreateAccountAssignmentCounter = func() {
+				createCount++
+			}
+			sdkMockClient.MonkeyPatch.DeleteAccountAssignmentCounter = func() {
+				deleteCount++
+			}
 			// GIVEN a method for resetting principal account assignments in the mock
 			// AWS system
 			setMockAccountAssignments := func(pType ssoadmintypes.PrincipalType, id string, assignments []*icsdk.Assignment) {
@@ -158,6 +179,8 @@ func TestAssignmentProvisioner_Provision_CreateAndDeleteAssignments(t *testing.T
 			actualAssignments, err := sdkMockClient.ListAssignments(ctx, externalID, test.principalType)
 			require.NoError(t, err)
 			assertAssignments(t, test.expectedAssignments, actualAssignments)
+			require.Equal(t, test.expectedCreateCount, createCount, "create account assignment attempt")
+			require.Equal(t, test.expectedDeleteCount, deleteCount, "delete account assignment attempt")
 		})
 	}
 }

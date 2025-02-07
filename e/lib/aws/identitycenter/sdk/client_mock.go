@@ -27,8 +27,12 @@ type ClientMock struct {
 	// MonkeyPatch allows tests to override the default behavior of a mock
 	// instance.
 	MonkeyPatch struct {
-		DescribeInstance   func(context.Context) (*InstanceInfo, error)
-		ListPermissionSets func(context.Context) ([]*PermissionSet, error)
+		DescribeInstance               func(context.Context) (*InstanceInfo, error)
+		ListPermissionSets             func(context.Context) ([]*PermissionSet, error)
+		CreateAccountAssignment        func(context.Context, *CreateAccountAssignmentRequest) (*AccountAssignmentResponse, error)
+		DeleteAccountAssignment        func(context.Context, *DeleteAccountAssignmentRequest) (*AccountAssignmentResponse, error)
+		CreateAccountAssignmentCounter func()
+		DeleteAccountAssignmentCounter func()
 	}
 }
 
@@ -326,16 +330,22 @@ func (c *ClientMock) CreateAccountAssignment(ctx context.Context, req *CreateAcc
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 
+	if c.MonkeyPatch.CreateAccountAssignmentCounter != nil {
+		c.MonkeyPatch.CreateAccountAssignmentCounter()
+	}
+
 	switch req.PrincipalType {
 	case ssoadmintypes.PrincipalTypeUser:
 		c.UserAssignments[req.PrincipalID] = append(c.UserAssignments[req.PrincipalID], &Assignment{
 			AccountID:        req.AccountID,
 			PermissionSetARN: req.PermissionSetARN,
+			PrincipalType:    req.PrincipalType,
 		})
 	case ssoadmintypes.PrincipalTypeGroup:
 		c.GroupAssignments[req.PrincipalID] = append(c.GroupAssignments[req.PrincipalID], &Assignment{
 			AccountID:        req.AccountID,
 			PermissionSetARN: req.PermissionSetARN,
+			PrincipalType:    req.PrincipalType,
 		})
 	default:
 		return nil, trace.BadParameter("unsupported principal type")
@@ -351,6 +361,10 @@ func (c *ClientMock) CreateAccountAssignment(ctx context.Context, req *CreateAcc
 func (c *ClientMock) DeleteAccountAssignment(ctx context.Context, req *DeleteAccountAssignmentRequest) (*AccountAssignmentResponse, error) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
+
+	if c.MonkeyPatch.DeleteAccountAssignmentCounter != nil {
+		c.MonkeyPatch.DeleteAccountAssignmentCounter()
+	}
 
 	var principalAssignments map[string][]*Assignment
 	var curr map[string][]*Assignment
