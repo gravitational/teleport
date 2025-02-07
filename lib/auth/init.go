@@ -640,19 +640,21 @@ func initializeAuthorities(ctx context.Context, asrv *Server, cfg *InitConfig) e
 	}
 
 	// Collect CAs from integrations to avoid deleting them.
-	igs, err := clientutils.ListAllResources(ctx, asrv.Services.ListIntegrations)
+	err := clientutils.IterateResources(ctx, asrv.Services.ListIntegrations, func(ig types.Integration) error {
+		caKeySet, err := igcredentials.GetIntegrationCertAuthorities(ctx, ig, asrv.Services)
+		switch {
+		case trace.IsNotImplemented(err):
+		case err != nil:
+			// This should not happen by design. In case integration is in a
+			// bad state, log a warning instead of failing this initialization.
+			asrv.logger.WarnContext(ctx, "Failed to fetch integration CAs", "ig", ig.GetName(), "error", err)
+		default:
+			allKeysInUse = append(allKeysInUse, collectKeysInUse(*caKeySet)...)
+		}
+		return nil
+	})
 	if err != nil {
 		return trace.Wrap(err)
-	}
-	for _, ig := range igs {
-		caKeySet, err := igcredentials.GetIntegrationCertAuthorities(ctx, ig, asrv.Services)
-		if err != nil {
-			if !trace.IsNotImplemented(err) {
-				asrv.logger.WarnContext(ctx, "Failed to fetch integration CAs", "ig", ig.GetName(), "error", err)
-			}
-			continue
-		}
-		allKeysInUse = append(allKeysInUse, collectKeysInUse(*caKeySet)...)
 	}
 
 	// Delete any unused keys from the keyStore. This is to avoid exhausting
@@ -666,7 +668,7 @@ func initializeAuthorities(ctx context.Context, asrv *Server, cfg *InitConfig) e
 	return nil
 }
 
-func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthID) (usableKeysResult *keystore.UsableKeysResult, keysInUse [][]byte, err error) {
+func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthID) (*keystore.UsableKeysResult, [][]byte, error) {
 	ca, err := asrv.Services.GetCertAuthority(ctx, caID, true)
 	if err != nil {
 		if !trace.IsNotFound(err) {
@@ -686,7 +688,7 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 	// Make sure the keystore has usable keys. This is a bit redundant if the CA
 	// was just generated above, but cheap relative to generating the CA, and
 	// it's nice to get the usableKeysResult.
-	usableKeysResult, err = asrv.keyStore.HasUsableActiveKeys(ctx, ca)
+	usableKeysResult, err := asrv.keyStore.HasUsableActiveKeys(ctx, ca)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -746,7 +748,7 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 		)
 	}
 
-	keysInUse = collectKeysInUse(ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys())
+	keysInUse := collectKeysInUse(ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys())
 	return usableKeysResult, keysInUse, nil
 }
 
