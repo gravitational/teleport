@@ -34,7 +34,9 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
 export interface AccessRequestsContext {
-  /** Determines whether the user can use the Access Requests UI. */
+  /** Determines whether the user can use the Access Requests UI.
+   * True when the cluster enables it.
+   */
   canUse: boolean;
   fetchRequestsAttempt: Attempt<AccessRequest[]>;
   fetchRequests(): Promise<[AccessRequest[], Error]>;
