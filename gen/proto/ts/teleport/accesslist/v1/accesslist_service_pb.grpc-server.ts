@@ -225,7 +225,7 @@ export interface IAccessListService extends grpc.UntypedServiceImplementation {
     accessRequestPromote: grpc.handleUnaryCall<AccessRequestPromoteRequest, AccessRequestPromoteResponse>;
     /**
      * GetSuggestedAccessLists returns suggested access lists for an access
-     * request.
+     * request or set of resources.
      *
      * @generated from protobuf rpc: GetSuggestedAccessLists(teleport.accesslist.v1.GetSuggestedAccessListsRequest) returns (teleport.accesslist.v1.GetSuggestedAccessListsResponse);
      */
