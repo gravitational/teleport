@@ -19,6 +19,8 @@ outputs:
     destination:
       type: kubernetes_secret
       name: my-secret
+    certificate_ttl: 30s
+    renewal_interval: 15s
 services:
   - type: spiffe-workload-api
     listen: unix:///var/run/spiffe.sock

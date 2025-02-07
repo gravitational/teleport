@@ -225,6 +225,11 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		if err := service.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "validating service[%d]", i)
 		}
+		if v, ok := service.(interface{ GetCertificateLifetime() CertificateLifetime }); ok {
+			if err := v.GetCertificateLifetime().Validate(conf.Oneshot); err != nil {
+				return trace.Wrap(err, "validating service[%d]", i)
+			}
+		}
 	}
 
 	destinationPaths := map[string]int{}
@@ -603,11 +608,11 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 }
 
 // CertificateLifetime contains configuration for how long certificates will
-// last and the frequency at which they'll be renewed.
+// last (TTL) and the frequency at which they'll be renewed (RenewalInterval).
 //
-// It's a member on the BotConfig and service config structs, marked with the
-// `inline` YAML tag so its fields become individual fields in the YAML config
-// format.
+// It's a member on the BotConfig and service/output config structs, marked with
+// the `inline` YAML tag so its fields become individual fields in the YAML
+// config format.
 type CertificateLifetime struct {
 	TTL             time.Duration `yaml:"certificate_ttl,omitempty"`
 	RenewalInterval time.Duration `yaml:"renewal_interval,omitempty"`
