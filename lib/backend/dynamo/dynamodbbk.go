@@ -21,9 +21,9 @@ package dynamo
 import (
 	"context"
 	"errors"
+	"iter"
 	"log/slog"
 	"net/http"
-	"sort"
 	"strconv"
 	"sync/atomic"
 	"time"
@@ -531,6 +531,91 @@ func (b *Backend) Update(ctx context.Context, item backend.Item) (*backend.Lease
 	return backend.NewLease(item), nil
 }
 
+func (b *Backend) Iterate(ctx context.Context, startKey, endKey backend.Key, limit int, order backend.IterationOrder) (iter.Seq2[backend.Item, error], error) {
+	if startKey.IsZero() {
+		return nil, trace.BadParameter("missing parameter startKey")
+	}
+	if endKey.IsZero() {
+		return nil, trace.BadParameter("missing parameter endKey")
+	}
+
+	const (
+		query = "HashKey = :hashKey AND FullPath BETWEEN :fullPath AND :rangeEnd"
+
+		// filter out expired items, otherwise they might show up in the query
+		// http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/howitworks-ttl.html
+		filter = "attribute_not_exists(Expires) OR Expires >= :timestamp"
+	)
+
+	attrV := map[string]interface{}{
+		":fullPath":  prependPrefix(startKey),
+		":hashKey":   hashKey,
+		":timestamp": b.clock.Now().UTC().Unix(),
+		":rangeEnd":  prependPrefix(endKey),
+	}
+
+	av, err := attributevalue.MarshalMap(attrV)
+	if err != nil {
+		return nil, convertError(err)
+	}
+
+	input := dynamodb.QueryInput{
+		KeyConditionExpression:    aws.String(query),
+		TableName:                 &b.TableName,
+		ExpressionAttributeValues: av,
+		FilterExpression:          aws.String(filter),
+		ConsistentRead:            aws.Bool(true),
+		ScanIndexForward:          aws.Bool(order == backend.IterateAscend),
+	}
+	if limit > 0 {
+		input.Limit = aws.Int32(int32(limit))
+	}
+
+	return func(yield func(backend.Item, error) bool) {
+		count := 0
+
+		paginator := dynamodb.NewQueryPaginator(b.svc, &input)
+		for paginator.HasMorePages() {
+			page, err := paginator.NextPage(ctx)
+			if err != nil {
+				yield(backend.Item{}, convertError(err))
+				return
+			}
+
+			for _, itemAttributes := range page.Items {
+				var r record
+				if err := attributevalue.UnmarshalMap(itemAttributes, &r); err != nil {
+					yield(backend.Item{}, convertError(err))
+					return
+				}
+
+				item := backend.Item{
+					Key:      trimPrefix(r.FullPath),
+					Value:    r.Value,
+					Revision: r.Revision,
+				}
+				if r.Expires != nil {
+					item.Expires = time.Unix(*r.Expires, 0).UTC()
+				}
+				if item.Revision == "" {
+					item.Revision = backend.BlankRevision
+				}
+
+				if !yield(item, nil) {
+					return
+				}
+				count++
+				if limit != backend.NoLimit && count >= limit {
+					if count == backend.DefaultRangeLimit {
+						b.logger.WarnContext(ctx, "Range query hit backend limit. (this is a bug!)", "start_key", startKey, "limit", backend.DefaultRangeLimit)
+					}
+					return
+				}
+			}
+		}
+	}, nil
+}
+
 // GetRange returns range of elements
 func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
 	if startKey.IsZero() {
@@ -539,55 +624,28 @@ func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, li
 	if endKey.IsZero() {
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
+
 	if limit <= 0 {
 		limit = backend.DefaultRangeLimit
 	}
 
-	result, err := b.getAllRecords(ctx, startKey, endKey, limit)
+	iter, err := b.Iterate(ctx, startKey, endKey, limit, backend.IterateAscend)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sort.Sort(records(result.records))
-	values := make([]backend.Item, len(result.records))
-	for i, r := range result.records {
-		values[i] = backend.Item{
-			Key:      trimPrefix(r.FullPath),
-			Value:    r.Value,
-			Revision: r.Revision,
-		}
-		if r.Expires != nil {
-			values[i].Expires = time.Unix(*r.Expires, 0).UTC()
-		}
-		if values[i].Revision == "" {
-			values[i].Revision = backend.BlankRevision
-		}
-	}
-	return &backend.GetResult{Items: values}, nil
-}
 
-func (b *Backend) getAllRecords(ctx context.Context, startKey, endKey backend.Key, limit int) (*getResult, error) {
-	var result getResult
-
-	// this code is being extra careful here not to introduce endless loop
-	// by some unfortunate series of events
-	for i := 0; i < backend.DefaultRangeLimit/100; i++ {
-		re, err := b.getRecords(ctx, prependPrefix(startKey), prependPrefix(endKey), limit, result.lastEvaluatedKey)
+	var result backend.GetResult
+	for item, err := range iter {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		result.records = append(result.records, re.records...)
-		// If the limit was exceeded or there are no more records to fetch return the current result
-		// otherwise updated lastEvaluatedKey and proceed with obtaining new records.
-		if (limit != 0 && len(result.records) >= limit) || len(re.lastEvaluatedKey) == 0 {
-			if len(result.records) == backend.DefaultRangeLimit {
-				b.logger.WarnContext(ctx, "Range query hit backend limit. (this is a bug!)", "start_key", startKey, "limit", backend.DefaultRangeLimit)
-			}
-			result.lastEvaluatedKey = nil
-			return &result, nil
-		}
-		result.lastEvaluatedKey = re.lastEvaluatedKey
+		result.Items = append(result.Items, item)
 	}
-	return nil, trace.BadParameter("backend entered endless loop")
+
+	if len(result.Items) == backend.DefaultRangeLimit {
+		b.logger.WarnContext(ctx, "Range query hit backend limit. (this is a bug!)", "start_key", startKey, "limit", backend.DefaultRangeLimit)
+	}
+	return &result, nil
 }
 
 const (
@@ -606,38 +664,54 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key)
 	if endKey.IsZero() {
 		return trace.BadParameter("missing parameter endKey")
 	}
+
+	iter, err := b.Iterate(ctx, startKey, endKey, backend.NoLimit, backend.IterateAscend)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// keep fetching and deleting until no records left,
 	// keep the very large limit, just in case if someone else
 	// keeps adding records
+	requests := make([]types.WriteRequest, 0, batchOperationItemsLimit)
 	for i := 0; i < backend.DefaultRangeLimit/100; i++ {
-		result, err := b.getRecords(ctx, prependPrefix(startKey), prependPrefix(endKey), batchOperationItemsLimit, nil)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if len(result.records) == 0 {
-			return nil
-		}
-		requests := make([]types.WriteRequest, 0, len(result.records))
-		for _, record := range result.records {
+		items := 0
+		for item, err := range iter {
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
 			requests = append(requests, types.WriteRequest{
 				DeleteRequest: &types.DeleteRequest{
 					Key: map[string]types.AttributeValue{
 						hashKeyKey:  &types.AttributeValueMemberS{Value: hashKey},
-						fullPathKey: &types.AttributeValueMemberS{Value: record.FullPath},
+						fullPathKey: &types.AttributeValueMemberS{Value: prependPrefix(item.Key)},
 					},
 				},
 			})
+			items++
+
+			if items == batchOperationItemsLimit {
+				break
+			}
 		}
+
+		if items == 0 {
+			return nil
+		}
+
 		input := dynamodb.BatchWriteItemInput{
 			RequestItems: map[string][]types.WriteRequest{
-				b.TableName: requests,
+				b.TableName: requests[:items],
 			},
 		}
 
 		if _, err = b.svc.BatchWriteItem(ctx, &input); err != nil {
 			return trace.Wrap(err)
 		}
+		requests = requests[:0]
 	}
+
 	return trace.ConnectionProblem(nil, "not all items deleted, too many requests")
 }
 
@@ -944,60 +1018,6 @@ func (b *Backend) createTable(ctx context.Context, tableName *string, rangeKey s
 	return trace.Wrap(err)
 }
 
-type getResult struct {
-	// lastEvaluatedKey is the primary key of the item where the operation stopped, inclusive of the
-	// previous result set. Use this value to start a new operation, excluding this
-	// value in the new request.
-	lastEvaluatedKey map[string]types.AttributeValue
-	records          []record
-}
-
-// getRecords retrieves all keys by path
-func (b *Backend) getRecords(ctx context.Context, startKey, endKey string, limit int, lastEvaluatedKey map[string]types.AttributeValue) (*getResult, error) {
-	query := "HashKey = :hashKey AND FullPath BETWEEN :fullPath AND :rangeEnd"
-	attrV := map[string]interface{}{
-		":fullPath":  startKey,
-		":hashKey":   hashKey,
-		":timestamp": b.clock.Now().UTC().Unix(),
-		":rangeEnd":  endKey,
-	}
-
-	// filter out expired items, otherwise they might show up in the query
-	// http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/howitworks-ttl.html
-	filter := "attribute_not_exists(Expires) OR Expires >= :timestamp"
-	av, err := attributevalue.MarshalMap(attrV)
-	if err != nil {
-		return nil, convertError(err)
-	}
-	input := dynamodb.QueryInput{
-		KeyConditionExpression:    aws.String(query),
-		TableName:                 &b.TableName,
-		ExpressionAttributeValues: av,
-		FilterExpression:          aws.String(filter),
-		ConsistentRead:            aws.Bool(true),
-		ExclusiveStartKey:         lastEvaluatedKey,
-	}
-	if limit > 0 {
-		input.Limit = aws.Int32(int32(limit))
-	}
-	out, err := b.svc.Query(ctx, &input)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var result getResult
-	for _, item := range out.Items {
-		var r record
-		if err := attributevalue.UnmarshalMap(item, &r); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		result.records = append(result.records, r)
-	}
-	sort.Sort(records(result.records))
-	result.records = removeDuplicates(result.records)
-	result.lastEvaluatedKey = out.LastEvaluatedKey
-	return &result, nil
-}
-
 // isExpired returns 'true' if the given object (record) has a TTL and
 // it's due.
 func (r *record) isExpired(now time.Time) bool {
@@ -1006,23 +1026,6 @@ func (r *record) isExpired(now time.Time) bool {
 	}
 	expiryDateUTC := time.Unix(*r.Expires, 0).UTC()
 	return now.UTC().After(expiryDateUTC)
-}
-
-func removeDuplicates(elements []record) []record {
-	// Use map to record duplicates as we find them.
-	encountered := map[string]bool{}
-	var result []record
-
-	for v := range elements {
-		if !encountered[elements[v].FullPath] {
-			// Record this element as an encountered element.
-			encountered[elements[v].FullPath] = true
-			// Append to result slice.
-			result = append(result, elements[v])
-		}
-	}
-	// Return the new slice.
-	return result
 }
 
 const (
@@ -1216,23 +1219,6 @@ func convertError(err error) error {
 	}
 
 	return err
-}
-
-type records []record
-
-// Len is part of sort.Interface.
-func (r records) Len() int {
-	return len(r)
-}
-
-// Swap is part of sort.Interface.
-func (r records) Swap(i, j int) {
-	r[i], r[j] = r[j], r[i]
-}
-
-// Less is part of sort.Interface.
-func (r records) Less(i, j int) bool {
-	return r[i].FullPath < r[j].FullPath
 }
 
 func fullPathToAttributeValueMap(fullPath string) map[string]types.AttributeValue {
