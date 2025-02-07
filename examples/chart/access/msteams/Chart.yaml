@@ -1,4 +1,4 @@
-.version: &version "15.4.27-dev.codingllama.1"
+.version: &version "15.4.27-dev.codingllama.2"
 
 apiVersion: v2
 name: teleport-plugin-msteams
