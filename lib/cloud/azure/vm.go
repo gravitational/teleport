@@ -31,9 +31,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// virtualScaleSetVMResourceType represents the resource type of virtual scale
-// set VMs.
-const virtualScaleSetVMResourceType = "virtualMachineScaleSets/virtualMachines"
+// virtualScaleSetUniformVMResourceType represents the resource type of uniform
+// virtual scale set VMs.
+const virtualScaleSetUniformVMResourceType = "virtualMachineScaleSets/virtualMachines"
 
 // armCompute provides an interface for an Azure virtual machine client.
 type armCompute interface {
@@ -53,7 +53,8 @@ type scaleSet interface {
 
 // VirtualMachinesClient is a client for Azure virtual machines.
 type VirtualMachinesClient interface {
-	// Get returns the virtual machine for the given resource ID.
+	// Get returns the virtual machine (including scale set VMs) for the given
+	// resource ID.
 	Get(ctx context.Context, resourceID string) (*VirtualMachine, error)
 	// GetByVMID returns the virtual machine for a given VM ID.
 	GetByVMID(ctx context.Context, vmID string) (*VirtualMachine, error)
@@ -170,14 +171,20 @@ func parseVirtualMachine[T vmTypes](vm T) (*VirtualMachine, error) {
 	}, nil
 }
 
-// Get returns the virtual machine for the given resource ID.
+// Get returns the virtual machine (including scale set VMs) for the given
+// resource ID.
 func (c *vmClient) Get(ctx context.Context, resourceID string) (*VirtualMachine, error) {
 	parsedResourceID, err := arm.ParseResourceID(resourceID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if parsedResourceID.ResourceType.Type == virtualScaleSetVMResourceType {
+	// The virtual machine scale set (VMSS) supports two types of orchestration
+	// modes: uniform and flexible. A VM from a uniform VMSS has a different
+	// resource ID and requires a different API to retrieve its information.
+	// Flexible VMSS VMs use the same resource ID format as regular VMs and
+	// don't require special handling.
+	if parsedResourceID.ResourceType.Type == virtualScaleSetUniformVMResourceType {
 		return c.getScaleSetVM(ctx, parsedResourceID)
 	}
 
