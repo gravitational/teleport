@@ -208,34 +208,30 @@ const renderActionCell = (
 };
 
 const RequestedCell = ({ request }: { request: AccessRequest }) => (
-  <Cell
-    css={`
-      display: flex;
-      flex-wrap: wrap;
-      gap: ${props => props.theme.space[1]}px;
-    `}
-  >
-    {getResourcesOrRolesFromRequest(request).map((r, index) => (
-      <Label
-        kind="secondary"
-        key={`${r.title}${index}`}
-        title={r.title}
-        m={0}
-        css={`
-          display: flex;
-          gap: ${props => props.theme.space[1]}px;
-        `}
-      >
-        <r.Icon size="small" />
-        <span
+  <Cell>
+    <Flex gap={1} flexWrap="wrap">
+      {getResourcesOrRolesFromRequest(request).map((r, index) => (
+        <Label
+          kind="secondary"
+          key={`${r.title}${index}`}
+          title={r.title}
+          m={0}
           css={`
-            white-space: nowrap;
+            display: flex;
+            gap: ${props => props.theme.space[1]}px;
           `}
         >
-          {r.name}
-        </span>
-      </Label>
-    ))}
+          <r.Icon size="small" />
+          <span
+            css={`
+              white-space: nowrap;
+            `}
+          >
+            {r.name}
+          </span>
+        </Label>
+      ))}
+    </Flex>
   </Cell>
 );
 
