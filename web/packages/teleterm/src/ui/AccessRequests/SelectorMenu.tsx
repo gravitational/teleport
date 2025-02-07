@@ -38,6 +38,7 @@ import {
   Separator,
 } from 'teleterm/ui/components/Menu';
 import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
 import { retryWithRelogin } from 'teleterm/ui/utils';
@@ -57,13 +58,9 @@ export function SelectorMenu() {
   const [assumedSnapshot, setAssumedSnapshot] = useState<
     Map<string, AccessRequest>
   >(() => new Map());
-  const {
-    canUse,
-    assumed,
-    fetchRequestsAttempt,
-    fetchRequests,
-    rootClusterUri,
-  } = useAccessRequestsContext();
+  const { canUse, assumed, fetchRequestsAttempt, fetchRequests } =
+    useAccessRequestsContext();
+  const { rootClusterUri } = useWorkspaceContext();
   const ctx = useAppContext();
   const { clustersService } = ctx;
   const selectorRef = useRef<HTMLButtonElement>();

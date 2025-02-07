@@ -53,6 +53,7 @@ const StyledStatus = styled(Box)<{
   ${props => props.$inline && `display: inline-block;`}
   width: 8px;
   height: 8px;
+  flex-shrink: 0;
   border-radius: 50%;
 
   ${props => {

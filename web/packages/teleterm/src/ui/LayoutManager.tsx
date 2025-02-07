@@ -50,7 +50,13 @@ export function LayoutManager() {
         <NotificationsHost />
       </Flex>
       <AccessRequestCheckout />
-      <StatusBar />
+      <StatusBar
+        onAssumedRolesClick={() => {
+          // This is a little hacky, but has one advantage:
+          // we don't need to expose a way to open/close the popover.
+          topBarAccessRequestRef.current?.querySelector('button')?.click();
+        }}
+      />
     </Flex>
   );
 }
