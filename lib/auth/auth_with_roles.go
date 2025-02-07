@@ -3462,8 +3462,16 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		// Role impersonation uses the user's own name as the impersonator value.
 		certReq.impersonator = a.context.User.GetName()
 
-		// Deny reissuing certs to prevent privilege re-escalation.
+		// By default, deny reissuing certs to prevent privilege re-escalation.
+		// (E.g a cert generated intended for use for Kubernetes Access against
+		// a specific cluster could be reissued with a different cluster name.)
+		// This can be overridden by the user if they acknowledge the risk and
+		// require a certificate which can be reissued (e.g dynamic app access
+		// use-case).
 		certReq.disallowReissue = true
+		if req.ReissuableRoleImpersonation {
+			certReq.disallowReissue = false
+		}
 	} else if a.context.Identity != nil && a.context.Identity.GetIdentity().Impersonator != "" {
 		// impersonating users can receive new certs
 		certReq.impersonator = a.context.Identity.GetIdentity().Impersonator
