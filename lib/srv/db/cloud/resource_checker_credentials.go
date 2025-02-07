@@ -61,7 +61,7 @@ func newCredentialsChecker(cfg DiscoveryResourceCheckerConfig) (*credentialsChec
 	return &credentialsChecker{
 		awsConfigProvider: cfg.AWSConfigProvider,
 		awsClients:        defaultAWSClients{},
-		azureClients:      cfg.Clients,
+		azureClients:      cfg.AzureClients,
 		resourceMatchers:  cfg.ResourceMatchers,
 		logger:            cfg.Logger,
 		cache:             cache,
@@ -121,7 +121,7 @@ func (c *credentialsChecker) getAWSIdentity(ctx context.Context, meta *types.AWS
 			return nil, trace.Wrap(err)
 		}
 		client := c.awsClients.getSTSClient(awsCfg)
-		return aws.GetIdentityWithClientV2(ctx, client)
+		return aws.GetIdentityWithClient(ctx, client)
 	})
 	return identity, trace.Wrap(err)
 }

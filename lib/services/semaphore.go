@@ -380,7 +380,7 @@ func UnmarshalSemaphore(bytes []byte, opts ...MarshalOption) (types.Semaphore, e
 	}
 
 	if err := utils.FastUnmarshal(bytes, &semaphore); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 
 	err = semaphore.CheckAndSetDefaults()

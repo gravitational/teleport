@@ -16,22 +16,51 @@
 
 package dns
 
-import "context"
+import (
+	"context"
+	"log/slog"
+	"net/netip"
+	"sort"
 
-// OSUpstreamNameserverSource provides the list of upstream DNS nameservers
-// configured in the OS. The VNet DNS resolver will forward unhandles queries to
-// these nameservers.
-type OSUpstreamNameserverSource struct{}
+	"github.com/gravitational/trace"
+	"golang.org/x/sys/windows"
+	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
+)
 
-// NewOSUpstreamNameserverSource returns a new *OSUpstreamNameserverSource.
-func NewOSUpstreamNameserverSource() (*OSUpstreamNameserverSource, error) {
-	return &OSUpstreamNameserverSource{}, nil
+// platformLoadUpstreamNameservers attempts to find the default DNS nameservers
+// that VNet should forward unmatched queries to. To do this, it finds the
+// nameservers configured for each interface and sorts by the interface metric.
+func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
+	interfaces, err := winipcfg.GetIPInterfaceTable(windows.AF_INET)
+	if err != nil {
+		return nil, trace.Wrap(err, "looking up local network interfaces")
+	}
+	sort.Slice(interfaces, func(i, j int) bool {
+		return interfaces[i].Metric < interfaces[j].Metric
+	})
+	var nameservers []string
+	for _, iface := range interfaces {
+		ifaceNameservers, err := iface.InterfaceLUID.DNS()
+		if err != nil {
+			return nil, trace.Wrap(err, "looking up DNS nameservers for interface")
+		}
+		for _, ifaceNameserver := range ifaceNameservers {
+			if ignoreUpstreamNameserver(ifaceNameserver) {
+				continue
+			}
+			nameservers = append(nameservers, withDNSPort(ifaceNameserver))
+		}
+	}
+	slog.DebugContext(ctx, "Loaded host upstream nameservers", "nameservers", nameservers)
+	return nameservers, nil
 }
 
-// UpstreamNameservers is net yet implemented and currently returns a nil/empty
-// list of upstream nameservers. It does not return an error so that the
-// networking stack can actually run without just immediately exiting.
-func (s *OSUpstreamNameserverSource) UpstreamNameservers(ctx context.Context) ([]string, error) {
-	// TODO(nklaassen): implement UpstreamNameservers on windows.
-	return nil, nil
+var (
+	// Ignore site-local addresses, which Windows seems to have set on
+	// most interfaces, implementing a deprecated IPv6 spec.
+	siteLocalPrefix = netip.MustParsePrefix("fec0::/10")
+)
+
+func ignoreUpstreamNameserver(addr netip.Addr) bool {
+	return siteLocalPrefix.Contains(addr)
 }

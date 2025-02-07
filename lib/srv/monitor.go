@@ -439,7 +439,7 @@ func (w *Monitor) disconnectClient(reason string) {
 	w.Logger.DebugContext(w.Context, "Disconnecting client", "reason", reason)
 
 	if connWithCauseCloser, ok := w.Conn.(withCauseCloser); ok {
-		if err := connWithCauseCloser.CloseWithCause(trace.AccessDenied(reason)); err != nil {
+		if err := connWithCauseCloser.CloseWithCause(trace.AccessDenied("%s", reason)); err != nil {
 			w.Logger.ErrorContext(w.Context, "Failed to close connection", "error", err)
 		}
 	} else {

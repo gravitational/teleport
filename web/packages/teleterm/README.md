@@ -248,7 +248,34 @@ resource availability as possible.
 
 ### PTY communication overview (Renderer Process <=> Shared Process)
 
-![PTY communication](docs/ptyCommunication.png)
+```mermaid
+sequenceDiagram
+    autonumber
+    participant DT as Document Terminal
+    participant PS as PTY Service
+    participant PHS as PTY Host Service
+    participant PP as PTY Process
+
+    DT->>PS: wants new PTY
+    Note over PS,PHS: gRPC communication
+    PS->>PHS: createPtyProcess(options)
+    PHS->>PP: new PtyProcess()
+    PHS-->>PS: ptyId of the process is returned
+    PS->>PHS: establishExchangeEvents(ptyId) channel
+    Note right of DT: client has been created,<br/> so PTY Service can attach <br/> event handlers to the channel <br/>(onData/onOpen/onExit)
+    PS-->>DT: pty process object
+    DT->>PS: start()
+    PS->>PHS: exchangeEvents.start()
+    Note left of PP: exchangeEvents attaches event handlers<br/>to the PTY Process (onData/onOpen/onExit)
+    PHS->>PP: start()
+    PP-->>PHS: onOpen()
+    PHS-->>PS: exchangeEvents.onOpen()
+    PS-->>DT: onOpen()
+    DT->>PS: dispose()
+    PS->>PHS: end exchangeEvents channel
+    PHS->>PP: dispose process and remove it
+
+```
 
 ### Overview of a deep link launch process
 

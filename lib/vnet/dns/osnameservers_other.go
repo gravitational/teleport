@@ -29,14 +29,11 @@ import (
 var (
 	// vnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
 	vnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
+
+	// Satisfy unused linter.
+	_ = withDNSPort
 )
 
-type OSUpstreamNameserverSource struct{}
-
-func NewOSUpstreamNameserverSource() (*OSUpstreamNameserverSource, error) {
-	return nil, trace.Wrap(vnetNotImplemented)
-}
-
-func (s *OSUpstreamNameserverSource) UpstreamNameservers(ctx context.Context) ([]string, error) {
+func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
 	return nil, trace.Wrap(vnetNotImplemented)
 }

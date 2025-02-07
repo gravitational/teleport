@@ -605,6 +605,10 @@ func (s *PluginOktaSettings) CheckAndSetDefaults() error {
 		return trace.BadParameter("default owners must be set when access list import is enabled")
 	}
 
+	if s.SyncSettings.UserSyncSource == "" {
+		s.SyncSettings.UserSyncSource = string(OktaUserSyncSourceUnknown)
+	}
+
 	return nil
 }
 

@@ -30,9 +30,12 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
+	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/integrations/access/msteams"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -43,7 +46,7 @@ import (
 
 // integrationsCreate creates an Integration
 func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	var req *ui.Integration
+	var req *ui.CreateIntegrationRequest
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -76,6 +79,27 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 			},
 		)
 		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+	case types.IntegrationSubKindGitHub:
+		ig, err = types.NewIntegrationGitHub(types.Metadata{
+			Name: req.Name,
+		}, &types.GitHubIntegrationSpecV1{
+			Organization: req.Integration.GitHub.Organization,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cred := types.PluginCredentialsV1{
+			Credentials: &types.PluginCredentialsV1_IdSecret{
+				IdSecret: &types.PluginIdSecretCredential{
+					Id:     req.OAuth.ID,
+					Secret: req.OAuth.Secret,
+				},
+			},
+		}
+		if err := ig.SetCredentials(&cred); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -146,6 +170,22 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 		}
 		integration.SetAWSOIDCIssuerS3URI(s3Location)
 		integration.SetAWSOIDCRoleARN(req.AWSOIDC.RoleARN)
+	}
+	if req.OAuth != nil {
+		if integration.GetSubKind() != types.IntegrationSubKindGitHub {
+			return nil, trace.BadParameter("cannot update %q fields for a %q integration", types.IntegrationSubKindGitHub, integration.GetSubKind())
+		}
+		cred := types.PluginCredentialsV1{
+			Credentials: &types.PluginCredentialsV1_IdSecret{
+				IdSecret: &types.PluginIdSecretCredential{
+					Id:     req.OAuth.ID,
+					Secret: req.OAuth.Secret,
+				},
+			},
+		}
+		if err := integration.SetCredentials(&cred); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if _, err := clt.UpdateIntegration(r.Context(), integration); err != nil {
@@ -227,6 +267,7 @@ func (h *Handler) integrationStats(w http.ResponseWriter, r *http.Request, p htt
 		discoveryConfigLister: clt.DiscoveryConfigClient(),
 		databaseGetter:        clt,
 		awsOIDCClient:         clt.IntegrationAWSOIDCClient(),
+		userTasksClient:       clt.UserTasksServiceClient(),
 	}
 	summary, err := collectIntegrationStats(r.Context(), req)
 	if err != nil {
@@ -236,12 +277,17 @@ func (h *Handler) integrationStats(w http.ResponseWriter, r *http.Request, p htt
 	return summary, nil
 }
 
+type userTasksByIntegrationLister interface {
+	ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertasksv1.UserTask, string, error)
+}
+
 type collectIntegrationStatsRequest struct {
 	logger                *slog.Logger
 	integration           types.Integration
 	discoveryConfigLister discoveryConfigLister
 	databaseGetter        databaseGetter
 	awsOIDCClient         deployedDatabaseServiceLister
+	userTasksClient       userTasksByIntegrationLister
 }
 
 func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsRequest) (*ui.IntegrationWithSummary, error) {
@@ -254,6 +300,24 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 	ret.Integration = uiIg
 
 	var nextPage string
+	for {
+		userTasks, nextToken, err := req.userTasksClient.ListUserTasksByIntegration(ctx, 0, nextPage, req.integration.GetName())
+		if err != nil {
+			return nil, err
+		}
+		for _, userTask := range userTasks {
+			if userTask.GetSpec().GetState() == usertasks.TaskStateOpen {
+				ret.UnresolvedUserTasks++
+			}
+		}
+
+		if nextToken == "" {
+			break
+		}
+		nextPage = nextToken
+	}
+
+	nextPage = ""
 	for {
 		discoveryConfigs, nextToken, err := req.discoveryConfigLister.ListDiscoveryConfigs(ctx, 0, nextPage)
 		if err != nil {
@@ -528,4 +592,26 @@ func (h *Handler) integrationsMsTeamsAppZipGet(w http.ResponseWriter, r *http.Re
 		return nil, trace.Wrap(err)
 	}
 	return nil, nil
+}
+
+func (h *Handler) integrationsExportCA(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.IntegrationsClient().ExportIntegrationCertAuthorities(r.Context(), &integrationv1.ExportIntegrationCertAuthoritiesRequest{
+		Integration: integrationName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uiCAKeySet, err := ui.MakeCAKeySet(resp.CertAuthorities)
+	return uiCAKeySet, trace.Wrap(err)
 }

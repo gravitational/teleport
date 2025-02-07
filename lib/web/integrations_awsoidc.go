@@ -158,13 +158,16 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 
 	teleportVersionTag := teleport.Version
 	if automaticUpgrades(h.GetClusterFeatures()) {
-		cloudStableVersion, err := h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
+		const group, updaterUUID = "", ""
+		autoUpdateVersion, err := h.autoUpdateAgentVersion(r.Context(), group, updaterUUID)
 		if err != nil {
-			return "", trace.Wrap(err)
+			h.logger.WarnContext(r.Context(),
+				"Cannot read autoupdate target version, falling back to our own version",
+				"error", err,
+				"version", teleport.Version)
+		} else {
+			teleportVersionTag = autoUpdateVersion
 		}
-
-		// cloudStableVersion has vX.Y.Z format, however the container image tag does not include the `v`.
-		teleportVersionTag = strings.TrimPrefix(cloudStableVersion, "v")
 	}
 
 	deployServiceResp, err := clt.IntegrationAWSOIDCClient().DeployService(ctx, &integrationv1.DeployServiceRequest{
@@ -211,13 +214,17 @@ func (h *Handler) awsOIDCDeployDatabaseServices(w http.ResponseWriter, r *http.R
 
 	teleportVersionTag := teleport.Version
 	if automaticUpgrades(h.GetClusterFeatures()) {
-		cloudStableVersion, err := h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
+		const group, updaterUUID = "", ""
+		autoUpdateVersion, err := h.autoUpdateAgentVersion(r.Context(), group, updaterUUID)
 		if err != nil {
-			return "", trace.Wrap(err)
+			h.logger.WarnContext(r.Context(),
+				"Cannot read autoupdate target version, falling back to self version.",
+				"error", err,
+				"version", teleport.Version)
+		} else {
+			teleportVersionTag = autoUpdateVersion
 		}
 
-		// cloudStableVersion has vX.Y.Z format, however the container image tag does not include the `v`.
-		teleportVersionTag = strings.TrimPrefix(cloudStableVersion, "v")
 	}
 
 	iamTokenName := deployserviceconfig.DefaultTeleportIAMTokenName
@@ -275,7 +282,7 @@ func (h *Handler) awsOIDCListDeployedDatabaseService(w http.ResponseWriter, r *h
 		return nil, trace.BadParameter("an integration name is required")
 	}
 
-	regions, err := fetchRelevantAWSRegions(ctx, clt, clt.DiscoveryConfigClient())
+	regions, err := regionsForListingDeployedDatabaseService(ctx, r, clt, clt.DiscoveryConfigClient())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -288,6 +295,35 @@ func (h *Handler) awsOIDCListDeployedDatabaseService(w http.ResponseWriter, r *h
 	return ui.AWSOIDCListDeployedDatabaseServiceResponse{
 		Services: services,
 	}, nil
+}
+
+func extractAWSRegionsFromQuery(r *http.Request) ([]string, error) {
+	var ret []string
+	for _, region := range r.URL.Query()["regions"] {
+		if err := aws.IsValidRegion(region); err != nil {
+			return nil, trace.BadParameter("invalid region %s", region)
+		}
+		ret = append(ret, region)
+	}
+
+	return ret, nil
+}
+
+func regionsForListingDeployedDatabaseService(ctx context.Context, r *http.Request, authClient databaseGetter, discoveryConfigsClient discoveryConfigLister) ([]string, error) {
+	if r.URL.Query().Has("regions") {
+		regions, err := extractAWSRegionsFromQuery(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return regions, err
+	}
+
+	regions, err := fetchRelevantAWSRegions(ctx, authClient, discoveryConfigsClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return regions, nil
 }
 
 type databaseGetter interface {
@@ -717,7 +753,8 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 		return nil, trace.BadParameter("an integration name is required")
 	}
 
-	agentVersion, err := kubeutils.GetKubeAgentVersion(ctx, h.cfg.ProxyClient, h.GetClusterFeatures(), h.cfg.AutomaticUpgradesChannels)
+	versionGetter := &handlerVersionGetter{h}
+	agentVersion, err := kubeutils.GetKubeAgentVersion(ctx, h.cfg.ProxyClient, h.GetClusterFeatures(), versionGetter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1039,6 +1076,18 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 	appServer, err := types.NewAppServerForAWSOIDCIntegration(integrationName, h.cfg.HostUUID, publicAddr, labels)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// If the integration name contains a dot, then the proxy must provide a certificate allowing *.<something>.<proxyPublicAddr>
+	if strings.Contains(integrationName, ".") {
+		// Teleport Cloud only provides certificates for *.<tenant>.teleport.sh, so this would generate an invalid address.
+		if h.GetClusterFeatures().Cloud {
+			return nil, trace.BadParameter(`Invalid integration name (%q) for enabling AWS Access. Please re-create the integration without the "."`, integrationName)
+		}
+
+		// Typically, self-hosted clusters will also have a single wildcard for the name.
+		// Logging a warning message should help debug the problem in case the certificate is not valid.
+		h.logger.WarnContext(ctx, `Enabling AWS Access using an integration with a "." might not work unless your Proxy's certificate is valid for the address`, "public_addr", appServer.GetApp().GetPublicAddr())
 	}
 
 	if _, err := clt.UpsertApplicationServer(ctx, appServer); err != nil {

@@ -342,7 +342,6 @@ export type CreateTshKubeDocumentOptions = {
 export type CreateAccessRequestDocumentOpts = {
   clusterUri: uri.ClusterUri;
   state: AccessRequestDocumentState;
-  title?: string;
   requestId?: string;
 };
 

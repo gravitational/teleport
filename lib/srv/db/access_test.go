@@ -107,7 +107,6 @@ func TestMain(m *testing.M) {
 	registerTestSnowflakeEngine()
 	registerTestElasticsearchEngine()
 	registerTestSQLServerEngine()
-	registerTestDynamoDBEngine()
 	os.Exit(m.Run())
 }
 
@@ -2483,7 +2482,6 @@ func (p *agentParams) setDefaults(c *testContext) {
 
 	if p.CloudClients == nil {
 		p.CloudClients = &clients.TestCloudClients{
-			STS:    &mocks.STSClientV1{},
 			GCPSQL: p.GCPSQL,
 		}
 	}

@@ -333,7 +333,7 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 				"target_host", nodeName,
 				"error", err,
 			)
-			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, sshConfig.User, nodeName)
+			return nil, trace.AccessDenied("access denied to %v connecting to %v", sshConfig.User, nodeName)
 		}
 		return nil, trace.Wrap(err)
 	}

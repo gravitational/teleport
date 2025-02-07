@@ -163,7 +163,7 @@ func (f *memoryDBFetcher) getUsersForRegion(ctx context.Context, region string, 
 		for i := 0; i < common.MaxPages && pager.HasMorePages(); i++ {
 			page, err := pager.NextPage(ctx)
 			if err != nil {
-				return nil, trace.Wrap(libaws.ConvertRequestFailureErrorV2(err))
+				return nil, trace.Wrap(libaws.ConvertRequestFailureError(err))
 			}
 			users = append(users, page.Users...)
 		}
@@ -185,7 +185,7 @@ func (f *memoryDBFetcher) getUserTags(ctx context.Context, user *memorydbtypes.U
 			ResourceArn: user.ARN,
 		})
 		if err != nil {
-			return nil, trace.Wrap(libaws.ConvertRequestFailureErrorV2(err))
+			return nil, trace.Wrap(libaws.ConvertRequestFailureError(err))
 		}
 		return output.TagList, nil
 	}
@@ -245,7 +245,7 @@ func (r *memoryDBUserResource) ModifyUserPassword(ctx context.Context, oldPasswo
 	input.AuthenticationMode.Passwords = append(input.AuthenticationMode.Passwords, newPassword)
 
 	if _, err := r.client.UpdateUser(ctx, input); err != nil {
-		return trace.Wrap(libaws.ConvertRequestFailureErrorV2(err))
+		return trace.Wrap(libaws.ConvertRequestFailureError(err))
 	}
 	return nil
 }
