@@ -311,7 +311,6 @@ func (m *Memory) Iterate(ctx context.Context, startKey, endKey backend.Key, limi
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
 
-	const defaultPageSize = 1000
 	return func(yield func(backend.Item, error) bool) {
 		iteratorFn := m.tree.AscendGreaterOrEqual
 		if order == backend.IterateDescend {
@@ -321,44 +320,26 @@ func (m *Memory) Iterate(ctx context.Context, startKey, endKey backend.Key, limi
 		count := 0
 		startItem := &btreeItem{Item: backend.Item{Key: startKey}}
 		endItem := &btreeItem{Item: backend.Item{Key: endKey}}
-		pageLimit := defaultPageSize
 
-		items := make([]backend.Item, 0, pageLimit)
-		for {
-			if limit != backend.NoLimit {
-				pageLimit = min(limit-count, defaultPageSize)
+		m.Lock()
+		m.removeExpired()
+		defer m.Unlock()
+		iteratorFn(startItem, func(item *btreeItem) bool {
+			if endItem.Less(item) {
+				return false
 			}
 
-			m.Lock()
-			m.removeExpired()
-			iteratorFn(startItem, func(item *btreeItem) bool {
-				if endItem.Less(item) {
-					return false
-				}
-
-				items = append(items, item.Item)
-				return len(items) < pageLimit
-			})
-			m.Unlock()
-
-			for _, item := range items {
-				if !yield(item, nil) {
-					return
-				}
-
-				count++
-				if limit != backend.NoLimit && count >= limit {
-					return
-				}
+			if !yield(item.Item, nil) {
+				return false
 			}
 
-			if len(items) < pageLimit {
-				return
+			count++
+			if limit != backend.NoLimit && count >= limit {
+				return false
 			}
 
-			startItem = &btreeItem{Item: backend.Item{Key: backend.RangeEnd(items[len(items)-1].Key)}}
-			items = items[:0]
-		}
+			return true
+		})
 	}, nil
 }
 
@@ -380,7 +361,7 @@ func (m *Memory) GetRange(ctx context.Context, startKey, endKey backend.Key, lim
 		return nil, trace.Wrap(err)
 	}
 
-	var result backend.GetResult
+	result := backend.GetResult{Items: make([]backend.Item, 0, 1000)}
 	for item, err := range iter {
 		if err != nil {
 			return nil, trace.Wrap(err)
