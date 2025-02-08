@@ -383,7 +383,9 @@ func (p *defaultModules) IsEnterpriseBuild() bool {
 
 // IsOSSBuild returns true for [defaultModules].
 func (p *defaultModules) IsOSSBuild() bool {
-	return true
+	// teleportBuildType variable might be overridden during the build process,
+	// we have to always check the type.
+	return teleportBuildType == BuildOSS
 }
 
 // PrintVersion prints the Teleport version.

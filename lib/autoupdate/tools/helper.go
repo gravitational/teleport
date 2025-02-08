@@ -116,12 +116,10 @@ func updateAndReExec(ctx context.Context, updater *Updater, toolsVersion string,
 	// is required if the user passed in the TELEPORT_TOOLS_VERSION
 	// explicitly.
 	err := updater.UpdateWithLock(ctxUpdate, toolsVersion)
-	if err != nil && errors.Is(err, errNoBaseURL) {
+	if errors.Is(err, errNoBaseURL) {
 		// If base URL wasn't defined we have to cancel update and re-execution with warning.
 		slog.WarnContext(ctx, warnMessageOSSBuild)
-		return nil
-	}
-	if err != nil && !errors.Is(err, context.Canceled) {
+	} else if err != nil && !errors.Is(err, context.Canceled) {
 		return trace.Wrap(err)
 	}
 
