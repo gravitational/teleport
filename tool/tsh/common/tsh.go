@@ -728,6 +728,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	if err := tools.CheckAndUpdateLocal(ctx, args); err != nil {
 		return trace.Wrap(err)
 	}
+	fmt.Println(modules.GetModules().BuildType(), modules.GetModules().IsOSSBuild())
 
 	cf := CLIConf{
 		Context:            ctx,
