@@ -156,3 +156,55 @@ func (s *AutoUpdateService) GetAutoUpdateVersion(ctx context.Context) (*autoupda
 func (s *AutoUpdateService) DeleteAutoUpdateVersion(ctx context.Context) error {
 	return trace.Wrap(s.version.DeleteResource(ctx, types.MetaNameAutoUpdateVersion))
 }
+
+// itemFromAutoUpdateConfig generates `backend.Item` from `AutoUpdateConfig` resource type.
+func itemFromAutoUpdateConfig(config *autoupdate.AutoUpdateConfig) (*backend.Item, error) {
+	if err := update.ValidateAutoUpdateConfig(config); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rev, err := types.GetRevision(config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalProtoResource[*autoupdate.AutoUpdateConfig](config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	expires, err := types.GetExpiry(config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := &backend.Item{
+		Key:      backend.NewKey(autoUpdateConfigPrefix, types.MetaNameAutoUpdateConfig),
+		Value:    value,
+		Expires:  expires,
+		Revision: rev,
+	}
+	return item, nil
+}
+
+// itemFromAutoUpdateVersion generates `backend.Item` from `AutoUpdateVersion` resource type.
+func itemFromAutoUpdateVersion(version *autoupdate.AutoUpdateVersion) (*backend.Item, error) {
+	if err := update.ValidateAutoUpdateVersion(version); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rev, err := types.GetRevision(version)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalProtoResource[*autoupdate.AutoUpdateVersion](version)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	expires, err := types.GetExpiry(version)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := &backend.Item{
+		Key:      backend.NewKey(autoUpdateVersionPrefix, types.MetaNameAutoUpdateVersion),
+		Value:    value,
+		Expires:  expires,
+		Revision: rev,
+	}
+	return item, nil
+}
