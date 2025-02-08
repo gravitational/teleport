@@ -58,11 +58,7 @@ func (s *Service) ExportIntegrationCertAuthorities(ctx context.Context, in *inte
 	}
 }
 
-func buildGitHubOAuthCredentials(ig types.Integration) (*types.PluginStaticCredentialsV1, error) {
-	if ig.GetCredentials() == nil || ig.GetCredentials().GetIdSecret() == nil {
-		return nil, trace.BadParameter("GitHub integration requires OAuth ID and secret for credentials")
-	}
-
+func buildGitHubOAuthCredentials(idSecret *types.PluginIdSecretCredential) (*types.PluginStaticCredentialsV1, error) {
 	return &types.PluginStaticCredentialsV1{
 		ResourceHeader: types.ResourceHeader{
 			Metadata: types.Metadata{
@@ -75,8 +71,8 @@ func buildGitHubOAuthCredentials(ig types.Integration) (*types.PluginStaticCrede
 		Spec: &types.PluginStaticCredentialsSpecV1{
 			Credentials: &types.PluginStaticCredentialsSpecV1_OAuthClientSecret{
 				OAuthClientSecret: &types.PluginStaticCredentialsOAuthClientSecret{
-					ClientId:     ig.GetCredentials().GetIdSecret().Id,
-					ClientSecret: ig.GetCredentials().GetIdSecret().Secret,
+					ClientId:     idSecret.Id,
+					ClientSecret: idSecret.Secret,
 				},
 			},
 		},
@@ -110,7 +106,10 @@ func (s *Service) newGitHubSSHCA(ctx context.Context) (*types.PluginStaticCreden
 func (s *Service) createGitHubCredentials(ctx context.Context, ig types.Integration) error {
 	var creds []types.PluginStaticCredentials
 
-	if oauthCred, err := buildGitHubOAuthCredentials(ig); err != nil {
+	if ig.GetCredentials() == nil || ig.GetCredentials().GetIdSecret() == nil {
+		return trace.BadParameter("GitHub integration requires OAuth ID and secret for credentials")
+	}
+	if oauthCred, err := buildGitHubOAuthCredentials(ig.GetCredentials().GetIdSecret()); err != nil {
 		return trace.Wrap(err)
 	} else {
 		creds = append(creds, oauthCred)
@@ -153,19 +152,37 @@ func (s *Service) maybeUpdateStaticCredentials(ctx context.Context, newIg types.
 
 	// Preserve existing credentials.
 	if newIg.GetCredentials() == nil {
-		newIg.SetCredentials(oldIg.GetCredentials())
-		return nil
+		return trace.Wrap(newIg.SetCredentials(oldIg.GetCredentials()))
 	}
 
 	switch newIg.GetSubKind() {
 	case types.IntegrationSubKindGitHub:
-		if oauthCred, err := buildGitHubOAuthCredentials(newIg); err != nil {
-			return trace.Wrap(err)
-		} else {
-			// Copy ref.
-			newIg.SetCredentials(oldIg.GetCredentials())
-			return trace.Wrap(s.updateStaticCredentials(ctx, newIg, oauthCred))
+		oauthIdSecret := newIg.GetCredentials().GetIdSecret()
+		switch {
+		case oauthIdSecret == nil || (oauthIdSecret.Id == "" && oauthIdSecret.Secret == ""):
+			return trace.BadParameter("GitHub integration requires OAuth credentials")
+		case oauthIdSecret.Id != "" && oauthIdSecret.Secret == "":
+			return trace.BadParameter("missing OAuth secret for OAuth credentials")
+		case oauthIdSecret.Id == "" && oauthIdSecret.Secret != "":
+			// Special case where only secret is getting updated.
+			oldIdSecret, err := s.getStaticCredentialsWithPurpose(ctx, oldIg, credentials.PurposeGitHubOAuth)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			oldId, _ := oldIdSecret.GetOAuthClientSecret()
+			oauthIdSecret.Id = oldId
+			s.logger.DebugContext(ctx, "Updating integration with existing OAuth client ID", "integration", newIg.GetName())
 		}
+
+		oauthCred, err := buildGitHubOAuthCredentials(oauthIdSecret)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// Copy ref from old integration and overwrite the OAuth settings.
+		if err := newIg.SetCredentials(oldIg.GetCredentials()); err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(s.updateStaticCredentials(ctx, newIg, oauthCred))
 	}
 	return nil
 }

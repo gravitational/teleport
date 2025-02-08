@@ -170,10 +170,41 @@ func (r *Integration) CheckAndSetDefaults() error {
 	return nil
 }
 
+type IntegrationOAuthCredentials struct {
+	ID     string `json:"id"`
+	Secret string `json:"secret"`
+}
+
+type CreateIntegrationRequest struct {
+	Integration
+
+	OAuth *IntegrationOAuthCredentials `json:"oauth,omitempty"`
+}
+
+func (r *CreateIntegrationRequest) CheckAndSetDefaults() error {
+	if err := r.Integration.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if r.SubKind == types.IntegrationSubKindGitHub {
+		if r.OAuth == nil {
+			return trace.BadParameter("missing OAuth settings for GitHub integrations")
+		}
+		if r.OAuth.ID == "" {
+			return trace.BadParameter("missing OAuth ID for GitHub integration")
+		}
+		if r.OAuth.Secret == "" {
+			return trace.BadParameter("missing OAuth secret for GitHub integration")
+		}
+	}
+	return nil
+}
+
 // UpdateIntegrationRequest is a request to update an Integration
 type UpdateIntegrationRequest struct {
 	// AWSOIDC contains the fields for `aws-oidc` subkind integration.
 	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc,omitempty"`
+	// OAuth contains OAuth settings.
+	OAuth *IntegrationOAuthCredentials `json:"oauth,omitempty"`
 }
 
 // CheckAndSetDefaults checks if the provided values are valid.
@@ -181,6 +212,13 @@ func (r *UpdateIntegrationRequest) CheckAndSetDefaults() error {
 	if r.AWSOIDC != nil {
 		if err := r.AWSOIDC.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
+		}
+	}
+	if r.OAuth != nil {
+		// Update allows reuse of the existing ID but secret must always be
+		// provided.
+		if r.OAuth.Secret == "" {
+			return trace.BadParameter("missing OAuth secret for GitHub integration")
 		}
 	}
 

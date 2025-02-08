@@ -34,6 +34,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -1015,6 +1016,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsUpdate))
 	h.GET("/webapi/sites/:site/integrations/:name/stats", h.WithClusterAuth(h.integrationStats))
 	h.GET("/webapi/sites/:site/integrations/:name/discoveryrules", h.WithClusterAuth(h.integrationDiscoveryRules))
+	h.GET("/webapi/sites/:site/integrations/:name/ca", h.WithClusterAuth(h.integrationsExportCA))
 	h.DELETE("/webapi/sites/:site/integrations/:name_or_subkind", h.WithClusterAuth(h.integrationsDelete))
 
 	// GET the Microsoft Teams plugin app.zip file.
@@ -1142,6 +1144,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/sites/:site/lastseennotification", h.WithClusterAuth(h.notificationsUpsertLastSeenTimestamp))
 	// Upsert a notification state when to mark a notification as read or hide it.
 	h.PUT("/webapi/sites/:site/notificationstate", h.WithClusterAuth(h.notificationsUpsertNotificationState))
+
+	// Git servers
+	h.PUT("/webapi/sites/:site/gitservers", h.WithClusterAuth(h.gitServerCreateOrUpsert))
+	h.GET("/webapi/sites/:site/gitservers/:name", h.WithClusterAuth(h.gitServerGet))
+	h.DELETE("/webapi/sites/:site/gitservers/:name", h.WithClusterAuth(h.gitServerDelete))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -1860,6 +1867,8 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		}
 	}
 
+	disableRoleVisualizer, _ := strconv.ParseBool(os.Getenv("TELEPORT_UNSTABLE_DISABLE_ROLE_VISUALIZER"))
+
 	webCfg := webclient.WebConfig{
 		Edition:                        modules.GetModules().BuildType(),
 		Auth:                           authSettings,
@@ -1868,6 +1877,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		TunnelPublicAddress:            tunnelPublicAddr,
 		RecoveryCodesEnabled:           clusterFeatures.GetRecoveryCodes(),
 		UI:                             h.getUIConfig(r.Context()),
+		IsPolicyRoleVisualizerEnabled:  !disableRoleVisualizer,
 		IsDashboard:                    services.IsDashboard(clusterFeatures),
 		IsTeam:                         false,
 		IsUsageBasedBilling:            clusterFeatures.GetIsUsageBased(),

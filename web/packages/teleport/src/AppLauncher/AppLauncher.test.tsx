@@ -295,8 +295,8 @@ describe('fqdn is matched', () => {
       await waitFor(() => {
         expect(service.createAppSession).toHaveBeenCalledWith({
           fqdn: expectedFqdn,
-          clusterId: 'test.teleport',
-          publicAddr: expectedPublicAddr,
+          cluster_name: 'test.teleport',
+          public_addr: expectedPublicAddr,
           arn: expectedArn,
         });
       });

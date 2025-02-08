@@ -52,6 +52,10 @@ const cfg = {
   edition: 'oss',
   isCloud: false,
   automaticUpgrades: false,
+  // TODO (avatus) this is a temporary escape hatch. Delete in v18
+  // The role diff visualizer can be disabled by setting TELEPORT_UNSTABLE_DISABLE_ROLE_VISUALIZER=true
+  // in the proxy service
+  isPolicyRoleVisualizerEnabled: true,
   automaticUpgradesTargetVersion: '',
   // isDashboard is used generally when we want to hide features that can't be hidden by RBAC in
   // the case of a self-hosted license tenant dashboard.
@@ -1326,8 +1330,9 @@ export interface UrlAppParams {
 
 export interface CreateAppSessionParams {
   fqdn: string;
-  clusterId?: string;
-  publicAddr?: string;
+  // This API requires cluster_name and public_addr with underscores.
+  cluster_name?: string;
+  public_addr?: string;
   arn?: string;
   mfaResponse?: MfaChallengeResponse;
 }
