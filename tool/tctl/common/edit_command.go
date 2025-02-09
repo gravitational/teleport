@@ -128,6 +128,10 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 	}
 	rc.Initialize(e.app, nil, e.config)
 
+	if rc.refs.IsAll() || len(rc.refs) != 1 || rc.refs[0].Name == "" {
+		return trace.BadParameter("tctl can only edit a single resource at a time")
+	}
+
 	// Prompt for admin action MFA if required, before getting any
 	// resources with secrets and before the update/editor below.
 	if mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/); err == nil {
