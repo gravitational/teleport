@@ -490,6 +490,14 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case StableUNIXUserCreateEvent:
 		e = &events.StableUNIXUserCreate{}
 
+	case SCIMUserCreate,
+		SCIMUserUpdate,
+		SCIMUserDelete,
+		SCIMGroupCreate,
+		SCIMGroupUpdate,
+		SCIMGroupDelete:
+		e = &events.SCIMPrincipalProvisioning{}
+
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
 		unknown := &events.Unknown{}

@@ -864,6 +864,19 @@ const (
 
 	// StableUNIXUserCreateEvent is emitted when a stable UNIX user is created.
 	StableUNIXUserCreateEvent = "stable_unix_user.create"
+
+	// SCIMUserCreate is emitted when a user is created in SCIM server.
+	SCIMUserCreate = "scim.user.create"
+	// SCIMUserDelete is emitted when a user is deleted in the SCIM server.
+	SCIMUserDelete = "scim.user.delete"
+	// SCIMUserUpdate is emitted when a user is updated in the SCIM server.
+	SCIMUserUpdate = "scim.user.update"
+	// SCIMGroupCreate is emitted when a user is created in SCIM server.
+	SCIMGroupCreate = "scim.group.create"
+	// SCIMGroupDelete is emitted when a group is deleted in the SCIM server.
+	SCIMGroupDelete = "scim.group.delete"
+	// SCIMGroupUpdate is emitted when a group is updated in the SCIM server.
+	SCIMGroupUpdate = "scim.group.update"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add
