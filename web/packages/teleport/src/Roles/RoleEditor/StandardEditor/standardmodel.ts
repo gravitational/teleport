@@ -54,13 +54,22 @@ import { RoleEditorModelValidationResult } from './validation';
 import { defaultOptions } from './withDefaults';
 
 export type StandardEditorModel = {
-  roleModel: RoleEditorModel;
+  /**
+   * The role model. Can be undefined if there was an unhandled error when
+   * converting an existing role.
+   */
+  roleModel?: RoleEditorModel;
   originalRole: Role;
   /**
    * Will be true if fields have been modified from the original.
    */
   isDirty: boolean;
-  validationResult: RoleEditorModelValidationResult;
+  /**
+   * Result of validating {@link StandardEditorModel.roleModel}. Can be
+   * undefined if there was an unhandled error when converting an existing
+   * role.
+   */
+  validationResult?: RoleEditorModelValidationResult;
 };
 
 /**
