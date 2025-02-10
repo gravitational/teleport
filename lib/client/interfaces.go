@@ -34,14 +34,13 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -321,17 +320,13 @@ func (k *Key) CertRoles() ([]string, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Extract roles from certificate. Note, if the certificate is in old format,
-	// this will be empty.
-	var roles []string
-	rawRoles, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]
-	if ok {
-		roles, err = services.UnmarshalCertRoles(rawRoles)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+
+	ident, err := sshca.DecodeIdentity(cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return roles, nil
+
+	return ident.Roles, nil
 }
 
 const (
@@ -505,19 +500,18 @@ func (k *Key) SSHCert() (*ssh.Certificate, error) {
 }
 
 // ActiveRequests gets the active requests associated with this key.
-func (k *Key) ActiveRequests() (services.RequestIDs, error) {
-	var activeRequests services.RequestIDs
+func (k *Key) ActiveRequests() ([]string, error) {
 	sshCert, err := k.SSHCert()
 	if err != nil {
-		return activeRequests, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	rawRequests, ok := sshCert.Extensions[teleport.CertExtensionTeleportActiveRequests]
-	if ok {
-		if err := activeRequests.Unmarshal([]byte(rawRequests)); err != nil {
-			return activeRequests, trace.Wrap(err)
-		}
+
+	ident, err := sshca.DecodeIdentity(sshCert)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return activeRequests, nil
+
+	return ident.ActiveRequests, nil
 }
 
 // CheckCert makes sure the key's SSH certificate is valid.

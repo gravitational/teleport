@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 )
 
 // AuthProvider is a subset of the full Auth API that must be connected
@@ -53,13 +53,13 @@ type CertGenerator interface {
 // with an agentless node.
 type SignerCreator func(ctx context.Context, certGen CertGenerator) (ssh.Signer, error)
 
-// SignerFromSSHCertificate returns a function that attempts to
+// SignerFromSSHIdentity returns a function that attempts to
 // create a [ssh.Signer] for the Identity in the provided [ssh.Certificate]
 // that is signed with the OpenSSH CA and can be used to authenticate to agentless nodes.
 // authClient must be connected to the root cluster, and the CertGenerator
 // passed into the returned function must be connected to the same cluster
 // as the target node.
-func SignerFromSSHCertificate(cert *ssh.Certificate, authClient AuthProvider, clusterName, teleportUser string) SignerCreator {
+func SignerFromSSHIdentity(ident *sshca.Identity, authClient AuthProvider, clusterName, teleportUser string) SignerCreator {
 	return func(ctx context.Context, certGen CertGenerator) (ssh.Signer, error) {
 		u, err := authClient.GetUser(ctx, teleportUser, false)
 		if err != nil {
@@ -70,26 +70,17 @@ func SignerFromSSHCertificate(cert *ssh.Certificate, authClient AuthProvider, cl
 			return nil, trace.BadParameter("unsupported user type %T", u)
 		}
 
-		// set the user's roles and traits so impersonation will work correctly
-		roleNames, err := services.ExtractRolesFromCert(cert)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		traits, err := services.ExtractTraitsFromCert(cert)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		user.SetRoles(roleNames)
-		user.SetTraits(traits)
+		user.SetRoles(ident.Roles)
+		user.SetTraits(ident.Traits)
 
 		// fetch local roles so if the certificate is generated on a leaf
 		// cluster it won't have to lookup unknown roles
-		roles, err := getRoles(ctx, authClient, roleNames)
+		roles, err := getRoles(ctx, authClient, ident.Roles)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		validBefore := time.Unix(int64(cert.ValidBefore), 0)
+		validBefore := time.Unix(int64(ident.ValidBefore), 0)
 		ttl := time.Until(validBefore)
 		params := certParams{
 			clusterName:  clusterName,

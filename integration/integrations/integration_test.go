@@ -87,7 +87,7 @@ func TestIntegrationCRUD(t *testing.T) {
 
 	// Create Integration
 	createIntegrationReq := ui.Integration{
-		Name:    "MyAWSAccount",
+		Name:    "my-aws-account",
 		SubKind: types.IntegrationSubKindAWSOIDC,
 		AWSOIDC: &ui.IntegrationAWSOIDCSpec{
 			RoleARN:        "arn:aws:iam::123456789012:role/DevTeam",
@@ -101,7 +101,7 @@ func TestIntegrationCRUD(t *testing.T) {
 
 	// Create Integration without S3 location
 	createIntegrationWithoutS3LocationReq := ui.Integration{
-		Name:    "MyAWSAccountWithoutS3",
+		Name:    "my-aws-account-without-s3",
 		SubKind: types.IntegrationSubKindAWSOIDC,
 		AWSOIDC: &ui.IntegrationAWSOIDCSpec{
 			RoleARN: "arn:aws:iam::123456789012:role/DevTeam",
@@ -112,14 +112,14 @@ func TestIntegrationCRUD(t *testing.T) {
 	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
 
 	// Get One Integration by name
-	respStatusCode, respBody = webPack.DoRequest(t, http.MethodGet, integrationsEndpoint+"/MyAWSAccount", nil)
+	respStatusCode, respBody = webPack.DoRequest(t, http.MethodGet, integrationsEndpoint+"/my-aws-account", nil)
 	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
 
 	integrationResp := ui.Integration{}
 	require.NoError(t, json.Unmarshal(respBody, &integrationResp))
 
 	require.Equal(t, ui.Integration{
-		Name:    "MyAWSAccount",
+		Name:    "my-aws-account",
 		SubKind: types.IntegrationSubKindAWSOIDC,
 		AWSOIDC: &ui.IntegrationAWSOIDCSpec{
 			RoleARN:        "arn:aws:iam::123456789012:role/DevTeam",
@@ -129,7 +129,7 @@ func TestIntegrationCRUD(t *testing.T) {
 	}, integrationResp, string(respBody))
 
 	// Update the integration to another RoleARN
-	respStatusCode, respBody = webPack.DoRequest(t, http.MethodPut, integrationsEndpoint+"/MyAWSAccount", ui.UpdateIntegrationRequest{
+	respStatusCode, respBody = webPack.DoRequest(t, http.MethodPut, integrationsEndpoint+"/my-aws-account", ui.UpdateIntegrationRequest{
 		AWSOIDC: &ui.IntegrationAWSOIDCSpec{
 			RoleARN:        "arn:aws:iam::123456789012:role/OpsTeam",
 			IssuerS3Bucket: "my-bucket",
@@ -142,7 +142,7 @@ func TestIntegrationCRUD(t *testing.T) {
 	require.NoError(t, json.Unmarshal(respBody, &integrationResp))
 
 	require.Equal(t, ui.Integration{
-		Name:    "MyAWSAccount",
+		Name:    "my-aws-account",
 		SubKind: types.IntegrationSubKindAWSOIDC,
 		AWSOIDC: &ui.IntegrationAWSOIDCSpec{
 			RoleARN:        "arn:aws:iam::123456789012:role/OpsTeam",
@@ -152,7 +152,7 @@ func TestIntegrationCRUD(t *testing.T) {
 	}, integrationResp, string(respBody))
 
 	// Update the integration to remove the S3 Location
-	respStatusCode, respBody = webPack.DoRequest(t, http.MethodPut, integrationsEndpoint+"/MyAWSAccount", ui.UpdateIntegrationRequest{
+	respStatusCode, respBody = webPack.DoRequest(t, http.MethodPut, integrationsEndpoint+"/my-aws-account", ui.UpdateIntegrationRequest{
 		AWSOIDC: &ui.IntegrationAWSOIDCSpec{
 			RoleARN: "arn:aws:iam::123456789012:role/OpsTeam2",
 		},
@@ -163,7 +163,7 @@ func TestIntegrationCRUD(t *testing.T) {
 	require.NoError(t, json.Unmarshal(respBody, &integrationResp))
 
 	require.Equal(t, ui.Integration{
-		Name:    "MyAWSAccount",
+		Name:    "my-aws-account",
 		SubKind: types.IntegrationSubKindAWSOIDC,
 		AWSOIDC: &ui.IntegrationAWSOIDCSpec{
 			RoleARN: "arn:aws:iam::123456789012:role/OpsTeam2",
@@ -171,7 +171,7 @@ func TestIntegrationCRUD(t *testing.T) {
 	}, integrationResp, string(respBody))
 
 	// Delete resource
-	respStatusCode, respBody = webPack.DoRequest(t, http.MethodDelete, integrationsEndpoint+"/MyAWSAccount", nil)
+	respStatusCode, respBody = webPack.DoRequest(t, http.MethodDelete, integrationsEndpoint+"/my-aws-account", nil)
 	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
 
 	// Add multiple integrations to test pagination
@@ -180,7 +180,7 @@ func TestIntegrationCRUD(t *testing.T) {
 	totalItems := pageSize*2 + 1
 	for i := 0; i < totalItems; i++ {
 		createIntegrationReq := ui.Integration{
-			Name:    fmt.Sprintf("AWSIntegration%d", i),
+			Name:    fmt.Sprintf("aws-integration-%d", i),
 			SubKind: types.IntegrationSubKindAWSOIDC,
 			AWSOIDC: &ui.IntegrationAWSOIDCSpec{
 				RoleARN:        "arn:aws:iam::123456789012:role/DevTeam",

@@ -1610,8 +1610,8 @@ func TestSingleProcessModeResolver(t *testing.T) {
 }
 
 // TestDebugServiceStartSocket ensures the debug service socket starts
-// correctly, and is accessible.
-func TestDebugServiceStartSocket(t *testing.T) {
+// correctly, is accessible, and exposes the healthcheck endpoints.
+func TestDebugService(t *testing.T) {
 	t.Parallel()
 	fakeClock := clockwork.NewFakeClock()
 
@@ -1623,6 +1623,7 @@ func TestDebugServiceStartSocket(t *testing.T) {
 	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Auth.Enabled = true
+	cfg.Proxy.Enabled = false
 	cfg.Auth.StorageConfig.Params["path"] = dataDir
 	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.SSH.Enabled = false
@@ -1634,6 +1635,11 @@ func TestDebugServiceStartSocket(t *testing.T) {
 	require.NoError(t, process.Start())
 	t.Cleanup(func() { require.NoError(t, process.Close()) })
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	t.Cleanup(cancel)
+	_, err = process.WaitForEvent(ctx, TeleportOKEvent)
+	require.NoError(t, err)
+
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
 		Transport: &http.Transport{
@@ -1643,11 +1649,52 @@ func TestDebugServiceStartSocket(t *testing.T) {
 		},
 	}
 
+	// Testing the debug listener.
 	// Fetch a random path, it should return 404 error.
 	req, err := httpClient.Get("http://debug/random")
 	require.NoError(t, err)
 	defer req.Body.Close()
 	require.Equal(t, http.StatusNotFound, req.StatusCode)
+
+	// Test the healthcheck endpoints.
+	// Fetch the liveness path
+	req, err = httpClient.Get("http://debug/healthz")
+	require.NoError(t, err)
+	defer req.Body.Close()
+	require.Equal(t, http.StatusOK, req.StatusCode)
+
+	// Fetch the readiness path
+	req, err = httpClient.Get("http://debug/readyz")
+	require.NoError(t, err)
+	defer req.Body.Close()
+	require.Equal(t, http.StatusOK, req.StatusCode)
+
+	// Testing the metrics endpoint.
+	// Test setup: create our test metrics.
+	nonce := strings.ReplaceAll(uuid.NewString(), "-", "")
+	localMetric := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "test",
+		Name:      "local_metric_" + nonce,
+	})
+	globalMetric := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "test",
+		Name:      "global_metric_" + nonce,
+	})
+	require.NoError(t, process.metricsRegistry.Register(localMetric))
+	require.NoError(t, prometheus.Register(globalMetric))
+
+	// Test execution: hit the metrics endpoint.
+	resp, err := httpClient.Get("http://debug/metrics")
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	// Test validation: check that the metrics server served both the local and global registry.
+	require.Contains(t, string(body), "local_metric_"+nonce)
+	require.Contains(t, string(body), "global_metric_"+nonce)
 }
 
 type mockInstanceMetadata struct {
@@ -1762,7 +1809,7 @@ func TestInstanceMetadata(t *testing.T) {
 // TestMetricsService tests that the optional metrics service exposes
 // metrics from both the in-process and global metrics registry. When the
 // service is disabled, metrics are served by the diagnostics service
-// (tested in TestMetricsInDiagnosticsService).
+// (tested in TestDiagnosticsService).
 func TestMetricsService(t *testing.T) {
 	t.Parallel()
 	// Test setup: create a listener for the metrics server, get its file descriptor.
@@ -1841,10 +1888,11 @@ func TestMetricsService(t *testing.T) {
 	require.Contains(t, string(body), "global_metric_"+nonce)
 }
 
-// TestMetricsInDiagnosticsService tests that the diagnostics service exposes
+// TestDiagnosticsService tests that the diagnostics service exposes
 // metrics from both the in-process and global metrics registry when the metrics
-// service is disabled.
-func TestMetricsInDiagnosticsService(t *testing.T) {
+// service is disabled. It also checks that the diagnostics service exposes the
+// health routes.
+func TestDiagnosticsService(t *testing.T) {
 	t.Parallel()
 	// Test setup: create a new teleport process
 	dataDir := makeTempDir(t)
@@ -1883,7 +1931,7 @@ func TestMetricsInDiagnosticsService(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	t.Cleanup(cancel)
-	_, err = process.WaitForEvent(ctx, TeleportReadyEvent)
+	_, err = process.WaitForEvent(ctx, TeleportOKEvent)
 	require.NoError(t, err)
 
 	// Test execution: query the metrics endpoint and check the tests metrics are here.
@@ -1903,6 +1951,24 @@ func TestMetricsInDiagnosticsService(t *testing.T) {
 	// Test validation: check that the metrics server served both the local and global registry.
 	require.Contains(t, string(body), "local_metric_"+nonce)
 	require.Contains(t, string(body), "global_metric_"+nonce)
+
+	// Fetch the liveness endpoint
+	healthURL, err := url.Parse("http://" + diagAddr.String())
+	require.NoError(t, err)
+	healthURL.Path = "/healthz"
+	resp, err = http.Get(healthURL.String())
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// Fetch the readiness endpoint
+	readinessURL, err := url.Parse("http://" + diagAddr.String())
+	require.NoError(t, err)
+	readinessURL.Path = "/readyz"
+	resp, err = http.Get(readinessURL.String())
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 // makeTempDir makes a temp dir with a shorter name than t.TempDir() in order to

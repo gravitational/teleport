@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -51,7 +50,7 @@ func TestIdentityConversion(t *testing.T) {
 		Roles:                   []string{"role1", "role2"},
 		RouteToCluster:          "cluster",
 		Traits:                  wrappers.Traits{"trait1": []string{"value1"}, "trait2": []string{"value2"}},
-		ActiveRequests:          []string{uuid.NewString()},
+		ActiveRequests:          []string{"some-request"},
 		MFAVerified:             "mfa",
 		PreviousIdentityExpires: time.Unix(12345, 0),
 		LoginIP:                 "127.0.0.1",

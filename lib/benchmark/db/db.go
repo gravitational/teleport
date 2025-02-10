@@ -48,7 +48,7 @@ func retrieveDatabaseCertificates(ctx context.Context, tc *client.TeleportClient
 			Username:    dbUser,
 			Database:    dbName,
 		},
-		AccessRequests: profile.ActiveRequests.AccessRequests,
+		AccessRequests: profile.ActiveRequests,
 	})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
