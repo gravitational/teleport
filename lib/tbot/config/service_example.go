@@ -56,3 +56,7 @@ func (s *ExampleService) CheckAndSetDefaults() error {
 	}
 	return nil
 }
+
+func (s *ExampleService) GetCertificateLifetime() CertificateLifetime {
+	return CertificateLifetime{}
+}

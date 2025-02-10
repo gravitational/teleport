@@ -104,3 +104,7 @@ func (o *WorkloadIdentityJWTService) UnmarshalYAML(node *yaml.Node) error {
 func (o *WorkloadIdentityJWTService) GetDestination() bot.Destination {
 	return o.Destination
 }
+
+func (o *WorkloadIdentityJWTService) GetCertificateLifetime() CertificateLifetime {
+	return CertificateLifetime{}
+}

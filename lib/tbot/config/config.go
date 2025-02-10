@@ -225,10 +225,8 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		if err := service.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "validating service[%d]", i)
 		}
-		if v, ok := service.(interface{ GetCertificateLifetime() CertificateLifetime }); ok {
-			if err := v.GetCertificateLifetime().Validate(conf.Oneshot); err != nil {
-				return trace.Wrap(err, "validating service[%d]", i)
-			}
+		if err := service.GetCertificateLifetime().Validate(conf.Oneshot); err != nil {
+			return trace.Wrap(err, "validating service[%d]", i)
 		}
 	}
 
@@ -307,6 +305,11 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 type ServiceConfig interface {
 	Type() string
 	CheckAndSetDefaults() error
+
+	// GetCertificateLifetime returns the service's custom certificate TTL and
+	// RenewalInterval. It's used for validation purposes; services that do not
+	// support these options should return the zero value.
+	GetCertificateLifetime() CertificateLifetime
 }
 
 // ServiceConfigs assists polymorphic unmarshaling of a slice of ServiceConfigs.
