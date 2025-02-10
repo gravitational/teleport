@@ -856,16 +856,16 @@ function kubernetesResourceToModel(
 
   const verbOptions = verbs.map(verb => kubernetesVerbOptionsMap.get(verb));
   const knownVerbOptions: KubernetesVerbOption[] = [];
-  for (let i = 0; i < verbOptions.length; i++) {
-    if (verbOptions[i] !== undefined) {
-      knownVerbOptions.push(verbOptions[i]);
+  verbOptions.forEach((vo, i) => {
+    if (vo !== undefined) {
+      knownVerbOptions.push(vo);
     } else {
       conversionErrors.push({
         type: ConversionErrorType.UnsupportedValue,
         path: `${pathPrefix}.verbs[${i}]`,
       });
     }
-  }
+  });
 
   return {
     model:
@@ -904,13 +904,13 @@ function gitHubOrganizationsToModel(
   const permissions = gitHubPermissions ?? [];
   const model: Option[] = [];
   const conversionErrors: ConversionError[] = [];
-  for (let i = 0; i < permissions.length; i++) {
-    const { orgs, ...unsupported } = permissions[i];
+  permissions.forEach((permission, i) => {
+    const { orgs, ...unsupported } = permission;
     model.push(...stringsToOptions(orgs));
     conversionErrors.push(
       ...unsupportedFieldErrorsFromObject(`${pathPrefix}[${i}]`, unsupported)
     );
-  }
+  });
 
   return {
     model,
@@ -927,11 +927,11 @@ function rulesToModel(
 } {
   const model: RuleModel[] = [];
   const conversionErrors: ConversionError[] = [];
-  for (let i = 0; i < (rules?.length ?? 0); i++) {
-    const m = ruleToModel(rules[i], `${pathPrefix}[${i}]`);
+  rules?.forEach?.((rule, i) => {
+    const m = ruleToModel(rule, `${pathPrefix}[${i}]`);
     model.push(m.model);
     conversionErrors.push(...m.conversionErrors);
-  }
+  });
   return {
     model,
     conversionErrors,
@@ -957,16 +957,16 @@ function ruleToModel(
   );
   const verbsModel = verbs.map(v => verbOptionsMap.get(v));
   const knownVerbsModel: VerbOption[] = [];
-  for (let i = 0; i < verbsModel.length; i++) {
-    if (verbsModel[i] !== undefined) {
-      knownVerbsModel.push(verbsModel[i]);
+  verbsModel.forEach((verb, i) => {
+    if (verb !== undefined) {
+      knownVerbsModel.push(verb);
     } else {
       conversionErrors.push({
         type: ConversionErrorType.UnsupportedValue,
         path: `${pathPrefix}.verbs[${i}]`,
       });
     }
-  }
+  });
   return {
     model: {
       id: crypto.randomUUID(),
