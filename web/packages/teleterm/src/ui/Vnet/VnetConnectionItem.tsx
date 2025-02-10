@@ -83,7 +83,7 @@ const VnetConnectionItemBase = forwardRef<
   }
 >((props, ref) => {
   const { configService } = useAppContext();
-  const isVnetDiagEnabled = configService.get('feature.vnetDiag').value;
+  const isVnetDiagEnabled = configService.get('unstable.vnetDiag').value;
   const { status, start, stop, startAttempt, stopAttempt, runDiagnostics } =
     useVnetContext();
   const isProcessing =
