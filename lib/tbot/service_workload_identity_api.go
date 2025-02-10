@@ -350,7 +350,7 @@ func (s *WorkloadIdentityAPIService) FetchX509SVID(
 			}
 			bundleSet = newBundleSet
 			continue
-		case <-time.After(s.botCfg.CertificateLifetime.RenewalInterval):
+		case <-time.After(s.certificateLifetime().RenewalInterval):
 			log.DebugContext(ctx, "Renewal interval reached, renewing SVIDs")
 			svids = nil
 			continue
@@ -408,7 +408,7 @@ func (s *WorkloadIdentityAPIService) fetchX509SVIDs(
 		log,
 		s.client,
 		s.cfg.Selector,
-		s.botCfg.CertificateLifetime.TTL,
+		s.certificateLifetime().TTL,
 		attest,
 	)
 	if err != nil {
@@ -490,7 +490,7 @@ func (s *WorkloadIdentityAPIService) FetchJWTSVID(
 		s.client,
 		s.cfg.Selector,
 		req.Audience,
-		s.botCfg.CertificateLifetime.TTL,
+		s.certificateLifetime().TTL,
 		attr,
 	)
 	if err != nil {
@@ -659,4 +659,11 @@ func (s *WorkloadIdentityAPIService) ValidateJWTSVID(
 // service.
 func (s *WorkloadIdentityAPIService) String() string {
 	return fmt.Sprintf("%s:%s", config.WorkloadIdentityAPIServiceType, s.cfg.Listen)
+}
+
+func (s *WorkloadIdentityAPIService) certificateLifetime() config.CertificateLifetime {
+	if !s.cfg.CertificateLifetime.IsEmpty() {
+		return s.cfg.CertificateLifetime
+	}
+	return s.botCfg.CertificateLifetime
 }
