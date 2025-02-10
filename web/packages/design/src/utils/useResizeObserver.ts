@@ -16,7 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { RefObject, useCallback, useLayoutEffect } from 'react';
+import {
+  RefCallback,
+  RefObject,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+} from 'react';
 
 /**
  * useResizeObserver sets up a ResizeObserver for ref and calls callback on each resize.
@@ -28,16 +34,13 @@ import { RefObject, useCallback, useLayoutEffect } from 'react';
  * is null.
  */
 export function useResizeObserver(
-  ref: RefObject<HTMLElement>,
-  callback: (entry: ResizeObserverEntry) => void,
-  { enabled = true }
-): void {
-  const effect = useCallback(() => {
-    if (!ref.current || !enabled) {
-      return;
-    }
-
-    const observer = new ResizeObserver(entries => {
+  callback: (entry: ResizeObserverEntry) => void
+): RefCallback<HTMLElement> {
+  const observer = useMemo(() => {
+    const uuid = crypto.randomUUID();
+    console.log(`ResizeObserver creating ${uuid}`);
+    return new ResizeObserver(entries => {
+      console.log(`ResizeObserver changes ${uuid}`);
       const entry = entries[0];
 
       // In Connect, when a tab becomes active, its outermost DOM element switches from `display:
@@ -49,13 +52,19 @@ export function useResizeObserver(
 
       callback(entry);
     });
+  }, [callback]);
 
-    observer.observe(ref.current);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [callback, ref, enabled]);
-
-  useLayoutEffect(effect, [effect]);
+  const uuid = crypto.randomUUID();
+  return useCallback(
+    node => {
+      if (node) {
+        console.log(`ref callback ${uuid} with node`);
+        observer.observe(node);
+      } else {
+        console.log(`ref callback ${uuid} cleanup`);
+        observer.disconnect();
+      }
+    },
+    [observer]
+  );
 }

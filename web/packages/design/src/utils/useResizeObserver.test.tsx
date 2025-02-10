@@ -21,7 +21,7 @@ import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { mockResizeObserver } from 'jsdom-testing-mocks';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 
 import { useResizeObserver } from './useResizeObserver';
 
@@ -82,10 +82,8 @@ it('does not break when observed element is conditionally not rendered', async (
 });
 
 const ExampleComponent = (props: { onResize: () => void }) => {
-  const ref = useRef<HTMLDivElement>(null);
-
   const [isShown, setIsShown] = useState(true);
-  useResizeObserver(ref, props.onResize, { enabled: isShown });
+  const ref = useResizeObserver(props.onResize);
 
   return (
     <div>
