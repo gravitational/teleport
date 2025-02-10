@@ -1,11 +1,12 @@
 ---
-title: Managed Agent Updates (v2)
+title: Teleport Managed Agent Updates (v2)
 description: Describes how to set up managed agent updates using the next-generation updater.
 ---
 
 <Notice type="warning">
 This document describes the next-generation (v2) Teleport Agent updater, which
 is currently in beta.
+</Notice>
 
 The original updater uses the `teleport-ent-updater` package and
 `cluster_maintenance_config` resource, while the next-generation updater uses
@@ -19,7 +20,6 @@ update experience compared to the original updater.
 
 For details about the original updater, see
 [Managed Updates for Agents (v1)](./agent-managed-updates-v1.mdx).
-</Notice>
 
 On cloud-hosted Teleport Enterprise accounts, users must set up managed agent
 updates to ensure that the version of Teleport running on agents remains
@@ -96,9 +96,6 @@ $ sudo teleport-update uninstall
 
 If Teleport was installed via the apt/yum package, this will revert the
 running version of Teleport back to the version provided by the package.
-If Teleport was installed using `teleport-update` without the package,
-**this command will remove Teleport entirely, leaving the system disconnected.**
-Do not run `uninstall` without verifying your installation type.
 
 For cloud-hosted Teleport Enterprise, updates will roll out automatically
 during the first chosen maintenance window that is at least 36 hours after

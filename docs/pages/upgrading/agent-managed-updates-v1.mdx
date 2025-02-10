@@ -1,17 +1,18 @@
 ---
-title: Managed Agent Updates (v1)
+title: Teleport Managed Agent Updates (v1)
 description: Describes how to set up managed agent updates using the original updater.
 ---
 
 <Notice type="warning">
 This document describes the original (v1) Teleport Agent updater, which is
 currently supported but will eventually be deprecated.
+</Notice>
 
 The original updater uses the `teleport-ent-updater` package and
 `cluster_maintenance_config` resource described in this document, while the
 next-generation updater uses a binary called `teleport-update` that is included
 in the `teleport` package and configured by the `autoupdate_version` and
-`autoupdate_config` resources described in this document.
+`autoupdate_config` resources.
 
 Please consider using the next-generation updater, which is distributed with
 all versions of Teleport and provides a simpler, more flexible, and more reliable
@@ -19,7 +20,6 @@ update experience compared to the original updater.
 
 For details about the next-generation updater, see
 [Managed Updates for Agents (v2)](./agent-managed-updates.mdx).
-</Notice>
 
 On cloud-hosted Teleport Enterprise accounts, users must set up managed agent
 updates to ensure that the version of Teleport running on agents remains
