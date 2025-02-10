@@ -18,13 +18,16 @@ use super::{
     path::UnixPath,
     tdp::{self, TdpErrCode},
 };
+use crate::client::{ClientError, ClientResult};
 use crate::{
     cgo_tdp_sd_acknowledge, cgo_tdp_sd_create_request, cgo_tdp_sd_delete_request,
     cgo_tdp_sd_info_request, cgo_tdp_sd_list_request, cgo_tdp_sd_move_request,
     cgo_tdp_sd_read_request, cgo_tdp_sd_truncate_request, cgo_tdp_sd_write_request,
     client::ClientHandle, CGOErrCode, CgoHandle,
 };
-use ironrdp_pdu::{cast_length, custom_err, other_err, PduResult};
+use ironrdp_pdu::{
+    cast_length, custom_err, other_err, EncodeError, PduError, PduErrorExt, PduResult,
+};
 use ironrdp_rdpdr::pdu::{
     self,
     efs::{self, NtStatus},
@@ -33,6 +36,17 @@ use ironrdp_rdpdr::pdu::{
 use log::{debug, warn};
 use std::collections::HashMap;
 use std::convert::TryInto;
+use std::fmt::Debug;
+
+pub(crate) fn cast_length<T, S: TryInto<T, Error: Debug>>(
+    ctx: &str,
+    field: &str,
+    s: S,
+) -> ClientResult<T> {
+    s.try_into().map_err(|e| {
+        ClientError::InternalError(format!("{}: can't convert {}: {:?}", ctx, field, e))
+    })
+}
 
 /// `FilesystemBackend` implements the filesystem redirection backend as described in [\[MS-RDPEFS\]: Remote Desktop Protocol: File System Virtual Channel Extension].
 /// It does so in concert with the TDP directory sharing extension described in [RFD 0067].
@@ -470,7 +484,8 @@ impl FilesystemBackend {
                                     "FilesystemBackend::handle_query_volume_req",
                                     "dir.fso.last_modified",
                                     dir.fso.last_modified
-                                )?,
+                                )
+                                .map_err(|e: EncodeError| ClientError::from(e))?,
                                 // Equivalent to `u32::MAX & 0xffff` which is what FreeRDP does between
                                 // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L1018-L1021
                                 // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L492
@@ -873,7 +888,7 @@ impl FilesystemBackend {
                 completion_id: rdp_req.device_io_request.completion_id,
                 directory_id: rdp_req.device_io_request.device_id,
                 path: file.path.clone(),
-                end_of_file: cast_length!("end_of_file", end_of_file)?,
+                end_of_file: cast_length("tdp_sd_truncate", "end_of_file", end_of_file)?,
             })?;
 
             self.pending_sd_truncate_resp_handlers.insert(
@@ -891,7 +906,8 @@ impl FilesystemBackend {
                             this.file_cache.get_mut(rdp_req.device_io_request.file_id)
                         {
                             // Truncate succeeded, update our internal books to reflect the new size.
-                            file.fso.size = cast_length!("end_of_file", end_of_file)?;
+                            file.fso.size =
+                                cast_length("tdp_sd_truncate", "end_of_file", end_of_file)?;
                             io_status
                         } else {
                             // This shouldn't happen.
@@ -1364,10 +1380,10 @@ impl FilesystemBackend {
         device_io_response: efs::DeviceIoResponse,
         file: &FileCacheObject,
     ) -> PduResult<()> {
-        let file_fso_size: i64 = cast_length!(
+        let file_fso_size: i64 = cast_length(
             "FilesystemBackend::send_file_standard_info",
             "file.fso.size",
-            file.fso.size
+            file.fso.size,
         )?;
 
         self.client_handle.write_rdpdr(
@@ -1586,8 +1602,11 @@ impl FilesystemBackend {
         req: &efs::ServerDriveSetInformationRequest,
         io_status: NtStatus,
     ) -> PduResult<()> {
-        self.client_handle
-            .write_rdpdr(efs::ClientDriveSetInformationResponse::new(req, io_status)?.into())?;
+        self.client_handle.write_rdpdr(
+            efs::ClientDriveSetInformationResponse::new(req, io_status)
+                .map_err(|e| PduError::encode("send_rdp_set_info_response", e))?
+                .into(),
+        )?;
         Ok(())
     }
 }

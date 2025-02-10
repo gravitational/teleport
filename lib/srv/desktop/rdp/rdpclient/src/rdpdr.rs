@@ -34,7 +34,7 @@ use ironrdp_rdpdr::pdu::efs::{
 };
 use ironrdp_rdpdr::pdu::esc::{ScardCall, ScardIoCtlCode};
 use ironrdp_rdpdr::RdpdrBackend;
-use ironrdp_svc::impl_as_any;
+use ironrdp_svc::{impl_as_any, SvcMessage};
 
 #[derive(Debug)]
 pub struct TeleportRdpdrBackend {
@@ -79,12 +79,13 @@ impl RdpdrBackend for TeleportRdpdrBackend {
         self.scard.handle(req, call)
     }
 
-    fn handle_drive_io_request(&mut self, req: ServerDriveIoRequest) -> PduResult<()> {
+    fn handle_drive_io_request(&mut self, req: ServerDriveIoRequest) -> PduResult<Vec<SvcMessage>> {
         // If directory sharing isn't enabled, we don't advertise drive redirection as a supported
         // feature, so we should never receive a drive IO request. However this check acts as a
         // safeguard in case of a server bug or some other anomalous behavior.
         if self.allow_directory_sharing {
-            self.fs.handle_rdp_drive_io_request(req)
+            self.fs.handle_rdp_drive_io_request(req)?;
+            Ok(vec![])
         } else {
             Err(custom_err!(TeleportRdpdrBackendError(
                 "Received a directory sharing PDU but directory sharing is not enabled".to_string()

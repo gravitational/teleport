@@ -44,17 +44,17 @@ use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::client_info::PerformanceFlags;
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::write_buf::WriteBuf;
-use ironrdp_pdu::PduResult;
 use ironrdp_pdu::{custom_err, function, PduError};
+use ironrdp_pdu::{encode_err, encode_vec, EncodeError, PduResult};
 use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
-use ironrdp_rdpsnd::Rdpsnd;
-use ironrdp_session::x224::{self, ProcessorOutput};
+use ironrdp_rdpsnd::client::{NoopRdpsndBackend, Rdpsnd};
+use ironrdp_session::x224::{self, DisconnectDescription, ProcessorOutput};
 use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
 use ironrdp_svc::{SvcMessage, SvcProcessor, SvcProcessorMessages};
-use ironrdp_tokio::{single_sequence_step_read, Framed, TokioStream};
+use ironrdp_tokio::{single_sequence_step_read, Framed, FramedWrite, TokioStream};
 use log::debug;
 use rand::{Rng, SeedableRng};
 use std::fmt::{Debug, Display, Formatter};
@@ -109,7 +109,7 @@ impl Client {
     pub fn run(
         cgo_handle: CgoHandle,
         params: ConnectParams,
-    ) -> ClientResult<Option<DisconnectReason>> {
+    ) -> ClientResult<Option<DisconnectDescription>> {
         global::TOKIO_RT.block_on(async {
             Self::connect(cgo_handle, params)
                 .await?
@@ -183,7 +183,7 @@ impl Client {
         let mut connector = ironrdp_connector::ClientConnector::new(connector_config.clone())
             .with_server_addr(server_socket_addr)
             .with_static_channel(drdynvc_client) // require for resizing
-            .with_static_channel(Rdpsnd::new()) // required for rdpdr to work
+            .with_static_channel(Rdpsnd::new(Box::new(NoopRdpsndBackend {}))) // required for rdpdr to work
             .with_static_channel(rdpdr); // required for smart card + directory sharing
 
         if params.allow_clipboard {
@@ -268,7 +268,7 @@ impl Client {
     ///    which it then executes.
     ///
     /// When either loop returns, the other is aborted and the result is returned.
-    async fn run_loops(mut self) -> ClientResult<Option<DisconnectReason>> {
+    async fn run_loops(mut self) -> ClientResult<Option<DisconnectDescription>> {
         let read_stream = self
             .read_stream
             .take()
@@ -323,7 +323,7 @@ impl Client {
         mut read_stream: RdpReadStream,
         x224_processor: Arc<Mutex<x224::Processor>>,
         write_requester: ClientHandle,
-    ) -> tokio::task::JoinHandle<ClientResult<Option<DisconnectReason>>> {
+    ) -> tokio::task::JoinHandle<ClientResult<Option<DisconnectDescription>>> {
         global::TOKIO_RT.spawn(async move {
             loop {
                 let (action, mut frame) = read_stream.read_pdu().await?;
@@ -363,8 +363,9 @@ impl Client {
                                             &mut read_stream,
                                             sequence.as_mut(),
                                             &mut buf,
+                                            None,
                                         )
-                                        .await?;
+                                            .await?;
 
                                         if written.size().is_some() {
                                             write_requester
@@ -519,7 +520,8 @@ impl Client {
                 height,
                 None,
                 Some((width, height)),
-            )?
+            )
+            .map_err(|e| encode_err!(e))?
             .into();
             return Ok(vec![Box::new(pdu)]);
         }
@@ -671,7 +673,7 @@ impl Client {
         event: FastPathInputEvent,
     ) -> ClientResult<()> {
         write_stream
-            .write_all(&ironrdp_pdu::encode_vec(&FastPathInput(vec![event]))?)
+            .write_all(&encode_vec(&FastPathInput(vec![event]))?)
             .await?;
         Ok(())
     }
@@ -1393,7 +1395,7 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
         },
         enable_tls: true,
         enable_credssp: false,
-        credentials: Credentials::SmartCard { pin },
+        credentials: Credentials::SmartCard { pin, config: None },
         domain: None,
         // Windows 10, Version 1909, same as FreeRDP as of October 5th, 2021.
         // This determines which Smart Card Redirection dialect we use per
@@ -1417,6 +1419,7 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
         no_server_pointer: false,
         autologon: true,
         pointer_software_rendering: false,
+        request_data: None,
         performance_flags: PerformanceFlags::default()
             | PerformanceFlags::DISABLE_CURSOR_SHADOW // this is required for pointer to work correctly in Windows 2019
             | if !params.show_desktop_wallpaper {
@@ -1447,6 +1450,7 @@ pub struct ConnectParams {
 pub enum ClientError {
     Tcp(IoError),
     Rdp(RdpError),
+    EncodeError(EncodeError),
     PduError(PduError),
     SessionError(SessionError),
     ConnectorError(ConnectorError),
@@ -1480,6 +1484,7 @@ impl Display for ClientError {
             ClientError::SendError(msg) => Display::fmt(&msg.to_string(), f),
             ClientError::InternalError(msg) => Display::fmt(&msg.to_string(), f),
             ClientError::UnknownAddress => Display::fmt("Unknown address", f),
+            ClientError::EncodeError(e) => Display::fmt(e, f),
             ClientError::PduError(e) => Display::fmt(e, f),
             #[cfg(feature = "fips")]
             ClientError::ErrorStack(e) => Display::fmt(e, f),
@@ -1528,6 +1533,12 @@ impl<T> From<SendError<T>> for ClientError {
 impl From<JoinError> for ClientError {
     fn from(e: JoinError) -> Self {
         ClientError::JoinError(e)
+    }
+}
+
+impl From<EncodeError> for ClientError {
+    fn from(e: EncodeError) -> Self {
+        ClientError::EncodeError(e)
     }
 }
 

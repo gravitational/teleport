@@ -9,11 +9,11 @@ publish.workspace = true
 crate-type = ["staticlib"]
 
 [dependencies]
-bitflags = "2.4.2"
-boring = { git = "https://github.com/gravitational/boring", rev="605253d99d5e363e178bcf97e1d4622e33844cd5", optional = true }
+bitflags = "2.8.0"
+boring = { git = "https://github.com/gravitational/boring", rev = "99897308abb5976ea05625b8314c24b16eebb01b", optional = true }
 byteorder = "1.5.0"
-bytes = "1.4.0"
-env_logger = "0.10.1"
+bytes = "1.10.0"
+env_logger = "0.11.6"
 ironrdp-cliprdr.workspace = true
 ironrdp-connector.workspace = true
 ironrdp-pdu.workspace = true
@@ -31,13 +31,20 @@ log = "0.4.20"
 parking_lot = "0.12.1"
 rand = { version = "0.8.5", features = ["getrandom"] }
 rand_chacha = "0.3.1"
-rsa = "0.9.6"
-sspi = { git = "https://github.com/Devolutions/sspi-rs", rev="d54bdfcafa0e10d9d78224ebacc4f2a0992a6b79", features = ["network_client"] }
+rsa = "0.9.7"
+sspi = { version = "0.15.0", features = ["network_client"] }
 static_init = "1.0.3"
-tokio = { version = "1.36", features = ["full"] }
-tokio-boring = { git = "https://github.com/gravitational/boring", rev="605253d99d5e363e178bcf97e1d4622e33844cd5", optional = true }
+tokio = { version = "1.43", features = ["full"] }
+tokio-boring = { git = "https://github.com/gravitational/boring", rev = "99897308abb5976ea05625b8314c24b16eebb01b", optional = true }
 utf16string = "0.2.0"
-uuid = { version = "1.8.0", features = ["v4"] }
+uuid = { version = "1.12.1", features = ["v4"] }
+url = "2.5.4"
+picky = { version = "7.0.0-rc.11", default-features = false }
+picky-asn1-der = "0.5.2"
+picky-asn1-x509 = "0.14.3"
+picky-krb = "0.9.2"
+reqwest = { version = "0.12", default-features = false }
+rustls = { version = "0.23.22", default-features = false, features = ["aws-lc-rs"] }
 
 [build-dependencies]
 cbindgen = "0.26.0"
