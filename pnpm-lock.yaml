@@ -403,8 +403,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       babel-plugin-transform-import-meta:
-        specifier: ^2.3.2
-        version: 2.3.2(@babel/core@7.26.7)
+        specifier: ^2.2.1
+        version: 2.2.1(@babel/core@7.26.7)
       babel-plugin-transform-vite-meta-env:
         specifier: ^1.0.3
         version: 1.0.3
@@ -3274,8 +3274,8 @@ packages:
     peerDependencies:
       styled-components: '>= 2'
 
-  babel-plugin-transform-import-meta@2.3.2:
-    resolution: {integrity: sha512-902o4GiQqI1GqAXfD5rEoz0PJamUfJ3VllpdWaNsFTwdaNjFSFHawvBO+cp5K2j+g2h3bZ4lnM1Xb6yFYGihtA==}
+  babel-plugin-transform-import-meta@2.2.1:
+    resolution: {integrity: sha512-AxNh27Pcg8Kt112RGa3Vod2QS2YXKKJ6+nSvRtv7qQTJAdx0MZa4UHZ4lnxHUWA2MNbLuZQv5FVab4P1CoLOWw==}
     peerDependencies:
       '@babel/core': ^7.10.0
 
@@ -10235,7 +10235,7 @@ snapshots:
       - '@babel/core'
       - supports-color
 
-  babel-plugin-transform-import-meta@2.3.2(@babel/core@7.26.7):
+  babel-plugin-transform-import-meta@2.2.1(@babel/core@7.26.7):
     dependencies:
       '@babel/core': 7.26.7
       '@babel/template': 7.25.9
