@@ -64,6 +64,7 @@ export function useNewRequest(ctx: Ctx) {
                 clusterName: clusterId,
               },
             ],
+            reason: 'placeholder-reason',
             dryRun: true,
           },
           signal.signal

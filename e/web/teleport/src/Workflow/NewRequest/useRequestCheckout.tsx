@@ -109,6 +109,7 @@ export function useRequestCheckout({
 
     createAccessRequest({
       maxDuration: getDryRunMaxDuration(),
+      reason: 'placeholder-reason',
       dryRun: true,
     })
       .then((resp: AccessRequest) => {
