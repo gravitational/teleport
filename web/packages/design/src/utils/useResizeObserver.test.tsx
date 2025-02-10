@@ -41,19 +41,23 @@ it('does not break when observed element is conditionally not rendered', async (
   });
   expect(onResize).not.toHaveBeenCalled();
 
+  console.log('First resize');
   // Verify that ResizeObserver is working as expected.
   // await user.click(screen.getByText('Resize'));
   resizeObserver.resize(resizableEl);
   expect(onResize).toHaveBeenCalledTimes(1);
+  console.log('Second resize');
   // await user.click(screen.getByText('Resize'));
   resizeObserver.resize(resizableEl);
   expect(onResize).toHaveBeenCalledTimes(2);
 
   // Hide element and verify that resizing the old, now unmounted node does not trigger the callback.
+  console.log('Hiding');
   await user.click(screen.getByText('Hide'));
   expect(screen.queryByTestId('resizable')).not.toBeInTheDocument();
   // perform action that changes size
   // await user.click(screen.getByText('Resize'));
+  console.log('Third resize');
   resizeObserver.resize(resizableEl);
   // verify callback was not called
   // NOTE: This fails in the current code, but should pass if isShown is passed as enabled OR the
@@ -61,10 +65,15 @@ it('does not break when observed element is conditionally not rendered', async (
   expect(onResize).toHaveBeenCalledTimes(2);
 
   // unhide element
+  console.log('Showing');
   await user.click(screen.getByText('Show'));
   resizableEl = screen.getByTestId('resizable');
+  resizeObserver.mockElementSize(resizableEl, {
+    contentBoxSize: { inlineSize: 300, blockSize: 200 },
+  });
   // perform action that changes size
   // await user.click(screen.getByText('Resize'));
+  console.log('Fourth resize');
   resizeObserver.resize(resizableEl);
   // verify callback was called
   // NOTE: This fails on the current code, because the resize observer still observes the old node,
