@@ -15,3 +15,13 @@ destination:
 # if no roles are specified, all roles the bot is allowed to impersonate are used.
 roles:
   - editor
+
+# certificate_ttl and renewal_interval override the certificate TTL and renewal
+# interval for this specific output, so that you can make its certificates valid
+# for shorter than `tbot`'s internal certificates.
+#
+# This is particularly useful when using `tbot` in one-shot as part of a cron job
+# where you need `tbot`'s internal certificate to live long enough to be renewed
+# on the next invocation, but don't want long-lived workload certificates on-disk.
+certificate_ttl: 30m
+renewal_interval: 15m
