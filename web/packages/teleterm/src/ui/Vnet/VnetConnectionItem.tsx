@@ -184,7 +184,7 @@ const VnetConnectionItemBase = forwardRef<
                   title={
                     status.value === 'running'
                       ? 'Run diagnostics'
-                      : 'Cannot run diagnostics while VNet itself is not running'
+                      : 'VNet must be running to run diagnostics'
                   }
                   disabled={status.value !== 'running'}
                   onClick={e => {
