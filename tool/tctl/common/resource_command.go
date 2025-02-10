@@ -26,6 +26,7 @@ import (
 	"log/slog"
 	"math"
 	"os"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
@@ -403,6 +404,14 @@ func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client
 			}
 			return trace.Wrap(err)
 		}
+
+		// An empty document at the beginning of the input will unmarshal without error.
+		// Keep reading - there may be a valid document later on.
+		// https://github.com/gravitational/teleport/issues/4703
+		if reflect.ValueOf(raw).IsZero() {
+			continue
+		}
+
 		count++
 
 		// locate the creator function for a given resource kind:
