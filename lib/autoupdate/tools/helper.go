@@ -31,11 +31,6 @@ import (
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 )
 
-// warnMessageOSSBuild is warning exposed to the user that build type without base url is disabled.
-const warnMessageOSSBuild = "Client tools updates are disabled because the server is licensed under AGPL " +
-	"but Teleport-distributed binaries are licensed under Community Edition. To use Community Edition " +
-	"builds or custom binaries, set the 'TELEPORT_CDN_BASE_URL' environment variable."
-
 // Variables might to be overridden during compilation time for integration tests.
 var (
 	// version is the current version of the Teleport.
@@ -116,10 +111,7 @@ func updateAndReExec(ctx context.Context, updater *Updater, toolsVersion string,
 	// is required if the user passed in the TELEPORT_TOOLS_VERSION
 	// explicitly.
 	err := updater.UpdateWithLock(ctxUpdate, toolsVersion)
-	if errors.Is(err, errNoBaseURL) {
-		// If base URL wasn't defined we have to cancel update and re-execution with warning.
-		slog.WarnContext(ctx, warnMessageOSSBuild)
-	} else if err != nil && !errors.Is(err, context.Canceled) {
+	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, errNoBaseURL) {
 		return trace.Wrap(err)
 	}
 
