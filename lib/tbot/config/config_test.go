@@ -256,6 +256,10 @@ func TestBotConfig_YAML(t *testing.T) {
 								},
 							},
 						},
+						CertificateLifetime: CertificateLifetime{
+							TTL:             30 * time.Second,
+							RenewalInterval: 15 * time.Second,
+						},
 					},
 					&ExampleService{
 						Message: "llama",
@@ -264,11 +268,19 @@ func TestBotConfig_YAML(t *testing.T) {
 						Destination: &DestinationDirectory{
 							Path: "/bot/output",
 						},
+						CertificateLifetime: CertificateLifetime{
+							TTL:             30 * time.Second,
+							RenewalInterval: 15 * time.Second,
+						},
 					},
 					&ApplicationTunnelService{
 						Listen:  "tcp://127.0.0.1:123",
 						Roles:   []string{"access"},
 						AppName: "my-app",
+						CertificateLifetime: CertificateLifetime{
+							TTL:             30 * time.Second,
+							RenewalInterval: 15 * time.Second,
+						},
 					},
 					&WorkloadIdentityX509Service{
 						Destination: &DestinationDirectory{
@@ -277,11 +289,19 @@ func TestBotConfig_YAML(t *testing.T) {
 						Selector: WorkloadIdentitySelector{
 							Name: "my-workload-identity",
 						},
+						CertificateLifetime: CertificateLifetime{
+							TTL:             30 * time.Second,
+							RenewalInterval: 15 * time.Second,
+						},
 					},
 					&WorkloadIdentityAPIService{
 						Listen: "tcp://127.0.0.1:123",
 						Selector: WorkloadIdentitySelector{
 							Name: "my-workload-identity",
+						},
+						CertificateLifetime: CertificateLifetime{
+							TTL:             30 * time.Second,
+							RenewalInterval: 15 * time.Second,
 						},
 					},
 					&WorkloadIdentityJWTService{

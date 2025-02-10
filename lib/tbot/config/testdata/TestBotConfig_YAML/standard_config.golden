@@ -44,6 +44,8 @@ services:
     attestors:
       kubernetes:
         enabled: false
+    certificate_ttl: 30s
+    renewal_interval: 15s
   - type: example
     message: llama
   - type: ssh-multiplexer
@@ -52,17 +54,23 @@ services:
       path: /bot/output
     enable_resumption: null
     proxy_templates_path: ""
+    certificate_ttl: 30s
+    renewal_interval: 15s
   - type: application-tunnel
     listen: tcp://127.0.0.1:123
     roles:
       - access
     app_name: my-app
+    certificate_ttl: 30s
+    renewal_interval: 15s
   - type: workload-identity-x509
     selector:
       name: my-workload-identity
     destination:
       type: directory
       path: /an/output/path
+    certificate_ttl: 30s
+    renewal_interval: 15s
   - type: workload-identity-api
     listen: tcp://127.0.0.1:123
     attestors:
@@ -70,6 +78,8 @@ services:
         enabled: false
     selector:
       name: my-workload-identity
+    certificate_ttl: 30s
+    renewal_interval: 15s
   - type: workload-identity-jwt
     selector:
       name: my-workload-identity
