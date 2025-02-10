@@ -200,6 +200,21 @@ resources.
 used by the chart. By default, the `ServiceAccount` has the name of the
 Helm release.
 
+## `rbac`
+
+`rbac` controls the Kubernetes Role and RoleBinding creation
+used by the serviceAccount
+
+### `rbac.create`
+
+| Type | Default |
+|------|---------|
+| `bool` | `true` |
+
+`rbac.create` controls whether Helm Chart creates the
+Kubernetes `Role` & `RoleBindings` resources for the Kubernetes SA.
+When off, you are responsible for creating the appropriate resources.
+
 ## `imagePullPolicy`
 
 | Type | Default |

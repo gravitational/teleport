@@ -240,6 +240,7 @@ func TestUpdater_Update(t *testing.T) {
 		reloadCalls       int
 		revertCalls       int
 		setupCalls        int
+		restarted         bool
 		errMatch          string
 	}{
 		{
@@ -263,8 +264,8 @@ func TestUpdater_Update(t *testing.T) {
 			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", 0),
 			requestGroup:      "group",
-			reloadCalls:       1,
 			setupCalls:        1,
+			restarted:         true,
 		},
 		{
 			name: "updates enabled now",
@@ -287,8 +288,8 @@ func TestUpdater_Update(t *testing.T) {
 			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", 0),
 			requestGroup:      "group",
-			reloadCalls:       1,
 			setupCalls:        1,
+			restarted:         true,
 		},
 		{
 			name: "updates enabled now, not started or enabled",
@@ -313,8 +314,8 @@ func TestUpdater_Update(t *testing.T) {
 			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", 0),
 			requestGroup:      "group",
-			reloadCalls:       1,
 			setupCalls:        1,
+			restarted:         true,
 		},
 		{
 			name: "updates disabled during window",
@@ -445,8 +446,8 @@ func TestUpdater_Update(t *testing.T) {
 				NewRevision("backup-version", 0),
 				NewRevision("unknown-version", 0),
 			},
-			reloadCalls: 1,
-			setupCalls:  1,
+			setupCalls: 1,
+			restarted:  true,
 		},
 		{
 			name: "backup version kept when no change",
@@ -491,8 +492,8 @@ func TestUpdater_Update(t *testing.T) {
 				NewRevision("backup-version", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
 				NewRevision("unknown-version", 0),
 			},
-			reloadCalls: 1,
-			setupCalls:  1,
+			setupCalls: 1,
+			restarted:  true,
 		},
 		{
 			name:     "invalid metadata",
@@ -522,9 +523,10 @@ func TestUpdater_Update(t *testing.T) {
 			removedRevisions: []Revision{
 				NewRevision("backup-version", 0),
 			},
-			reloadCalls: 0,
+			reloadCalls: 1,
 			revertCalls: 1,
 			setupCalls:  1,
+			restarted:   true,
 			errMatch:    "setup error",
 		},
 		{
@@ -547,34 +549,6 @@ func TestUpdater_Update(t *testing.T) {
 			revertCalls: 0,
 			setupCalls:  0,
 			errMatch:    "AGPL",
-		},
-		{
-			name: "reload fails",
-			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
-				Spec: UpdateSpec{
-					BaseURL: "https://example.com",
-					Enabled: true,
-				},
-				Status: UpdateStatus{
-					Active: NewRevision("old-version", 0),
-					Backup: toPtr(NewRevision("backup-version", 0)),
-				},
-			},
-			inWindow:  true,
-			reloadErr: errors.New("reload error"),
-
-			installedRevision: NewRevision("16.3.0", 0),
-			installedBaseURL:  "https://example.com",
-			linkedRevision:    NewRevision("16.3.0", 0),
-			removedRevisions: []Revision{
-				NewRevision("backup-version", 0),
-			},
-			reloadCalls: 2,
-			revertCalls: 1,
-			setupCalls:  1,
-			errMatch:    "reload error",
 		},
 		{
 			name: "skip version",
@@ -706,11 +680,13 @@ func TestUpdater_Update(t *testing.T) {
 					return !tt.notActive, nil
 				},
 			}
-			updater.Setup = func(_ context.Context) error {
+			var restarted bool
+			updater.ReexecSetup = func(_ context.Context, restart bool) error {
+				restarted = restart
 				setupCalls++
 				return tt.setupErr
 			}
-			updater.Revert = func(_ context.Context) error {
+			updater.SetupNamespace = func(_ context.Context) error {
 				revertSetupCalls++
 				return nil
 			}
@@ -733,6 +709,7 @@ func TestUpdater_Update(t *testing.T) {
 			require.Equal(t, tt.revertCalls, revertSetupCalls)
 			require.Equal(t, tt.revertCalls, revertFuncCalls)
 			require.Equal(t, tt.setupCalls, setupCalls)
+			require.Equal(t, tt.restarted, restarted)
 
 			if tt.cfg == nil {
 				_, err := os.Stat(cfgPath)
@@ -940,6 +917,7 @@ func TestUpdater_Remove(t *testing.T) {
 		syncErr        error
 		reloadErr      error
 		processEnabled bool
+		force          bool
 
 		unlinkedVersion string
 		teardownCalls   int
@@ -962,7 +940,7 @@ func TestUpdater_Remove(t *testing.T) {
 			teardownCalls: 1,
 		},
 		{
-			name: "no system links, process enabled",
+			name: "no system links, process enabled, force",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
@@ -973,10 +951,11 @@ func TestUpdater_Remove(t *testing.T) {
 			linkSystemErr:   ErrNoBinaries,
 			linkSystemCalls: 1,
 			processEnabled:  true,
+			force:           true,
 			errMatch:        "refusing to remove",
 		},
 		{
-			name: "no system links, process disabled",
+			name: "no system links, process disabled, force",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
@@ -988,9 +967,23 @@ func TestUpdater_Remove(t *testing.T) {
 			linkSystemCalls: 1,
 			unlinkedVersion: version,
 			teardownCalls:   1,
+			force:           true,
 		},
 		{
-			name: "no system links, process disabled, no systemd",
+			name: "no system links, process disabled, no force",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Status: UpdateStatus{
+					Active: NewRevision(version, 0),
+				},
+			},
+			linkSystemErr:   ErrNoBinaries,
+			linkSystemCalls: 1,
+			errMatch:        "unable to remove",
+		},
+		{
+			name: "no system links, process disabled, no systemd, force",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
@@ -1003,6 +996,7 @@ func TestUpdater_Remove(t *testing.T) {
 			isEnabledErr:    ErrNotSupported,
 			unlinkedVersion: version,
 			teardownCalls:   1,
+			force:           true,
 		},
 		{
 			name: "active version",
@@ -1140,13 +1134,13 @@ func TestUpdater_Remove(t *testing.T) {
 					return false, nil
 				},
 			}
-			updater.Teardown = func(_ context.Context) error {
+			updater.TeardownNamespace = func(_ context.Context) error {
 				teardownCalls++
 				return nil
 			}
 
 			ctx := context.Background()
-			err = updater.Remove(ctx)
+			err = updater.Remove(ctx, tt.force)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
@@ -1187,6 +1181,7 @@ func TestUpdater_Install(t *testing.T) {
 		reloadCalls       int
 		revertCalls       int
 		setupCalls        int
+		restarted         bool
 		errMatch          string
 	}{
 		{
@@ -1208,8 +1203,8 @@ func TestUpdater_Install(t *testing.T) {
 			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", 0),
 			requestGroup:      "group",
-			reloadCalls:       1,
 			setupCalls:        1,
+			restarted:         true,
 		},
 		{
 			name: "config from user",
@@ -1237,8 +1232,8 @@ func TestUpdater_Install(t *testing.T) {
 			installedBaseURL:  "https://example.com/new",
 			linkedRevision:    NewRevision("new-version", 0),
 			requestGroup:      "new-group",
-			reloadCalls:       1,
 			setupCalls:        1,
+			restarted:         true,
 		},
 		{
 			name: "defaults",
@@ -1253,8 +1248,8 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
-			reloadCalls:       1,
 			setupCalls:        1,
+			restarted:         true,
 		},
 		{
 			name: "override skip",
@@ -1270,8 +1265,8 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
-			reloadCalls:       1,
 			setupCalls:        1,
+			restarted:         true,
 		},
 		{
 			name: "insecure URL",
@@ -1319,8 +1314,8 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
-			reloadCalls:       0,
 			setupCalls:        1,
+			restarted:         false,
 		},
 		{
 			name: "backup version removed on install",
@@ -1337,8 +1332,8 @@ func TestUpdater_Install(t *testing.T) {
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			removedRevision:   NewRevision("backup-version", 0),
-			reloadCalls:       1,
 			setupCalls:        1,
+			restarted:         true,
 		},
 		{
 			name: "backup version kept for validation",
@@ -1354,7 +1349,6 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
-			reloadCalls:       0,
 			setupCalls:        1,
 		},
 		{
@@ -1363,8 +1357,8 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
-			reloadCalls:       1,
 			setupCalls:        1,
+			restarted:         true,
 		},
 		{
 			name:              "FIPS and Enterprise flags",
@@ -1372,8 +1366,8 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
-			reloadCalls:       1,
 			setupCalls:        1,
+			restarted:         true,
 		},
 		{
 			name:     "invalid metadata",
@@ -1387,33 +1381,29 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
-			reloadCalls:       0,
 			revertCalls:       1,
 			setupCalls:        1,
+			reloadCalls:       1,
+			restarted:         true,
 			errMatch:          "setup error",
 		},
 		{
-			name:      "reload fails",
-			reloadErr: errors.New("reload error"),
+			name: "setup fails already installed",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Status: UpdateStatus{
+					Active: NewRevision("16.3.0", 0),
+				},
+			},
+			setupErr: errors.New("setup error"),
 
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
-			reloadCalls:       2,
 			revertCalls:       1,
 			setupCalls:        1,
-			errMatch:          "reload error",
-		},
-		{
-			name:      "no systemd",
-			reloadErr: ErrNotSupported,
-			setupErr:  ErrNotSupported,
-
-			installedRevision: NewRevision("16.3.0", 0),
-			installedBaseURL:  autoupdate.DefaultBaseURL,
-			linkedRevision:    NewRevision("16.3.0", 0),
-			reloadCalls:       1,
-			setupCalls:        1,
+			errMatch:          "setup error",
 		},
 		{
 			name:      "no need to reload",
@@ -1422,20 +1412,8 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
-			reloadCalls:       1,
 			setupCalls:        1,
-		},
-		{
-			name:       "not present after install",
-			notPresent: true,
-
-			installedRevision: NewRevision("16.3.0", 0),
-			installedBaseURL:  autoupdate.DefaultBaseURL,
-			linkedRevision:    NewRevision("16.3.0", 0),
-			reloadCalls:       0,
-			revertCalls:       1,
-			setupCalls:        1,
-			errMatch:          "cannot find systemd service",
+			restarted:         true,
 		},
 		{
 			name:       "not started or enabled",
@@ -1445,8 +1423,8 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
-			reloadCalls:       1,
 			setupCalls:        1,
+			restarted:         true,
 		},
 	}
 
@@ -1542,11 +1520,13 @@ func TestUpdater_Install(t *testing.T) {
 					return !tt.notActive, nil
 				},
 			}
-			updater.Setup = func(_ context.Context) error {
+			var restarted bool
+			updater.ReexecSetup = func(_ context.Context, restart bool) error {
 				setupCalls++
+				restarted = restart
 				return tt.setupErr
 			}
-			updater.Revert = func(_ context.Context) error {
+			updater.SetupNamespace = func(_ context.Context) error {
 				revertSetupCalls++
 				return nil
 			}
@@ -1569,6 +1549,7 @@ func TestUpdater_Install(t *testing.T) {
 			require.Equal(t, tt.revertCalls, revertSetupCalls)
 			require.Equal(t, tt.revertCalls, revertFuncCalls)
 			require.Equal(t, tt.setupCalls, setupCalls)
+			require.Equal(t, tt.restarted, restarted)
 
 			if tt.cfg == nil && err != nil {
 				_, err := os.Stat(cfgPath)
@@ -1584,6 +1565,264 @@ func TestUpdater_Install(t *testing.T) {
 				golden.Set(t, data)
 			}
 			require.Equal(t, string(golden.Get(t)), string(data))
+		})
+	}
+}
+
+func TestUpdater_findAgentProxy(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		cfg  *proxyAddrTeleport
+		want string
+	}{
+		{
+			name: "full",
+			cfg: &proxyAddrTeleport{
+				ProxyServer: "https://example.com:8080",
+			},
+			want: "example.com:8080",
+		},
+		{
+			name: "protocol and host",
+			cfg: &proxyAddrTeleport{
+				ProxyServer: "https://example.com",
+			},
+			want: "example.com:3080",
+		},
+		{
+			name: "host and port",
+			cfg: &proxyAddrTeleport{
+				ProxyServer: "example.com:443",
+			},
+			want: "example.com:443",
+		},
+		{
+			name: "host",
+			cfg: &proxyAddrTeleport{
+				ProxyServer: "example.com",
+			},
+			want: "example.com:3080",
+		},
+		{
+			name: "auth server (v3)",
+			cfg: &proxyAddrTeleport{
+				AuthServer: "example.com",
+			},
+			want: "example.com:3025",
+		},
+		{
+			name: "auth server (v1/2)",
+			cfg: &proxyAddrTeleport{
+				AuthServers: []string{
+					"one.example.com",
+					"two.example.com",
+				},
+			},
+			want: "one.example.com:3025",
+		},
+		{
+			name: "proxy priority",
+			cfg: &proxyAddrTeleport{
+				ProxyServer: "one.example.com",
+				AuthServer:  "two.example.com",
+				AuthServers: []string{"three.example.com"},
+			},
+			want: "one.example.com:3080",
+		},
+		{
+			name: "auth priority",
+			cfg: &proxyAddrTeleport{
+				AuthServer:  "two.example.com",
+				AuthServers: []string{"three.example.com"},
+			},
+			want: "two.example.com:3025",
+		},
+		{
+			name: "missing",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ns := &Namespace{
+				configFile: filepath.Join(t.TempDir(), "teleport.yaml"),
+			}
+			if tt.cfg != nil {
+				out, err := yaml.Marshal(proxyAddrConfig{Teleport: *tt.cfg})
+				require.NoError(t, err)
+				err = os.WriteFile(ns.configFile, out, os.ModePerm)
+				require.NoError(t, err)
+			}
+
+			updater, err := NewLocalUpdater(LocalUpdaterConfig{}, ns)
+			require.NoError(t, err)
+			ctx := context.Background()
+			s := updater.findAgentProxy(ctx)
+			require.Equal(t, tt.want, s)
+		})
+	}
+}
+
+func TestSameProxies(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		a, b  string
+		match bool
+	}{
+		{
+			name:  "protocol missing with port",
+			a:     "https://example.com:8080",
+			b:     "example.com:8080",
+			match: true,
+		},
+		{
+			name:  "protocol missing without port",
+			a:     "https://example.com",
+			b:     "example.com",
+			match: true,
+		},
+		{
+			name:  "same with port",
+			a:     "example.com:443",
+			b:     "example.com:443",
+			match: true,
+		},
+		{
+			name:  "does not set default teleport port",
+			a:     "example.com",
+			b:     "example.com:3080",
+			match: false,
+		},
+		{
+			name:  "does set default standard port",
+			a:     "example.com",
+			b:     "example.com:443",
+			match: true,
+		},
+		{
+			name:  "other formats if equal",
+			a:     "@123",
+			b:     "@123",
+			match: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := sameProxies(tt.a, tt.b)
+			require.Equal(t, tt.match, s)
+		})
+	}
+}
+
+func TestUpdater_Setup(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		restart    bool
+		present    bool
+		setupErr   error
+		presentErr error
+		reloadErr  error
+
+		errMatch string
+	}{
+		{
+			name:    "no restart",
+			restart: false,
+			present: true,
+		},
+		{
+			name:    "restart",
+			restart: true,
+			present: true,
+		},
+		{
+			name:      "reload not needed",
+			restart:   true,
+			present:   true,
+			reloadErr: ErrNotNeeded,
+		},
+		{
+			name:     "not present",
+			restart:  true,
+			present:  false,
+			errMatch: "cannot find systemd",
+		},
+		{
+			name:     "setup error",
+			restart:  false,
+			setupErr: errors.New("some error"),
+			errMatch: "some error",
+		},
+		{
+			name:     "setup error not supported",
+			restart:  false,
+			setupErr: ErrNotSupported,
+		},
+		{
+			name:     "setup error canceled",
+			restart:  false,
+			setupErr: context.Canceled,
+			errMatch: "canceled",
+		},
+		{
+			name:       "present error",
+			restart:    false,
+			presentErr: errors.New("some error"),
+			errMatch:   "some error",
+		},
+		{
+			name:       "present error canceled",
+			restart:    false,
+			presentErr: context.Canceled,
+			errMatch:   "canceled",
+		},
+		{
+			name:      "reload error canceled",
+			restart:   true,
+			present:   true,
+			reloadErr: context.Canceled,
+			errMatch:  "canceled",
+		},
+		{
+			name:      "reload error",
+			restart:   true,
+			present:   true,
+			reloadErr: errors.New("some error"),
+			errMatch:  "some error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ns := &Namespace{}
+			updater, err := NewLocalUpdater(LocalUpdaterConfig{}, ns)
+			require.NoError(t, err)
+
+			updater.Process = &testProcess{
+				FuncReload: func(_ context.Context) error {
+					return tt.reloadErr
+				},
+				FuncIsPresent: func(_ context.Context) (bool, error) {
+					return tt.present, tt.presentErr
+				},
+			}
+			updater.SetupNamespace = func(_ context.Context) error {
+				return tt.setupErr
+			}
+
+			ctx := context.Background()
+			err = updater.Setup(ctx, tt.restart)
+			if tt.errMatch != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMatch)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }

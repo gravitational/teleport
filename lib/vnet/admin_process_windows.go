@@ -18,11 +18,17 @@ package vnet
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/sync/errgroup"
 	"golang.zx2c4.com/wireguard/tun"
+)
+
+const (
+	tunInterfaceName = "TeleportVNet"
 )
 
 type windowsAdminProcessConfig struct {
@@ -48,7 +54,7 @@ func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig)
 		return trace.Wrap(err, "authenticating user process")
 	}
 
-	device, err := tun.CreateTUN("TeleportVNet", mtu)
+	device, err := tun.CreateTUN(tunInterfaceName, mtu)
 	if err != nil {
 		return trace.Wrap(err, "creating TUN device")
 	}
@@ -68,29 +74,44 @@ func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig)
 		return trace.Wrap(err, "creating network stack")
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	errCh := make(chan error)
-	go func() {
-		errCh <- trace.Wrap(networkStack.run(ctx), "running network stack")
-	}()
-loop:
-	for {
-		select {
-		case <-time.After(time.Second):
-			if err := clt.Ping(ctx); err != nil {
-				log.InfoContext(ctx, "Failed to ping client application, it may have exited, shutting down", "error", err)
-				break loop
-			}
-		case <-ctx.Done():
-			log.InfoContext(ctx, "Context canceled, shutting down", "error", err)
-			break loop
-		}
+	osConfigProvider, err := newRemoteOSConfigProvider(
+		clt,
+		tunName,
+		networkStackConfig.ipv6Prefix.String(),
+		networkStackConfig.dnsIPv6.String(),
+	)
+	if err != nil {
+		return trace.Wrap(err, "creating OS config provider")
 	}
-	// Cancel the context and wait for networkStack.run to terminate.
-	cancel()
-	err = <-errCh
-	return trace.Wrap(err, "running VNet network stack")
+	osConfigurator := newOSConfigurator(osConfigProvider)
+
+	g, ctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		if err := networkStack.run(ctx); err != nil {
+			return trace.Wrap(err, "running network stack")
+		}
+		return errors.New("network stack terminated")
+	})
+	g.Go(func() error {
+		if err := osConfigurator.runOSConfigurationLoop(ctx); err != nil {
+			return trace.Wrap(err, "running OS configuration loop")
+		}
+		return errors.New("OS configuration loop terminated")
+	})
+	g.Go(func() error {
+		tick := time.Tick(time.Second)
+		for {
+			select {
+			case <-tick:
+				if err := clt.Ping(ctx); err != nil {
+					return trace.Wrap(err, "failed to ping client application, it may have exited, shutting down")
+				}
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+	})
+	return trace.Wrap(g.Wait(), "running VNet admin process")
 }
 
 func newWindowsNetworkStackConfig(tun tunDevice, clt *clientApplicationServiceClient) (*networkStackConfig, error) {

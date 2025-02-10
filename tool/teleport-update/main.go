@@ -81,6 +81,10 @@ type cliConfig struct {
 	SelfSetup bool
 	// UpdateNow forces an immediate update.
 	UpdateNow bool
+	// Reload reloads Teleport.
+	Reload bool
+	// ForceUninstall allows Teleport to be completely removed.
+	ForceUninstall bool
 }
 
 func Run(args []string) int {
@@ -141,18 +145,22 @@ func Run(args []string) int {
 	updateCmd := app.Command("update", "Update the agent to the latest version, if a new version is available.")
 	updateCmd.Flag("now", "Force immediate update even if update window is not active.").
 		Short('n').BoolVar(&ccfg.UpdateNow)
-	updateCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for auto-updates.").
+	updateCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for auto-updates and verify the Teleport installation.").
 		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
 
 	linkCmd := app.Command("link-package", "Link the system installation of Teleport from the Teleport package, if auto-updates is disabled.")
 	unlinkCmd := app.Command("unlink-package", "Unlink the system installation of Teleport from the Teleport package.")
 
-	setupCmd := app.Command("setup", "Write configuration files that run the update subcommand on a timer.").
+	setupCmd := app.Command("setup", "Write configuration files that run the update subcommand on a timer and verify the Teleport installation.").
 		Hidden()
+	setupCmd.Flag("reload", "Reload the Teleport agent. If not set, Teleport is not reloaded or restarted.").
+		Short('r').BoolVar(&ccfg.Reload)
 
 	statusCmd := app.Command("status", "Show Teleport agent auto-update status.")
 
 	uninstallCmd := app.Command("uninstall", "Uninstall the updater-managed installation of Teleport. If the Teleport package is installed, it is restored as the primary installation.")
+	uninstallCmd.Flag("force", "Force complete uninstallation of Teleport, even if there is no packaged version of Teleport to revert to.").
+		Short('f').BoolVar(&ccfg.ForceUninstall)
 
 	libutils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
@@ -206,9 +214,6 @@ func Run(args []string) int {
 		// This should only happen when there's a missing switch case above.
 		err = trace.Errorf("command %s not configured", command)
 	}
-	if errors.Is(err, autoupdate.ErrNotSupported) {
-		return autoupdate.CodeNotSupported
-	}
 	if err != nil {
 		plog.ErrorContext(ctx, "Command failed.", "error", err)
 		return 1
@@ -245,6 +250,8 @@ func initConfig(ccfg *cliConfig) (updater *autoupdate.Updater, lockFile string, 
 	updater, err = autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
 		SelfSetup: ccfg.SelfSetup,
 		Log:       plog,
+		LogFormat: ccfg.LogFormat,
+		Debug:     ccfg.Debug,
 	}, ns)
 	return updater, lockFile, trace.Wrap(err)
 }
@@ -257,6 +264,8 @@ func statusConfig(ccfg *cliConfig) (*autoupdate.Updater, error) {
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
 		SelfSetup: ccfg.SelfSetup,
 		Log:       plog,
+		LogFormat: ccfg.LogFormat,
+		Debug:     ccfg.Debug,
 	}, ns)
 	return updater, trace.Wrap(err)
 }
@@ -418,13 +427,18 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = ns.Setup(ctx)
-	if errors.Is(err, autoupdate.ErrNotSupported) {
-		plog.WarnContext(ctx, "Not enabling systemd service because systemd is not running.")
+	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
+		SelfSetup: ccfg.SelfSetup,
+		Log:       plog,
+		LogFormat: ccfg.LogFormat,
+		Debug:     ccfg.Debug,
+	}, ns)
+	if err != nil {
 		return trace.Wrap(err)
 	}
+	err = updater.Setup(ctx, ccfg.Reload)
 	if err != nil {
-		return trace.Wrap(err, "failed to setup teleport-update service")
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -460,7 +474,7 @@ func cmdUninstall(ctx context.Context, ccfg *cliConfig) error {
 		}
 	}()
 
-	if err := updater.Remove(ctx); err != nil {
+	if err := updater.Remove(ctx, ccfg.ForceUninstall); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

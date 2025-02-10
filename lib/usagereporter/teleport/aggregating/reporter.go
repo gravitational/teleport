@@ -236,7 +236,6 @@ func (r *Reporter) run(ctx context.Context) {
 	userActivityWindowEnd := userActivityStartTime.Add(userActivityReportGranularity)
 
 	userActivity := make(map[string]*prehogv1.UserActivityRecord)
-
 	userRecord := func(userName string, v1AlphaUserKind prehogv1alpha.UserKind) *prehogv1.UserActivityRecord {
 		v1UserKind := convertUserKind(v1AlphaUserKind)
 
@@ -271,6 +270,16 @@ func (r *Reporter) run(ctx context.Context) {
 		}
 
 		return record
+	}
+	// userSPIFFEIDActivity is map[username]map[spiffeid]count
+	userSPIFFEIDActivity := make(map[string]map[string]uint32)
+	incrementUserSPIFFEIDActivity := func(userName string, spiffeID string) {
+		user := userSPIFFEIDActivity[userName]
+		if user == nil {
+			user = make(map[string]uint32)
+			userSPIFFEIDActivity[userName] = user
+		}
+		user[spiffeID]++
 	}
 
 	botInstanceActivityStartTime := r.clock.Now().UTC().Truncate(botInstanceActivityReportGranularity)
@@ -323,16 +332,22 @@ Ingest:
 		if now := r.clock.Now().UTC(); now.Before(userActivityWindowStart) || !now.Before(userActivityWindowEnd) {
 			if len(userActivity) > 0 {
 				wg.Add(1)
-				go func(ctx context.Context, startTime time.Time, userActivity map[string]*prehogv1.UserActivityRecord) {
+				go func(
+					ctx context.Context,
+					startTime time.Time,
+					userActivity map[string]*prehogv1.UserActivityRecord,
+					userSPIFFEIDActivity map[string]map[string]uint32,
+				) {
 					defer wg.Done()
-					r.persistUserActivity(ctx, startTime, userActivity)
-				}(ctx, userActivityStartTime, userActivity)
+					r.persistUserActivity(ctx, startTime, userActivity, userSPIFFEIDActivity)
+				}(ctx, userActivityStartTime, userActivity, userSPIFFEIDActivity)
 			}
 
 			userActivityStartTime = now.Truncate(userActivityReportGranularity)
 			userActivityWindowStart = userActivityStartTime.Add(-rollbackGrace)
 			userActivityWindowEnd = userActivityStartTime.Add(userActivityReportGranularity)
 			userActivity = make(map[string]*prehogv1.UserActivityRecord, len(userActivity))
+			userSPIFFEIDActivity = make(map[string]map[string]uint32, len(userSPIFFEIDActivity))
 		}
 
 		if now := r.clock.Now().UTC(); now.Before(botInstanceActivityWindowStart) || !now.Before(botInstanceActivityWindowEnd) {
@@ -401,6 +416,7 @@ Ingest:
 			resourcePresence(prehogv1.ResourceKind(te.Kind))[te.Name] = struct{}{}
 		case *usagereporter.SPIFFESVIDIssuedEvent:
 			userRecord(te.UserName, te.UserKind).SpiffeSvidsIssued++
+			incrementUserSPIFFEIDActivity(te.UserName, te.SpiffeId)
 			if te.BotInstanceId != "" {
 				botInstanceRecord(te.UserName, te.BotInstanceId).SpiffeSvidsIssued++
 			}
@@ -430,7 +446,7 @@ Ingest:
 	}
 
 	if len(userActivity) > 0 {
-		r.persistUserActivity(ctx, userActivityStartTime, userActivity)
+		r.persistUserActivity(ctx, userActivityStartTime, userActivity, userSPIFFEIDActivity)
 	}
 
 	if len(botInstanceActivity) > 0 {
@@ -495,10 +511,25 @@ func (r *Reporter) persistBotInstanceActivity(
 	}
 }
 
-func (r *Reporter) persistUserActivity(ctx context.Context, startTime time.Time, userActivity map[string]*prehogv1.UserActivityRecord) {
+func (r *Reporter) persistUserActivity(
+	ctx context.Context,
+	startTime time.Time,
+	userActivity map[string]*prehogv1.UserActivityRecord,
+	issuedSPIFFEIDs map[string]map[string]uint32,
+) {
 	records := make([]*prehogv1.UserActivityRecord, 0, len(userActivity))
 	for userName, record := range userActivity {
 		record.UserName = r.anonymizer.AnonymizeNonEmpty(userName)
+
+		spiffeIDRecords := make([]*prehogv1.SPIFFEIDRecord, 0, len(issuedSPIFFEIDs[userName]))
+		for spiffeID, count := range issuedSPIFFEIDs[userName] {
+			spiffeIDRecords = append(spiffeIDRecords, &prehogv1.SPIFFEIDRecord{
+				SpiffeId:    r.anonymizer.AnonymizeNonEmpty(spiffeID),
+				SvidsIssued: count,
+			})
+		}
+		record.SpiffeIdsIssued = spiffeIDRecords
+
 		records = append(records, record)
 	}
 

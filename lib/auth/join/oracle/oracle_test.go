@@ -85,7 +85,7 @@ func TestCreateSignedRequest(t *testing.T) {
 		nil,
 	)
 
-	innerHeader, outerHeader, err := createSignedRequest(provider, "challenge")
+	innerHeader, outerHeader, err := CreateSignedRequestWithProvider(provider, "challenge")
 	require.NoError(t, err)
 
 	expectedHeaders := map[string]string{

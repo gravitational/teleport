@@ -86,6 +86,11 @@ func (c *clientApplicationServiceClient) ResolveAppInfo(ctx context.Context, fqd
 	resp, err := c.clt.ResolveAppInfo(ctx, &vnetv1.ResolveAppInfoRequest{
 		Fqdn: fqdn,
 	})
+	// Convert NotFound errors to errNoTCPHandler, which is what the network
+	// stack is looking for. Avoid wrapping, no need to collect a stack trace.
+	if trace.IsNotFound(err) {
+		return nil, errNoTCPHandler
+	}
 	if err != nil {
 		return nil, trace.Wrap(err, "calling ResolveAppInfo rpc")
 	}

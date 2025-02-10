@@ -6,8 +6,9 @@
 GOLANG_VERSION ?= go1.23.6
 GOLANGCI_LINT_VERSION ?= v1.63.4
 
-# TODO(ravicious): When attempting to update Node.js version, see if corepack distributed with this
-# version is > 0.31.0. If so, remove definitions of COREPACK_INTEGRITY_KEYS from CI.
+# NOTE: Remember to update engines.node in package.json to match the major version.
+# TODO(ravicious): When updating Node.js, see if corepack distributed with the new Node.JS version
+# is >= 0.31.0. If so, remove manual calls to install corepack@0.31.0 from CI scripts.
 NODE_VERSION ?= 20.18.0
 
 # Run lint-rust check locally before merging code after you bump this.

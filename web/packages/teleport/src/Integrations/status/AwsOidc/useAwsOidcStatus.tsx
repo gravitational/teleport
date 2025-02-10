@@ -22,7 +22,7 @@ import { useParams } from 'react-router';
 import { Attempt, useAsync } from 'shared/hooks/useAsync';
 
 import {
-  Integration,
+  IntegrationAwsOidc,
   IntegrationKind,
   integrationService,
   IntegrationWithSummary,
@@ -31,7 +31,7 @@ import useTeleport from 'teleport/useTeleport';
 
 export interface AwsOidcStatusContextState {
   statsAttempt: Attempt<IntegrationWithSummary>;
-  integrationAttempt: Attempt<Integration>;
+  integrationAttempt: Attempt<IntegrationAwsOidc>;
 }
 
 export const awsOidcStatusContext =
@@ -51,7 +51,7 @@ export function AwsOidcStatusProvider({ children }: React.PropsWithChildren) {
   );
 
   const [integration, fetchIntegration] = useAsync(() =>
-    integrationService.fetchIntegration(name)
+    integrationService.fetchIntegration<IntegrationAwsOidc>(name)
   );
 
   useEffect(() => {

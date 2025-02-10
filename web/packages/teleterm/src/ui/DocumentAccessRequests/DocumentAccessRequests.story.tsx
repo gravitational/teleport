@@ -21,6 +21,7 @@ import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb'
 
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { AccessRequestsContextProvider } from 'teleterm/ui/AccessRequests';
 import AppContextProvider from 'teleterm/ui/appContextProvider';
 import { DocumentAccessRequests } from 'teleterm/ui/DocumentAccessRequests/DocumentAccessRequests';
 import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
@@ -93,9 +94,11 @@ export function Browsing() {
   return (
     <AppContextProvider value={appContext}>
       <MockWorkspaceContextProvider>
-        <ResourcesContextProvider>
-          <DocumentAccessRequests doc={doc} visible={true} />
-        </ResourcesContextProvider>
+        <AccessRequestsContextProvider rootClusterUri={rootCluster.uri}>
+          <ResourcesContextProvider>
+            <DocumentAccessRequests doc={doc} visible={true} />
+          </ResourcesContextProvider>
+        </AccessRequestsContextProvider>
       </MockWorkspaceContextProvider>
     </AppContextProvider>
   );
@@ -110,9 +113,11 @@ export function BrowsingError() {
   return (
     <AppContextProvider value={appContext}>
       <MockWorkspaceContextProvider>
-        <ResourcesContextProvider>
-          <DocumentAccessRequests doc={doc} visible={true} />
-        </ResourcesContextProvider>
+        <AccessRequestsContextProvider rootClusterUri={rootCluster.uri}>
+          <ResourcesContextProvider>
+            <DocumentAccessRequests doc={doc} visible={true} />
+          </ResourcesContextProvider>
+        </AccessRequestsContextProvider>
       </MockWorkspaceContextProvider>
     </AppContextProvider>
   );
@@ -141,9 +146,11 @@ export function CreatingWhenUnifiedResourcesShowOnlyAccessibleResources() {
   return (
     <AppContextProvider value={appContext}>
       <MockWorkspaceContextProvider>
-        <ResourcesContextProvider>
-          <DocumentAccessRequests doc={docCreating} visible={true} />
-        </ResourcesContextProvider>
+        <AccessRequestsContextProvider rootClusterUri={rootCluster.uri}>
+          <ResourcesContextProvider>
+            <DocumentAccessRequests doc={docCreating} visible={true} />
+          </ResourcesContextProvider>
+        </AccessRequestsContextProvider>
       </MockWorkspaceContextProvider>
     </AppContextProvider>
   );
@@ -172,9 +179,11 @@ export function CreatingWhenUnifiedResourcesShowRequestableAndAccessibleResource
   return (
     <AppContextProvider value={appContext}>
       <MockWorkspaceContextProvider>
-        <ResourcesContextProvider>
-          <DocumentAccessRequests doc={docCreating} visible={true} />
-        </ResourcesContextProvider>
+        <AccessRequestsContextProvider rootClusterUri={rootCluster.uri}>
+          <ResourcesContextProvider>
+            <DocumentAccessRequests doc={docCreating} visible={true} />
+          </ResourcesContextProvider>
+        </AccessRequestsContextProvider>
       </MockWorkspaceContextProvider>
     </AppContextProvider>
   );
