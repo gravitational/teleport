@@ -2439,3 +2439,7 @@ func (m *GitCommand) TrimToMaxSize(_ int) AuditEvent {
 func (m *StableUNIXUserCreate) TrimToMaxSize(int) AuditEvent {
 	return m
 }
+
+func (m *SCIMPrincipalProvisioning) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
