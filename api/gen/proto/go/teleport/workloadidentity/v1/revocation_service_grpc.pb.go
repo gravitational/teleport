@@ -49,6 +49,10 @@ const (
 //
 // WorkloadIdentityRevocationService provides methods to manage the
 // revocation of issued workload identity credentials.
+//
+// The revocation of X509 credentials produces a RFC 5280 Certificate Revocation
+// List (CRL), which is signed by the SPIFFE CA and can be streamed by clients
+// using the StreamSignedCRL method.
 type WorkloadIdentityRevocationServiceClient interface {
 	// CreateWorkloadIdentityX509Revocation creates a new revocation for an X509
 	// workload identity credential. It will refuse to revoke a credential which
@@ -75,8 +79,10 @@ type WorkloadIdentityRevocationServiceClient interface {
 	// ListWorkloadIdentityX509Revocations returns a list of X509 workload
 	// identity revocations, pagination semantics are applied.
 	ListWorkloadIdentityX509Revocations(ctx context.Context, in *ListWorkloadIdentityX509RevocationsRequest, opts ...grpc.CallOption) (*ListWorkloadIdentityX509RevocationsResponse, error)
-	// StreamSignedCRL returns the latest signed CRL to the client, and, any
-	// later updates to this signed CRL.
+	// StreamSignedCRL returns the current signed Certificate Revocation List
+	// (CRL) for the cluster to the client. If any new revocations are added or
+	// any existing revocations are updated, for as long as the client is
+	// connected, the server will send them the full updated signed CRL.
 	StreamSignedCRL(ctx context.Context, in *StreamSignedCRLRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamSignedCRLResponse], error)
 }
 
@@ -173,6 +179,10 @@ type WorkloadIdentityRevocationService_StreamSignedCRLClient = grpc.ServerStream
 //
 // WorkloadIdentityRevocationService provides methods to manage the
 // revocation of issued workload identity credentials.
+//
+// The revocation of X509 credentials produces a RFC 5280 Certificate Revocation
+// List (CRL), which is signed by the SPIFFE CA and can be streamed by clients
+// using the StreamSignedCRL method.
 type WorkloadIdentityRevocationServiceServer interface {
 	// CreateWorkloadIdentityX509Revocation creates a new revocation for an X509
 	// workload identity credential. It will refuse to revoke a credential which
@@ -199,8 +209,10 @@ type WorkloadIdentityRevocationServiceServer interface {
 	// ListWorkloadIdentityX509Revocations returns a list of X509 workload
 	// identity revocations, pagination semantics are applied.
 	ListWorkloadIdentityX509Revocations(context.Context, *ListWorkloadIdentityX509RevocationsRequest) (*ListWorkloadIdentityX509RevocationsResponse, error)
-	// StreamSignedCRL returns the latest signed CRL to the client, and, any
-	// later updates to this signed CRL.
+	// StreamSignedCRL returns the current signed Certificate Revocation List
+	// (CRL) for the cluster to the client. If any new revocations are added or
+	// any existing revocations are updated, for as long as the client is
+	// connected, the server will send them the full updated signed CRL.
 	StreamSignedCRL(*StreamSignedCRLRequest, grpc.ServerStreamingServer[StreamSignedCRLResponse]) error
 	mustEmbedUnimplementedWorkloadIdentityRevocationServiceServer()
 }

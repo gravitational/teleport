@@ -418,7 +418,13 @@ func (*StreamSignedCRLRequest) Descriptor() ([]byte, []int) {
 // The response for StreamSignedCRL.
 type StreamSignedCRLResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The signed Certificate Revocation List (CRL). Encoded in DER format.
+	// The signed Certificate Revocation List (CRL).
+	//
+	// The syntax of the CRL is defined at https://www.rfc-editor.org/rfc/rfc5280.html#section-5
+	// This field is encoded in DER ASN.1 without any PEM wrapping.
+	//
+	// When a new signed CRL is available, the full new CRL will be sent to the
+	// client again using this field.
 	Crl           []byte `protobuf:"bytes,1,opt,name=crl,proto3" json:"crl,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
