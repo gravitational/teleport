@@ -22,7 +22,6 @@ import (
 	"github.com/gravitational/trace"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1"
-	"github.com/gravitational/teleport/lib/vnet"
 	"github.com/gravitational/teleport/lib/vnet/diag"
 )
 
@@ -36,8 +35,8 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 		return nil, trace.CompareFailed("VNet is not running")
 	}
 
-	if s.networkStackInfo == (vnet.NetworkStackInfo{}) {
-		return nil, trace.Errorf("No network stack info present")
+	if s.networkStackInfo.IfaceName == "" {
+		return nil, trace.BadParameter("no interface name, this is a bug")
 	}
 
 	conflictingRoutesDiag, err := diag.NewRouteConflictDiag(&diag.RouteConflictConfig{
