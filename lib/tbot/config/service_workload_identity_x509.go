@@ -71,6 +71,10 @@ type WorkloadIdentityX509Service struct {
 	// IncludeFederatedTrustBundles controls whether to include federated trust
 	// bundles in the output.
 	IncludeFederatedTrustBundles bool `yaml:"include_federated_trust_bundles,omitempty"`
+
+	// CertificateLifetime contains configuration for how long certificates will
+	// last and the frequency at which they'll be renewed.
+	CertificateLifetime CertificateLifetime `yaml:",inline"`
 }
 
 // Init initializes the destination.
@@ -133,4 +137,8 @@ func (o *WorkloadIdentityX509Service) UnmarshalYAML(node *yaml.Node) error {
 	}
 	o.Destination = dest
 	return nil
+}
+
+func (o *WorkloadIdentityX509Service) GetCertificateLifetime() CertificateLifetime {
+	return o.CertificateLifetime
 }
