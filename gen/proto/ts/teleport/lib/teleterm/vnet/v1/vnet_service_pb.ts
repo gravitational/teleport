@@ -97,6 +97,20 @@ export interface GetBackgroundItemStatusResponse {
     status: BackgroundItemStatus;
 }
 /**
+ * Request for RunDiagnostics.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest
+ */
+export interface RunDiagnosticsRequest {
+}
+/**
+ * Response for RunDiagnostics.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse
+ */
+export interface RunDiagnosticsResponse {
+}
+/**
  * BackgroundItemStatus maps to SMAppServiceStatus of the Service Management framework in macOS.
  * https://developer.apple.com/documentation/servicemanagement/smappservice/status-swift.enum?language=objc
  *
@@ -375,6 +389,56 @@ class GetBackgroundItemStatusResponse$Type extends MessageType<GetBackgroundItem
  * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse
  */
 export const GetBackgroundItemStatusResponse = new GetBackgroundItemStatusResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class RunDiagnosticsRequest$Type extends MessageType<RunDiagnosticsRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest", []);
+    }
+    create(value?: PartialMessage<RunDiagnosticsRequest>): RunDiagnosticsRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<RunDiagnosticsRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RunDiagnosticsRequest): RunDiagnosticsRequest {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: RunDiagnosticsRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest
+ */
+export const RunDiagnosticsRequest = new RunDiagnosticsRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class RunDiagnosticsResponse$Type extends MessageType<RunDiagnosticsResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse", []);
+    }
+    create(value?: PartialMessage<RunDiagnosticsResponse>): RunDiagnosticsResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<RunDiagnosticsResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RunDiagnosticsResponse): RunDiagnosticsResponse {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: RunDiagnosticsResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse
+ */
+export const RunDiagnosticsResponse = new RunDiagnosticsResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.vnet.v1.VnetService
  */
@@ -382,5 +446,6 @@ export const VnetService = new ServiceType("teleport.lib.teleterm.vnet.v1.VnetSe
     { name: "Start", options: {}, I: StartRequest, O: StartResponse },
     { name: "Stop", options: {}, I: StopRequest, O: StopResponse },
     { name: "ListDNSZones", options: {}, I: ListDNSZonesRequest, O: ListDNSZonesResponse },
-    { name: "GetBackgroundItemStatus", options: {}, I: GetBackgroundItemStatusRequest, O: GetBackgroundItemStatusResponse }
+    { name: "GetBackgroundItemStatus", options: {}, I: GetBackgroundItemStatusRequest, O: GetBackgroundItemStatusResponse },
+    { name: "RunDiagnostics", options: {}, I: RunDiagnosticsRequest, O: RunDiagnosticsResponse }
 ]);

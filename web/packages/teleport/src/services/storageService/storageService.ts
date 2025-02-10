@@ -102,6 +102,23 @@ export const storageService = {
     return time ? time : 0;
   },
 
+  setLoginTimeOnce() {
+    const existingTime = window.localStorage.getItem(KeysEnum.LOGIN_TIME);
+    // Only set the login time if it doesn't already exist.
+    if (!existingTime) {
+      window.localStorage.setItem(KeysEnum.LOGIN_TIME, `${Date.now()}`);
+    }
+  },
+
+  getLoginTime(): Date {
+    const time = Number(window.localStorage.getItem(KeysEnum.LOGIN_TIME));
+    return time && !Number.isNaN(time) ? new Date(time) : new Date(0);
+  },
+
+  clearLoginTime() {
+    window.localStorage.removeItem(KeysEnum.LOGIN_TIME);
+  },
+
   // setOnboardDiscover persists states used to determine if a user should
   // be onboarded to use the discovery wizard or not. User should only
   // be onboarded once upon login.
@@ -246,6 +263,13 @@ export const storageService = {
 
   getAccessGraphSQLEnabled(): boolean {
     return this.getParsedJSONValue(KeysEnum.ACCESS_GRAPH_SQL_ENABLED, false);
+  },
+
+  getAccessGraphRoleTesterEnabled(): boolean {
+    return this.getParsedJSONValue(
+      KeysEnum.ACCESS_GRAPH_ROLE_TESTER_ENABLED,
+      false
+    );
   },
 
   getExternalAuditStorageCtaDisabled(): boolean {

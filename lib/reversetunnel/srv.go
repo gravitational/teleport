@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
+	"github.com/gravitational/teleport/lib/srv/git"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -124,6 +125,9 @@ type server struct {
 
 	// proxySigner is used to sign PROXY headers to securely propagate client IP information
 	proxySigner multiplexer.PROXYHeaderSigner
+
+	// gitKeyManager manages keys for git proxies.
+	gitKeyManager *git.KeyManager
 }
 
 // Config is a reverse tunnel server configuration
@@ -319,6 +323,16 @@ func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	gitKeyManager, err := git.NewKeyManager(&git.KeyManagerConfig{
+		ParentContext: ctx,
+		AuthClient:    cfg.LocalAuthClient,
+		AccessPoint:   cfg.LocalAccessPoint,
+	})
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	srv := &server{
 		Config:           cfg,
 		localAuthClient:  cfg.LocalAuthClient,
@@ -331,6 +345,7 @@ func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 		logger:           cfg.Logger,
 		offlineThreshold: offlineThreshold,
 		proxySigner:      cfg.PROXYSigner,
+		gitKeyManager:    gitKeyManager,
 	}
 
 	localSite, err := newLocalSite(srv, cfg.ClusterName, cfg.LocalAuthAddresses)
@@ -878,39 +893,39 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 		return nil, trace.BadParameter("server doesn't support provided key type")
 	}
 
+	ident, err := sshca.DecodeIdentity(cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var clusterName, certRole, certType string
 	var caType types.CertAuthType
-	switch cert.CertType {
+	switch ident.CertType {
 	case ssh.HostCert:
-		var ok bool
-		clusterName, ok = cert.Extensions[utils.CertExtensionAuthority]
-		if !ok || clusterName == "" {
+		if ident.ClusterName == "" {
 			return nil, trace.BadParameter("certificate missing %q extension; this SSH host certificate was not issued by Teleport or issued by an older version of Teleport; try upgrading your Teleport nodes/proxies", utils.CertExtensionAuthority)
 		}
-		certRole, ok = cert.Extensions[utils.CertExtensionRole]
-		if !ok || certRole == "" {
+		clusterName = ident.ClusterName
+
+		if ident.SystemRole == "" {
 			return nil, trace.BadParameter("certificate missing %q extension; this SSH host certificate was not issued by Teleport or issued by an older version of Teleport; try upgrading your Teleport nodes/proxies", utils.CertExtensionRole)
 		}
+		certRole = string(ident.SystemRole)
 		certType = utils.ExtIntCertTypeHost
 		caType = types.HostCA
 	case ssh.UserCert:
-		var ok bool
-		clusterName, ok = cert.Extensions[teleport.CertExtensionTeleportRouteToCluster]
-		if !ok || clusterName == "" {
-			clusterName = s.ClusterName
+		if ident.RouteToCluster != "" && ident.RouteToCluster != s.ClusterName {
+			return nil, trace.BadParameter("this endpoint does not support cross-cluster routing (cannot route from %q to %q)", s.ClusterName, ident.RouteToCluster)
 		}
-		encRoles, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]
-		if !ok || encRoles == "" {
-			return nil, trace.BadParameter("certificate missing %q extension; this SSH user certificate was not issued by Teleport or issued by an older version of Teleport; try upgrading your Teleport proxies/auth servers and logging in again (or exporting an identity file, if that's what you used)", teleport.CertExtensionTeleportRoles)
-		}
-		roles, err := services.UnmarshalCertRoles(encRoles)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if len(roles) == 0 {
+
+		// only support certs signed by local user CA here. user certs don't encode the clustername of origin, but we can
+		// effectively limit ourselves to only supporting local users by only checking the cert against local CAs.
+		clusterName = s.ClusterName
+
+		if len(ident.Roles) == 0 {
 			return nil, trace.BadParameter("certificate missing roles in %q extension; make sure your user has some roles assigned (or ask your Teleport admin to) and log in again (or export an identity file, if that's what you used)", teleport.CertExtensionTeleportRoles)
 		}
-		certRole = roles[0]
+		certRole = ident.Roles[0]
 		certType = utils.ExtIntCertTypeUser
 		caType = types.UserCA
 	default:
@@ -962,7 +977,7 @@ func (s *server) checkClientCert(user string, clusterName string, cert *ssh.Cert
 		FIPS: s.FIPS,
 	}
 	if err := checker.CheckCert(user, cert); err != nil {
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	}
 
 	return nil

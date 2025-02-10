@@ -55,9 +55,10 @@ issues:
     - path: provider/provider.go # integrations/terraform
       linters: [staticcheck]
       text: 'grpc.WithReturnConnectionError is deprecated'
-    - linters: [govet]
-      path-except: ^e/
-      text: 'non-constant format string in call to github.com/gravitational/trace.'
+    # BlockUntilContext should indeed be favored, this exception exists because
+    # at this time there are too many offenders.
+    - linters: [staticcheck]
+      text: 'BlockUntil is deprecated: New code should prefer BlockUntilContext'
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0

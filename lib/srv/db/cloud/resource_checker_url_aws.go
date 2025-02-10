@@ -22,13 +22,12 @@ import (
 	"context"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	opensearch "github.com/aws/aws-sdk-go-v2/service/opensearch"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
-	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/lib/cloud"
 	cloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -237,32 +236,34 @@ func (c *urlChecker) checkElastiCache(ctx context.Context, database types.Databa
 
 func (c *urlChecker) checkMemoryDB(ctx context.Context, database types.Database) error {
 	meta := database.GetAWS()
-	memoryDBClient, err := c.clients.GetAWSMemoryDBClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := c.awsConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cluster, err := describeMemoryDBCluster(ctx, memoryDBClient, meta.MemoryDB.ClusterName)
+	clt := c.awsClients.getMemoryDBClient(awsCfg)
+	cluster, err := describeMemoryDBCluster(ctx, clt, meta.MemoryDB.ClusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(requireDatabaseAddressPort(database, cluster.ClusterEndpoint.Address, cluster.ClusterEndpoint.Port))
+	return trace.Wrap(requireDatabaseAddressPort(database, cluster.ClusterEndpoint.Address, &cluster.ClusterEndpoint.Port))
 }
 
 func (c *urlChecker) checkOpenSearch(ctx context.Context, database types.Database) error {
 	meta := database.GetAWS()
-	client, err := c.clients.GetAWSOpenSearchClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := c.awsConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	clt := c.awsClients.getOpenSearchClient(awsCfg)
 
-	domains, err := client.DescribeDomainsWithContext(ctx, &opensearchservice.DescribeDomainsInput{
-		DomainNames: []*string{aws.String(meta.OpenSearch.DomainName)},
+	domains, err := clt.DescribeDomains(ctx, &opensearch.DescribeDomainsInput{
+		DomainNames: []string{meta.OpenSearch.DomainName},
 	})
 	if err != nil {
 		return trace.Wrap(cloudaws.ConvertRequestFailureError(err))
@@ -271,7 +272,7 @@ func (c *urlChecker) checkOpenSearch(ctx context.Context, database types.Databas
 		return trace.BadParameter("expect 1 domain but got %v", domains.DomainStatusList)
 	}
 
-	databases, err := common.NewDatabasesFromOpenSearchDomain(domains.DomainStatusList[0], nil)
+	databases, err := common.NewDatabasesFromOpenSearchDomain(&domains.DomainStatusList[0], nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}

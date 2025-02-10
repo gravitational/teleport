@@ -162,7 +162,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		// Some scenarios require a local proxy tunnel, e.g.:
 		// - Snowflake, DynamoDB protocol
 		// - Hardware-backed private key policy
-		return trace.BadParameter(formatDbCmdUnsupported(cf, dbInfo.RouteToDatabase, requires.tunnelReasons...))
+		return trace.BadParameter("%s", formatDbCmdUnsupported(cf, dbInfo.RouteToDatabase, requires.tunnelReasons...))
 	}
 	if err := maybeDatabaseLogin(cf, tc, profile, dbInfo, requires); err != nil {
 		return trace.Wrap(err)
@@ -882,13 +882,13 @@ func envVarDefaultFormat() string {
 func envVarCommand(format, key, value string) (string, error) {
 	switch format {
 	case envVarFormatUnix:
-		return fmt.Sprintf("export %s=%s", key, value), nil
+		return fmt.Sprintf(`export %s="%s"`, key, value), nil
 
 	case envVarFormatWindowsCommandPrompt:
 		return fmt.Sprintf("set %s=%s", key, value), nil
 
 	case envVarFormatWindowsPowershell:
-		return fmt.Sprintf("$Env:%s=\"%s\"", key, value), nil
+		return fmt.Sprintf(`$Env:%s="%s"`, key, value), nil
 
 	case envVarFormatText:
 		return fmt.Sprintf("%s=%s", key, value), nil

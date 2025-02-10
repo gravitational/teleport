@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"golang.zx2c4.com/wireguard/tun"
 
 	"github.com/gravitational/teleport/lib/vnet/daemon"
@@ -31,7 +32,7 @@ import (
 // background. To do this, it also needs to launch an admin process in the
 // background. It returns a [ProcessManager] which controls the lifecycle of
 // both background tasks.
-func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm *ProcessManager, err error) {
+func runPlatformUserProcess(ctx context.Context, cfg *UserProcessConfig) (pm *ProcessManager, nsi NetworkStackInfo, err error) {
 	// Make sure to close the process manager if returning a non-nil error.
 	defer func() {
 		if pm != nil && err != nil {
@@ -39,16 +40,16 @@ func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm 
 		}
 	}()
 
-	ipv6Prefix, err := NewIPv6Prefix()
+	ipv6Prefix, err := newIPv6Prefix()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nsi, trace.Wrap(err)
 	}
 	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, []byte{2})
 
 	// Create the socket that's used to receive the TUN device from the admin process.
 	socket, socketPath, err := createSocket()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nsi, trace.Wrap(err)
 	}
 	log.DebugContext(ctx, "Created unix socket for admin process", "socket", socketPath)
 
@@ -65,7 +66,7 @@ func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm 
 			SocketPath: socketPath,
 			IPv6Prefix: ipv6Prefix.String(),
 			DNSAddr:    dnsIPv6.String(),
-			HomePath:   config.HomePath,
+			HomePath:   cfg.HomePath,
 		}
 		return trace.Wrap(execAdminProcess(processCtx, daemonConfig))
 	})
@@ -89,9 +90,9 @@ func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm 
 
 	select {
 	case <-receiveTunCtx.Done():
-		return nil, trace.Wrap(context.Cause(receiveTunCtx))
+		return nil, nsi, trace.Wrap(context.Cause(receiveTunCtx))
 	case <-processCtx.Done():
-		return nil, trace.Wrap(context.Cause(processCtx))
+		return nil, nsi, trace.Wrap(context.Cause(processCtx))
 	case err := <-recvTUNErr:
 		if err != nil {
 			if processCtx.Err() != nil {
@@ -100,18 +101,20 @@ func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm 
 				// Returning error from processCtx will be more informative to the user, e.g., the error
 				// will say "password prompt closed by user" instead of "read from closed socket".
 				log.DebugContext(ctx, "Error from recvTUNErr ignored in favor of processCtx.Err", "error", err)
-				return nil, trace.Wrap(context.Cause(processCtx))
+				return nil, nsi, trace.Wrap(context.Cause(processCtx))
 			}
-			return nil, trace.Wrap(err, "receiving TUN device from admin process")
+			return nil, nsi, trace.Wrap(err, "receiving TUN device from admin process")
 		}
 	}
 
-	appResolver, err := newTCPAppResolver(config.AppProvider,
-		WithClusterConfigCache(config.ClusterConfigCache))
+	tunDeviceName, err := tun.Name()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nsi, trace.Wrap(err)
 	}
 
+	clock := clockwork.NewRealClock()
+	appProvider := newLocalAppProvider(cfg.ClientApplication, clock)
+	appResolver := newTCPAppResolver(appProvider, clock)
 	ns, err := newNetworkStack(&networkStackConfig{
 		tunDevice:          tun,
 		ipv6Prefix:         ipv6Prefix,
@@ -119,12 +122,16 @@ func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm 
 		tcpHandlerResolver: appResolver,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nsi, trace.Wrap(err)
 	}
 
 	pm.AddCriticalBackgroundTask("network stack", func() error {
 		return trace.Wrap(ns.run(processCtx))
 	})
 
-	return pm, nil
+	nsi = NetworkStackInfo{
+		IfaceName: tunDeviceName,
+	}
+
+	return pm, nsi, nil
 }

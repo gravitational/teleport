@@ -20,7 +20,11 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
 import { integrationService } from './integrations';
-import { IntegrationAudience, IntegrationStatusCode } from './types';
+import {
+  IntegrationAudience,
+  IntegrationAwsOidc,
+  IntegrationStatusCode,
+} from './types';
 
 beforeEach(() => {
   jest.resetAllMocks();
@@ -30,7 +34,10 @@ test('fetch a single integration: fetchIntegration()', async () => {
   // test a valid response
   jest.spyOn(api, 'get').mockResolvedValue(awsOidcIntegration);
 
-  let response = await integrationService.fetchIntegration('integration-name');
+  let response =
+    await integrationService.fetchIntegration<IntegrationAwsOidc>(
+      'integration-name'
+    );
   expect(api.get).toHaveBeenCalledWith(
     cfg.getIntegrationsUrl('integration-name')
   );
@@ -38,6 +45,8 @@ test('fetch a single integration: fetchIntegration()', async () => {
     kind: 'aws-oidc',
     name: 'aws-oidc-integration',
     resourceType: 'integration',
+    details:
+      'Enroll EC2, RDS and EKS resources or enable Web/CLI access to your AWS Account.',
     spec: {
       roleArn: 'arn-123',
       origin: undefined,
@@ -48,16 +57,15 @@ test('fetch a single integration: fetchIntegration()', async () => {
   // test null response
   jest.spyOn(api, 'get').mockResolvedValue(null);
 
-  response = await integrationService.fetchIntegration('integration-name');
+  response =
+    await integrationService.fetchIntegration<IntegrationAwsOidc>(
+      'integration-name'
+    );
   expect(response).toEqual({
     resourceType: 'integration',
     statusCode: IntegrationStatusCode.Running,
     kind: undefined,
     name: undefined,
-    spec: {
-      roleArn: undefined,
-      origin: undefined,
-    },
   });
 });
 
@@ -82,9 +90,10 @@ test('fetch integration list: fetchIntegrations()', async () => {
         kind: 'aws-oidc',
         name: 'aws-oidc-integration',
         resourceType: 'integration',
+        details:
+          'Enroll EC2, RDS and EKS resources or enable Web/CLI access to your AWS Account.',
         spec: {
           roleArn: 'arn-123',
-          audience: undefined,
         },
         statusCode: IntegrationStatusCode.Running,
       },
@@ -92,6 +101,8 @@ test('fetch integration list: fetchIntegrations()', async () => {
         kind: 'aws-oidc',
         name: 'aws-oidc-integration2',
         resourceType: 'integration',
+        details:
+          'Enroll EC2, RDS and EKS resources or enable Web/CLI access to your AWS Account.',
         spec: {
           roleArn: 'arn-12345',
           audience: 'aws-identity-center',
@@ -102,21 +113,14 @@ test('fetch integration list: fetchIntegrations()', async () => {
         kind: 'github',
         name: 'github-my-org',
         resourceType: 'integration',
-        spec: {
-          roleArn: undefined,
-          audience: undefined,
-        },
         details: 'GitHub Organization "my-org"',
+        spec: { organization: 'my-org' },
         statusCode: IntegrationStatusCode.Running,
       },
       {
         kind: 'abc',
         name: 'non-aws-oidc-integration',
         resourceType: 'integration',
-        spec: {
-          roleArn: undefined,
-          audience: undefined,
-        },
         statusCode: IntegrationStatusCode.Running,
       },
     ],
@@ -234,6 +238,7 @@ const nonAwsOidcIntegration = {
   name: 'non-aws-oidc-integration',
   subKind: 'abc',
 };
+
 const awsOidcIntegration = {
   name: 'aws-oidc-integration',
   subKind: 'aws-oidc',

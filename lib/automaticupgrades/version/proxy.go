@@ -28,11 +28,15 @@ import (
 	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 )
 
-type proxyVersionClient struct {
-	client *webclient.ReusableClient
+type Finder interface {
+	Find() (*webclient.PingResponse, error)
 }
 
-func (b *proxyVersionClient) Get(ctx context.Context) (string, error) {
+type proxyVersionClient struct {
+	client Finder
+}
+
+func (b *proxyVersionClient) Get(_ context.Context) (string, error) {
 	resp, err := b.client.Find()
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -41,7 +45,7 @@ func (b *proxyVersionClient) Get(ctx context.Context) (string, error) {
 	if resp.AutoUpdate.AgentVersion == "" {
 		return "", trace.NotImplemented("proxy does not seem to implement RFD-184")
 	}
-	return resp.AutoUpdate.AgentVersion, nil
+	return EnsureSemver(resp.AutoUpdate.AgentVersion)
 }
 
 // ProxyVersionGetter gets the target version from the Teleport Proxy Service /find endpoint, as
@@ -49,27 +53,20 @@ func (b *proxyVersionClient) Get(ctx context.Context) (string, error) {
 // The Getter returns trace.NotImplementedErr when running against a proxy that does not seem to
 // expose automatic update instructions over the /find endpoint (proxy too old).
 type ProxyVersionGetter struct {
-	name         string
 	cachedGetter func(context.Context) (string, error)
-}
-
-// Name implements Getter
-func (g ProxyVersionGetter) Name() string {
-	return g.name
 }
 
 // GetVersion implements Getter
 func (g ProxyVersionGetter) GetVersion(ctx context.Context) (string, error) {
-	result, err := g.cachedGetter(ctx)
-	return result, trace.Wrap(err)
+	return g.cachedGetter(ctx)
 }
 
 // NewProxyVersionGetter creates a ProxyVersionGetter from a webclient.
 // The answer is cached for a minute.
-func NewProxyVersionGetter(name string, clt *webclient.ReusableClient) Getter {
+func NewProxyVersionGetter(clt *webclient.ReusableClient) Getter {
 	versionClient := &proxyVersionClient{
 		client: clt,
 	}
 
-	return ProxyVersionGetter{name, cache.NewTimedMemoize[string](versionClient.Get, constants.CacheDuration).Get}
+	return ProxyVersionGetter{cache.NewTimedMemoize[string](versionClient.Get, constants.CacheDuration).Get}
 }

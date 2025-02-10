@@ -91,7 +91,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
 	redisprotocol "github.com/gravitational/teleport/lib/srv/db/redis/protocol"
-	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
 	"github.com/gravitational/teleport/lib/srv/db/spanner"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
@@ -107,9 +106,7 @@ func TestMain(m *testing.M) {
 	modules.SetInsecureTestMode(true)
 	registerTestSnowflakeEngine()
 	registerTestElasticsearchEngine()
-	registerTestOpenSearchEngine()
 	registerTestSQLServerEngine()
-	registerTestDynamoDBEngine()
 	os.Exit(m.Run())
 }
 
@@ -1508,7 +1505,7 @@ type testContext struct {
 	spanner map[string]testSpannerDB
 
 	// clock to override clock in tests.
-	clock clockwork.FakeClock
+	clock *clockwork.FakeClock
 }
 
 // testPostgres represents a single proxied Postgres database.
@@ -2439,8 +2436,6 @@ type agentParams struct {
 	NoStart bool
 	// GCPSQL defines the GCP Cloud SQL mock to use for GCP API calls.
 	GCPSQL *mocks.GCPSQLAdminClientMock
-	// MemoryDB defines the AWS MemoryDB mock to use for MemoryDB API calls.
-	MemoryDB *mocks.MemoryDBMock
 	// OnHeartbeat defines a heartbeat function that generates heartbeat events.
 	OnHeartbeat func(error)
 	// CADownloader defines the CA downloader.
@@ -2479,9 +2474,6 @@ func (p *agentParams) setDefaults(c *testContext) {
 			},
 		}
 	}
-	if p.MemoryDB == nil {
-		p.MemoryDB = &mocks.MemoryDBMock{}
-	}
 	if p.CADownloader == nil {
 		p.CADownloader = &fakeDownloader{
 			cert: []byte(fixtures.TLSCACertPEM),
@@ -2490,10 +2482,7 @@ func (p *agentParams) setDefaults(c *testContext) {
 
 	if p.CloudClients == nil {
 		p.CloudClients = &clients.TestCloudClients{
-			STS:            &mocks.STSClientV1{},
-			MemoryDB:       p.MemoryDB,
-			SecretsManager: secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
-			GCPSQL:         p.GCPSQL,
+			GCPSQL: p.GCPSQL,
 		}
 	}
 	if p.AWSConfigProvider == nil {

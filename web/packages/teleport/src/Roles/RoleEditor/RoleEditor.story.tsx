@@ -27,6 +27,7 @@ import Flex from 'design/Flex';
 import useResources from 'teleport/components/useResources';
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
+import { RoleVersion } from 'teleport/services/resources';
 import { Access } from 'teleport/services/user';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
@@ -73,7 +74,7 @@ const parseHandler = http.post(
     HttpResponse.json({
       resource: withDefaults({
         metadata: { name: 'dummy-role' },
-        version: 'v7',
+        version: RoleVersion.V7,
       }),
     })
 );

@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	awsmetrics "github.com/gravitational/teleport/lib/observability/metrics/aws"
+	s3metrics "github.com/gravitational/teleport/lib/observability/metrics/s3"
 	"github.com/gravitational/teleport/lib/session"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/aws/endpoint"
@@ -216,7 +217,10 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		opts = append(opts, config.WithCredentialsProvider(cfg.CredentialsProvider))
 	}
 
-	opts = append(opts, config.WithAPIOptions(awsmetrics.MetricsMiddleware()))
+	opts = append(opts,
+		config.WithAPIOptions(awsmetrics.MetricsMiddleware()),
+		config.WithAPIOptions(s3metrics.MetricsMiddleware()),
+	)
 
 	resolver, err := endpoint.NewLoggingResolver(
 		s3.NewDefaultEndpointResolverV2(),
@@ -467,8 +471,7 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 		ACL:    awstypes.BucketCannedACLPrivate,
 	}
 	_, err = h.client.CreateBucket(ctx, input)
-	err = awsutils.ConvertS3Error(err, fmt.Sprintf("bucket %v already exists", aws.String(h.Bucket)))
-	if err != nil {
+	if err := awsutils.ConvertS3Error(err); err != nil {
 		if !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err)
 		}
@@ -484,9 +487,8 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 			Status: awstypes.BucketVersioningStatusEnabled,
 		},
 	})
-	err = awsutils.ConvertS3Error(err, fmt.Sprintf("failed to set versioning state for bucket %q", h.Bucket))
-	if err != nil {
-		return trace.Wrap(err)
+	if err := awsutils.ConvertS3Error(err); err != nil {
+		return trace.Wrap(err, "failed to set versioning state for bucket %q", h.Bucket)
 	}
 
 	// Turn on server-side encryption for the bucket.
@@ -503,9 +505,8 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 				},
 			},
 		})
-		err = awsutils.ConvertS3Error(err, fmt.Sprintf("failed to set encryption state for bucket %q", h.Bucket))
-		if err != nil {
-			return trace.Wrap(err)
+		if err := awsutils.ConvertS3Error(err); err != nil {
+			return trace.Wrap(err, "failed to set encryption state for bucket %q", h.Bucket)
 		}
 	}
 	return nil

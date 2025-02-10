@@ -28,19 +28,17 @@ import (
 
 // UserProcessConfig provides the necessary configuration to run VNet.
 type UserProcessConfig struct {
-	// AppProvider is a required field providing an interface implementation for [AppProvider].
-	AppProvider AppProvider
-	// ClusterConfigCache is an optional field providing [ClusterConfigCache]. If empty, a new cache
-	// will be created.
-	ClusterConfigCache *ClusterConfigCache
+	// ClientApplication is a required field providing an interface implementation for
+	// [ClientApplication].
+	ClientApplication ClientApplication
 	// HomePath is the tsh home used for Teleport clients created by VNet. Resolved using the same
 	// rules as HomeDir in tsh.
 	HomePath string
 }
 
 func (c *UserProcessConfig) checkAndSetDefaults() error {
-	if c.AppProvider == nil {
-		return trace.BadParameter("missing AppProvider")
+	if c.ClientApplication == nil {
+		return trace.BadParameter("missing ClientApplication")
 	}
 	if c.HomePath == "" {
 		c.HomePath = profile.FullProfilePath(os.Getenv(types.HomeEnvVar))
@@ -58,9 +56,9 @@ func (c *UserProcessConfig) checkAndSetDefaults() error {
 // caller is expected to call Close on the process manager to clean up any
 // resources, terminate all processes, and remove any OS configuration used for
 // actively running VNet.
-func RunUserProcess(ctx context.Context, cfg *UserProcessConfig) (pm *ProcessManager, err error) {
+func RunUserProcess(ctx context.Context, cfg *UserProcessConfig) (*ProcessManager, NetworkStackInfo, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, NetworkStackInfo{}, trace.Wrap(err)
 	}
 	return runPlatformUserProcess(ctx, cfg)
 }

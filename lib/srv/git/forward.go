@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -63,6 +64,8 @@ type ForwardServerConfig struct {
 	Emitter events.StreamEmitter
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
+	// KeyManager manages keys for git proxies.
+	KeyManager *KeyManager
 	// HostCertificate is the SSH host certificate this in-memory server presents
 	// to the client.
 	HostCertificate ssh.Signer
@@ -108,6 +111,9 @@ func (c *ForwardServerConfig) CheckAndSetDefaults() error {
 	if c.Emitter == nil {
 		return trace.BadParameter("missing parameter Emitter")
 	}
+	if c.KeyManager == nil {
+		return trace.BadParameter("missing parameter KeyManager")
+	}
 	if c.HostCertificate == nil {
 		return trace.BadParameter("missing parameter HostCertificate")
 	}
@@ -147,7 +153,7 @@ type ForwardServer struct {
 	remoteClient *tracessh.Client
 
 	// verifyRemoteHost is a callback to verify remote host like "github.com".
-	// Can be overridden for tests. Defaults to verifyRemoteHost.
+	// Can be overridden for tests. Defaults to cfg.KeyManager.HostKeyCallback.
 	verifyRemoteHost ssh.HostKeyCallback
 	// makeRemoteSigner generates the client certificate for connecting to the
 	// remote server. Can be overridden for tests. Defaults to makeRemoteSigner.
@@ -171,10 +177,16 @@ func NewForwardServer(cfg *ForwardServerConfig) (*ForwardServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	verifyRemoteHost, err := cfg.KeyManager.HostKeyCallback(cfg.TargetServer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	logger := slog.With(teleport.ComponentKey, teleport.ComponentForwardingGit,
 		"src_addr", cfg.SrcAddr.String(),
 		"dst_addr", cfg.DstAddr.String(),
 	)
+
 	s := &ForwardServer{
 		StreamEmitter:    cfg.Emitter,
 		cfg:              cfg,
@@ -183,7 +195,7 @@ func NewForwardServer(cfg *ForwardServerConfig) (*ForwardServer, error) {
 		logger:           logger,
 		reply:            sshutils.NewReply(logger),
 		id:               uuid.NewString(),
-		verifyRemoteHost: verifyRemoteHost(cfg.TargetServer),
+		verifyRemoteHost: verifyRemoteHost,
 		makeRemoteSigner: makeRemoteSigner,
 	}
 	// TODO(greedy52) extract common parts from srv.NewAuthHandlers like
@@ -248,7 +260,13 @@ func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*
 	if !ok {
 		return nil, trace.BadParameter("unsupported key type")
 	}
-	if len(cert.Extensions[teleport.CertExtensionGitHubUserID]) == 0 {
+
+	ident, err := sshca.DecodeIdentity(cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if ident.GitHubUserID == "" {
 		return nil, trace.BadParameter("missing GitHub user ID")
 	}
 
@@ -257,8 +275,8 @@ func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*
 	if conn.User() != gitUser {
 		return nil, trace.BadParameter("only git is expected as user for git connections")
 	}
-	if len(cert.ValidPrincipals) > 0 {
-		conn = sshutils.NewSSHConnMetadataWithUser(conn, cert.ValidPrincipals[0])
+	if len(ident.Principals) > 0 {
+		conn = sshutils.NewSSHConnMetadataWithUser(conn, ident.Principals[0])
 	}
 
 	// Use auth.UserKeyAuth to verify user cert is signed by UserCA.
@@ -268,7 +286,7 @@ func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*
 	}
 
 	// Check RBAC on the git server resource (aka s.cfg.TargetServer).
-	if err := s.checkUserAccess(cert); err != nil {
+	if err := s.checkUserAccess(ident); err != nil {
 		s.logger.ErrorContext(s.Context(), "Permission denied",
 			"error", err,
 			"local_addr", logutils.StringerAttr(conn.LocalAddr()),
@@ -282,20 +300,17 @@ func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*
 	return permissions, nil
 }
 
-func (s *ForwardServer) checkUserAccess(cert *ssh.Certificate) error {
+func (s *ForwardServer) checkUserAccess(ident *sshca.Identity) error {
 	clusterName, err := s.cfg.AccessPoint.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromLocalCertificate(cert)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	accessInfo := services.AccessInfoFromLocalSSHIdentity(ident)
 	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), s.cfg.AccessPoint)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	state, err := services.AccessStateFromSSHCertificate(s.Context(), cert, accessChecker, s.cfg.AccessPoint)
+	state, err := services.AccessStateFromSSHIdentity(s.Context(), ident, accessChecker, s.cfg.AccessPoint)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -577,24 +592,13 @@ func makeRemoteSigner(ctx context.Context, cfg *ForwardServerConfig, identityCtx
 			Server:                  cfg.TargetServer,
 			TeleportUser:            identityCtx.TeleportUser,
 			IdentityExpires:         identityCtx.CertValidBefore,
-			GitHubUserID:            identityCtx.Certificate.Extensions[teleport.CertExtensionGitHubUserID],
+			GitHubUserID:            identityCtx.UnmappedIdentity.GitHubUserID,
 			AuthPreferenceGetter:    cfg.AccessPoint,
 			GitHubUserCertGenerator: cfg.AuthClient.IntegrationsClient(),
 			Clock:                   cfg.Clock,
 		})
 	default:
 		return nil, trace.BadParameter("unsupported subkind %q", cfg.TargetServer.GetSubKind())
-	}
-}
-
-func verifyRemoteHost(targetServer types.Server) ssh.HostKeyCallback {
-	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-		switch targetServer.GetSubKind() {
-		case types.SubKindGitHub:
-			return VerifyGitHubHostKey(hostname, remote, key)
-		default:
-			return trace.BadParameter("unsupported subkind %q", targetServer.GetSubKind())
-		}
 	}
 }
 

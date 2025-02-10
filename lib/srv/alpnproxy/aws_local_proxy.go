@@ -134,7 +134,7 @@ func (m *AWSAccessMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Re
 }
 
 func (m *AWSAccessMiddleware) handleCommonRequest(rw http.ResponseWriter, req *http.Request) bool {
-	if err := awsutils.VerifyAWSSignatureV2(req, m.AWSCredentialsProvider); err != nil {
+	if err := awsutils.VerifyAWSSignature(req, m.AWSCredentialsProvider); err != nil {
 		m.Log.ErrorContext(req.Context(), "AWS signature verification failed", "error", err)
 		rw.WriteHeader(http.StatusForbidden)
 		return true
@@ -149,7 +149,7 @@ func (m *AWSAccessMiddleware) handleRequestByAssumedRole(rw http.ResponseWriter,
 		aws.ToString(assumedRole.Credentials.SessionToken),
 	)
 
-	if err := awsutils.VerifyAWSSignatureV2(req, credentials); err != nil {
+	if err := awsutils.VerifyAWSSignature(req, credentials); err != nil {
 		m.Log.ErrorContext(req.Context(), "AWS signature verification failed", "error", err)
 		rw.WriteHeader(http.StatusForbidden)
 		return true

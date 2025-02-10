@@ -125,7 +125,7 @@ func (c *Controller) Run(ctx context.Context) error {
 		case <-ticker.Next():
 			c.log.DebugContext(ctx, "Reconciling autoupdate_agent_rollout")
 			if err := c.tryAndCatch(ctx); err != nil {
-				c.log.ErrorContext(ctx, "Failed to reconcile autoudpate_agent_controller", "error", err)
+				c.log.ErrorContext(ctx, "Failed to reconcile autoupdate_agent_controller", "error", err)
 			}
 		}
 	}

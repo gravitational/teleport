@@ -34,7 +34,7 @@ import (
 
 // pollAWSUsers is a function that returns a function that fetches
 // AWS users and their inline and attached policies, and groups.
-func (a *awsFetcher) pollAWSUsers(ctx context.Context, result, existing *Resources, collectErr func(error)) func() error {
+func (a *Fetcher) pollAWSUsers(ctx context.Context, result, existing *Resources, collectErr func(error)) func() error {
 	return func() error {
 		var err error
 
@@ -104,11 +104,11 @@ func (a *awsFetcher) pollAWSUsers(ctx context.Context, result, existing *Resourc
 
 // fetchUsers fetches AWS users and returns them as a slice of accessgraphv1alpha.AWSUserV1.
 // It uses iam.ListUsersPagesWithContext to iterate over all users.
-func (a *awsFetcher) fetchUsers(ctx context.Context) ([]*accessgraphv1alpha.AWSUserV1, error) {
+func (a *Fetcher) fetchUsers(ctx context.Context) ([]*accessgraphv1alpha.AWSUserV1, error) {
 	awsCfg, err := a.AWSConfigProvider.GetConfig(
 		ctx,
 		"", /* region is empty because users are global */
-		a.getAWSV2Options()...,
+		a.getAWSOptions()...,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -170,11 +170,11 @@ func awsUserToProtoUser(user iamtypes.User, accountID string) *accessgraphv1alph
 	}
 }
 
-func (a *awsFetcher) fetchUserInlinePolicies(ctx context.Context, user *accessgraphv1alpha.AWSUserV1) ([]*accessgraphv1alpha.AWSUserInlinePolicyV1, error) {
+func (a *Fetcher) fetchUserInlinePolicies(ctx context.Context, user *accessgraphv1alpha.AWSUserV1) ([]*accessgraphv1alpha.AWSUserInlinePolicyV1, error) {
 	awsCfg, err := a.AWSConfigProvider.GetConfig(
 		ctx,
 		"", /* region is empty because users and groups are global */
-		a.getAWSV2Options()...,
+		a.getAWSOptions()...,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -227,11 +227,11 @@ func awsUserPolicyToProtoUserPolicy(policy *iam.GetUserPolicyOutput, user *acces
 	}
 }
 
-func (a *awsFetcher) fetchUserAttachedPolicies(ctx context.Context, user *accessgraphv1alpha.AWSUserV1) (*accessgraphv1alpha.AWSUserAttachedPolicies, error) {
+func (a *Fetcher) fetchUserAttachedPolicies(ctx context.Context, user *accessgraphv1alpha.AWSUserV1) (*accessgraphv1alpha.AWSUserAttachedPolicies, error) {
 	awsCfg, err := a.AWSConfigProvider.GetConfig(
 		ctx,
 		"", /* region is empty because users and groups are global */
-		a.getAWSV2Options()...,
+		a.getAWSOptions()...,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -271,7 +271,7 @@ func (a *awsFetcher) fetchUserAttachedPolicies(ctx context.Context, user *access
 	return rsp, trace.Wrap(err)
 }
 
-func (a *awsFetcher) fetchGroupsForUser(ctx context.Context, user *accessgraphv1alpha.AWSUserV1) (*accessgraphv1alpha.AWSUserGroupsV1, error) {
+func (a *Fetcher) fetchGroupsForUser(ctx context.Context, user *accessgraphv1alpha.AWSUserV1) (*accessgraphv1alpha.AWSUserGroupsV1, error) {
 	userGroups := &accessgraphv1alpha.AWSUserGroupsV1{
 		User:         user,
 		LastSyncTime: timestamppb.Now(),
@@ -280,7 +280,7 @@ func (a *awsFetcher) fetchGroupsForUser(ctx context.Context, user *accessgraphv1
 	awsCfg, err := a.AWSConfigProvider.GetConfig(
 		ctx,
 		"", /* region is empty because users and groups are global */
-		a.getAWSV2Options()...,
+		a.getAWSOptions()...,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

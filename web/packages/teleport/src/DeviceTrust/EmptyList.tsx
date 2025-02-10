@@ -34,8 +34,13 @@ import {
   Text,
 } from 'design';
 import Table from 'design/DataTable';
-import { Cross, FingerprintSimple, Password, UsbDrive } from 'design/Icon';
-import { MobileCamera } from 'design/Icon/Icons/MobileCamera';
+import {
+  Cross,
+  DeviceMobileCamera,
+  FingerprintSimple,
+  Password,
+  UsbDrive,
+} from 'design/Icon';
 import {
   DetailsTab,
   FeatureContainer,
@@ -163,7 +168,7 @@ export const EmptyList = ({
                     <UsbDrive />
                   </IconCard>
                   <IconCard>
-                    <MobileCamera />
+                    <DeviceMobileCamera />
                   </IconCard>
                   <IconCard>
                     <FingerprintSimple />
@@ -397,7 +402,7 @@ const AccessDeniedCard = () => {
           border-radius: ${p => p.theme.radii[3]}px;
         `}
       >
-        <MobileCamera />
+        <DeviceMobileCamera />
         <Flex
           css={`
             position: absolute;

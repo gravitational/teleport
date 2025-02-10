@@ -9,7 +9,11 @@
   - A device with TPM 2.0.
   - A user with permissions to use the /dev/tpmrm0 device (typically done by
     assigning the `tss` group to the user).
-  - `tsh` v15.0.0 or newer. [Install tsh for Linux](../../installation.mdx#linux).
+  - The `tsh` client. [Install tsh for Linux](../../installation.mdx#linux).
+
+    WSL users should use the Windows binary instead.
+    [Download the Windows tsh installer](../../installation.mdx#windows-tsh-and-tctl-clients-only).
+
 - To authenticate a Web UI session you need [Teleport Connect](
   ../../connect-your-client/teleport-connect.mdx#installation--upgrade)
 - Correct end-user IP propagation to your Teleport deployment:

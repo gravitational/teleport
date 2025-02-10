@@ -76,8 +76,8 @@ export default function DeleteConnectorDialog(props: Props) {
         {isDefault && (
           <Alert kind="outline-warn" m={0} mt={3}>
             <P1>
-              This is the currently the default auth connector. Deleting this
-              will cause{' '}
+              This is currently the default auth connector. Deleting this will
+              cause{' '}
               <Text as="span" bold color="text.main">
                 {nextDefault}
               </Text>{' '}

@@ -823,7 +823,7 @@ func (b *EtcdBackend) CompareAndSwap(ctx context.Context, expected backend.Item,
 	if err != nil {
 		err = convertErr(err)
 		if trace.IsNotFound(err) {
-			return nil, trace.CompareFailed(err.Error())
+			return nil, trace.CompareFailed("%s", err)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -1073,14 +1073,14 @@ func convertErr(err error) error {
 	case errors.Is(err, context.DeadlineExceeded):
 		return trace.ConnectionProblem(err, "operation has timed out")
 	case errors.Is(err, rpctypes.ErrEmptyKey):
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	case errors.Is(err, rpctypes.ErrKeyNotFound):
-		return trace.NotFound(err.Error())
+		return trace.NotFound("%s", err)
 	}
 
 	ev, ok := status.FromError(err)
 	if !ok {
-		return trace.ConnectionProblem(err, err.Error())
+		return trace.ConnectionProblem(err, "%s", err.Error())
 	}
 
 	switch ev.Code() {
@@ -1089,15 +1089,15 @@ func convertErr(err error) error {
 	case codes.DeadlineExceeded:
 		return trace.ConnectionProblem(err, "operation has timed out")
 	case codes.NotFound:
-		return trace.NotFound(err.Error())
+		return trace.NotFound("%s", err)
 	case codes.AlreadyExists:
-		return trace.AlreadyExists(err.Error())
+		return trace.AlreadyExists("%s", err)
 	case codes.FailedPrecondition:
-		return trace.CompareFailed(err.Error())
+		return trace.CompareFailed("%s", err)
 	case codes.ResourceExhausted:
-		return trace.LimitExceeded(err.Error())
+		return trace.LimitExceeded("%s", err)
 	default:
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	}
 }
 

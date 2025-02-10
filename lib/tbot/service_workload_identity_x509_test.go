@@ -32,16 +32,13 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/experiment"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestBotWorkloadIdentityX509(t *testing.T) {
-	experimentStatus := experiment.Enabled()
-	defer experiment.SetEnabled(experimentStatus)
-	experiment.SetEnabled(true)
+	t.Parallel()
 
 	ctx := context.Background()
 	log := utils.NewSlogLoggerForTests()

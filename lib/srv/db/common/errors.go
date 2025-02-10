@@ -26,7 +26,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
@@ -66,16 +65,13 @@ func ConvertError(err error) error {
 	}
 
 	var googleAPIErr *googleapi.Error
-	var awsRequestFailureErr awserr.RequestFailure
-	var awsRequestFailureErrV2 *awshttp.ResponseError
+	var awsRequestFailureErr *awshttp.ResponseError
 	var azResponseErr *azcore.ResponseError
 	var pgError *pgconn.PgError
 	var myError *mysql.MyError
 	switch err := trace.Unwrap(err); {
 	case errors.As(err, &googleAPIErr):
 		return convertGCPError(googleAPIErr)
-	case errors.As(err, &awsRequestFailureErrV2):
-		return awslib.ConvertRequestFailureErrorV2(awsRequestFailureErrV2)
 	case errors.As(err, &awsRequestFailureErr):
 		return awslib.ConvertRequestFailureError(awsRequestFailureErr)
 	case errors.As(err, &azResponseErr):
@@ -92,9 +88,9 @@ func ConvertError(err error) error {
 func convertGCPError(err *googleapi.Error) error {
 	switch err.Code {
 	case http.StatusForbidden:
-		return trace.AccessDenied(err.Error())
+		return trace.AccessDenied("%s", err)
 	case http.StatusConflict:
-		return trace.CompareFailed(err.Error())
+		return trace.CompareFailed("%s", err)
 	}
 	return err // Return unmodified.
 }
@@ -103,7 +99,7 @@ func convertGCPError(err *googleapi.Error) error {
 func convertPostgresError(err *pgconn.PgError) error {
 	switch err.Code {
 	case pgerrcode.InvalidAuthorizationSpecification, pgerrcode.InvalidPassword:
-		return trace.AccessDenied(err.Error())
+		return trace.AccessDenied("%s", err)
 	}
 	return err // Return unmodified.
 }
@@ -112,7 +108,7 @@ func convertPostgresError(err *pgconn.PgError) error {
 func convertMySQLError(err *mysql.MyError) error {
 	switch err.Code {
 	case mysql.ER_ACCESS_DENIED_ERROR, mysql.ER_DBACCESS_DENIED_ERROR:
-		return trace.AccessDenied(fmtEscape(err))
+		return trace.AccessDenied("%s", fmtEscape(err))
 	}
 	return err // Return unmodified.
 }

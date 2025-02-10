@@ -24,10 +24,10 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
+	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
+	opensearchtypes "github.com/aws/aws-sdk-go-v2/service/opensearch/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
-	"github.com/aws/aws-sdk-go/service/memorydb"
-	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/coreos/go-semver/semver"
 
 	"github.com/gravitational/teleport/lib/services"
@@ -64,12 +64,12 @@ func IsElastiCacheClusterAvailable(cluster *ectypes.ReplicationGroup) bool {
 }
 
 // IsMemoryDBClusterAvailable checks if the MemoryDB cluster is available.
-func IsMemoryDBClusterAvailable(cluster *memorydb.Cluster) bool {
+func IsMemoryDBClusterAvailable(cluster *memorydbtypes.Cluster) bool {
 	return IsResourceAvailable(cluster, cluster.Status)
 }
 
 // IsOpenSearchDomainAvailable checks if the OpenSearch domain is available.
-func IsOpenSearchDomainAvailable(domain *opensearchservice.DomainStatus) bool {
+func IsOpenSearchDomainAvailable(domain *opensearchtypes.DomainStatus) bool {
 	return aws.ToBool(domain.Created) && !aws.ToBool(domain.Deleted)
 }
 
@@ -204,7 +204,7 @@ func IsElastiCacheClusterSupported(cluster *ectypes.ReplicationGroup) bool {
 }
 
 // IsMemoryDBClusterSupported checks whether the MemoryDB cluster is supported.
-func IsMemoryDBClusterSupported(cluster *memorydb.Cluster) bool {
+func IsMemoryDBClusterSupported(cluster *memorydbtypes.Cluster) bool {
 	return aws.ToBool(cluster.TLSEnabled)
 }
 

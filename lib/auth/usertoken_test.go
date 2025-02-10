@@ -284,7 +284,7 @@ func TestUserTokenCreationSettings(t *testing.T) {
 func TestCreatePrivilegeToken(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-	fakeClock := srv.Clock().(clockwork.FakeClock)
+	fakeClock := srv.Clock().(*clockwork.FakeClock)
 	mockEmitter := &eventstest.MockRecorderEmitter{}
 	srv.Auth().emitter = mockEmitter
 	ctx := context.Background()

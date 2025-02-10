@@ -1710,6 +1710,10 @@ func (*oktaAssignmentCollector) notifyStale() {}
 type GitServerWatcherConfig struct {
 	GitServerGetter
 	ResourceWatcherConfig
+
+	// EnableUpdateBroadcast turns on emitting updates on changes. Broadcast is
+	// opt-in for Git Server watcher.
+	EnableUpdateBroadcast bool
 }
 
 // NewGitServerWatcher returns a new instance of Git server watcher.
@@ -1737,7 +1741,7 @@ func NewGitServerWatcher(ctx context.Context, cfg GitServerWatcherConfig) (*Gene
 			return all, nil
 		},
 		ResourceKey:            types.Server.GetName,
-		DisableUpdateBroadcast: true,
+		DisableUpdateBroadcast: !cfg.EnableUpdateBroadcast,
 		CloneFunc:              types.Server.DeepCopy,
 	})
 	return w, trace.Wrap(err)

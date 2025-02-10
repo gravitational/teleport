@@ -120,9 +120,9 @@ message CreateIntegrationRequest {
   string scim_token = 3;
   // Enable synchronization of access lists.
   bool enable_access_list_sync = 4;
-  // Enable user synchronization.
+  // Enable user synchronization from Okta to Teleport.
   bool enable_user_sync = 5;
-  // Enable synchronization of app groups.
+  // Enable synchronization of app groups from Okta to Teleport.
   bool enable_app_group_sync = 6;
   // Settings related to access list synchronization.
   AccessListSettings access_list_settings = 7;
@@ -130,6 +130,10 @@ message CreateIntegrationRequest {
   string reuse_connector = 8;
   // SSO metadata URL for integration.
   string sso_metadata_url = 9;
+  // Enable sync from Teleport to Okta. If disabled it will prevent creating Okta assignments which
+  // in turn will disable JIT Access Requests. Makes sense only when apps and groups sync is
+  // enabled.
+  bool enable_bidirectional_sync = 10;
 }
 
 // UpdateIntegrationRequest is the request message for updating an existing Okta integration.
@@ -140,16 +144,20 @@ message UpdateIntegrationRequest {
   string scim_token = 3;
   // Enable synchronization of access lists.
   bool enable_access_list_sync = 4;
-  // Enable user synchronization.
+  // Enable user synchronization from Okta to Teleport.
   bool enable_user_sync = 5;
-  // Enable synchronization of app groups.
+  // Enable synchronization of app groups from Okta to Teleport.
   bool enable_app_group_sync = 6;
   // Settings related to access list synchronization.
   AccessListSettings access_list_settings = 7;
-  // Option to reuse an existing connector.
-  string reuse_connector = 8;
-  // SSO metadata URL for integration.
-  string sso_metadata_url = 9;
+  reserved 8; // reuse_connector
+  reserved "reuse_connector";
+  reserved 9; // sso_metadata_url
+  reserved "sso_metadata_url";
+  // Enable sync from Teleport to Okta. If disabled it will prevent creating Okta assignments which
+  // in turn will disable JIT Access Requests. Makes sense only when apps and groups sync is
+  // enabled.
+  bool enable_bidirectional_sync = 10;
 }
 
 // AccessListSettings contains the settings for access list synchronization.

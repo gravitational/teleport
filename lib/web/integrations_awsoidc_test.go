@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -1031,6 +1032,37 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 		_, err = pack.clt.PostJSON(ctx, endpoint, nil)
 		require.NoError(t, err)
 	})
+
+	t.Run("using a period in the name fails when running in cloud", func(t *testing.T) {
+		enableCloudFeatureProxy(t, proxy)
+
+		// Creating an Integration using the account id as name should not return an error if the proxy is listening at the default HTTPS port
+		myIntegrationWithAccountID, err := types.NewIntegrationAWSOIDC(types.Metadata{
+			Name: "env.prod",
+		}, &types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "arn:aws:iam::123456789012:role/teleport",
+		})
+		require.NoError(t, err)
+
+		_, err = env.server.Auth().CreateIntegration(ctx, myIntegrationWithAccountID)
+		require.NoError(t, err)
+		endpoint = pack.clt.Endpoint("webapi", "sites", "localhost", "integrations", "aws-oidc", "env.prod", "aws-app-access")
+		_, err = pack.clt.PostJSON(ctx, endpoint, nil)
+		require.Error(t, err)
+		require.ErrorContains(t, err, `Invalid integration name ("env.prod") for enabling AWS Access.`)
+	})
+}
+
+func enableCloudFeatureProxy(t *testing.T, proxy *testProxy) {
+	t.Helper()
+
+	existingFeatures := proxy.handler.handler.clusterFeatures
+	existingFeatures.Cloud = true
+	proxy.handler.handler.clusterFeatures = existingFeatures
+	t.Cleanup(func() {
+		existingFeatures.Cloud = false
+		proxy.handler.handler.clusterFeatures = existingFeatures
+	})
 }
 
 func TestAWSOIDCAppAccessAppServerCreationWithUserProvidedLabels(t *testing.T) {
@@ -1075,11 +1107,15 @@ func TestAWSOIDCAppAccessAppServerCreationWithUserProvidedLabels(t *testing.T) {
 }
 
 type mockDeployedDatabaseServices struct {
+	listErr           error
 	integration       string
 	servicesPerRegion map[string][]*integrationv1.DeployedDatabaseService
 }
 
 func (m *mockDeployedDatabaseServices) ListDeployedDatabaseServices(ctx context.Context, in *integrationv1.ListDeployedDatabaseServicesRequest, opts ...grpc.CallOption) (*integrationv1.ListDeployedDatabaseServicesResponse, error) {
+	if m.listErr != nil {
+		return nil, m.listErr
+	}
 	const pageSize = 10
 	ret := &integrationv1.ListDeployedDatabaseServicesResponse{}
 	if in.Integration != m.integration {
@@ -1320,6 +1356,76 @@ func dummyDeployedDatabaseServices(count int, command []string) []*integrationv1
 		})
 	}
 	return ret
+}
+
+func TestRegionsForListingDeployedDatabaseService(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("regions query param, returns nil if no internal resources match", func(t *testing.T) {
+		clt := &mockRelevantAWSRegionsClient{
+			databaseServices: &proto.ListResourcesResponse{
+				Resources: []*proto.PaginatedResource{{Resource: &proto.PaginatedResource_DatabaseService{
+					DatabaseService: &types.DatabaseServiceV1{Spec: types.DatabaseServiceSpecV1{
+						ResourceMatchers: []*types.DatabaseResourceMatcher{
+							{Labels: &types.Labels{"region": []string{"af-south-1"}}},
+						},
+					}},
+				}}},
+			},
+			databases:        make([]types.Database, 0),
+			discoveryConfigs: make([]*discoveryconfig.DiscoveryConfig, 0),
+		}
+		r := http.Request{
+			URL: &url.URL{RawQuery: "regions=us-east-1&regions=us-east-2"},
+		}
+		gotRegions, err := regionsForListingDeployedDatabaseService(ctx, &r, clt, clt)
+		require.NoError(t, err)
+		require.ElementsMatch(t, nil, gotRegions)
+	})
+
+	t.Run("regions query param, returns matches in internal resources", func(t *testing.T) {
+		clt := &mockRelevantAWSRegionsClient{
+			databaseServices: &proto.ListResourcesResponse{
+				Resources: []*proto.PaginatedResource{{Resource: &proto.PaginatedResource_DatabaseService{
+					DatabaseService: &types.DatabaseServiceV1{Spec: types.DatabaseServiceSpecV1{
+						ResourceMatchers: []*types.DatabaseResourceMatcher{
+							{Labels: &types.Labels{"region": []string{"af-south-1"}}}},
+					}},
+				}}},
+			},
+			databases:        make([]types.Database, 0),
+			discoveryConfigs: make([]*discoveryconfig.DiscoveryConfig, 0),
+		}
+		r := http.Request{
+			URL: &url.URL{RawQuery: "regions=af-south-1&regions=us-east-2"},
+		}
+		gotRegions, err := regionsForListingDeployedDatabaseService(ctx, &r, clt, clt)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"af-south-1"}, gotRegions)
+	})
+
+	t.Run("fallbacks to internal resources when query param is not present", func(t *testing.T) {
+		clt := &mockRelevantAWSRegionsClient{
+			databaseServices: &proto.ListResourcesResponse{
+				Resources: []*proto.PaginatedResource{{Resource: &proto.PaginatedResource_DatabaseService{
+					DatabaseService: &types.DatabaseServiceV1{Spec: types.DatabaseServiceSpecV1{
+						ResourceMatchers: []*types.DatabaseResourceMatcher{
+							{Labels: &types.Labels{"region": []string{"us-east-1"}}},
+							{Labels: &types.Labels{"region": []string{"us-east-2"}}},
+						},
+					}},
+				}}},
+			},
+			databases:        make([]types.Database, 0),
+			discoveryConfigs: make([]*discoveryconfig.DiscoveryConfig, 0),
+		}
+		r := http.Request{
+			URL: &url.URL{RawQuery: "regions="},
+		}
+		gotRegions, err := regionsForListingDeployedDatabaseService(ctx, &r, clt, clt)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"us-east-1", "us-east-2"}, gotRegions)
+	})
 }
 
 func TestFetchRelevantAWSRegions(t *testing.T) {
