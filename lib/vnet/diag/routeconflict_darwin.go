@@ -30,6 +30,7 @@ import (
 	"golang.org/x/net/route"
 )
 
+// DarwinRouting provides macOS-specific [Routing] implementation used by [RouteConflictDiag].
 type DarwinRouting struct{}
 
 // GetRouteDestinations gets routes from the OS and then extracts the only information needed from
