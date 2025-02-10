@@ -19,6 +19,7 @@
 package integrationv1
 
 import (
+	"cmp"
 	"context"
 	"testing"
 
@@ -68,13 +69,14 @@ func TestIntegrationCRUD(t *testing.T) {
 	}
 
 	tt := []struct {
-		Name         string
-		Role         types.RoleSpecV6
-		Setup        func(t *testing.T, igName string)
-		Test         func(ctx context.Context, resourceSvc *Service, igName string) error
-		Validate     func(t *testing.T, igName string)
-		Cleanup      func(t *testing.T, igName string)
-		ErrAssertion func(error) bool
+		Name            string
+		Role            types.RoleSpecV6
+		IntegrationName string
+		Setup           func(t *testing.T, igName string)
+		Test            func(ctx context.Context, resourceSvc *Service, igName string) error
+		Validate        func(t *testing.T, igName string)
+		Cleanup         func(t *testing.T, igName string)
+		ErrAssertion    func(error) bool
 	}{
 		// Read
 		{
@@ -186,12 +188,29 @@ func TestIntegrationCRUD(t *testing.T) {
 					Verbs:     []string{types.VerbCreate},
 				}}},
 			},
+			IntegrationName: "integration-allow-create-access",
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
 				ig := sampleIntegrationFn(t, igName)
 				_, err := resourceSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: ig.(*types.IntegrationV1)})
 				return err
 			},
 			ErrAssertion: noError,
+		},
+		{
+			Name: "access to create integrations but name is invalid",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbCreate},
+				}}},
+			},
+			IntegrationName: "integration-awsoidc-invalid.name",
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				ig := sampleIntegrationFn(t, igName)
+				_, err := resourceSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: ig.(*types.IntegrationV1)})
+				return err
+			},
+			ErrAssertion: trace.IsBadParameter,
 		},
 		{
 			Name: "create github integrations",
@@ -553,7 +572,7 @@ func TestIntegrationCRUD(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			localCtx := authorizerForDummyUser(t, ctx, tc.Role, localClient)
-			igName := uuid.NewString()
+			igName := cmp.Or(tc.IntegrationName, uuid.NewString())
 			if tc.Setup != nil {
 				tc.Setup(t, igName)
 			}

@@ -17,6 +17,8 @@
 package common
 
 import (
+	"context"
+	"fmt"
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -26,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/vnet"
 	"github.com/gravitational/teleport/lib/vnet/daemon"
+	"github.com/gravitational/teleport/lib/vnet/diag"
 )
 
 // vnetAdminSetupCommand is the fallback command ran as root when tsh wasn't compiled with the
@@ -85,4 +88,26 @@ func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
 // the vnet-service command is only supported on windows.
 func newPlatformVnetServiceCommand(app *kingpin.Application) vnetCommandNotSupported {
 	return vnetCommandNotSupported{}
+}
+
+func runVnetDiagnostics(ctx context.Context, nsi vnet.NetworkStackInfo) error {
+	fmt.Println("Running diagnostics.")
+	conflictingRoutesDiag, err := diag.NewRouteConflictDiag(&diag.RouteConflictConfig{
+		VnetIfaceName: nsi.IfaceName,
+		Routing:       &diag.DarwinRouting{},
+		Interfaces:    &diag.NetInterfaces{},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	crs, err := conflictingRoutesDiag.Run(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, cr := range crs {
+		fmt.Printf("Found a conflicting route: %+v\n", cr)
+	}
+
+	return nil
 }

@@ -115,8 +115,13 @@ export function AppLauncher() {
         params.arn = decodeURIComponent(params.arn);
       }
 
-      const createAppSessionParams = params as CreateAppSessionParams;
-      createAppSessionParams.mfaResponse = await mfa.getChallengeResponse();
+      const createAppSessionParams: CreateAppSessionParams = {
+        fqdn: params.fqdn,
+        cluster_name: params.clusterId,
+        public_addr: params.publicAddr,
+        arn: params.arn,
+        mfaResponse: await mfa.getChallengeResponse(),
+      };
       const session = await service.createAppSession(createAppSessionParams);
 
       // Set all the fields expected by server to validate request.

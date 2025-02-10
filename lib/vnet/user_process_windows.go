@@ -34,7 +34,7 @@ import (
 // interface that the admin process uses to query application names and get user
 // certificates for apps. It returns a [ProcessManager] which controls the
 // lifecycle of both the user and admin processes.
-func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm *ProcessManager, err error) {
+func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm *ProcessManager, nsi NetworkStackInfo, err error) {
 	// Make sure to close the process manager if returning a non-nil error.
 	defer func() {
 		if pm != nil && err != nil {
@@ -44,7 +44,7 @@ func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm 
 
 	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
-		return nil, trace.Wrap(err, "listening on tcp socket")
+		return nil, nsi, trace.Wrap(err, "listening on tcp socket")
 	}
 	pm, processCtx := newProcessManager()
 	pm.AddCriticalBackgroundTask("tcp socket closer", func() error {
@@ -73,5 +73,5 @@ func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm 
 		}
 		return nil
 	})
-	return pm, nil
+	return pm, nsi, nil
 }

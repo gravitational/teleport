@@ -917,6 +917,7 @@ func TestUpdater_Remove(t *testing.T) {
 		syncErr        error
 		reloadErr      error
 		processEnabled bool
+		force          bool
 
 		unlinkedVersion string
 		teardownCalls   int
@@ -939,7 +940,7 @@ func TestUpdater_Remove(t *testing.T) {
 			teardownCalls: 1,
 		},
 		{
-			name: "no system links, process enabled",
+			name: "no system links, process enabled, force",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
@@ -950,10 +951,11 @@ func TestUpdater_Remove(t *testing.T) {
 			linkSystemErr:   ErrNoBinaries,
 			linkSystemCalls: 1,
 			processEnabled:  true,
+			force:           true,
 			errMatch:        "refusing to remove",
 		},
 		{
-			name: "no system links, process disabled",
+			name: "no system links, process disabled, force",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
@@ -965,9 +967,23 @@ func TestUpdater_Remove(t *testing.T) {
 			linkSystemCalls: 1,
 			unlinkedVersion: version,
 			teardownCalls:   1,
+			force:           true,
 		},
 		{
-			name: "no system links, process disabled, no systemd",
+			name: "no system links, process disabled, no force",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Status: UpdateStatus{
+					Active: NewRevision(version, 0),
+				},
+			},
+			linkSystemErr:   ErrNoBinaries,
+			linkSystemCalls: 1,
+			errMatch:        "unable to remove",
+		},
+		{
+			name: "no system links, process disabled, no systemd, force",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
@@ -980,6 +996,7 @@ func TestUpdater_Remove(t *testing.T) {
 			isEnabledErr:    ErrNotSupported,
 			unlinkedVersion: version,
 			teardownCalls:   1,
+			force:           true,
 		},
 		{
 			name: "active version",
@@ -1123,7 +1140,7 @@ func TestUpdater_Remove(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			err = updater.Remove(ctx)
+			err = updater.Remove(ctx, tt.force)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
@@ -1548,6 +1565,154 @@ func TestUpdater_Install(t *testing.T) {
 				golden.Set(t, data)
 			}
 			require.Equal(t, string(golden.Get(t)), string(data))
+		})
+	}
+}
+
+func TestUpdater_findAgentProxy(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		cfg  *proxyAddrTeleport
+		want string
+	}{
+		{
+			name: "full",
+			cfg: &proxyAddrTeleport{
+				ProxyServer: "https://example.com:8080",
+			},
+			want: "example.com:8080",
+		},
+		{
+			name: "protocol and host",
+			cfg: &proxyAddrTeleport{
+				ProxyServer: "https://example.com",
+			},
+			want: "example.com:3080",
+		},
+		{
+			name: "host and port",
+			cfg: &proxyAddrTeleport{
+				ProxyServer: "example.com:443",
+			},
+			want: "example.com:443",
+		},
+		{
+			name: "host",
+			cfg: &proxyAddrTeleport{
+				ProxyServer: "example.com",
+			},
+			want: "example.com:3080",
+		},
+		{
+			name: "auth server (v3)",
+			cfg: &proxyAddrTeleport{
+				AuthServer: "example.com",
+			},
+			want: "example.com:3025",
+		},
+		{
+			name: "auth server (v1/2)",
+			cfg: &proxyAddrTeleport{
+				AuthServers: []string{
+					"one.example.com",
+					"two.example.com",
+				},
+			},
+			want: "one.example.com:3025",
+		},
+		{
+			name: "proxy priority",
+			cfg: &proxyAddrTeleport{
+				ProxyServer: "one.example.com",
+				AuthServer:  "two.example.com",
+				AuthServers: []string{"three.example.com"},
+			},
+			want: "one.example.com:3080",
+		},
+		{
+			name: "auth priority",
+			cfg: &proxyAddrTeleport{
+				AuthServer:  "two.example.com",
+				AuthServers: []string{"three.example.com"},
+			},
+			want: "two.example.com:3025",
+		},
+		{
+			name: "missing",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ns := &Namespace{
+				configFile: filepath.Join(t.TempDir(), "teleport.yaml"),
+			}
+			if tt.cfg != nil {
+				out, err := yaml.Marshal(proxyAddrConfig{Teleport: *tt.cfg})
+				require.NoError(t, err)
+				err = os.WriteFile(ns.configFile, out, os.ModePerm)
+				require.NoError(t, err)
+			}
+
+			updater, err := NewLocalUpdater(LocalUpdaterConfig{}, ns)
+			require.NoError(t, err)
+			ctx := context.Background()
+			s := updater.findAgentProxy(ctx)
+			require.Equal(t, tt.want, s)
+		})
+	}
+}
+
+func TestSameProxies(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		a, b  string
+		match bool
+	}{
+		{
+			name:  "protocol missing with port",
+			a:     "https://example.com:8080",
+			b:     "example.com:8080",
+			match: true,
+		},
+		{
+			name:  "protocol missing without port",
+			a:     "https://example.com",
+			b:     "example.com",
+			match: true,
+		},
+		{
+			name:  "same with port",
+			a:     "example.com:443",
+			b:     "example.com:443",
+			match: true,
+		},
+		{
+			name:  "does not set default teleport port",
+			a:     "example.com",
+			b:     "example.com:3080",
+			match: false,
+		},
+		{
+			name:  "does set default standard port",
+			a:     "example.com",
+			b:     "example.com:443",
+			match: true,
+		},
+		{
+			name:  "other formats if equal",
+			a:     "@123",
+			b:     "@123",
+			match: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := sameProxies(tt.a, tt.b)
+			require.Equal(t, tt.match, s)
 		})
 	}
 }

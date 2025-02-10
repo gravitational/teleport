@@ -34,11 +34,15 @@ import {
   CreateAwsAppAccessRequest,
   EnrollEksClustersRequest,
   EnrollEksClustersResponse,
+  ExportedIntegrationCaResponse,
   Integration,
   IntegrationCreateRequest,
+  IntegrationCreateResult,
+  IntegrationKind,
   IntegrationListResponse,
   IntegrationStatusCode,
   IntegrationUpdateRequest,
+  IntegrationUpdateResult,
   IntegrationWithSummary,
   ListAwsRdsDatabaseResponse,
   ListAwsRdsFromAllEnginesResponse,
@@ -56,8 +60,17 @@ import {
 } from './types';
 
 export const integrationService = {
-  fetchIntegration(name: string): Promise<Integration> {
-    return api.get(cfg.getIntegrationsUrl(name)).then(makeIntegration);
+  fetchExportedIntegrationCA(
+    clusterId: string,
+    integrationName: string
+  ): Promise<ExportedIntegrationCaResponse> {
+    return api.get(cfg.getIntegrationCaUrl(clusterId, integrationName));
+  },
+
+  fetchIntegration<T>(name: string): Promise<T> {
+    return api
+      .get(cfg.getIntegrationsUrl(name))
+      .then(resp => makeIntegration(resp) as T);
   },
 
   fetchIntegrations(): Promise<IntegrationListResponse> {
@@ -70,8 +83,12 @@ export const integrationService = {
     });
   },
 
-  createIntegration(req: IntegrationCreateRequest): Promise<Integration> {
-    return api.post(cfg.getIntegrationsUrl(), req).then(makeIntegration);
+  createIntegration<T extends IntegrationCreateRequest>(
+    req: T
+  ): Promise<IntegrationCreateResult<T>> {
+    return api
+      .post(cfg.getIntegrationsUrl(), req)
+      .then(resp => makeIntegration(resp) as IntegrationCreateResult<T>);
   },
 
   pingAwsOidcIntegration(
@@ -84,11 +101,22 @@ export const integrationService = {
     return api.post(cfg.getPingAwsOidcIntegrationUrl(urlParams), req);
   },
 
-  updateIntegration(
+  updateIntegration<T extends IntegrationUpdateRequest>(
     name: string,
-    req: IntegrationUpdateRequest
+    req: T
+  ): Promise<IntegrationUpdateResult<T>> {
+    return api
+      .put(cfg.getIntegrationsUrl(name), req)
+      .then(resp => makeIntegration(resp) as IntegrationUpdateResult<T>);
+  },
+
+  updateIntegrationOAuthSecret(
+    name: string,
+    secret: string
   ): Promise<Integration> {
-    return api.put(cfg.getIntegrationsUrl(name), req).then(makeIntegration);
+    return api
+      .put(cfg.getIntegrationsUrl(name), { oauth: { secret } })
+      .then(makeIntegration);
   },
 
   deleteIntegration(name: string): Promise<void> {
@@ -421,25 +449,47 @@ export function makeIntegrations(json: any): Integration[] {
 function makeIntegration(json: any): Integration {
   json = json || {};
   const { name, subKind, awsoidc, github } = json;
-  return {
-    resourceType: 'integration',
+
+  const commonFields = {
     name,
     kind: subKind,
-    spec: {
-      roleArn: awsoidc?.roleArn,
-      issuerS3Bucket: awsoidc?.issuerS3Bucket,
-      issuerS3Prefix: awsoidc?.issuerS3Prefix,
-      audience: awsoidc?.audience,
-    },
-    details: github
-      ? `GitHub Organization "${github.organization}"`
-      : undefined,
     // The integration resource does not have a "status" field, but is
     // a required field for the table that lists both plugin and
     // integration resources together. As discussed, the only
     // supported status for integration is `Running` for now:
     // https://github.com/gravitational/teleport/pull/22556#discussion_r1158674300
     statusCode: IntegrationStatusCode.Running,
+  };
+
+  if (subKind === IntegrationKind.AwsOidc) {
+    return {
+      ...commonFields,
+      resourceType: 'integration',
+      details:
+        'Enroll EC2, RDS and EKS resources or enable Web/CLI access to your AWS Account.',
+      spec: {
+        roleArn: awsoidc?.roleArn,
+        issuerS3Bucket: awsoidc?.issuerS3Bucket,
+        issuerS3Prefix: awsoidc?.issuerS3Prefix,
+        audience: awsoidc?.audience,
+      },
+    };
+  }
+
+  if (subKind === IntegrationKind.GitHub) {
+    return {
+      ...commonFields,
+      resourceType: 'integration',
+      details: `GitHub Organization "${github.organization}"`,
+      spec: {
+        organization: github.organization,
+      },
+    };
+  }
+
+  return {
+    ...commonFields,
+    resourceType: 'integration',
   };
 }
 
