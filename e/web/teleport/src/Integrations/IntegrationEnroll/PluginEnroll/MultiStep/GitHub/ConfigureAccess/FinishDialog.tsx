@@ -72,7 +72,7 @@ export function FinishDialog({
               text: 'tsh git ls',
             },
             {
-              comment: 'To clone a new respository using SSH:',
+              comment: 'To clone a new repository using SSH:',
               text: `tsh git clone <git-clone-ssh-url>`,
             },
             {

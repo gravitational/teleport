@@ -61,7 +61,7 @@ export function AttemptStatus<T>({
     createAttempt.status === 'processing'
   ) {
     const action =
-      updateAttempt.status === 'processing' ? 'Ovewriting' : 'Creating';
+      updateAttempt.status === 'processing' ? 'Overwriting' : 'Creating';
     return (
       <Status status="processing">
         {action} {resource} named <Mark>{resourceName}</Mark>
