@@ -30,12 +30,6 @@ import (
 )
 
 type ClusterConfig struct {
-	// ClusterName is the name of the cluster as reported by Ping.
-	ClusterName string
-	// ProxyPublicAddr is the public address of the proxy as reported by Ping, with any ports removed, this is
-	// just the hostname. This is often but not always identical to the ClusterName. For root clusters this
-	// will be the same as the profile name (the profile is named after the proxy public addr).
-	ProxyPublicAddr string
 	// DNSZones is the list of DNS zones that are valid for this cluster, this includes ProxyPublicAddr *and*
 	// any configured custom DNS zones for the cluster.
 	DNSZones []string
@@ -112,7 +106,6 @@ func (c *ClusterConfigCache) getClusterConfigUncached(ctx context.Context, clust
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName := pingResp.ClusterName
 	proxyPublicAddr := pingResp.ProxyPublicAddr
 	if strings.Contains(proxyPublicAddr, ":") {
 		proxyPublicAddr, _, err = net.SplitHostPort(pingResp.ProxyPublicAddr)
@@ -137,10 +130,8 @@ func (c *ClusterConfigCache) getClusterConfigUncached(ctx context.Context, clust
 	}
 
 	return &ClusterConfig{
-		ClusterName:     clusterName,
-		ProxyPublicAddr: proxyPublicAddr,
-		DNSZones:        dnsZones,
-		IPv4CIDRRange:   ipv4CIDRRange,
-		Expires:         c.clock.Now().Add(5 * time.Minute),
+		DNSZones:      dnsZones,
+		IPv4CIDRRange: ipv4CIDRRange,
+		Expires:       c.clock.Now().Add(5 * time.Minute),
 	}, nil
 }

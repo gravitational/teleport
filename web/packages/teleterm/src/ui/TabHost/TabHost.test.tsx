@@ -70,7 +70,11 @@ async function getTestSetup({ documents }: { documents: Document[] }) {
   render(
     <MockAppContextProvider appContext={appContext}>
       <ResourcesContextProvider>
-        <TabHost ctx={appContext} topBarContainerRef={createRef()} />
+        <TabHost
+          ctx={appContext}
+          topBarConnectMyComputerRef={createRef()}
+          topBarAccessRequestRef={createRef()}
+        />
       </ResourcesContextProvider>
     </MockAppContextProvider>
   );

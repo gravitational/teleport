@@ -122,7 +122,7 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 	require.Nil(t, tcpErr)
 
 	// Route the VNet range to the TUN interface - this emulates the route that will be installed on the host.
-	vnetIPv6Prefix, err := NewIPv6Prefix()
+	vnetIPv6Prefix, err := newIPv6Prefix()
 	require.NoError(t, err)
 	subnet, err := tcpip.NewSubnet(vnetIPv6Prefix, tcpip.MaskFromBytes(net.CIDRMask(64, 128)))
 	require.NoError(t, err)

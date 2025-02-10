@@ -259,7 +259,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 			},
 			installFileMode: 0644,
 
-			errMatch: "no binaries",
+			errMatch: ErrNoBinaries.Error(),
 		},
 		{
 			name: "present with existing links",
@@ -395,13 +395,13 @@ func TestLocalInstaller_Link(t *testing.T) {
 			installFiles: []string{"README"},
 			installDirs:  []string{"bin"},
 
-			errMatch: "no binaries",
+			errMatch: ErrNoBinaries.Error(),
 		},
 		{
 			name:         "no bin directory",
 			installFiles: []string{"README"},
 
-			errMatch: "binary directory",
+			errMatch: ErrNoBinaries.Error(),
 		},
 	}
 
@@ -567,7 +567,7 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 			},
 			installFileMode: 0644,
 
-			errMatch: "no binaries",
+			errMatch: ErrNoBinaries.Error(),
 		},
 		{
 			name: "present with existing links",
@@ -651,13 +651,13 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 			installFiles: []string{"README"},
 			installDirs:  []string{"bin"},
 
-			errMatch: "no binaries",
+			errMatch: ErrNoBinaries.Error(),
 		},
 		{
 			name:         "no bin directory",
 			installFiles: []string{"README"},
 
-			errMatch: "binary directory",
+			errMatch: ErrNoBinaries.Error(),
 		},
 	}
 

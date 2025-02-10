@@ -21,6 +21,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"testing"
 	"time"
 
@@ -32,9 +33,11 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -102,6 +105,44 @@ func TestIntegrationsCreateWithAudience(t *testing.T) {
 	}
 }
 
+type mockUserTasksLister struct {
+	defaultPageSize int64
+	userTasks       []*usertasksv1.UserTask
+}
+
+func (m *mockUserTasksLister) ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertasksv1.UserTask, string, error) {
+	var ret []*usertasksv1.UserTask
+	if pageSize == 0 {
+		pageSize = m.defaultPageSize
+	}
+
+	if len(m.userTasks) == 0 {
+		return ret, "", nil
+	}
+
+	var sliceStart int
+	if nextToken != "" {
+		nextTokenInt, err := strconv.Atoi(nextToken)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		sliceStart = nextTokenInt
+	}
+	userTasksSlice := m.userTasks[sliceStart:]
+
+	for i, userTask := range userTasksSlice {
+		if userTask.GetSpec().GetState() == "OPEN" {
+			ret = append(ret, userTask)
+			if len(ret) == int(pageSize) {
+				nextTokenInt := sliceStart + i + 1
+				return ret, strconv.Itoa(nextTokenInt), nil
+			}
+		}
+	}
+
+	return ret, "", nil
+}
+
 func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
 	ctx := context.Background()
 	logger := utils.NewSlogLoggerForTests()
@@ -138,6 +179,7 @@ func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
 			discoveryConfigLister: clt,
 			databaseGetter:        clt,
 			awsOIDCClient:         deployedDatabaseServicesClient,
+			userTasksClient:       &mockUserTasksLister{},
 		}
 		gotSummary, err := collectIntegrationStats(ctx, req)
 		require.NoError(t, err)
@@ -147,6 +189,47 @@ func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
 				SubKind: "aws-oidc",
 				AWSOIDC: &ui.IntegrationAWSOIDCSpec{RoleARN: "arn:role"},
 			},
+		}
+		require.Equal(t, expectedSummary, gotSummary)
+	})
+
+	t.Run("returns the number of unresolved user tasks", func(t *testing.T) {
+		clt := &mockRelevantAWSRegionsClient{
+			databaseServices: &proto.ListResourcesResponse{
+				Resources: []*proto.PaginatedResource{},
+			},
+			databases:        make([]types.Database, 0),
+			discoveryConfigs: make([]*discoveryconfig.DiscoveryConfig, 0),
+		}
+
+		var userTasksList []*usertasksv1.UserTask
+		for range 10 {
+			userTasksList = append(userTasksList, &usertasksv1.UserTask{Spec: &usertasksv1.UserTaskSpec{State: usertasks.TaskStateOpen}})
+			userTasksList = append(userTasksList, &usertasksv1.UserTask{Spec: &usertasksv1.UserTaskSpec{State: usertasks.TaskStateResolved}})
+		}
+
+		userTasksClient := &mockUserTasksLister{
+			defaultPageSize: 3,
+			userTasks:       userTasksList,
+		}
+
+		req := collectIntegrationStatsRequest{
+			logger:                logger,
+			integration:           integration,
+			discoveryConfigLister: clt,
+			databaseGetter:        clt,
+			awsOIDCClient:         deployedDatabaseServicesClient,
+			userTasksClient:       userTasksClient,
+		}
+		gotSummary, err := collectIntegrationStats(ctx, req)
+		require.NoError(t, err)
+		expectedSummary := &ui.IntegrationWithSummary{
+			Integration: &ui.Integration{
+				Name:    integrationName,
+				SubKind: "aws-oidc",
+				AWSOIDC: &ui.IntegrationAWSOIDCSpec{RoleARN: "arn:role"},
+			},
+			UnresolvedUserTasks: 10,
 		}
 		require.Equal(t, expectedSummary, gotSummary)
 	})
@@ -217,6 +300,7 @@ func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
 			discoveryConfigLister: clt,
 			databaseGetter:        clt,
 			awsOIDCClient:         deployedDatabaseServicesClient,
+			userTasksClient:       &mockUserTasksLister{},
 		}
 		gotSummary, err := collectIntegrationStats(ctx, req)
 		require.NoError(t, err)
@@ -286,6 +370,7 @@ func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
 			discoveryConfigLister: clt,
 			databaseGetter:        clt,
 			awsOIDCClient:         deployedDatabaseServicesClient,
+			userTasksClient:       &mockUserTasksLister{},
 		}
 		gotSummary, err := collectIntegrationStats(ctx, req)
 		require.NoError(t, err)

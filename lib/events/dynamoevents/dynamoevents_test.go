@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math/rand/v2"
 	"net/http"
 	"net/http/httptest"
@@ -126,7 +127,9 @@ func TestSearchSessionEvensBySessionID(t *testing.T) {
 // TestCheckpointOutsideOfWindow tests if [Log] doesn't panic
 // if checkpoint date is outside of the window [fromUTC,toUTC].
 func TestCheckpointOutsideOfWindow(t *testing.T) {
-	tt := &Log{}
+	tt := &Log{
+		logger: slog.With(teleport.ComponentKey, teleport.ComponentDynamoDB),
+	}
 
 	key := checkpointKey{
 		Date: "2022-10-02",

@@ -1460,7 +1460,7 @@ func (s *IdentityService) getSSOMFADevice(ctx context.Context, user string) (*ty
 		mfaConnector, err = s.GetOIDCConnector(ctx, cb.Connector.ID, false /* withSecrets */)
 	case constants.Github:
 		// Github connectors do not support SSO MFA.
-		return nil, trace.NotFound(ssoMFADisabledErr)
+		return nil, trace.NotFound("%s", ssoMFADisabledErr)
 	default:
 		return nil, trace.NotFound("user created by unknown auth connector type %v", cb.Connector.Type)
 	}
@@ -1473,7 +1473,7 @@ func (s *IdentityService) getSSOMFADevice(ctx context.Context, user string) (*ty
 	}
 
 	if !mfaConnector.IsMFAEnabled() {
-		return nil, trace.NotFound(ssoMFADisabledErr)
+		return nil, trace.NotFound("%s", ssoMFADisabledErr)
 	}
 
 	return types.NewMFADevice(mfaConnector.GetDisplay(), cb.Connector.ID, cb.Time.UTC(), &types.MFADevice_Sso{

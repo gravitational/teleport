@@ -148,6 +148,11 @@ function getResourcesSubsections({
     kinds: ['node'],
     pinnedOnly: false,
   });
+  const gitOnlyRoute = encodeUrlQueryParamsWithTypedKinds({
+    pathname: baseRoute,
+    kinds: ['git_server'],
+    pinnedOnly: false,
+  });
 
   return [
     {
@@ -212,6 +217,17 @@ function getResourcesSubsections({
       category: NavigationCategory.Resources,
       exact: false,
       customRouteMatchFn: () => isKindActive('windows_desktop'),
+      onClick: () => setPinnedUserPreference(false),
+      subCategory: CustomNavigationSubcategory.FilteredViews,
+    },
+    {
+      title: 'Git Servers',
+      icon: Icons.GitHub,
+      route: gitOnlyRoute,
+      searchableTags: ['resources', 'git', 'github', 'git servers'],
+      category: NavigationCategory.Resources,
+      exact: false,
+      customRouteMatchFn: () => isKindActive('git_server'),
       onClick: () => setPinnedUserPreference(false),
       subCategory: CustomNavigationSubcategory.FilteredViews,
     },

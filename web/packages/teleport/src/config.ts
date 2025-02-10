@@ -52,6 +52,10 @@ const cfg = {
   edition: 'oss',
   isCloud: false,
   automaticUpgrades: false,
+  // TODO (avatus) this is a temporary escape hatch. Delete in v18
+  // The role diff visualizer can be disabled by setting TELEPORT_UNSTABLE_DISABLE_ROLE_VISUALIZER=true
+  // in the proxy service
+  isPolicyRoleVisualizerEnabled: true,
   automaticUpgradesTargetVersion: '',
   // isDashboard is used generally when we want to hide features that can't be hidden by RBAC in
   // the case of a self-hosted license tenant dashboard.
@@ -258,6 +262,11 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     nodesPathNoParams: '/v1/webapi/sites/:clusterId/nodes',
 
+    gitServer: {
+      createOrOverwrite: '/v1/webapi/sites/:clusterId/gitservers',
+      delete: '/v1/webapi/sites/:clusterId/gitservers/:name',
+    },
+
     databaseServicesPath: `/v1/webapi/sites/:clusterId/databaseservices`,
     databaseIamPolicyPath: `/v1/webapi/sites/:clusterId/databases/:database/iam/policy`,
     databasePath: `/v1/webapi/sites/:clusterId/databases/:database`,
@@ -341,6 +350,10 @@ const cfg = {
     webapiPingPath: '/v1/webapi/ping',
 
     headlessLogin: '/v1/webapi/headless/:headless_authentication_id',
+
+    integrationCa: {
+      export: '/v1/webapi/sites/:clusterId/integrations/:name/ca',
+    },
 
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
     integrationStatsPath:
@@ -832,6 +845,20 @@ const cfg = {
     return generatePath(cfg.api.nodesPathNoParams, { clusterId });
   },
 
+  getGitServerUrl(
+    params: { clusterId: string; name?: string },
+    action: 'createOrOverwrite' | 'delete'
+  ) {
+    if (action === 'createOrOverwrite') {
+      return generatePath(cfg.api.gitServer.createOrOverwrite, {
+        clusterId: params.clusterId,
+      });
+    }
+    if (action === 'delete') {
+      return generatePath(cfg.api.gitServer.delete, params);
+    }
+  },
+
   getDatabaseServicesUrl(clusterId: string) {
     return generatePath(cfg.api.databaseServicesPath, {
       clusterId,
@@ -1010,6 +1037,13 @@ const cfg = {
   getMfaCreateRegistrationChallengeUrl(tokenId: string) {
     return generatePath(cfg.api.mfaCreateRegistrationChallengePath, {
       tokenId,
+    });
+  },
+
+  getIntegrationCaUrl(clusterId: string, name: string) {
+    return generatePath(cfg.api.integrationCa.export, {
+      clusterId,
+      name,
     });
   },
 
@@ -1270,8 +1304,9 @@ export interface UrlAppParams {
 
 export interface CreateAppSessionParams {
   fqdn: string;
-  clusterId?: string;
-  publicAddr?: string;
+  // This API requires cluster_name and public_addr with underscores.
+  cluster_name?: string;
+  public_addr?: string;
   arn?: string;
   mfaResponse?: MfaChallengeResponse;
 }

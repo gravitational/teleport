@@ -20,45 +20,52 @@ import (
 	"bufio"
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/gravitational/trace"
 )
 
+// platformOSConfigState is not used on darwin.
+type platformOSConfigState struct{}
+
 // platformConfigureOS configures the host OS according to cfg. It is safe to
 // call repeatedly, and it is meant to be called with an empty osConfig to
 // deconfigure anything necessary before exiting.
-func platformConfigureOS(ctx context.Context, cfg *osConfig) error {
+func platformConfigureOS(ctx context.Context, cfg *osConfig, _ *platformOSConfigState) error {
 	// There is no need to remove IP addresses or routes, they will automatically be cleaned up when the
 	// process exits and the TUN is deleted.
 
 	if cfg.tunIPv4 != "" {
-		log.InfoContext(ctx, "Setting IPv4 address for the TUN device.", "device", cfg.tunName, "address", cfg.tunIPv4)
-		cmd := exec.CommandContext(ctx, "ifconfig", cfg.tunName, cfg.tunIPv4, cfg.tunIPv4, "up")
-		if err := cmd.Run(); err != nil {
-			return trace.Wrap(err, "running %v", cmd.Args)
+		log.InfoContext(ctx, "Setting IPv4 address for the TUN device.",
+			"device", cfg.tunName, "address", cfg.tunIPv4)
+		if err := runCommand(ctx,
+			"ifconfig", cfg.tunName, cfg.tunIPv4, cfg.tunIPv4, "up",
+		); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 	for _, cidrRange := range cfg.cidrRanges {
 		log.InfoContext(ctx, "Setting an IP route for the VNet.", "netmask", cidrRange)
-		cmd := exec.CommandContext(ctx, "route", "add", "-net", cidrRange, "-interface", cfg.tunName)
-		if err := cmd.Run(); err != nil {
-			return trace.Wrap(err, "running %v", cmd.Args)
+		if err := runCommand(ctx,
+			"route", "add", "-net", cidrRange, "-interface", cfg.tunName,
+		); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
 	if cfg.tunIPv6 != "" {
 		log.InfoContext(ctx, "Setting IPv6 address for the TUN device.", "device", cfg.tunName, "address", cfg.tunIPv6)
-		cmd := exec.CommandContext(ctx, "ifconfig", cfg.tunName, "inet6", cfg.tunIPv6, "prefixlen", "64")
-		if err := cmd.Run(); err != nil {
-			return trace.Wrap(err, "running %v", cmd.Args)
+		if err := runCommand(ctx,
+			"ifconfig", cfg.tunName, "inet6", cfg.tunIPv6, "prefixlen", "64",
+		); err != nil {
+			return trace.Wrap(err)
 		}
 
 		log.InfoContext(ctx, "Setting an IPv6 route for the VNet.")
-		cmd = exec.CommandContext(ctx, "route", "add", "-inet6", cfg.tunIPv6, "-prefixlen", "64", "-interface", cfg.tunName)
-		if err := cmd.Run(); err != nil {
-			return trace.Wrap(err, "running %v", cmd.Args)
+		if err := runCommand(ctx,
+			"route", "add", "-inet6", cfg.tunIPv6, "-prefixlen", "64", "-interface", cfg.tunName,
+		); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 

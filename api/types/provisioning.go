@@ -921,6 +921,9 @@ func (a *ProvisionTokenSpecV2Bitbucket) checkAndSetDefaults() error {
 	return nil
 }
 
+// checkAndSetDefaults checks and sets defaults on the Oracle spec. This only
+// covers basics like the presence of required fields; more complex validation
+// (e.g. requiring the Oracle SDK) is in auth.validateOracleJoinToken.
 func (a *ProvisionTokenSpecV2Oracle) checkAndSetDefaults() error {
 	if len(a.Allow) == 0 {
 		return trace.BadParameter("the %q join method requires at least one allow rule", JoinMethodOracle)

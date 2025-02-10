@@ -319,8 +319,11 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 		return nil, trace.AccessDenied("required scope %q is not satisfied by the given webauthn session with scope %q", requiredExtensions.Scope, sd.ChallengeExtensions.Scope)
 	}
 
+	noReuseAllowed := requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO
+	challengeAllowReuse := sd.ChallengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
+
 	// If this session is reusable, but this login forbids reusable sessions, return an error.
-	if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO && sd.ChallengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
+	if noReuseAllowed && challengeAllowReuse {
 		return nil, trace.AccessDenied("the given webauthn session allows reuse, but reuse is not permitted in this context")
 	}
 
@@ -371,10 +374,17 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 		return nil, trace.Wrap(err)
 	}
 	if credential.Authenticator.CloneWarning {
-		log.WarnContext(ctx, "Clone warning detected for device, the device counter may be malfunctioning",
-			"user", user,
-			"device", dev.GetName(),
-		)
+		// Reused challenges trigger clone warnings because, after first use, we expect
+		// the counter to be up by one.
+		isReuseCounterMismatch := challengeAllowReuse &&
+			len(u.credentials) == 1 /* sanity check */ &&
+			credential.Authenticator.SignCount != u.credentials[0].Authenticator.SignCount-1
+		if !isReuseCounterMismatch {
+			log.WarnContext(ctx, "Clone warning detected for device, the device counter may be malfunctioning",
+				"user", user,
+				"device", dev.GetName(),
+			)
+		}
 	}
 
 	// Update last used timestamp and device counter.
@@ -399,7 +409,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	// again, unless reuse is explicitly allowed.
 	// Note that even reusable sessions are deleted when their expiration time
 	// passes.
-	if sd.ChallengeExtensions.AllowReuse != mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
+	if !challengeAllowReuse {
 		if err := f.sessionData.Delete(ctx, user, challenge); err != nil {
 			log.WarnContext(ctx, "failed to delete login SessionData for user",
 				"user", user,

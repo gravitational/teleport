@@ -1035,7 +1035,7 @@ func (a *AccessListService) VerifyAccessListCreateLimit(ctx context.Context, tar
 	}
 
 	const limitReachedMessage = "cluster has reached its limit for creating access lists, please contact the cluster administrator"
-	return trace.AccessDenied(limitReachedMessage)
+	return trace.AccessDenied("%s", limitReachedMessage)
 }
 
 // keepAWSIdentityCenterLabels preserves member labels if
