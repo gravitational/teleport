@@ -16,31 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  RefCallback,
-  RefObject,
-  useCallback,
-  useLayoutEffect,
-  useMemo,
-} from 'react';
+import { RefCallback, useCallback, useMemo } from 'react';
+
+// TODO: Add back the old implementation and use it only in Transition. Check if the new one works
+// as expected with normal code.
 
 /**
- * useResizeObserver sets up a ResizeObserver for ref and calls callback on each resize.
+ * useResizeObserverRef returns a ref callback. After assigning it to a React node, the ref callback
+ * sets up a ResizeObserver and calls callback on each resize.
  *
- * It does not fire if ref.current.contentRect.height is zero, to account for a special case in
+ * It does not fire if node's contentRect.height is zero, to account for a special case in
  * Connect where tabs are hidden using `display: none;`.
- *
- * Uses a layout effect underneath. If ref is conditionally rendered, set enabled to false when ref
- * is null.
  */
-export function useResizeObserver(
+export function useResizeObserverRef(
   callback: (entry: ResizeObserverEntry) => void
 ): RefCallback<HTMLElement> {
   const observer = useMemo(() => {
-    const uuid = crypto.randomUUID();
-    console.log(`ResizeObserver creating ${uuid}`);
+    console.log('Initializing a ResizeObserver');
     return new ResizeObserver(entries => {
-      console.log(`ResizeObserver changes ${uuid}`);
       const entry = entries[0];
 
       // In Connect, when a tab becomes active, its outermost DOM element switches from `display:
@@ -54,14 +47,14 @@ export function useResizeObserver(
     });
   }, [callback]);
 
-  const uuid = crypto.randomUUID();
   return useCallback(
     node => {
       if (node) {
-        console.log(`ref callback ${uuid} with node`);
+        // TODO: Why doesn't it get called again once we close MenuLogin for the first time?
+        console.log('Observing a node with ResizeObserver');
         observer.observe(node);
       } else {
-        console.log(`ref callback ${uuid} cleanup`);
+        console.log('Disconnecting ResizeObserver from a node');
         observer.disconnect();
       }
     },

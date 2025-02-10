@@ -40,7 +40,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-import React, { Component, createRef } from 'react';
+import React, { Component, createRef, RefCallback } from 'react';
 import styled, { CSSProp } from 'styled-components';
 
 import Flex from 'design/Flex';
@@ -439,6 +439,9 @@ function getArrowPaddingProp(
 
 export class Popover extends Component<Props> {
   paperRef = createRef<HTMLDivElement>();
+  transitionRef = createRef<{
+    resizeObserverRef: RefCallback<HTMLElement>;
+  }>();
   handleResize: () => void = () => {};
 
   static defaultProps = {
@@ -738,16 +741,22 @@ export class Popover extends Component<Props> {
         {...other}
       >
         <Transition
+          ref={this.transitionRef}
           onEntering={this.handleEntering}
-          enablePaperResizeObserver={this.props.updatePositionOnChildResize}
-          paperRef={this.paperRef}
           onPaperResize={this.setPositioningStyles}
         >
           <StyledPopover
             shadow={true}
             popoverCss={popoverCss}
             data-mui-test="Popover"
-            ref={this.paperRef}
+            ref={
+              this.props.updatePositionOnChildResize
+                ? mergeRefs([
+                    this.paperRef,
+                    this.transitionRef.current?.resizeObserverRef,
+                  ])
+                : this.paperRef
+            }
             style={{
               maskRepeat: 'no-repeat',
             }}
@@ -894,3 +903,19 @@ export const StyledPopover = styled(Flex)<{
   position: absolute;
   ${props => props.popoverCss && props.popoverCss()}
 `;
+
+// TODO: Move this function from shared to design.
+// TODO: This can accept a spread of args and not an array.
+function mergeRefs<T = any>(
+  refs: Array<React.MutableRefObject<T> | React.LegacyRef<T> | undefined | null>
+): React.RefCallback<T> {
+  return value => {
+    refs.forEach(ref => {
+      if (typeof ref === 'function') {
+        ref(value);
+      } else if (ref != null) {
+        (ref as React.MutableRefObject<T | null>).current = value;
+      }
+    });
+  };
+}

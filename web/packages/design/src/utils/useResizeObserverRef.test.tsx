@@ -23,17 +23,15 @@ import userEvent from '@testing-library/user-event';
 import { mockResizeObserver } from 'jsdom-testing-mocks';
 import { useState } from 'react';
 
-import { useResizeObserver } from './useResizeObserver';
+import { useResizeObserverRef } from './useResizeObserverRef';
 
 const resizeObserver = mockResizeObserver();
 it('does not break when observed element is conditionally not rendered', async () => {
   const user = userEvent.setup();
   const onResize = jest.fn();
-  // render
-  render(
-    // <ExampleComponent onResize={onResize} resizeObserver={resizeObserver} />
-    <ExampleComponent onResize={onResize} />
-  );
+
+  render(<ExampleComponent onResize={onResize} />);
+
   let resizableEl = screen.getByTestId('resizable');
   expect(resizableEl).toBeInTheDocument();
   resizeObserver.mockElementSize(resizableEl, {
@@ -41,49 +39,31 @@ it('does not break when observed element is conditionally not rendered', async (
   });
   expect(onResize).not.toHaveBeenCalled();
 
-  console.log('First resize');
   // Verify that ResizeObserver is working as expected.
-  // await user.click(screen.getByText('Resize'));
   resizeObserver.resize(resizableEl);
   expect(onResize).toHaveBeenCalledTimes(1);
-  console.log('Second resize');
-  // await user.click(screen.getByText('Resize'));
   resizeObserver.resize(resizableEl);
   expect(onResize).toHaveBeenCalledTimes(2);
 
   // Hide element and verify that resizing the old, now unmounted node does not trigger the callback.
-  console.log('Hiding');
   await user.click(screen.getByText('Hide'));
   expect(screen.queryByTestId('resizable')).not.toBeInTheDocument();
-  // perform action that changes size
-  // await user.click(screen.getByText('Resize'));
-  console.log('Third resize');
   resizeObserver.resize(resizableEl);
-  // verify callback was not called
-  // NOTE: This fails in the current code, but should pass if isShown is passed as enabled OR the
-  // new approach is used.
   expect(onResize).toHaveBeenCalledTimes(2);
 
-  // unhide element
-  console.log('Showing');
+  // Show element again, resize the new node and verify that it triggers the callback.
   await user.click(screen.getByText('Show'));
   resizableEl = screen.getByTestId('resizable');
   resizeObserver.mockElementSize(resizableEl, {
     contentBoxSize: { inlineSize: 300, blockSize: 200 },
   });
-  // perform action that changes size
-  // await user.click(screen.getByText('Resize'));
-  console.log('Fourth resize');
   resizeObserver.resize(resizableEl);
-  // verify callback was called
-  // NOTE: This fails on the current code, because the resize observer still observes the old node,
-  // not the new one.
   expect(onResize).toHaveBeenCalledTimes(3);
 });
 
 const ExampleComponent = (props: { onResize: () => void }) => {
   const [isShown, setIsShown] = useState(true);
-  const ref = useResizeObserver(props.onResize);
+  const ref = useResizeObserverRef(props.onResize);
 
   return (
     <div>
