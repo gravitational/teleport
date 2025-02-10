@@ -24,7 +24,7 @@ pub struct Credential {
 
 #[allow(non_snake_case)]
 impl ICredentialProviderCredential_Impl for Credential_Impl {
-    fn Advise(&self, _pcpce: Option<&ICredentialProviderCredentialEvents>) -> Result<()> {
+    fn Advise(&self, _pcpce: Ref<ICredentialProviderCredentialEvents>) -> Result<()> {
         Ok(())
     }
 

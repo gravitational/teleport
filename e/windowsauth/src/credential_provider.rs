@@ -68,7 +68,7 @@ impl ICredentialProvider_Impl for Provider_Impl {
 
     fn Advise(
         &self,
-        _pcpe: Option<&ICredentialProviderEvents>,
+        _pcpe: Ref<ICredentialProviderEvents>,
         _upadvisecontext: usize,
     ) -> Result<()> {
         Ok(())

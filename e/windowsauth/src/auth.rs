@@ -711,9 +711,9 @@ fn lookup_account(name: &str, sid_types: Vec<SID_NAME_USE>) -> Result<Account> {
         LookupAccountNameW(
             None,
             account_name.pcwstr(),
-            PSID::default(),
+            None,
             &mut cb,
-            PWSTR::null(),
+            None,
             &mut cd,
             &mut name_use,
         )
@@ -733,9 +733,9 @@ fn lookup_account(name: &str, sid_types: Vec<SID_NAME_USE>) -> Result<Account> {
         LookupAccountNameW(
             None,
             account_name.pcwstr(),
-            account.psid(),
+            Some(account.psid()),
             &mut cb,
-            domain,
+            Some(domain),
             &mut cd,
             &mut name_use,
         )
@@ -821,7 +821,7 @@ unsafe fn to_string(psid: PSID) -> Result<String> {
     let mut s = PWSTR::null();
     ConvertSidToStringSidW(psid, &mut s).context("Can't convert SID to string")?;
     let converted = s.to_string().context("Can't convert to string");
-    let _ = LocalFree(HLOCAL(s.as_ptr() as _));
+    let _ = LocalFree(Some(HLOCAL(s.as_ptr() as _)));
     converted
 }
 
@@ -923,10 +923,10 @@ impl LsaPolicy {
                 return Ok(None);
             }
             status.ok()?;
-            let len = ((*data).Length as usize) / mem::size_of::<u16>();
+            let len = ((*data).Length as usize) / size_of::<u16>();
 
             let s = String::from_utf16(slice::from_raw_parts((*data).Buffer.as_ptr(), len));
-            LsaFreeMemory(Some(data as *mut c_void));
+            let _ = LsaFreeMemory(Some(data as *mut c_void));
             Ok(Some(s?))
         }
     }

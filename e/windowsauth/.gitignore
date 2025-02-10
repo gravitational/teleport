@@ -9,3 +9,4 @@
 .DS_Store
 /**/*.dll
 /**/*.syso
+.cargo

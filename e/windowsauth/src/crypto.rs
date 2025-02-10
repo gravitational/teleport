@@ -92,6 +92,7 @@ impl CryptContext {
                     rgpszUsageIdentifier: &mut smart_card_usage,
                 },
             },
+            ..Default::default()
         };
         unsafe {
             CertGetCertificateChain(None, cert, None, None, &chain_para, 0, None, &mut chain_ctx)

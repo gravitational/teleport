@@ -1,4 +1,3 @@
-use core::option::Option;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::{ffi, mem, ptr};
 
@@ -87,7 +86,7 @@ struct ProviderFactory;
 impl IClassFactory_Impl for ProviderFactory_Impl {
     fn CreateInstance(
         &self,
-        punkouter: Option<&IUnknown>,
+        punkouter: Ref<IUnknown>,
         riid: *const GUID,
         ppvobject: *mut *mut ffi::c_void,
     ) -> Result<()> {

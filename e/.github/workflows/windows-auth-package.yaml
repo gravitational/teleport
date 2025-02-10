@@ -21,12 +21,10 @@ jobs:
       - name: Setup Rust
         #embedded-resource crate doesn't like cross-compilation from msvc to mingw
         run: |
-          rustup toolchain install 1.71.1-x86_64-pc-windows-gnu
-          rustup default 1.71.1-x86_64-pc-windows-gnu
+          rustup toolchain install 1.81.0-x86_64-pc-windows-gnu
+          rustup default 1.81.0-x86_64-pc-windows-gnu
           rustup show
       - name: Build all
-        run: make -C windowsauth VERSION=${env:VERSION} all
-        env:
-          VERSION: ${{ inputs.version }}
+        run: make -C windowsauth all
       - name: Test
         run: make -C windowsauth test
