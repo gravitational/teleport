@@ -32,31 +32,35 @@ import (
 // implemented by a client to allow remote and local consumers to access the
 // resource in a similar way.
 type WorkloadIdentityX509Revocations interface {
-	// GetWorkloadIdentity gets a SPIFFE Federation by name.
+	// GetWorkloadIdentityX509Revocation gets a WorkloadIdentityX509Revocation
+	// by name.
 	GetWorkloadIdentityX509Revocation(
 		ctx context.Context, name string,
 	) (*workloadidentityv1pb.WorkloadIdentityX509Revocation, error)
-	// ListWorkloadIdentities lists all WorkloadIdentities using Google style
-	// pagination.
+	// ListWorkloadIdentityX509Revocations lists all
+	// WorkloadIdentityX509Revocation using Google style pagination.
 	ListWorkloadIdentityX509Revocations(
 		ctx context.Context, pageSize int, lastToken string,
 	) ([]*workloadidentityv1pb.WorkloadIdentityX509Revocation, string, error)
-	// CreateWorkloadIdentity creates a new WorkloadIdentity.
+	// CreateWorkloadIdentityX509Revocation creates a new
+	// WorkloadIdentityX509Revocation.
 	CreateWorkloadIdentityX509Revocation(
 		ctx context.Context,
 		workloadIdentityX509Revocation *workloadidentityv1pb.WorkloadIdentityX509Revocation,
 	) (*workloadidentityv1pb.WorkloadIdentityX509Revocation, error)
-	// DeleteWorkloadIdentity deletes a SPIFFE Federation by name.
+	// DeleteWorkloadIdentityX509Revocation deletes a
+	// WorkloadIdentityX509Revocation by name.
 	DeleteWorkloadIdentityX509Revocation(ctx context.Context, name string) error
-	// UpdateWorkloadIdentity updates a specific WorkloadIdentity. The resource must
-	// already exist, and, condition update semantics are used - e.g the submitted
-	// resource must have a revision matching the revision of the resource in the
-	// backend.
+	// UpdateWorkloadIdentityX509Revocation updates a specific
+	// WorkloadIdentityX509Revocation. The resource must already exist, and,
+	// conditional update semantics are used - e.g the submitted resource must
+	// have a revision matching the revision of the resource in the backend.
 	UpdateWorkloadIdentityX509Revocation(
 		ctx context.Context,
 		workloadIdentityX509Revocation *workloadidentityv1pb.WorkloadIdentityX509Revocation,
 	) (*workloadidentityv1pb.WorkloadIdentityX509Revocation, error)
-	// UpsertWorkloadIdentity creates or updates a WorkloadIdentity.
+	// UpsertWorkloadIdentityX509Revocation creates or updates a
+	// WorkloadIdentityX509Revocation.
 	UpsertWorkloadIdentityX509Revocation(
 		ctx context.Context,
 		workloadIdentityX509Revocation *workloadidentityv1pb.WorkloadIdentityX509Revocation,
