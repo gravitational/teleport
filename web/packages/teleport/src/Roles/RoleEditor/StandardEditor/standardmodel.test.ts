@@ -37,6 +37,7 @@ import {
   createDBUserModeOptionsMap,
   createHostUserModeOptionsMap,
   defaultRoleVersion,
+  gitHubOrganizationsToModel,
   KubernetesAccess,
   kubernetesResourceKindOptionsMap,
   kubernetesVerbOptionsMap,
@@ -255,7 +256,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
   },
 
   {
-    name: 'GitHub organization',
+    name: 'GitHub organizations',
     role: {
       ...minimalRole(),
       spec: {
@@ -456,6 +457,64 @@ test.each<{
     ).toEqual(expected);
   }
 );
+
+test.each<{
+  name: string;
+  permissions: GitHubPermission[];
+  expected: ReturnType<typeof gitHubOrganizationsToModel>;
+}>([
+  {
+    name: 'empty permissions array',
+    permissions: [],
+    expected: { model: [], requiresReset: false },
+  },
+  {
+    name: 'some organizations',
+    permissions: [{ orgs: ['foo', 'bar'] }],
+    expected: {
+      model: [
+        { label: 'foo', value: 'foo' },
+        { label: 'bar', value: 'bar' },
+      ],
+      requiresReset: false,
+    },
+  },
+  {
+    name: 'empty permissions object',
+    permissions: [{}],
+    expected: {
+      model: [],
+      requiresReset: false,
+    },
+  },
+  {
+    name: 'empty organizations array',
+    permissions: [{ orgs: [] }],
+    expected: { model: [], requiresReset: false },
+  },
+  {
+    name: 'multiple permission objects',
+    permissions: [{ orgs: ['foo1', 'foo2'] }, { orgs: ['bar'] }],
+    expected: {
+      model: [
+        { label: 'foo1', value: 'foo1' },
+        { label: 'foo2', value: 'foo2' },
+        { label: 'bar', value: 'bar' },
+      ],
+      requiresReset: false,
+    },
+  },
+  {
+    name: 'invalid fields',
+    permissions: [{ orgs: ['foo'], unknownField: 123 } as GitHubPermission],
+    expected: {
+      model: [{ label: 'foo', value: 'foo' }],
+      requiresReset: true,
+    },
+  },
+])('gitHubOrganizationsToModel(): $name', ({ permissions, expected }) => {
+  expect(gitHubOrganizationsToModel(permissions)).toEqual(expected);
+});
 
 describe('roleToRoleEditorModel', () => {
   const minRole = minimalRole();

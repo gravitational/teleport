@@ -825,18 +825,24 @@ function kubernetesResourceToModel(
  * this function is protected anyway from attempting to interpret such an
  * extended object, and it would return `requiresReset: true` anyway.
  */
-function gitHubOrganizationsToModel(gitHubPermissions: GitHubPermission[]): {
+export function gitHubOrganizationsToModel(
+  gitHubPermissions: GitHubPermission[]
+): {
   model: Option[];
   requiresReset: boolean;
 } {
   const permissions = gitHubPermissions ?? [];
   let requiresReset = false;
   const model: Option[] = [];
-  for (const { orgs, ...rest } of permissions) {
-    if (!isEmpty(rest)) {
+  for (const { orgs, ...unsupported } of permissions) {
+    if (!isEmpty(unsupported)) {
       requiresReset = true;
     }
-    model.push(...stringsToOptions(orgs));
+    // We treat missing `orgs` field as an empty array, as this field has an
+    // `omitempty` attribute set in its protobuf definition.
+    if (orgs) {
+      model.push(...stringsToOptions(orgs));
+    }
   }
 
   return { model, requiresReset };
@@ -1092,9 +1098,12 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
         break;
 
       case 'git_server':
-        role.spec.allow.github_permissions = [
-          { orgs: optionsToStrings(res.organizations) },
-        ];
+        const orgs = optionsToStrings(res.organizations);
+        if (orgs.length > 0) {
+          role.spec.allow.github_permissions = [
+            { orgs: optionsToStrings(res.organizations) },
+          ];
+        }
         break;
 
       default:
