@@ -34,17 +34,15 @@ func TestResolveEndpoints(t *testing.T) {
 	region := "us-east-1"
 	now := time.Now()
 
-	t.Run("AWS SDK resolver", func(t *testing.T) {
+	t.Run("unsupported SDK resolver", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "http://localhost", nil)
 		require.NoError(t, err)
 
 		_, err = signer.Sign(req, bytes.NewReader(nil), "ecr", "us-east-1", now)
 		require.NoError(t, err)
 
-		endpoint, err := resolveEndpoint(req)
-		require.NoError(t, err)
-		require.Equal(t, "ecr", endpoint.SigningName)
-		require.Equal(t, "https://api.ecr.us-east-1.amazonaws.com", endpoint.URL)
+		_, err = resolveEndpoint(req)
+		require.Error(t, err)
 	})
 
 	t.Run("X-Forwarded-Host", func(t *testing.T) {

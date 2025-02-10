@@ -591,7 +591,7 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 	case cf.Format == awsProxyFormatAthenaJDBC:
 		templates = append(templates, awsProxyJDBCHeaderFooterTemplate, awsProxyAthenaJDBCTemplate)
 	case cf.AWSEndpointURLMode:
-		templates = append(templates, awsEndpointURLProxyTemplate)
+		return trace.BadParameter("--endpoint-url is no longer supported, use HTTPS proxy instead (default mode)")
 	default:
 		templates = append(templates, awsHTTPSProxyTemplate)
 	}
@@ -608,11 +608,8 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 }
 
 func checkProxyAWSFormatCompatibility(cf *CLIConf) error {
-	switch cf.Format {
-	case awsProxyFormatAthenaODBC, awsProxyFormatAthenaJDBC:
-		if cf.AWSEndpointURLMode {
-			return trace.BadParameter("format %q is not supported in --endpoint-url mode", cf.Format)
-		}
+	if cf.AWSEndpointURLMode {
+		return trace.BadParameter("--endpoint-url is no longer supported, use HTTPS proxy instead (default mode)")
 	}
 	return nil
 }
@@ -944,15 +941,6 @@ Use the following credentials and HTTPS proxy setting to connect to the proxy:
   {{ envVarCommand .format "AWS_SECRET_ACCESS_KEY" .envVars.AWS_SECRET_ACCESS_KEY}}
   {{ envVarCommand .format "AWS_CA_BUNDLE" .envVars.AWS_CA_BUNDLE}}
   {{ envVarCommand .format "HTTPS_PROXY" .envVars.HTTPS_PROXY}}
-`
-
-// awsEndpointURLProxyTemplate is the message that gets printed to a user when an
-// AWS endpoint URL proxy is started.
-var awsEndpointURLProxyTemplate = `{{- template "header" . -}}
-In addition to the endpoint URL, use the following credentials to connect to the proxy:
-  {{ envVarCommand .format "AWS_ACCESS_KEY_ID" .envVars.AWS_ACCESS_KEY_ID}}
-  {{ envVarCommand .format "AWS_SECRET_ACCESS_KEY" .envVars.AWS_SECRET_ACCESS_KEY}}
-  {{ envVarCommand .format "AWS_CA_BUNDLE" .envVars.AWS_CA_BUNDLE}}
 `
 
 // awsProxyAthenaODBCTemplate is the message that gets printed to a user when an

@@ -65,7 +65,7 @@ func onAWS(cf *CLIConf) error {
 
 	args := cf.AWSCommandArgs
 	if cf.AWSEndpointURLMode {
-		args = append(args, "--endpoint-url", awsApp.GetEndpointURL())
+		return trace.BadParameter("--endpoint-url is no longer supported, use HTTPS proxy instead (default mode)")
 	}
 
 	commandToRun := awsCLIBinaryName
@@ -126,8 +126,7 @@ func (a *awsApp) StartLocalProxies(ctx context.Context, opts ...alpnproxy.LocalP
 
 	// AWS endpoint URL mode
 	if a.cf.AWSEndpointURLMode {
-		err := a.StartLocalProxyWithTLS(ctx, alpnproxy.WithHTTPMiddleware(awsMiddleware))
-		return trace.Wrap(err)
+		return trace.BadParameter("--endpoint-url is no longer supported, use HTTPS proxy instead (default mode)")
 	}
 
 	// HTTPS proxy mode
