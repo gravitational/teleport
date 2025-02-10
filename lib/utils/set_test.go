@@ -279,6 +279,54 @@ func TestSet(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("intersection", func(t *testing.T) {
+		testCases := []struct {
+			name     string
+			a        []string
+			b        []string
+			expected []string
+		}{
+			{
+				name:     "empty intersection empty",
+				expected: []string{},
+			},
+			{
+				name:     "empty intersection populated",
+				b:        []string{"alpha", "beta"},
+				expected: []string{},
+			},
+			{
+				name:     "populated intersection empty",
+				a:        []string{"alpha", "beta"},
+				expected: []string{},
+			},
+			{
+				name:     "populated intersection populated",
+				a:        []string{"alpha", "beta", "gamma", "delta", "epsilon"},
+				b:        []string{"beta", "eta", "zeta", "epsilon"},
+				expected: []string{"beta", "epsilon"},
+			},
+		}
+
+		for _, test := range testCases {
+			t.Run(test.name, func(t *testing.T) {
+				// GIVEN a pair of sets
+				a := NewSet(test.a...)
+				b := NewSet(test.b...)
+				bItems := b.Elements()
+
+				// WHEN I take the intersection of both sets
+				a.Intersection(b)
+
+				// EXPECT that the target set is updated with the intersection of both sets.
+				require.ElementsMatch(t, a.Elements(), test.expected)
+
+				// EXPECT also that the second set is unchanged
+				require.ElementsMatch(t, b.Elements(), bItems)
+			})
+		}
+	})
 }
 
 func TestSetTransform(t *testing.T) {
