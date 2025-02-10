@@ -6650,6 +6650,10 @@ message PluginOktaSyncSettings {
   // This is useful when the app groups are not needed in Teleport.
   // and integration with Okta is only used for user sync.
   bool disable_sync_app_groups = 9;
+
+  // DisableBidirectionalSync prevents syncing anything from Teleport to Okta. I.e. prevents
+  // creating Okta assignments.
+  bool disable_bidirectional_sync = 10;
 }
 
 // Defines a set of discord channel IDs
