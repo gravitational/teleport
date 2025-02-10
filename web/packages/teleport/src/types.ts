@@ -94,6 +94,7 @@ export enum NavTitle {
 
   // Clusters
   ManageClusters = 'Manage Clusters',
+  ManageClustersShortened = 'Clusters',
   TrustedClusters = 'Trusted Root Clusters',
 
   // Account
