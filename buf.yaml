@@ -71,9 +71,9 @@ lint:
       - api/proto/teleport/legacy/client/proto/joinservice.proto
       - api/proto/teleport/transport/v1/transport_service.proto
       - api/proto/teleport/access_graph/v1/secrets_service.proto
+      - api/proto/teleport/workloadidentity/v1/revocation_service.proto
       - proto/accessgraph/v1alpha/access_graph_service.proto
       - proto/teleport/lib/teleterm/v1/service.proto
-      - api/proto/teleport/workloadidentity/v1/revocation_service.proto
   disallow_comment_ignores: true
 
 breaking:
