@@ -1,7 +1,12 @@
 import { default as fs } from 'node:fs';
 
-import { events } from './build/events/event-fixtures.js';
-import { createReferencePage } from './gen-event-reference.js';
+import { events } from './dist/fixtures.js';
+import { formatters } from './dist/formatters.js';
+import {
+  createReferencePage,
+  eventsWithoutExamples,
+  removeUnknowns,
+} from './gen-event-reference.js';
 
 const introParagraph = `Teleport components emit audit events to record activity within the cluster. 
 
@@ -34,4 +39,17 @@ if (process.argv.length !== 3) {
 
 console.log('Writing an audit event reference page to ', process.argv[2]);
 
-fs.writeFileSync(process.argv[2], createReferencePage(events, introParagraph));
+const noExampleEvents = eventsWithoutExamples(events, formatters);
+noExampleEvents.forEach(e => {
+  console.error(
+    `Warning: adding an entry for ${e.code} (${e.raw.event}) with no example. Add a test fixture to web/packages/teleport/src/Audit/fixtures/index.ts`
+  );
+});
+
+fs.writeFileSync(
+  process.argv[2],
+  createReferencePage(
+    removeUnknowns(events, formatters).concat(noExampleEvents),
+    introParagraph
+  )
+);

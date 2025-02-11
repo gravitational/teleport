@@ -8,10 +8,12 @@
     "test": "NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
   },
   "devDependencies": {
-    "vite-tsconfig-paths": "^5.0.1"
+    "vite-tsconfig-paths": "^5.1.4"
   },
   "packageManager": "pnpm@9.8.0",
   "dependencies": {
+    "@babel/parser": "^7.27.0",
+    "@babel/plugin-syntax-typescript": "^7.25.9",
     "jest": "^29.7.0"
   }
 }
