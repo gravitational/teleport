@@ -25,9 +25,9 @@ use crate::{
     cgo_tdp_sd_read_request, cgo_tdp_sd_truncate_request, cgo_tdp_sd_write_request,
     client::ClientHandle, CGOErrCode, CgoHandle,
 };
-use ironrdp_pdu::{
-    cast_length, custom_err, other_err, EncodeError, PduError, PduErrorExt, PduResult,
-};
+use ironrdp_core::{cast_length, EncodeError};
+use ironrdp_pdu::PduResult;
+use ironrdp_pdu::{pdu_other_err, PduError, PduErrorExt};
 use ironrdp_rdpdr::pdu::{
     self,
     efs::{self, NtStatus},
@@ -178,10 +178,13 @@ impl FilesystemBackend {
     ) -> PduResult<()> {
         match res.err_code {
             TdpErrCode::Failed | TdpErrCode::AlreadyExists => {
-                return Err(custom_err!(FilesystemBackendError(format!(
-                    "received unexpected TDP error code in SharedDirectoryInfoResponse: {:?}",
-                    res.err_code,
-                ))));
+                return Err(pdu_other_err!(
+                    "",
+                    source:FilesystemBackendError(format!(
+                        "received unexpected TDP error code in SharedDirectoryInfoResponse: {:?}",
+                        res.err_code,
+                    ))
+                ));
             }
             TdpErrCode::Nil => {
                 // The file exists
@@ -328,14 +331,17 @@ impl FilesystemBackend {
                 }
             }
             _ => {
-                return Err(custom_err!(FilesystemBackendError(format!(
-                    "received unknown CreateDisposition value for RDP {req:?}",
-                    req = req
-                ))));
+                return Err(pdu_other_err!(
+                    "",
+                    source:FilesystemBackendError(format!(
+                        "received unknown CreateDisposition value for RDP {req:?}",
+                        req = req
+                    ))
+                ));
             }
         }
 
-        Err(other_err!(
+        Err(pdu_other_err!(
             "Programmer error, this line should never be reached"
         ))
     }
@@ -378,9 +384,7 @@ impl FilesystemBackend {
             ),
             Some(dir) => {
                 if dir.fso.file_type != tdp::FileType::Directory {
-                    return Err(other_err!(
-                        "received ServerDriveQueryDirectoryRequest request for a file rather than a directory",
-                    ));
+                    return Err(pdu_other_err!("received ServerDriveQueryDirectoryRequest request for a file rather than a directory"));
                 }
 
                 if rdp_req.initial_query == 0 {
@@ -431,10 +435,13 @@ impl FilesystemBackend {
             // For now any error will kill the session.
             // In the future, we might want to make this send back
             // an NTSTATUS::STATUS_UNSUCCESSFUL instead.
-            return Err(custom_err!(FilesystemBackendError(format!(
-                "SharedDirectoryListRequest failed with err_code = {:?}",
-                tdp_resp.err_code
-            ))));
+            return Err(pdu_other_err!(
+                "",
+                source:FilesystemBackendError(format!(
+                    "SharedDirectoryListRequest failed with err_code = {:?}",
+                    tdp_resp.err_code
+                ))
+            ));
         }
 
         // If SharedDirectoryListRequest succeeded, move the
@@ -469,10 +476,13 @@ impl FilesystemBackend {
     ) -> PduResult<()> {
         match self.file_cache.get(rdp_req.device_io_request.file_id) {
             // File not found in cache
-            None => Err(custom_err!(FilesystemBackendError(format!(
-                "failed to retrieve an item from the file cache with FileId = {}",
-                rdp_req.device_io_request.file_id
-            )))),
+            None => Err(pdu_other_err!(
+                "",
+                source:FilesystemBackendError(format!(
+                    "failed to retrieve an item from the file cache with FileId = {}",
+                    rdp_req.device_io_request.file_id
+                ))
+            )),
             Some(dir) => {
                 let buffer: Option<efs::FileSystemInformationClass> = match rdp_req
                     .fs_info_class_lvl
@@ -633,10 +643,13 @@ impl FilesystemBackend {
                 // https://github.com/FreeRDP/FreeRDP/blob/dfa231c0a55b005af775b833f92f6bcd30363d77/channels/drive/client/drive_file.c#L579
                 self.send_rdp_set_info_response(&rdp_req, io_status)
             }
-            _ => Err(custom_err!(FilesystemBackendError(format!(
-                "received unsupported FileInformationClass value for RDP {:?}",
-                rdp_req
-            )))),
+            _ => Err(pdu_other_err!(
+                "",
+                source:FilesystemBackendError(format!(
+                    "received unsupported FileInformationClass value for RDP {:?}",
+                    rdp_req
+                ))
+            )),
         }
     }
 
@@ -976,10 +989,13 @@ impl FilesystemBackend {
         let err = unsafe { cgo_tdp_sd_acknowledge(self.cgo_handle, &mut tdp_req) };
         match err {
             CGOErrCode::ErrCodeSuccess => Ok(()),
-            _ => Err(custom_err!(FilesystemBackendError(format!(
-                "call to tdp_sd_acknowledge failed: {:?}",
-                err
-            )))),
+            _ => Err(pdu_other_err!(
+                "",
+                source:FilesystemBackendError(format!(
+                    "call to tdp_sd_acknowledge failed: {:?}",
+                    err
+                ))
+            )),
         }
     }
 
@@ -990,10 +1006,13 @@ impl FilesystemBackend {
         let err = unsafe { cgo_tdp_sd_info_request(self.cgo_handle, req.cgo()) };
         match err {
             CGOErrCode::ErrCodeSuccess => Ok(()),
-            _ => Err(custom_err!(FilesystemBackendError(format!(
-                "call to tdp_sd_info_request failed: {:?}",
-                err
-            )))),
+            _ => Err(pdu_other_err!(
+                "",
+                source:FilesystemBackendError(format!(
+                    "call to tdp_sd_info_request failed: {:?}",
+                    err
+                ))
+            )),
         }
     }
 
@@ -1007,10 +1026,13 @@ impl FilesystemBackend {
         let err = unsafe { cgo_tdp_sd_truncate_request(self.cgo_handle, req.cgo()) };
         match err {
             CGOErrCode::ErrCodeSuccess => Ok(()),
-            _ => Err(custom_err!(FilesystemBackendError(format!(
-                "call to tdp_sd_truncate_request failed: {:?}",
-                err
-            )))),
+            _ => Err(pdu_other_err!(
+                "",
+                source:FilesystemBackendError(format!(
+                    "call to tdp_sd_truncate_request failed: {:?}",
+                    err
+                ))
+            )),
         }
     }
 
@@ -1024,10 +1046,13 @@ impl FilesystemBackend {
         let err = unsafe { cgo_tdp_sd_create_request(self.cgo_handle, req.cgo()) };
         match err {
             CGOErrCode::ErrCodeSuccess => Ok(()),
-            _ => Err(custom_err!(FilesystemBackendError(format!(
-                "call to tdp_sd_create_request failed: {:?}",
-                err
-            )))),
+            _ => Err(pdu_other_err!(
+                "",
+                source:FilesystemBackendError(format!(
+                    "call to tdp_sd_create_request failed: {:?}",
+                    err
+                ))
+            )),
         }
     }
 
@@ -1041,10 +1066,13 @@ impl FilesystemBackend {
         let err = unsafe { cgo_tdp_sd_delete_request(self.cgo_handle, req.cgo()) };
         match err {
             CGOErrCode::ErrCodeSuccess => Ok(()),
-            _ => Err(custom_err!(FilesystemBackendError(format!(
-                "call to tdp_sd_delete_request failed: {:?}",
-                err
-            )))),
+            _ => Err(pdu_other_err!(
+                "",
+                source:FilesystemBackendError(format!(
+                    "call to tdp_sd_delete_request failed: {:?}",
+                    err
+                ))
+            )),
         }
     }
 
@@ -1055,10 +1083,13 @@ impl FilesystemBackend {
         let err = unsafe { cgo_tdp_sd_list_request(self.cgo_handle, req.cgo()) };
         match err {
             CGOErrCode::ErrCodeSuccess => Ok(()),
-            _ => Err(custom_err!(FilesystemBackendError(format!(
-                "call to tdp_sd_list_request failed: {:?}",
-                err
-            )))),
+            _ => Err(pdu_other_err!(
+                "",
+                source:FilesystemBackendError(format!(
+                    "call to tdp_sd_list_request failed: {:?}",
+                    err
+                ))
+            )),
         }
     }
 
@@ -1069,10 +1100,13 @@ impl FilesystemBackend {
         let err = unsafe { cgo_tdp_sd_read_request(self.cgo_handle, req.cgo()) };
         match err {
             CGOErrCode::ErrCodeSuccess => Ok(()),
-            _ => Err(custom_err!(FilesystemBackendError(format!(
-                "call to tdp_sd_read_request failed: {:?}",
-                err
-            )))),
+            _ => Err(pdu_other_err!(
+                "",
+                source:FilesystemBackendError(format!(
+                    "call to tdp_sd_read_request failed: {:?}",
+                    err
+                ))
+            )),
         }
     }
 
@@ -1086,10 +1120,13 @@ impl FilesystemBackend {
         let err = unsafe { cgo_tdp_sd_write_request(self.cgo_handle, req.cgo()) };
         match err {
             CGOErrCode::ErrCodeSuccess => Ok(()),
-            _ => Err(custom_err!(FilesystemBackendError(format!(
-                "call to tdp_sd_write_request failed: {:?}",
-                err
-            )))),
+            _ => Err(pdu_other_err!(
+                "",
+                source:FilesystemBackendError(format!(
+                    "call to tdp_sd_write_request failed: {:?}",
+                    err
+                ))
+            )),
         }
     }
 
@@ -1100,10 +1137,13 @@ impl FilesystemBackend {
         let err = unsafe { cgo_tdp_sd_move_request(self.cgo_handle, req.cgo()) };
         match err {
             CGOErrCode::ErrCodeSuccess => Ok(()),
-            _ => Err(custom_err!(FilesystemBackendError(format!(
-                "call to tdp_sd_move_request failed: {:?}",
-                err
-            )))),
+            _ => Err(pdu_other_err!(
+                "",
+                source:FilesystemBackendError(format!(
+                    "call to tdp_sd_move_request failed: {:?}",
+                    err
+                ))
+            )),
         }
     }
 
@@ -1120,10 +1160,13 @@ impl FilesystemBackend {
             .remove(&tdp_resp.completion_id)
         {
             Some(handler) => handler.call(self, tdp_resp),
-            None => Err(custom_err!(FilesystemBackendError(format!(
-                "received invalid completion id: {}",
-                tdp_resp.completion_id
-            )))),
+            None => Err(pdu_other_err!(
+                "",
+                source:FilesystemBackendError(format!(
+                    "received invalid completion id: {}",
+                    tdp_resp.completion_id
+                ))
+            )),
         }
     }
 
@@ -1140,10 +1183,13 @@ impl FilesystemBackend {
             .remove(&tdp_resp.completion_id)
         {
             Some(handler) => handler.call(self, tdp_resp),
-            None => Err(custom_err!(FilesystemBackendError(format!(
-                "received invalid completion id: {}",
-                tdp_resp.completion_id
-            )))),
+            None => Err(pdu_other_err!(
+                "",
+                source:FilesystemBackendError(format!(
+                    "received invalid completion id: {}",
+                    tdp_resp.completion_id
+                ))
+            )),
         }
     }
 
@@ -1160,10 +1206,13 @@ impl FilesystemBackend {
             .remove(&tdp_resp.completion_id)
         {
             Some(handler) => handler.call(self, tdp_resp),
-            None => Err(custom_err!(FilesystemBackendError(format!(
-                "received invalid completion id: {}",
-                tdp_resp.completion_id
-            )))),
+            None => Err(pdu_other_err!(
+                "",
+                source:FilesystemBackendError(format!(
+                    "received invalid completion id: {}",
+                    tdp_resp.completion_id
+                ))
+            )),
         }
     }
 
@@ -1180,10 +1229,13 @@ impl FilesystemBackend {
             .remove(&tdp_resp.completion_id)
         {
             Some(handler) => handler.call(self, tdp_resp),
-            None => Err(custom_err!(FilesystemBackendError(format!(
-                "received invalid completion id: {}",
-                tdp_resp.completion_id
-            )))),
+            None => Err(pdu_other_err!(
+                "",
+                source:FilesystemBackendError(format!(
+                    "received invalid completion id: {}",
+                    tdp_resp.completion_id
+                ))
+            )),
         }
     }
 
@@ -1200,10 +1252,13 @@ impl FilesystemBackend {
             .remove(&tdp_resp.completion_id)
         {
             Some(handler) => handler.call(self, tdp_resp),
-            None => Err(custom_err!(FilesystemBackendError(format!(
-                "received invalid completion id: {}",
-                tdp_resp.completion_id
-            )))),
+            None => Err(pdu_other_err!(
+                "",
+                source:FilesystemBackendError(format!(
+                    "received invalid completion id: {}",
+                    tdp_resp.completion_id
+                ))
+            )),
         }
     }
 
@@ -1220,10 +1275,13 @@ impl FilesystemBackend {
             .remove(&tdp_resp.completion_id)
         {
             Some(handler) => handler.call(self, tdp_resp),
-            None => Err(custom_err!(FilesystemBackendError(format!(
-                "received invalid completion id: {}",
-                tdp_resp.completion_id
-            )))),
+            None => Err(pdu_other_err!(
+                "",
+                source:FilesystemBackendError(format!(
+                    "received invalid completion id: {}",
+                    tdp_resp.completion_id
+                ))
+            )),
         }
     }
 
@@ -1236,10 +1294,13 @@ impl FilesystemBackend {
             .remove(&tdp_resp.completion_id)
         {
             Some(handler) => handler.call(self, tdp_resp),
-            None => Err(custom_err!(FilesystemBackendError(format!(
-                "received invalid completion id: {}",
-                tdp_resp.completion_id
-            )))),
+            None => Err(pdu_other_err!(
+                "",
+                source:FilesystemBackendError(format!(
+                    "received invalid completion id: {}",
+                    tdp_resp.completion_id
+                ))
+            )),
         }
     }
 
@@ -1252,10 +1313,13 @@ impl FilesystemBackend {
             .remove(&tdp_resp.completion_id)
         {
             Some(handler) => handler.call(self, tdp_resp),
-            None => Err(custom_err!(FilesystemBackendError(format!(
-                "received invalid completion id: {}",
-                tdp_resp.completion_id
-            )))),
+            None => Err(pdu_other_err!(
+                "",
+                source:FilesystemBackendError(format!(
+                    "received invalid completion id: {}",
+                    tdp_resp.completion_id
+                ))
+            )),
         }
     }
 
@@ -1282,7 +1346,7 @@ impl FilesystemBackend {
         {
             Ok(efs::Information::FILE_OVERWRITTEN)
         } else {
-            Err(other_err!(
+            Err(pdu_other_err!(
                 "program error, CreateDispositionFlags check should be exhaustive"
             ))
         }?;
@@ -1341,10 +1405,13 @@ impl FilesystemBackend {
             efs::FileInformationClassLevel::FILE_ATTRIBUTE_TAG_INFORMATION => {
                 self.send_rdp_file_attr_tag_info(device_io_response, file)
             }
-            _ => Err(custom_err!(FilesystemBackendError(format!(
-                "received unsupported FileInformationClass: {:?}",
-                rdp_req.file_info_class_lvl
-            )))),
+            _ => Err(pdu_other_err!(
+                "",
+                source:FilesystemBackendError(format!(
+                    "received unsupported FileInformationClass: {:?}",
+                    rdp_req.file_info_class_lvl
+                ))
+            )),
         }
     }
 
@@ -1481,10 +1548,13 @@ impl FilesystemBackend {
                         Some(efs::FileInformationClass::Directory(fso.into_directory()?))
                     }
                     _ => {
-                        return Err(custom_err!(FilesystemBackendError(format!(
-                            "received unsupported file information class level: {:?}",
-                            req.file_info_class_lvl,
-                        ))));
+                        return Err(pdu_other_err!(
+                            "",
+                            source:FilesystemBackendError(format!(
+                                "received unsupported file information class level: {:?}",
+                                req.file_info_class_lvl,
+                            ))
+                        ));
                     }
                 };
 
@@ -1634,9 +1704,7 @@ impl FileCache {
         if self.cache.insert(self.next_file_id, file).is_none() {
             Ok(self.next_file_id)
         } else {
-            Err(other_err!(
-                "attempted to insert a FileCacheObject into the file cache with a file_id that already exists in the cache"
-            ))
+            Err(pdu_other_err!("attempted to insert a FileCacheObject into the file cache with a file_id that already exists in the cache"))
         }
     }
 
@@ -1714,7 +1782,7 @@ impl FileCacheObject {
 /// FileCacheObject is used as an iterator for the implementation of
 /// IRP_MJ_DIRECTORY_CONTROL, which requires that we iterate through
 /// all the files of a directory one by one. In this case, the directory
-/// is the FileCacheObject itself, with it's own fso field representing
+/// is the FileCacheObject itself, with its own fso field representing
 /// the directory, and its contents being represented by tdp::FileSystemObject's
 /// in its contents field.
 ///

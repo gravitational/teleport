@@ -1,0 +1,70 @@
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
+
+#define SCARD_DEVICE_ID 1
+
+#define FALSE 0
+
+#define TRUE 1
+
+typedef enum CGOErrCode {
+  ErrCodeSuccess = 0,
+  ErrCodeFailure = 1,
+  ErrCodeClientPtr = 2,
+  ErrCodeNotFound = 3,
+} CGOErrCode;
+
+typedef enum CGOPointerButton {
+  PointerButtonNone,
+  PointerButtonLeft,
+  PointerButtonRight,
+  PointerButtonMiddle,
+} CGOPointerButton;
+
+typedef enum CGOPointerWheel {
+  PointerWheelNone,
+  PointerWheelVertical,
+  PointerWheelHorizontal,
+} CGOPointerWheel;
+
+typedef enum FileType {
+  File = 0,
+  Directory = 1,
+} FileType;
+
+typedef enum TdpErrCode {
+  /**
+   * nil (no error, operation succeeded)
+   */
+  Nil = 0,
+  /**
+   * operation failed
+   */
+  Failed = 1,
+  /**
+   * resource does not exist
+   */
+  DoesNotExist = 2,
+  /**
+   * resource already exists
+   */
+  AlreadyExists = 3,
+} TdpErrCode;
+
+typedef struct CGOResult {
+  enum CGOErrCode err_code;
+  char *message;
+} CGOResult;
+
+/**
+ * A [cgo.Handle] passed to us by Go.
+ *
+ * [cgo.Handle]: https://pkg.go.dev/runtime/cgo#Handle
+ */
+typedef uintptr_t CgoHandle;
+
+typedef struct CGOConnectParams {
+  const char *go_addr;
+  uint32_t cert_der_len;

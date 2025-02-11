@@ -39,13 +39,12 @@ use ironrdp_pdu::input::fast_path::{
 };
 use ironrdp_pdu::input::mouse::PointerFlags;
 use ironrdp_pdu::input::{InputEventError, MousePdu};
-use ironrdp_pdu::mcs::DisconnectReason;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::client_info::PerformanceFlags;
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::write_buf::WriteBuf;
-use ironrdp_pdu::{custom_err, function, PduError};
 use ironrdp_pdu::{encode_err, encode_vec, EncodeError, PduResult};
+use ironrdp_pdu::{function, pdu_other_err, PduError};
 use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
@@ -507,7 +506,7 @@ impl Client {
         debug!("DisplayControlClient channel opened");
         // We've been notified that the DisplayControl dvc channel has been opened:
         let mut pending_resize =
-            Self::resize_manager_lock(pending_resize).map_err(|err| custom_err!(err))?;
+            Self::resize_manager_lock(pending_resize).map_err(ClientError::from)?;
         let pending_resize = pending_resize.pending_resize.take();
         if let Some((width, height)) = pending_resize {
             // If there was a resize pending, perform it now.
@@ -1550,7 +1549,7 @@ impl From<PduError> for ClientError {
 
 impl From<ClientError> for PduError {
     fn from(e: ClientError) -> Self {
-        custom_err!(e)
+        pdu_other_err!("", source:e)
     }
 }
 

@@ -2383,6 +2383,7 @@ dependencies = [
  "env_logger",
  "ironrdp-cliprdr",
  "ironrdp-connector",
+ "ironrdp-core",
  "ironrdp-displaycontrol",
  "ironrdp-dvc",
  "ironrdp-pdu",

@@ -24,11 +24,13 @@ use crate::{
     CGOSharedDirectoryReadRequest, CGOSharedDirectoryReadResponse,
     CGOSharedDirectoryTruncateRequest, CGOSharedDirectoryWriteRequest,
 };
-use ironrdp_pdu::{custom_err, PduResult};
+
+use ironrdp_pdu::pdu_other_err;
+use ironrdp_pdu::PduResult;
 use ironrdp_rdpdr::pdu::efs::{
     self, DeviceCloseRequest, DeviceCreateRequest, DeviceReadRequest, DeviceWriteRequest,
 };
-use std::convert::TryInto;
+
 use std::ffi::CString;
 
 /// SharedDirectoryAnnounce is sent by the TDP client to the server
@@ -138,10 +140,13 @@ impl FileSystemObject {
         if let Some(name) = self.path.last() {
             Ok(name.to_string())
         } else {
-            Err(custom_err!(TdpHandlingError(format!(
-                "failed to extract name from path: {:?}",
-                self.path
-            ))))
+            Err(pdu_other_err!(
+                "",
+                source:TdpHandlingError(format!(
+                    "failed to extract name from path: {:?}",
+                    self.path
+                ))
+            ))
         }
     }
 
@@ -701,6 +706,7 @@ pub(crate) fn to_windows_time(tdp_time_ms: u64) -> i64 {
 /// A generic error type that can contain any arbitrary error message.
 ///
 /// TODO: This is a temporary solution until we can figure out a better error handling system.
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct TdpHandlingError(pub String);
 

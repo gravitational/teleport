@@ -16,6 +16,7 @@ bytes = "1.10.0"
 env_logger = "0.11.6"
 ironrdp-cliprdr.workspace = true
 ironrdp-connector.workspace = true
+ironrdp-core.workspace = true
 ironrdp-pdu.workspace = true
 ironrdp-rdpdr.workspace = true
 ironrdp-rdpsnd.workspace = true
