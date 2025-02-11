@@ -22,10 +22,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/gravitational/trace"
 
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	libutils "github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -33,7 +33,7 @@ import (
 // resolveEndpoint extracts the aws-service and aws-region from the request
 // authorization header and resolves the aws-service and aws-region to AWS
 // endpoint.
-func resolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
+func resolveEndpoint(r *http.Request) (*common.AWSResolvedEndpoint, error) {
 	forwardedHost, headErr := libutils.GetSingleHeader(r.Header, "X-Forwarded-Host")
 	if headErr != nil || !awsapiutils.IsAWSEndpoint(forwardedHost) {
 		return nil, trace.BadParameter("proxied requests must include X-Forwarded-Host header with an AWS service endpoint")
@@ -46,7 +46,7 @@ func resolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
 // resolveEndpointByXForwardedHost resolves the endpoint by creating the URL
 // from valid "X-Forwarded-Host" header and extracting aws-service and
 // aws-region from the authorization header.
-func resolveEndpointByXForwardedHost(r *http.Request, headerKey string) (*endpoints.ResolvedEndpoint, error) {
+func resolveEndpointByXForwardedHost(r *http.Request, headerKey string) (*common.AWSResolvedEndpoint, error) {
 	forwardedHost := r.Header.Get("X-Forwarded-Host")
 	if forwardedHost == "" {
 		return nil, trace.BadParameter("missing X-Forwarded-Host")
@@ -60,14 +60,14 @@ func resolveEndpointByXForwardedHost(r *http.Request, headerKey string) (*endpoi
 		return nil, trace.Wrap(err)
 	}
 
-	return &endpoints.ResolvedEndpoint{
+	return &common.AWSResolvedEndpoint{
 		URL:           "https://" + forwardedHost,
 		SigningRegion: awsAuthHeader.Region,
 		SigningName:   awsAuthHeader.Service,
 	}, nil
 }
 
-func isDynamoDBEndpoint(re *endpoints.ResolvedEndpoint) bool {
+func isDynamoDBEndpoint(re *common.AWSResolvedEndpoint) bool {
 	// Some clients may sign some services with upper case letters. We use all
 	// lower cases in our mapping.
 	signingName := strings.ToLower(re.SigningName)

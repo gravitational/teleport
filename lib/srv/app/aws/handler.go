@@ -27,8 +27,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws/endpoints"
-	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -218,7 +217,7 @@ func (s *signerHandler) serveRequestByAssumedRole(sessCtx *common.SessionContext
 	return nil
 }
 
-func (s *signerHandler) emitAudit(sessCtx *common.SessionContext, req *http.Request, status uint32, re *endpoints.ResolvedEndpoint) {
+func (s *signerHandler) emitAudit(sessCtx *common.SessionContext, req *http.Request, status uint32, re *common.AWSResolvedEndpoint) {
 	var auditErr error
 	if isDynamoDBEndpoint(re) {
 		auditErr = sessCtx.Audit.OnDynamoDBRequest(s.closeContext, sessCtx, req, status, re)
@@ -232,7 +231,7 @@ func (s *signerHandler) emitAudit(sessCtx *common.SessionContext, req *http.Requ
 }
 
 // rewriteRequest clones a request to rewrite the url.
-func rewriteRequest(ctx context.Context, r *http.Request, re *endpoints.ResolvedEndpoint) (*http.Request, error) {
+func rewriteRequest(ctx context.Context, r *http.Request, re *common.AWSResolvedEndpoint) (*http.Request, error) {
 	u, err := urlForResolvedEndpoint(r, re)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -259,13 +258,13 @@ func rewriteRequest(ctx context.Context, r *http.Request, re *endpoints.Resolved
 }
 
 // rewriteCommonRequest updates request signed with the default local proxy credentials.
-func (s *signerHandler) rewriteCommonRequest(sessCtx *common.SessionContext, w http.ResponseWriter, r *http.Request, re *endpoints.ResolvedEndpoint) (*http.Request, error) {
+func (s *signerHandler) rewriteCommonRequest(sessCtx *common.SessionContext, w http.ResponseWriter, r *http.Request, re *common.AWSResolvedEndpoint) (*http.Request, error) {
 	req, err := rewriteRequest(s.closeContext, r, re)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if strings.EqualFold(re.SigningName, sts.EndpointsID) {
+	if strings.EqualFold(re.SigningName, sts.ServiceID) {
 		if err := updateAssumeRoleDuration(sessCtx.Identity, w, req, s.Clock); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -274,7 +273,7 @@ func (s *signerHandler) rewriteCommonRequest(sessCtx *common.SessionContext, w h
 }
 
 // rewriteRequestByAssumedRole updates headers and url for requests by assumed roles.
-func (s *signerHandler) rewriteRequestByAssumedRole(r *http.Request, re *endpoints.ResolvedEndpoint) (*http.Request, error) {
+func (s *signerHandler) rewriteRequestByAssumedRole(r *http.Request, re *common.AWSResolvedEndpoint) (*http.Request, error) {
 	req, err := rewriteRequest(s.closeContext, r, re)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -294,7 +293,7 @@ func (s *signerHandler) rewriteRequestByAssumedRole(r *http.Request, re *endpoin
 }
 
 // urlForResolvedEndpoint creates a URL based on input request and resolved endpoint.
-func urlForResolvedEndpoint(r *http.Request, re *endpoints.ResolvedEndpoint) (*url.URL, error) {
+func urlForResolvedEndpoint(r *http.Request, re *common.AWSResolvedEndpoint) (*url.URL, error) {
 	resolvedURL, err := url.Parse(re.URL)
 	if err != nil {
 		return nil, trace.Wrap(err)

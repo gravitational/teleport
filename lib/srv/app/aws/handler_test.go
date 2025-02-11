@@ -36,7 +36,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/lambda"
@@ -550,7 +549,7 @@ func TestRewriteRequest(t *testing.T) {
 	ctx := context.Background()
 
 	inputReq := mustNewRequest(t, "GET", "https://example.com", nil)
-	actualOutReq, err := rewriteRequest(ctx, inputReq, &endpoints.ResolvedEndpoint{})
+	actualOutReq, err := rewriteRequest(ctx, inputReq, &common.AWSResolvedEndpoint{})
 	require.NoError(t, err)
 	require.Equal(t, expectedReq, actualOutReq, err)
 
@@ -562,14 +561,14 @@ func TestURLForResolvedEndpoint(t *testing.T) {
 	tests := []struct {
 		name                 string
 		inputReq             *http.Request
-		inputResolvedEnpoint *endpoints.ResolvedEndpoint
+		inputResolvedEnpoint *common.AWSResolvedEndpoint
 		requireError         require.ErrorAssertionFunc
 		expectURL            *url.URL
 	}{
 		{
 			name:     "bad resolved endpoint",
 			inputReq: mustNewRequest(t, "GET", "http://1.2.3.4/hello/world?aa=2", nil),
-			inputResolvedEnpoint: &endpoints.ResolvedEndpoint{
+			inputResolvedEnpoint: &common.AWSResolvedEndpoint{
 				URL: string([]byte{0x05}),
 			},
 			requireError: require.Error,
@@ -577,7 +576,7 @@ func TestURLForResolvedEndpoint(t *testing.T) {
 		{
 			name:     "replaced host and scheme",
 			inputReq: mustNewRequest(t, "GET", "http://1.2.3.4/hello/world?aa=2", nil),
-			inputResolvedEnpoint: &endpoints.ResolvedEndpoint{
+			inputResolvedEnpoint: &common.AWSResolvedEndpoint{
 				URL: "https://local.test.com",
 			},
 			expectURL: &url.URL{
