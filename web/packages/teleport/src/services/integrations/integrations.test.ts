@@ -17,6 +17,7 @@
  */
 
 import cfg from 'teleport/config';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import api from 'teleport/services/api';
 
 import { integrationService } from './integrations';
@@ -232,6 +233,54 @@ describe('fetchAwsDatabases() request body formatting', () => {
       );
     }
   );
+});
+
+test('fetch integration rules: fetchIntegrationRules()', async () => {
+  // test a valid response
+  jest.spyOn(api, 'get').mockResolvedValue({
+    rules: [
+      {
+        resourceType: 'eks',
+        region: 'us-west-2',
+        labelMatcher: [{ name: 'env', value: 'dev' }],
+        discoveryConfig: 'cfg',
+        lastSync: 1733782634,
+      },
+    ],
+    nextKey: 'some-key',
+  });
+
+  let response = await integrationService.fetchIntegrationRules(
+    'name',
+    AwsResource.eks
+  );
+  expect(api.get).toHaveBeenCalledWith(
+    cfg.getIntegrationRulesUrl('name', AwsResource.eks)
+  );
+  expect(response).toEqual({
+    nextKey: 'some-key',
+    rules: [
+      {
+        resourceType: 'eks',
+        region: 'us-west-2',
+        labelMatcher: [{ name: 'env', value: 'dev' }],
+        discoveryConfig: 'cfg',
+        lastSync: 1733782634,
+      },
+    ],
+  });
+
+  // test null response
+  jest.spyOn(api, 'get').mockResolvedValue(null);
+
+  response = await integrationService.fetchIntegrationRules(
+    'name',
+    AwsResource.eks
+  );
+  expect(response).toEqual({
+    nextKey: undefined,
+    rules: [],
+  });
 });
 
 const nonAwsOidcIntegration = {
