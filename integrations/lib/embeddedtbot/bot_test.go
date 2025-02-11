@@ -124,7 +124,7 @@ func TestBotJoinAuth(t *testing.T) {
 			JoinMethod: types.JoinMethodToken,
 		},
 		AuthServer: authAddr.Addr,
-		CertificateLifetime: config.CertificateLifetime{
+		CredentialLifetime: config.CredentialLifetime{
 			TTL:             defaultCertificateTTL,
 			RenewalInterval: defaultRenewalInterval,
 		},

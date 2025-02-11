@@ -134,7 +134,7 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 				privateKey = nil
 			}
 			bundleSet = newBundleSet
-		case <-time.After(s.certificateLifetime().RenewalInterval):
+		case <-time.After(s.credentialLifetime().RenewalInterval):
 			s.log.InfoContext(ctx, "Renewal interval reached, renewing SVIDs")
 			res = nil
 			privateKey = nil
@@ -183,7 +183,7 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.certificateLifetime().TTL,
+		s.credentialLifetime().TTL,
 		nil,
 	)
 	if err != nil {
@@ -202,7 +202,7 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 		ctx,
 		impersonatedClient,
 		[]config.SVIDRequest{s.cfg.SVID},
-		s.certificateLifetime().TTL,
+		s.credentialLifetime().TTL,
 	)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err, "generating X509 SVID")
@@ -213,7 +213,7 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 		impersonatedClient,
 		s.cfg.SVID,
 		s.cfg.JWTs,
-		s.certificateLifetime().TTL)
+		s.credentialLifetime().TTL)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err, "generating JWT SVIDs")
 	}
@@ -402,9 +402,9 @@ func generateSVID(
 	return res, privateKey, nil
 }
 
-func (s *SPIFFESVIDOutputService) certificateLifetime() config.CertificateLifetime {
-	if !s.cfg.CertificateLifetime.IsEmpty() {
-		return s.cfg.CertificateLifetime
+func (s *SPIFFESVIDOutputService) credentialLifetime() config.CredentialLifetime {
+	if !s.cfg.CredentialLifetime.IsEmpty() {
+		return s.cfg.CredentialLifetime
 	}
-	return s.botCfg.CertificateLifetime
+	return s.botCfg.CredentialLifetime
 }

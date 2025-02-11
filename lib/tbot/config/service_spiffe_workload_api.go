@@ -127,9 +127,9 @@ type SPIFFEWorkloadAPIService struct {
 	// the globally configured default.
 	JWTSVIDTTL time.Duration `yaml:"jwt_svid_ttl,omitempty"`
 
-	// CertificateLifetime contains configuration for how long X.509 SVIDs will
+	// CredentialLifetime contains configuration for how long X.509 SVIDs will
 	// last and the frequency at which they'll be renewed.
-	CertificateLifetime CertificateLifetime `yaml:",inline"`
+	CredentialLifetime CredentialLifetime `yaml:",inline"`
 }
 
 func (s *SPIFFEWorkloadAPIService) Type() string {
@@ -168,6 +168,6 @@ func (s *SPIFFEWorkloadAPIService) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (o *SPIFFEWorkloadAPIService) GetCertificateLifetime() CertificateLifetime {
-	return o.CertificateLifetime
+func (o *SPIFFEWorkloadAPIService) GetCredentialLifetime() CredentialLifetime {
+	return o.CredentialLifetime
 }

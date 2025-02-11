@@ -126,7 +126,7 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 				privateKey = nil
 			}
 			bundleSet = newBundleSet
-		case <-time.After(s.certificateLifetime().RenewalInterval):
+		case <-time.After(s.credentialLifetime().RenewalInterval):
 			s.log.InfoContext(ctx, "Renewal interval reached, renewing SVIDs")
 			x509Cred = nil
 			privateKey = nil
@@ -174,7 +174,7 @@ func (s *WorkloadIdentityX509Service) requestSVID(
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.certificateLifetime().TTL,
+		s.credentialLifetime().TTL,
 		nil,
 	)
 	if err != nil {
@@ -194,7 +194,7 @@ func (s *WorkloadIdentityX509Service) requestSVID(
 		s.log,
 		impersonatedClient,
 		s.cfg.Selector,
-		s.certificateLifetime().TTL,
+		s.credentialLifetime().TTL,
 		nil,
 	)
 	if err != nil {
@@ -304,9 +304,9 @@ func (s *WorkloadIdentityX509Service) render(
 	return nil
 }
 
-func (s *WorkloadIdentityX509Service) certificateLifetime() config.CertificateLifetime {
-	if !s.cfg.CertificateLifetime.IsEmpty() {
-		return s.cfg.CertificateLifetime
+func (s *WorkloadIdentityX509Service) credentialLifetime() config.CredentialLifetime {
+	if !s.cfg.CredentialLifetime.IsEmpty() {
+		return s.cfg.CredentialLifetime
 	}
-	return s.botCfg.CertificateLifetime
+	return s.botCfg.CredentialLifetime
 }

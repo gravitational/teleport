@@ -105,6 +105,6 @@ func (o *WorkloadIdentityJWTService) GetDestination() bot.Destination {
 	return o.Destination
 }
 
-func (o *WorkloadIdentityJWTService) GetCertificateLifetime() CertificateLifetime {
-	return CertificateLifetime{}
+func (o *WorkloadIdentityJWTService) GetCredentialLifetime() CredentialLifetime {
+	return CredentialLifetime{}
 }

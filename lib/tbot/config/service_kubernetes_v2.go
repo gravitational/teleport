@@ -51,9 +51,9 @@ type KubernetesV2Output struct {
 	// selectors can be used to generate an output containing all matches.
 	Selectors []*KubernetesSelector `yaml:"selectors,omitempty"`
 
-	// CertificateLifetime contains configuration for how long certificates will
+	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
-	CertificateLifetime CertificateLifetime `yaml:",inline"`
+	CredentialLifetime CredentialLifetime `yaml:",inline"`
 }
 
 func (o *KubernetesV2Output) CheckAndSetDefaults() error {
@@ -160,6 +160,6 @@ func (s *KubernetesSelector) UnmarshalYAML(value *yaml.Node) error {
 	return nil
 }
 
-func (o *KubernetesV2Output) GetCertificateLifetime() CertificateLifetime {
-	return o.CertificateLifetime
+func (o *KubernetesV2Output) GetCredentialLifetime() CredentialLifetime {
+	return o.CredentialLifetime
 }

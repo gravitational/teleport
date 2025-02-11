@@ -405,7 +405,7 @@ func (c *configV1) migrate() (*BotConfig, error) {
 		Onboarding: c.Onboarding,
 		Debug:      c.Debug,
 		AuthServer: c.AuthServer,
-		CertificateLifetime: CertificateLifetime{
+		CredentialLifetime: CredentialLifetime{
 			TTL:             c.CertificateTTL,
 			RenewalInterval: c.RenewalInterval,
 		},

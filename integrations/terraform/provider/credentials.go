@@ -522,7 +522,7 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 				AudienceTag: audienceTag,
 			},
 		},
-		CertificateLifetime: tbotconfig.CertificateLifetime{
+		CredentialLifetime: tbotconfig.CredentialLifetime{
 			TTL:             time.Hour,
 			RenewalInterval: 20 * time.Minute,
 		},
