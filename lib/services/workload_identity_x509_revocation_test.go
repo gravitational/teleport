@@ -20,7 +20,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -172,6 +174,41 @@ func TestValidateWorkloadIdentityX509Revocation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			err := ValidateWorkloadIdentityX509Revocation(tc.in)
 			tc.requireErr(t, err)
+		})
+	}
+}
+
+func TestWorkloadIdentityX509RevocationMarshaling(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		in   *workloadidentityv1pb.WorkloadIdentityX509Revocation
+	}{
+		{
+			name: "normal",
+			in: &workloadidentityv1pb.WorkloadIdentityX509Revocation{
+				Kind:    types.KindWorkloadIdentityX509Revocation,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name:    "aabbccddeeff",
+					Expires: timestamppb.New(time.Now().Add(time.Hour)),
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
+					Reason:    "compromised",
+					RevokedAt: timestamppb.Now(),
+				},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gotBytes, err := MarshalWorkloadIdentityX509Revocation(tc.in)
+			require.NoError(t, err)
+			// Test that unmarshaling gives us the same object
+			got, err := UnmarshalWorkloadIdentityX509Revocation(gotBytes)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(tc.in, got, protocmp.Transform()))
 		})
 	}
 }
