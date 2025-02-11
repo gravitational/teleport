@@ -897,10 +897,6 @@ func (u *Updater) Setup(ctx context.Context, restart bool) error {
 	if errors.Is(err, context.Canceled) {
 		return trace.Errorf("sync canceled")
 	}
-	if errors.Is(err, ErrNotSupported) {
-		u.Log.WarnContext(ctx, "Skipping all systemd setup because systemd is not running.")
-		return nil
-	}
 	if err != nil {
 		return trace.Wrap(err, "failed to setup updater")
 	}
@@ -908,6 +904,10 @@ func (u *Updater) Setup(ctx context.Context, restart bool) error {
 	present, err := u.Process.IsPresent(ctx)
 	if errors.Is(err, context.Canceled) {
 		return trace.Errorf("config check canceled")
+	}
+	if errors.Is(err, ErrNotSupported) {
+		u.Log.WarnContext(ctx, "Skipping all systemd setup because systemd is not running.")
+		return nil
 	}
 	if err != nil {
 		return trace.Wrap(err, "failed to determine if new version of Teleport has an installed systemd service")
