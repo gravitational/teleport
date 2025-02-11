@@ -18,4 +18,6 @@
 
 import Flex from './Flex';
 
+export { Stack } from './Flex';
+
 export default Flex;
