@@ -20,6 +20,7 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -322,7 +323,14 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	}
 
 	// Validate CertificateTTL and RenewalInterval options
-	if err := conf.CredentialLifetime.Validate(conf.Oneshot); err != nil {
+	var ttlErr SuboptimalCredentialTTLError
+	err := conf.CredentialLifetime.Validate(conf.Oneshot)
+	switch {
+	case errors.As(err, &ttlErr):
+		// Note: we log this as a warning for backward-compatibility, but should
+		// just reject the configuration in a future release.
+		log.WarnContext(context.TODO(), ttlErr.msg, ttlErr.LogLabels()...)
+	case err != nil:
 		return err
 	}
 
@@ -673,22 +681,58 @@ func (l CredentialLifetime) Validate(oneShot bool) error {
 	}
 
 	if l.TTL < l.RenewalInterval && !oneShot {
-		log.WarnContext(
-			context.TODO(),
-			"Certificate TTL is shorter than the renewal interval. This is likely an invalid configuration. Increase the certificate TTL or decrease the renewal interval",
-			"ttl", l.TTL,
-			"interval", l.RenewalInterval,
-		)
+		return SuboptimalCredentialTTLError{
+			msg: "Credential TTL is shorter than the renewal interval. This is likely an invalid configuration. Increase the credential TTL or decrease the renewal interval",
+			details: map[string]any{
+				"ttl":      l.TTL,
+				"interval": l.RenewalInterval,
+			},
+		}
 	}
 
 	if l.TTL > defaults.MaxRenewableCertTTL {
-		log.WarnContext(
-			context.TODO(),
-			"Requested certificate TTL exceeds the maximum TTL allowed and will likely be reduced by the Teleport server",
-			"requested_ttl", l.TTL,
-			"maximum_ttl", defaults.MaxRenewableCertTTL,
-		)
+		return SuboptimalCredentialTTLError{
+			msg: "Requested certificate TTL exceeds the maximum TTL allowed and will likely be reduced by the Teleport server",
+			details: map[string]any{
+				"requested_ttl": l.TTL,
+				"maximum_ttl":   defaults.MaxRenewableCertTTL,
+			},
+		}
 	}
 
 	return nil
+}
+
+// SuboptimalCredentialTTLError is returned from CredentialLifetime.Validate
+// when the user has set CredentialTTL to something unusual that we can work
+// around (e.g. if they exceed MaxRenewableCertTTL the server will reduce it)
+// rather than rejecting their configuration.
+//
+// In the future, these probably *should* be hard failures - but that would be
+// a breaking change.
+type SuboptimalCredentialTTLError struct {
+	msg     string
+	details map[string]any
+}
+
+// Error satisfies the error interface.
+func (e SuboptimalCredentialTTLError) Error() string {
+	if len(e.details) == 0 {
+		return e.msg
+	}
+	parts := make([]string, 0, len(e.details))
+	for k, v := range e.details {
+		parts = append(parts, fmt.Sprintf("%s=%v", k, v))
+	}
+	return fmt.Sprintf("%s (%s)", e.msg, strings.Join(parts, ", "))
+}
+
+// LogLabels returns the error's details as a slice that can be passed as the
+// varadic args parameter to log functions.
+func (e SuboptimalCredentialTTLError) LogLabels() []any {
+	labels := make([]any, 0, len(e.details)*2)
+	for k, v := range e.details {
+		labels = append(labels, k, v)
+	}
+	return labels
 }
