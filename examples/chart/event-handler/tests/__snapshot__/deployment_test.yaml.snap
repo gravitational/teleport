@@ -7,8 +7,8 @@ should match the snapshot:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-event-handler
-        app.kubernetes.io/version: 18.0.0-dev
-        helm.sh/chart: teleport-plugin-event-handler-18.0.0-dev
+        app.kubernetes.io/version: 18.0.0-dev.hugoau.7
+        helm.sh/chart: teleport-plugin-event-handler-18.0.0-dev.hugoau.7
       name: RELEASE-NAME-teleport-plugin-event-handler
     spec:
       replicas: 1
@@ -82,7 +82,7 @@ should mount tls.existingCASecretName and set environment when set in values:
         value: "true"
       - name: SSL_CERT_FILE
         value: /etc/teleport-tls-ca/ca.pem
-      image: public.ecr.aws/gravitational/teleport-plugin-event-handler:18.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-plugin-event-handler:18.0.0-dev.hugoau.7
       imagePullPolicy: IfNotPresent
       name: teleport-plugin-event-handler
       ports:
