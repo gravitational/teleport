@@ -12,6 +12,8 @@
   },
   "packageManager": "pnpm@9.8.0",
   "dependencies": {
+    "@babel/parser": "^7.26.8",
+    "@babel/plugin-syntax-typescript": "^7.25.9",
     "jest": "^29.7.0"
   }
 }
