@@ -2527,3 +2527,114 @@ func TestRevocationService_GetWorkloadIdentityX509Revocation(t *testing.T) {
 		})
 	}
 }
+
+func TestRevocationService_ListWorkloadIdentityX509Revocations(t *testing.T) {
+	t.Parallel()
+	srv, _ := newTestTLSServer(t)
+	ctx := context.Background()
+
+	authorizedUser, _, err := auth.CreateUserAndRole(
+		srv.Auth(),
+		"authorized",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindWorkloadIdentityX509Revocation},
+				Verbs:     []string{types.VerbRead, types.VerbList},
+			},
+		})
+	require.NoError(t, err)
+	authorizedClient, err := srv.NewClient(auth.TestUser(authorizedUser.GetName()))
+	require.NoError(t, err)
+	unauthorizedUser, _, err := auth.CreateUserAndRole(
+		srv.Auth(),
+		"unauthorized",
+		[]string{},
+		[]types.Rule{},
+	)
+	require.NoError(t, err)
+	unauthorizedClient, err := srv.NewClient(auth.TestUser(unauthorizedUser.GetName()))
+	require.NoError(t, err)
+
+	// Create a pre-existing workload identitie revocations
+	// Two complete pages of ten, plus one incomplete page of nine
+	created := []*workloadidentityv1pb.WorkloadIdentityX509Revocation{}
+	for i := 0; i < 29; i++ {
+		r, err := srv.Auth().CreateWorkloadIdentityX509Revocation(
+			ctx,
+			&workloadidentityv1pb.WorkloadIdentityX509Revocation{
+				Kind:    types.KindWorkloadIdentityX509Revocation,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name:    fmt.Sprintf("%d", i),
+					Expires: timestamppb.New(srv.Clock().Now().Add(time.Hour)),
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
+					Reason:    "compromised",
+					RevokedAt: timestamppb.New(srv.Clock().Now()),
+				},
+			})
+		require.NoError(t, err)
+		created = append(created, r)
+	}
+
+	t.Run("unauthorized", func(t *testing.T) {
+		client := workloadidentityv1pb.NewWorkloadIdentityRevocationServiceClient(
+			unauthorizedClient.GetConnection(),
+		)
+
+		_, err := client.ListWorkloadIdentityX509Revocations(
+			ctx,
+			&workloadidentityv1pb.ListWorkloadIdentityX509RevocationsRequest{},
+		)
+		require.True(t, trace.IsAccessDenied(err))
+	})
+
+	t.Run("success - default page", func(t *testing.T) {
+		client := workloadidentityv1pb.NewWorkloadIdentityRevocationServiceClient(
+			authorizedClient.GetConnection(),
+		)
+
+		// For the default page size, we expect to get all results in one page
+		res, err := client.ListWorkloadIdentityX509Revocations(ctx, &workloadidentityv1pb.ListWorkloadIdentityX509RevocationsRequest{})
+		require.NoError(t, err)
+		require.Len(t, res.WorkloadIdentityX509Revocations, 29)
+		require.Empty(t, res.NextPageToken)
+		for _, created := range created {
+			slices.ContainsFunc(res.WorkloadIdentityX509Revocations, func(resource *workloadidentityv1pb.WorkloadIdentityX509Revocation) bool {
+				return proto.Equal(created, resource)
+			})
+		}
+	})
+
+	t.Run("success - page size 10", func(t *testing.T) {
+		client := workloadidentityv1pb.NewWorkloadIdentityRevocationServiceClient(
+			authorizedClient.GetConnection(),
+		)
+
+		fetched := []*workloadidentityv1pb.WorkloadIdentityX509Revocation{}
+		token := ""
+		iterations := 0
+		for {
+			iterations++
+			res, err := client.ListWorkloadIdentityX509Revocations(ctx, &workloadidentityv1pb.ListWorkloadIdentityX509RevocationsRequest{
+				PageSize:  10,
+				PageToken: token,
+			})
+			require.NoError(t, err)
+			fetched = append(fetched, res.WorkloadIdentityX509Revocations...)
+			if res.NextPageToken == "" {
+				break
+			}
+			token = res.NextPageToken
+		}
+
+		require.Len(t, fetched, 29)
+		require.Equal(t, 3, iterations)
+		for _, created := range created {
+			slices.ContainsFunc(fetched, func(resource *workloadidentityv1pb.WorkloadIdentityX509Revocation) bool {
+				return proto.Equal(created, resource)
+			})
+		}
+	})
+}
