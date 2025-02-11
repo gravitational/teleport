@@ -135,7 +135,12 @@ func (p *provisioner) createDownstreamUser(
 	}
 	p.onExternalIDUpdated(ctx, updatedState)
 
-	return updatedState, nil
+	provisionedState, err := markStateAsProvisioned(ctx, p.stateSvc, state, p.clock.Now(), locks, user.GetRevision())
+	if err != nil {
+		return nil, trace.Wrap(err, "marking user as provisioned")
+	}
+
+	return provisionedState, nil
 }
 
 // validateUser checks that the user is in good standing for provisioning to the
@@ -167,8 +172,6 @@ func (p *provisioner) updateDownstreamUser(
 	state *provisioningv1.PrincipalState,
 	user types.User,
 ) (*provisioningv1.PrincipalState, error) {
-	log := p.log.With(principalStateAttr(state))
-
 	if state.GetStatus().GetExternalId() == "" {
 		return nil, trace.BadParameter("principal state must have an ExternalId")
 	}
@@ -193,7 +196,7 @@ func (p *provisioner) updateDownstreamUser(
 		p.onExternalIDUpdated(ctx, state)
 	}
 
-	updatedState, err := markStateAsProvisioned(ctx, p.stateSvc, state, p.clock.Now(), locks, user.GetRevision(), log)
+	updatedState, err := markStateAsProvisioned(ctx, p.stateSvc, state, p.clock.Now(), locks, user.GetRevision())
 	if err != nil {
 		return nil, trace.Wrap(err, "marking principal as provisioned")
 	}

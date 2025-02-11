@@ -134,7 +134,6 @@ func markStateAsProvisioned(
 	timestamp time.Time,
 	locks []string,
 	principalRevision string,
-	log *slog.Logger,
 ) (*provisioningv1.PrincipalState, error) {
 	// Note that we only try and set this for the first update pass. We don't
 	// want clobber a newer "STALE" state if the record has been touched while

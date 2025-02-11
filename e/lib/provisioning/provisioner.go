@@ -29,22 +29,21 @@ type resourceType struct {
 	schemas    []string
 }
 
-type externalIDUpdateHandler func(context.Context, *provisioningv1.PrincipalState)
-
 // provisioner is the actual process that attempts to make the downstream consumer
 // match the resource
 type provisioner struct {
-	log                 *slog.Logger
-	stateSvc            services.DownstreamProvisioningStates
-	externalIDCache     ExternalIDGetter
-	usersSvc            UsersService
-	accessListSvc       AccessListsService
-	locksSvc            services.LockGetter
-	clock               clockwork.Clock
-	scimClient          scimsdk.Client
-	resourceTypes       utils.SyncMap[provisioningv1.PrincipalType, resourceType]
-	maxConcurrency      int
-	onExternalIDUpdated externalIDUpdateHandler
+	log                    *slog.Logger
+	stateSvc               services.DownstreamProvisioningStates
+	externalIDCache        ExternalIDGetter
+	usersSvc               UsersService
+	accessListSvc          AccessListsService
+	locksSvc               services.LockGetter
+	clock                  clockwork.Clock
+	scimClient             scimsdk.Client
+	resourceTypes          utils.SyncMap[provisioningv1.PrincipalType, resourceType]
+	maxConcurrency         int
+	onExternalIDUpdated    EventHandler
+	onPrincipalProvisioned EventHandler
 }
 
 type provisionerConfig struct {
@@ -60,7 +59,13 @@ type provisionerConfig struct {
 	// can happen concurrently.
 	maxConcurrency int
 
-	onExternalIDUpdated externalIDUpdateHandler
+	// onExternalIDUpdated is an optional event callback that will be invoked
+	// when a principal's external ID is discovered or changed
+	onExternalIDUpdated EventHandler
+
+	// onPrincipalProvisioned is an optional event callback invoked when principal
+	// is successfully provisioned to the downstream system
+	onPrincipalProvisioned EventHandler
 }
 
 func (cfg *provisionerConfig) CheckAndSetDefaults() error {
@@ -89,7 +94,10 @@ func (cfg *provisionerConfig) CheckAndSetDefaults() error {
 		cfg.maxConcurrency = defaultProvisioningConcurrency
 	}
 	if cfg.onExternalIDUpdated == nil {
-		cfg.onExternalIDUpdated = func(context.Context, *provisioningv1.PrincipalState) {}
+		cfg.onExternalIDUpdated = nullEventHandler
+	}
+	if cfg.onPrincipalProvisioned == nil {
+		cfg.onPrincipalProvisioned = nullEventHandler
 	}
 	return nil
 }
@@ -100,14 +108,16 @@ func newProvisioner(cfg provisionerConfig) (*provisioner, error) {
 	}
 
 	p := &provisioner{
-		log:            cfg.log,
-		clock:          cfg.clock,
-		stateSvc:       cfg.stateSvc,
-		usersSvc:       cfg.usersSvc,
-		accessListSvc:  cfg.accessListsSvc,
-		locksSvc:       cfg.locksSvc,
-		scimClient:     cfg.scimClient,
-		maxConcurrency: cfg.maxConcurrency,
+		log:                    cfg.log,
+		clock:                  cfg.clock,
+		stateSvc:               cfg.stateSvc,
+		usersSvc:               cfg.usersSvc,
+		accessListSvc:          cfg.accessListsSvc,
+		locksSvc:               cfg.locksSvc,
+		scimClient:             cfg.scimClient,
+		maxConcurrency:         cfg.maxConcurrency,
+		onExternalIDUpdated:    cfg.onExternalIDUpdated,
+		onPrincipalProvisioned: cfg.onPrincipalProvisioned,
 	}
 
 	// TODO(tcsc): query the /Resources SCIM end point and unpack into here
@@ -136,14 +146,15 @@ func (p *provisioner) Provision(ctx context.Context, state *provisioningv1.Princ
 
 	switch state.Status.ProvisioningState {
 	case provisioningv1.ProvisioningState_PROVISIONING_STATE_STALE:
+		var principalState *provisioningv1.PrincipalState
 		var provisioningErr error
 
 		switch state.Spec.PrincipalType {
 		case provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER:
-			_, provisioningErr = p.provisionUser(ctx, state)
+			principalState, provisioningErr = p.provisionUser(ctx, state)
 
 		case provisioningv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST:
-			_, provisioningErr = p.provisionAccessList(ctx, state)
+			principalState, provisioningErr = p.provisionAccessList(ctx, state)
 
 		default:
 			return trace.BadParameter("Unsupported principal type %v", state.Spec.PrincipalType)
@@ -152,6 +163,12 @@ func (p *provisioner) Provision(ctx context.Context, state *provisioningv1.Princ
 		if provisioningErr != nil {
 			_, err := markStateInError(ctx, p.stateSvc, state, provisioningErr, log)
 			return trace.Wrap(err)
+		}
+
+		// If the principal has transitioned to the provisioned state, let the
+		// world know so that it can take whatever action it deems necessary
+		if principalState.GetStatus().GetProvisioningState() == provisioningv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED {
+			p.onPrincipalProvisioned(ctx, principalState)
 		}
 
 		return trace.Wrap(provisioningErr, "provisioning principal")

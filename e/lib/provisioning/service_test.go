@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
@@ -22,8 +23,11 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/clocki"
 )
+
+// TODO(tcsc): fix upstream -> downstream in tests
 
 func TestUpstreamProvisioning(t *testing.T) {
 	ctx := context.Background()
@@ -78,7 +82,16 @@ func TestAccessListPredicate(t *testing.T) {
 		return slices.Contains(acl.Spec.Grants.Traits["provision"], "true"), nil
 	}
 
-	pack := newPack(t, withAccessListPredicate(predicate))
+	var provisionedAccessLists utils.SyncMap[string, struct{}]
+	recordACL := func(_ context.Context, p *provisioningv1.PrincipalState) {
+		if p.GetSpec().GetPrincipalType() != provisioningv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST {
+			return
+		}
+		provisionedAccessLists.Store(p.GetSpec().GetPrincipalId(), struct{}{})
+	}
+	pack := newPack(t,
+		withAccessListPredicate(predicate),
+		withOnProvisionedCallback(recordACL))
 
 	const (
 		aliceUser = "alice"
@@ -93,6 +106,8 @@ func TestAccessListPredicate(t *testing.T) {
 	pack.mustCreateTeleportUser(t, aliceUser)
 
 	t.Run("only matching access lists are provisioned", func(t *testing.T) {
+		t.Cleanup(provisionedAccessLists.Clear)
+
 		// Given an Access List that matches the ACL predicate
 		acl := pack.mustCreateAccessListWithCleanup(t, aclIncludedID, aclIncludedTitle)
 		acl.Spec.Grants.Traits = map[string][]string{"provision": {"true"}}
@@ -106,9 +121,21 @@ func TestAccessListPredicate(t *testing.T) {
 		// Expect that only the matching access list is provisioned
 		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, aclIncludedTitle, 1)
 		assertSCIMGroupDoestExist(t, pack.scimMock, aclExcludedTitle)
+
+		// EXPECT that the `OnProvisioned` event callback is eventually invoked on
+		// the ACL of interest, and ONLY on that ACL
+		eventualWithT(t,
+			func(collect *assert.CollectT) {
+				provisionedAccessLists.Read(func(acls map[string]struct{}) {
+					assert.Len(collect, acls, 1)
+					assert.Contains(collect, acls, aclIncludedID)
+				})
+			})
 	})
 
 	t.Run("matching access lists are deprovisioned when the no longer match", func(t *testing.T) {
+		t.Cleanup(provisionedAccessLists.Clear)
+
 		// Given an Access List that matches the ACL predicate
 		acl := pack.mustCreateAccessListWithCleanup(t, aclIncludedID, aclIncludedTitle)
 		acl.Spec.Grants.Traits = map[string][]string{"provision": {"true"}}
@@ -235,12 +262,41 @@ func TestUpstreamUserProvisioning(t *testing.T) {
 		{Labels: oktaOrigin},
 	}
 
-	pack := newPack(t, withUserPredicate(identitycentercommon.UserPredicateFilter(userFilters)))
+	var provisionedUsers utils.SyncMap[string, struct{}]
+	recordUser := func(_ context.Context, p *provisioningv1.PrincipalState) {
+		if p.GetSpec().GetPrincipalType() != provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER {
+			return
+		}
+		provisionedUsers.Store(p.GetSpec().GetPrincipalId(), struct{}{})
+	}
 
+	// GIVEN a test provisioning system that only provisions users with the Okta
+	// origin label, with an `OnProvisioned` event callback that records the
+	// principals it is invoked on.
+	pack := newPack(t,
+		withUserPredicate(identitycentercommon.UserPredicateFilter(userFilters)),
+		withOnProvisionedCallback(recordUser),
+	)
+
+	// WHEN I create two Teleport users, one with the target Origin label and one
+	// without
 	pack.mustCreateTeleportUser(t, aliceUser)
 	pack.mustCreateTeleportUser(t, bobUser, withUserLabels(oktaOrigin))
+
+	// EXPECT that the `OnProvisioned` event callback is eventually invoked on
+	// the user of interest, and *only* on the user of interest
+	eventualWithT(t,
+		func(collect *assert.CollectT) {
+			provisionedUsers.Read(func(users map[string]struct{}) {
+				assert.Len(collect, users, 1)
+				assert.Contains(collect, users, bobUser)
+			})
+		})
+
+	// EXPECT that the user of interest is created in the downstream SCIM server,
+	// AND that the other user is not
 	assertSCIMUserExistAndIsActive(t, pack.scimMock, bobUser)
-	assertSCIMGroupDoestExist(t, pack.scimMock, aliceUser)
+	assertSCIMUserDoesntExist(t, pack.scimMock, aliceUser)
 }
 
 type mockDeps struct {
@@ -283,6 +339,7 @@ type sutOptions struct {
 	scimClient          *scimsdk.ClientMock
 	accessListPredicate AccessListPredicate
 	userPredicate       identitycentercommon.UserFilterFunc
+	onProvisioned       EventHandler
 }
 
 type sutOption func(*sutOptions)
@@ -296,6 +353,12 @@ func withAccessListPredicate(p AccessListPredicate) sutOption {
 func withUserPredicate(fn func(types.User) bool) sutOption {
 	return func(opts *sutOptions) {
 		opts.userPredicate = fn
+	}
+}
+
+func withOnProvisionedCallback(fn EventHandler) sutOption {
+	return func(opts *sutOptions) {
+		opts.onProvisioned = fn
 	}
 }
 
@@ -317,17 +380,18 @@ func newPack(t *testing.T, options ...sutOption) *testPack {
 
 	depsMock := newDepsMock(t, clock)
 	svc, err := NewService(ServiceConfig{
-		SCIMClient:          defaultOpts.scimClient,
-		UsersCache:          depsMock,
-		AccessListsCache:    depsMock,
-		Locks:               depsMock,
-		StateSvc:            depsMock,
-		StateSvcCache:       depsMock,
-		EventsClient:        depsMock,
-		Clock:               clock,
-		DownstreamID:        "downstreamID",
-		AccessListPredicate: defaultOpts.accessListPredicate,
-		UserPredicate:       defaultOpts.userPredicate,
+		SCIMClient:             defaultOpts.scimClient,
+		UsersCache:             depsMock,
+		AccessListsCache:       depsMock,
+		Locks:                  depsMock,
+		StateSvc:               depsMock,
+		StateSvcCache:          depsMock,
+		EventsClient:           depsMock,
+		Clock:                  clock,
+		DownstreamID:           "downstreamID",
+		AccessListPredicate:    defaultOpts.accessListPredicate,
+		UserPredicate:          defaultOpts.userPredicate,
+		OnPrincipalProvisioned: defaultOpts.onProvisioned,
 	})
 	require.NoError(t, err)
 

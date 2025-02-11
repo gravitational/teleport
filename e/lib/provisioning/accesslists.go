@@ -58,7 +58,7 @@ func (p *provisioner) provisionAccessList(
 		return nil, trace.Wrap(err, "updating downstream group members")
 	}
 
-	provisionedState, err := markStateAsProvisioned(ctx, p.stateSvc, state, p.clock.Now(), nil, acl.GetRevision(), log)
+	provisionedState, err := markStateAsProvisioned(ctx, p.stateSvc, state, p.clock.Now(), nil, acl.GetRevision())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -102,6 +102,7 @@ func (p *provisioner) adoptOrCreateDownstreamGroup(
 		if err != nil {
 			return nil, trace.Wrap(err, "creating downstream group")
 		}
+
 		return createdState, nil
 
 	default:

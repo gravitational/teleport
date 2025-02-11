@@ -59,6 +59,14 @@ type AccessListsService interface {
 // provision downstream
 type AccessListPredicate func(context.Context, *accesslist.AccessList) (bool, error)
 
+// EventHandler defines a function signature for handling provisioning events.
+// Any errors that occur while handling the event are expected to be handled by
+// the caller, and not propagated back to the Provisioning Service
+type EventHandler func(context.Context, *provisioningv1.PrincipalState)
+
+// nullEventHandler is the default, do-nothing event handler
+func nullEventHandler(context.Context, *provisioningv1.PrincipalState) {}
+
 type ServiceConfig struct {
 	// SCIMClient is the SCIM client implementation the provisioning system will
 	// use to interact with the downstream server.
@@ -126,6 +134,11 @@ type ServiceConfig struct {
 	// the resource monitors and the provisioner. Defaults to
 	// `defaultEventBufferSize` if unset.
 	EventBufferSize int
+
+	// OnPrincipalProvisioned is an optional callback to be invoked whenever a
+	// principal is successfully provisioned. Defaults to an no-op
+	// implementation.
+	OnPrincipalProvisioned EventHandler
 }
 
 func (cfg *ServiceConfig) CheckAndSetDefaults() error {
@@ -189,6 +202,10 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 		cfg.ProvisioningConcurrency = defaultProvisioningConcurrency
 	}
 
+	if cfg.OnPrincipalProvisioned == nil {
+		cfg.OnPrincipalProvisioned = nullEventHandler
+	}
+
 	return nil
 }
 
@@ -222,6 +239,10 @@ type Service struct {
 	// can't write to it without blocking then an update is already queued
 	// and the refresh routine hasn't picked it up yet.
 	fullRefreshSignal chan struct{}
+
+	// onPrincipalProvisioned is an optional event handler invoked when a user or
+	// group is provisioned successfully.
+	onPrincipalProvisioned EventHandler
 }
 
 func NewService(cfg ServiceConfig) (svc *Service, err error) {
@@ -243,26 +264,30 @@ func NewService(cfg ServiceConfig) (svc *Service, err error) {
 	}
 
 	svc = &Service{
-		downstreamID:         cfg.DownstreamID,
-		stateSvc:             cfg.StateSvc,
-		stateSvcCache:        cfg.StateSvcCache,
-		usersSvcCache:        cfg.UsersCache,
-		userPredicate:        cfg.UserPredicate,
-		accessListsSvcCache:  cfg.AccessListsCache,
-		accessListPredicate:  cfg.AccessListPredicate,
-		eventsClient:         cfg.EventsClient,
-		eventsSvc:            cfg.EventsClient,
-		log:                  cfg.Logger,
-		provisioner:          provisioner,
-		clock:                cfg.Clock,
-		stateRefreshInterval: cfg.StateRefreshInterval,
-		eventsChan:           make(chan *provisioningEvent, cfg.EventBufferSize),
-		fullRefreshSignal:    make(chan struct{}, 1),
+		downstreamID:           cfg.DownstreamID,
+		stateSvc:               cfg.StateSvc,
+		stateSvcCache:          cfg.StateSvcCache,
+		usersSvcCache:          cfg.UsersCache,
+		userPredicate:          cfg.UserPredicate,
+		accessListsSvcCache:    cfg.AccessListsCache,
+		accessListPredicate:    cfg.AccessListPredicate,
+		eventsClient:           cfg.EventsClient,
+		eventsSvc:              cfg.EventsClient,
+		log:                    cfg.Logger,
+		provisioner:            provisioner,
+		clock:                  cfg.Clock,
+		stateRefreshInterval:   cfg.StateRefreshInterval,
+		eventsChan:             make(chan *provisioningEvent, cfg.EventBufferSize),
+		fullRefreshSignal:      make(chan struct{}, 1),
+		onPrincipalProvisioned: cfg.OnPrincipalProvisioned,
 	}
-
 	provisioner.externalIDCache = svc
 
 	return svc, nil
+}
+
+func (svc *Service) SetOnPrincipalProvisioned(fn EventHandler) {
+	svc.onPrincipalProvisioned = fn
 }
 
 // Run the provisioning service, blocking until it exits
@@ -293,6 +318,8 @@ func (svc *Service) Run(ctx context.Context) (err error) {
 				}
 			}()
 		}
+
+	svc.provisioner.onPrincipalProvisioned = svc.onPrincipalProvisioned
 
 	monitor, err := newResourceMonitor(svc)
 	if err != nil {
@@ -566,7 +593,7 @@ func (svc *Service) refreshProvisioningStates(ctx context.Context) error {
 }
 
 func (svc *Service) GetExternalID(ctx context.Context, principalID services.ProvisioningStateID) (ExternalID, error) {
-	principalState, err := svc.stateSvcCache.GetProvisioningState(ctx, svc.downstreamID, principalID)
+	principalState, err := svc.stateSvc.GetProvisioningState(ctx, svc.downstreamID, principalID)
 	if err != nil {
 		return "", trace.Wrap(err, "looking up external ID for principal %q", principalID)
 	}
