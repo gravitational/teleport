@@ -85,6 +85,8 @@ type cliConfig struct {
 	Reload bool
 	// ForceUninstall allows Teleport to be completely removed.
 	ForceUninstall bool
+	// Insecure skips TLS certificate verification.
+	Insecure bool
 }
 
 func Run(args []string) int {
@@ -107,6 +109,8 @@ func Run(args []string) int {
 		Short('i').StringVar(&ccfg.InstallSuffix)
 	app.Flag("link-dir", "Directory to link the active Teleport installation's binaries into.").
 		Default(autoupdate.DefaultLinkDir).IsSetByUser(&userLinkDir).Hidden().StringVar(&ccfg.LinkDir)
+	app.Flag("insecure",
+		"Insecure mode disables certificate verification. Do not use in production.").BoolVar(&ccfg.Insecure)
 
 	app.HelpFlag.Short('h')
 
@@ -248,10 +252,11 @@ func initConfig(ccfg *cliConfig) (updater *autoupdate.Updater, lockFile string, 
 		return nil, "", trace.Wrap(err)
 	}
 	updater, err = autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
-		SelfSetup: ccfg.SelfSetup,
-		Log:       plog,
-		LogFormat: ccfg.LogFormat,
-		Debug:     ccfg.Debug,
+		SelfSetup:          ccfg.SelfSetup,
+		Log:                plog,
+		LogFormat:          ccfg.LogFormat,
+		Debug:              ccfg.Debug,
+		InsecureSkipVerify: ccfg.Insecure,
 	}, ns)
 	return updater, lockFile, trace.Wrap(err)
 }
@@ -262,10 +267,11 @@ func statusConfig(ccfg *cliConfig) (*autoupdate.Updater, error) {
 		return nil, trace.Wrap(err)
 	}
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
-		SelfSetup: ccfg.SelfSetup,
-		Log:       plog,
-		LogFormat: ccfg.LogFormat,
-		Debug:     ccfg.Debug,
+		SelfSetup:          ccfg.SelfSetup,
+		Log:                plog,
+		LogFormat:          ccfg.LogFormat,
+		Debug:              ccfg.Debug,
+		InsecureSkipVerify: ccfg.Insecure,
 	}, ns)
 	return updater, trace.Wrap(err)
 }
@@ -428,10 +434,11 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 		return trace.Wrap(err)
 	}
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
-		SelfSetup: ccfg.SelfSetup,
-		Log:       plog,
-		LogFormat: ccfg.LogFormat,
-		Debug:     ccfg.Debug,
+		SelfSetup:          ccfg.SelfSetup,
+		Log:                plog,
+		LogFormat:          ccfg.LogFormat,
+		Debug:              ccfg.Debug,
+		InsecureSkipVerify: ccfg.Insecure,
 	}, ns)
 	if err != nil {
 		return trace.Wrap(err)
