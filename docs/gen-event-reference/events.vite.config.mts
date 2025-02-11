@@ -1,6 +1,8 @@
 import path from 'node:path';
+
 import { defineConfig } from 'vite';
 import tsconfigPaths from 'vite-tsconfig-paths';
+
 const outputDirectory = path.resolve(__dirname, 'build');
 
 function tsconfigPathsPlugin() {
@@ -14,10 +16,17 @@ export default defineConfig(() => ({
   build: {
     lib: {
       name: 'event-fixtures',
-      entry: path.resolve(__dirname, '../../web/packages/teleport/src/Audit/fixtures/index.ts'),
-      fileName: 'event-fixtures',
-      formats: ['es' as const],
+      entry: {
+        fixtures: path.resolve(
+          __dirname,
+          '../../web/packages/teleport/src/Audit/fixtures/index.ts'
+        ),
+        formatters: path.resolve(
+          __dirname,
+          '../../web/packages/teleport/src/services/audit/makeEvent.ts'
+        ),
+      },
+      formats: ['es'],
     },
-    outDir: path.resolve(outputDirectory, 'events'),
   },
 }));
