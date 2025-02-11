@@ -39,6 +39,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"k8s.io/apimachinery/pkg/util/validation"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -378,29 +379,29 @@ func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.R
 
 // getAutoUpgrades checks if automaticUpgrades are enabled and returns the
 // version that should be used according to auto upgrades default channel.
-func (h *Handler) getAutoUpgrades(ctx context.Context) (bool, string, error) {
+// If something bad happens, the error is logged and the function falls back to
+// the process Teleport version.
+func (h *Handler) getAutoUpgrades(ctx context.Context) (bool, string) {
 	var autoUpgradesVersion string
 	var err error
 	autoUpgrades := automaticUpgrades(h.GetClusterFeatures())
 	if autoUpgrades {
-		autoUpgradesVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
+		const group, updaterUUID = "", ""
+		autoUpgradesVersion, err = h.autoUpdateAgentVersion(ctx, group, updaterUUID)
 		if err != nil {
-			h.logger.InfoContext(ctx, "Failed to get auto upgrades version", "error", err)
-			return false, "", trace.Wrap(err)
+			h.logger.WarnContext(ctx, "Failed to get auto upgrades version, falling back to self version.", "error", err)
+			return autoUpgrades, teleport.Version
 		}
+		autoUpgradesVersion = fmt.Sprintf("v%s", autoUpgradesVersion)
 	}
-	return autoUpgrades, autoUpgradesVersion, nil
+	return autoUpgrades, autoUpgradesVersion
 
 }
 
 func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	httplib.SetScriptHeaders(w.Header())
 
-	autoUpgrades, autoUpgradesVersion, err := h.getAutoUpgrades(r.Context())
-	if err != nil {
-		w.Write(scripts.ErrorBashScript)
-		return nil, nil
-	}
+	autoUpgrades, autoUpgradesVersion := h.getAutoUpgrades(r.Context())
 
 	settings := scriptSettings{
 		token:                    params.ByName("token"),
@@ -450,11 +451,7 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 		return nil, nil
 	}
 
-	autoUpgrades, autoUpgradesVersion, err := h.getAutoUpgrades(r.Context())
-	if err != nil {
-		w.Write(scripts.ErrorBashScript)
-		return nil, nil
-	}
+	autoUpgrades, autoUpgradesVersion := h.getAutoUpgrades(r.Context())
 
 	settings := scriptSettings{
 		token:                    params.ByName("token"),
@@ -484,11 +481,7 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	httplib.SetScriptHeaders(w.Header())
 
-	autoUpgrades, autoUpgradesVersion, err := h.getAutoUpgrades(r.Context())
-	if err != nil {
-		w.Write(scripts.ErrorBashScript)
-		return nil, nil
-	}
+	autoUpgrades, autoUpgradesVersion := h.getAutoUpgrades(r.Context())
 
 	settings := scriptSettings{
 		token:                    params.ByName("token"),
@@ -518,11 +511,7 @@ func (h *Handler) getDiscoveryJoinScriptHandle(w http.ResponseWriter, r *http.Re
 	queryValues := r.URL.Query()
 	const discoveryGroupQueryParam = "discoveryGroup"
 
-	autoUpgrades, autoUpgradesVersion, err := h.getAutoUpgrades(r.Context())
-	if err != nil {
-		w.Write(scripts.ErrorBashScript)
-		return nil, nil
-	}
+	autoUpgrades, autoUpgradesVersion := h.getAutoUpgrades(r.Context())
 
 	discoveryGroup, err := url.QueryUnescape(queryValues.Get(discoveryGroupQueryParam))
 	if err != nil {

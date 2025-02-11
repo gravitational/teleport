@@ -109,7 +109,6 @@ function useMenuItems(): MenuItem[] {
         const doc = documentsService.createAccessRequestDocument({
           clusterUri: activeRootCluster.uri,
           state: 'creating',
-          title: 'New Role Request',
         });
         documentsService.add(doc);
         documentsService.open(doc.uri);

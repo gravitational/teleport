@@ -24,8 +24,10 @@ option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib
 service VnetService {
   // Start starts VNet.
   rpc Start(StartRequest) returns (StartResponse);
+
   // Stop stops VNet.
   rpc Stop(StopRequest) returns (StopResponse);
+
   // ListDNSZones returns DNS zones of all root and leaf clusters with non-expired user certs. This
   // includes the proxy service hostnames and custom DNS zones configured in vnet_config.
   //
@@ -36,9 +38,14 @@ service VnetService {
   // Just like the admin process, it skips root and leaf clusters for which the vnet_config couldn't
   // be fetched (due to e.g., a network error or an expired cert).
   rpc ListDNSZones(ListDNSZonesRequest) returns (ListDNSZonesResponse);
+
   // GetBackgroundItemStatus returns the status of the background item responsible for launching
   // VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
   rpc GetBackgroundItemStatus(GetBackgroundItemStatusRequest) returns (GetBackgroundItemStatusResponse);
+
+  // RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
+  // is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
+  rpc RunDiagnostics(RunDiagnosticsRequest) returns (RunDiagnosticsResponse);
 }
 
 // Request for Start.
@@ -82,3 +89,9 @@ enum BackgroundItemStatus {
   BACKGROUND_ITEM_STATUS_NOT_FOUND = 4;
   BACKGROUND_ITEM_STATUS_NOT_SUPPORTED = 5;
 }
+
+// Request for RunDiagnostics.
+message RunDiagnosticsRequest {}
+
+// Response for RunDiagnostics.
+message RunDiagnosticsResponse {}

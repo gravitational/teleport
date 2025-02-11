@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -102,7 +103,8 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		Log:                cfg.Log,
 		Pool:               certPool,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
-		ConfigPath:         ns.updaterConfigFile,
+		UpdateConfigPath:   ns.updaterConfigFile,
+		TeleportConfigPath: ns.configFile,
 		Installer: &LocalInstaller{
 			InstallDir:              ns.versionsDir,
 			LinkBinDir:              ns.linkDir,
@@ -181,8 +183,10 @@ type Updater struct {
 	Pool *x509.CertPool
 	// InsecureSkipVerify skips TLS verification.
 	InsecureSkipVerify bool
-	// ConfigPath contains the path to the agent auto-updates configuration.
-	ConfigPath string
+	// UpdateConfigPath contains the path to the agent auto-updates configuration.
+	UpdateConfigPath string
+	// TeleportConfig contains the path to Teleport's configuration.
+	TeleportConfigPath string
 	// Installer manages installations of the Teleport agent.
 	Installer Installer
 	// Process manages a running instance of Teleport.
@@ -279,6 +283,10 @@ type Process interface {
 // If validated, these overrides may be persisted to disk.
 type OverrideConfig struct {
 	UpdateSpec
+
+	// The fields below override the behavior of
+	// Updater.Install for a single run.
+
 	// ForceVersion to the specified version.
 	ForceVersion string
 	// ForceFlags in installed Teleport.
@@ -305,12 +313,20 @@ func toPtr[T any](t T) *T {
 // This function is idempotent.
 func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 	// Read configuration from update.yaml and override any new values passed as flags.
-	cfg, err := readConfig(u.ConfigPath)
+	cfg, err := readConfig(u.UpdateConfigPath)
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
 	if err := validateConfigSpec(&cfg.Spec, override); err != nil {
 		return trace.Wrap(err)
+	}
+
+	agentProxy := u.findAgentProxy(ctx)
+	if cfg.Spec.Proxy == "" {
+		cfg.Spec.Proxy = agentProxy
+	} else if agentProxy != "" &&
+		!sameProxies(cfg.Spec.Proxy, agentProxy) {
+		u.Log.WarnContext(ctx, "Proxy specified in update.yaml does not match teleport.yaml. Unexpected updates may occur.", "update_proxy", cfg.Spec.Proxy, "teleport_proxy", agentProxy)
 	}
 
 	active := cfg.Status.Active
@@ -353,18 +369,87 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 	// Only write the configuration file if the initial update succeeds.
 	// Note: skip_version is never set on failed enable, only failed update.
 
-	if err := writeConfig(u.ConfigPath, cfg); err != nil {
+	if err := writeConfig(u.UpdateConfigPath, cfg); err != nil {
 		return trace.Wrap(err, "failed to write %s", updateConfigName)
 	}
 	u.Log.InfoContext(ctx, "Configuration updated.")
 	return trace.Wrap(u.notices(ctx))
 }
 
+// proxyAddrConfig contains potential proxy server addresses from teleport.yaml.
+type proxyAddrConfig struct {
+	Teleport proxyAddrTeleport `yaml:"teleport"`
+}
+
+type proxyAddrTeleport struct {
+	AuthServers []string `yaml:"auth_servers"`
+	AuthServer  string   `yaml:"auth_server"`
+	ProxyServer string   `yaml:"proxy_server"`
+}
+
+// findAgentProxy finds a proxy in teleport.yaml if not specified or set in update configuration.
+// Note that any implicitly defaulted port in teleport.yaml is explicitly defaulted (to 3080) by this method.
+func (u *Updater) findAgentProxy(ctx context.Context) string {
+	f, err := libutils.OpenFileAllowingUnsafeLinks(u.TeleportConfigPath)
+	if err != nil {
+		u.Log.DebugContext(ctx, "Unable to open Teleport config to read proxy", "config", u.TeleportConfigPath, errorKey, err)
+		return ""
+	}
+	defer f.Close()
+	var cfg proxyAddrConfig
+	if err := yaml.NewDecoder(f).Decode(&cfg); err != nil {
+		u.Log.DebugContext(ctx, "Unable to parse Teleport config to read proxy", "config", u.TeleportConfigPath, errorKey, err)
+		return ""
+	}
+
+	var addr string
+	var port int
+	switch t := cfg.Teleport; {
+	case t.ProxyServer != "":
+		addr = t.ProxyServer
+		port = libdefaults.HTTPListenPort
+	case t.AuthServer != "":
+		addr = t.AuthServer
+		port = libdefaults.AuthListenPort
+	case len(t.AuthServers) > 0:
+		addr = t.AuthServers[0]
+		port = libdefaults.AuthListenPort
+	default:
+		u.Log.DebugContext(ctx, "Unable to find proxy in Teleport config", "config", u.TeleportConfigPath, errorKey, err)
+		return ""
+	}
+	netaddr, err := libutils.ParseHostPortAddr(addr, port)
+	if err != nil {
+		u.Log.DebugContext(ctx, "Unable to parse proxy in Teleport config", "config", u.TeleportConfigPath, "proxy_addr", addr, "proxy_port", port, errorKey, err)
+		return ""
+	}
+	return netaddr.String()
+}
+
+// sameProxies returns true if both proxies addresses are the same.
+// Note that the port is defaulted to 443, which is different from teleport.yaml's default.
+func sameProxies(a, b string) bool {
+	const defaultPort = 443
+	if a == b {
+		return true
+	}
+	addrA, err := libutils.ParseAddr(a)
+	if err != nil {
+		return false
+	}
+	addrB, err := libutils.ParseAddr(b)
+	if err != nil {
+		return false
+	}
+	return addrA.Host() == addrB.Host() &&
+		addrA.Port(defaultPort) == addrB.Port(defaultPort)
+}
+
 // Remove removes everything created by the updater for the given namespace.
 // Before attempting this, Remove attempts to gracefully recover the system-packaged version of Teleport (if present).
 // This function is idempotent.
-func (u *Updater) Remove(ctx context.Context) error {
-	cfg, err := readConfig(u.ConfigPath)
+func (u *Updater) Remove(ctx context.Context, force bool) error {
+	cfg, err := readConfig(u.UpdateConfigPath)
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
@@ -384,6 +469,12 @@ func (u *Updater) Remove(ctx context.Context) error {
 	revert, err := u.Installer.LinkSystem(ctx)
 	if errors.Is(err, ErrNoBinaries) ||
 		errors.Is(err, ErrInvalid) {
+		if !force {
+			u.Log.ErrorContext(ctx, "No packaged installation of Teleport was found, and --force was not passed. Refusing to remove Teleport from this system.")
+			return trace.Errorf("unable to remove Teleport completely without --force")
+		} else {
+			u.Log.WarnContext(ctx, "No packaged installation of Teleport was found, and --force was passed. Teleport will be removed from this system.")
+		}
 		u.Log.InfoContext(ctx, "Updater-managed installation of Teleport detected. Attempting to unlink and remove.")
 		ok, err := isActiveOrEnabled(ctx, u.Process)
 		if err != nil && !errors.Is(err, ErrNotSupported) {
@@ -491,7 +582,7 @@ func isActiveOrEnabled(ctx context.Context, s Process) (bool, error) {
 func (u *Updater) Status(ctx context.Context) (Status, error) {
 	var out Status
 	// Read configuration from update.yaml.
-	cfg, err := readConfig(u.ConfigPath)
+	cfg, err := readConfig(u.UpdateConfigPath)
 	if err != nil {
 		return out, trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
@@ -513,7 +604,7 @@ func (u *Updater) Status(ctx context.Context) (Status, error) {
 // Disable disables agent auto-updates.
 // This function is idempotent.
 func (u *Updater) Disable(ctx context.Context) error {
-	cfg, err := readConfig(u.ConfigPath)
+	cfg, err := readConfig(u.UpdateConfigPath)
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
@@ -522,7 +613,7 @@ func (u *Updater) Disable(ctx context.Context) error {
 		return nil
 	}
 	cfg.Spec.Enabled = false
-	if err := writeConfig(u.ConfigPath, cfg); err != nil {
+	if err := writeConfig(u.UpdateConfigPath, cfg); err != nil {
 		return trace.Wrap(err, "failed to write %s", updateConfigName)
 	}
 	return nil
@@ -531,7 +622,7 @@ func (u *Updater) Disable(ctx context.Context) error {
 // Unpin allows the current version to be changed by Update.
 // This function is idempotent.
 func (u *Updater) Unpin(ctx context.Context) error {
-	cfg, err := readConfig(u.ConfigPath)
+	cfg, err := readConfig(u.UpdateConfigPath)
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
@@ -540,7 +631,7 @@ func (u *Updater) Unpin(ctx context.Context) error {
 		return nil
 	}
 	cfg.Spec.Pinned = false
-	if err := writeConfig(u.ConfigPath, cfg); err != nil {
+	if err := writeConfig(u.UpdateConfigPath, cfg); err != nil {
 		return trace.Wrap(err, "failed to write %s", updateConfigName)
 	}
 	return nil
@@ -553,13 +644,18 @@ func (u *Updater) Unpin(ctx context.Context) error {
 // This function is idempotent.
 func (u *Updater) Update(ctx context.Context, now bool) error {
 	// Read configuration from update.yaml and override any new values passed as flags.
-	cfg, err := readConfig(u.ConfigPath)
+	cfg, err := readConfig(u.UpdateConfigPath)
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
 	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return trace.Wrap(err)
 	}
+	if p := u.findAgentProxy(ctx); p != "" &&
+		!sameProxies(cfg.Spec.Proxy, p) {
+		u.Log.WarnContext(ctx, "Proxy specified in update.yaml does not match teleport.yaml. Unexpected updates may occur.", "update_proxy", cfg.Spec.Proxy, "teleport_proxy", p)
+	}
+
 	active := cfg.Status.Active
 	skip := deref(cfg.Status.Skip)
 	if !cfg.Spec.Enabled {
@@ -624,7 +720,7 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 	}
 
 	updateErr := u.update(ctx, cfg, target, false, resp.AGPL)
-	writeErr := writeConfig(u.ConfigPath, cfg)
+	writeErr := writeConfig(u.UpdateConfigPath, cfg)
 	if writeErr != nil {
 		writeErr = trace.Wrap(writeErr, "failed to write %s", updateConfigName)
 	} else {
@@ -894,7 +990,7 @@ func (u *Updater) cleanup(ctx context.Context, keep []Revision) error {
 // LinkPackage returns an error only if an unknown version of Teleport is present (e.g., manually copied files).
 // This function is idempotent.
 func (u *Updater) LinkPackage(ctx context.Context) error {
-	cfg, err := readConfig(u.ConfigPath)
+	cfg, err := readConfig(u.UpdateConfigPath)
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}

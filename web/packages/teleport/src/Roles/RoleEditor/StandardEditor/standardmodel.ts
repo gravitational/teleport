@@ -38,10 +38,18 @@ import {
   RoleVersion,
   Rule,
   SessionRecordingMode,
-  SSHPortForwarding,
   Verb,
 } from 'teleport/services/resources/types';
 
+import {
+  ConversionError,
+  ConversionErrorGroup,
+  ConversionErrorType,
+  getOptionOrPushError,
+  groupAndSortConversionErrors,
+  unsupportedFieldErrorsFromObject,
+  unsupportedValueWithReplacement,
+} from './errors';
 import { RoleEditorModelValidationResult } from './validation';
 import { defaultOptions } from './withDefaults';
 
@@ -72,6 +80,7 @@ export type RoleEditorModel = {
    * structured editor.
    */
   requiresReset: boolean;
+  conversionErrors: ConversionErrorGroup[];
 };
 
 export type MetadataModel = {
@@ -535,22 +544,52 @@ export function roleToRoleEditorModel(
   role: Role,
   originalRole?: Role
 ): RoleEditorModel {
+  const conversionErrors: ConversionError[] = [];
+
   // We use destructuring to strip fields from objects and assert that nothing
   // has been left. Therefore, we don't want Lint to warn us that we didn't use
   // some of the fields.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { kind, metadata, spec, version, ...unsupported } = role;
+  conversionErrors.push(...unsupportedFieldErrorsFromObject('', unsupported));
+
   const { name, description, revision, labels, ...unsupportedMetadata } =
     metadata;
+  conversionErrors.push(
+    ...unsupportedFieldErrorsFromObject('metadata', unsupportedMetadata)
+  );
+
   const { allow, deny, options, ...unsupportedSpecs } = spec;
+  conversionErrors.push(
+    ...unsupportedFieldErrorsFromObject('spec', unsupportedSpecs)
+  );
+  conversionErrors.push(...unsupportedFieldErrorsFromObject('spec.deny', deny));
+
+  const versionOption = getOptionOrPushError(
+    version,
+    roleVersionOptionsMap,
+    RoleVersion.V7,
+    'version',
+    conversionErrors
+  );
+
+  if (revision !== originalRole?.metadata?.revision) {
+    conversionErrors.push({
+      type: ConversionErrorType.UnsupportedChange,
+      path: 'metadata.revision',
+    });
+  }
+
   const {
     resources,
     rules,
-    requiresReset: allowRequiresReset,
-  } = roleConditionsToModel(allow, version);
-  const { model: optionsModel, requiresReset: optionsRequireReset } =
-    optionsToModel(options);
-  const versionOption = roleVersionOptionsMap.get(version);
+    conversionErrors: allowConversionErrors,
+  } = roleConditionsToModel(allow, version, 'spec.allow');
+  conversionErrors.push(...allowConversionErrors);
+
+  const { model: optionsModel, conversionErrors: optionsConversionErrors } =
+    optionsToModel(options, 'spec.options');
+  conversionErrors.push(...optionsConversionErrors);
 
   return {
     metadata: {
@@ -558,22 +597,13 @@ export function roleToRoleEditorModel(
       description,
       revision: originalRole?.metadata?.revision,
       labels: labelsToModel(labels),
-      version: versionOption ?? roleVersionOptionsMap.get(RoleVersion.V7),
+      version: versionOption,
     },
     resources,
     rules,
     options: optionsModel,
-    requiresReset:
-      revision !== originalRole?.metadata?.revision ||
-      versionOption === undefined ||
-      !(
-        isEmpty(unsupported) &&
-        isEmpty(unsupportedMetadata) &&
-        isEmpty(unsupportedSpecs) &&
-        isEmpty(deny)
-      ) ||
-      allowRequiresReset ||
-      optionsRequireReset,
+    requiresReset: conversionErrors.length > 0,
+    conversionErrors: groupAndSortConversionErrors(conversionErrors),
   };
 }
 
@@ -583,8 +613,12 @@ export function roleToRoleEditorModel(
  */
 function roleConditionsToModel(
   conditions: RoleConditions,
-  roleVersion: RoleVersion
-): Pick<RoleEditorModel, 'resources' | 'rules' | 'requiresReset'> {
+  roleVersion: RoleVersion,
+  pathPrefix: string
+): Pick<RoleEditorModel, 'resources' | 'rules'> & {
+  conversionErrors: ConversionError[];
+} {
+  const conversionErrors: ConversionError[] = [];
   const {
     // Server access
     node_labels,
@@ -619,8 +653,11 @@ function roleConditionsToModel(
     // Access rules
     rules,
 
-    ...unsupportedConditions
+    ...unsupported
   } = conditions;
+  conversionErrors.push(
+    ...unsupportedFieldErrorsFromObject(pathPrefix, unsupported)
+  );
 
   const resources: ResourceAccess[] = [];
 
@@ -638,8 +675,14 @@ function roleConditionsToModel(
   const kubeLabelsModel = labelsToModel(kubernetes_labels);
   const {
     model: kubeResourcesModel,
-    requiresReset: kubernetesResourcesRequireReset,
-  } = kubernetesResourcesToModel(kubernetes_resources, roleVersion);
+    conversionErrors: kubernetesResourceConversionErrors,
+  } = kubernetesResourcesToModel(
+    kubernetes_resources,
+    roleVersion,
+    `${pathPrefix}.kubernetes_resources`
+  );
+  conversionErrors.push(...kubernetesResourceConversionErrors);
+
   const kubeUsersModel = stringsToOptions(kubernetes_users ?? []);
   if (
     someNonEmpty(
@@ -718,26 +761,27 @@ function roleConditionsToModel(
 
   const {
     model: gitHubOrganizationsModel,
-    requiresReset: gitHubOrgsRequireReset,
-  } = gitHubOrganizationsToModel(github_permissions);
+    conversionErrors: gitHubOrganizationConversionErrors,
+  } = gitHubOrganizationsToModel(
+    github_permissions,
+    `${pathPrefix}.github_permissions`
+  );
   if (someNonEmpty(gitHubOrganizationsModel)) {
     resources.push({
       kind: 'git_server',
       organizations: gitHubOrganizationsModel,
     });
   }
+  conversionErrors.push(...gitHubOrganizationConversionErrors);
 
-  const { model: rulesModel, requiresReset: rulesRequireReset } =
-    rulesToModel(rules);
+  const { model: rulesModel, conversionErrors: ruleConversionErrors } =
+    rulesToModel(rules, `${pathPrefix}.rules`);
+  conversionErrors.push(...ruleConversionErrors);
 
   return {
     resources: resources,
     rules: rulesModel,
-    requiresReset:
-      kubernetesResourcesRequireReset ||
-      gitHubOrgsRequireReset ||
-      rulesRequireReset ||
-      !isEmpty(unsupportedConditions),
+    conversionErrors,
   };
 }
 
@@ -773,28 +817,56 @@ function stringsToOptions<T extends string>(arr: T[]): Option<T>[] {
 
 function kubernetesResourcesToModel(
   resources: KubernetesResource[] | undefined,
-  roleVersion: RoleVersion
-): { model: KubernetesResourceModel[]; requiresReset: boolean } {
-  const result = (resources ?? []).map(res =>
-    kubernetesResourceToModel(res, roleVersion)
+  roleVersion: RoleVersion,
+  pathPrefix: string
+): {
+  model: KubernetesResourceModel[];
+  conversionErrors: ConversionError[];
+} {
+  const result = (resources ?? []).map((res, i) =>
+    kubernetesResourceToModel(res, roleVersion, `${pathPrefix}[${i}]`)
   );
   return {
     model: result.map(r => r.model).filter(m => m !== undefined),
-    requiresReset: result.some(r => r.requiresReset),
+    conversionErrors: result.flatMap(r => r.conversionErrors),
   };
 }
 
 function kubernetesResourceToModel(
   res: KubernetesResource,
-  roleVersion: RoleVersion
+  roleVersion: RoleVersion,
+  pathPrefix: string
 ): {
   model?: KubernetesResourceModel;
-  requiresReset: boolean;
+  conversionErrors: ConversionError[];
 } {
   const { kind, name, namespace = '', verbs = [], ...unsupported } = res;
+  const conversionErrors = unsupportedFieldErrorsFromObject(
+    pathPrefix,
+    unsupported
+  );
+
   const kindOption = kubernetesResourceKindOptionsMap.get(kind);
+  if (kindOption === undefined) {
+    conversionErrors.push({
+      type: ConversionErrorType.UnsupportedValue,
+      path: pathPrefix,
+    });
+  }
+
   const verbOptions = verbs.map(verb => kubernetesVerbOptionsMap.get(verb));
-  const knownVerbOptions = verbOptions.filter(v => v !== undefined);
+  const knownVerbOptions: KubernetesVerbOption[] = [];
+  verbOptions.forEach((vo, i) => {
+    if (vo !== undefined) {
+      knownVerbOptions.push(vo);
+    } else {
+      conversionErrors.push({
+        type: ConversionErrorType.UnsupportedValue,
+        path: `${pathPrefix}.verbs[${i}]`,
+      });
+    }
+  });
+
   return {
     model:
       kindOption !== undefined
@@ -807,10 +879,7 @@ function kubernetesResourceToModel(
             roleVersion,
           }
         : undefined,
-    requiresReset:
-      kindOption === undefined ||
-      verbOptions.length !== knownVerbOptions.length ||
-      !isEmpty(unsupported),
+    conversionErrors,
   };
 }
 
@@ -823,45 +892,81 @@ function kubernetesResourceToModel(
  * organizations; however, since this would require adding additional fields to
  * the `GitHubPermission` object (otherwise, such change wouldn't make sense),
  * this function is protected anyway from attempting to interpret such an
- * extended object, and it would return `requiresReset: true` anyway.
+ * extended object, and it would return non-empty `conversionErrors` anyway.
  */
-function gitHubOrganizationsToModel(gitHubPermissions: GitHubPermission[]): {
+function gitHubOrganizationsToModel(
+  gitHubPermissions: GitHubPermission[],
+  pathPrefix: string
+): {
   model: Option[];
-  requiresReset: boolean;
+  conversionErrors: ConversionError[];
 } {
   const permissions = gitHubPermissions ?? [];
-  let requiresReset = false;
   const model: Option[] = [];
-  for (const { orgs, ...rest } of permissions) {
-    if (!isEmpty(rest)) {
-      requiresReset = true;
-    }
+  const conversionErrors: ConversionError[] = [];
+  permissions.forEach((permission, i) => {
+    const { orgs, ...unsupported } = permission;
     model.push(...stringsToOptions(orgs));
-  }
+    conversionErrors.push(
+      ...unsupportedFieldErrorsFromObject(`${pathPrefix}[${i}]`, unsupported)
+    );
+  });
 
-  return { model, requiresReset };
-}
-
-function rulesToModel(rules: Rule[]): {
-  model: RuleModel[];
-  requiresReset: boolean;
-} {
-  const result = (rules ?? []).map(ruleToModel);
   return {
-    model: result.map(r => r.model),
-    requiresReset: result.some(r => r.requiresReset),
+    model,
+    conversionErrors,
   };
 }
 
-function ruleToModel(rule: Rule): { model: RuleModel; requiresReset: boolean } {
+function rulesToModel(
+  rules: Rule[] | undefined,
+  pathPrefix: string
+): {
+  model: RuleModel[];
+  conversionErrors: ConversionError[];
+} {
+  const model: RuleModel[] = [];
+  const conversionErrors: ConversionError[] = [];
+  rules?.forEach?.((rule, i) => {
+    const m = ruleToModel(rule, `${pathPrefix}[${i}]`);
+    model.push(m.model);
+    conversionErrors.push(...m.conversionErrors);
+  });
+  return {
+    model,
+    conversionErrors,
+  };
+}
+
+function ruleToModel(
+  rule: Rule,
+  pathPrefix: string
+): {
+  model: RuleModel;
+  conversionErrors: ConversionError[];
+} {
   const { resources = [], verbs = [], where = '', ...unsupported } = rule;
+  const conversionErrors = unsupportedFieldErrorsFromObject(
+    pathPrefix,
+    unsupported
+  );
   const resourcesModel = resources.map(
+    // Resource kind can be unknown, so we just create a necessary option on
+    // the fly.
     k => resourceKindOptionsMap.get(k) ?? { label: k, value: k }
   );
   const verbsModel = verbs.map(v => verbOptionsMap.get(v));
-  const knownVerbsModel = verbsModel.filter(m => m !== undefined);
-  const requiresReset =
-    !isEmpty(unsupported) || knownVerbsModel.length !== verbs.length;
+  const knownVerbsModel: VerbOption[] = [];
+  verbsModel.forEach((verb, i) => {
+    if (verb !== undefined) {
+      knownVerbsModel.push(verb);
+    } else {
+      conversionErrors.push({
+        type: ConversionErrorType.UnsupportedValue,
+        path: `${pathPrefix}.verbs[${i}]`,
+      });
+    }
+  });
   return {
     model: {
       id: crypto.randomUUID(),
@@ -869,14 +974,29 @@ function ruleToModel(rule: Rule): { model: RuleModel; requiresReset: boolean } {
       verbs: knownVerbsModel,
       where,
     },
-    requiresReset,
+    conversionErrors,
   };
 }
 
-function optionsToModel(options: RoleOptions): {
+// These options must keep their default values, as we don't support them in
+// the standard editor, but they are required fields of the RoleOptions type.
+const uneditableOptionKeys: (keyof RoleOptions)[] = [
+  'cert_format',
+  'enhanced_recording',
+  'idp',
+  'pin_source_ip',
+  'ssh_file_copy',
+];
+
+function optionsToModel(
+  options: RoleOptions,
+  pathPrefix: string
+): {
   model: OptionsModel;
-  requiresReset: boolean;
+  conversionErrors: ConversionError[];
 } {
+  const defaultOpts = defaultOptions();
+  const conversionErrors: ConversionError[] = [];
   const {
     // Customizable options.
     max_session_ttl,
@@ -894,16 +1014,27 @@ function optionsToModel(options: RoleOptions): {
     port_forwarding,
     ssh_port_forwarding,
 
-    // These options must keep their default values, as we don't support them
-    // in the standard editor.
-    cert_format,
-    enhanced_recording,
-    idp,
-    pin_source_ip,
-    ssh_file_copy,
-
     ...unsupported
   } = options;
+
+  for (const key of uneditableOptionKeys) {
+    // Report uneditable options as errors if they diverge from their defaults.
+    if (!equalsDeep(options[key], defaultOpts[key])) {
+      conversionErrors.push(
+        unsupportedValueWithReplacement(
+          `${pathPrefix}.${key}`,
+          defaultOpts[key]
+        )
+      );
+    }
+    // Instead of using destructuring to remove them from our sight, we
+    // explicitly delete these here to have these keys declared in a single
+    // place (the `uneditableOptionKeys` array) and prevent inconsistency.
+    delete unsupported[key];
+  }
+  conversionErrors.push(
+    ...unsupportedFieldErrorsFromObject('spec.options', unsupported)
+  );
 
   const {
     default: defaultRecordingMode = '',
@@ -911,45 +1042,76 @@ function optionsToModel(options: RoleOptions): {
     desktop: recordDesktopSessions = true,
     ...unsupportedRecordingOptions
   } = record_session || {};
-
-  const requireMFATypeOption =
-    requireMFATypeOptionsMap.get(require_session_mfa);
-  const createHostUserModeOption = createHostUserModeOptionsMap.get(
-    create_host_user_mode
+  conversionErrors.push(
+    ...unsupportedFieldErrorsFromObject(
+      `${pathPrefix}.record_session`,
+      unsupportedRecordingOptions
+    )
   );
-  const createDBUserModeOption =
-    createDBUserModeOptionsMap.get(create_db_user_mode);
-  const defaultSessionRecordingModeOption =
-    sessionRecordingModeOptionsMap.get(defaultRecordingMode);
-  const sshSessionRecordingModeOption =
-    sessionRecordingModeOptionsMap.get(sshRecordingMode);
+
+  const requireMFATypeOption = getOptionOrPushError(
+    require_session_mfa,
+    requireMFATypeOptionsMap,
+    false,
+    `${pathPrefix}.require_session_mfa`,
+    conversionErrors
+  );
+
+  const createHostUserModeOption = getOptionOrPushError(
+    create_host_user_mode,
+    createHostUserModeOptionsMap,
+    '',
+    `${pathPrefix}.create_host_user_mode`,
+    conversionErrors
+  );
+
+  const createDBUserModeOption = getOptionOrPushError(
+    create_db_user_mode,
+    createDBUserModeOptionsMap,
+    '',
+    `${pathPrefix}.create_db_user_mode`,
+    conversionErrors
+  );
+
+  const defaultSessionRecordingModeOption = getOptionOrPushError(
+    defaultRecordingMode,
+    sessionRecordingModeOptionsMap,
+    '',
+    `${pathPrefix}.record_session.default`,
+    conversionErrors
+  );
+
+  const sshSessionRecordingModeOption = getOptionOrPushError(
+    sshRecordingMode,
+    sessionRecordingModeOptionsMap,
+    '',
+    `${pathPrefix}.record_session.ssh`,
+    conversionErrors
+  );
+
   const {
     model: sshPortForwardingMode,
-    requiresReset: sshPortForwardingModeRequiresReset,
-  } = portForwardingOptionsToModel(ssh_port_forwarding, port_forwarding);
-
-  const defaultOpts = defaultOptions();
+    conversionErrors: sshPortForwardingConversionErrors,
+  } = portForwardingOptionsToModel(
+    { ssh_port_forwarding, port_forwarding },
+    `${pathPrefix}`
+  );
+  conversionErrors.push(...sshPortForwardingConversionErrors);
 
   return {
     model: {
       maxSessionTTL: max_session_ttl,
       clientIdleTimeout: client_idle_timeout,
       disconnectExpiredCert: disconnect_expired_cert,
-      requireMFAType:
-        requireMFATypeOption ?? requireMFATypeOptionsMap.get(false),
-      createHostUserMode:
-        createHostUserModeOption ?? createHostUserModeOptionsMap.get(''),
+      requireMFAType: requireMFATypeOption,
+      createHostUserMode: createHostUserModeOption,
       createDBUser: create_db_user,
-      createDBUserMode:
-        createDBUserModeOption ?? createDBUserModeOptionsMap.get(''),
+      createDBUserMode: createDBUserModeOption,
       desktopClipboard: desktop_clipboard,
       createDesktopUser: create_desktop_user,
       desktopDirectorySharing: desktop_directory_sharing,
-      defaultSessionRecordingMode:
-        defaultSessionRecordingModeOption ??
-        sessionRecordingModeOptionsMap.get(''),
-      sshSessionRecordingMode:
-        sshSessionRecordingModeOption ?? sessionRecordingModeOptionsMap.get(''),
+      defaultSessionRecordingMode: defaultSessionRecordingModeOption,
+      sshSessionRecordingMode: sshSessionRecordingModeOption,
       recordDesktopSessions,
       forwardAgent: forward_agent,
       sshPortForwardingMode: sshPortForwardingModeOptionsMap.get(
@@ -957,64 +1119,83 @@ function optionsToModel(options: RoleOptions): {
       ),
     },
 
-    requiresReset:
-      cert_format !== defaultOpts.cert_format ||
-      !equalsDeep(enhanced_recording, defaultOpts.enhanced_recording) ||
-      !equalsDeep(idp, defaultOpts.idp) ||
-      pin_source_ip !== defaultOpts.pin_source_ip ||
-      ssh_file_copy !== defaultOpts.ssh_file_copy ||
-      requireMFATypeOption === undefined ||
-      createHostUserModeOption === undefined ||
-      createDBUserModeOption === undefined ||
-      !isEmpty(unsupported) ||
-      !isEmpty(unsupportedRecordingOptions) ||
-      defaultSessionRecordingModeOption === undefined ||
-      sshSessionRecordingModeOption === undefined ||
-      sshPortForwardingModeRequiresReset,
+    conversionErrors,
   };
 }
 
 export function portForwardingOptionsToModel(
-  sshPortForwarding?: SSHPortForwarding,
-  legacyPortForwarding?: boolean
-): { model: SSHPortForwardingMode; requiresReset: boolean } {
-  if (sshPortForwarding) {
-    const { local, remote, ...rest } = sshPortForwarding;
+  {
+    ssh_port_forwarding,
+    port_forwarding,
+  }: Pick<RoleOptions, 'ssh_port_forwarding' | 'port_forwarding'>,
+  pathPrefix: string
+): {
+  model: SSHPortForwardingMode;
+  conversionErrors: ConversionError[];
+} {
+  if (ssh_port_forwarding) {
+    const { local, remote, ...unsupported } = ssh_port_forwarding;
     if (!local || !remote) {
-      return { model: '', requiresReset: true };
+      return {
+        model: '',
+        conversionErrors: [
+          {
+            type: ConversionErrorType.UnsupportedValue,
+            path: `${pathPrefix}.ssh_port_forwarding`,
+          },
+        ],
+      };
     }
 
-    const { enabled: localEnabled, ...localRest } = sshPortForwarding.local;
-    const { enabled: remoteEnabled, ...remoteRest } = sshPortForwarding.remote;
+    const { enabled: localEnabled, ...localUnsupported } =
+      ssh_port_forwarding.local;
+    const { enabled: remoteEnabled, ...remoteUnsupported } =
+      ssh_port_forwarding.remote;
     if (localEnabled === undefined || remoteEnabled === undefined) {
-      return { model: '', requiresReset: true };
+      return {
+        model: '',
+        conversionErrors: [
+          {
+            type: ConversionErrorType.UnsupportedValue,
+            path: `${pathPrefix}.ssh_port_forwarding`,
+          },
+        ],
+      };
     }
 
-    const requiresReset =
-      !isEmpty(rest) || !isEmpty(localRest) || !isEmpty(remoteRest);
+    const conversionErrors: ConversionError[] = [
+      ...unsupportedFieldErrorsFromObject(
+        `${pathPrefix}.ssh_port_forwarding`,
+        unsupported
+      ),
+      ...unsupportedFieldErrorsFromObject(
+        `${pathPrefix}.ssh_port_forwarding.local`,
+        localUnsupported
+      ),
+      ...unsupportedFieldErrorsFromObject(
+        `${pathPrefix}.ssh_port_forwarding.remote`,
+        remoteUnsupported
+      ),
+    ];
 
     if (!localEnabled && !remoteEnabled) {
-      return { model: 'none', requiresReset };
+      return { model: 'none', conversionErrors };
     }
     if (localEnabled && !remoteEnabled) {
-      return { model: 'local-only', requiresReset };
+      return { model: 'local-only', conversionErrors };
     }
     if (!localEnabled && remoteEnabled) {
-      return { model: 'remote-only', requiresReset };
+      return { model: 'remote-only', conversionErrors };
     }
-    return { model: 'local-and-remote', requiresReset };
+    return { model: 'local-and-remote', conversionErrors };
   }
-  if (legacyPortForwarding !== undefined) {
+  if (port_forwarding !== undefined) {
     return {
-      model: legacyPortForwarding ? 'deprecated-on' : 'deprecated-off',
-      requiresReset: false,
+      model: port_forwarding ? 'deprecated-on' : 'deprecated-off',
+      conversionErrors: [],
     };
   }
-  return { model: '', requiresReset: false };
-}
-
-function isEmpty(obj: object) {
-  return Object.keys(obj).length === 0;
+  return { model: '', conversionErrors: [] };
 }
 
 /**
@@ -1157,7 +1338,8 @@ function optionsModelToRoleOptions(model: OptionsModel): RoleOptions {
     forward_agent: model.forwardAgent,
   };
 
-  switch (model.sshPortForwardingMode.value) {
+  const mode = model.sshPortForwardingMode.value;
+  switch (mode) {
     case 'none':
       options.ssh_port_forwarding = {
         local: { enabled: false },
@@ -1193,6 +1375,9 @@ function optionsModelToRoleOptions(model: OptionsModel): RoleOptions {
     case 'deprecated-on':
       options.port_forwarding = true;
       break;
+
+    default:
+      mode satisfies '';
   }
 
   return options;
