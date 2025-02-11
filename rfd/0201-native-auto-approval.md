@@ -24,8 +24,12 @@ software. They believe this should be a supported use case built-in to Teleport.
 In order to support a wider range of use cases, Teleport should support
 automatic approvals natively.
 
-Automatic approvals enables teams to enforce zero standing privileges, while
-allowing users to get access to their pre approved resources for a limited
+The initial use case for automatic approvals was to support on-call engineers.
+Automatic approvals can be configured to allow on-call engineers to troubleshoot
+production issues when access request approvers are not available.
+
+Automatic approvals also enables teams to enforce zero standing privileges,
+while allowing users to get access to their pre approved resources for a limited
 period of time. Access lists could be used to achieve similar behavior, but some
 users prefer the just-in-time access request flow.
 
@@ -68,11 +72,68 @@ but it is something to consider while we decide how to implement native auto
 approvals. This is why [8] is included in the goals list. See
 https://github.com/gravitational/teleport/issues/47150 for more details.
 
+## User Stories
+Some example use cases that should be supported.
+- "As a Teleport administrator, I want to be able to grant my team zero standing
+access by default, but allow them to get access to low-risk resources whenever
+they need. This access flow is needed for compliance reasons."
+- "As a Teleport administrator, I want my super-users that have role "superuser"
+to get their access requests approved automatically".
+- "As an on-call engineer, I want to be able to troubleshoot a production server
+on a weekend when approvers are not available."
+- "As a Teleport administrator, I want to be able to grant my team zero standing
+access by default, but allow them to get access to resources based on the user's
+traits, and based on the resource's labels.
+
+## Web UI Access Monitoring Rules
+The Teleport Web UI will provide a more user friendly approach to configuring
+auto approvals. Users will now be able to navigate to the **Access Requests**
+page and configure auto approvals, similarly to how notification routing is
+configured.
+
+The `Create a New Access Monitoring Rule` form will now be used to configure
+both notification routing rules, as well as automatic approval rules. The
+available configuration input for automatic approvals will be toggled depending
+on the selected plugin name/type.
+
+![create-amr](assets/0201-create-amr.png)
+
+The submitted form will be converted into an AMR that would look like:
+
+```yaml
+kind: access_monitoring_rule
+version: v1
+metadata:
+  name: cloud-dev-pre-approved
+spec:
+  notification:
+    name: slack-default
+    recipients: ["#dev-cloud"]
+  automatic_approval:
+    name: access-native
+    native:
+       level: ["L1"]
+       team: ["Cloud"]
+       location: ["Seattle"]
+  condition: |
+    contains_any(access_request.spec.roles, set("cloud-dev"))
+  subjects:
+    - access_request
+```
+
+The Access Monitoring Rules overview page will be modified to display both
+notification rules, as well as automatic approval rules. This page will allow
+user to see a quick overview of the automatic approvals currently enabled. The
+overview simply displays the access monitoring rule name, plugin/integration
+name, and the roles that are automatically approved. Users will need to click
+on the **View** button to see the actual conditions for auto approval.
+
+![view-amr](assets/0201-view-amr.png)
+
 ## Details
 This feature will be supported by a new `access-native` plugin. This native
 plugin will implement the same interface as already existing access plugins.
-The plugin will be hosted by Teleport and it will be enabled by default. Users
-do not configure or enable/disable this plugin.
+The plugin will be running as a part of the Teleport Auth Service by default.
 
 The native plugin will rely on a similar workflow that supports access request
 notification routing with access monitoring rules. The plugin watches for Access
@@ -101,14 +162,16 @@ To support automatic approvals based on specific user traits, the AMR will be
 extended to support these additional fields:
 - **automatic_approval.name**: This field specifies the plugin that this AMR
 applies for handling auto approvals.
-- **automatic_approval.native**: This field contains auto approval conditions
-specific to the native plugin.
-- **automatic_approval.native.level**: This field specifies the requesting
-user's level.
-- **automatic_approval.native.team**: This field specifies the requesting user's
-team.
-- **automatic_approval.native.location**: This field specifies the requesting
-user's location.
+- **automatic_approval.teleport**: This field contains auto approval conditions
+specific to the native plugin. It maps arbitrary user traits to a list of string
+values. For example, automatic approvals can be configured based on level, team,
+and location with the following fields.
+  - **automatic_approval.teleport.level**: This field specifies the requesting
+  user's level.
+  - **automatic_approval.teleport.team**: This field specifies the requesting
+  user's team.
+  - **automatic_approval.teleport.location**: This field specifies the
+  requesting user's location.
 
 ```yaml
 # This example AMR matches ARs that request the "cloud-dev" role. The plugin is
@@ -125,7 +188,7 @@ spec:
     recipients: ["#dev-cloud"]
   automatic_approval:
     name: teleport-native
-    native:
+    teleport:
        level: ["L1"]
        team: ["Cloud"]
        location: ["Seattle"]
@@ -292,7 +355,7 @@ spec:
     recipients: ["#dev-cloud"]
   automatic_approval:
     name: teleport-native
-    native:
+    teleport:
        level: ["L1", "L2", "L3"]
        team: ["Cloud"]
        location: ["Seattle"]
@@ -308,56 +371,46 @@ will be hosted by Teleport, but will not be self-hostable. Teleport will start
 the native plugin instance during initialization. The native plugin will not
 support any user configuration options.
 
-### Web UI Access Monitoring Rules
-The Teleport Web UI will provide a more user friendly approach to configuring
-auto approvals. Users will now be able to navigate to the **Access Requests**
-page and configure auto approvals, similarly to how notification routing is
-configured.
-
-The `Create a New Access Monitoring Rule` form will now be used to configure
-both notification routing rules, as well as automatic approval rules. The
-available configuration input for automatic approvals will be toggled depending
-on the selected plugin name/type.
-
-![create-amr](assets/0201-create-amr.png)
-
-The submitted form will be converted into an AMR that would look like:
-
-```yaml
-kind: access_monitoring_rule
-version: v1
-metadata:
-  name: cloud-dev-pre-approved
-spec:
-  notification:
-    name: slack-default
-    recipients: ["#dev-cloud"]
-  automatic_approval:
-    name: access-native
-    native:
-       level: ["L1"]
-       team: ["Cloud"]
-       location: ["Seattle"]
-  condition: |
-    contains_any(access_request.spec.roles, set("cloud-dev"))
-  subjects:
-    - access_request
-```
-
-The Access Monitoring Rules overview page will be modified to display both
-notification rules, as well as automatic approval rules. This page will allow
-user to see a quick overview of the automatic approvals currently enabled. The
-overview simply displays the access monitoring rule name, plugin/integration
-name, and the roles that are automatically approved. Users will need to click
-on the **View** button to see the actual conditions for auto approval.
-
-![view-amr](assets/0201-view-amr.png)
-
-## Security
+## Security & Auditability
 Automatic approvals is already a supported feature, although it is currently
 only supported when integrated with an external incident management system. The
 same security concerns apply with built-in auto approvals, as they apply to auto
 approvals with an external plugin.
+
+Automatic approvals are submitted using the system user `@teleport-access-approval-bot`.
+Audit log events `access_request.review` are created whenever an access request
+is reviewed, including automatically reviewed requests. The event contains the
+same information as regular access request reviews.
+```json
+{
+  "cluster_name": "example.teleport.sh",
+  "code": "T5002I",
+  "ei": 0,
+  "event": "access_request.review",
+  "expires": "2025-02-08T04:04:28.653838697Z",
+  "id": "0193083a-77c8-73e1-9f6b-8e337215c5d1",
+  "max_duration": "2025-02-08T04:04:28.653838697Z",
+  "proposed_state": "APPROVED",
+  "reason": "Access request has been automatically approved by 'teleport' plugin because user 'user@goteleport.com' satisfies the 'cloud-dev-pre-approved' access monitoring rule.",
+  "reviewer": "@teleport-access-approval-bot",
+  "state": "APPROVED",
+  "time": "2025-02-07T20:04:31.196Z",
+  "uid": "a5c9adb1-2a12-47d4-a626-f81a21e22f69"
+}
+```
+
+## Observability
+Anonymized metrics will be collected for access requests.
+- `access_request.create`: Specifies an access request create event.
+  - `cluster_name`: Specifies the anonymized cluster name.
+  - `requester_name`: Specifies the anonymized requesting user name.
+  - `kind`: Is one of `role`, `resource`.
+
+- `access_request.review`: specifies an access request review event.
+  - `cluster_name`: Specifies the anonymized cluster name.
+  - `reviewer_name`: Specifies the anonymized reviewer user name.
+  - `is_auto_approved`: Is true if request was automatically reviewed.
+  - `plugin`: Specifies the plugin that submitted the automatic approval request.
 
 ## Implementation Plan
 1. Extend the Access Monitoring Rule to support the `automatic_approvals` field.
@@ -366,5 +419,6 @@ approvals with an external plugin.
 4. Update WebUI to allow users to create and view automatic approvals.
 5. Update the Terraform resource schema to allow configuration of automatic
 approvals with the Terraform provider.
-6. Release guide on how to configure automatic approvals using Access
+6. Enable metrics for access requests.
+7. Release guide on how to configure automatic approvals using Access
 Monitoring Rules.
