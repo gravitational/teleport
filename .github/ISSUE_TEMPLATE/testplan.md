@@ -531,7 +531,8 @@ on the remote host. Note that the `--callback` URL must be able to resolve to th
   - [ ] TeleportProvisionToken
 
 ### AWS Node Joining
-[Docs](https://goteleport.com/docs/setup/guides/joining-nodes-aws/)
+[EC2 method docs](https://goteleport.com/docs/enroll-resources/agents/join-services-to-your-cluster/aws-ec2/)
+[IAM method docs](https://goteleport.com/docs/enroll-resources/agents/join-services-to-your-cluster/aws-iam/)
 - [ ] On EC2 instance with `ec2:DescribeInstances` permissions for local account:
   `TELEPORT_TEST_EC2=1 go test ./integration -run TestEC2NodeJoin`
 - [ ] On EC2 instance with any attached role:
@@ -544,12 +545,16 @@ on the remote host. Note that the `--callback` URL must be able to resolve to th
 - [ ] Join a tbot instance running in a different Kubernetes cluster as Teleport with a Kubernetes JWKS ProvisionToken
 
 ### Azure Node Joining
-[Docs](https://goteleport.com/docs/agents/join-services-to-your-cluster/azure/)
+[Docs](https://goteleport.com/docs/enroll-resources/agents/join-services-to-your-cluster/azure/)
 - [ ] Join a Teleport node running in an Azure VM
 
 ### GCP Node Joining
-[Docs](https://goteleport.com/docs/agents/join-services-to-your-cluster/gcp/)
+[Docs](https://goteleport.com/docs/enroll-resources/agents/join-services-to-your-cluster/gcp/)
 - [ ] Join a Teleport node running in a GCP VM.
+
+### Oracle Node Joining
+[Docs](https://goteleport.com/docs/enroll-resources/agents/join-services-to-your-cluster/oracle/)
+- [ ] Join a Teleport node running in an OCI VM.
 
 ### Cloud Labels
 - [ ] Create an EC2 instance with [tags in instance metadata enabled](https://goteleport.com/docs/management/guides/ec2-tags/)
