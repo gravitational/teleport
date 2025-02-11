@@ -1,4 +1,4 @@
-.version: &version "18.0.0-dev"
+.version: &version "18.0.0-dev.fred-evm2.2"
 
 apiVersion: v2
 name: teleport-plugin-mattermost
