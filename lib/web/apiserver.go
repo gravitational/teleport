@@ -894,6 +894,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/tokens", h.WithAuth(h.getTokens))
 	h.DELETE("/webapi/tokens", h.WithAuth(h.deleteToken))
 
+	// install scripts
+	h.GET("/script/install.sh", h.WithHighLimiter(h.installScriptHandle))
+
 	// join scripts
 	h.GET("/scripts/:token/install-node.sh", h.WithLimiter(h.getNodeJoinScriptHandle))
 	h.GET("/scripts/:token/install-app.sh", h.WithLimiter(h.getAppJoinScriptHandle))

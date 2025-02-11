@@ -63,6 +63,9 @@ type OneOffScriptParams struct {
 	// Used for testing.
 	binSudo string
 
+	// TeleportBin is the name of the binary from the teleport package. Defaults to "teleport", but can be set to
+	// other binaries such as "teleport-update" or "tbot".
+	TeleportBin string
 	// TeleportArgs is the arguments to pass to the teleport binary.
 	// Eg, 'version'
 	TeleportArgs string
@@ -88,6 +91,9 @@ type OneOffScriptParams struct {
 	// - teleport-ent
 	TeleportFlavor string
 
+	// TeleportFIPS represents if the script should install a FIPS build of Teleport.
+	TeleportFIPS bool
+
 	// SuccessMessage is a message shown to the user after the one off is completed.
 	SuccessMessage string
 }
@@ -96,6 +102,10 @@ type OneOffScriptParams struct {
 func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 	if p.TeleportArgs == "" {
 		return trace.BadParameter("missing teleport args")
+	}
+
+	if p.TeleportBin == "" {
+		p.TeleportBin = "teleport"
 	}
 
 	if p.BinUname == "" {

@@ -16,10 +16,12 @@ download() {
 
     echo "Downloading $URL"
     if type curl &>/dev/null; then
+        # we use curl, we need --fail to detect if the server return >= status code
         set -x
         # shellcheck disable=SC2086
-        $CURL -o "$TMP_PATH" "$URL"
+        $CURL -o "$TMP_PATH" --fail "$URL"
     else
+        # we use wget, it will fail on >=400 status
         set -x
         # shellcheck disable=SC2086
         $CURL -O "$TMP_PATH" "$URL"
@@ -51,6 +53,36 @@ get_version() {
     echo "$REQUESTED"
 }
 
+fetch_from_teleport() {
+    # fetch install script
+    TEMP_DIR=$(mktemp -d -t teleport-XXXXXXXXXX)
+    SCRIPT_FILENAME="install.sh"
+    SCRIPT_PATH="${TEMP_DIR}/${SCRIPT_FILENAME}"
+    URL="https://${TELEPORT_DOMAIN}/scripts/${SCRIPT_FILENAME}"
+    download "${URL}" "${SCRIPT_PATH}"
+}
+
+fetch_from_cdn() {
+    SCRIPT_VERSION=$(get_version "$TELEPORT_VERSION")
+
+    # fetch install script
+    TEMP_DIR=$(mktemp -d -t teleport-XXXXXXXXXX)
+    SCRIPT_FILENAME="install-v$SCRIPT_VERSION.sh"
+    SCRIPT_PATH="${TEMP_DIR}/${SCRIPT_FILENAME}"
+    URL="https://cdn.teleport.dev/${SCRIPT_FILENAME}"
+    download "${URL}" "${SCRIPT_PATH}"
+
+    # verify checksum
+    TMP_CHECKSUM="${SCRIPT_PATH}.sha256"
+    download "${URL}.sha256" "$TMP_CHECKSUM"
+
+    set -x
+    cd "$TEMP_DIR"
+    $SHA_COMMAND -c "$TMP_CHECKSUM"
+    cd -
+    set +x
+}
+
 fetch_and_run() {
     # require curl/wget
     CURL=""
@@ -75,24 +107,11 @@ fetch_and_run() {
         exit 1
     fi
 
-    SCRIPT_VERSION=$(get_version "$TELEPORT_VERSION")
-
-    # fetch install script
-    TEMP_DIR=$(mktemp -d -t teleport-XXXXXXXXXX)
-    SCRIPT_FILENAME="install-v$SCRIPT_VERSION.sh"
-    SCRIPT_PATH="${TEMP_DIR}/${SCRIPT_FILENAME}"
-    URL="https://cdn.teleport.dev/${SCRIPT_FILENAME}"
-    download "${URL}" "${SCRIPT_PATH}"
-
-    # verify checksum
-    TMP_CHECKSUM="${SCRIPT_PATH}.sha256"
-    download "${URL}.sha256" "$TMP_CHECKSUM"
-
-    set -x
-    cd "$TEMP_DIR"
-    $SHA_COMMAND -c "$TMP_CHECKSUM"
-    cd -
-    set +x
+    if [ -n "$TELEPORT_DOMAIN" ]; then
+      fetch_from_teleport || fetch_from_cdn
+    else
+      fetch_from_cdn
+    fi
 
     # run install script
     bash "${SCRIPT_PATH}" "$TELEPORT_VERSION" "$TELEPORT_EDITION"
@@ -100,11 +119,20 @@ fetch_and_run() {
 
 TELEPORT_VERSION=""
 TELEPORT_EDITION=""
+TELEPORT_DOMAIN=""
+
+if [ $# -ge 3 ] && [ -n "$3" ]; then
+    TELEPORT_DOMAIN=$3
+fi
+
 if [ $# -ge 1 ] && [ -n "$1" ]; then
     TELEPORT_VERSION=$1
 else
-    echo "ERROR: Please provide the version you want to install (e.g., 16.2.0)."
-    exit 1
+    # We allow users to have an unset TELEPORT_VERSION if they specify the cluster domain.
+    if [ -z "$TELEPORT_DOMAIN" ]; then
+        echo "ERROR: Please provide the version you want to install (e.g., 16.2.0), or the domain your teleport cluster."
+        exit 1
+    fi
 fi
 
 if ! echo "$1" | grep -qE "[0-9]+\.[0-9]+\.[0-9]+"; then
