@@ -41,6 +41,10 @@ type WorkloadIdentityJWTService struct {
 	Destination bot.Destination `yaml:"destination"`
 	// Audiences is the list of audiences that the JWT should be valid for.
 	Audiences []string
+
+	// CredentialLifetime contains configuration for how long credentials will
+	// last and the frequency at which they'll be renewed.
+	CredentialLifetime CredentialLifetime `yaml:",inline"`
 }
 
 // Init initializes the destination.
@@ -106,5 +110,5 @@ func (o *WorkloadIdentityJWTService) GetDestination() bot.Destination {
 }
 
 func (o *WorkloadIdentityJWTService) GetCredentialLifetime() CredentialLifetime {
-	return CredentialLifetime{}
+	return o.CredentialLifetime
 }
