@@ -109,8 +109,8 @@ func Run(args []string) int {
 		Short('i').StringVar(&ccfg.InstallSuffix)
 	app.Flag("link-dir", "Directory to link the active Teleport installation's binaries into.").
 		Default(autoupdate.DefaultLinkDir).IsSetByUser(&userLinkDir).Hidden().StringVar(&ccfg.LinkDir)
-	app.Flag("insecure",
-		"Insecure mode disables certificate verification. Do not use in production.").BoolVar(&ccfg.Insecure)
+	app.Flag("insecure", "Insecure mode disables certificate verification. Do not use in production.").
+		BoolVar(&ccfg.Insecure)
 
 	app.HelpFlag.Short('h')
 
