@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
@@ -489,6 +490,19 @@ func TestCredentialLifetimeValidate(t *testing.T) {
 		"negative renewal interval": {
 			cfg:   CredentialLifetime{TTL: time.Minute, RenewalInterval: -time.Minute},
 			error: "renewal_interval must be positive",
+		},
+		"TTL less than renewal interval": {
+			cfg:   CredentialLifetime{TTL: time.Minute, RenewalInterval: 2 * time.Minute},
+			error: "TTL is shorter than the renewal interval",
+		},
+		"TTL less than renewal interval (one-shot)": {
+			cfg:     CredentialLifetime{TTL: time.Minute, RenewalInterval: 2 * time.Minute},
+			oneShot: true,
+			error:   "",
+		},
+		"TTL too long": {
+			cfg:   CredentialLifetime{TTL: defaults.MaxRenewableCertTTL * 2, RenewalInterval: time.Minute},
+			error: "TTL exceeds the maximum TTL allowed",
 		},
 	}
 	for name, tc := range testCases {
