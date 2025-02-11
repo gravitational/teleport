@@ -206,6 +206,34 @@ func (conf *BotConfig) CipherSuites() []uint16 {
 	return utils.DefaultCipherSuites()
 }
 
+func (conf *BotConfig) UnmarshalYAML(node *yaml.Node) error {
+	// Wrap conf in an anonymous struct to avoid having the deprecated field on
+	// the BotConfig or CredentialLifetime structs, and keep it purely a config
+	// file parsing concern.
+	//
+	// The type alias prevents infinite recursion by obscuring UnmarshalYAML.
+	type alias BotConfig
+	output := struct {
+		*alias                   `yaml:",inline"`
+		DeprecatedCertificateTTL *time.Duration `yaml:"certificate_ttl"`
+	}{alias: (*alias)(conf)}
+	if err := node.Decode(&output); err != nil {
+		return err
+	}
+
+	if output.DeprecatedCertificateTTL != nil {
+		log.WarnContext(context.TODO(), "Config option certificate_ttl is deprecated and will be removed in a future release. Please use credential_ttl instead.")
+
+		if conf.CredentialLifetime.TTL == 0 {
+			conf.CredentialLifetime.TTL = *output.DeprecatedCertificateTTL
+		} else {
+			log.WarnContext(context.TODO(), "Both certificate_ttl and credential_ttl config options were given, credential_ttl will be used.")
+		}
+	}
+
+	return nil
+}
+
 func (conf *BotConfig) CheckAndSetDefaults() error {
 	if conf.Version == "" {
 		conf.Version = V2
@@ -617,7 +645,7 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 // the `inline` YAML tag so its fields become individual fields in the YAML
 // config format.
 type CredentialLifetime struct {
-	TTL             time.Duration `yaml:"certificate_ttl,omitempty"`
+	TTL             time.Duration `yaml:"credential_ttl,omitempty"`
 	RenewalInterval time.Duration `yaml:"renewal_interval,omitempty"`
 }
 
@@ -633,11 +661,11 @@ func (l CredentialLifetime) Validate(oneShot bool) error {
 	}
 
 	if l.TTL == 0 || l.RenewalInterval == 0 {
-		return trace.BadParameter("certificate_ttl and renewal_interval must both be specified if either is")
+		return trace.BadParameter("credential_ttl and renewal_interval must both be specified if either is")
 	}
 
 	if l.TTL < 0 {
-		return trace.BadParameter("certificate_ttl must be positive")
+		return trace.BadParameter("credential_ttl must be positive")
 	}
 
 	if l.RenewalInterval < 0 {
