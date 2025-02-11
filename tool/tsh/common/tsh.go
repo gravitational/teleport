@@ -31,6 +31,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -66,7 +67,6 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -3800,7 +3800,7 @@ func onSSHLatency(cf *CLIConf) error {
 func runLocalCommand(hostLogin string, command []string) error {
 	if len(command) == 0 {
 		if hostLogin == "" {
-			user, err := apiutils.CurrentUser()
+			user, err := user.Current()
 			if err != nil {
 				return trace.Wrap(err)
 			}
