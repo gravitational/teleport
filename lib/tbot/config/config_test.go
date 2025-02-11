@@ -430,7 +430,7 @@ func TestBotConfig_ServicePartialCredentialLifetime(t *testing.T) {
 			},
 		},
 	}
-	require.ErrorContains(t, cfg.CheckAndSetDefaults(), "certificate_ttl and renewal_interval")
+	require.ErrorContains(t, cfg.CheckAndSetDefaults(), "credential_ttl and renewal_interval")
 }
 
 func TestBotConfig_ServiceInvalidCredentialLifetime(t *testing.T) {
@@ -444,7 +444,32 @@ func TestBotConfig_ServiceInvalidCredentialLifetime(t *testing.T) {
 			},
 		},
 	}
-	require.ErrorContains(t, cfg.CheckAndSetDefaults(), "certificate_ttl and renewal_interval")
+	require.ErrorContains(t, cfg.CheckAndSetDefaults(), "credential_ttl and renewal_interval")
+}
+
+func TestBotConfig_DeprecatedCertificateTTL(t *testing.T) {
+	t.Run("just deprecated option", func(t *testing.T) {
+		const config = `
+version: v2
+certificate_ttl: 5m
+`
+
+		cfg, err := ReadConfig(strings.NewReader(config), false)
+		require.NoError(t, err)
+		require.Equal(t, 5*time.Minute, cfg.CredentialLifetime.TTL)
+	})
+
+	t.Run("both options", func(t *testing.T) {
+		const config = `
+version: v2
+certificate_ttl: 5m
+credential_ttl: 10m
+`
+
+		cfg, err := ReadConfig(strings.NewReader(config), false)
+		require.NoError(t, err)
+		require.Equal(t, 10*time.Minute, cfg.CredentialLifetime.TTL)
+	})
 }
 
 func TestCredentialLifetimeValidate(t *testing.T) {
@@ -455,11 +480,11 @@ func TestCredentialLifetimeValidate(t *testing.T) {
 	}{
 		"partial config": {
 			cfg:   CredentialLifetime{TTL: 1 * time.Minute},
-			error: "certificate_ttl and renewal_interval must both be specified if either is",
+			error: "credential_ttl and renewal_interval must both be specified if either is",
 		},
 		"negative TTL": {
 			cfg:   CredentialLifetime{TTL: -time.Minute, RenewalInterval: time.Minute},
-			error: "certificate_ttl must be positive",
+			error: "credential_ttl must be positive",
 		},
 		"negative renewal interval": {
 			cfg:   CredentialLifetime{TTL: time.Minute, RenewalInterval: -time.Minute},
