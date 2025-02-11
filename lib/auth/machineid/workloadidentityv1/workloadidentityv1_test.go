@@ -2411,3 +2411,119 @@ func TestRevocationService_DeleteWorkloadIdentityX509Revocation(t *testing.T) {
 		})
 	}
 }
+
+func TestRevocationService_GetWorkloadIdentityX509Revocation(t *testing.T) {
+	t.Parallel()
+	srv, _ := newTestTLSServer(t)
+	ctx := context.Background()
+
+	authorizedUser, _, err := auth.CreateUserAndRole(
+		srv.Auth(),
+		"authorized",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindWorkloadIdentityX509Revocation},
+				Verbs:     []string{types.VerbRead},
+			},
+		})
+	require.NoError(t, err)
+	authorizedClient, err := srv.NewClient(auth.TestUser(authorizedUser.GetName()))
+	require.NoError(t, err)
+	unauthorizedUser, _, err := auth.CreateUserAndRole(
+		srv.Auth(),
+		"unauthorized",
+		[]string{},
+		[]types.Rule{},
+	)
+	require.NoError(t, err)
+	unauthorizedClient, err := srv.NewClient(auth.TestUser(unauthorizedUser.GetName()))
+	require.NoError(t, err)
+
+	// Create a pre-existing workload identity revocation
+	preExisting, err := srv.Auth().CreateWorkloadIdentityX509Revocation(
+		ctx,
+		&workloadidentityv1pb.WorkloadIdentityX509Revocation{
+			Kind:    types.KindWorkloadIdentityX509Revocation,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name:    "aabbccdd",
+				Expires: timestamppb.New(srv.Clock().Now().Add(time.Hour)),
+			},
+			Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
+				Reason:    "compromised",
+				RevokedAt: timestamppb.New(srv.Clock().Now()),
+			},
+		})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name         string
+		client       *authclient.Client
+		req          *workloadidentityv1pb.GetWorkloadIdentityX509RevocationRequest
+		wantRes      *workloadidentityv1pb.WorkloadIdentityX509Revocation
+		requireError require.ErrorAssertionFunc
+	}{
+		{
+			name:   "success",
+			client: authorizedClient,
+			req: &workloadidentityv1pb.GetWorkloadIdentityX509RevocationRequest{
+				Name: preExisting.GetMetadata().GetName(),
+			},
+			wantRes:      preExisting,
+			requireError: require.NoError,
+		},
+		{
+			name:   "non-existing",
+			client: authorizedClient,
+			req: &workloadidentityv1pb.GetWorkloadIdentityX509RevocationRequest{
+				Name: "i-do-not-exist",
+			},
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsNotFound(err))
+			},
+		},
+		{
+			name:   "validation fail",
+			client: authorizedClient,
+			req: &workloadidentityv1pb.GetWorkloadIdentityX509RevocationRequest{
+				Name: "",
+			},
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "name: must be non-empty")
+			},
+		},
+		{
+			name:   "unauthorized",
+			client: unauthorizedClient,
+			req: &workloadidentityv1pb.GetWorkloadIdentityX509RevocationRequest{
+				Name: "unauthorized",
+			},
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := workloadidentityv1pb.NewWorkloadIdentityRevocationServiceClient(
+				tt.client.GetConnection(),
+			)
+			got, err := client.GetWorkloadIdentityX509Revocation(ctx, tt.req)
+			tt.requireError(t, err)
+
+			if tt.wantRes != nil {
+				require.Empty(
+					t,
+					cmp.Diff(
+						tt.wantRes,
+						got,
+						protocmp.Transform(),
+					),
+				)
+			}
+		})
+	}
+}
