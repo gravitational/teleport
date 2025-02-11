@@ -20,6 +20,7 @@ import React from 'react';
 
 import { Route, Switch } from 'teleport/components/Router';
 import cfg from 'teleport/config';
+import { Details } from 'teleport/Integrations/status/AwsOidc/Details/Details';
 import { AwsOidcStatusProvider } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
 
 import { AwsOidcDashboard } from './AwsOidcDashboard';
@@ -29,7 +30,13 @@ export function AwsOidcRoutes() {
     <AwsOidcStatusProvider>
       <Switch>
         <Route
-          key="aws-oidc-resources-list"
+          key="aws-oidc-resource-table"
+          exact
+          path={cfg.routes.integrationStatusResources}
+          component={Details}
+        />
+        <Route
+          key="aws-oidc-dashboard"
           exact
           path={cfg.routes.integrationStatus}
           component={AwsOidcDashboard}

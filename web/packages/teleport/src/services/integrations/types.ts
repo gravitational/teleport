@@ -354,6 +354,31 @@ export type IntegrationWithSummary = {
   awseks: ResourceTypeSummary;
 };
 
+// IntegrationDiscoveryRules contains the list of discovery rules for a given Integration.
+export type IntegrationDiscoveryRules = {
+  // rules is the list of integration rules.
+  rules: IntegrationDiscoveryRule[];
+  // nextKey is the position to resume listing rules.
+  nextKey: string;
+};
+
+// IntegrationDiscoveryRule describes a discovery rule associated with an integration.
+export type IntegrationDiscoveryRule = {
+  // resourceType indicates the type of resource that this rule targets.
+  // This is the same value that is set in DiscoveryConfig.AWS.<Matcher>.Types
+  // Example: ec2, rds, eks
+  resourceType: string;
+  // region where this rule applies to.
+  region: string;
+  // labelMatcher is the set of labels that are used to filter the resources before trying to auto-enroll them.
+  labelMatcher: Label[];
+  // discoveryConfig is the name of the DiscoveryConfig that created this rule.
+  discoveryConfig: string;
+  // lastSync contains the time when this rule was used.
+  // If empty, it indicates that the rule is not being used.
+  lastSync: number;
+};
+
 // ResourceTypeSummary contains the summary of the enrollment rules and found resources by the integration.
 export type ResourceTypeSummary = {
   // rulesCount is the number of enrollment rules that are using this integration.
@@ -374,6 +399,26 @@ export type ResourceTypeSummary = {
   // ecsDatabaseServiceCount is the total number of DatabaseServices that were deployed into Amazon ECS.
   // Only applicable for AWS RDS resource summary.
   ecsDatabaseServiceCount: number;
+};
+
+// AWSOIDCListDeployedDatabaseServiceResponse is a list of Teleport Database Services that are deployed as ECS Services.
+export type AWSOIDCListDeployedDatabaseServiceResponse = {
+  // services are the ECS Services.
+  services: AWSOIDCDeployedDatabaseService[];
+};
+
+// AWSOIDCDeployedDatabaseService represents a Teleport Database Service that is deployed in Amazon ECS.
+export type AWSOIDCDeployedDatabaseService = {
+  // name is the ECS Service name.
+  name: string;
+  // dashboardUrl is the link to the ECS Service in Amazon Web Console.
+  dashboardUrl: string;
+  // validTeleportConfig returns whether this ECS Service has a valid Teleport Configuration for a deployed Database Service.
+  // ECS Services with non-valid configuration require the user to take action on them.
+  // No MatchingLabels are returned with an invalid configuration.
+  validTeleportConfig: boolean;
+  // matchingLabels are the labels that are used by the Teleport Database Service to know which databases it should proxy.
+  matchingLabels: Label[];
 };
 
 // awsRegionMap maps the AWS regions to it's region name

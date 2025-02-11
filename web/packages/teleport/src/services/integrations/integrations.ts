@@ -17,18 +17,20 @@
  */
 
 import cfg from 'teleport/config';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import api from 'teleport/services/api';
 
 import { App } from '../apps';
 import makeApp from '../apps/makeApps';
 import auth, { MfaChallengeScope } from '../auth/auth';
-import makeNode from '../nodes/makeNode';
 import { withUnsupportedLabelFeatureErrorConversion } from '../version/unsupported';
 import {
   AwsDatabaseVpcsResponse,
   AwsOidcDeployDatabaseServicesRequest,
+  AWSOIDCDeployedDatabaseService,
   AwsOidcDeployServiceRequest,
   AwsOidcListDatabasesRequest,
+  AWSOIDCListDeployedDatabaseServiceResponse,
   AwsOidcPingRequest,
   AwsOidcPingResponse,
   AwsRdsDatabase,
@@ -493,7 +495,46 @@ export const integrationService = {
       return resp;
     });
   },
+
+  fetchIntegrationRules(
+    name: string,
+    resourceType: AwsResource,
+    regions?: string[]
+  ): Promise<IntegrationDiscoveryRules> {
+    return api
+      .get(cfg.getIntegrationRulesUrl(name, resourceType, regions))
+      .then(resp => {
+        return {
+          rules: resp?.rules || [],
+          nextKey: resp?.nextKey,
+        };
+      });
+  },
+
+  fetchAwsOidcDatabaseServices(
+    name: string,
+    resourceType: AwsResource,
+    regions: string[]
+  ): Promise<AWSOIDCListDeployedDatabaseServiceResponse> {
+    return api
+      .post(cfg.getAwsOidcDatabaseServices(name, resourceType, regions), null)
+      .then(resp => {
+        return { services: makeDatabaseServices(resp) };
+      });
+  },
 };
+
+function makeDatabaseServices(json: any): AWSOIDCDeployedDatabaseService[] {
+  json = json ?? {};
+  const { services } = json;
+
+  return services.map((service: AWSOIDCDeployedDatabaseService) => ({
+    name: service.name ?? '',
+    dashboardUrl: service.dashboardUrl ?? '',
+    validTeleportConfig: service.validTeleportConfig ?? false,
+    matchingLabels: service.matchingLabels ?? [],
+  }));
+}
 
 export function makeIntegrations(json: any): Integration[] {
   json = json || [];
