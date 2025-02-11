@@ -43,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/autoupdate"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/packaging"
 )
@@ -202,15 +201,6 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 	})
 	if err != nil {
 		return "", false, trace.Wrap(err)
-	}
-
-	m := modules.GetModules()
-	envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar)
-	if resp.Edition == modules.BuildOSS && m.BuildType() == modules.BuildCommunity && envBaseURL == "" {
-		slog.WarnContext(ctx, "Client tools updates are disabled because the server is licensed under AGPL "+
-			"but Teleport-distributed binaries are licensed under Community Edition. To use Community Edition "+
-			"builds or custom binaries, set the 'TELEPORT_CDN_BASE_URL' environment variable.")
-		return "", false, errNoBaseURL
 	}
 
 	// If a version of client tools has already been downloaded to
