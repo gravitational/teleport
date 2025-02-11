@@ -7,6 +7,7 @@ state: draft
 
 ## Required Approvers
 * Engineering: @r0mant && @fheinecke
+* Product: @klizhentas && @roraback
 
 ## What
 This document describes how Teleport will support native automatic approvals for
