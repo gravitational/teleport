@@ -1,7 +1,77 @@
 import {
   createEventSection,
   createReferencePage,
+  eventsWithoutExamples,
+  removeUnknowns,
 } from './gen-event-reference.js';
+
+describe('eventsWithoutExamples', () => {
+  const testCases = [
+    {
+      description: 'formatters with no fixture',
+      events: [
+        {
+          codeDesc: 'App created',
+          code: 'ABC123',
+          raw: {
+            event: 'app.create',
+          },
+        },
+      ],
+      formatters: {
+        ABC456: {
+          type: 'billing.create_card',
+          desc: 'Card created',
+        },
+      },
+      expected: [
+        {
+          codeDesc: 'Card created',
+          code: 'ABC456',
+          raw: {
+            event: 'billing.create_card',
+          },
+        },
+      ],
+    },
+  ];
+
+  test.each(testCases)('$description', testCase => {
+    expect(eventsWithoutExamples(testCase.events, testCase.formatters)).toEqual(
+      testCase.expected
+    );
+  });
+});
+
+describe('removeUnknowns', () => {
+  const testCases = [
+    {
+      description: 'event code not present in the formatters array',
+      events: [
+        {
+          codeDesc: 'Unknown',
+          code: 'ABC123',
+          raw: {
+            event: 'billing.delete_card',
+          },
+        },
+      ],
+      formatters: {
+        ABC456: {
+          type: 'billing.create_card',
+          desc: 'Card created',
+        },
+      },
+      expected: [],
+    },
+  ];
+
+  test.each(testCases)('$description', testCase => {
+    expect(removeUnknowns(testCase.events, testCase.formatters)).toEqual(
+      testCase.expected
+    );
+  });
+});
 
 describe('createEventSection', () => {
   const testCases = [
@@ -44,20 +114,54 @@ Example:
 `,
     },
     {
-      description: 'Event description of Unknown',
+      description: 'Event with only the raw.event field',
       event: {
-        codeDesc: 'Unknown',
+        codeDesc: 'Credit Card Deleted',
+        code: 'TBL01I',
         raw: {
           event: 'billing.delete_card',
         },
       },
       expected: `## billing.delete_card
 
+Credit Card Deleted
+
+Code: \`TBL01I\`
+
+Event: \`billing.delete_card\`
+`,
+    },
+    {
+      description: 'description is a function',
+      event: {
+        codeDesc: ({ code, event }) => {
+          const eventName = 'Port forwarding';
+
+          switch (code) {
+            case 'ABC123':
+              return `${eventName} Start`;
+            case 'DEF123':
+              return `${eventName} Stop`;
+            case 'GHI123':
+              return `${eventName} Failure`;
+          }
+        },
+        code: 'ABC123',
+        raw: {
+          event: 'port',
+          user: 'myuser',
+        },
+      },
+      expected: `## port
+
+Port forwarding Start
+
 Example:
 
 \`\`\`json
 {
-  "event": "billing.delete_card"
+  "event": "port",
+  "user": "myuser"
 }
 \`\`\`
 `,
@@ -181,6 +285,7 @@ Example:
     const events = [
       {
         codeDesc: 'Event C',
+        code: 'GHI123',
         raw: {
           event: 'event.c',
           code: 'GHI123',
@@ -188,6 +293,7 @@ Example:
       },
       {
         codeDesc: 'Event A',
+        code: 'ABC123',
         raw: {
           event: 'event.a',
           code: 'ABC123',
@@ -195,6 +301,7 @@ Example:
       },
       {
         codeDesc: 'Event B',
+        code: 'DEF123',
         raw: {
           event: 'event.b',
           code: 'DEF123',
@@ -258,6 +365,7 @@ Example:
     const events = [
       {
         codeDesc: 'Event A',
+        code: 'ABC123',
         raw: {
           event: 'event.a',
           code: 'ABC123',
@@ -265,6 +373,7 @@ Example:
       },
       {
         codeDesc: 'Event A failed',
+        code: 'ABC456',
         raw: {
           event: 'event.a',
           code: 'ABC456',
@@ -354,6 +463,123 @@ Example:
   "code": "ABC123"
 }
 \`\`\`
+`;
+    const actual = createReferencePage(events, introParagraph);
+    expect(actual).toEqual(expected);
+  });
+
+  test('displays multiple events with only one raw field', () => {
+    const events = [
+      {
+        codeDesc: 'Access Request Reviewed',
+        code: 'T5002I',
+        raw: { event: 'access_request.review' },
+      },
+      {
+        codeDesc: 'Stable UNIX user created',
+        code: 'TSUU001I',
+        raw: { event: 'stable_unix_user.create' },
+      },
+    ];
+
+    const expected = `---
+title: "Audit Event Reference"
+description: "Provides a comprehensive list of Teleport audit events and their fields."
+---
+{/* Generated file. Do not edit. */}
+{/* To regenerate, navigate to docs/gen-event-reference and run pnpm gen-docs */}
+
+This is an intro paragraph.
+
+## access_request.review
+
+Access Request Reviewed
+
+Code: \`T5002I\`
+
+Event: \`access_request.review\`
+
+## stable_unix_user.create
+
+Stable UNIX user created
+
+Code: \`TSUU001I\`
+
+Event: \`stable_unix_user.create\`
+`;
+    const actual = createReferencePage(events, introParagraph);
+    expect(actual).toEqual(expected);
+  });
+
+  test('includes H3 sections for event codes with duplicate types and partial fields', () => {
+    const events = [
+      {
+        codeDesc: 'Event A',
+        code: 'ABC123',
+        raw: {
+          event: 'event.a',
+        },
+      },
+      {
+        codeDesc: 'Event A failed',
+        code: 'ABC456',
+        raw: {
+          event: 'event.a',
+          code: 'ABC456',
+          user: 'myuser',
+        },
+      },
+      {
+        codeDesc: 'Event A starting',
+        code: 'ABC789',
+        raw: {
+          event: 'event.a',
+        },
+      },
+    ];
+
+    const expected = `---
+title: "Audit Event Reference"
+description: "Provides a comprehensive list of Teleport audit events and their fields."
+---
+{/* Generated file. Do not edit. */}
+{/* To regenerate, navigate to docs/gen-event-reference and run pnpm gen-docs */}
+
+This is an intro paragraph.
+
+## event.a
+
+There are multiple events with the \`event.a\` type.
+
+### ABC123
+
+Event A
+
+Code: \`ABC123\`
+
+Event: \`event.a\`
+
+### ABC456
+
+Event A failed
+
+Example:
+
+\`\`\`json
+{
+  "event": "event.a",
+  "code": "ABC456",
+  "user": "myuser"
+}
+\`\`\`
+
+### ABC789
+
+Event A starting
+
+Code: \`ABC789\`
+
+Event: \`event.a\`
 `;
     const actual = createReferencePage(events, introParagraph);
     expect(actual).toEqual(expected);
