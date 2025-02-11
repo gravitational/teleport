@@ -12,27 +12,27 @@ state: draft
 
 ## What
 
-Introduce Teleport Key Agent to provide the ability for one Teleport client
-to handle private key storage and operations for one or more other local
-Teleport clients.
+Teleport Key Agent handles private key storage and operations for multiple
+local Teleport clients.
 
 ## Why
 
 Teleport Key Agent will enable multiple use cases, including:
 
 * Providing a shared key state necessary for specific features
-  * Delegating Hardware Key touch/pin prompts to Teleport Connect for better UI
-  * [hardware key pin caching](./XXXX-hardware-key-pin-caching.md) between
+  * Delegating Hardware Key touch/pin prompts to Teleport Connect for better UX
+  * [Caching hardware key pin](./0198-hardware-key-pin-caching.md) between
     multiple Teleport clients
   * Syncing Teleport Connect's front end login state with `tsh`
-  * Exposing login state stored in memory, e.g. `tsh --add-keys-to-agent=only`
+  * Sharing login state stored in [memory](#memory-key-storage) without exposing private keys to disk
 * Providing concurrent access to key storage with limiting properties
   * Example: Hardware Key Support holds an exclusive connection to the Hardware
     Key, preventing concurrent access from different clients
 
 Note: the primary short-term goal of this RFD is to enable UX improvements in
-Hardware Key PIN support, while the other use cases may or may not be
-implemented in the future. I'll note these features below as *future work*.
+Hardware Key PIN support, while the other use cases above may or may not be
+addressed in the future. These extra features have been marked below as
+*future work*.
 
 ## Details
 
@@ -43,12 +43,11 @@ client.
 ### UX
 
 In order to utilize the Teleport Key Agent, users will need to launch an agent
-client and login. See [running the agent](#running-the-agent-ux-continued)
+client and login. See [running the agent](#running-the-agent)
 for more details on running the agent.
 
-So long as the agent remains running, dependent client commands will interface
-with the agent for some or all login information, depending on the
-[agent mode](#modes).
+Dependent clients will interface with the agent for some or all login information,
+depending on the [agent mode](#modes).
 
 Dependent clients should retrieve login information seamlessly from the agent
 so that there is no UX degradation when compared to a client solely using file
@@ -84,11 +83,11 @@ additional changes, this testing resulted in some state drift and other errors.
 
 These issues are expected to impact [signing mode](#signing-mode) which won't
 offer sophisticated login syncing logic. [Login sync mode](#login-sync-mode-future-work),
-which is detailed as *future work*, could be used instead to mitigate state drift
+which is detailed as *future work*, could be implemented to mitigate state drift
 issues in Teleport Connect.
 
 Furthermore, once we develop a reliable framework for login state syncing, whether
-it's with [the login sync agent mode](#login-sync-mode) or otherwise, we may consider
+it's with [the login sync agent mode](#login-sync-mode-future-work) or otherwise, we may consider
 defaulting the config values above to `~/.tsh` and `true` respectively.
 
 ##### `tsh agent`
@@ -99,8 +98,9 @@ Hardware Key pin/touch prompts. However there are likely to be some scenarios
 where running Teleport Connect is not an option. Therefore we will make
 `tsh agent` available as well.
 
-The Teleport Key Agent can be launched explicitly with `tsh agent`. This
-command will prompt the user to login and remain running to serve the agent.
+The Teleport Key Agent can be launched explicitly with `tsh agent`. This will
+serve the agent as long as it remains running. The user will be prompted to
+re-login as needed, both at the start and as needed when their certs expire.
 
 Note: `tsh agent` will also be a lightweight command useful for setting the
 groundwork with the slightly more extensive Teleport Connect implementation.
@@ -119,8 +119,7 @@ Error: another instance of Teleport Key Agent is already running
 ```
 
 In the case of Teleport Connect, the error will be displayed in the UI but will
-not impact it from running. In fact, Teleport Connect will interface with the
-running Teleport Key Agent the same as any other dependent client.
+not impact it from running.
 
 #### Agent stops running
 
@@ -130,7 +129,7 @@ to fix the error, the client should do so, switching from key agent storage
 to file storage.
 
 In cases where the agent's login state was fully in file storage, the dependent
-client can just change sources and continue without the need to re-login.
+client can change sources and continue without the need to re-login.
 
 #### Prompts
 
@@ -190,7 +189,7 @@ Go to your Teleport Key Agent and complete any requested actions to continue.
 
 We can make the agent smarter when it needs to prompt for user action. Rather
 than just outputting a prompt and waiting until it's completed, it can send a
-notification back to the dependent client about the prompt. In some cases like
+notification back to the dependent client about the prompt. In some cases, like
 a touch prompt, the dependent client can mirror the agent's prompt:
 
 ```console
@@ -213,7 +212,7 @@ We can add a confirmation layer between the agent server and dependent clients.
 In order to utilize the agent to query certs or sign with keys, the user would
 need to confirm the dependent client's connection with one or more of the following:
 
-* basic confirmation prompt in the key agent, similar to what we use for headless
+* basic confirmation (y/n) prompt in the key agent, similar to what we use for headless
 * password prompt in the dependent client
   * like with ssh-agent, this would be a temporary password provided on agent
   startup
@@ -237,7 +236,7 @@ The Teleport Key Agent can work in two different modes; `signing` and `login syn
 
 Note: the Teleport Key Agent will be pre-released with `signing` mode only as
 it will greatly improve the UX for Hardware Key pin support, especially when
-paired with [Hardware Key pin caching](./xxxx-hardware-key-pin-caching).
+paired with [Hardware Key pin caching](./0198-hardware-key-pin-caching).
 
 #### Signing mode
 
@@ -250,17 +249,17 @@ This signing mode provides the baseline feature set needed to introduce UX
 improvements for features which limit access to private keys, including:
 
 * Hardware Key Support
-* In memory key storage, e.g. `tsh --add-keys-to-agent=only`
+* [Memory Key Storage (*future work*)](#memory-key-storage)
 
 Since only private keys are synced between clients in this mode, there is a
-possibility of state drift between clients.
+possibility of state drift for other login information.
 
 For example, if the user is running Teleport Connect as the agent, but they
 relogin with `tsh`, Teleport Connect would not know that the keys and certs
-in their shared home directory has been replaced. Depending on what Teleport
+in their shared home directory have been replaced. Depending on what Teleport
 Connect was trying to do at the time of the login, it might accidentally load
-the new certs with the old key, leading to a new confusing error and in the
-best case, another prompt to re-login.
+the new certs with the old key. This would lead to a new confusing error and,
+in the best case, another prompt to re-login.
 
 Note: in signing mode, dependent clients can perform any login operations as
 usual (e.g. `tsh login`, `tsh app login`) adding or removing certs directly in
@@ -288,12 +287,6 @@ sync their login state without racing over file storage.
 This mode would be very useful for Teleport Connect to avoid state drifts
 reflected in the UI. In fact, the Teleport Connect UI would act as a dependent
 client, listening through `tshd` for any login state changes to respond to.
-
-This mode would also enabled `tsh` in restricted modes like `tsh --add-keys-to-agent-only`,
-which require the user to re-login for every command to avoid adding keys/certs
-to file storage. Instead, users could run `tsh agent` to login once and then
-run any `tsh` commands to interface with the agent without any private keys
-or public certs touch file storage.
 
 Note: this mode is a stretch goal and is not scheduled to be completed, but
 this RFD would be incomplete if it did not at least consider this future work.
@@ -341,13 +334,80 @@ touch) to allow the dependent client to utilize the agent.
 
 ### Configuration
 
-N/A
+See [running the agent](#running-the-agent) for how to configure Teleport
+Connect to run the Teleport Key Agent.
 
 ### Proto specification
 
-TODO: Teleport Key Agent will be a new gRPC server with methods to query
-available (public) keys, certs, profiles, and cas. It will also implement a
-signing method in a similar way to `ssh-agent`.
+```proto
+// KeyAgentService provides a Teleport key agent service, allowing multiple Teleport client
+// processes to share a single instance of a Teleport key. This is useful for PIV keys which
+// can only be accessed by one process at a time.
+service KeyAgentService {
+  // Query checks whether the provided key index has an existing keyring and
+  // returns the public keys.
+  rpc Query(QueryRequest) returns (QueryResponse) {}
+  // Sign signs the given digest with the private key corresponding to the given
+  // key index and type. If a hash or salt was used to produce the digest, HashName
+  // and SaltLength must be provided as well.
+  //
+  // This rpc can be used to implement Go's crypto.Signer interface.
+  rpc Sign(SignRequest) returns (SignResponse) {}
+}
+
+// QueryRequest is a query request.
+message QueryRequest {
+  // KeyIndex is the index of the key.
+  KeyIndex key_index = 1;
+}
+
+// QueryResponse is a query response.
+message QueryResponse {
+  // SshPublicKey is the ssh public key.
+  bytes ssh_public_key = 1;
+  // TlsPublicKey is the tls public key.
+  bytes tls_public_key = 2;
+}
+
+// SignRequest is a sign request.
+message SignRequest {
+  // KeyIndex is the index of the key requested for signature.
+  KeyIndex key_index = 1;
+  // Digest is a hashed message to sign.
+  bytes digest = 2;
+  // HashName is the name of the hash used to generate the digest.
+  string hash_name = 3;
+  // SaltLength controls the length of the salt to use in PSS signature if set.
+  string salt_length = 4;
+}
+
+// SignResponse is a sign response.
+message SignResponse {
+  // signature is the resulting signature.
+  bytes signature = 1;
+}
+
+// KeyIndex is the index of the key.
+message KeyIndex {
+  // ProxyHost is the root proxy hostname that a key is associated with.
+  string proxy_host = 1;
+  // Username is the username that a key is associated with.
+  string username = 2;
+  // KeyType is the specific type of key, e.g. TLS or SSH.
+  // Required for Sign requests.
+  KeyType key_type = 3;
+}
+
+// KeyType is the type of key.
+enum KeyType {
+  // Key type not specified.
+  KEY_TYPE_UNSPECIFIED = 0;
+  // Key type ssh.
+  KEY_TYPE_SSH = 1;
+  // Key type tls.
+  KEY_TYPE_TLS = 2;
+}
+```
 
 ### Backward Compatibility
 
@@ -400,6 +460,10 @@ be kept securely in memory (similar to headless). Meanwhile, admin actions,
 which require a fresh MFA response to complete, would not be supported remotely
 at all.
 
+Note: Teleport Key Agent forwarding would also unlock some remote use cases
+which are not handled by `tsh --headless`, like `ProxyCommand "tsh proxy ssh"`
+with Ansible. See https://github.com/gravitational/teleport/issues/33303 for details.
+
 ### Why not utilize `ssh-agent` or `gpg-agent`
 
 Early on in researching this feature, I worried I may be reinventing the wheel
@@ -426,3 +490,25 @@ Since `ssh-askpass` does not ship with most OS's, it seems better to me to skip
 this complication and rely on Teleport Connect since it would provide better UX
 regardless. This is something we may want to consider in the future if there is
 any demand for it.
+
+### Memory Key Storage
+
+Currently, Teleport clients use memory key storage in a few niche scenarios:
+
+* `tsh --add-keys-to-agent=only`
+* `tsh --headless`
+* `tsh -i <identity-file>`
+* `tsh login --out=<identity-file>`
+
+We are currently missing a direct option to enable memory key storage, e.g.
+`tsh --key-storage=memory`. This would store keys in memory while all other
+login information would be stored in file storage. It could be used for:
+
+* one-shot requests: `tsh --user=<user> --proxy=<proxy> --key-storage=memory ssh server01`
+* starting the agent without ever exposing keys to memory: `tsh --user=<user> --proxy=<proxy> --key-storage=memory agent`
+
+Note: this would largely replace `tsh --add-keys-to-agent=only`, which is
+actually `tsh --add-keys-to-agent=yes --key-storage=memory --cert-storage=memory`.
+Storing the certs in memory does not provide any real security benefit and prevents
+the flag from being useful for agent `signing` mode. We could phase the `only` option
+out of documentation while continuing to support it to avoid breaking existing workflows.
