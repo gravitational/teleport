@@ -37,6 +37,7 @@ import (
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/server"
+	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
@@ -123,7 +124,7 @@ type awsClientProvider interface {
 type defaultAWSClients struct{}
 
 func (defaultAWSClients) getIAMClient(cfg aws.Config, optFns ...func(*iam.Options)) iamClient {
-	return iam.NewFromConfig(cfg, optFns...)
+	return iamutils.NewFromConfig(cfg, optFns...)
 }
 
 func (defaultAWSClients) getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient {
