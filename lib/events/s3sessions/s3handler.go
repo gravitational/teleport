@@ -95,6 +95,14 @@ type Config struct {
 	Insecure bool
 	// DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
 	DisableServerSideEncryption bool
+
+	// UseVirtualStyleAddressing use a virtual-hosted–style URI.
+	// Path style e.g. https://s3.region-code.amazonaws.com/bucket-name/key-name
+	// Virtual hosted style e.g. https://bucket-name.s3.region-code.amazonaws.com/key-name
+	// Teleport defaults to path-style addressing for better interoperability
+	// with 3rd party S3-compatible services out of the box.
+	// See https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html for more details.
+	UseVirtualStyleAddressing bool
 }
 
 // SetFromURL sets values on the Config from the supplied URI
@@ -145,6 +153,17 @@ func (s *Config) SetFromURL(in *url.URL, inRegion string) error {
 		}
 	}
 
+	if val := in.Query().Get(teleport.S3UseVirtualStyleAddressing); val != "" {
+		useVirtualStyleAddressing, err := strconv.ParseBool(val)
+		if err != nil {
+			return trace.BadParameter(boolErrorTemplate, in.String(), teleport.S3UseVirtualStyleAddressing, val)
+		}
+		s.UseVirtualStyleAddressing = useVirtualStyleAddressing
+	} else {
+		// Default to false for backwards compatibility
+		s.UseVirtualStyleAddressing = false
+	}
+
 	s.Region = region
 	s.Bucket = in.Host
 	s.Path = in.Path
@@ -173,6 +192,8 @@ func (s *Config) CheckAndSetDefaults() error {
 		if s.Credentials != nil {
 			awsConfig.Credentials = s.Credentials
 		}
+		usePathStyle := !s.UseVirtualStyleAddressing
+		awsConfig.S3ForcePathStyle = &usePathStyle
 		hc, err := defaults.HTTPClient()
 		if err != nil {
 			return trace.Wrap(err)
