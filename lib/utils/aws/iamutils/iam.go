@@ -14,29 +14,25 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package aws
+package iamutils
 
 import (
-	"os"
-	"strconv"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
-// IsFIPSDisabledByEnv returns true if the TELEPORT_UNSTABLE_DISABLE_AWS_FIPS
-// environment variable is set.
+// NewFromConfig wraps [iam.NewFromConfig] and applies FIPS settings
+// according to environment variables.
 //
-// Either "yes" or a "truthy" value (as defined by [strconv.ParseBool]) are
-// considered true.
-//
-// Prefer using specific functions, such as those in lib/utils/aws/*
-// subpackages.
-func IsFIPSDisabledByEnv() bool {
-	const envVar = "TELEPORT_UNSTABLE_DISABLE_AWS_FIPS"
-
-	// Disable FIPS endpoint?
-	if val := os.Getenv(envVar); val != "" {
-		b, _ := strconv.ParseBool(val)
-		return b || val == "yes"
+// See [awsutils.IsFIPSDisabledByEnv].
+func NewFromConfig(cfg aws.Config, optFns ...func(*iam.Options)) *iam.Client {
+	if awsutils.IsFIPSDisabledByEnv() {
+		// append so it overrides any preceding settings.
+		optFns = append(optFns, func(opts *iam.Options) {
+			opts.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateDisabled
+		})
 	}
-
-	return false
+	return iam.NewFromConfig(cfg, optFns...)
 }
