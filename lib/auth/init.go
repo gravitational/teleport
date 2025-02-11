@@ -322,6 +322,8 @@ type InitConfig struct {
 	// WorkloadIdentity resources.
 	WorkloadIdentity services.WorkloadIdentities
 
+	WorkloadIdentityX509Revocations services.WorkloadIdentityX509Revocations
+
 	// StaticHostUsers is a service that manages host users that should be
 	// created on SSH nodes.
 	StaticHostUsers services.StaticHostUser
