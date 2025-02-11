@@ -24,6 +24,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
@@ -40,8 +41,8 @@ const (
 // runService is called from the normal user process to run the VNet Windows in
 // the background and wait for it to exit. It will terminate the service and
 // return immediately if [ctx] is canceled.
-func runService(ctx context.Context) error {
-	service, err := startService(ctx)
+func runService(ctx context.Context, cfg *windowsAdminProcessConfig) error {
+	service, err := startService(ctx, cfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -69,7 +70,7 @@ func runService(ctx context.Context) error {
 }
 
 // startService starts the Windows VNet admin service in the background.
-func startService(ctx context.Context) (*mgr.Service, error) {
+func startService(ctx context.Context, cfg *windowsAdminProcessConfig) (*mgr.Service, error) {
 	// Avoid [mgr.Connect] because it requests elevated permissions.
 	scManager, err := windows.OpenSCManager(nil /*machine*/, nil /*database*/, windows.SC_MANAGER_CONNECT)
 	if err != nil {
@@ -88,7 +89,10 @@ func startService(ctx context.Context) (*mgr.Service, error) {
 		Name:   serviceName,
 		Handle: serviceHandle,
 	}
-	if err := service.Start(ServiceCommand); err != nil {
+	if err := service.Start(ServiceCommand,
+		"--addr", cfg.clientApplicationServiceAddr,
+		"--cred-path", cfg.serviceCredentialPath,
+	); err != nil {
 		return nil, trace.Wrap(err, "starting Windows service %s", serviceName)
 	}
 	return service, nil
@@ -157,7 +161,25 @@ loop:
 }
 
 func (s *windowsService) run(ctx context.Context, args []string) error {
-	if err := runWindowsAdminProcess(ctx); err != nil {
+	var (
+		clientApplicationServiceAddr string
+		credPath                     string
+	)
+	app := kingpin.New(serviceName, "Teleport VNet Windows Service")
+	serviceCmd := app.Command("vnet-service", "Start the VNet service.")
+	serviceCmd.Flag("addr", "client application service address").Required().StringVar(&clientApplicationServiceAddr)
+	serviceCmd.Flag("cred-path", "path to TLS credentials for connecting to client application").Required().StringVar(&credPath)
+	cmd, err := app.Parse(args[1:])
+	if err != nil {
+		return trace.Wrap(err, "parsing runtime arguments to Windows service")
+	}
+	if cmd != serviceCmd.FullCommand() {
+		return trace.BadParameter("Windows service runtime arguments did not match \"vnet-service\", args: %v", args[1:])
+	}
+	if err := runWindowsAdminProcess(ctx, &windowsAdminProcessConfig{
+		clientApplicationServiceAddr: clientApplicationServiceAddr,
+		serviceCredentialPath:        credPath,
+	}); err != nil {
 		return trace.Wrap(err, "running admin process")
 	}
 	return nil

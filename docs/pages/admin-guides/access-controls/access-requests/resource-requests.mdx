@@ -25,18 +25,19 @@ available in Teleport Enterprise.
 ## Step 1/6. Grant roles to users
 
 The built-in `requester` and `reviewer` roles have permissions to, respectively,
-open and review Access Requests.  Grant the `requester` and `reviewer` roles to
-existing users, or create new users to test this feature.  Make sure the
+open and review Access Requests. Grant the `requester` and `reviewer` roles to
+existing users, or create new users to test this feature. Make sure the
 requester has a valid `login` so that they can view and access SSH nodes.
-
-```code
-$ tctl users add alice --roles requester --logins alice
-$ tctl users add bob --roles reviewer
-```
 
 For the rest of the guide we will assume that the `requester` role has been
 granted to a user named `alice` and the `reviewer` role has been granted to a
 user named `bob`.
+
+1. Assign the `requester` role to a user named `alice`:
+
+   (!docs/pages/includes/add-role-to-user.mdx role="requester" user="\`alice\`"!)
+
+1. Repeat these steps to assign the `reviewer` role to a user named `bob`.
 
 <Notice type="tip">
 

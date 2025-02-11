@@ -206,6 +206,7 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
           "'no' never attempts to add them, 'yes' always attempts to add them, " +
           "'only' always attempts to add the keys to the agent but it does not save them on disk."
       ),
+    'unstable.vnetDiag': z.boolean().default(false),
   });
 };
 

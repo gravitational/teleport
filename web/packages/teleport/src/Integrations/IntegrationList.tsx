@@ -45,7 +45,7 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { ExternalAuditStorageOpType } from './Operations/useIntegrationOperation';
 
-type Props<IntegrationLike> = {
+type Props = {
   list: IntegrationLike[];
   onDeletePlugin?(p: Plugin): void;
   integrationOps?: {
@@ -60,7 +60,7 @@ export type IntegrationLike =
   | Plugin
   | ExternalAuditStorageIntegration;
 
-export function IntegrationList(props: Props<IntegrationLike>) {
+export function IntegrationList(props: Props) {
   const history = useHistory();
 
   function handleRowClick(row: IntegrationLike) {
@@ -154,24 +154,22 @@ export function IntegrationList(props: Props<IntegrationLike>) {
                   <MenuButton>
                     {/* Currently, only AWS OIDC supports editing & status dash */}
                     {item.kind === IntegrationKind.AwsOidc && (
-                      <>
-                        <MenuItem
-                          as={InternalRouteLink}
-                          to={cfg.getIntegrationStatusRoute(
-                            item.kind,
-                            item.name
-                          )}
-                        >
-                          View Status
-                        </MenuItem>
-                        <MenuItem
-                          onClick={() =>
-                            props.integrationOps.onEditIntegration(item)
-                          }
-                        >
-                          Edit...
-                        </MenuItem>
-                      </>
+                      <MenuItem
+                        as={InternalRouteLink}
+                        to={cfg.getIntegrationStatusRoute(item.kind, item.name)}
+                      >
+                        View Status
+                      </MenuItem>
+                    )}
+                    {(item.kind === IntegrationKind.GitHub ||
+                      item.kind === IntegrationKind.AwsOidc) && (
+                      <MenuItem
+                        onClick={() =>
+                          props.integrationOps.onEditIntegration(item)
+                        }
+                      >
+                        Edit...
+                      </MenuItem>
                     )}
                     <MenuItem
                       onClick={() =>

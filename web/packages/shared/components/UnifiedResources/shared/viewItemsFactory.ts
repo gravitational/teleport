@@ -203,7 +203,7 @@ function formatNodeSubKind(subKind: NodeSubKind): string {
   }
 }
 
-function getDatabaseIconName(protocol: DbProtocol): ResourceIconName {
+export function getDatabaseIconName(protocol: DbProtocol): ResourceIconName {
   switch (protocol) {
     case 'postgres':
       return 'postgres';

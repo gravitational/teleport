@@ -27,7 +27,6 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/defaults"
 	"github.com/go-resty/resty/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -115,12 +114,20 @@ func (cfg *ClientConfig) CheckAndSetDefaults() error {
 
 // NewClient creates a new Opsgenie client for managing alerts.
 func NewClient(conf ClientConfig) (*Client, error) {
-	client := resty.NewWithClient(defaults.Config().HTTPClient)
-	client.SetTransport(&http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-	})
-	client.SetHeader("Authorization", "GenieKey "+conf.APIKey)
-	client.SetBaseURL(conf.APIEndpoint)
+	const (
+		maxConns      = 100
+		clientTimeout = 10 * time.Second
+	)
+
+	client := resty.NewWithClient(&http.Client{
+		Timeout: clientTimeout,
+		Transport: &http.Transport{
+			MaxConnsPerHost:     maxConns,
+			MaxIdleConnsPerHost: maxConns,
+			Proxy:               http.ProxyFromEnvironment,
+		}}).
+		SetHeader("Authorization", "GenieKey "+conf.APIKey).
+		SetBaseURL(conf.APIEndpoint)
 	return &Client{
 		client:       client,
 		ClientConfig: conf,

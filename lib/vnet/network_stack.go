@@ -110,7 +110,7 @@ type tcpHandlerResolver interface {
 //
 // Avoid using [trace.Wrap] on errNoTCPHandler where possible, this isn't an
 // unexpected error that should require the overhead of collecting a stack trace.
-var errNoTCPHandler = errors.New("no handler for address")
+var errNoTCPHandler = &trace.NotFoundError{Message: "no handler for address"}
 
 // tcpHandlerSpec specifies a VNet TCP handler.
 type tcpHandlerSpec struct {
@@ -187,12 +187,12 @@ type networkStack struct {
 
 	// destroyed is a channel that will be closed when the VNet is in the process of being destroyed.
 	// All goroutines should terminate quickly after either this is closed or the context passed to
-	// [NetworkStack.Run] is canceled.
+	// [networkStack.Run] is canceled.
 	destroyed chan struct{}
-	// wg is a [sync.WaitGroup] that keeps track of all running goroutines started by the [NetworkStack].
+	// wg is a [sync.WaitGroup] that keeps track of all running goroutines started by the [networkStack].
 	wg sync.WaitGroup
 
-	// state holds all mutable state for the NetworkStack.
+	// state holds all mutable state for the networkStack.
 	state state
 
 	slog *slog.Logger
@@ -717,4 +717,11 @@ func protocolVersion(b byte) (tcpip.NetworkProtocolNumber, bool) {
 		return header.IPv6ProtocolNumber, true
 	}
 	return 0, false
+}
+
+// NetworkStackInfo is used to pass information about some aspects of the network stack outside
+// of the goroutine or the process that manages [networkStack].
+type NetworkStackInfo struct {
+	// IfaceName is the name of the interface used by VNet.
+	IfaceName string
 }

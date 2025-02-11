@@ -144,6 +144,7 @@ function Install-Node {
         Expand-Archive -Path $NodeZipfile -DestinationPath $ToolchainDir
         Rename-Item -Path "$ToolchainDir/node-v$NodeVersion-win-x64" -NewName "$ToolchainDir/node"
         Enable-Node -ToolchainDir $ToolchainDir
+        npm install -g corepack@0.31.0
         corepack enable pnpm
         Write-Host "::endgroup::"
     }

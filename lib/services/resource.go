@@ -31,6 +31,7 @@ import (
 	"google.golang.org/protobuf/protoadapt"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -714,6 +715,20 @@ func init() {
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(b), nil
+	})
+	RegisterResourceUnmarshaler(types.KindAutoUpdateConfig, func(bytes []byte, option ...MarshalOption) (types.Resource, error) {
+		c := &autoupdatev1pb.AutoUpdateConfig{}
+		if err := protojson.Unmarshal(bytes, c); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(c), nil
+	})
+	RegisterResourceUnmarshaler(types.KindAutoUpdateVersion, func(bytes []byte, option ...MarshalOption) (types.Resource, error) {
+		v := &autoupdatev1pb.AutoUpdateVersion{}
+		if err := protojson.Unmarshal(bytes, v); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(v), nil
 	})
 }
 

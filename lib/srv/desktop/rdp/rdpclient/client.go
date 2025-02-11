@@ -74,7 +74,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"github.com/google/uuid"
 	"log/slog"
 	"os"
 	"runtime/cgo"
@@ -83,6 +82,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"

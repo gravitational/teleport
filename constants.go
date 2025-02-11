@@ -141,6 +141,10 @@ const (
 	// ComponentDiagnostic is a diagnostic service
 	ComponentDiagnostic = "diag"
 
+	// ComponentDiagnosticHealth is the health monitor used by the diagnostic
+	// and debug services.
+	ComponentDiagnosticHealth = "diag:health"
+
 	// ComponentDebug is the debug service, which exposes debugging
 	// configuration over a Unix socket.
 	ComponentDebug = "debug"
@@ -386,6 +390,9 @@ const (
 
 	// SSEKMSKey is an optional switch to use an KMS CMK key for S3 SSE.
 	SSEKMSKey = "sse_kms_key"
+
+	// S3UseVirtualStyleAddressing is an optional switch to use use a virtual-hosted–style URI.
+	S3UseVirtualStyleAddressing = "use_s3_virtual_style_addressing"
 
 	// SchemeFile configures local disk-based file storage for audit events
 	SchemeFile = "file"

@@ -71,6 +71,7 @@ func (u *BotJoinEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventReques
 				JoinTokenName: a.AnonymizeString(u.JoinTokenName),
 				JoinMethod:    u.JoinMethod,
 				UserName:      a.AnonymizeString(u.UserName),
+				BotInstanceId: a.AnonymizeString(u.BotInstanceId),
 			},
 		},
 	}
@@ -104,6 +105,7 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 			DbType:     u.Database.DbType,
 			DbProtocol: u.Database.DbProtocol,
 			DbOrigin:   u.Database.DbOrigin,
+			UserAgent:  u.Database.UserAgent,
 		}
 	}
 	if u.Desktop != nil {
@@ -516,18 +518,22 @@ func (u *UICallToActionClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.Submi
 type UserCertificateIssuedEvent prehogv1a.UserCertificateIssuedEvent
 
 func (u *UserCertificateIssuedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	e := &prehogv1a.UserCertificateIssuedEvent{
+		UserName:         a.AnonymizeString(u.UserName),
+		Ttl:              u.Ttl,
+		IsBot:            u.IsBot,
+		UsageDatabase:    u.UsageDatabase,
+		UsageApp:         u.UsageApp,
+		UsageKubernetes:  u.UsageKubernetes,
+		UsageDesktop:     u.UsageDesktop,
+		PrivateKeyPolicy: u.PrivateKeyPolicy,
+	}
+	if u.BotInstanceId != "" {
+		e.BotInstanceId = a.AnonymizeString(u.BotInstanceId)
+	}
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UserCertificateIssuedEvent{
-			UserCertificateIssuedEvent: &prehogv1a.UserCertificateIssuedEvent{
-				UserName:         a.AnonymizeString(u.UserName),
-				Ttl:              u.Ttl,
-				IsBot:            u.IsBot,
-				UsageDatabase:    u.UsageDatabase,
-				UsageApp:         u.UsageApp,
-				UsageKubernetes:  u.UsageKubernetes,
-				UsageDesktop:     u.UsageDesktop,
-				PrivateKeyPolicy: u.PrivateKeyPolicy,
-			},
+			UserCertificateIssuedEvent: e,
 		},
 	}
 }
@@ -1274,16 +1280,20 @@ func (u *DatabaseUserPermissionsUpdateEvent) Anonymize(a utils.Anonymizer) preho
 type SPIFFESVIDIssuedEvent prehogv1a.SPIFFESVIDIssuedEvent
 
 func (u *SPIFFESVIDIssuedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	e := &prehogv1a.SPIFFESVIDIssuedEvent{
+		UserName:     a.AnonymizeString(u.UserName),
+		UserKind:     u.UserKind,
+		SpiffeId:     a.AnonymizeString(u.SpiffeId),
+		IpSansCount:  u.IpSansCount,
+		DnsSansCount: u.DnsSansCount,
+		SvidType:     u.SvidType,
+	}
+	if u.BotInstanceId != "" {
+		e.BotInstanceId = a.AnonymizeString(u.BotInstanceId)
+	}
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_SpiffeSvidIssued{
-			SpiffeSvidIssued: &prehogv1a.SPIFFESVIDIssuedEvent{
-				UserName:     a.AnonymizeString(u.UserName),
-				UserKind:     u.UserKind,
-				SpiffeId:     a.AnonymizeString(u.SpiffeId),
-				IpSansCount:  u.IpSansCount,
-				DnsSansCount: u.DnsSansCount,
-				SvidType:     u.SvidType,
-			},
+			SpiffeSvidIssued: e,
 		},
 	}
 }

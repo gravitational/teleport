@@ -18,17 +18,63 @@ package vnet
 
 import (
 	"context"
+	"errors"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"golang.org/x/sync/errgroup"
 	"golang.zx2c4.com/wireguard/tun"
 )
+
+const (
+	tunInterfaceName = "TeleportVNet"
+)
+
+type windowsAdminProcessConfig struct {
+	// clientApplicationServiceAddr is the local TCP address of the client
+	// application gRPC service.
+	clientApplicationServiceAddr string
+	// serviceCredentialPath is the path where credentials for IPC with the
+	// client application are found.
+	serviceCredentialPath string
+}
+
+func (c *windowsAdminProcessConfig) check() error {
+	if c.clientApplicationServiceAddr == "" {
+		return trace.BadParameter("clientApplicationServiceAddr is required")
+	}
+	if c.serviceCredentialPath == "" {
+		return trace.BadParameter("serviceCredentialPath is required")
+	}
+	return nil
+}
 
 // runWindowsAdminProcess must run as administrator. It creates and sets up a TUN
 // device, runs the VNet networking stack, and handles OS configuration. It will
 // continue to run until [ctx] is canceled or encountering an unrecoverable
 // error.
-func runWindowsAdminProcess(ctx context.Context) error {
-	device, err := tun.CreateTUN("TeleportVNet", mtu)
+func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig) error {
+	log.InfoContext(ctx, "Running VNet admin process")
+	if err := cfg.check(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	serviceCreds, err := readCredentials(cfg.serviceCredentialPath)
+	if err != nil {
+		return trace.Wrap(err, "reading service IPC credentials")
+	}
+	clt, err := newClientApplicationServiceClient(ctx, serviceCreds, cfg.clientApplicationServiceAddr)
+	if err != nil {
+		return trace.Wrap(err, "creating user process client")
+	}
+	defer clt.close()
+
+	if err := authenticateUserProcess(ctx, clt); err != nil {
+		return trace.Wrap(err, "authenticating user process")
+	}
+
+	device, err := tun.CreateTUN(tunInterfaceName, mtu)
 	if err != nil {
 		return trace.Wrap(err, "creating TUN device")
 	}
@@ -38,8 +84,73 @@ func runWindowsAdminProcess(ctx context.Context) error {
 		return trace.Wrap(err, "getting TUN device name")
 	}
 	log.InfoContext(ctx, "Created TUN interface", "tun", tunName)
-	// TODO(nklaassen): actually run VNet. For now, just stay alive until the
-	// context is canceled.
-	<-ctx.Done()
-	return trace.Wrap(ctx.Err())
+
+	networkStackConfig, err := newWindowsNetworkStackConfig(device, clt)
+	if err != nil {
+		return trace.Wrap(err, "creating network stack config")
+	}
+	networkStack, err := newNetworkStack(networkStackConfig)
+	if err != nil {
+		return trace.Wrap(err, "creating network stack")
+	}
+
+	osConfigProvider, err := newRemoteOSConfigProvider(
+		clt,
+		tunName,
+		networkStackConfig.ipv6Prefix.String(),
+		networkStackConfig.dnsIPv6.String(),
+	)
+	if err != nil {
+		return trace.Wrap(err, "creating OS config provider")
+	}
+	osConfigurator := newOSConfigurator(osConfigProvider)
+
+	g, ctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		if err := networkStack.run(ctx); err != nil {
+			return trace.Wrap(err, "running network stack")
+		}
+		return errors.New("network stack terminated")
+	})
+	g.Go(func() error {
+		if err := osConfigurator.runOSConfigurationLoop(ctx); err != nil {
+			return trace.Wrap(err, "running OS configuration loop")
+		}
+		return errors.New("OS configuration loop terminated")
+	})
+	g.Go(func() error {
+		tick := time.Tick(time.Second)
+		for {
+			select {
+			case <-tick:
+				if err := clt.Ping(ctx); err != nil {
+					return trace.Wrap(err, "failed to ping client application, it may have exited, shutting down")
+				}
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+	})
+	return trace.Wrap(g.Wait(), "running VNet admin process")
+}
+
+func newWindowsNetworkStackConfig(tun tunDevice, clt *clientApplicationServiceClient) (*networkStackConfig, error) {
+	appProvider := newRemoteAppProvider(clt)
+	appResolver := newTCPAppResolver(appProvider, clockwork.NewRealClock())
+	ipv6Prefix, err := newIPv6Prefix()
+	if err != nil {
+		return nil, trace.Wrap(err, "creating new IPv6 prefix")
+	}
+	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, []byte{2})
+	return &networkStackConfig{
+		tunDevice:          tun,
+		ipv6Prefix:         ipv6Prefix,
+		dnsIPv6:            dnsIPv6,
+		tcpHandlerResolver: appResolver,
+	}, nil
+}
+
+func authenticateUserProcess(ctx context.Context, clt *clientApplicationServiceClient) error {
+	// TODO(nklaassen): implement process authentication.
+	return nil
 }

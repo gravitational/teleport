@@ -291,7 +291,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	}
 
 	// FIPS settings are applied on the individual service instead of the aws config,
-	// as DynamoDB Streams and Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
+	// as Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
 	// See also: https://aws.amazon.com/compliance/fips/#FIPS_Endpoints_by_Service
 	if modules.GetModules().IsBoringBinary() {
 		dynamoOpts = append(dynamoOpts, func(o *dynamodb.Options) {
@@ -312,7 +312,23 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	streamsClient := dynamodbstreams.NewFromConfig(awsConfig, dynamodbstreams.WithEndpointResolverV2(streamsResolver))
+	streamsOpts := []func(*dynamodbstreams.Options){
+		dynamodbstreams.WithEndpointResolverV2(streamsResolver),
+		func(o *dynamodbstreams.Options) {
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		},
+	}
+
+	// FIPS settings are applied on the individual service instead of the aws config,
+	// as Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
+	// See also: https://aws.amazon.com/compliance/fips/#FIPS_Endpoints_by_Service
+	if modules.GetModules().IsBoringBinary() {
+		streamsOpts = append(streamsOpts, func(o *dynamodbstreams.Options) {
+			o.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateEnabled
+		})
+	}
+
+	streamsClient := dynamodbstreams.NewFromConfig(awsConfig, streamsOpts...)
 	b := &Backend{
 		logger:  l,
 		Config:  *cfg,
@@ -498,7 +514,7 @@ func (b *Backend) GetName() string {
 func (b *Backend) Create(ctx context.Context, item backend.Item) (*backend.Lease, error) {
 	rev, err := b.create(ctx, item, modeCreate)
 	if trace.IsCompareFailed(err) {
-		err = trace.AlreadyExists(err.Error())
+		err = trace.AlreadyExists("%s", err)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -522,7 +538,7 @@ func (b *Backend) Put(ctx context.Context, item backend.Item) (*backend.Lease, e
 func (b *Backend) Update(ctx context.Context, item backend.Item) (*backend.Lease, error) {
 	rev, err := b.create(ctx, item, modeUpdate)
 	if trace.IsCompareFailed(err) {
-		err = trace.NotFound(err.Error())
+		err = trace.NotFound("%s", err)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -709,7 +725,7 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 	if err != nil {
 		// in this case let's use more specific compare failed error
 		if trace.IsAlreadyExists(err) {
-			return nil, trace.CompareFailed(err.Error())
+			return nil, trace.CompareFailed("%s", err)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -810,7 +826,7 @@ func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 	_, err := b.svc.UpdateItem(ctx, input)
 	err = convertError(err)
 	if trace.IsCompareFailed(err) {
-		err = trace.NotFound(err.Error())
+		err = trace.NotFound("%s", err)
 	}
 	return err
 }
@@ -1173,46 +1189,46 @@ func convertError(err error) error {
 
 	var conditionalCheckFailedError *types.ConditionalCheckFailedException
 	if errors.As(err, &conditionalCheckFailedError) {
-		return trace.CompareFailed(conditionalCheckFailedError.ErrorMessage())
+		return trace.CompareFailed("%s", conditionalCheckFailedError.ErrorMessage())
 	}
 
 	var throughputExceededError *types.ProvisionedThroughputExceededException
 	if errors.As(err, &throughputExceededError) {
-		return trace.ConnectionProblem(throughputExceededError, throughputExceededError.ErrorMessage())
+		return trace.ConnectionProblem(throughputExceededError, "%s", throughputExceededError.ErrorMessage())
 	}
 
 	var notFoundError *types.ResourceNotFoundException
 	if errors.As(err, &notFoundError) {
-		return trace.NotFound(notFoundError.ErrorMessage())
+		return trace.NotFound("%s", notFoundError.ErrorMessage())
 	}
 
 	var collectionLimitExceededError *types.ItemCollectionSizeLimitExceededException
 	if errors.As(err, &notFoundError) {
-		return trace.BadParameter(collectionLimitExceededError.ErrorMessage())
+		return trace.BadParameter("%s", collectionLimitExceededError.ErrorMessage())
 	}
 
 	var internalError *types.InternalServerError
 	if errors.As(err, &internalError) {
-		return trace.BadParameter(internalError.ErrorMessage())
+		return trace.BadParameter("%s", internalError.ErrorMessage())
 	}
 
 	var expiredIteratorError *streamtypes.ExpiredIteratorException
 	if errors.As(err, &expiredIteratorError) {
-		return trace.ConnectionProblem(expiredIteratorError, expiredIteratorError.ErrorMessage())
+		return trace.ConnectionProblem(expiredIteratorError, "%s", expiredIteratorError.ErrorMessage())
 	}
 
 	var limitExceededError *streamtypes.LimitExceededException
 	if errors.As(err, &limitExceededError) {
-		return trace.ConnectionProblem(limitExceededError, limitExceededError.ErrorMessage())
+		return trace.ConnectionProblem(limitExceededError, "%s", limitExceededError.ErrorMessage())
 	}
 	var trimmedAccessError *streamtypes.TrimmedDataAccessException
 	if errors.As(err, &trimmedAccessError) {
-		return trace.ConnectionProblem(trimmedAccessError, trimmedAccessError.ErrorMessage())
+		return trace.ConnectionProblem(trimmedAccessError, "%s", trimmedAccessError.ErrorMessage())
 	}
 
 	var scalingObjectNotFoundError *autoscalingtypes.ObjectNotFoundException
 	if errors.As(err, &scalingObjectNotFoundError) {
-		return trace.NotFound(scalingObjectNotFoundError.ErrorMessage())
+		return trace.NotFound("%s", scalingObjectNotFoundError.ErrorMessage())
 	}
 
 	return err

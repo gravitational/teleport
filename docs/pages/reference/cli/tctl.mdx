@@ -145,6 +145,99 @@ Removes a user from an Access List.
 $ tctl acl users rm <access-list-name> <user>
 ```
 
+## tctl notifications create
+
+Create a new notification for users in the cluster:
+
+```code
+$ tctl notifications create [<flags>]
+```
+
+There are several ways to specify which users see the notification. To target a specific user, use the `--user` flag. To target
+all users with a particular role (or set of roles), use the `--roles` flag. If you specify multiple roles, all users with at least
+one of the roles will see the notification, in order to require users to have all of the roles specified, add the `--require-all-roles` flag.
+If neither `--user` nor `--roles` are provided, the notification will default to targeting all users in the cluster, regardless of their roles.
+
+### Flags
+
+| Name                  | Default Value(s) | Allowed Value(s)        | Description                                                                                                                                                                        |
+| --------------------- | ---------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-t, --title`         | none             | **string**              | Required. Sets the notification's title                                                                                                                                            |
+| `--content`           | none             | **string**              | Required. Sets the notification's text content, this is the text that will be displayed when a user clicks on the notification.                                                    |
+| `--user`              | none             | **string**              | If user-specific, the username of the specific user this notification will target.                                                                                                 |
+| `--roles`             | none             | Comma-separated strings | If role-specific, the set of roles users must have to receive this notification.                                                                                                   |
+| `--require-all-roles` | `false`          | `true`,`false`          | If role-specific, setting this to `true` will only targets users who have _all_ of the roles specified in `--roles`. If `false`, users only need to have one or more of the roles. |
+| `--ttl`               | `30d`            | Any duration            | Time duration after which the notification will expire and be deleted.                                                                                                             |
+| `--warning`           | `false`          | `true`,`false`          | Whether this notification should be displayed as a warning.                                                                                                                        |
+| `--labels`            | none             | Comma-separated strings | Custom labels to attach to the notification's metadata. Note that these will have no effect on the native behavior of the notification.                                            |
+
+### Examples
+
+```code
+# Create a notification for a specific user
+$ tctl notifications create --user=alice --title="Upcoming Database Maintenance" --content="We will be conducting a database upgrade tomorrow at 2AM UTC"
+
+# Create a warning notification for all users
+$ tctl notifications create --warning --title="Enroll an MFA device" --content="We will soon be enforcing MFA in this cluster, please enroll a device to avoid being locked out of your account."
+
+# Create a notification for users with the `engineer` role that expires in 2 days
+$ tctl notifications create --roles=engineer --title="Reminder" --content="Please use access requests to request access to production servers" --ttl=2d
+```
+
+## tctl notifications ls
+
+List notifications:
+
+```code
+$ tctl notifications ls [<flags>]
+```
+
+### Flags
+
+| Name       | Default Value(s) | Allowed Value(s)        | Description                                                                                                                                        |
+| ---------- | ---------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--user`   | none             | **string**              | List only a specific user's notifications.                                                                                                         |
+| `--format` | `text`           | `text`,`yaml`,`json`    | The format of the output.                                                                                                                          |
+| `--all`    | `false`          | `true`,`false`          | If `true`, notifications generated by Teleport will also be returned, as opposed to only notifications created by admins via the `tctl` interface. |
+| `--labels` | none             | Comma-separated strings | Filter notifications by labels.                                                                                                                    |
+
+### Examples
+
+```code
+$ tctl notifications ls
+ID                                   Created             Expires             Title                Labels
+------------------------------------ ------------------- ------------------- -------------------- ------
+0194d8b2-5a38-7858-88fe-5fcee3ff1ceb 06 Feb 25 00:39 UTC 08 Mar 25 00:39 UTC Example notification
+```
+
+## tctl notifications rm
+
+Delete a notification:
+
+```code
+$ tctl notifications rm [<flags>] <id>
+```
+
+### Arguments
+
+- `<id>`: the ID of the notification to delete. This can be retrieved from the output of `tctl notifications ls`.
+
+### Flags
+
+| Name     | Default Value(s) | Allowed Value(s) | Description                                                                                  |
+| -------- | ---------------- | ---------------- | -------------------------------------------------------------------------------------------- |
+| `--user` | none             | string           | The username of the user this notification belongs to, if the notification is user-specific. |
+
+### Examples
+
+```code
+# Delete a notification which was either for all users, or role-based.
+$ tctl notifications rm 3b8eb3d6-da9a-5353-aece-cbc885ecbf73
+
+# Delete a notification which was specific to a user.
+$ tctl notifications rm --user=alice 4f548918-c853-52a6-b98b-5718b79d0e96
+```
+
 ## tctl alerts ack
 
 Temporarily acknowledges a cluster alert, preventing the alert from being
@@ -1548,6 +1641,36 @@ $ tctl get saml/your-connector-name --with-secrets | tctl sso test
 >
   Make sure to include `--with-secrets` flag, or the exported auth connector will not be testable.
 </Admonition>
+
+## tctl stable-unix-users ls
+
+List the stored usernames and UIDs for automatically created users:
+
+```code
+$ tctl stable-unix-users ls
+```
+
+### Arguments
+
+This command accepts no arguments.
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--format` | `text` | `json` or `text` | Output format |
+
+### Examples
+
+```code
+$ tctl stable-unix-users ls
+Username UID
+-------- -----
+alice    90000
+bob      90002
+carol    90003
+dan      90001
+```
 
 ## tctl status
 

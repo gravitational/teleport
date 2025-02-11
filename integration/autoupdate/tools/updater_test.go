@@ -34,7 +34,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integration/autoupdate/tools/updater"
+	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/autoupdate/tools"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 var (
@@ -46,8 +49,7 @@ var (
 // an update to a newer version, expecting it to re-execute with the updated version.
 func TestUpdate(t *testing.T) {
 	t.Setenv(types.HomeEnvVar, t.TempDir())
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
+	ctx := context.Background()
 
 	// Fetch compiled test binary with updater logic and install to $TELEPORT_HOME.
 	updater := tools.NewUpdater(
@@ -88,8 +90,7 @@ func TestUpdate(t *testing.T) {
 // the command with the updated version without any new downloads.
 func TestParallelUpdate(t *testing.T) {
 	t.Setenv(types.HomeEnvVar, t.TempDir())
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
+	ctx := context.Background()
 
 	// Initial fetch the updater binary un-archive and replace.
 	updater := tools.NewUpdater(
@@ -162,8 +163,7 @@ func TestParallelUpdate(t *testing.T) {
 // TestUpdateInterruptSignal verifies the interrupt signal send to the process must stop downloading.
 func TestUpdateInterruptSignal(t *testing.T) {
 	t.Setenv(types.HomeEnvVar, t.TempDir())
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
+	ctx := context.Background()
 
 	// Initial fetch the updater binary un-archive and replace.
 	updater := tools.NewUpdater(
@@ -218,4 +218,50 @@ func TestUpdateInterruptSignal(t *testing.T) {
 		require.NoError(t, err)
 	}
 	assert.Contains(t, output.String(), "Update progress:")
+}
+
+// TestUpdateForOSSBuild verifies the update logic for AGPL editions of Teleport requires
+// base URL environment variable.
+func TestUpdateForOSSBuild(t *testing.T) {
+	t.Setenv(types.HomeEnvVar, t.TempDir())
+	ctx := context.Background()
+
+	// Enable OSS build.
+	t.Setenv(updater.TestBuild, modules.BuildOSS)
+
+	// Fetch compiled test binary with updater logic and install to $TELEPORT_HOME.
+	updater := tools.NewUpdater(
+		toolsDir,
+		testVersions[0],
+		tools.WithBaseURL(baseURL),
+	)
+	err := updater.Update(ctx, testVersions[0])
+	require.NoError(t, err)
+
+	// Verify that requested update is ignored by OSS build and version wasn't updated.
+	cmd := exec.CommandContext(ctx, filepath.Join(toolsDir, "tsh"), "version")
+	cmd.Env = append(
+		os.Environ(),
+		fmt.Sprintf("%s=%s", teleportToolsVersion, testVersions[1]),
+	)
+	out, err := cmd.Output()
+	require.NoError(t, err)
+
+	matches := pattern.FindStringSubmatch(string(out))
+	require.Len(t, matches, 2)
+	require.Equal(t, testVersions[0], matches[1])
+
+	// Next update is set with the base URL env variable, must download new version.
+	t.Setenv(autoupdate.BaseURLEnvVar, baseURL)
+	cmd = exec.CommandContext(ctx, filepath.Join(toolsDir, "tsh"), "version")
+	cmd.Env = append(
+		os.Environ(),
+		fmt.Sprintf("%s=%s", teleportToolsVersion, testVersions[1]),
+	)
+	out, err = cmd.Output()
+	require.NoError(t, err)
+
+	matches = pattern.FindStringSubmatch(string(out))
+	require.Len(t, matches, 2)
+	require.Equal(t, testVersions[1], matches[1])
 }

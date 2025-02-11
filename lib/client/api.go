@@ -2478,7 +2478,7 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 			message := "Desktop sessions cannot be played with tsh play." +
 				" Export the recording to video with tsh recordings export" +
 				" or view the recording in your web browser."
-			return trace.BadParameter(message)
+			return trace.BadParameter("%s", message)
 		case *apievents.AppSessionStart, *apievents.AppSessionChunk:
 			return trace.BadParameter("Interactive session replay is not supported for app sessions." +
 				" To play app sessions, specify --format=json or --format=yaml.")
@@ -2498,9 +2498,8 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 			lastTime = evt.Time
 		case *apievents.DatabaseSessionStart:
 			if !slices.Contains(libplayer.SupportedDatabaseProtocols, evt.DatabaseProtocol) {
-				return trace.NotImplemented("Interactive database session replay is only supported for " +
-					strings.Join(libplayer.SupportedDatabaseProtocols, ",") + " databases." +
-					" To play other database sessions, specify --format=json or --format=yaml.")
+				return trace.NotImplemented("Interactive database session replay is only supported for %s databases."+
+					" To play other database sessions, specify --format=json or --format=yaml.", strings.Join(libplayer.SupportedDatabaseProtocols, ","))
 			}
 		default:
 			continue

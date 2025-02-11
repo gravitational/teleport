@@ -45,7 +45,6 @@ export function DocumentAccessRequests(props: DocumentProps) {
 }
 
 export function DocumentAccessRequestsViews({
-  accessRequests,
   attempt,
   doc,
   assumeRole,
@@ -73,7 +72,6 @@ export function DocumentAccessRequestsViews({
     <RequestList
       assumeRole={accessRequest => assumeRole(accessRequest.id)}
       attempt={attempt}
-      requests={accessRequests}
       getFlags={getFlags}
       getRequests={getRequests}
       viewRequest={(id: string) => onViewRequest(id)}

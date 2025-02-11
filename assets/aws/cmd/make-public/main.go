@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -70,6 +71,7 @@ func main() {
 
 	ctx := context.Background()
 
+	var publishingErrors []error
 	for _, region := range args.regions {
 		cfg, err := config.LoadDefaultConfig(ctx,
 			config.WithRegion(region))
@@ -112,12 +114,23 @@ func main() {
 					})
 					if err != nil {
 						log.Printf("WARNING: Failed to make ami %q public: %s", ami, err)
+						publishingErrors = append(publishingErrors, err)
 						continue
 					}
 				}
 			}
 		}
 	}
+
+	if len(publishingErrors) == 0 {
+		return
+	}
+
+	fmt.Fprintf(os.Stderr, "%d errors occurred:\n", len(publishingErrors))
+	for _, err := range publishingErrors {
+		fmt.Fprintf(os.Stderr, "%w\n", err)
+	}
+	os.Exit(1)
 }
 
 var notFound error = fmt.Errorf("not found")
