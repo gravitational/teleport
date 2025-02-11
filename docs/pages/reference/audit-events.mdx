@@ -27,6 +27,38 @@ storage, visualization, and analysis. For more information, read [Exporting
 Teleport Audit Events](
 ../admin-guides/management/export-audit-events/export-audit-events.mdx).
 
+## access_graph.crown_jewel.create
+
+Crown Jewel Created
+
+Code: `CJ001I`
+
+Event: `access_graph.crown_jewel.create`
+
+## access_graph.crown_jewel.delete
+
+Crown Jewel Deleted
+
+Code: `CJ003I`
+
+Event: `access_graph.crown_jewel.delete`
+
+## access_graph.crown_jewel.update
+
+Crown Jewel Updated
+
+Code: `CJ002I`
+
+Event: `access_graph.crown_jewel.update`
+
+## access_graph.path.changed
+
+Access Path Changed
+
+Code: `TAG001I`
+
+Event: `access_graph.path.changed`
+
 ## access_list.create
 
 There are multiple events with the `access_list.create` type.
@@ -388,6 +420,14 @@ Example:
 }
 ```
 
+## access_request.review
+
+Access Request Reviewed
+
+Code: `T5002I`
+
+Event: `access_request.review`
+
 ## access_request.search
 
 Resource Access Search
@@ -616,6 +656,14 @@ Example:
 }
 ```
 
+## auth_preference.update
+
+Cluster Authentication Preferences Updated
+
+Code: `TCAUTH001I`
+
+Event: `auth_preference.update`
+
 ## billing.create_card
 
 Credit Card Added
@@ -818,6 +866,14 @@ Example:
 }
 ```
 
+## bot.update
+
+Bot Updated
+
+Code: `TB002I`
+
+Event: `bot.update`
+
 ## cert.create
 
 Certificate Issued
@@ -835,6 +891,38 @@ Example:
   "time": "2022-02-04T19:43:23.529Z"
 }
 ```
+
+## client.disconnect
+
+Client Disconnected
+
+Code: `T3006I`
+
+Event: `client.disconnect`
+
+## cluster_networking_config.update
+
+Cluster Networking Configuration Updated
+
+Code: `TCNET002I`
+
+Event: `cluster_networking_config.update`
+
+## contact.create
+
+Contact Created
+
+Code: `TCTC001I`
+
+Event: `contact.create`
+
+## contact.delete
+
+Contact Deleted
+
+Code: `TCTC002I`
+
+Event: `contact.delete`
 
 ## db.create
 
@@ -1055,6 +1143,10 @@ Example:
 
 ## db.session.elasticsearch.request
 
+There are multiple events with the `db.session.elasticsearch.request` type.
+
+### TES00I
+
 Elasticsearch Request
 
 Example:
@@ -1090,6 +1182,14 @@ Example:
   "user": "alice"
 }
 ```
+
+### TES00E
+
+Elasticsearch Request Failed
+
+Code: `TES00E`
+
+Event: `db.session.elasticsearch.request`
 
 ## db.session.end
 
@@ -1896,6 +1996,10 @@ Example:
 
 ## db.session.start
 
+There are multiple events with the `db.session.start` type.
+
+### TDB00I
+
 Database Session Started
 
 Example:
@@ -1920,6 +2024,14 @@ Example:
   "user": "alice@example.com"
 }
 ```
+
+### TDB00W
+
+Database Session Denied
+
+Code: `TDB00W`
+
+Event: `db.session.start`
 
 ## db.session.user.create
 
@@ -2571,6 +2683,10 @@ Example:
 
 ## exec
 
+There are multiple events with the `exec` type.
+
+### T3002I
+
 Command Execution
 
 Example:
@@ -2591,6 +2707,30 @@ Example:
   "user": "alex"
 }
 ```
+
+### T3002E
+
+Command Execution Failed
+
+Code: `T3002E`
+
+Event: `exec`
+
+## external_audit_storage.disable
+
+External Audit Storage Disabled
+
+Code: `TEA002I`
+
+Event: `external_audit_storage.disable`
+
+## external_audit_storage.enable
+
+External Audit Storage Enabled
+
+Code: `TEA001I`
+
+Event: `external_audit_storage.enable`
 
 ## git.command
 
@@ -2686,6 +2826,10 @@ Example:
 
 ## instance.join
 
+There are multiple events with the `instance.join` type.
+
+### TJ002I
+
 Instance Joined
 
 Example:
@@ -2705,6 +2849,14 @@ Example:
   "uid": "c1ea0e6c-ee3a-4f7e-9a98-9df283b01a98"
 }
 ```
+
+### TJ002E
+
+Instance Join Failed
+
+Code: `TJ002E`
+
+Event: `instance.join`
 
 ## integration.create
 
@@ -2753,6 +2905,14 @@ Example:
   "updated_by": "joe"
 }
 ```
+
+## join_token.create
+
+Join Token Created
+
+Code: `TJT00I`
+
+Event: `join_token.create`
 
 ## kube.create
 
@@ -3000,6 +3160,26 @@ Example:
 }
 ```
 
+## mfa_auth_challenge.validate
+
+There are multiple events with the `mfa_auth_challenge.validate` type.
+
+### T1016I
+
+MFA Authentication Success
+
+Code: `T1016I`
+
+Event: `mfa_auth_challenge.validate`
+
+### T1016W
+
+MFA Authentication Failure
+
+Code: `T1016W`
+
+Event: `mfa_auth_challenge.validate`
+
 ## oidc.created
 
 OIDC Auth Connector Created
@@ -3242,6 +3422,58 @@ Example:
 }
 ```
 
+## plugin.create
+
+Plugin Created
+
+Code: `PG001I`
+
+Event: `plugin.create`
+
+## plugin.delete
+
+Plugin Deleted
+
+Code: `PG003I`
+
+Event: `plugin.delete`
+
+## plugin.update
+
+Plugin Updated
+
+Code: `PG002I`
+
+Event: `plugin.update`
+
+## port
+
+There are multiple events with the `port` type.
+
+### T3003I
+
+Port Forwarding Start
+
+Code: `T3003I`
+
+Event: `port`
+
+### T3003E
+
+Port Forwarding Failure
+
+Code: `T3003E`
+
+Event: `port`
+
+### T3003S
+
+Port Forwarding Stop
+
+Code: `T3003S`
+
+Event: `port`
+
 ## privilege_token.create
 
 Privilege Token Created
@@ -3384,6 +3616,30 @@ Example:
   "user": "admin@example.com"
 }
 ```
+
+## role.created
+
+User Role Created
+
+Code: `T9000I`
+
+Event: `role.created`
+
+## role.deleted
+
+User Role Deleted
+
+Code: `T9001I`
+
+Event: `role.deleted`
+
+## role.updated
+
+User Role Updated
+
+Code: `T9002I`
+
+Event: `role.updated`
 
 ## saml.created
 
@@ -3683,6 +3939,22 @@ Example:
 }
 ```
 
+### T3005E
+
+SCP Upload Failed
+
+Code: `T3005E`
+
+Event: `scp`
+
+### T3010E
+
+SCP Disallowed
+
+Code: `T3010E`
+
+Event: `scp`
+
 ## secreports.audit.query.run
 
 Access Monitoring Query Executed
@@ -3880,6 +4152,14 @@ Example:
 }
 ```
 
+## session.leave
+
+User Disconnected
+
+Code: `T2003I`
+
+Event: `session.leave`
+
 ## session.network
 
 Session Network Connection
@@ -3907,6 +4187,14 @@ Example:
 }
 ```
 
+## session.process_exit
+
+Session Process Exit
+
+Code: `T4003I`
+
+Event: `session.process_exit`
+
 ## session.recording.access
 
 Session Recording Accessed
@@ -3924,6 +4212,14 @@ Example:
   "user": "ops@gravitational.io"
 }
 ```
+
+## session.rejected
+
+Session Rejected
+
+Code: `T1006W`
+
+Event: `session.rejected`
 
 ## session.start
 
@@ -3948,6 +4244,22 @@ Example:
   "user": "admin@example.com"
 }
 ```
+
+## session.upload
+
+Session Uploaded
+
+Code: `T2005I`
+
+Event: `session.upload`
+
+## session_recording_config.update
+
+Session Recording Configuration Updated
+
+Code: `TCREC003I`
+
+Event: `session_recording_config.update`
 
 ## sftp
 
@@ -4010,273 +4322,6 @@ Example:
 }
 ```
 
-### TS002I
-
-Example:
-
-```json
-{
-  "action": 2,
-  "addr.local": "[::1]:3022",
-  "addr.remote": "127.0.0.1:41106",
-  "cluster_name": "im-a-cluster-name",
-  "code": "TS002I",
-  "ei": 0,
-  "event": "sftp",
-  "login": "root",
-  "namespace": "default",
-  "path": "/tmp/file",
-  "server_hostname": "im-a-server-hostname",
-  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
-  "sid": "",
-  "time": "2019-04-22T19:41:23Z",
-  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
-  "user": "root",
-  "working_directory": "/root"
-}
-```
-
-### TS002E
-
-Example:
-
-```json
-{
-  "action": 2,
-  "addr.local": "[::1]:3022",
-  "addr.remote": "127.0.0.1:41106",
-  "cluster_name": "im-a-cluster-name",
-  "code": "TS002E",
-  "ei": 0,
-  "error": "EOF",
-  "event": "sftp",
-  "login": "root",
-  "namespace": "default",
-  "path": "/tmp/file",
-  "server_hostname": "im-a-server-hostname",
-  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
-  "sid": "",
-  "time": "2019-04-22T19:41:23Z",
-  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
-  "user": "root",
-  "working_directory": "/root"
-}
-```
-
-### TS003I
-
-Example:
-
-```json
-{
-  "action": 3,
-  "addr.local": "[::1]:3022",
-  "addr.remote": "127.0.0.1:41106",
-  "cluster_name": "im-a-cluster-name",
-  "code": "TS003I",
-  "ei": 0,
-  "event": "sftp",
-  "login": "root",
-  "namespace": "default",
-  "path": "/tmp/file",
-  "server_hostname": "im-a-server-hostname",
-  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
-  "sid": "",
-  "time": "2019-04-22T19:41:23Z",
-  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
-  "user": "root",
-  "working_directory": "/root"
-}
-```
-
-### TS003E
-
-Example:
-
-```json
-{
-  "action": 3,
-  "addr.local": "[::1]:3022",
-  "addr.remote": "127.0.0.1:41106",
-  "cluster_name": "im-a-cluster-name",
-  "code": "TS003E",
-  "ei": 0,
-  "error": "EOF",
-  "event": "sftp",
-  "login": "root",
-  "namespace": "default",
-  "path": "/tmp/file",
-  "server_hostname": "im-a-server-hostname",
-  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
-  "sid": "",
-  "time": "2019-04-22T19:41:23Z",
-  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
-  "user": "root",
-  "working_directory": "/root"
-}
-```
-
-### TS004I
-
-Example:
-
-```json
-{
-  "action": 4,
-  "addr.local": "[::1]:3022",
-  "addr.remote": "127.0.0.1:41106",
-  "cluster_name": "im-a-cluster-name",
-  "code": "TS004I",
-  "ei": 0,
-  "event": "sftp",
-  "login": "root",
-  "namespace": "default",
-  "path": "/tmp/file",
-  "server_hostname": "im-a-server-hostname",
-  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
-  "sid": "",
-  "time": "2019-04-22T19:41:23Z",
-  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
-  "user": "root",
-  "working_directory": "/root"
-}
-```
-
-### TS004E
-
-Example:
-
-```json
-{
-  "action": 4,
-  "addr.local": "[::1]:3022",
-  "addr.remote": "127.0.0.1:41106",
-  "cluster_name": "im-a-cluster-name",
-  "code": "TS004E",
-  "ei": 0,
-  "error": "EOF",
-  "event": "sftp",
-  "login": "root",
-  "namespace": "default",
-  "path": "/tmp/file",
-  "server_hostname": "im-a-server-hostname",
-  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
-  "sid": "",
-  "time": "2019-04-22T19:41:23Z",
-  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
-  "user": "root",
-  "working_directory": "/root"
-}
-```
-
-### TS005I
-
-Example:
-
-```json
-{
-  "action": 5,
-  "addr.local": "[::1]:3022",
-  "addr.remote": "127.0.0.1:41106",
-  "cluster_name": "im-a-cluster-name",
-  "code": "TS005I",
-  "ei": 0,
-  "event": "sftp",
-  "flags": 4,
-  "login": "root",
-  "namespace": "default",
-  "path": "/tmp/file",
-  "server_hostname": "im-a-server-hostname",
-  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
-  "sid": "",
-  "time": "2019-04-22T19:41:23Z",
-  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
-  "user": "root",
-  "working_directory": "/root"
-}
-```
-
-### TS005E
-
-Example:
-
-```json
-{
-  "action": 5,
-  "addr.local": "[::1]:3022",
-  "addr.remote": "127.0.0.1:41106",
-  "cluster_name": "im-a-cluster-name",
-  "code": "TS005E",
-  "ei": 0,
-  "error": "EOF",
-  "event": "sftp",
-  "flags": 4,
-  "login": "root",
-  "namespace": "default",
-  "path": "/tmp/file",
-  "server_hostname": "im-a-server-hostname",
-  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
-  "sid": "",
-  "time": "2019-04-22T19:41:23Z",
-  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
-  "user": "root",
-  "working_directory": "/root"
-}
-```
-
-### TS006I
-
-Example:
-
-```json
-{
-  "action": 6,
-  "addr.local": "[::1]:3022",
-  "addr.remote": "127.0.0.1:41106",
-  "cluster_name": "im-a-cluster-name",
-  "code": "TS006I",
-  "ei": 0,
-  "event": "sftp",
-  "login": "root",
-  "namespace": "default",
-  "path": "/tmp/file",
-  "server_hostname": "im-a-server-hostname",
-  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
-  "sid": "",
-  "time": "2019-04-22T19:41:23Z",
-  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
-  "user": "root",
-  "working_directory": "/root"
-}
-```
-
-### TS006E
-
-Example:
-
-```json
-{
-  "action": 6,
-  "addr.local": "[::1]:3022",
-  "addr.remote": "127.0.0.1:41106",
-  "cluster_name": "im-a-cluster-name",
-  "code": "TS006E",
-  "ei": 0,
-  "error": "EOF",
-  "event": "sftp",
-  "login": "root",
-  "namespace": "default",
-  "path": "/tmp/file",
-  "server_hostname": "im-a-server-hostname",
-  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
-  "sid": "",
-  "time": "2019-04-22T19:41:23Z",
-  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
-  "user": "root",
-  "working_directory": "/root"
-}
-```
-
 ### TS007I
 
 SFTP Setstat
@@ -4318,59 +4363,6 @@ Example:
   "addr.remote": "127.0.0.1:41106",
   "cluster_name": "im-a-cluster-name",
   "code": "TS007E",
-  "ei": 0,
-  "error": "EOF",
-  "event": "sftp",
-  "login": "root",
-  "namespace": "default",
-  "path": "/tmp/file",
-  "server_hostname": "im-a-server-hostname",
-  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
-  "sid": "",
-  "time": "2019-04-22T19:41:23Z",
-  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
-  "user": "root",
-  "working_directory": "/root"
-}
-```
-
-### TS008I
-
-Example:
-
-```json
-{
-  "action": 8,
-  "addr.local": "[::1]:3022",
-  "addr.remote": "127.0.0.1:41106",
-  "cluster_name": "im-a-cluster-name",
-  "code": "TS008I",
-  "ei": 0,
-  "event": "sftp",
-  "login": "root",
-  "namespace": "default",
-  "path": "/tmp/file",
-  "server_hostname": "im-a-server-hostname",
-  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
-  "sid": "",
-  "time": "2019-04-22T19:41:23Z",
-  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
-  "user": "root",
-  "working_directory": "/root"
-}
-```
-
-### TS008E
-
-Example:
-
-```json
-{
-  "action": 8,
-  "addr.local": "[::1]:3022",
-  "addr.remote": "127.0.0.1:41106",
-  "cluster_name": "im-a-cluster-name",
-  "code": "TS008E",
   "ei": 0,
   "error": "EOF",
   "event": "sftp",
@@ -4672,112 +4664,6 @@ Example:
 }
 ```
 
-### TS014I
-
-Example:
-
-```json
-{
-  "action": 14,
-  "addr.local": "[::1]:3022",
-  "addr.remote": "127.0.0.1:41106",
-  "cluster_name": "im-a-cluster-name",
-  "code": "TS014I",
-  "ei": 0,
-  "event": "sftp",
-  "login": "root",
-  "namespace": "default",
-  "path": "/tmp/file",
-  "server_hostname": "im-a-server-hostname",
-  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
-  "sid": "",
-  "time": "2019-04-22T19:41:23Z",
-  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
-  "user": "root",
-  "working_directory": "/root"
-}
-```
-
-### TS014E
-
-Example:
-
-```json
-{
-  "action": 14,
-  "addr.local": "[::1]:3022",
-  "addr.remote": "127.0.0.1:41106",
-  "cluster_name": "im-a-cluster-name",
-  "code": "TS014E",
-  "ei": 0,
-  "error": "EOF",
-  "event": "sftp",
-  "login": "root",
-  "namespace": "default",
-  "path": "/tmp/file",
-  "server_hostname": "im-a-server-hostname",
-  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
-  "sid": "",
-  "time": "2019-04-22T19:41:23Z",
-  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
-  "user": "root",
-  "working_directory": "/root"
-}
-```
-
-### TS015I
-
-Example:
-
-```json
-{
-  "action": 15,
-  "addr.local": "[::1]:3022",
-  "addr.remote": "127.0.0.1:41106",
-  "cluster_name": "im-a-cluster-name",
-  "code": "TS015I",
-  "ei": 0,
-  "event": "sftp",
-  "login": "root",
-  "namespace": "default",
-  "path": "/tmp/file",
-  "server_hostname": "im-a-server-hostname",
-  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
-  "sid": "",
-  "time": "2019-04-22T19:41:23Z",
-  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
-  "user": "root",
-  "working_directory": "/root"
-}
-```
-
-### TS015E
-
-Example:
-
-```json
-{
-  "action": 15,
-  "addr.local": "[::1]:3022",
-  "addr.remote": "127.0.0.1:41106",
-  "cluster_name": "im-a-cluster-name",
-  "code": "TS015E",
-  "ei": 0,
-  "error": "EOF",
-  "event": "sftp",
-  "login": "root",
-  "namespace": "default",
-  "path": "/tmp/file",
-  "server_hostname": "im-a-server-hostname",
-  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
-  "sid": "",
-  "time": "2019-04-22T19:41:23Z",
-  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
-  "user": "root",
-  "working_directory": "/root"
-}
-```
-
 ### TS016I
 
 SFTP Rename
@@ -4819,59 +4705,6 @@ Example:
   "addr.remote": "127.0.0.1:41106",
   "cluster_name": "im-a-cluster-name",
   "code": "TS016E",
-  "ei": 0,
-  "error": "EOF",
-  "event": "sftp",
-  "login": "root",
-  "namespace": "default",
-  "path": "/tmp/file",
-  "server_hostname": "im-a-server-hostname",
-  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
-  "sid": "",
-  "time": "2019-04-22T19:41:23Z",
-  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
-  "user": "root",
-  "working_directory": "/root"
-}
-```
-
-### TS017I
-
-Example:
-
-```json
-{
-  "action": 17,
-  "addr.local": "[::1]:3022",
-  "addr.remote": "127.0.0.1:41106",
-  "cluster_name": "im-a-cluster-name",
-  "code": "TS017I",
-  "ei": 0,
-  "event": "sftp",
-  "login": "root",
-  "namespace": "default",
-  "path": "/tmp/file",
-  "server_hostname": "im-a-server-hostname",
-  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
-  "sid": "",
-  "time": "2019-04-22T19:41:23Z",
-  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
-  "user": "root",
-  "working_directory": "/root"
-}
-```
-
-### TS017E
-
-Example:
-
-```json
-{
-  "action": 17,
-  "addr.local": "[::1]:3022",
-  "addr.remote": "127.0.0.1:41106",
-  "cluster_name": "im-a-cluster-name",
-  "code": "TS017E",
   "ei": 0,
   "error": "EOF",
   "event": "sftp",
@@ -4945,7 +4778,43 @@ Example:
 }
 ```
 
+### TS019I
+
+SFTP Link
+
+Code: `TS019I`
+
+Event: `sftp`
+
+### TS019E
+
+SFTP Link Failed
+
+Code: `TS019E`
+
+Event: `sftp`
+
+### TS020E
+
+SFTP Disallowed
+
+Code: `TS020E`
+
+Event: `sftp`
+
+## sftp_summary
+
+File Transfer Completed
+
+Code: `TS021I`
+
+Event: `sftp_summary`
+
 ## spiffe.svid.issued
+
+There are multiple events with the `spiffe.svid.issued` type.
+
+### TSPIFFE000I
 
 SPIFFE SVID Issued
 
@@ -4970,6 +4839,14 @@ Example:
   "user_kind": 2
 }
 ```
+
+### TSPIFFE000E
+
+SPIFFE SVID Issued Failure
+
+Code: `TSPIFFE000E`
+
+Event: `spiffe.svid.issued`
 
 ## ssm.run
 
@@ -5021,6 +4898,14 @@ Example:
 }
 ```
 
+## stable_unix_user.create
+
+Stable UNIX user created
+
+Code: `TSUU001I`
+
+Event: `stable_unix_user.create`
+
 ## static_host_user.create
 
 Static Host User Created
@@ -5069,6 +4954,58 @@ Example:
   "user": "bob"
 }
 ```
+
+## subsystem
+
+There are multiple events with the `subsystem` type.
+
+### T3001I
+
+Subsystem Requested
+
+Code: `T3001I`
+
+Event: `subsystem`
+
+### T3001E
+
+Subsystem Request Failed
+
+Code: `T3001E`
+
+Event: `subsystem`
+
+## trusted_cluster.create
+
+Trusted Cluster Created
+
+Code: `T7000I`
+
+Event: `trusted_cluster.create`
+
+## trusted_cluster.delete
+
+Trusted Cluster Deleted
+
+Code: `T7001I`
+
+Event: `trusted_cluster.delete`
+
+## trusted_cluster_token.create
+
+Trusted Cluster Token Created
+
+Code: `T7002I`
+
+Event: `trusted_cluster_token.create`
+
+## unknown
+
+Unknown Event
+
+Code: `TCC00E`
+
+Event: `unknown`
 
 ## upgradewindowstart.update
 
@@ -5339,6 +5276,22 @@ Example:
 }
 ```
 
+### T1001I
+
+SSO Login
+
+Code: `T1001I`
+
+Event: `user.login`
+
+### T1001W
+
+SSO Login Failed
+
+Code: `T1001W`
+
+Event: `user.login`
+
 ## user.password_change
 
 User Password Updated
@@ -5374,6 +5327,14 @@ Example:
   ]
 }
 ```
+
+## user_login.invalid_access_list
+
+Access list skipped.
+
+Code: `TAL009W`
+
+Event: `user_login.invalid_access_list`
 
 ## user_task.create
 
