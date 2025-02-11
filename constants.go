@@ -382,6 +382,9 @@ const (
 	// SSEKMSKey is an optional switch to use an KMS CMK key for S3 SSE.
 	SSEKMSKey = "sse_kms_key"
 
+	// S3UseVirtualStyleAddressing is an optional switch to use use a virtual-hosted–style URI.
+	S3UseVirtualStyleAddressing = "use_s3_virtual_style_addressing"
+
 	// SchemeFile configures local disk-based file storage for audit events
 	SchemeFile = "file"
 
