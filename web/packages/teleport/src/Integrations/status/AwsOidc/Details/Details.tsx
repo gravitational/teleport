@@ -24,6 +24,7 @@ import { AwsOidcTitle } from 'teleport/Integrations/status/AwsOidc/AwsOidcTitle'
 import { Rds } from 'teleport/Integrations/status/AwsOidc/Details/Rds';
 import { Rules } from 'teleport/Integrations/status/AwsOidc/Details/Rules';
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { TaskAlert } from 'teleport/Integrations/status/AwsOidc/Tasks/TaskAlert';
 import { useAwsOidcStatus } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
 import { IntegrationKind } from 'teleport/services/integrations';
 
@@ -41,11 +42,16 @@ export function Details() {
       {integration && (
         <AwsOidcHeader integration={integration} resource={resourceKind} />
       )}
-      <FeatureBox css={{ maxWidth: '1400px', paddingTop: '16px', gap: '30px' }}>
-        {integration && (
-          <AwsOidcTitle integration={integration} resource={resourceKind} />
-        )}
-        {resourceKind == AwsResource.rds ? <Rds /> : <Rules />}
+      <FeatureBox css={{ maxWidth: '1400px', paddingTop: '16px', gap: '16px' }}>
+        <>
+          {integration && (
+            <>
+              <AwsOidcTitle integration={integration} resource={resourceKind} />
+              <TaskAlert name={integration.name} />
+            </>
+          )}
+        </>
+        {resourceKind === AwsResource.rds ? <Rds /> : <Rules />}
       </FeatureBox>
     </>
   );
