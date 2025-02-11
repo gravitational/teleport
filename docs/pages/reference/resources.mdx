@@ -216,9 +216,9 @@ Global configuration options for the agents enrolled into automatic updates (v1)
 
 <Notice type="warning">
 `cluster_maintenance_config` configures the original (v1) Teleport Agent updater,
-which is currently supported but will eventually be deprecated.
-The `autoupdate_config` and `autoupdate_version` resources below configure the
-next-generation (v2) Teleport updater.
+which is currently supported but will be deprecated after the new updater is released.
+The `autoupdate_config` and `autoupdate_version` resources further down configure the
+new (v2) Teleport updater.
 </Notice>
 
 (!docs/pages/includes/cluster-maintenance-config-spec.mdx!)
@@ -342,9 +342,9 @@ Configuration options for Teleport agent and client tools Managed Updates (v2).
 
 <Notice type="warning">
 The `autoupdate_config` and `autoupdate_version` resources configure the both the
-next-generation (v2) Teleport updater and original (v1) Teleport Agent updater.
+new (v2) Teleport Agent updater and original (v1) Teleport Agent updater.
 `cluster_maintenance_config` above configures the original (v1) Teleport Agent updater,
-which is currently supported but will eventually be deprecated.
+which is currently supported but will be deprecated after the new updater is released.
 </Notice>
 
 ```yaml
@@ -419,10 +419,10 @@ See [Teleport Client Tool Managed Updates](../upgrading/client-tools-autoupdate.
 Allows cluster administrators to manage versions used for agent and client tools Managed Updates.
 
 <Notice type="warning">
-The `autoupdate_config` and `autoupdate_version` resources configure the
-next-generation (v2) Teleport updater.
+The `autoupdate_config` and `autoupdate_version` resources configure the both the
+new (v2) Teleport Agent updater and original (v1) Teleport Agent updater.
 `cluster_maintenance_config` above configures the original (v1) Teleport Agent updater,
-which is currently supported but will eventually be deprecated.
+which is currently supported but will be deprecated after the new updater is released.
 </Notice>
 
 This resource is not editable for cloud-managed Teleport Enterprise to ensure that all of

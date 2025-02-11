@@ -225,7 +225,7 @@ You may execute `teleport-update enable` repeatedly to change the group
 ### Setting the version
 
 For cloud-hosted Teleport Enterprise, managed updates are enabled by default.
-The `autoupdate_version` resource is managed for you, and cannot be edited.
+The `autoupdate_version` resource is managed for you and cannot be edited.
 
 For self-hosted Teleport Enterprise, the `autoupdate_version` resource must be
 created and edited to enabled managed updates.
@@ -275,8 +275,8 @@ Server ID                            Hostname      Services Version Upgrader
 ...
 ```
 
-Use the `--upgrader=unit` flag to list agents that are enrolled in the outdated
-updater and need to be configured to the next-generation updater:
+Use the `--upgrader=unit` flag to list agents that are enrolled in the original
+updater and need to be configured to the new updater (`teleport-update`):
 
 ```code
 $ tctl inventory ls --upgrader=unit
@@ -285,6 +285,8 @@ Server ID                            Hostname      Services Version Upgrader
 00000000-0000-0000-0000-000000000000 ip-10-1-6-131 Node     v14.4.5 unit
 ...
 ```
+
+Agents using the new updater can be queried with the `--upgrader=binary` flag.
 
 ### Enrolling unmanaged agents
 
@@ -310,11 +312,24 @@ Server ID                            Hostname      Services Version Upgrader
    $ teleport version
    ```
 
-1. Remove the last-generation updater if present:
+1. Remove the original updater if present:
+
+   <Tabs>
+   <TabItem label="DEB">
 
    ```code
    $ sudo apt remove teleport-ent-updater
    ```
+
+   </TabItem>
+   <TabItem label="RPM">
+
+   ```code
+   $ sudo yum remove teleport-ent-updater
+   ```
+
+   </TabItem>
+   </Tabs>
 
 <Details title="Running the agent as a non-root user">
 
@@ -328,7 +343,7 @@ $ sudo chown <your-teleport-user> /etc/teleport-upgrade.d/schedule
 ```
 
 While `teleport-update` does not read this file, `teleport` will warn if it
-cannot disable the last-generation updater using this file.
+cannot disable the original updater using this file.
 
 </Details>
 
