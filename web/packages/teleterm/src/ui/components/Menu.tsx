@@ -94,8 +94,7 @@ export function MenuListItem({
                 // disabled state.
                 background-color: ${props =>
                   props.theme.colors.spotBackground[0]};
-                padding: ${props => props.theme.space[1]}px
-                  ${props => props.theme.space[1]}px;
+                padding: ${props => props.theme.space[1]}px;
               `}
             >
               {getAccelerator(item.keyboardShortcutAction)}
