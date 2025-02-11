@@ -1170,6 +1170,39 @@ const (
 	NotificationAccessRequestDeniedSubKind = "access-request-denied"
 	// NotificationAccessRequestPromotedSubKind is the subkind for a notification for a user's access request being promoted to an access list.
 	NotificationAccessRequestPromotedSubKind = "access-request-promoted"
+
+	// NotificationAccessListReviewDue14dSubKind is the subkind for a notification for an access list review due in less than 14 days.
+	NotificationAccessListReviewDue14dSubKind = "access-list-review-due-14d"
+
+	// NotificationAccessListReviewDue7dSubKind is the subkind for a notification for an access list review due in less than 7 days.
+	NotificationAccessListReviewDue7dSubKind = "access-list-review-due-7d"
+
+	// NotificationAccessListReviewDue3dSubKind is the subkind for a notification for an access list review due in less than 3 days.
+	NotificationAccessListReviewDue3dSubKind = "access-list-review-due-3d"
+
+	// NotificationAccessListReviewDue0dSubKind is the subkind for a notification for an access list review due today.
+	NotificationAccessListReviewDue0dSubKind = "access-list-review-due-0d"
+
+	// NotificationAccessListReviewOverdue3dSubKind is the subkind for a notification for an access list review overdue by 3 days.
+	NotificationAccessListReviewOverdue3dSubKind = "access-list-review-overdue-3d"
+
+	// NotificationAccessListReviewOverdue7dSubKind is the subkind for a notification for an access list review overdue by 7 days.
+	NotificationAccessListReviewOverdue7dSubKind = "access-list-review-overdue-7d"
+)
+
+const (
+	// NotificationIdentifierPrefixAccessListDueReminder14d is the prefix for unique notification identifiers for 14d access list review reminders.
+	NotificationIdentifierPrefixAccessListDueReminder14d = "access_list_14d_due_reminder"
+	// NotificationIdentifierPrefixAccessListDueReminder7d is the prefix for unique notification identifiers for 7d access list review reminders.
+	NotificationIdentifierPrefixAccessListDueReminder7d = "access_list_7d_due_reminder"
+	// NotificationIdentifierPrefixAccessListDueReminder3d is the prefix for unique notification identifiers for 3d access list review reminders.
+	NotificationIdentifierPrefixAccessListDueReminder3d = "access_list_3d_due_reminder"
+	// NotificationIdentifierPrefixAccessListDueReminder0d is the prefix for unique notification identifiers for 0d (today) access list review reminders.
+	NotificationIdentifierPrefixAccessListDueReminder0d = "access_list_0d_due_reminder"
+	// NotificationIdentifierPrefixAccessListDueReminder30d is the prefix for unique notification identifiers for 3d overdue access list review reminders.
+	NotificationIdentifierPrefixAccessListOverdue3d = "access_list_3d_overdue_reminder"
+	// NotificationIdentifierPrefixAccessListDueReminder30d is the prefix for unique notification identifiers for 7d overdue access list review reminders.
+	NotificationIdentifierPrefixAccessListOverdue7d = "access_list_7d_overdue_reminder"
 )
 
 const (

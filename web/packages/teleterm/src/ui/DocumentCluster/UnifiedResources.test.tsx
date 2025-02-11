@@ -44,7 +44,6 @@ import { UnifiedResources } from 'teleterm/ui/DocumentCluster/UnifiedResources';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
-import { getEmptyPendingAccessRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 import * as uri from 'teleterm/ui/uri';
 
@@ -175,39 +174,25 @@ test.each([
   const doc = makeDocumentCluster();
 
   const appContext = new MockAppContext({ platform: 'darwin' });
-  appContext.clustersService.setState(draft => {
-    draft.clusters.set(
-      doc.clusterUri,
-      makeRootCluster({
-        uri: doc.clusterUri,
-        features: {
-          advancedAccessWorkflows:
-            testCase.conditions.isClusterSupportingAccessRequests,
-          isUsageBasedBilling: false,
-        },
-        showResources: testCase.conditions.showResources,
-      })
-    );
-  });
-
+  appContext.addRootClusterWithDoc(
+    makeRootCluster({
+      uri: doc.clusterUri,
+      features: {
+        advancedAccessWorkflows:
+          testCase.conditions.isClusterSupportingAccessRequests,
+        isUsageBasedBilling: false,
+      },
+      showResources: testCase.conditions.showResources,
+    }),
+    doc
+  );
   appContext.workspacesService.setState(draftState => {
-    const rootClusterUri = doc.clusterUri;
-    draftState.rootClusterUri = rootClusterUri;
-    draftState.workspaces[rootClusterUri] = {
-      localClusterUri: doc.clusterUri,
-      documents: [doc],
-      location: doc.uri,
-      unifiedResourcePreferences: {
-        defaultTab: DefaultTab.ALL,
-        viewMode: ViewMode.CARD,
-        labelsViewMode: LabelsViewMode.COLLAPSED,
-        availableResourceMode:
-          testCase.conditions.availableResourceModePreference,
-      },
-      accessRequests: {
-        pending: getEmptyPendingAccessRequest(),
-        isBarCollapsed: true,
-      },
+    draftState.workspaces[doc.clusterUri].unifiedResourcePreferences = {
+      defaultTab: DefaultTab.ALL,
+      viewMode: ViewMode.CARD,
+      labelsViewMode: LabelsViewMode.COLLAPSED,
+      availableResourceMode:
+        testCase.conditions.availableResourceModePreference,
     };
   });
 
@@ -302,22 +287,7 @@ test.each([
   });
   const serverResource = makeServer();
   const appContext = new MockAppContext();
-  appContext.clustersService.setState(draft => {
-    draft.clusters.set(rootCluster.uri, rootCluster);
-  });
-
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = rootCluster.uri;
-    draftState.workspaces[rootCluster.uri] = {
-      localClusterUri: rootCluster.uri,
-      documents: [doc],
-      location: doc.uri,
-      accessRequests: {
-        pending: getEmptyPendingAccessRequest(),
-        isBarCollapsed: true,
-      },
-    };
-  });
+  appContext.addRootClusterWithDoc(rootCluster, doc);
 
   jest
     .spyOn(appContext.resourcesService, 'listUnifiedResources')

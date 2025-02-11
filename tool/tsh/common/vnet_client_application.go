@@ -198,7 +198,7 @@ func (p *vnetClientApplication) reissueAppCert(ctx context.Context, tc *client.T
 	appCertParams := client.ReissueParams{
 		RouteToCluster: leafClusterName,
 		RouteToApp:     *routeToApp,
-		AccessRequests: profile.ActiveRequests.AccessRequests,
+		AccessRequests: profile.ActiveRequests,
 		RequesterName:  proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
 	}
 

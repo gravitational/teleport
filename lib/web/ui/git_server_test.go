@@ -18,6 +18,7 @@
 package ui
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -48,4 +49,54 @@ func TestMakeGitServer(t *testing.T) {
 		Labels: []ui.Label{},
 	}
 	require.Equal(t, expect, MakeGitServer("cluster", server, false))
+}
+
+func TestCreateGitServerRequest_Check(t *testing.T) {
+	tests := []struct {
+		input      CreateGitServerRequest
+		checkError require.ErrorAssertionFunc
+	}{
+		{
+			input: CreateGitServerRequest{
+				Name:    "missing-github-spec",
+				SubKind: "github",
+			},
+			checkError: require.Error,
+		},
+		{
+			input: CreateGitServerRequest{
+				Name:    "unsupported-subkind",
+				SubKind: "unknown",
+			},
+			checkError: require.Error,
+		},
+		{
+			input: CreateGitServerRequest{
+				Name:    "field-too-long",
+				SubKind: "github",
+				GitHub: &GitHubServerMetadata{
+					Organization: "my-org",
+					Integration:  strings.Repeat("integration", 200),
+				},
+			},
+			checkError: require.Error,
+		},
+		{
+			input: CreateGitServerRequest{
+				Name:    "valid-github",
+				SubKind: "github",
+				GitHub: &GitHubServerMetadata{
+					Organization: "my-org",
+					Integration:  "my-integration",
+				},
+			},
+			checkError: require.NoError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.input.Name, func(t *testing.T) {
+			test.checkError(t, test.input.Check())
+		})
+	}
 }

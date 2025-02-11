@@ -116,6 +116,14 @@ serviceAccount:
   # Helm release.
   name: ""
 
+# rbac -- controls the Kubernetes Role and RoleBinding creation
+# used by the serviceAccount
+rbac:
+  # rbac.create(bool) -- controls whether Helm Chart creates the
+  # Kubernetes `Role` & `RoleBindings` resources for the Kubernetes SA.
+  # When off, you are responsible for creating the appropriate resources.
+  create: true
+
 # imagePullPolicy(string) -- sets the pull policy for any pods created by the chart.
 # See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/containers/images/#updating-images)
 # for more details.
@@ -227,3 +235,10 @@ extraArgs: []
 #     value: "http://username:password@my.proxy.host:3128"
 # ```
 extraEnv: []
+
+# securityContext(object) -- sets the container security context for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
+# for more details.
+#
+# By default, this is unset.
+securityContext: null

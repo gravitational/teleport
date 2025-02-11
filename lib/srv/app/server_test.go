@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
@@ -365,6 +366,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		CipherSuites:       utils.DefaultCipherSuites(),
 		ServiceComponent:   teleport.ComponentApp,
 		AWSSessionProvider: aws.SessionProviderUsingAmbientCredentials(),
+		AWSConfigProvider:  &mocks.AWSConfigProvider{},
 	})
 	require.NoError(t, err)
 

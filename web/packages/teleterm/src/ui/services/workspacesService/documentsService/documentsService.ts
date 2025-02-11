@@ -75,11 +75,23 @@ export class DocumentsService {
     opts: CreateAccessRequestDocumentOpts
   ): DocumentAccessRequests {
     const uri = routing.getDocUri({ docId: unique() });
+    let title: string;
+    switch (opts.state) {
+      case 'creating':
+        title = 'New Role Request';
+        break;
+      case 'reviewing':
+        title = `Access Request: ${opts.requestId.slice(-5)}`;
+        break;
+      case 'browsing':
+      default:
+        title = 'Access Requests';
+    }
     return {
       uri,
       clusterUri: opts.clusterUri,
       requestId: opts.requestId,
-      title: opts.title || 'Access Requests',
+      title,
       kind: 'doc.access_requests',
       state: opts.state,
     };

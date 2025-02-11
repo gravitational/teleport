@@ -89,19 +89,20 @@ func (f *memoryDBFetcher) FetchDatabaseUsers(ctx context.Context, database types
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clt := f.cfg.awsClients.getMemoryDBClient(awsCfg)
 
-	secrets, err := newSecretStore(ctx, database, f.cfg.Clients, f.cfg.ClusterName)
+	smClt := f.cfg.awsClients.getSecretsManagerClient(awsCfg)
+	secrets, err := newSecretStore(database.GetSecretStore(), smClt, f.cfg.ClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	users := []User{}
+	clt := f.cfg.awsClients.getMemoryDBClient(awsCfg)
 	mdbUsers, err := f.getManagedUsersForACL(ctx, meta.Region, meta.MemoryDB.ACLName, clt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	users := []User{}
 	for _, mdbUser := range mdbUsers {
 		user, err := f.createUser(&mdbUser, clt, secrets)
 		if err != nil {
@@ -162,7 +163,7 @@ func (f *memoryDBFetcher) getUsersForRegion(ctx context.Context, region string, 
 		for i := 0; i < common.MaxPages && pager.HasMorePages(); i++ {
 			page, err := pager.NextPage(ctx)
 			if err != nil {
-				return nil, trace.Wrap(libaws.ConvertRequestFailureErrorV2(err))
+				return nil, trace.Wrap(libaws.ConvertRequestFailureError(err))
 			}
 			users = append(users, page.Users...)
 		}
@@ -184,7 +185,7 @@ func (f *memoryDBFetcher) getUserTags(ctx context.Context, user *memorydbtypes.U
 			ResourceArn: user.ARN,
 		})
 		if err != nil {
-			return nil, trace.Wrap(libaws.ConvertRequestFailureErrorV2(err))
+			return nil, trace.Wrap(libaws.ConvertRequestFailureError(err))
 		}
 		return output.TagList, nil
 	}
@@ -244,7 +245,7 @@ func (r *memoryDBUserResource) ModifyUserPassword(ctx context.Context, oldPasswo
 	input.AuthenticationMode.Passwords = append(input.AuthenticationMode.Passwords, newPassword)
 
 	if _, err := r.client.UpdateUser(ctx, input); err != nil {
-		return trace.Wrap(libaws.ConvertRequestFailureErrorV2(err))
+		return trace.Wrap(libaws.ConvertRequestFailureError(err))
 	}
 	return nil
 }

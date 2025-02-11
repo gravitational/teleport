@@ -220,6 +220,26 @@ func TestUserPreferencesCRUD(t *testing.T) {
 			},
 		},
 		{
+			name: "update the discover resource guide preference only",
+			req: &userpreferencesv1.UpsertUserPreferencesRequest{
+				Preferences: &userpreferencesv1.UserPreferences{
+					DiscoverResourcePreferences: &userpreferencesv1.DiscoverResourcePreferences{
+						PinnedGuides: []string{"guide-1", "guide-2"},
+					},
+				},
+			},
+			expected: &userpreferencesv1.UserPreferences{
+				Onboard:                    defaultPref.Onboard,
+				Theme:                      defaultPref.Theme,
+				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
+				ClusterPreferences:         defaultPref.ClusterPreferences,
+				SideNavDrawerMode:          defaultPref.SideNavDrawerMode,
+				DiscoverResourcePreferences: &userpreferencesv1.DiscoverResourcePreferences{
+					PinnedGuides: []string{"guide-1", "guide-2"},
+				},
+			},
+		},
+		{
 			name: "update all the settings at once",
 			req: &userpreferencesv1.UpsertUserPreferencesRequest{
 				Preferences: &userpreferencesv1.UserPreferences{
@@ -245,6 +265,9 @@ func TestUserPreferencesCRUD(t *testing.T) {
 							ResourceIds: []string{"node1", "node2"},
 						},
 					},
+					DiscoverResourcePreferences: &userpreferencesv1.DiscoverResourcePreferences{
+						PinnedGuides: []string{"guide-3", "guide-4"},
+					},
 				},
 			},
 			expected: &userpreferencesv1.UserPreferences{
@@ -268,6 +291,9 @@ func TestUserPreferencesCRUD(t *testing.T) {
 					PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{
 						ResourceIds: []string{"node1", "node2"},
 					},
+				},
+				DiscoverResourcePreferences: &userpreferencesv1.DiscoverResourcePreferences{
+					PinnedGuides: []string{"guide-3", "guide-4"},
 				},
 				SideNavDrawerMode: userpreferencesv1.SideNavDrawerMode_SIDE_NAV_DRAWER_MODE_STICKY,
 			},

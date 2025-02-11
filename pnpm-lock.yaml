@@ -479,8 +479,8 @@ importers:
         specifier: ^5.5.0
         version: 5.5.0
       electron:
-        specifier: 33.2.1
-        version: 33.2.1
+        specifier: 34.1.1
+        version: 34.1.1
       electron-builder:
         specifier: ^25.1.8
         version: 25.1.8(electron-builder-squirrel-windows@25.1.8(dmg-builder@25.1.8))
@@ -3582,8 +3582,8 @@ packages:
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
 
-  cookie@0.7.1:
-    resolution: {integrity: sha512-6DnInpx7SJ2AK3+CTUE/ZM0vWTUboZCegxhC2xiIydHR9jNuTAASBrfEpHhiGOZw/nX51bHt6YQl8jsGo4y/0w==}
+  cookie@0.7.2:
+    resolution: {integrity: sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w==}
     engines: {node: '>= 0.6'}
 
   core-js-compat@3.38.1:
@@ -3974,8 +3974,8 @@ packages:
       '@swc/core':
         optional: true
 
-  electron@33.2.1:
-    resolution: {integrity: sha512-SG/nmSsK9Qg1p6wAW+ZfqU+AV8cmXMTIklUL18NnOKfZLlum4ZsDoVdmmmlL39ZmeCaq27dr7CgslRPahfoVJg==}
+  electron@34.1.1:
+    resolution: {integrity: sha512-1aDYk9Gsv1/fFeClMrxWGoVMl7uCUgl1pe26BiTnLXmAoqEXCa3f3sCKFWV+cuDzUjQGAZcpkWhGYTgWUSQrLA==}
     engines: {node: '>= 12.20.55'}
     hasBin: true
 
@@ -7800,7 +7800,7 @@ snapshots:
 
   '@bundled-es-modules/cookie@2.0.1':
     dependencies:
-      cookie: 0.7.1
+      cookie: 0.7.2
 
   '@bundled-es-modules/statuses@1.0.1':
     dependencies:
@@ -8128,7 +8128,7 @@ snapshots:
 
   '@electron/get@2.0.2':
     dependencies:
-      debug: 4.3.7
+      debug: 4.4.0
       env-paths: 2.2.1
       fs-extra: 8.1.0
       got: 11.8.6
@@ -10610,7 +10610,7 @@ snapshots:
 
   convert-source-map@2.0.0: {}
 
-  cookie@0.7.1: {}
+  cookie@0.7.2: {}
 
   core-js-compat@3.38.1:
     dependencies:
@@ -11096,7 +11096,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@33.2.1:
+  electron@34.1.1:
     dependencies:
       '@electron/get': 2.0.2
       '@types/node': 20.17.11
@@ -11471,7 +11471,7 @@ snapshots:
 
   extract-zip@2.0.1:
     dependencies:
-      debug: 4.3.7
+      debug: 4.4.0
       get-stream: 5.2.0
       yauzl: 2.10.0
     optionalDependencies:

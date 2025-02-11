@@ -21,9 +21,7 @@ package cloud
 import (
 	"context"
 	"io"
-	"log/slog"
 	"sync"
-	"time"
 
 	gcpcredentials "cloud.google.com/go/iam/credentials/apiv1"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -33,33 +31,17 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
-	"github.com/aws/aws-sdk-go/aws/endpoints"
-	"github.com/aws/aws-sdk-go/aws/request"
-	awssession "github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/opensearchservice"
-	"github.com/aws/aws-sdk-go/service/opensearchservice/opensearchserviceiface"
-	"github.com/aws/aws-sdk-go/service/secretsmanager"
-	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
-	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/gravitational/trace"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/gravitational/teleport/api/types"
-	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	awsimds "github.com/gravitational/teleport/lib/cloud/imds/aws"
 	azureimds "github.com/gravitational/teleport/lib/cloud/imds/azure"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Clients provides interface for obtaining cloud provider clients.
@@ -69,8 +51,6 @@ type Clients interface {
 	GetInstanceMetadataClient(ctx context.Context) (imds.Client, error)
 	// GCPClients is an interface for providing GCP API clients.
 	GCPClients
-	// AWSClients is an interface for providing AWS API clients.
-	AWSClients
 	// AzureClients is an interface for Azure-specific API clients
 	AzureClients
 	// Closer closes all initialized clients.
@@ -89,18 +69,6 @@ type GCPClients interface {
 	GetGCPProjectsClient(context.Context) (gcp.ProjectsClient, error)
 	// GetGCPInstancesClient returns instances client.
 	GetGCPInstancesClient(context.Context) (gcp.InstancesClient, error)
-}
-
-// AWSClients is an interface for providing AWS API clients.
-type AWSClients interface {
-	// GetAWSSession returns AWS session for the specified region and any role(s).
-	GetAWSSession(ctx context.Context, region string, opts ...AWSOptionsFn) (*awssession.Session, error)
-	// GetAWSOpenSearchClient returns AWS OpenSearch client for the specified region.
-	GetAWSOpenSearchClient(ctx context.Context, region string, opts ...AWSOptionsFn) (opensearchserviceiface.OpenSearchServiceAPI, error)
-	// GetAWSSecretsManagerClient returns AWS Secrets Manager client for the specified region.
-	GetAWSSecretsManagerClient(ctx context.Context, region string, opts ...AWSOptionsFn) (secretsmanageriface.SecretsManagerAPI, error)
-	// GetAWSSTSClient returns AWS STS client for the specified region.
-	GetAWSSTSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (stsiface.STSAPI, error)
 }
 
 // AzureClients is an interface for Azure-specific API clients
@@ -209,23 +177,16 @@ type ClientsOption func(cfg *cloudClients)
 
 // NewClients returns a new instance of cloud clients retriever.
 func NewClients(opts ...ClientsOption) (Clients, error) {
-	awsSessionsCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL: 15 * time.Minute,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	azClients, err := newAzureClients()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	cloudClients := &cloudClients{
-		awsSessionsCache: awsSessionsCache,
 		gcpClients: gcpClients{
-			gcpSQLAdmin:  newClientCache[gcp.SQLAdminClient](gcp.NewSQLAdminClient),
-			gcpGKE:       newClientCache[gcp.GKEClient](gcp.NewGKEClient),
-			gcpProjects:  newClientCache[gcp.ProjectsClient](gcp.NewProjectsClient),
-			gcpInstances: newClientCache[gcp.InstancesClient](gcp.NewInstancesClient),
+			gcpSQLAdmin:  newClientCache(gcp.NewSQLAdminClient),
+			gcpGKE:       newClientCache(gcp.NewGKEClient),
+			gcpProjects:  newClientCache(gcp.NewProjectsClient),
+			gcpInstances: newClientCache(gcp.NewInstancesClient),
 		},
 		azureClients: azClients,
 	}
@@ -240,31 +201,7 @@ func NewClients(opts ...ClientsOption) (Clients, error) {
 // cloudClients implements Clients
 var _ Clients = (*cloudClients)(nil)
 
-// WithAWSIntegrationSessionProvider sets an integration session generator for AWS apis.
-// If a client is requested for a specific Integration, instead of using the ambient credentials, this generator is used to fetch the AWS Session.
-func WithAWSIntegrationSessionProvider(sessionProvider AWSIntegrationSessionProvider) func(*cloudClients) {
-	return func(cc *cloudClients) {
-		cc.awsIntegrationSessionProviderFn = sessionProvider
-	}
-}
-
-// AWSIntegrationSessionProvider defines a function that creates an [awssession.Session] from a Region and an Integration.
-// This is used to generate aws sessions for clients that must use an Integration instead of ambient credentials.
-type AWSIntegrationSessionProvider func(ctx context.Context, region string, integration string) (*awssession.Session, error)
-
-type awsSessionCacheKey struct {
-	region      string
-	integration string
-	roleARN     string
-	externalID  string
-}
-
 type cloudClients struct {
-	// awsSessionsCache is a cache of AWS sessions, where the cache key is
-	// an instance of awsSessionCacheKey.
-	awsSessionsCache *utils.FnCache
-	// awsIntegrationSessionProviderFn is a AWS Session Generator that uses an Integration to generate an AWS Session.
-	awsIntegrationSessionProviderFn AWSIntegrationSessionProvider
 	// instanceMetadata is the cached instance metadata client.
 	instanceMetadata imds.Client
 	// gcpClients contains GCP-specific clients.
@@ -324,183 +261,6 @@ type azureClients struct {
 	azureRoleDefinitionsClients azure.ClientMap[azure.RoleDefinitionsClient]
 	// azureRoleAssignmentsClients contains the cached Azure Role Assignments clients.
 	azureRoleAssignmentsClients azure.ClientMap[azure.RoleAssignmentsClient]
-}
-
-// credentialsSource defines where the credentials must come from.
-type credentialsSource int
-
-const (
-	// credentialsSourceAmbient uses the default Cloud SDK method to load the credentials.
-	credentialsSourceAmbient = iota + 1
-	// credentialsSourceIntegration uses an Integration to load the credentials.
-	credentialsSourceIntegration
-)
-
-// awsOptions a struct of additional options for assuming an AWS role
-// when construction an underlying AWS session.
-type awsOptions struct {
-	// baseSession is a session to use instead of the default session for an
-	// AWS region, which is used to enable role chaining.
-	baseSession *awssession.Session
-	// assumeRoleARN is the AWS IAM Role ARN to assume.
-	assumeRoleARN string
-	// assumeRoleExternalID is used to assume an external AWS IAM Role.
-	assumeRoleExternalID string
-
-	// credentialsSource describes which source to use to fetch credentials.
-	credentialsSource credentialsSource
-
-	// integration is the name of the integration to be used to fetch the credentials.
-	integration string
-
-	// customRetryer is a custom retryer to use for the session.
-	customRetryer request.Retryer
-
-	// maxRetries is the maximum number of retries to use for the session.
-	maxRetries *int
-
-	// withoutSessionCache disables the session cache for the AWS session.
-	withoutSessionCache bool
-}
-
-func (a *awsOptions) checkAndSetDefaults() error {
-	switch a.credentialsSource {
-	case credentialsSourceAmbient:
-		if a.integration != "" {
-			return trace.BadParameter("integration and ambient credentials cannot be used at the same time")
-		}
-	case credentialsSourceIntegration:
-		if a.integration == "" {
-			return trace.BadParameter("missing integration name")
-		}
-	default:
-		return trace.BadParameter("missing credentials source (ambient or integration)")
-	}
-
-	return nil
-}
-
-// AWSOptionsFn is an option function for setting additional options
-// when getting an AWS session.
-type AWSOptionsFn func(*awsOptions)
-
-// WithAssumeRole configures options needed for assuming an AWS role.
-func WithAssumeRole(roleARN, externalID string) AWSOptionsFn {
-	return func(options *awsOptions) {
-		options.assumeRoleARN = roleARN
-		options.assumeRoleExternalID = externalID
-	}
-}
-
-// WithoutSessionCache disables the session cache for the AWS session.
-func WithoutSessionCache() AWSOptionsFn {
-	return func(options *awsOptions) {
-		options.withoutSessionCache = true
-	}
-}
-
-// WithAssumeRoleFromAWSMeta extracts options needed from AWS metadata for
-// assuming an AWS role.
-func WithAssumeRoleFromAWSMeta(meta types.AWS) AWSOptionsFn {
-	return WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID)
-}
-
-// WithChainedAssumeRole sets a role to assume with a base session to use
-// for assuming the role, which enables role chaining.
-func WithChainedAssumeRole(session *awssession.Session, roleARN, externalID string) AWSOptionsFn {
-	return func(options *awsOptions) {
-		options.baseSession = session
-		options.assumeRoleARN = roleARN
-		options.assumeRoleExternalID = externalID
-	}
-}
-
-// WithRetryer sets a custom retryer for the session.
-func WithRetryer(retryer request.Retryer) AWSOptionsFn {
-	return func(options *awsOptions) {
-		options.customRetryer = retryer
-	}
-}
-
-// WithMaxRetries sets the maximum allowed value for the sdk to keep retrying.
-func WithMaxRetries(maxRetries int) AWSOptionsFn {
-	return func(options *awsOptions) {
-		options.maxRetries = &maxRetries
-	}
-}
-
-// WithCredentialsMaybeIntegration sets the credential source to be
-// - ambient if the integration is an empty string
-// - integration, otherwise
-func WithCredentialsMaybeIntegration(integration string) AWSOptionsFn {
-	if integration != "" {
-		return withIntegrationCredentials(integration)
-	}
-
-	return WithAmbientCredentials()
-}
-
-// withIntegrationCredentials configures options with an Integration that must be used to fetch Credentials to assume a role.
-// This prevents the usage of AWS environment credentials.
-func withIntegrationCredentials(integration string) AWSOptionsFn {
-	return func(options *awsOptions) {
-		options.credentialsSource = credentialsSourceIntegration
-		options.integration = integration
-	}
-}
-
-// WithAmbientCredentials configures options to use the ambient credentials.
-func WithAmbientCredentials() AWSOptionsFn {
-	return func(options *awsOptions) {
-		options.credentialsSource = credentialsSourceAmbient
-	}
-}
-
-// GetAWSSession returns AWS session for the specified region, optionally
-// assuming AWS IAM Roles.
-func (c *cloudClients) GetAWSSession(ctx context.Context, region string, opts ...AWSOptionsFn) (*awssession.Session, error) {
-	var options awsOptions
-	for _, opt := range opts {
-		opt(&options)
-	}
-	var err error
-	if options.baseSession == nil {
-		options.baseSession, err = c.getAWSSessionForRegion(ctx, region, options)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	if options.assumeRoleARN == "" {
-		return options.baseSession, nil
-	}
-	return c.getAWSSessionForRole(ctx, region, options)
-}
-
-// GetAWSOpenSearchClient returns AWS OpenSearch client for the specified region.
-func (c *cloudClients) GetAWSOpenSearchClient(ctx context.Context, region string, opts ...AWSOptionsFn) (opensearchserviceiface.OpenSearchServiceAPI, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return opensearchservice.New(session), nil
-}
-
-// GetAWSSecretsManagerClient returns AWS Secrets Manager client for the specified region.
-func (c *cloudClients) GetAWSSecretsManagerClient(ctx context.Context, region string, opts ...AWSOptionsFn) (secretsmanageriface.SecretsManagerAPI, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return secretsmanager.New(session), nil
-}
-
-// GetAWSSTSClient returns AWS STS client for the specified region.
-func (c *cloudClients) GetAWSSTSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (stsiface.STSAPI, error) {
-	session, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sts.New(session), nil
 }
 
 // GetGCPIAMClient returns GCP IAM client.
@@ -662,105 +422,6 @@ func (c *cloudClients) Close() (err error) {
 		c.gcpIAM = nil
 	}
 	return trace.Wrap(err)
-}
-
-// awsAmbientSessionProvider loads a new session using the environment variables.
-// Describe in detail here: https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials
-func awsAmbientSessionProvider(ctx context.Context, region string) (*awssession.Session, error) {
-	awsSessionOptions := buildAWSSessionOptions(region, nil /* credentials */)
-
-	session, err := awssession.NewSessionWithOptions(awsSessionOptions)
-	return session, trace.Wrap(err)
-}
-
-// getAWSSessionForRegion returns AWS session for the specified region.
-func (c *cloudClients) getAWSSessionForRegion(ctx context.Context, region string, opts awsOptions) (*awssession.Session, error) {
-	if err := opts.checkAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	createSession := func(ctx context.Context) (*awssession.Session, error) {
-		if opts.credentialsSource == credentialsSourceIntegration {
-			if c.awsIntegrationSessionProviderFn == nil {
-				return nil, trace.BadParameter("missing aws integration session provider")
-			}
-
-			slog.DebugContext(ctx, "Initializing AWS session",
-				"region", region,
-				"integration", opts.integration,
-			)
-			session, err := c.awsIntegrationSessionProviderFn(ctx, region, opts.integration)
-			return session, trace.Wrap(err)
-		}
-
-		slog.DebugContext(ctx, "Initializing AWS session using environment credentials",
-			"region", region,
-		)
-		session, err := awsAmbientSessionProvider(ctx, region)
-		return session, trace.Wrap(err)
-	}
-
-	if opts.withoutSessionCache {
-		sess, err := createSession(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if opts.customRetryer != nil || opts.maxRetries != nil {
-			return sess.Copy(&aws.Config{
-				Retryer:    opts.customRetryer,
-				MaxRetries: opts.maxRetries,
-			}), nil
-		}
-		return sess, trace.Wrap(err)
-	}
-
-	cacheKey := awsSessionCacheKey{
-		region:      region,
-		integration: opts.integration,
-	}
-
-	sess, err := utils.FnCacheGet(ctx, c.awsSessionsCache, cacheKey, func(ctx context.Context) (*awssession.Session, error) {
-		session, err := createSession(ctx)
-		return session, trace.Wrap(err)
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if opts.customRetryer != nil || opts.maxRetries != nil {
-		return sess.Copy(&aws.Config{
-			Retryer:    opts.customRetryer,
-			MaxRetries: opts.maxRetries,
-		}), nil
-	}
-	return sess, err
-}
-
-// getAWSSessionForRole returns AWS session for the specified region and role.
-func (c *cloudClients) getAWSSessionForRole(ctx context.Context, region string, options awsOptions) (*awssession.Session, error) {
-	if err := options.checkAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	createSession := func(ctx context.Context) (*awssession.Session, error) {
-		stsClient := sts.New(options.baseSession)
-		return newSessionWithRole(ctx, stsClient, region, options.assumeRoleARN, options.assumeRoleExternalID)
-	}
-
-	if options.withoutSessionCache {
-		session, err := createSession(ctx)
-		return session, trace.Wrap(err)
-	}
-
-	cacheKey := awsSessionCacheKey{
-		region:      region,
-		integration: options.integration,
-		roleARN:     options.assumeRoleARN,
-		externalID:  options.assumeRoleExternalID,
-	}
-	return utils.FnCacheGet(ctx, c.awsSessionsCache, cacheKey, func(ctx context.Context) (*awssession.Session, error) {
-		session, err := createSession(ctx)
-		return session, trace.Wrap(err)
-	})
 }
 
 func (c *cloudClients) initGCPIAMClient(ctx context.Context) (*gcpcredentials.IamCredentialsClient, error) {
@@ -928,9 +589,6 @@ var _ Clients = (*TestCloudClients)(nil)
 
 // TestCloudClients are used in tests.
 type TestCloudClients struct {
-	OpenSearch              opensearchserviceiface.OpenSearchServiceAPI
-	SecretsManager          secretsmanageriface.SecretsManagerAPI
-	STS                     stsiface.STSAPI
 	GCPSQL                  gcp.SQLAdminClient
 	GCPGKE                  gcp.GKEClient
 	GCPProjects             gcp.ProjectsClient
@@ -953,70 +611,6 @@ type TestCloudClients struct {
 	AzureRunCommand         azure.RunCommandClient
 	AzureRoleDefinitions    azure.RoleDefinitionsClient
 	AzureRoleAssignments    azure.RoleAssignmentsClient
-}
-
-// GetAWSSession returns AWS session for the specified region, optionally
-// assuming AWS IAM Roles.
-func (c *TestCloudClients) GetAWSSession(ctx context.Context, region string, opts ...AWSOptionsFn) (*awssession.Session, error) {
-	var options awsOptions
-	for _, opt := range opts {
-		opt(&options)
-	}
-	var err error
-	if options.baseSession == nil {
-		options.baseSession, err = c.getAWSSessionForRegion(region)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	if options.assumeRoleARN == "" {
-		return options.baseSession, nil
-	}
-	return newSessionWithRole(ctx, c.STS, region, options.assumeRoleARN, options.assumeRoleExternalID)
-}
-
-// GetAWSSession returns AWS session for the specified region.
-func (c *TestCloudClients) getAWSSessionForRegion(region string) (*awssession.Session, error) {
-	useFIPSEndpoint := endpoints.FIPSEndpointStateUnset
-	if modules.GetModules().IsBoringBinary() {
-		useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
-	}
-
-	return awssession.NewSession(&aws.Config{
-		Credentials: credentials.NewCredentials(&credentials.StaticProvider{Value: credentials.Value{
-			AccessKeyID:     "fakeClientKeyID",
-			SecretAccessKey: "fakeClientSecret",
-		}}),
-		Region:          aws.String(region),
-		UseFIPSEndpoint: useFIPSEndpoint,
-	})
-}
-
-// GetAWSOpenSearchClient returns AWS OpenSearch client for the specified region.
-func (c *TestCloudClients) GetAWSOpenSearchClient(ctx context.Context, region string, opts ...AWSOptionsFn) (opensearchserviceiface.OpenSearchServiceAPI, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c.OpenSearch, nil
-}
-
-// GetAWSSecretsManagerClient returns AWS Secrets Manager client for the specified region.
-func (c *TestCloudClients) GetAWSSecretsManagerClient(ctx context.Context, region string, opts ...AWSOptionsFn) (secretsmanageriface.SecretsManagerAPI, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c.SecretsManager, nil
-}
-
-// GetAWSSTSClient returns AWS STS client for the specified region.
-func (c *TestCloudClients) GetAWSSTSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (stsiface.STSAPI, error) {
-	_, err := c.GetAWSSession(ctx, region, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c.STS, nil
 }
 
 // GetGCPIAMClient returns GCP IAM client.
@@ -1140,44 +734,4 @@ func (c *TestCloudClients) GetAzureRoleAssignmentsClient(subscription string) (a
 // Close closes all initialized clients.
 func (c *TestCloudClients) Close() error {
 	return nil
-}
-
-// newSessionWithRole assumes a given AWS IAM Role, passing an external ID if given,
-// and returns a new AWS session with the assumed role in the given region.
-func newSessionWithRole(ctx context.Context, svc stscreds.AssumeRoler, region, roleARN, externalID string) (*awssession.Session, error) {
-	slog.DebugContext(ctx, "Initializing AWS session for assumed role",
-		"assumed_role", roleARN,
-		"region", region,
-	)
-	// Make a credentials with AssumeRoleProvider and test it out.
-	cred := stscreds.NewCredentialsWithClient(svc, roleARN, func(p *stscreds.AssumeRoleProvider) {
-		if externalID != "" {
-			p.ExternalID = aws.String(externalID)
-		}
-	})
-	if _, err := cred.GetWithContext(ctx); err != nil {
-		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
-	}
-
-	awsSessionOptions := buildAWSSessionOptions(region, cred)
-
-	// Create a new session with the credentials.
-	roleSession, err := awssession.NewSessionWithOptions(awsSessionOptions)
-	return roleSession, trace.Wrap(err)
-}
-
-func buildAWSSessionOptions(region string, cred *credentials.Credentials) awssession.Options {
-	useFIPSEndpoint := endpoints.FIPSEndpointStateUnset
-	if modules.GetModules().IsBoringBinary() {
-		useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
-	}
-
-	return awssession.Options{
-		SharedConfigState: awssession.SharedConfigEnable,
-		Config: aws.Config{
-			Region:          aws.String(region),
-			Credentials:     cred,
-			UseFIPSEndpoint: useFIPSEndpoint,
-		},
-	}
 }
