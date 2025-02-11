@@ -329,6 +329,8 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	case errors.As(err, &ttlErr):
 		// Note: we log this as a warning for backward-compatibility, but should
 		// just reject the configuration in a future release.
+		//
+		//nolint:sloglint // msg cannot be constant
 		log.WarnContext(context.TODO(), ttlErr.msg, ttlErr.LogLabels()...)
 	case err != nil:
 		return err
