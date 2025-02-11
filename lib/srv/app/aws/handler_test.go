@@ -68,7 +68,7 @@ func TestMain(m *testing.M) {
 type makeRequest func(url string, provider client.ConfigProvider, awsHost string) error
 
 func s3Request(url string, provider client.ConfigProvider, awsHost string) error {
-	return s3RequestWithTransport(url, provider, nil)
+	return s3RequestWithTransport(url, provider, &requestByHTTPSProxy{xForwardedHost: awsHost})
 }
 
 func s3RequestByAssumedRole(url string, provider client.ConfigProvider, awsHost string) error {
@@ -89,7 +89,7 @@ func s3RequestWithTransport(url string, provider client.ConfigProvider, transpor
 }
 
 func dynamoRequest(url string, provider client.ConfigProvider, awsHost string) error {
-	return dynamoRequestWithTransport(url, provider, nil)
+	return dynamoRequestWithTransport(url, provider, &requestByHTTPSProxy{xForwardedHost: awsHost})
 }
 
 func dynamoRequestByAssumedRole(url string, provider client.ConfigProvider, awsHost string) error {
@@ -115,10 +115,10 @@ func dynamoRequestWithTransport(url string, provider client.ConfigProvider, tran
 // size. Use a 1MB limit instead of the actual 70MB limit.
 const maxTestHTTPRequestBodySize = 1 << 20
 
-func maxSizeExceededRequest(url string, provider client.ConfigProvider, _ string) error {
+func maxSizeExceededRequest(url string, provider client.ConfigProvider, awsHost string) error {
 	// fake an upload that's too large
 	payload := strings.Repeat("x", maxTestHTTPRequestBodySize)
-	return lambdaRequestWithPayload(url, provider, payload)
+	return lambdaRequestWithPayload(url, provider, payload, &requestByHTTPSProxy{xForwardedHost: awsHost})
 }
 
 func lambdaRequest(url string, provider client.ConfigProvider, awsHost string) error {
@@ -126,15 +126,16 @@ func lambdaRequest(url string, provider client.ConfigProvider, awsHost string) e
 	// which bloats it up, and our proxy should still handle it.
 	const size = (maxTestHTTPRequestBodySize * 7) / 10
 	payload := strings.Repeat("x", size)
-	return lambdaRequestWithPayload(url, provider, payload)
+	return lambdaRequestWithPayload(url, provider, payload, &requestByHTTPSProxy{xForwardedHost: awsHost})
 }
 
-func lambdaRequestWithPayload(url string, provider client.ConfigProvider, payload string) error {
+func lambdaRequestWithPayload(url string, provider client.ConfigProvider, payload string, transport http.RoundTripper) error {
 	lambdaClient := lambda.New(provider, &aws.Config{
 		Endpoint:   &url,
 		MaxRetries: aws.Int(0),
 		HTTPClient: &http.Client{
-			Timeout: 5 * time.Second,
+			Timeout:   5 * time.Second,
+			Transport: transport,
 		},
 	})
 	_, err := lambdaClient.UpdateFunctionCode(&lambda.UpdateFunctionCodeInput{
@@ -145,12 +146,13 @@ func lambdaRequestWithPayload(url string, provider client.ConfigProvider, payloa
 }
 
 func assumeRoleRequest(requestDuration time.Duration) makeRequest {
-	return func(url string, provider client.ConfigProvider, _ string) error {
+	return func(url string, provider client.ConfigProvider, awsHost string) error {
 		stsClient := sts.New(provider, &aws.Config{
 			Endpoint:   &url,
 			MaxRetries: aws.Int(0),
 			HTTPClient: &http.Client{
-				Timeout: 5 * time.Second,
+				Timeout:   5 * time.Second,
+				Transport: &requestByHTTPSProxy{xForwardedHost: awsHost},
 			},
 		})
 		_, err := stsClient.AssumeRole(&sts.AssumeRoleInput{
@@ -160,6 +162,17 @@ func assumeRoleRequest(requestDuration time.Duration) makeRequest {
 		})
 		return err
 	}
+}
+
+type requestByHTTPSProxy struct {
+	xForwardedHost string
+}
+
+func (r requestByHTTPSProxy) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Simulate how a request is modified by "tsh".
+	req.Host = r.xForwardedHost
+	req.Header.Add("X-Forwarded-Host", r.xForwardedHost)
+	return http.DefaultTransport.RoundTrip(req)
 }
 
 type requestByAssumedRoleTransport struct {
@@ -403,7 +416,8 @@ func TestAWSSignerHandler(t *testing.T) {
 				Credentials: staticAWSCredentialsForClient,
 				Region:      aws.String("us-east-1"),
 			})),
-			request: maxSizeExceededRequest,
+			request:  maxSizeExceededRequest,
+			wantHost: "lambda.us-east-1.amazonaws.com",
 			errAssertionFns: []require.ErrorAssertionFunc{
 				// TODO(gavin): change this to [http.StatusRequestEntityTooLarge]
 				// after updating [trace.ErrorToCode].
@@ -455,6 +469,7 @@ func TestAWSSignerHandler(t *testing.T) {
 				Region:      aws.String("us-east-1"),
 			})),
 			request:      assumeRoleRequest(2 * time.Hour),
+			wantHost:     "sts.amazonaws.com",
 			advanceClock: 50 * time.Minute, // identity is expiring in 10m which is less than minimum
 			errAssertionFns: []require.ErrorAssertionFunc{
 				// the request is 403 forbidden by Teleport, so the mock AWS handler won't be sent anything.
