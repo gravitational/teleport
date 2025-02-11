@@ -797,37 +797,37 @@ func cgo_write_rdp_license(handle C.uintptr_t, req *C.CGOLicenseRequest, data *C
 }
 
 func (c *Client) readRDPLicense(ctx context.Context, key types.RDPLicenseKey) ([]byte, error) {
-	log := c.cfg.Logger.With(
-		"issuer", key.Issuer,
-		"company", key.Company,
-		"version", key.Version,
-		"product", key.ProductID,
-	)
+	log := c.cfg.Log.WithFields(logrus.Fields{
+		"issuer":  key.Issuer,
+		"company": key.Company,
+		"version": key.Version,
+		"product": key.ProductID,
+	})
 
 	license, err := c.cfg.LicenseStore.ReadRDPLicense(ctx, &key)
 	switch {
 	case trace.IsNotFound(err):
-		log.InfoContext(ctx, "existing RDP license not found")
+		log.Info("existing RDP license not found")
 	case err != nil:
-		log.ErrorContext(ctx, "could not look up existing RDP license", "error", err)
+		log.Error("could not look up existing RDP license", "error", err)
 	case len(license) > 0:
-		log.InfoContext(ctx, "found existing RDP license")
+		log.Info("found existing RDP license")
 	}
 
 	return license, trace.Wrap(err)
 }
 
 func (c *Client) writeRDPLicense(ctx context.Context, key types.RDPLicenseKey, license []byte) error {
-	log := c.cfg.Logger.With(
-		"issuer", key.Issuer,
-		"company", key.Company,
-		"version", key.Version,
-		"product", key.ProductID,
-	)
-	log.InfoContext(ctx, "writing RDP license to storage")
+	log := c.cfg.Log.WithFields(logrus.Fields{
+		"issuer":  key.Issuer,
+		"company": key.Company,
+		"version": key.Version,
+		"product": key.ProductID,
+	})
+	log.Info("writing RDP license to storage")
 	err := c.cfg.LicenseStore.WriteRDPLicense(ctx, &key, license)
 	if err != nil {
-		log.ErrorContext(ctx, "could not write RDP license", "error", err)
+		log.Error("could not write RDP license", "error", err)
 	}
 	return trace.Wrap(err)
 }
