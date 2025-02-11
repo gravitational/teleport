@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
 	"github.com/gravitational/teleport/lib/cloud/provisioning/awsactions"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
@@ -108,7 +109,7 @@ func NewAWSAppAccessConfigureClient(ctx context.Context) (AWSAppAccessConfigureC
 	}
 
 	return &defaultAWSAppAccessConfigureClient{
-		Client:               iam.NewFromConfig(cfg),
+		Client:               iamutils.NewFromConfig(cfg),
 		CallerIdentityGetter: stsutils.NewFromConfig(cfg),
 	}, nil
 }
