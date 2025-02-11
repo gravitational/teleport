@@ -15,18 +15,18 @@ access requests.
 ## Why
 Currently, Teleport supports automatic approvals of access requests, but support
 is limited. Automatic approvals requires a separate plugin, and only a subset of
-the plugins support automatic approvals. Users requesting this feature do not
-wish to maintain a separate piece of software, or wish to integrate with a
-separate service to utilize this feature. In order to support a wider range of
-use cases, Teleport should support automatic approvals natively.
+the plugins support automatic approvals. Requesting users do not wish to
+integrate with a separate service just to utilize this feature. Teleport does
+also enable users to build their own access request plugins, but users do not
+want the responsibility of building and maintaining a separate piece of
+software. They believe this should be a supported use case built-in to Teleport.
+In order to support a wider range of use cases, Teleport should support
+automatic approvals natively.
 
 Automatic approvals enables teams to enforce zero standing privileges, while
 allowing users to get access to their pre approved resources for a limited
-period of time. There are alternative ways to enforce zero standing privileges,
-but a big part of this feature request is to provide a frictionless user
-experience. For example, access lists can be used to achieve similar behavior,
-but a limitation with access lists is that the user must logout and login again
-to renew their certificates to obtain the new roles.
+period of time. Access lists could be used to achieve similar behavior, but some
+users prefer the just-in-time access request flow.
 
 This feature has also been requested for internal use at Teleport. The Tools
 team enforces gated access to certain pipeline activity. The team would like the
@@ -48,14 +48,17 @@ For example, the requesting user is pre-approved to access all resources in the
 6. Automatic approval rules are easily reviewable through the Teleport Web UI.
 7. User experience is the focus. The feature should be easy to use and configure.
 8. Implementation should be compatible with future plugin interface refactoring.
+9. Support configuration of automatic approvals using the Terraform provider.
+10. Support automatic approvals with tbot service users.
 
 Note: Access monitoring rules do not currently support access requests by
 resources, in any capacity. It will require more than just extending the access
 monitoring rule predicate language to support this use case. Goal [3] will be
-left out of scope for this RFD. It probably deserves it's own separate RFD. As a
+left out of scope for this RFD. It probably deserves its own separate RFD. As a
 workaround to support this use case, auto approval rules can be configured to
 approve a role that only has the permission to access resources in a specific
-environment.
+environment. Resources can be mapped to an environment using a label, and
+roles can be allowed access to specific resources with a label selector.
 
 Note: Development is in progress to refactor the access plugins and implement a
 unified set of interfaces. This will help achieve feature parity across access
@@ -360,5 +363,7 @@ approvals with an external plugin.
 2. Implement the `access-native` plugin.
 3. Deploy `access-native` plugin as part of Teleport initialization.
 4. Update WebUI to allow users to create and view automatic approvals.
-5. Release guide on how to configure automatic approvals using Access
+5. Update the Terraform resource schema to allow configuration of automatic
+approvals with the Terraform provider.
+6. Release guide on how to configure automatic approvals using Access
 Monitoring Rules.
