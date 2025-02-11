@@ -42,7 +42,7 @@ func TestConfigFile(t *testing.T) {
 	require.NoError(t, cfg.CheckAndSetDefaults())
 
 	require.Equal(t, "auth.example.com", cfg.AuthServer)
-	require.Equal(t, time.Minute*5, cfg.CertificateLifetime.RenewalInterval)
+	require.Equal(t, time.Minute*5, cfg.CredentialLifetime.RenewalInterval)
 
 	require.NotNil(t, cfg.Onboarding)
 
@@ -202,7 +202,7 @@ func TestBotConfig_YAML(t *testing.T) {
 				Oneshot:    true,
 				AuthServer: "example.teleport.sh:443",
 				DiagAddr:   "127.0.0.1:1337",
-				CertificateLifetime: CertificateLifetime{
+				CredentialLifetime: CredentialLifetime{
 					TTL:             time.Minute,
 					RenewalInterval: time.Second * 30,
 				},
@@ -221,7 +221,7 @@ func TestBotConfig_YAML(t *testing.T) {
 						Destination: &DestinationKubernetesSecret{
 							Name: "my-secret",
 						},
-						CertificateLifetime: CertificateLifetime{
+						CredentialLifetime: CredentialLifetime{
 							TTL:             30 * time.Second,
 							RenewalInterval: 15 * time.Second,
 						},
@@ -256,7 +256,7 @@ func TestBotConfig_YAML(t *testing.T) {
 								},
 							},
 						},
-						CertificateLifetime: CertificateLifetime{
+						CredentialLifetime: CredentialLifetime{
 							TTL:             30 * time.Second,
 							RenewalInterval: 15 * time.Second,
 						},
@@ -268,7 +268,7 @@ func TestBotConfig_YAML(t *testing.T) {
 						Destination: &DestinationDirectory{
 							Path: "/bot/output",
 						},
-						CertificateLifetime: CertificateLifetime{
+						CredentialLifetime: CredentialLifetime{
 							TTL:             30 * time.Second,
 							RenewalInterval: 15 * time.Second,
 						},
@@ -277,7 +277,7 @@ func TestBotConfig_YAML(t *testing.T) {
 						Listen:  "tcp://127.0.0.1:123",
 						Roles:   []string{"access"},
 						AppName: "my-app",
-						CertificateLifetime: CertificateLifetime{
+						CredentialLifetime: CredentialLifetime{
 							TTL:             30 * time.Second,
 							RenewalInterval: 15 * time.Second,
 						},
@@ -289,7 +289,7 @@ func TestBotConfig_YAML(t *testing.T) {
 						Selector: WorkloadIdentitySelector{
 							Name: "my-workload-identity",
 						},
-						CertificateLifetime: CertificateLifetime{
+						CredentialLifetime: CredentialLifetime{
 							TTL:             30 * time.Second,
 							RenewalInterval: 15 * time.Second,
 						},
@@ -299,7 +299,7 @@ func TestBotConfig_YAML(t *testing.T) {
 						Selector: WorkloadIdentitySelector{
 							Name: "my-workload-identity",
 						},
-						CertificateLifetime: CertificateLifetime{
+						CredentialLifetime: CredentialLifetime{
 							TTL:             30 * time.Second,
 							RenewalInterval: 15 * time.Second,
 						},
@@ -321,7 +321,7 @@ func TestBotConfig_YAML(t *testing.T) {
 			in: BotConfig{
 				Version:    V2,
 				AuthServer: "example.teleport.sh:443",
-				CertificateLifetime: CertificateLifetime{
+				CredentialLifetime: CredentialLifetime{
 					TTL:             time.Minute,
 					RenewalInterval: time.Second * 30,
 				},
@@ -337,7 +337,7 @@ func TestBotConfig_YAML(t *testing.T) {
 			in: BotConfig{
 				Version:     V2,
 				ProxyServer: "example.teleport.sh:443",
-				CertificateLifetime: CertificateLifetime{
+				CredentialLifetime: CredentialLifetime{
 					TTL:             time.Minute,
 					RenewalInterval: time.Second * 30,
 				},
@@ -419,50 +419,50 @@ func TestBotConfig_WithCAPathAndCAPins(t *testing.T) {
 	require.ErrorContains(t, cfg.CheckAndSetDefaults(), "mutually exclusive")
 }
 
-func TestBotConfig_ServicePartialCertificateLifetime(t *testing.T) {
+func TestBotConfig_ServicePartialCredentialLifetime(t *testing.T) {
 	cfg := &BotConfig{
 		Version:    V2,
 		AuthServer: "example.teleport.sh:443",
 		Services: []ServiceConfig{
 			&IdentityOutput{
-				CertificateLifetime: CertificateLifetime{TTL: 5 * time.Minute},
-				Destination:         &DestinationMemory{},
+				CredentialLifetime: CredentialLifetime{TTL: 5 * time.Minute},
+				Destination:        &DestinationMemory{},
 			},
 		},
 	}
 	require.ErrorContains(t, cfg.CheckAndSetDefaults(), "certificate_ttl and renewal_interval")
 }
 
-func TestBotConfig_ServiceInvalidCertificateLifetime(t *testing.T) {
+func TestBotConfig_ServiceInvalidCredentialLifetime(t *testing.T) {
 	cfg := &BotConfig{
 		Version:    V2,
 		AuthServer: "example.teleport.sh:443",
 		Services: []ServiceConfig{
 			&IdentityOutput{
-				CertificateLifetime: CertificateLifetime{TTL: 5 * time.Minute},
-				Destination:         &DestinationMemory{},
+				CredentialLifetime: CredentialLifetime{TTL: 5 * time.Minute},
+				Destination:        &DestinationMemory{},
 			},
 		},
 	}
 	require.ErrorContains(t, cfg.CheckAndSetDefaults(), "certificate_ttl and renewal_interval")
 }
 
-func TestCertificateLifetimeValidate(t *testing.T) {
+func TestCredentialLifetimeValidate(t *testing.T) {
 	testCases := map[string]struct {
-		cfg     CertificateLifetime
+		cfg     CredentialLifetime
 		oneShot bool
 		error   string
 	}{
 		"partial config": {
-			cfg:   CertificateLifetime{TTL: 1 * time.Minute},
+			cfg:   CredentialLifetime{TTL: 1 * time.Minute},
 			error: "certificate_ttl and renewal_interval must both be specified if either is",
 		},
 		"negative TTL": {
-			cfg:   CertificateLifetime{TTL: -time.Minute, RenewalInterval: time.Minute},
+			cfg:   CredentialLifetime{TTL: -time.Minute, RenewalInterval: time.Minute},
 			error: "certificate_ttl must be positive",
 		},
 		"negative renewal interval": {
-			cfg:   CertificateLifetime{TTL: time.Minute, RenewalInterval: -time.Minute},
+			cfg:   CredentialLifetime{TTL: time.Minute, RenewalInterval: -time.Minute},
 			error: "renewal_interval must be positive",
 		},
 	}

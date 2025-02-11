@@ -124,9 +124,9 @@ type SPIFFESVIDOutput struct {
 	// to.
 	JWTs []JWTSVID `yaml:"jwts,omitempty"`
 
-	// CertificateLifetime contains configuration for how long certificates will
+	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
-	CertificateLifetime CertificateLifetime `yaml:",inline"`
+	CredentialLifetime CredentialLifetime `yaml:",inline"`
 }
 
 // Init initializes the destination.
@@ -199,6 +199,6 @@ func (o *SPIFFESVIDOutput) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (o *SPIFFESVIDOutput) GetCertificateLifetime() CertificateLifetime {
-	return o.CertificateLifetime
+func (o *SPIFFESVIDOutput) GetCredentialLifetime() CredentialLifetime {
+	return o.CredentialLifetime
 }

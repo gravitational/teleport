@@ -152,9 +152,9 @@ type BotConfig struct {
 	// ProxyServer is the teleport proxy address. Unlike `AuthServer` this must
 	// explicitly point to a Teleport proxy.
 	// Example: "example.teleport.sh:443"
-	ProxyServer         string              `yaml:"proxy_server,omitempty"`
-	CertificateLifetime CertificateLifetime `yaml:",inline"`
-	Oneshot             bool                `yaml:"oneshot"`
+	ProxyServer        string             `yaml:"proxy_server,omitempty"`
+	CredentialLifetime CredentialLifetime `yaml:",inline"`
+	Oneshot            bool               `yaml:"oneshot"`
 	// FIPS instructs `tbot` to run in a mode designed to comply with FIPS
 	// regulations. This means the bot should:
 	// - Refuse to run if not compiled with boringcrypto
@@ -225,7 +225,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		if err := service.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "validating service[%d]", i)
 		}
-		if err := service.GetCertificateLifetime().Validate(conf.Oneshot); err != nil {
+		if err := service.GetCredentialLifetime().Validate(conf.Oneshot); err != nil {
 			return trace.Wrap(err, "validating service[%d]", i)
 		}
 	}
@@ -261,12 +261,12 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		}
 	}
 
-	if conf.CertificateLifetime.TTL == 0 {
-		conf.CertificateLifetime.TTL = DefaultCertificateTTL
+	if conf.CredentialLifetime.TTL == 0 {
+		conf.CredentialLifetime.TTL = DefaultCertificateTTL
 	}
 
-	if conf.CertificateLifetime.RenewalInterval == 0 {
-		conf.CertificateLifetime.RenewalInterval = DefaultRenewInterval
+	if conf.CredentialLifetime.RenewalInterval == 0 {
+		conf.CredentialLifetime.RenewalInterval = DefaultRenewInterval
 	}
 
 	// We require the join method for `configure` and `start` but not for `init`
@@ -294,7 +294,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	}
 
 	// Validate CertificateTTL and RenewalInterval options
-	if err := conf.CertificateLifetime.Validate(conf.Oneshot); err != nil {
+	if err := conf.CredentialLifetime.Validate(conf.Oneshot); err != nil {
 		return err
 	}
 
@@ -306,10 +306,10 @@ type ServiceConfig interface {
 	Type() string
 	CheckAndSetDefaults() error
 
-	// GetCertificateLifetime returns the service's custom certificate TTL and
+	// GetCredentialLifetime returns the service's custom certificate TTL and
 	// RenewalInterval. It's used for validation purposes; services that do not
 	// support these options should return the zero value.
-	GetCertificateLifetime() CertificateLifetime
+	GetCredentialLifetime() CredentialLifetime
 }
 
 // ServiceConfigs assists polymorphic unmarshaling of a slice of ServiceConfigs.
@@ -610,24 +610,24 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 	}
 }
 
-// CertificateLifetime contains configuration for how long certificates will
+// CredentialLifetime contains configuration for how long credentials will
 // last (TTL) and the frequency at which they'll be renewed (RenewalInterval).
 //
 // It's a member on the BotConfig and service/output config structs, marked with
 // the `inline` YAML tag so its fields become individual fields in the YAML
 // config format.
-type CertificateLifetime struct {
+type CredentialLifetime struct {
 	TTL             time.Duration `yaml:"certificate_ttl,omitempty"`
 	RenewalInterval time.Duration `yaml:"renewal_interval,omitempty"`
 }
 
 // IsEmpty returns whether none of the fields is set (i.e. it is unconfigured).
-func (l CertificateLifetime) IsEmpty() bool {
-	return l == CertificateLifetime{}
+func (l CredentialLifetime) IsEmpty() bool {
+	return l == CredentialLifetime{}
 }
 
 // Validate checks whether the combination of the fields is valid.
-func (l CertificateLifetime) Validate(oneShot bool) error {
+func (l CredentialLifetime) Validate(oneShot bool) error {
 	if l.IsEmpty() {
 		return nil
 	}

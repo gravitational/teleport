@@ -46,9 +46,9 @@ type DatabaseTunnelService struct {
 	// Username is the database username to proxy as.
 	Username string `yaml:"username"`
 
-	// CertificateLifetime contains configuration for how long certificates will
+	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
-	CertificateLifetime CertificateLifetime `yaml:",inline"`
+	CredentialLifetime CredentialLifetime `yaml:",inline"`
 
 	// Listener overrides "listen" and directly provides an opened listener to
 	// use.
@@ -90,6 +90,6 @@ func (s *DatabaseTunnelService) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (s *DatabaseTunnelService) GetCertificateLifetime() CertificateLifetime {
-	return s.CertificateLifetime
+func (s *DatabaseTunnelService) GetCredentialLifetime() CredentialLifetime {
+	return s.CredentialLifetime
 }

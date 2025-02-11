@@ -153,29 +153,29 @@ func (s *sharedStartArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) err
 	}
 
 	if s.CertificateTTL != 0 {
-		if cfg.CertificateLifetime.TTL != 0 {
+		if cfg.CredentialLifetime.TTL != 0 {
 			l.WarnContext(
 				context.TODO(),
 				"CLI parameters are overriding configuration",
 				"flag", "certificate-ttl",
-				"config_value", cfg.CertificateLifetime.TTL,
+				"config_value", cfg.CredentialLifetime.TTL,
 				"cli_value", s.CertificateTTL,
 			)
 		}
-		cfg.CertificateLifetime.TTL = s.CertificateTTL
+		cfg.CredentialLifetime.TTL = s.CertificateTTL
 	}
 
 	if s.RenewalInterval != 0 {
-		if cfg.CertificateLifetime.RenewalInterval != 0 {
+		if cfg.CredentialLifetime.RenewalInterval != 0 {
 			l.WarnContext(
 				context.TODO(),
 				"CLI parameters are overriding configuration",
 				"flag", "renewal-interval",
-				"config_value", cfg.CertificateLifetime.RenewalInterval,
+				"config_value", cfg.CredentialLifetime.RenewalInterval,
 				"cli_value", s.RenewalInterval,
 			)
 		}
-		cfg.CertificateLifetime.RenewalInterval = s.RenewalInterval
+		cfg.CredentialLifetime.RenewalInterval = s.RenewalInterval
 	}
 
 	if s.DiagAddr != "" {

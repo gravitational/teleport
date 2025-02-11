@@ -65,7 +65,7 @@ func (s *SSHHostOutputService) Run(ctx context.Context) error {
 	err := runOnInterval(ctx, runOnIntervalConfig{
 		name:       "output-renewal",
 		f:          s.generate,
-		interval:   s.certificateLifetime().RenewalInterval,
+		interval:   s.credentialLifetime().RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
 		reloadCh:   reloadCh,
@@ -107,7 +107,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.certificateLifetime().TTL,
+		s.credentialLifetime().TTL,
 		nil,
 	)
 	if err != nil {
@@ -143,7 +143,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 		Principals:  s.cfg.Principals,
 		ClusterName: clusterName,
 		Role:        string(types.RoleNode),
-		Ttl:         durationpb.New(s.certificateLifetime().TTL),
+		Ttl:         durationpb.New(s.credentialLifetime().TTL),
 	},
 	)
 	if err != nil {
@@ -227,9 +227,9 @@ func exportSSHUserCAs(cas []types.CertAuthority, localAuthName string) (string, 
 	return exported, nil
 }
 
-func (s *SSHHostOutputService) certificateLifetime() config.CertificateLifetime {
-	if !s.cfg.CertificateLifetime.IsEmpty() {
-		return s.cfg.CertificateLifetime
+func (s *SSHHostOutputService) credentialLifetime() config.CredentialLifetime {
+	if !s.cfg.CredentialLifetime.IsEmpty() {
+		return s.cfg.CredentialLifetime
 	}
-	return s.botCfg.CertificateLifetime
+	return s.botCfg.CredentialLifetime
 }

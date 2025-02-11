@@ -48,9 +48,9 @@ type ApplicationOutput struct {
 	// be configured with specific paths to use, but exists for compatibility.
 	SpecificTLSExtensions bool `yaml:"specific_tls_naming"`
 
-	// CertificateLifetime contains configuration for how long certificates will
+	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
-	CertificateLifetime CertificateLifetime `yaml:",inline"`
+	CredentialLifetime CredentialLifetime `yaml:",inline"`
 }
 
 func (o *ApplicationOutput) Init(ctx context.Context) error {
@@ -126,6 +126,6 @@ func (o *ApplicationOutput) Type() string {
 	return ApplicationOutputType
 }
 
-func (o *ApplicationOutput) GetCertificateLifetime() CertificateLifetime {
-	return o.CertificateLifetime
+func (o *ApplicationOutput) GetCredentialLifetime() CredentialLifetime {
+	return o.CredentialLifetime
 }

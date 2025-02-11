@@ -149,6 +149,6 @@ func (o *UnstableClientCredentialOutput) Type() string {
 	return UnstableClientCredentialOutputType
 }
 
-func (o *UnstableClientCredentialOutput) GetCertificateLifetime() CertificateLifetime {
-	return CertificateLifetime{}
+func (o *UnstableClientCredentialOutput) GetCredentialLifetime() CredentialLifetime {
+	return CredentialLifetime{}
 }

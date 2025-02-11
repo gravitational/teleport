@@ -322,7 +322,7 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 		ctx,
 		s.client,
 		svidRequests,
-		s.certificateLifetime().TTL,
+		s.credentialLifetime().TTL,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -645,7 +645,7 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 			}
 			bundleSet = newBundleSet
 			continue
-		case <-time.After(s.certificateLifetime().RenewalInterval):
+		case <-time.After(s.credentialLifetime().RenewalInterval):
 			log.DebugContext(ctx, "Renewal interval reached, renewing SVIDs")
 			svids = nil
 			continue
@@ -896,9 +896,9 @@ func (s *SPIFFEWorkloadAPIService) String() string {
 	return fmt.Sprintf("%s:%s", config.SPIFFEWorkloadAPIServiceType, s.cfg.Listen)
 }
 
-func (s *SPIFFEWorkloadAPIService) certificateLifetime() config.CertificateLifetime {
-	if !s.cfg.CertificateLifetime.IsEmpty() {
-		return s.cfg.CertificateLifetime
+func (s *SPIFFEWorkloadAPIService) credentialLifetime() config.CredentialLifetime {
+	if !s.cfg.CredentialLifetime.IsEmpty() {
+		return s.cfg.CredentialLifetime
 	}
-	return s.botCfg.CertificateLifetime
+	return s.botCfg.CredentialLifetime
 }

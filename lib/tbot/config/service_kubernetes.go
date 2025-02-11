@@ -55,9 +55,9 @@ type KubernetesOutput struct {
 	// refresh the credentials within an individual invocation.
 	DisableExecPlugin bool `yaml:"disable_exec_plugin"`
 
-	// CertificateLifetime contains configuration for how long certificates will
+	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
-	CertificateLifetime CertificateLifetime `yaml:",inline"`
+	CredentialLifetime CredentialLifetime `yaml:",inline"`
 }
 
 func (o *KubernetesOutput) CheckAndSetDefaults() error {
@@ -122,6 +122,6 @@ func (o *KubernetesOutput) Type() string {
 	return KubernetesOutputType
 }
 
-func (o *KubernetesOutput) GetCertificateLifetime() CertificateLifetime {
-	return o.CertificateLifetime
+func (o *KubernetesOutput) GetCredentialLifetime() CredentialLifetime {
+	return o.CredentialLifetime
 }

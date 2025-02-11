@@ -41,9 +41,9 @@ type WorkloadIdentityAPIService struct {
 	// will be used to issue WICs.
 	Selector WorkloadIdentitySelector `yaml:"selector"`
 
-	// CertificateLifetime contains configuration for how long X.509 SVIDs will
+	// CredentialLifetime contains configuration for how long X.509 SVIDs will
 	// last and the frequency at which they'll be renewed.
-	CertificateLifetime CertificateLifetime `yaml:",inline"`
+	CredentialLifetime CredentialLifetime `yaml:",inline"`
 }
 
 // CheckAndSetDefaults checks the SPIFFESVIDOutput values and sets any defaults.
@@ -81,6 +81,6 @@ func (o *WorkloadIdentityAPIService) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (o *WorkloadIdentityAPIService) GetCertificateLifetime() CertificateLifetime {
-	return o.CertificateLifetime
+func (o *WorkloadIdentityAPIService) GetCredentialLifetime() CredentialLifetime {
+	return o.CredentialLifetime
 }

@@ -96,9 +96,9 @@ type DatabaseOutput struct {
 	// Username is the database username to request access as.
 	Username string `yaml:"username,omitempty"`
 
-	// CertificateLifetime contains configuration for how long certificates will
+	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
-	CertificateLifetime CertificateLifetime `yaml:",inline"`
+	CredentialLifetime CredentialLifetime `yaml:",inline"`
 }
 
 func (o *DatabaseOutput) Init(ctx context.Context) error {
@@ -201,8 +201,8 @@ func (o *DatabaseOutput) Type() string {
 	return DatabaseOutputType
 }
 
-func (o *DatabaseOutput) GetCertificateLifetime() CertificateLifetime {
-	return o.CertificateLifetime
+func (o *DatabaseOutput) GetCredentialLifetime() CredentialLifetime {
+	return o.CredentialLifetime
 }
 
 // SupportedDatabaseFormatStrings returns a constant list of all valid

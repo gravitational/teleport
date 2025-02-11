@@ -46,9 +46,9 @@ type ApplicationTunnelService struct {
 	// that you wish to tunnel to.
 	AppName string `yaml:"app_name"`
 
-	// CertificateLifetime contains configuration for how long certificates will
+	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
-	CertificateLifetime CertificateLifetime `yaml:",inline"`
+	CredentialLifetime CredentialLifetime `yaml:",inline"`
 
 	// Listener overrides "listen" and directly provides an opened listener to
 	// use.
@@ -86,6 +86,6 @@ func (s *ApplicationTunnelService) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (o *ApplicationTunnelService) GetCertificateLifetime() CertificateLifetime {
-	return o.CertificateLifetime
+func (o *ApplicationTunnelService) GetCredentialLifetime() CredentialLifetime {
+	return o.CredentialLifetime
 }

@@ -62,7 +62,7 @@ func (s *DatabaseOutputService) Run(ctx context.Context) error {
 	err := runOnInterval(ctx, runOnIntervalConfig{
 		name:       "output-renewal",
 		f:          s.generate,
-		interval:   s.certificateLifetime().RenewalInterval,
+		interval:   s.credentialLifetime().RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
 		reloadCh:   reloadCh,
@@ -104,7 +104,7 @@ func (s *DatabaseOutputService) generate(ctx context.Context) error {
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.certificateLifetime().TTL,
+		s.credentialLifetime().TTL,
 		nil,
 	)
 	if err != nil {
@@ -136,7 +136,7 @@ func (s *DatabaseOutputService) generate(ctx context.Context) error {
 		s.botAuthClient,
 		id,
 		roles,
-		s.certificateLifetime().TTL,
+		s.credentialLifetime().TTL,
 		func(req *proto.UserCertsRequest) {
 			req.RouteToDatabase = route
 		},
@@ -304,9 +304,9 @@ func chooseOneDatabase(databases []types.Database, name string) (types.Database,
 	return chooseOneResource(databases, name, "database")
 }
 
-func (s *DatabaseOutputService) certificateLifetime() config.CertificateLifetime {
-	if !s.cfg.CertificateLifetime.IsEmpty() {
-		return s.cfg.CertificateLifetime
+func (s *DatabaseOutputService) credentialLifetime() config.CredentialLifetime {
+	if !s.cfg.CredentialLifetime.IsEmpty() {
+		return s.cfg.CredentialLifetime
 	}
-	return s.botCfg.CertificateLifetime
+	return s.botCfg.CredentialLifetime
 }

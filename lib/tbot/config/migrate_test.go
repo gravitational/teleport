@@ -110,7 +110,7 @@ destinations:
 				AuthServer: "example.teleport.sh:443",
 				Oneshot:    true,
 				Debug:      true,
-				CertificateLifetime: CertificateLifetime{
+				CredentialLifetime: CredentialLifetime{
 					RenewalInterval: time.Minute * 10,
 					TTL:             time.Minute * 30,
 				},
@@ -576,7 +576,7 @@ oneshot: false
 						"sha256:1234abcd5678efgh910ijklmnop",
 					},
 				},
-				CertificateLifetime: CertificateLifetime{
+				CredentialLifetime: CredentialLifetime{
 					RenewalInterval: DefaultRenewInterval,
 					TTL:             DefaultCertificateTTL,
 				},

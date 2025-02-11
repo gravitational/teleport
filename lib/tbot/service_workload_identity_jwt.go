@@ -111,7 +111,7 @@ func (s *WorkloadIdentityJWTService) Run(ctx context.Context) error {
 				cred = nil
 			}
 			bundleSet = newBundleSet
-		case <-time.After(s.botCfg.CertificateLifetime.RenewalInterval):
+		case <-time.After(s.botCfg.CredentialLifetime.RenewalInterval):
 			s.log.InfoContext(ctx, "Renewal interval reached, renewing SVIDs")
 			cred = nil
 		case <-firstRun:
@@ -157,7 +157,7 @@ func (s *WorkloadIdentityJWTService) requestJWTSVID(
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateLifetime.TTL,
+		s.botCfg.CredentialLifetime.TTL,
 		nil,
 	)
 	if err != nil {
@@ -178,7 +178,7 @@ func (s *WorkloadIdentityJWTService) requestJWTSVID(
 		impersonatedClient,
 		s.cfg.Selector,
 		s.cfg.Audiences,
-		s.botCfg.CertificateLifetime.TTL,
+		s.botCfg.CredentialLifetime.TTL,
 		nil,
 	)
 	if err != nil {
