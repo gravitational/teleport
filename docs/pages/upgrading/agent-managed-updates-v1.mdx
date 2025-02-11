@@ -5,20 +5,29 @@ description: Describes how to set up managed agent updates using the original up
 
 <Notice type="warning">
 This document describes the original (v1) Teleport Agent updater, which is
-currently supported but will eventually be deprecated.
+currently supported but will be deprecated after the new (v2) updater is released.
 </Notice>
 
-The original updater uses the `teleport-ent-updater` package and
-`cluster_maintenance_config` resource described in this document, while the
-next-generation updater uses a binary called `teleport-update` that is included
-in the `teleport` package and configured by the `autoupdate_version` and
-`autoupdate_config` resources.
+The original updater uses a script called `teleport-upgrade` that is provided by
+the `teleport-ent-updater` package and configured by the `cluster_maintenance_config`
+Teleport resource. The new updater uses a binary called `teleport-update` that is
+provided by the `teleport` package and configured by the `autoupdate_version` and
+`autoupdate_config`. The original updater and resource are described in this document.
 
-Please consider using the next-generation updater, which is distributed with
-all versions of Teleport and provides a simpler, more flexible, and more reliable
+Please consider using the new updater, which will be distributed with
+all versions of Teleport and provides a safer, simpler, more flexible, and more reliable
 update experience compared to the original updater.
 
-For details about the next-generation updater, see
+The new `teleport-update` updater is backwards compatible with the
+`cluster_maintenance_config` resource, and the old `teleport-upgrade` script
+is forwards compatible with the `autoupdate_` resources.
+Agents connected to the same cluster may use either resource.
+If the `autoupdate_ ` resources are present, `cluster_maintenance_config` is ignored.
+This allows for a safe, non-breaking, incremental migration to the new update system.
+Users of cloud-hosted Teleport Enterprise will be migrated to the new set of resources
+in the first half of 2025 and should plan to migrate their agents to `teleport-update`.
+
+For details about the new updater, see
 [Managed Updates for Agents (v2)](./agent-managed-updates.mdx).
 
 On cloud-hosted Teleport Enterprise accounts, users must set up managed agent

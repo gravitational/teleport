@@ -4,19 +4,28 @@ description: Describes how to set up managed agent updates using the next-genera
 ---
 
 <Notice type="warning">
-This document describes the next-generation (v2) Teleport Agent updater, which
-is currently in beta.
+This document describes the new (v2) Teleport Agent updater, which is currently
+in beta.
 </Notice>
 
-The original updater uses the `teleport-ent-updater` package and
-`cluster_maintenance_config` resource, while the next-generation updater uses
-a binary called `teleport-update` that is included in the `teleport` package and
-configured by the `autoupdate_version` and `autoupdate_config` resources
-described in this document.
+The original updater uses a script called `teleport-upgrade` that is provided by
+the `teleport-ent-updater` package and configured by the `cluster_maintenance_config`
+Teleport resource. The new updater uses a binary called `teleport-update` that is
+provided by the `teleport` package and configured by the `autoupdate_version` and
+`autoupdate_config`. The new updater and resources are described in this document.
 
-Please consider using the next-generation updater, which is distributed with
-all versions of Teleport and provides a simpler, more flexible, and more reliable
+Please consider using the new updater, which will be distributed with
+all versions of Teleport and provides a safer, simpler, more flexible, and more reliable
 update experience compared to the original updater.
+
+The new `teleport-update` updater is backwards compatible with the
+`cluster_maintenance_config` resource, and the old `teleport-upgrade` script
+is forwards compatible with the `autoupdate_` resources.
+Agents connected to the same cluster may use either resource.
+If the `autoupdate_ ` resources are present, `cluster_maintenance_config` is ignored.
+This allows for a safe, non-breaking, incremental migration to the new update system.
+Users of cloud-hosted Teleport Enterprise will be migrated to the new set of resources
+in the first half of 2025 and should plan to migrate their agents to `teleport-update`.
 
 For details about the original updater, see
 [Managed Updates for Agents (v1)](./agent-managed-updates-v1.mdx).
@@ -78,8 +87,8 @@ If this command is not available, update the `teleport` package
 to the latest version that is supported by your cluster.
 </Notice>
 
-The `teleport-update enable` command will disable the original (v1)
-updater if present. No other action is necessary.
+The `teleport-update enable` command will disable (but not remove)
+the original (v1) updater if present. No other action is necessary.
 
 If everything is working, the deprecated updater can be removed:
 
@@ -94,23 +103,24 @@ back to manual updates or the original updater (if it has not been removed):
 $ sudo teleport-update uninstall
 ```
 
-If Teleport was installed via the apt/yum package, this will revert the
+If Teleport was installed via the apt or yum package, this will revert the
 running version of Teleport back to the version provided by the package.
 
 For cloud-hosted Teleport Enterprise, updates will roll out automatically
 during the first chosen maintenance window that is at least 36 hours after
-the cluster version is updated. Keep reading to learn how to customize the time.
+the cluster version is updated. Keep reading to learn how to customize the
+schedule.
 
 ## Quick setup for new Linux servers
 
-The [Install Script] is the fastest way to onboard new Linux servers with
-a single command. However, you may also use `teleport-update` to setup
-a Teleport agent manually.
+The [Install Script](installation.mdx#one-line-installation-script) is the
+fastest way to onboard new Linux servers. However, you may also use
+`teleport-update` by itself to setup a Teleport agent manually.
 
-Users of cloud-hosted Teleport Enterprise can create a new installation of
-Teleport using any version of the `teleport-update` binary.
-First, copy of the [Teleport tarball] from the downloads page.
-Next, invoke `teleport-update` to install the correct version for your cluster.
+Users can create a new installation of Teleport using any version of the
+`teleport-update` binary. First, download copy of the [Teleport tarball] from
+the downloads page. Next, invoke `teleport-update` to install the correct version
+for your cluster.
 
 ```code
 $ tar xf teleport-[version].tgz
