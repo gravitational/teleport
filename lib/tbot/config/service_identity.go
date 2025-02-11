@@ -95,7 +95,7 @@ type IdentityOutput struct {
 
 	// AllowReissue controls whether the generated credentials can be used to
 	// reissue further credentials (e.g to produce a certificate for application
-	// access). It is recommended to leave this enabled to prevent the scope of
+	// access). It is recommended to leave this disabled to prevent the scope of
 	// issued credentials from being increased, however, it can be useful in
 	// scenarios where credentials are desired to be reissued in a dynamic way.
 	//
