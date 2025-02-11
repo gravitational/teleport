@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -39,6 +40,8 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+var errNoBaseURL = errors.New("baseURL is not defined")
 
 // Dir returns the path to client tools in $TELEPORT_HOME/bin.
 func Dir() (string, error) {
@@ -126,10 +129,16 @@ type packageURL struct {
 	Optional bool
 }
 
-// teleportPackageURLs returns the URL for the Teleport archive to download.
-func teleportPackageURLs(uriTmpl string, baseURL, version string) ([]packageURL, error) {
-	var flags autoupdate.InstallFlags
+// teleportPackageURLs returns URLs for the Teleport archives to download.
+func teleportPackageURLs(ctx context.Context, uriTmpl string, baseURL, version string) ([]packageURL, error) {
 	m := modules.GetModules()
+	envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar)
+	if m.BuildType() == modules.BuildOSS && envBaseURL == "" {
+		slog.WarnContext(ctx, "Client tools updates are disabled as they are licensed under AGPL. To use Community Edition builds or custom binaries, set the 'TELEPORT_CDN_BASE_URL' environment variable.")
+		return nil, errNoBaseURL
+	}
+
+	var flags autoupdate.InstallFlags
 	if m.IsBoringBinary() {
 		flags |= autoupdate.FlagFIPS
 	}
