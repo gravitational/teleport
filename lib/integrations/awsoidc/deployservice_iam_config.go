@@ -25,7 +25,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
@@ -34,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/provisioning/awsactions"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 	awslibutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 var taskRoleDescription = "Used by Teleport Database Service deployed in Amazon ECS."
@@ -147,7 +147,7 @@ func NewDeployServiceIAMConfigureClient(ctx context.Context, region string) (Dep
 
 	return &defaultDeployServiceIAMConfigureClient{
 		Client:               iam.NewFromConfig(cfg),
-		CallerIdentityGetter: sts.NewFromConfig(cfg),
+		CallerIdentityGetter: stsutils.NewFromConfig(cfg),
 	}, nil
 }
 

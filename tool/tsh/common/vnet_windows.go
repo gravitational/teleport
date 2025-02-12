@@ -17,6 +17,8 @@
 package common
 
 import (
+	"context"
+
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/windows/svc"
@@ -54,4 +56,8 @@ func isWindowsService() bool {
 // the admin-setup command is only supported on darwin.
 func newPlatformVnetAdminSetupCommand(*kingpin.Application) vnetCommandNotSupported {
 	return vnetCommandNotSupported{}
+}
+
+func runVnetDiagnostics(ctx context.Context, nsi vnet.NetworkStackInfo) error {
+	return trace.NotImplemented("diagnostics are not implemented yet on Windows")
 }

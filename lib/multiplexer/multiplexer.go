@@ -513,12 +513,12 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			}
 
 			if m.PROXYProtocolMode == PROXYProtocolOff {
-				return nil, trace.BadParameter(externalProxyProtocolDisabledError)
+				return nil, trace.BadParameter("%s", externalProxyProtocolDisabledError)
 			}
 
 			if unsignedPROXYLineReceived {
 				// We allow only one unsigned PROXY line
-				return nil, trace.BadParameter(duplicateUnsignedProxyLineError)
+				return nil, trace.BadParameter("%s", duplicateUnsignedProxyLineError)
 			}
 			unsignedPROXYLineReceived = true
 
@@ -534,7 +534,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 
 			if proxyLine != nil && proxyLine.IsVerified {
 				// Unsigned PROXY line after signed one should not happen
-				return nil, trace.BadParameter(unsignedPROXYLineAfterSignedError)
+				return nil, trace.BadParameter("%s", unsignedPROXYLineAfterSignedError)
 			}
 
 			proxyLine = newPROXYLine
@@ -548,7 +548,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			if newPROXYLine == nil {
 				if unsignedPROXYLineReceived {
 					// We allow only one unsigned PROXY line
-					return nil, trace.BadParameter(duplicateUnsignedProxyLineError)
+					return nil, trace.BadParameter("%s", duplicateUnsignedProxyLineError)
 				}
 				unsignedPROXYLineReceived = true
 				continue // Skipping LOCAL command of PROXY protocol
@@ -578,7 +578,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			// we accept, otherwise reject
 			if newPROXYLine.IsVerified {
 				if proxyLine != nil && proxyLine.IsVerified {
-					return nil, trace.BadParameter(duplicateSignedProxyLineError)
+					return nil, trace.BadParameter("%s", duplicateSignedProxyLineError)
 				}
 
 				proxyLine = newPROXYLine
@@ -591,12 +591,12 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 
 			// This is unsigned proxy line, return error if external PROXY protocol is not enabled
 			if m.PROXYProtocolMode == PROXYProtocolOff {
-				return nil, trace.BadParameter(externalProxyProtocolDisabledError)
+				return nil, trace.BadParameter("%s", externalProxyProtocolDisabledError)
 			}
 
 			if unsignedPROXYLineReceived {
 				// We allow only one unsigned PROXY line
-				return nil, trace.BadParameter(duplicateUnsignedProxyLineError)
+				return nil, trace.BadParameter("%s", duplicateUnsignedProxyLineError)
 			}
 			unsignedPROXYLineReceived = true
 
@@ -612,7 +612,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 
 			// Unsigned PROXY line after signed should not happen
 			if proxyLine != nil && proxyLine.IsVerified {
-				return nil, trace.BadParameter(unsignedPROXYLineAfterSignedError)
+				return nil, trace.BadParameter("%s", unsignedPROXYLineAfterSignedError)
 			}
 
 			proxyLine = newPROXYLine
@@ -631,7 +631,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 		}
 	}
 	// if code ended here after three attempts, something is wrong
-	return nil, trace.BadParameter(unknownProtocolError)
+	return nil, trace.BadParameter("%s", unknownProtocolError)
 }
 
 // checkPROXYProtocolRequirement checks that if multiplexer is required to receive unsigned PROXY line

@@ -39,6 +39,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/autoupdate"
 )
 
 func TestLocalInstaller_Install(t *testing.T) {
@@ -52,7 +54,7 @@ func TestLocalInstaller_Install(t *testing.T) {
 		reservedTmp     uint64
 		reservedInstall uint64
 		existingSum     string
-		flags           InstallFlags
+		flags           autoupdate.InstallFlags
 
 		errMatch string
 	}{
@@ -122,9 +124,10 @@ func TestLocalInstaller_Install(t *testing.T) {
 				Log:                     slog.Default(),
 				ReservedFreeTmpDisk:     tt.reservedTmp,
 				ReservedFreeInstallDisk: tt.reservedInstall,
+				Template:                "{{.BaseURL}}/{{.Package}}-{{.OS}}/{{.Arch}}/{{.Version}}",
 			}
 			ctx := context.Background()
-			err := installer.Install(ctx, NewRevision(version, tt.flags), server.URL+"/{{.OS}}/{{.Arch}}/{{.Version}}")
+			err := installer.Install(ctx, NewRevision(version, tt.flags), server.URL)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
@@ -132,7 +135,7 @@ func TestLocalInstaller_Install(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			const expectedPath = "/" + runtime.GOOS + "/" + runtime.GOARCH + "/" + version
+			const expectedPath = "/teleport-" + runtime.GOOS + "/" + runtime.GOARCH + "/" + version
 			require.Equal(t, expectedPath, dlPath)
 			require.Equal(t, expectedPath+"."+checksumType, shaPath)
 
@@ -203,6 +206,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 		installFileMode os.FileMode
 		existingLinks   []string
 		existingFiles   []string
+		force           bool
 
 		resultLinks    []string
 		resultServices []string
@@ -255,7 +259,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 			},
 			installFileMode: 0644,
 
-			errMatch: "no binaries",
+			errMatch: ErrNoBinaries.Error(),
 		},
 		{
 			name: "present with existing links",
@@ -341,26 +345,63 @@ func TestLocalInstaller_Link(t *testing.T) {
 			existingLinks: []string{
 				"bin/teleport",
 				"bin/tbot",
-				"lib/systemd/system/teleport.service",
 			},
 			existingFiles: []string{
+				"lib/systemd/system/teleport.service",
 				"bin/tsh",
 			},
 
-			errMatch: "refusing",
+			errMatch: ErrFilePresent.Error(),
+		},
+		{
+			name: "overwriting bin files",
+			installDirs: []string{
+				"bin",
+				"bin/somedir",
+				"lib",
+				"lib/systemd",
+				"lib/systemd/system",
+				"somedir",
+			},
+			installFiles: []string{
+				"bin/teleport",
+				"bin/tsh",
+				"bin/tbot",
+				servicePath,
+				"README",
+			},
+			installFileMode: os.ModePerm,
+			existingLinks: []string{
+				"bin/teleport",
+				"bin/tbot",
+			},
+			existingFiles: []string{
+				"lib/systemd/system/teleport.service",
+				"bin/tsh",
+			},
+			force: true,
+
+			resultLinks: []string{
+				"bin/teleport",
+				"bin/tsh",
+				"bin/tbot",
+			},
+			resultServices: []string{
+				"lib/systemd/system/teleport.service",
+			},
 		},
 		{
 			name:         "no links",
 			installFiles: []string{"README"},
 			installDirs:  []string{"bin"},
 
-			errMatch: "no binaries",
+			errMatch: ErrNoBinaries.Error(),
 		},
 		{
 			name:         "no bin directory",
 			installFiles: []string{"README"},
 
-			errMatch: "binary directory",
+			errMatch: ErrNoBinaries.Error(),
 		},
 	}
 
@@ -406,9 +447,10 @@ func TestLocalInstaller_Link(t *testing.T) {
 					return []byte("[transform]" + string(b))
 				},
 				ValidateBinary: validator.IsExecutable,
+				Template:       autoupdate.DefaultCDNURITemplate,
 			}
 			ctx := context.Background()
-			revert, err := installer.Link(ctx, NewRevision(version, 0))
+			revert, err := installer.Link(ctx, NewRevision(version, 0), tt.force)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
@@ -525,7 +567,7 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 			},
 			installFileMode: 0644,
 
-			errMatch: "no binaries",
+			errMatch: ErrNoBinaries.Error(),
 		},
 		{
 			name: "present with existing links",
@@ -602,20 +644,20 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 				"bin/tsh",
 			},
 
-			errMatch: "replace file",
+			errMatch: ErrFilePresent.Error(),
 		},
 		{
 			name:         "no links",
 			installFiles: []string{"README"},
 			installDirs:  []string{"bin"},
 
-			errMatch: "no binaries",
+			errMatch: ErrNoBinaries.Error(),
 		},
 		{
 			name:         "no bin directory",
 			installFiles: []string{"README"},
 
-			errMatch: "binary directory",
+			errMatch: ErrNoBinaries.Error(),
 		},
 	}
 
@@ -815,7 +857,7 @@ func TestLocalInstaller_Remove(t *testing.T) {
 			ctx := context.Background()
 
 			if tt.linkedVersion != "" {
-				_, err = installer.Link(ctx, NewRevision(tt.linkedVersion, 0))
+				_, err = installer.Link(ctx, NewRevision(tt.linkedVersion, 0), false)
 				require.NoError(t, err)
 			}
 			err = installer.Remove(ctx, NewRevision(tt.removeVersion, 0))

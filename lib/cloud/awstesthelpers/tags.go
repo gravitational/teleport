@@ -24,6 +24,7 @@ import (
 
 	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
+	opensearchtypes "github.com/aws/aws-sdk-go-v2/service/opensearch/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
@@ -73,5 +74,12 @@ func LabelsToElastiCacheTags(labels map[string]string) []ectypes.Tag {
 func LabelsToMemoryDBTags(labels map[string]string) []memorydbtypes.Tag {
 	return LabelsToTags(labels, func(key, value string) memorydbtypes.Tag {
 		return memorydbtypes.Tag{Key: &key, Value: &value}
+	})
+}
+
+// LabelsToOpenSearchTags converts labels into a [opensearchtypes.Tag] list.
+func LabelsToOpenSearchTags(labels map[string]string) []opensearchtypes.Tag {
+	return LabelsToTags(labels, func(key, value string) opensearchtypes.Tag {
+		return opensearchtypes.Tag{Key: &key, Value: &value}
 	})
 }

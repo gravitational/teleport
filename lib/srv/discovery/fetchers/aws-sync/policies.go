@@ -53,7 +53,7 @@ func (a *Fetcher) fetchPolicies(ctx context.Context) ([]*accessgraphv1alpha.AWSP
 	awsCfg, err := a.AWSConfigProvider.GetConfig(
 		ctx,
 		"", /* region is empty because users and groups are global */
-		a.getAWSV2Options()...,
+		a.getAWSOptions()...,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

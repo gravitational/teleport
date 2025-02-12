@@ -103,6 +103,8 @@ func (m *topModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.selected = 2
 		case "4":
 			m.selected = 3
+		case "5":
+			m.selected = 4
 		case "right":
 			m.selected = min(m.selected+1, len(tabs)-1)
 		case "left":
@@ -218,6 +220,8 @@ func (m *topModel) contentView() string {
 		return renderCache(m.report, m.height, m.width)
 	case 3:
 		return renderWatcher(m.report, m.height, m.width)
+	case 4:
+		return renderAudit(m.report, m.height, m.width)
 	default:
 		return ""
 	}
@@ -412,6 +416,7 @@ func renderWatcher(report *Report, height, width int) string {
 		eventData,
 		asciigraph.Height(graphHeight),
 		asciigraph.Width(graphWidth-15),
+		asciigraph.UpperBound(1),
 	)
 	eventCountContent := boxedView("Events/Sec", countPlot, graphWidth)
 
@@ -423,6 +428,7 @@ func renderWatcher(report *Report, height, width int) string {
 		sizeData,
 		asciigraph.Height(graphHeight),
 		asciigraph.Width(graphWidth-15),
+		asciigraph.UpperBound(1),
 	)
 	eventSizeContent := boxedView("Bytes/Sec", sizePlot, graphWidth)
 
@@ -445,6 +451,54 @@ func renderWatcher(report *Report, height, width int) string {
 				eventCountContent,
 				eventSizeContent,
 			),
+		),
+	)
+}
+
+// renderAudit generates the view for the audit stats tab.
+func renderAudit(report *Report, height, width int) string {
+	graphHeight := height / 3
+	graphWidth := width
+
+	eventsLegend := lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		"- Emitted",
+		failedEventStyle.Render(" - Failed"),
+		trimmedEventStyle.Render(" - Trimmed"),
+	)
+
+	eventsPlot := asciigraph.PlotMany(
+		[][]float64{
+			report.Audit.EmittedEventsBuffer.Data(graphWidth - 15),
+			report.Audit.FailedEventsBuffer.Data(graphWidth - 15),
+			report.Audit.TrimmedEventsBuffer.Data(graphWidth - 15),
+		},
+		asciigraph.Height(graphHeight),
+		asciigraph.Width(graphWidth-15),
+		asciigraph.UpperBound(1),
+		asciigraph.SeriesColors(asciigraph.Default, asciigraph.Red, asciigraph.Goldenrod),
+		asciigraph.Caption(eventsLegend),
+	)
+	eventGraph := boxedView("Events Emitted", eventsPlot, graphWidth)
+
+	eventSizePlot := asciigraph.Plot(
+		report.Audit.EventSizeBuffer.Data(graphWidth-15),
+		asciigraph.Height(graphHeight),
+		asciigraph.Width(graphWidth-15),
+		asciigraph.UpperBound(1),
+	)
+	sizeGraph := boxedView("Event Sizes", eventSizePlot, graphWidth)
+
+	graphStyle := lipgloss.NewStyle().
+		Width(graphWidth).
+		Padding(0).
+		Margin(0).
+		Align(lipgloss.Left)
+
+	return lipgloss.JoinVertical(lipgloss.Left,
+		graphStyle.Render(
+			eventGraph,
+			sizeGraph,
 		),
 	)
 }
@@ -520,5 +574,8 @@ var (
 
 	selectedColor = lipgloss.Color("4")
 
-	tabs = []string{"Common", "Backend", "Cache", "Watcher"}
+	failedEventStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color(fmt.Sprintf("%d", asciigraph.Red)))
+	trimmedEventStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(fmt.Sprintf("%d", asciigraph.Goldenrod)))
+
+	tabs = []string{"Common", "Backend", "Cache", "Watcher", "Audit"}
 )

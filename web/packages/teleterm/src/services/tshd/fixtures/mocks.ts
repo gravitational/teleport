@@ -118,4 +118,5 @@ export class MockVnetClient implements VnetClient {
   stop = () => new MockedUnaryCall({});
   listDNSZones = () => new MockedUnaryCall({ dnsZones: [] });
   getBackgroundItemStatus = () => new MockedUnaryCall({ status: 0 });
+  runDiagnostics = () => new MockedUnaryCall({});
 }

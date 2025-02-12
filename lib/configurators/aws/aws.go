@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 const (
@@ -390,9 +391,10 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 		}
 
 		if c.stsClient == nil {
-			c.stsClient = sts.NewFromConfig(*c.awsCfg, func(o *sts.Options) {
+			c.stsClient = stsutils.NewFromConfig(*c.awsCfg, func(o *sts.Options) {
 				o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
 			})
+
 		}
 		if c.iamClient == nil {
 			c.iamClient = iam.NewFromConfig(*c.awsCfg, func(o *iam.Options) {
@@ -400,7 +402,7 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 			})
 		}
 		if c.Identity == nil {
-			c.Identity, err = awslib.GetIdentityWithClientV2(context.Background(), c.stsClient)
+			c.Identity, err = awslib.GetIdentityWithClient(context.Background(), c.stsClient)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -699,12 +701,12 @@ func getRoleARNForAssumedRole(iamClient iamClient, identity awslib.Identity) (aw
 		RoleName: aws.String(identity.GetName()),
 	})
 	if err != nil || out == nil || out.Role == nil || out.Role.Arn == nil {
-		return nil, trace.BadParameter(failedToResolveAssumeRoleARN)
+		return nil, trace.BadParameter("%s", failedToResolveAssumeRoleARN)
 	}
 
 	roleIdentity, err := awslib.IdentityFromArn(*out.Role.Arn)
 	if err != nil {
-		return nil, trace.BadParameter(failedToResolveAssumeRoleARN)
+		return nil, trace.BadParameter("%s", failedToResolveAssumeRoleARN)
 	}
 	return roleIdentity, nil
 }

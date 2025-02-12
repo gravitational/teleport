@@ -265,6 +265,13 @@ export const storageService = {
     return this.getParsedJSONValue(KeysEnum.ACCESS_GRAPH_SQL_ENABLED, false);
   },
 
+  getAccessGraphRoleTesterEnabled(): boolean {
+    return this.getParsedJSONValue(
+      KeysEnum.ACCESS_GRAPH_ROLE_TESTER_ENABLED,
+      false
+    );
+  },
+
   getExternalAuditStorageCtaDisabled(): boolean {
     return this.getParsedJSONValue(
       KeysEnum.EXTERNAL_AUDIT_STORAGE_CTA_DISABLED,
