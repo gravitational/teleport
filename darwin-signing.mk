@@ -62,15 +62,6 @@ TSH_SKELETON_prod_build = tsh
 TCTL_BUNDLEID_prod_build = $(TEAMID).com.gravitational.teleport.tctl
 TCTL_SKELETON_prod_build = tctl
 
-TEAMID_promote = $(TEAMID_prod_build)
-DEVELOPER_KEY_NAME_promote = $(DEVELOPER_KEY_NAME_prod_build)
-INSTALLER_KEY_NAME_promote = $(INSTALLER_KEY_NAME_prod_build)
-TELEPORT_BUNDLEID_promote = $(TELEPORT_BUNDLEID_prod_build)
-TSH_BUNDLEID_promote = $(TSH_BUNDLEID_prod_build)
-TSH_SKELETON_promote = $(TSH_SKELETON_prod_build)
-TCTL_BUNDLEID_promote = $(TCTL_BUNDLEID_prod_build)
-TCTL_SKELETON_promote = $(TCTL_SKELETON_prod_build)
-
 # --- stage/build environment (build is the old name and will be removed)
 TEAMID_stage_build = K497G57PDJ
 DEVELOPER_KEY_NAME_stage_build = Developer ID Application: Ada Lin
@@ -80,15 +71,6 @@ TSH_BUNDLEID_stage_build = $(TEAMID).com.goteleport.tshdev
 TSH_SKELETON_stage_build = tshdev
 TCTL_BUNDLEID_stage_build = $(TEAMID).com.goteleport.tctldev
 TCTL_SKELETON_stage_build = tctldev
-
-TEAMID_build = $(TEAMID_stage_build)
-DEVELOPER_KEY_NAME_build = $(DEVELOPER_KEY_NAME_stage_build)
-INSTALLER_KEY_NAME_build = $(INSTALLER_KEY_NAME_stage_build)
-TELEPORT_BUNDLEID_build = $(TELEPORT_BUNDLEID_stage_build)
-TSH_BUNDLEID_build = $(TSH_BUNDLEID_stage_build)
-TSH_SKELETON_build = $(TSH_SKELETON_stage_build)
-TCTL_BUNDLEID_build = $(TCTL_BUNDLEID_stage_build)
-TCTL_SKELETON_build = $(TCTL_SKELETON_stage_build)
 
 # SHOULD_NOTARIZE evalutes to "true" if we should sign and notarize binaries,
 # and the empty string if not. We only notarize if APPLE_USERNAME and
