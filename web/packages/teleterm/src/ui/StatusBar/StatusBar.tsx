@@ -16,12 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Fragment } from 'react';
+import { Fragment, useCallback } from 'react';
 import { useTheme } from 'styled-components';
 
 import { ButtonPrimary, Flex, Text } from 'design';
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import { getAssumedRequests } from 'teleterm/ui/services/clusters';
 import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
 import { AccessRequestCheckoutButton } from './AccessRequestCheckoutButton';
@@ -30,12 +31,19 @@ import { useActiveDocumentClusterBreadcrumbs } from './useActiveDocumentClusterB
 
 export function StatusBar(props: { onAssumedRolesClick(): void }) {
   const breadcrumbs = useActiveDocumentClusterBreadcrumbs();
-  const ctx = useAppContext();
   const theme = useTheme();
-  const rootClusterUri = ctx.workspacesService.getRootClusterUri();
-
+  const rootClusterUri = useStoreSelector(
+    'workspacesService',
+    useCallback(store => store.rootClusterUri, [])
+  );
   const assumedRoles = Object.values(
-    ctx.clustersService.getAssumedRequests(rootClusterUri)
+    useStoreSelector(
+      'clustersService',
+      useCallback(
+        state => getAssumedRequests(state, rootClusterUri),
+        [rootClusterUri]
+      )
+    )
   );
   const assumedRolesText = assumedRoles.flatMap(r => r.roles).join(', ');
 
