@@ -17,11 +17,12 @@
  */
 
 import { formatDistanceToNow, isPast } from 'date-fns';
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { ComponentType, useEffect, useMemo, useRef, useState } from 'react';
 import styled, { css, useTheme } from 'styled-components';
 
 import { ButtonText, Flex, P3, Popover } from 'design';
 import * as Icon from 'design/Icon';
+import { IconProps } from 'design/Icon/Icon';
 import { MenuItemSectionLabel } from 'design/Menu/MenuItem';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import { AccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
@@ -333,19 +334,19 @@ function RequestItem(props: {
         <Flex
           flexDirection="column"
           css={`
-            line-height: 1.25;
+            line-height: 1.3;
           `}
         >
-          <Flex gap={1}>
-            {items.map((i, index) => {
+          <Flex gap={1} flexWrap="wrap">
+            {clipRequestItems(items).map((i, index, array) => {
               const { Icon, name } = i;
-              const isLast = index === items.length - 1;
+              const isLast = index === array.length - 1;
               return (
-                <Fragment key={`name-${index}`}>
+                <Flex key={`name-${index}`} gap={1}>
                   {Icon && <Icon size="small" />}
                   {name}
                   {!isLast && ','}
-                </Fragment>
+                </Flex>
               );
             })}
           </Flex>
@@ -475,4 +476,30 @@ function makeSharedRequest(
       },
     })),
   };
+}
+
+const MAX_ITEMS_TO_SHOW_IN_REQUEST = 5;
+
+interface RequestItem {
+  Icon: ComponentType<IconProps> | undefined;
+  name: string;
+}
+
+/**
+ * Returns up to `MAX_ITEMS_TO_SHOW_IN_REQUEST` roles or resources.
+ * If the total exceeds this limit, an additional "+n more" is added.
+ */
+function clipRequestItems(items: RequestItem[]): RequestItem[] {
+  // We should rather detect how much space we have,
+  // but for simplicity we only count items.
+  const moreToShow = Math.max(items.length - MAX_ITEMS_TO_SHOW_IN_REQUEST, 0);
+  const clippedItems = items.slice(0, MAX_ITEMS_TO_SHOW_IN_REQUEST);
+  if (moreToShow) {
+    clippedItems.push({
+      Icon: undefined,
+      name: `+${moreToShow} more`,
+    });
+  }
+
+  return clippedItems;
 }

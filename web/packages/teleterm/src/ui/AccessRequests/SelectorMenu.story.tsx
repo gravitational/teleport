@@ -51,12 +51,57 @@ const secondAccessRequest = makeAccessRequest({
       clusterName: 'postgres',
       subResourceName: '',
     },
+    {
+      kind: 'db',
+      name: 'aurora',
+      clusterName: 'postgres',
+      subResourceName: '',
+    },
+    {
+      kind: 'kube_cluster',
+      name: 'cookie',
+      clusterName: 'postgres',
+      subResourceName: '',
+    },
+    {
+      kind: 'node',
+      name: 'ubuntu-24-04-very-long-name',
+      clusterName: 'postgres',
+      subResourceName: '',
+    },
   ],
   resources: [
     {
       id: {
         kind: 'db',
         name: 'postgres',
+        clusterName: 'postgres',
+        subResourceName: '',
+      },
+      details: { hostname: '', friendlyName: '' },
+    },
+    {
+      id: {
+        kind: 'db',
+        name: 'aurora',
+        clusterName: 'postgres',
+        subResourceName: '',
+      },
+      details: { hostname: '', friendlyName: '' },
+    },
+    {
+      id: {
+        kind: 'kube_cluster',
+        name: 'cookie',
+        clusterName: 'postgres',
+        subResourceName: '',
+      },
+      details: { hostname: '', friendlyName: '' },
+    },
+    {
+      id: {
+        kind: 'node',
+        name: 'ubuntu-24-04-very-long-name',
         clusterName: 'postgres',
         subResourceName: '',
       },
