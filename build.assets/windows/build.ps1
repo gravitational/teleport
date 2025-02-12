@@ -144,7 +144,10 @@ function Install-Node {
         Expand-Archive -Path $NodeZipfile -DestinationPath $ToolchainDir
         Rename-Item -Path "$ToolchainDir/node-v$NodeVersion-win-x64" -NewName "$ToolchainDir/node"
         Enable-Node -ToolchainDir $ToolchainDir
-        npm install -g corepack@0.31.0
+        # --force is needed because binaries distributed with Node.js and
+        # binaries installed globally through npm are put in the same dir.
+        # As such, corepack tries to add the yarn binary which already exists.
+        npm install -g corepack@0.31.0 --force
         corepack enable pnpm
         Write-Host "::endgroup::"
     }
