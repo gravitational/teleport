@@ -18,8 +18,7 @@ package services
 
 import (
 	"context"
-	"math/big"
-	"strings"
+	"regexp"
 
 	"github.com/gravitational/trace"
 
@@ -83,6 +82,8 @@ func UnmarshalWorkloadIdentityX509Revocation(
 	return UnmarshalProtoResource[*workloadidentityv1pb.WorkloadIdentityX509Revocation](data, opts...)
 }
 
+var validSerialRe = regexp.MustCompile("^(?:[0-9a-f]{2})+$")
+
 // ValidateWorkloadIdentityX509Revocation validates the
 // WorkloadIdentityX509Revocation object.
 // It returns a nil if the object is valid, otherwise an error.
@@ -120,13 +121,8 @@ func ValidateWorkloadIdentityX509Revocation(s *workloadidentityv1pb.WorkloadIden
 	// X509 cert. Whilst typically presented using a colon separated hex string,
 	// here we will remove the colons. We will also ensure it is encoded in
 	// lowercase, to ensure consistency.
-	serial := big.Int{}
-	_, ok := serial.SetString(s.Metadata.Name, 16)
-	if !ok {
-		return trace.BadParameter("metadata.name: must be a hex encoded integer without colons")
-	}
-	if s.Metadata.Name != strings.ToLower(s.Metadata.Name) {
-		return trace.BadParameter("metadata.name: must be a lower-case encoded hex string")
+	if !validSerialRe.MatchString(s.Metadata.Name) {
+		return trace.BadParameter("metadata.name: must be a lower-case hex encoded integer without colons")
 	}
 
 	return nil

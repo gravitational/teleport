@@ -104,7 +104,7 @@ func TestValidateWorkloadIdentityX509Revocation(t *testing.T) {
 					RevokedAt: timestamppb.Now(),
 				},
 			},
-			requireErr: errContains("metadata.name: must be a hex encoded integer without colons"),
+			requireErr: errContains("metadata.name: must be a lower-case hex encoded integer without colons"),
 		},
 		{
 			name: "invalid name: not lowercase",
@@ -120,7 +120,7 @@ func TestValidateWorkloadIdentityX509Revocation(t *testing.T) {
 					RevokedAt: timestamppb.Now(),
 				},
 			},
-			requireErr: errContains("metadata.name: must be a lower-case encoded hex string"),
+			requireErr: errContains("metadata.name: must be a lower-case hex encoded integer without colons"),
 		},
 		{
 			name: "invalid name: not base 16",
@@ -136,7 +136,7 @@ func TestValidateWorkloadIdentityX509Revocation(t *testing.T) {
 					RevokedAt: timestamppb.Now(),
 				},
 			},
-			requireErr: errContains("metadata.name: must be a hex encoded integer without colons"),
+			requireErr: errContains("metadata.name: must be a lower-case hex encoded integer without colons"),
 		},
 		{
 			name: "missing expiry",

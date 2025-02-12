@@ -260,12 +260,12 @@ func TestWorkloadIdentityX509RevocationService_DeleteAll(t *testing.T) {
 	ctx, clock, service := setupWorkloadIdentityX509RevocationServiceTest(t)
 	_, err := service.CreateWorkloadIdentityX509Revocation(
 		ctx,
-		newValidWorkloadIdentityX509Revocation(clock, "1"),
+		newValidWorkloadIdentityX509Revocation(clock, "11"),
 	)
 	require.NoError(t, err)
 	_, err = service.CreateWorkloadIdentityX509Revocation(
 		ctx,
-		newValidWorkloadIdentityX509Revocation(clock, "2"),
+		newValidWorkloadIdentityX509Revocation(clock, "21"),
 	)
 	require.NoError(t, err)
 
