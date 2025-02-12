@@ -3779,7 +3779,7 @@ export const events = [
   },
   {
     code: 'TAIC001I',
-    event: 'aws_identity_center.resource_sync',
+    event: 'aws_identity_center.resource_sync.success',
     message: 'Periodic account, permission set and account assignment sync',
     success: true,
     time: '2025-02-11T15:29:30.045Z',

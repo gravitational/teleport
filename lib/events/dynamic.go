@@ -497,7 +497,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case StableUNIXUserCreateEvent:
 		e = &events.StableUNIXUserCreate{}
 
-	case AWSICResourceSyncEvent:
+	case AWSICResourceSyncSuccessEvent,
+		AWSICResourceSyncFailureEvent:
 		e = &events.AWSICResourceSync{}
 
 	default:

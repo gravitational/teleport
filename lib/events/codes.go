@@ -705,9 +705,12 @@ const (
 	// StableUNIXUserCreateCode is the stable UNIX user create event code.
 	StableUNIXUserCreateCode = "TSUU001I"
 
-	// AWSICResourceSyncCode is emitted when AWS Identity Center resource are imported
-	// and reconciled to Teleport.
-	AWSICResourceSyncCode = "TAIC001I"
+	// AWSICResourceSyncSuccessCode is the AWS Identity Center resource
+	// sync attempt success code.
+	AWSICResourceSyncSuccessCode = "TAIC001I"
+	// AWSICResourceSyncFailureCode is the AWS Identity Center resource
+	// sync attempt failure code.
+	AWSICResourceSyncFailureCode = "TAIC002I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

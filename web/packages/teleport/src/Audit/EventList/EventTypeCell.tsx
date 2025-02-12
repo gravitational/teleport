@@ -294,7 +294,8 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.GIT_COMMAND]: Icons.GitHub,
   [eventCodes.GIT_COMMAND_FAILURE]: Icons.GitHub,
   [eventCodes.STABLE_UNIX_USER_CREATE]: Icons.Info,
-  [eventCodes.AWS_IC_RESOURCE_SYNC]: Icons.AmazonAws,
+  [eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS]: Icons.AmazonAws,
+  [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: Icons.Warning,
 };
 
 export default function renderTypeCell(event: Event) {

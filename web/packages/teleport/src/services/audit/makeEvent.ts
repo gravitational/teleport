@@ -2029,8 +2029,15 @@ export const formatters: Formatters = {
       return `Stable UNIX user for username [${username}] was created`;
     },
   },
-  [eventCodes.AWS_IC_RESOURCE_SYNC]: {
-    type: 'aws_identity_center.resource_sync',
+  [eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS]: {
+    type: 'aws_identity_center.resource_sync.success',
+    desc: 'AWS IAM Identity Center Resource Sync',
+    format: ({ message }) => {
+      return message;
+    },
+  },
+  [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: {
+    type: 'aws_identity_center.resource_sync.failed',
     desc: 'AWS IAM Identity Center Resource Sync',
     format: ({ message }) => {
       return message;

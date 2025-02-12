@@ -875,9 +875,11 @@ const (
 	// StableUNIXUserCreateEvent is emitted when a stable UNIX user is created.
 	StableUNIXUserCreateEvent = "stable_unix_user.create"
 
-	// AWSICResourceSyncEvent is emitted when AWS Identity Center resources are imported
+	// AWSICResourceSyncSuccessEvent is emitted when AWS Identity Center resources are imported
 	// and reconciled to Teleport.
-	AWSICResourceSyncEvent = "aws_identity_center.resource_sync"
+	AWSICResourceSyncSuccessEvent = "aws_identity_center.resource_sync.success"
+	// AWSICResourceSyncFailureEvent is emitted when AWS Identity Center resources sync failed.
+	AWSICResourceSyncFailureEvent = "aws_identity_center.resource_sync.failed"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

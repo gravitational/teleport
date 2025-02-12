@@ -313,7 +313,8 @@ export const eventCodes = {
   GIT_COMMAND: 'TGIT001I',
   GIT_COMMAND_FAILURE: 'TGIT001E',
   STABLE_UNIX_USER_CREATE: 'TSUU001I',
-  AWS_IC_RESOURCE_SYNC: 'TAIC001I',
+  AWS_IC_RESOURCE_SYNC_SUCCESS: 'TAIC001I',
+  AWS_IC_RESOURCE_SYNC_FAILURE: 'TAIC002I',
 } as const;
 
 /**
@@ -1796,8 +1797,11 @@ export type RawEvents = {
       };
     }
   >;
-  [eventCodes.AWS_IC_RESOURCE_SYNC]: RawEventAwsIcResourceSync<
-    typeof eventCodes.AWS_IC_RESOURCE_SYNC
+  [eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS]: RawEventAwsIcResourceSync<
+    typeof eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS
+  >;
+  [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: RawEventAwsIcResourceSync<
+    typeof eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE
   >;
 };
 
@@ -2013,8 +2017,6 @@ type RawEventAwsIcResourceSync<T extends EventCode> = RawEvent<
     status: boolean;
     /* message contains user message for both success and failed status */
     message: string;
-    /* error value only available if status is false */
-    error: string;
   }
 >;
 
