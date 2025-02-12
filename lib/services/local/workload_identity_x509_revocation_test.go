@@ -157,7 +157,7 @@ func TestWorkloadIdentityX509RevocationService_List(t *testing.T) {
 	for i := 0; i < 49; i++ {
 		created, err := service.CreateWorkloadIdentityX509Revocation(
 			ctx,
-			newValidWorkloadIdentityX509Revocation(clock, fmt.Sprintf("%d%d", i)),
+			newValidWorkloadIdentityX509Revocation(clock, fmt.Sprintf("%d%d", i, i)),
 		)
 		require.NoError(t, err)
 		createdObjects = append(createdObjects, created)
