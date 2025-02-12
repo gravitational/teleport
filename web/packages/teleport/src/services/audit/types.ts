@@ -2006,10 +2006,10 @@ type RawSpannerRPCEvent<T extends EventCode> = RawEvent<
 type RawEventAwsIcResourceSync<T extends EventCode> = RawEvent<
   T,
   {
-    total_account: number;
-    total_account_assignment: number;
-    total_user_group: number;
-    total_permission_set: number;
+    total_accounts: number;
+    total_account_assignments: number;
+    total_user_groups: number;
+    total_permission_sets: number;
     status: boolean;
     /* message contains user message for both success and failed status */
     message: string;
