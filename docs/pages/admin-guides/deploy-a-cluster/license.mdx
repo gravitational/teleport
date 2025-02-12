@@ -115,6 +115,34 @@ The Teleport Auth Service checks the expiration status of your license every
 hour. This means that, after you replace your license file and restart your Auth
 Service instances, it can take up to an hour to confirm the new license.
 
+If you are running a self-hosted Teleport Enterprise cluster on Kubernetes using
+the `teleport-cluster` Helm chart, complete the following steps to update your
+license:
+
+1. Download a new license file from your Teleport account using the instructions
+   we provide [earlier in this guide](#download-your-license-file). We assume
+   that the license file is called `license.pem`.
+
+1. Delete the secret that stores your existing license. We assume that the
+   secret is called `license`, but there may be a different secret name
+   specified in the `licenseSecretName` field of the chart's values file.
+
+   ```code
+   $ kubectl delete secret license
+   ```
+
+1. Create a secret with the same name as the one you deleted:
+
+   ```code
+   $ kubectl create secret generic license --from-file license.pem
+   ```
+
+1. Restart the Auth Service deployment to load your new license:
+
+   ```code
+   $ kubectl rollout restart deployment teleport-cluster-auth
+   ```
+
 ## When your license expires
 
 At 90 days before your Teleport Enterprise license expires, users will see an
