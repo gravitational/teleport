@@ -63,7 +63,7 @@ Restart the VM after configuring AD CS.
 
 ## Follow The Docs
 
-Now follow the [Getting Started](https://goteleport.com/docs/desktop-access/introduction/) documentation on the Teleport website to complete the installation.
+Now follow the [Getting Started](https://goteleport.com/docs/enroll-resources/desktop-access/) documentation on the Teleport website to complete the installation.
 
 ## Appendix: VirtualBox notes
 
