@@ -33,7 +33,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -45,15 +44,13 @@ import (
 )
 
 const (
-	// DefaultLinkDir is the default location where Teleport is linked.
-	DefaultLinkDir = "/usr/local/bin"
 	// BinaryName specifies the name of the updater binary.
 	BinaryName = "teleport-update"
 )
 
 const (
-	// defaultSystemDir is the location where packaged Teleport binaries and services are installed.
-	defaultSystemDir = "/opt/teleport/system"
+	// packageSystemDir is the location where packaged Teleport binaries and services are installed.
+	packageSystemDir = "/opt/teleport/system"
 	// reservedFreeDisk is the minimum required free space left on disk during downloads.
 	// TODO(sclevine): This value is arbitrary and could be replaced by, e.g., min(1%, 200mb) in the future
 	//   to account for a range of disk sizes.
@@ -95,7 +92,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		cfg.Log = slog.Default()
 	}
 	if cfg.SystemDir == "" {
-		cfg.SystemDir = defaultSystemDir
+		cfg.SystemDir = packageSystemDir
 	}
 	validator := Validator{Log: cfg.Log}
 	debugClient := debug.NewClient(filepath.Join(ns.dataDir, debugSocketFileName))
@@ -106,7 +103,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		UpdateConfigPath:   ns.updaterConfigFile,
 		TeleportConfigPath: ns.configFile,
 		Installer: &LocalInstaller{
-			InstallDir:              ns.versionsDir,
+			InstallDir:              ns.updaterVersionsDir,
 			LinkBinDir:              ns.linkDir,
 			CopyServiceFile:         ns.serviceFile,
 			SystemBinDir:            filepath.Join(cfg.SystemDir, "bin"),
@@ -131,7 +128,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 				name = "/proc/self/exe"
 			}
 			args := []string{
-				"--data-dir", ns.dataDir,
+				"--install-dir", ns.installDir,
 				"--link-dir", ns.linkDir,
 				"--install-suffix", ns.name,
 				"--log-format", cfg.LogFormat,
@@ -187,6 +184,8 @@ type Updater struct {
 	UpdateConfigPath string
 	// TeleportConfig contains the path to Teleport's configuration.
 	TeleportConfigPath string
+	// TeleportProxyAddr contains Teleport's proxy address. This may differ from the updater's.
+	TeleportProxyAddr string
 	// Installer manages installations of the Teleport agent.
 	Installer Installer
 	// Process manages a running instance of Teleport.
@@ -321,12 +320,11 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 		return trace.Wrap(err)
 	}
 
-	agentProxy := u.findAgentProxy(ctx)
 	if cfg.Spec.Proxy == "" {
-		cfg.Spec.Proxy = agentProxy
-	} else if agentProxy != "" &&
-		!sameProxies(cfg.Spec.Proxy, agentProxy) {
-		u.Log.WarnContext(ctx, "Proxy specified in update.yaml does not match teleport.yaml. Unexpected updates may occur.", "update_proxy", cfg.Spec.Proxy, "teleport_proxy", agentProxy)
+		cfg.Spec.Proxy = u.TeleportProxyAddr
+	} else if u.TeleportProxyAddr != "" &&
+		!sameProxies(cfg.Spec.Proxy, u.TeleportProxyAddr) {
+		u.Log.WarnContext(ctx, "Proxy specified in update.yaml does not match teleport.yaml. Unexpected updates may occur.", "update_proxy", cfg.Spec.Proxy, "teleport_proxy", u.TeleportProxyAddr)
 	}
 
 	active := cfg.Status.Active
@@ -374,56 +372,6 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 	}
 	u.Log.InfoContext(ctx, "Configuration updated.")
 	return trace.Wrap(u.notices(ctx))
-}
-
-// proxyAddrConfig contains potential proxy server addresses from teleport.yaml.
-type proxyAddrConfig struct {
-	Teleport proxyAddrTeleport `yaml:"teleport"`
-}
-
-type proxyAddrTeleport struct {
-	AuthServers []string `yaml:"auth_servers"`
-	AuthServer  string   `yaml:"auth_server"`
-	ProxyServer string   `yaml:"proxy_server"`
-}
-
-// findAgentProxy finds a proxy in teleport.yaml if not specified or set in update configuration.
-// Note that any implicitly defaulted port in teleport.yaml is explicitly defaulted (to 3080) by this method.
-func (u *Updater) findAgentProxy(ctx context.Context) string {
-	f, err := libutils.OpenFileAllowingUnsafeLinks(u.TeleportConfigPath)
-	if err != nil {
-		u.Log.DebugContext(ctx, "Unable to open Teleport config to read proxy", "config", u.TeleportConfigPath, errorKey, err)
-		return ""
-	}
-	defer f.Close()
-	var cfg proxyAddrConfig
-	if err := yaml.NewDecoder(f).Decode(&cfg); err != nil {
-		u.Log.DebugContext(ctx, "Unable to parse Teleport config to read proxy", "config", u.TeleportConfigPath, errorKey, err)
-		return ""
-	}
-
-	var addr string
-	var port int
-	switch t := cfg.Teleport; {
-	case t.ProxyServer != "":
-		addr = t.ProxyServer
-		port = libdefaults.HTTPListenPort
-	case t.AuthServer != "":
-		addr = t.AuthServer
-		port = libdefaults.AuthListenPort
-	case len(t.AuthServers) > 0:
-		addr = t.AuthServers[0]
-		port = libdefaults.AuthListenPort
-	default:
-		u.Log.DebugContext(ctx, "Unable to find proxy in Teleport config", "config", u.TeleportConfigPath, errorKey, err)
-		return ""
-	}
-	netaddr, err := libutils.ParseHostPortAddr(addr, port)
-	if err != nil {
-		u.Log.DebugContext(ctx, "Unable to parse proxy in Teleport config", "config", u.TeleportConfigPath, "proxy_addr", addr, "proxy_port", port, errorKey, err)
-		return ""
-	}
-	return netaddr.String()
 }
 
 // sameProxies returns true if both proxies addresses are the same.
@@ -651,9 +599,9 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return trace.Wrap(err)
 	}
-	if p := u.findAgentProxy(ctx); p != "" &&
-		!sameProxies(cfg.Spec.Proxy, p) {
-		u.Log.WarnContext(ctx, "Proxy specified in update.yaml does not match teleport.yaml. Unexpected updates may occur.", "update_proxy", cfg.Spec.Proxy, "teleport_proxy", p)
+	if u.TeleportProxyAddr != "" &&
+		!sameProxies(cfg.Spec.Proxy, u.TeleportProxyAddr) {
+		u.Log.WarnContext(ctx, "Proxy specified in update.yaml does not match teleport.yaml. Unexpected updates may occur.", "update_proxy", cfg.Spec.Proxy, "teleport_proxy", u.TeleportProxyAddr)
 	}
 
 	active := cfg.Status.Active
@@ -953,6 +901,7 @@ func (u *Updater) notices(ctx context.Context) error {
 		u.Log.WarnContext(ctx, "Teleport is installed, but not running or enabled at boot.")
 		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you can enable and start it with: systemctl enable teleport --now")
 	}
+
 	return nil
 }
 

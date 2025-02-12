@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport"
 	common "github.com/gravitational/teleport/lib/autoupdate"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
-	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	libutils "github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -71,8 +70,8 @@ type cliConfig struct {
 	// LogFormat controls the format of logging. Can be either `json` or `text`.
 	// By default, this is `text`.
 	LogFormat string
-	// DataDir for Teleport (usually /var/lib/teleport)
-	DataDir string
+	// InstallDir for Teleport (usually /opt/teleport)
+	InstallDir string
 	// LinkDir for linking binaries and systemd services
 	LinkDir string
 	// InstallSuffix is the isolated suffix for the installation.
@@ -90,25 +89,22 @@ type cliConfig struct {
 }
 
 func Run(args []string) int {
-	var (
-		ccfg        cliConfig
-		userLinkDir bool
-		userDataDir bool
-	)
+	var ccfg cliConfig
+
 	ctx := context.Background()
 	ctx, _ = signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 
 	app := libutils.InitCLIParser(autoupdate.BinaryName, appHelp).Interspersed(false)
 	app.Flag("debug", "Verbose logging to stdout.").
 		Short('d').BoolVar(&ccfg.Debug)
-	app.Flag("data-dir", "Teleport data directory. Access to this directory should be limited.").
-		Default(libdefaults.DataDir).IsSetByUser(&userDataDir).StringVar(&ccfg.DataDir)
 	app.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
 		Default(libutils.LogFormatText).EnumVar(&ccfg.LogFormat, libutils.LogFormatJSON, libutils.LogFormatText)
 	app.Flag("install-suffix", "Suffix for creating an agent installation outside of the default $PATH. Note: this changes the default data directory.").
 		Short('i').StringVar(&ccfg.InstallSuffix)
 	app.Flag("link-dir", "Directory to link the active Teleport installation's binaries into.").
-		Default(autoupdate.DefaultLinkDir).IsSetByUser(&userLinkDir).Hidden().StringVar(&ccfg.LinkDir)
+		Hidden().StringVar(&ccfg.LinkDir)
+	app.Flag("install-dir", "Directory containing Teleport installations.").
+		Hidden().StringVar(&ccfg.InstallDir)
 	app.Flag("insecure", "Insecure mode disables certificate verification. Do not use in production.").
 		BoolVar(&ccfg.Insecure)
 
@@ -140,6 +136,8 @@ func Run(args []string) int {
 		Short('g').Envar(updateGroupEnvVar).StringVar(&ccfg.Group)
 	pinCmd.Flag("base-url", "Base URL used to override the Teleport download URL.").
 		Short('b').Envar(common.BaseURLEnvVar).StringVar(&ccfg.BaseURL)
+	pinCmd.Flag("overwrite", "Allow existing installed Teleport binaries to be overwritten.").
+		Short('o').BoolVar(&ccfg.AllowOverwrite)
 	pinCmd.Flag("force-version", "Force the provided version instead of using the version provided by the Teleport cluster.").
 		Short('f').Envar(updateVersionEnvVar).StringVar(&ccfg.ForceVersion)
 	pinCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for managed updates.").
@@ -172,15 +170,6 @@ func Run(args []string) int {
 	if err != nil {
 		app.Usage(args)
 		libutils.FatalError(err)
-	}
-
-	// These have different defaults if --install-suffix is specified.
-	// If the user did not set them, let autoupdate.NewNamespace set them.
-	if !userDataDir {
-		ccfg.DataDir = ""
-	}
-	if !userLinkDir {
-		ccfg.LinkDir = ""
 	}
 
 	// Logging must be configured as early as possible to ensure all log
@@ -243,8 +232,8 @@ func setupLogger(debug bool, format string) error {
 	return nil
 }
 
-func initConfig(ccfg *cliConfig) (updater *autoupdate.Updater, lockFile string, err error) {
-	ns, err := autoupdate.NewNamespace(plog, ccfg.InstallSuffix, ccfg.DataDir, ccfg.LinkDir)
+func initConfig(ctx context.Context, ccfg *cliConfig) (updater *autoupdate.Updater, lockFile string, err error) {
+	ns, err := autoupdate.NewNamespace(ctx, plog, ccfg.InstallSuffix, ccfg.InstallDir, ccfg.LinkDir)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -262,8 +251,8 @@ func initConfig(ccfg *cliConfig) (updater *autoupdate.Updater, lockFile string, 
 	return updater, lockFile, trace.Wrap(err)
 }
 
-func statusConfig(ccfg *cliConfig) (*autoupdate.Updater, error) {
-	ns, err := autoupdate.NewNamespace(plog, ccfg.InstallSuffix, ccfg.DataDir, ccfg.LinkDir)
+func statusConfig(ctx context.Context, ccfg *cliConfig) (*autoupdate.Updater, error) {
+	ns, err := autoupdate.NewNamespace(ctx, plog, ccfg.InstallSuffix, ccfg.InstallDir, ccfg.LinkDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -279,7 +268,7 @@ func statusConfig(ccfg *cliConfig) (*autoupdate.Updater, error) {
 
 // cmdDisable disables updates.
 func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
-	updater, lockFile, err := initConfig(ccfg)
+	updater, lockFile, err := initConfig(ctx, ccfg)
 	if err != nil {
 		return trace.Wrap(err, "failed to initialize updater")
 	}
@@ -300,7 +289,7 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdUnpin unpins the current version.
 func cmdUnpin(ctx context.Context, ccfg *cliConfig) error {
-	updater, lockFile, err := initConfig(ccfg)
+	updater, lockFile, err := initConfig(ctx, ccfg)
 	if err != nil {
 		return trace.Wrap(err, "failed to setup updater")
 	}
@@ -322,13 +311,13 @@ func cmdUnpin(ctx context.Context, ccfg *cliConfig) error {
 // cmdInstall installs Teleport and sets configuration.
 func cmdInstall(ctx context.Context, ccfg *cliConfig) error {
 	if ccfg.InstallSuffix != "" {
-		ns, err := autoupdate.NewNamespace(plog, ccfg.InstallSuffix, ccfg.DataDir, ccfg.LinkDir)
+		ns, err := autoupdate.NewNamespace(ctx, plog, ccfg.InstallSuffix, ccfg.InstallDir, ccfg.LinkDir)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		ns.LogWarning(ctx)
 	}
-	updater, lockFile, err := initConfig(ccfg)
+	updater, lockFile, err := initConfig(ctx, ccfg)
 	if err != nil {
 		return trace.Wrap(err, "failed to initialize updater")
 	}
@@ -351,7 +340,7 @@ func cmdInstall(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdUpdate updates Teleport to the version specified by cluster reachable at the proxy address.
 func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
-	updater, lockFile, err := initConfig(ccfg)
+	updater, lockFile, err := initConfig(ctx, ccfg)
 	if err != nil {
 		return trace.Wrap(err, "failed to initialize updater")
 	}
@@ -374,7 +363,7 @@ func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdLinkPackage creates system package links if no version is linked and managed updates is disabled.
 func cmdLinkPackage(ctx context.Context, ccfg *cliConfig) error {
-	updater, lockFile, err := initConfig(ccfg)
+	updater, lockFile, err := initConfig(ctx, ccfg)
 	if err != nil {
 		return trace.Wrap(err, "failed to initialize updater")
 	}
@@ -402,7 +391,7 @@ func cmdLinkPackage(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdUnlinkPackage remove system package links.
 func cmdUnlinkPackage(ctx context.Context, ccfg *cliConfig) error {
-	updater, lockFile, err := initConfig(ccfg)
+	updater, lockFile, err := initConfig(ctx, ccfg)
 	if err != nil {
 		return trace.Wrap(err, "failed to setup updater")
 	}
@@ -430,7 +419,7 @@ func cmdUnlinkPackage(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdSetup writes configuration files that are needed to run teleport-update update.
 func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
-	ns, err := autoupdate.NewNamespace(plog, ccfg.InstallSuffix, ccfg.DataDir, ccfg.LinkDir)
+	ns, err := autoupdate.NewNamespace(ctx, plog, ccfg.InstallSuffix, ccfg.InstallDir, ccfg.LinkDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -453,7 +442,7 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdStatus displays auto-update status.
 func cmdStatus(ctx context.Context, ccfg *cliConfig) error {
-	updater, err := statusConfig(ccfg)
+	updater, err := statusConfig(ctx, ccfg)
 	if err != nil {
 		return trace.Wrap(err, "failed to initialize updater")
 	}
@@ -467,7 +456,7 @@ func cmdStatus(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdUninstall removes the updater-managed install of Teleport and gracefully reverts back to the Teleport package.
 func cmdUninstall(ctx context.Context, ccfg *cliConfig) error {
-	updater, lockFile, err := initConfig(ccfg)
+	updater, lockFile, err := initConfig(ctx, ccfg)
 	if err != nil {
 		return trace.Wrap(err, "failed to initialize updater")
 	}
