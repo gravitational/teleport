@@ -238,6 +238,7 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newWorkloadIdentityParser()
 		case types.KindWorkloadIdentityX509Revocation:
 			parser = newWorkloadIdentityX509RevocationParser()
+		default:
 			if watch.AllowPartialSuccess {
 				continue
 			}
