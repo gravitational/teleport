@@ -25,9 +25,10 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	"github.com/gravitational/trace"
 )
 
 // LicenseStore implements client-side license storage for Microsoft
