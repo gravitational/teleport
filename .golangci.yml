@@ -403,6 +403,6 @@ linters-settings:
         msg: 'Use stsutils.NewV1'
 
 run:
-  go: '1.23'
+  go: '1.24'
   build-tags: []
   timeout: 15m
