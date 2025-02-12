@@ -35,7 +35,7 @@ import { AccessRequestsContextProvider } from './AccessRequestsContext';
 import { SelectorMenu } from './SelectorMenu';
 
 export default {
-  title: 'Teleterm/AccessRequests/Menu',
+  title: 'Teleterm/AccessRequests/SelectorMenu',
 };
 
 const rootCluster = makeRootCluster({
