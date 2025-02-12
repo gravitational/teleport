@@ -23,6 +23,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -32,18 +33,22 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	libui "github.com/gravitational/teleport/lib/ui"
+	utils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -673,12 +678,6 @@ func TestGetNodeJoinScript(t *testing.T) {
 	internalResourceID := "967d38ff-7a61-4f42-bd2d-c61965b44db0"
 
 	m := &mockedNodeAPIGetter{
-		mockGetProxyServers: func() ([]types.Server, error) {
-			var s types.ServerV2
-			s.SetPublicAddrs([]string{"test-host:12345678"})
-
-			return []types.Server{&s}, nil
-		},
 		mockGetClusterCACert: func(context.Context) (*proto.GetClusterCACertResponse, error) {
 			fakeBytes := []byte(fixtures.SigningCertPEM)
 			return &proto.GetClusterCACertResponse{TLSCA: fakeBytes}, nil
@@ -691,7 +690,7 @@ func TestGetNodeJoinScript(t *testing.T) {
 					},
 					Spec: types.ProvisionTokenSpecV2{
 						SuggestedLabels: types.Labels{
-							types.InternalResourceIDLabel: utils.Strings{internalResourceID},
+							types.InternalResourceIDLabel: apiutils.Strings{internalResourceID},
 						},
 					},
 				}, nil
@@ -699,6 +698,10 @@ func TestGetNodeJoinScript(t *testing.T) {
 			return nil, trace.NotFound("token does not exist")
 		},
 	}
+
+	h := newAutoupdateTestHandler(t, nil, nil, nil)
+	hostname, port, err := utils.SplitHostPort(h.PublicProxyAddr())
+	require.NoError(t, err)
 
 	for _, test := range []struct {
 		desc            string
@@ -727,8 +730,8 @@ func TestGetNodeJoinScript(t *testing.T) {
 			errAssert: require.NoError,
 			extraAssertions: func(script string) {
 				require.Contains(t, script, validToken)
-				require.Contains(t, script, "test-host")
-				require.Contains(t, script, "12345678")
+				require.Contains(t, script, hostname)
+				require.Contains(t, script, port)
 				require.Contains(t, script, "sha256:")
 				require.NotContains(t, script, "JOIN_METHOD='iam'")
 			},
@@ -774,7 +777,7 @@ func TestGetNodeJoinScript(t *testing.T) {
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			script, err := getJoinScript(context.Background(), test.settings, m)
+			script, err := h.getJoinScript(context.Background(), test.settings, m)
 			test.errAssert(t, err)
 			if err != nil {
 				require.Empty(t, script)
@@ -785,6 +788,50 @@ func TestGetNodeJoinScript(t *testing.T) {
 			}
 		})
 	}
+}
+
+type autoupdateAccessPointMock struct {
+	authclient.ProxyAccessPoint
+	mock.Mock
+}
+
+func (a *autoupdateAccessPointMock) GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdatev1pb.AutoUpdateAgentRollout, error) {
+	args := a.Called(ctx)
+	return args.Get(0).(*autoupdatev1pb.AutoUpdateAgentRollout), args.Error(1)
+}
+
+func newAutoupdateTestHandler(t *testing.T, testModules *modules.TestModules, channels automaticupgrades.Channels, rollout *autoupdatev1pb.AutoUpdateAgentRollout) *Handler {
+	addr := fmt.Sprintf("proxy-%d.example.com:%d", rand.Int(), rand.IntN(65535))
+
+	if channels == nil {
+		channels = automaticupgrades.Channels{}
+	}
+	require.NoError(t, channels.CheckAndSetDefaults())
+
+	ap := &autoupdateAccessPointMock{}
+	if rollout == nil {
+		ap.On("GetAutoUpdateAgentRollout", mock.Anything).Return(rollout, trace.NotFound("rollout does not exist"))
+	} else {
+		ap.On("GetAutoUpdateAgentRollout", mock.Anything).Return(rollout, nil)
+	}
+
+	if testModules == nil {
+		testModules = &modules.TestModules{
+			TestBuildType: modules.BuildCommunity,
+		}
+	}
+	modules.SetTestModules(t, testModules)
+	h := &Handler{
+		clusterFeatures: *testModules.Features().ToProto(),
+		cfg: Config{
+			AutomaticUpgradesChannels: channels,
+			AccessPoint:               ap,
+			PublicProxyAddr:           addr,
+		},
+		logger: utils.NewSlogLoggerForTests(),
+	}
+	h.PublicProxyAddr()
+	return h
 }
 
 func TestGetAppJoinScript(t *testing.T) {
@@ -799,12 +846,6 @@ func TestGetAppJoinScript(t *testing.T) {
 				}, nil
 			}
 			return nil, trace.NotFound("token does not exist")
-		},
-		mockGetProxyServers: func() ([]types.Server, error) {
-			var s types.ServerV2
-			s.SetPublicAddrs([]string{"test-host:12345678"})
-
-			return []types.Server{&s}, nil
 		},
 		mockGetClusterCACert: func(context.Context) (*proto.GetClusterCACertResponse, error) {
 			fakeBytes := []byte(fixtures.SigningCertPEM)
@@ -825,20 +866,24 @@ func TestGetAppJoinScript(t *testing.T) {
 		appURI:         "",
 	}
 
+	h := newAutoupdateTestHandler(t, nil, nil, nil)
+	hostname, port, err := utils.SplitHostPort(h.PublicProxyAddr())
+	require.NoError(t, err)
+
 	// Test invalid app data.
-	script, err := getJoinScript(context.Background(), badAppName, m)
+	script, err := h.getJoinScript(context.Background(), badAppName, m)
 	require.Empty(t, script)
 	require.True(t, trace.IsBadParameter(err))
 
-	script, err = getJoinScript(context.Background(), badAppURI, m)
+	script, err = h.getJoinScript(context.Background(), badAppURI, m)
 	require.Empty(t, script)
 	require.True(t, trace.IsBadParameter(err))
 
 	// Test various 'good' cases.
 	expectedOutputs := []string{
 		testTokenID,
-		"test-host",
-		"12345678",
+		hostname,
+		port,
 		"sha256:",
 	}
 
@@ -959,7 +1004,7 @@ func TestGetAppJoinScript(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
-			script, err = getJoinScript(context.Background(), tc.settings, m)
+			script, err = h.getJoinScript(context.Background(), tc.settings, m)
 			if tc.shouldError {
 				require.Error(t, err)
 				require.Empty(t, script)
@@ -978,13 +1023,11 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 	emptySuggestedAgentMatcherLabelsToken := "f18da1c9f6630a51e8daf121e7451000"
 	internalResourceID := "967d38ff-7a61-4f42-bd2d-c61965b44db0"
 
-	m := &mockedNodeAPIGetter{
-		mockGetProxyServers: func() ([]types.Server, error) {
-			var s types.ServerV2
-			s.SetPublicAddrs([]string{"test-host:12345678"})
+	h := newAutoupdateTestHandler(t, nil, nil, nil)
+	hostname, port, err := utils.SplitHostPort(h.PublicProxyAddr())
+	require.NoError(t, err)
 
-			return []types.Server{&s}, nil
-		},
+	m := &mockedNodeAPIGetter{
 		mockGetClusterCACert: func(context.Context) (*proto.GetClusterCACertResponse, error) {
 			fakeBytes := []byte(fixtures.SigningCertPEM)
 			return &proto.GetClusterCACertResponse{TLSCA: fakeBytes}, nil
@@ -996,12 +1039,12 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 				},
 				Spec: types.ProvisionTokenSpecV2{
 					SuggestedLabels: types.Labels{
-						types.InternalResourceIDLabel: utils.Strings{internalResourceID},
+						types.InternalResourceIDLabel: apiutils.Strings{internalResourceID},
 					},
 					SuggestedAgentMatcherLabels: types.Labels{
-						"env":     utils.Strings{"prod"},
-						"product": utils.Strings{"*"},
-						"os":      utils.Strings{"mac", "linux"},
+						"env":     apiutils.Strings{"prod"},
+						"product": apiutils.Strings{"*"},
+						"os":      apiutils.Strings{"mac", "linux"},
 					},
 				},
 			}
@@ -1040,7 +1083,8 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 			errAssert: require.NoError,
 			extraAssertions: func(script string) {
 				require.Contains(t, script, validToken)
-				require.Contains(t, script, "test-host")
+				require.Contains(t, script, hostname)
+				require.Contains(t, script, port)
 				require.Contains(t, script, "sha256:")
 				require.Contains(t, script, "--labels ")
 				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
@@ -1066,7 +1110,8 @@ db_service:
 			errAssert: require.NoError,
 			extraAssertions: func(script string) {
 				require.Contains(t, script, emptySuggestedAgentMatcherLabelsToken)
-				require.Contains(t, script, "test-host")
+				require.Contains(t, script, hostname)
+				require.Contains(t, script, port)
 				require.Contains(t, script, "sha256:")
 				require.Contains(t, script, "--labels ")
 				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
@@ -1081,7 +1126,7 @@ db_service:
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			script, err := getJoinScript(context.Background(), test.settings, m)
+			script, err := h.getJoinScript(context.Background(), test.settings, m)
 			test.errAssert(t, err)
 			if err != nil {
 				require.Empty(t, script)
@@ -1096,14 +1141,11 @@ db_service:
 
 func TestGetDiscoveryJoinScript(t *testing.T) {
 	const validToken = "f18da1c9f6630a51e8daf121e7451daa"
+	h := newAutoupdateTestHandler(t, nil, nil, nil)
+	hostname, port, err := utils.SplitHostPort(h.PublicProxyAddr())
+	require.NoError(t, err)
 
 	m := &mockedNodeAPIGetter{
-		mockGetProxyServers: func() ([]types.Server, error) {
-			var s types.ServerV2
-			s.SetPublicAddrs([]string{"test-host:12345678"})
-
-			return []types.Server{&s}, nil
-		},
 		mockGetClusterCACert: func(context.Context) (*proto.GetClusterCACertResponse, error) {
 			fakeBytes := []byte(fixtures.SigningCertPEM)
 			return &proto.GetClusterCACertResponse{TLSCA: fakeBytes}, nil
@@ -1138,7 +1180,8 @@ func TestGetDiscoveryJoinScript(t *testing.T) {
 			errAssert: require.NoError,
 			extraAssertions: func(t *testing.T, script string) {
 				require.Contains(t, script, validToken)
-				require.Contains(t, script, "test-host")
+				require.Contains(t, script, hostname)
+				require.Contains(t, script, port)
 				require.Contains(t, script, "sha256:")
 				require.Contains(t, script, "--labels ")
 				require.Contains(t, script, `
@@ -1157,7 +1200,7 @@ discovery_service:
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			script, err := getJoinScript(context.Background(), test.settings, m)
+			script, err := h.getJoinScript(context.Background(), test.settings, m)
 			test.errAssert(t, err)
 			if err != nil {
 				require.Empty(t, script)
@@ -1278,16 +1321,6 @@ func TestJoinScript(t *testing.T) {
 	validToken := "f18da1c9f6630a51e8daf121e7451daa"
 
 	m := &mockedNodeAPIGetter{
-		mockGetProxyServers: func() ([]types.Server, error) {
-			return []types.Server{
-				&types.ServerV2{
-					Spec: types.ServerSpecV2{
-						PublicAddrs: []string{"test-host:12345678"},
-						Version:     teleport.Version,
-					},
-				},
-			}, nil
-		},
 		mockGetClusterCACert: func(context.Context) (*proto.GetClusterCACertResponse, error) {
 			fakeBytes := []byte(fixtures.SigningCertPEM)
 			return &proto.GetClusterCACertResponse{TLSCA: fakeBytes}, nil
@@ -1305,8 +1338,9 @@ func TestJoinScript(t *testing.T) {
 		getGravitationalTeleportLinkRegex := regexp.MustCompile(`https://cdn\.teleport\.dev/\${TELEPORT_PACKAGE_NAME}[-_]v?\${TELEPORT_VERSION}`)
 
 		t.Run("oss", func(t *testing.T) {
+			h := newAutoupdateTestHandler(t, nil, nil, nil)
 			// Using the OSS Version, all the links must contain only teleport as package name.
-			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
+			script, err := h.getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
 			require.NoError(t, err)
 
 			matches := getGravitationalTeleportLinkRegex.FindAllString(script, -1)
@@ -1321,8 +1355,8 @@ func TestJoinScript(t *testing.T) {
 
 		t.Run("ent", func(t *testing.T) {
 			// Using the Enterprise Version, the package name must be teleport-ent
-			modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
-			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
+			h := newAutoupdateTestHandler(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise}, nil, nil)
+			script, err := h.getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
 			require.NoError(t, err)
 
 			matches := getGravitationalTeleportLinkRegex.FindAllString(script, -1)
@@ -1338,8 +1372,14 @@ func TestJoinScript(t *testing.T) {
 
 	t.Run("using repo", func(t *testing.T) {
 		t.Run("installUpdater is true", func(t *testing.T) {
-			currentStableCloudVersion := "v99.1.1"
-			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, installUpdater: true, automaticUpgradesVersion: currentStableCloudVersion}, m)
+			currentStableCloudVersion := "1.2.3"
+			h := newAutoupdateTestHandler(t,
+				&modules.TestModules{TestFeatures: modules.Features{Cloud: true, AutomaticUpgrades: true}},
+				automaticupgrades.Channels{
+					automaticupgrades.DefaultChannelName: &automaticupgrades.Channel{StaticVersion: currentStableCloudVersion},
+				}, nil)
+
+			script, err := h.getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
 			require.NoError(t, err)
 
 			// list of packages must include the updater
@@ -1356,10 +1396,11 @@ func TestJoinScript(t *testing.T) {
 			// Repo channel is stable/cloud
 			require.Contains(t, script, "REPO_CHANNEL='stable/cloud'")
 			// TELEPORT_VERSION is the one provided by https://updates.releases.teleport.dev/v1/stable/cloud/version
-			require.Contains(t, script, "TELEPORT_VERSION='99.1.1'")
+			require.Contains(t, script, fmt.Sprintf("TELEPORT_VERSION='%s'", currentStableCloudVersion))
 		})
 		t.Run("installUpdater is false", func(t *testing.T) {
-			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, installUpdater: false}, m)
+			h := newAutoupdateTestHandler(t, nil, nil, nil)
+			script, err := h.getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
 			require.NoError(t, err)
 			require.Contains(t, script, ""+
 				"    PACKAGE_LIST=${TELEPORT_PACKAGE_PIN_VERSION}\n"+
@@ -1486,17 +1527,8 @@ func TestIsSameAzureRuleSet(t *testing.T) {
 }
 
 type mockedNodeAPIGetter struct {
-	mockGetProxyServers  func() ([]types.Server, error)
 	mockGetClusterCACert func(ctx context.Context) (*proto.GetClusterCACertResponse, error)
 	mockGetToken         func(ctx context.Context, token string) (types.ProvisionToken, error)
-}
-
-func (m *mockedNodeAPIGetter) GetProxies() ([]types.Server, error) {
-	if m.mockGetProxyServers != nil {
-		return m.mockGetProxyServers()
-	}
-
-	return nil, trace.NotImplemented("mockGetProxyServers not implemented")
 }
 
 func (m *mockedNodeAPIGetter) GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertResponse, error) {
