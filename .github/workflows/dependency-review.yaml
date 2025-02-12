@@ -6,7 +6,7 @@ on:
 
 jobs:
   dependency-review:
-    uses: gravitational/shared-workflows/.github/workflows/dependency-review.yaml@main
+    uses: gravitational/shared-workflows/.github/workflows/dependency-review.yaml@f168f14
     permissions:
       contents: read
       pull-requests: write
