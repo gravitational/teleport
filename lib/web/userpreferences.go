@@ -64,11 +64,16 @@ type AccessGraphPreferencesResponse struct {
 	HasBeenRedirected bool `json:"hasBeenRedirected"`
 }
 
+// DiscoverGuidePreferences defines preferences related to discover guides.
+type DiscoverGuidePreferences struct {
+	// PinnedGuides is a list of ids of pinned guides.
+	Pinned []string `json:"pinned"`
+}
+
 // DiscoverResourcePreferencesResponse is the JSON response for discover resource preference
 // as part of the user preference request.
 type DiscoverResourcePreferencesResponse struct {
-	// PinnedGuides is a list of ids of pinned guides.
-	PinnedGuides []string `json:"pinnedGuides"`
+	DiscoverGuide *DiscoverGuidePreferences `json:"discoverGuide"`
 }
 
 // UserPreferencesResponse is the JSON response for the user preferences.
@@ -135,6 +140,12 @@ func (h *Handler) getUserPreferences(_ http.ResponseWriter, r *http.Request, _ h
 }
 
 func makePreferenceRequest(req UserPreferencesResponse) *userpreferencesv1.UpsertUserPreferencesRequest {
+	var discoverGuide *userpreferencesv1.DiscoverGuide
+	if req.DiscoverResourcePreferences.DiscoverGuide != nil {
+		discoverGuide = &userpreferencesv1.DiscoverGuide{
+			Pinned: req.DiscoverResourcePreferences.DiscoverGuide.Pinned,
+		}
+	}
 	return &userpreferencesv1.UpsertUserPreferencesRequest{
 		Preferences: &userpreferencesv1.UserPreferences{
 			Theme: req.Theme,
@@ -163,7 +174,7 @@ func makePreferenceRequest(req UserPreferencesResponse) *userpreferencesv1.Upser
 			},
 			SideNavDrawerMode: req.SideNavDrawerMode,
 			DiscoverResourcePreferences: &userpreferencesv1.DiscoverResourcePreferences{
-				PinnedGuides: req.DiscoverResourcePreferences.PinnedGuides,
+				DiscoverGuide: discoverGuide,
 			},
 		},
 	}
@@ -258,11 +269,13 @@ func accessGraphPreferencesResponse(resp *userpreferencesv1.AccessGraphUserPrefe
 
 // discoverResourcePreferenceResponse creates a JSON response for the discover resource preferences.
 func discoverResourcePreferenceResponse(resp *userpreferencesv1.DiscoverResourcePreferences) DiscoverResourcePreferencesResponse {
-	if resp == nil || resp.GetPinnedGuides() == nil {
+	if resp == nil || resp.GetDiscoverGuide() == nil {
 		return DiscoverResourcePreferencesResponse{}
 	}
 
 	return DiscoverResourcePreferencesResponse{
-		PinnedGuides: resp.GetPinnedGuides(),
+		DiscoverGuide: &DiscoverGuidePreferences{
+			Pinned: resp.GetDiscoverGuide().GetPinned(),
+		},
 	}
 }
