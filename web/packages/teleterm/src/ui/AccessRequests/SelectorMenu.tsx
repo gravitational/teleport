@@ -309,16 +309,21 @@ function RequestItem(props: {
     // Show the role name too.
     title += ` (${props.request.roles.join(', ')})`;
   }
+  if (canAssumeResourceRequest) {
+    title = props.isAssumed
+      ? `Drop the request for ${title}`
+      : `Assume the request for ${title}`;
+  }
   const theme = useTheme();
+  const isDisabled =
+    props.fetchRequestsAttempt.status === 'processing' ||
+    assumeOrDropAttempt.status === 'processing' ||
+    !canAssumeResourceRequest;
   return (
     <StyledMenuItemContainer
       assumed={props.isAssumed}
-      disabled={
-        props.fetchRequestsAttempt.status === 'processing' ||
-        assumeOrDropAttempt.status === 'processing' ||
-        !canAssumeResourceRequest
-      }
-      onClick={() => void runAssumeOrDrop()}
+      disabled={isDisabled}
+      onClick={() => !isDisabled && void runAssumeOrDrop()}
       title={title}
     >
       <Flex gap={3} alignItems="center">

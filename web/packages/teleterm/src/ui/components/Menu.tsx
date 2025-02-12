@@ -112,7 +112,6 @@ export const Separator = styled.div`
 `;
 
 const disabledStyles = css`
-  pointer-events: none;
   cursor: default;
   color: ${props => props.theme.colors.text.disabled};
 `;
