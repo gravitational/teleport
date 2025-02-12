@@ -20,6 +20,6 @@ const EntityDescriptor = `<?xml version="1.0"?>
 		  </ds:KeyInfo>
 		</md:KeyDescriptor>
 		<md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
-		<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://example.okta.com/app/saml/acs/example"/>
+		<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://example.okta.com/app/example_test-okta-app-name/abcdefghijKlMnopR123/sso/saml"/>
 	  </md:IDPSSODescriptor>
 	</md:EntityDescriptor>`

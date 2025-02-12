@@ -84,10 +84,15 @@ func (m *mockOktaAPIClient) CreateUser(_ context.Context, body okta.CreateUserRe
 
 	userID := uuid.NewString()
 
+	profile := body.Profile
+	if profile == nil {
+		profile = &okta.UserProfile{}
+	}
+
 	// Create the user
 	user := &okta.User{
 		Id:      userID,
-		Profile: body.Profile,
+		Profile: profile,
 		Status:  "PROVISIONED",
 		Type:    body.Type,
 	}
@@ -262,7 +267,17 @@ func (m *mockOktaAPIClient) ListApplicationUsers(_ context.Context, appId string
 
 	var appUsers []*okta.AppUser
 	for userId := range m.appUserAssignments[appId] {
-		appUsers = append(appUsers, &okta.AppUser{Id: userId, Scope: string(api.UserScope)})
+		u := m.users[userId]
+		if u.Status == "DEPROVISIONED" {
+			continue
+		}
+		appUsers = append(appUsers, &okta.AppUser{
+			Id:          u.Id,
+			Credentials: &okta.AppUserCredentials{},
+			Status:      u.Status,
+			Profile:     map[string]any(*u.Profile),
+			Scope:       string(api.UserScope),
+		})
 	}
 
 	return appUsers, &okta.Response{}, nil

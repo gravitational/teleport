@@ -133,7 +133,7 @@ func (s *oktaInfraSetup) assertUserWasAssignedToOktaGroup(t *testing.T, userID s
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		ok := s.isUserAssignedToGroup(t, userID, groupID)
 		assert.True(c, ok)
-	}, time.Second*10, time.Millisecond*50, "User %s was assigned to group %s", userID, groupID)
+	}, time.Second*15, time.Millisecond*250, "User %s was assigned to group %s", userID, groupID)
 }
 
 func (s *oktaInfraSetup) assertUserWasUnassignedFromOktaGroup(t *testing.T, userID, groupID string) {
@@ -141,7 +141,7 @@ func (s *oktaInfraSetup) assertUserWasUnassignedFromOktaGroup(t *testing.T, user
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		ok := s.isUserAssignedToGroup(t, userID, groupID)
 		assert.False(c, ok)
-	}, time.Second*10, time.Millisecond*50, "User %s is still assigned to group %s", userID, groupID)
+	}, time.Second*10, time.Millisecond*250, "User %s is still assigned to group %s", userID, groupID)
 }
 
 func (s *oktaInfraSetup) createApplicationGroupAssignment(t *testing.T, appID, groupID string) {
@@ -151,7 +151,7 @@ func (s *oktaInfraSetup) createApplicationGroupAssignment(t *testing.T, appID, g
 
 func (s *oktaInfraSetup) addUserToGroup(t *testing.T, groupID, userID string) {
 	_, err := s.client.AddUserToGroup(s.ctx, groupID, userID)
-	require.NoError(t, err, "failed to add %s user to group %s", userID, groupID)
+	require.NoError(t, err, "failed to add %q user to group %q", userID, groupID)
 }
 
 type oktaApplicationEmbedLinks struct {

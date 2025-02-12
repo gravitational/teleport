@@ -192,8 +192,8 @@ spec:
       </KeyDescriptor>
       <SingleLogoutService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="teleport.example.com/logout"></SingleLogoutService>
       <NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</NameIDFormat>
-      <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://trial-1234567.okta.com/app/trial-123456_teleportsamlconnectorapp_1/exkmtd8mclmbcpx01697/sso/saml"></SingleSignOnService>
-      <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://trial-1234567.okta.com/sso"></SingleSignOnService>
+      <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://trial-1234567.okta.com/app/trial-1234567_teleportsamlconnectorapp_1/exkmtd8mclmbcpx01697/sso/saml"></SingleSignOnService>
+      <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://idp.go.saml.url.com/http/post"></SingleSignOnService>
      </IDPSSODescriptor>
     </EntityDescriptor>
   entity_descriptor_url: ""
@@ -248,7 +248,7 @@ spec:
       nJrVIGs3GcBkqGic+i7rTO1YPkquv4dUuiIn+vKZVoO6b54f+oPBXd4S0BnuEqFE
       rdKNuCZhiaE2XD9L/O9KP1fh5bfEcKwazQ23EvpJHBMm8BGC+/YZNw==
       -----END RSA PRIVATE KEY-----
-  sso: teleport.example.com/sso
+  sso: https://example.okta.com/app/example_test-okta-app-name/abcdefghijKlMnopR123/sso/saml
 version: v2`
 
 	idpKey = `-----BEGIN RSA PRIVATE KEY-----

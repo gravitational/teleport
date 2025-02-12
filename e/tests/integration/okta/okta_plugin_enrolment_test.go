@@ -410,7 +410,7 @@ func TestCreateOktaIntegrationFromLegacyConnector(t *testing.T) {
 	// the OKTA SSO integration guide.
 	connector := mustUnmarshalSAMLConnector(t, idp.SAMLConnector)
 	// The SAML app must exist in okta and have the matching Okta label.
-	samlAPP := createOktaSAMLAPP(t, ctx, oktaApiClientMock, "trial-123456_teleportsamlconnectorapp_1")
+	samlAPP := createOktaSAMLAPP(t, ctx, oktaApiClientMock, "trial-1234567_teleportsamlconnectorapp_1")
 
 	meta := connector.GetMetadata()
 	meta.Labels = map[string]string{}

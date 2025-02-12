@@ -130,16 +130,15 @@ func TestAccessListSync(t *testing.T) {
 		// Wait for Access List sync.
 		mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent)
 
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-		}, time.Second*2, time.Millisecond*50)
-
 		resourceSuffix := testResourceSuffix(t, app.Id, appLinks)
 
 		// Ensure there is 1 Access List.
 		accessLists, err := sut.Teleport.Process.GetAuthServer().GetAccessLists(ctx)
-		require.NoError(t, err)
-		require.Len(t, accessLists, 1)
-		require.Equal(t, resourceSuffix, accessLists[0].GetName())
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			require.NoError(t, err)
+			require.Len(t, accessLists, 1)
+			require.Equal(t, resourceSuffix, accessLists[0].GetName())
+		}, time.Second*2, time.Millisecond*50)
 
 		// Ensure there are access and reviewer system roles and their names are stable,
 		// i.e. created from the first app link.

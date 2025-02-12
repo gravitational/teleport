@@ -271,9 +271,13 @@ func (s *Service) updateIntegration(ctx context.Context, req *oktapb.UpdateInteg
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	pluginV1, err := validatePlugin(plugin)
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	pluginV1, ok := plugin.(*types.PluginV1)
+	if !ok {
+		return nil, trace.BadParameter("plugin.(%T) is not of type PluginV1", plugin)
+	}
+	if err = validateUpdateIntegrationRequest(req, pluginV1); err != nil {
+		return nil, trace.Wrap(err, "request validation")
 	}
 
 	if req.GetApiCredentials() != nil {
@@ -286,10 +290,10 @@ func (s *Service) updateIntegration(ctx context.Context, req *oktapb.UpdateInteg
 		}
 	}
 
-	if err := s.updateOktaSpec(ctx, req, pluginV1); err != nil {
+	if err := s.updatePluginOktaSpec(ctx, req, pluginV1); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := s.maybeUpdatePluginCredentials(ctx, req, plugin.GetCredentials().GetStaticCredentialsRef(), pluginV1); err != nil {
+	if err := s.updatePluginCredentials(ctx, req, pluginV1); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	updatePlugin, err := s.pluginBackend.UpdatePlugin(ctx, pluginV1)

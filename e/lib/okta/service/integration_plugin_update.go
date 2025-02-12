@@ -12,18 +12,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/okta/common/sso"
 )
 
-func validatePlugin(plugin types.Plugin) (*types.PluginV1, error) {
-	pluginV1, ok := plugin.(*types.PluginV1)
-	if !ok {
-		return nil, trace.BadParameter("plugin is not of type PluginV1")
-	}
-	if staticCredsRef := plugin.GetCredentials().GetStaticCredentialsRef(); staticCredsRef == nil {
-		return nil, trace.NotFound("no static credentials found")
-	}
-	return pluginV1, nil
-}
-
-func (s *Service) updateOktaSpec(ctx context.Context, req *oktapb.UpdateIntegrationRequest, plugin *types.PluginV1) error {
+func (s *Service) updatePluginOktaSpec(ctx context.Context, req *oktapb.UpdateIntegrationRequest, plugin *types.PluginV1) error {
 	pluginSpec := plugin.Spec.GetOkta()
 	pluginSpec.SyncSettings.SyncUsers = req.GetEnableUserSync()
 	pluginSpec.SyncSettings.DisableSyncAppGroups = !req.GetEnableAppGroupSync()
@@ -73,11 +62,20 @@ func (s *Service) fetchOktaAppIdFromConnector(ctx context.Context, createOktaCli
 	return appId, trace.Wrap(err)
 }
 
-func (s *Service) maybeUpdatePluginCredentials(ctx context.Context, req *oktapb.UpdateIntegrationRequest, staticCredsRef *types.PluginStaticCredentialsRef, pluginV1 *types.PluginV1) error {
+// updatePluginCredentials updates plugin credentials if the update requests provides any.
+// Otherwise it does nothing, i.e. it does not remove existing credentials from the plugin if there
+// aren't any in the request.
+func (s *Service) updatePluginCredentials(ctx context.Context, req *oktapb.UpdateIntegrationRequest, pluginV1 *types.PluginV1) error {
+	staticCredsRef := pluginV1.GetCredentials().GetStaticCredentialsRef()
+	if staticCredsRef == nil {
+		return trace.NotFound("no static credentials found in plugin")
+	}
 	staticCreds, err := s.credsBackend.GetPluginStaticCredentialsByLabels(ctx, staticCredsRef.Labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// TODO(kopiczko) clean up credentials, e.g. remove SSWS token when OAuth client ID is upserted.
 
 	if pluginV1.Spec.GetOkta().CredentialsInfo == nil {
 		pluginV1.Spec.GetOkta().CredentialsInfo = &types.PluginOktaCredentialsInfo{}
@@ -86,16 +84,19 @@ func (s *Service) maybeUpdatePluginCredentials(ctx context.Context, req *oktapb.
 		if err := s.upsertSCIMCreds(ctx, req.GetScimToken(), staticCreds, staticCredsRef.Labels); err != nil {
 			return trace.Wrap(err)
 		}
+		pluginV1.Spec.GetOkta().CredentialsInfo.HasScimToken = true
 	}
 	if req.GetApiCredentials().GetOauthId() != "" {
 		if err := s.upsertOauthClientID(ctx, req.GetApiCredentials().GetOauthId(), staticCreds, staticCredsRef.Labels); err != nil {
 			return trace.Wrap(err)
 		}
+		pluginV1.Spec.GetOkta().CredentialsInfo.HasOauthCredentials = true
 	}
 	if req.GetApiCredentials().GetSswsBearerToken() != "" {
 		if err := s.upsertSSWSToken(ctx, req.GetApiCredentials().GetSswsBearerToken(), staticCreds, staticCredsRef.Labels); err != nil {
 			return trace.Wrap(err)
 		}
+		pluginV1.Spec.GetOkta().CredentialsInfo.HasSsmToken = true
 	}
 	return nil
 }
