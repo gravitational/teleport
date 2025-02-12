@@ -3784,8 +3784,9 @@ export const events = [
     success: true,
     time: '2025-02-11T15:29:30.045Z',
     total_account_assignment: 12,
-    total_accounts: 4,
+    total_account: 4,
     total_permission_set: 3,
+    total_user_group: 5,
   },
 ].map(makeEvent);
 

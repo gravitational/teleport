@@ -7987,14 +7987,14 @@ message AWSICResourceSync {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
-  //  Total imported AWS accounts.
-  int32 total_accounts = 2 [(gogoproto.jsontag) = "total_accounts,omitempty"];
+  // Total imported AWS accounts.
+  int32 total_account = 2 [(gogoproto.jsontag) = "total_account,omitempty"];
   // Total account assignments imported from Identity Center. Account assignments
   // are permission's assigned to users or group.
   int32 total_account_assignment = 3 [(gogoproto.jsontag) = "total_account_assignment,omitempty"];
   // Total user groups imported from Identity Center.
   int32 total_user_group = 4 [(gogoproto.jsontag) = "total_user_group,omitempty"];
-  //  Total permission sets imported from Identity Center.
+  // Total permission sets imported from Identity Center.
   int32 total_permission_set = 5 [(gogoproto.jsontag) = "total_permission_set,omitempty"];
   // Status is a resource sync status.
   Status Status = 6 [

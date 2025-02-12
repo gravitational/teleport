@@ -2032,12 +2032,8 @@ export const formatters: Formatters = {
   [eventCodes.AWS_IC_RESOURCE_SYNC]: {
     type: 'aws_identity_center.resource_sync',
     desc: 'AWS IAM Identity Center Resource Sync',
-    format: ({ total_user_group }) => {
-      if (total_user_group) {
-        // user groups are synced only once.
-        return 'User groups imported and synced as Access List';
-      }
-      return 'Periodic account, permission set and account assignment sync';
+    format: ({ message }) => {
+      return message;
     },
   },
 };
