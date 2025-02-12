@@ -859,6 +859,16 @@ const (
 	// ContactDeleteEvent is emitted when a Contact resource is deleted.
 	ContactDeleteEvent = "contact.delete"
 
+	// WorkloadIdentityX509RevocationCreateEvent is emitted when a
+	// WorkloadIdentityX509Revocation resource is created.
+	WorkloadIdentityX509RevocationCreateEvent = "workload_identity_x509_revocation.create"
+	// WorkloadIdentityX509RevocationUpdateEvent is emitted when a
+	// WorkloadIdentityX509Revocation resource is updated.
+	WorkloadIdentityX509RevocationUpdateEvent = "workload_identity_x509_revocation.update"
+	// WorkloadIdentityX509RevocationDeleteEvent is emitted when a
+	// WorkloadIdentityX509Revocation resource is deleted.
+	WorkloadIdentityX509RevocationDeleteEvent = "workload_identity_x509_revocation.delete"
+
 	// GitCommandEvent is emitted when a Git command is executed.
 	GitCommandEvent = "git.command"
 )
