@@ -2566,7 +2566,7 @@ func TestRevocationService_ListWorkloadIdentityX509Revocations(t *testing.T) {
 				Kind:    types.KindWorkloadIdentityX509Revocation,
 				Version: types.V1,
 				Metadata: &headerv1.Metadata{
-					Name:    fmt.Sprintf("%d", i),
+					Name:    fmt.Sprintf("%d%d", i, i),
 					Expires: timestamppb.New(srv.Clock().Now().Add(time.Hour)),
 				},
 				Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
@@ -2690,7 +2690,7 @@ func TestRevocationService_UpdateWorkloadIdentityX509Revocation(t *testing.T) {
 			Kind:    types.KindWorkloadIdentityX509Revocation,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
-				Name:    "aabbccdd2",
+				Name:    "aabbccee",
 				Expires: timestamppb.New(srv.Clock().Now().Add(time.Hour)),
 			},
 			Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
