@@ -18,11 +18,9 @@ package local
 
 import (
 	"context"
-	"strings"
 
 	"github.com/gravitational/trace"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -49,7 +47,7 @@ func NewWorkloadIdentityX509RevocationService(
 		generic.ServiceWrapperConfig[*workloadidentityv1pb.WorkloadIdentityX509Revocation]{
 			Backend:       b,
 			ResourceKind:  types.KindWorkloadIdentityX509Revocation,
-			BackendPrefix: backend.NewKey(workloadIdentityX509RevocationPrefix),
+			BackendPrefix: workloadIdentityX509RevocationPrefix,
 			MarshalFunc:   services.MarshalWorkloadIdentityX509Revocation,
 			UnmarshalFunc: services.UnmarshalWorkloadIdentityX509Revocation,
 			ValidateFunc:  services.ValidateWorkloadIdentityX509Revocation,
@@ -140,19 +138,7 @@ type workloadIdentityX509RevocationParser struct {
 func (p *workloadIdentityX509RevocationParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		name := event.Item.Key.TrimPrefix(backend.NewKey(workloadIdentityX509RevocationPrefix)).String()
-		if name == "" {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
-		}
-
-		return &types.ResourceHeader{
-			Kind:    types.KindWorkloadIdentityX509Revocation,
-			Version: types.V1,
-			Metadata: types.Metadata{
-				Name:      strings.TrimPrefix(name, backend.SeparatorString),
-				Namespace: apidefaults.Namespace,
-			},
-		}, nil
+		return resourceHeader(event, types.KindWorkloadIdentityX509Revocation, types.V1, 0)
 	case types.OpPut:
 		resource, err := services.UnmarshalWorkloadIdentityX509Revocation(
 			event.Item.Value,

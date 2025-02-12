@@ -18,11 +18,9 @@ package local
 
 import (
 	"context"
-	"strings"
 
 	"github.com/gravitational/trace"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -132,19 +130,7 @@ type workloadIdentityParser struct {
 func (p *workloadIdentityParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		name := event.Item.Key.TrimPrefix(backend.NewKey(workloadIdentityPrefix)).String()
-		if name == "" {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
-		}
-
-		return &types.ResourceHeader{
-			Kind:    types.KindWorkloadIdentity,
-			Version: types.V1,
-			Metadata: types.Metadata{
-				Name:      strings.TrimPrefix(name, backend.SeparatorString),
-				Namespace: apidefaults.Namespace,
-			},
-		}, nil
+		return resourceHeader(event, types.KindWorkloadIdentity, types.V1, 0)
 	case types.OpPut:
 		resource, err := services.UnmarshalWorkloadIdentity(
 			event.Item.Value,

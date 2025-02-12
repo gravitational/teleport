@@ -18,11 +18,9 @@ package local
 
 import (
 	"context"
-	"strings"
 
 	"github.com/gravitational/trace"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -131,19 +129,7 @@ type spiffeFederationParser struct {
 func (p *spiffeFederationParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		name := event.Item.Key.TrimPrefix(backend.NewKey(spiffeFederationPrefix)).String()
-		if name == "" {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
-		}
-
-		return &types.ResourceHeader{
-			Kind:    types.KindSPIFFEFederation,
-			Version: types.V1,
-			Metadata: types.Metadata{
-				Name:      strings.TrimPrefix(name, backend.SeparatorString),
-				Namespace: apidefaults.Namespace,
-			},
-		}, nil
+		return resourceHeader(event, types.KindSPIFFEFederation, types.V1, 0)
 	case types.OpPut:
 		federation, err := services.UnmarshalSPIFFEFederation(
 			event.Item.Value,
