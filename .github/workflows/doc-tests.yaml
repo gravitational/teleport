@@ -64,7 +64,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: gravitational/shared-workflows
-          path: .github/shared-workflows
+          path: shared-workflows
 
       - name: Install Go
         uses: actions/setup-go@v5
@@ -72,8 +72,10 @@ jobs:
           go-version: 'stable'
 
       - name: Ensure docs changes include redirects
-        run: cd .github/shared-workflows/bot && go run main.go -workflow=docpaths -token="${{ steps.generate_token.outputs.token }}" -teleport-path="${{ github.workspace }}/teleport" -reviewers="${{ secrets.reviewers }}"
-
+        env:
+          TOKEN: ${{ steps.generate_token.outputs.token }}
+          REVIEWERS: ${{ secrets.reviewers }}
+        run: cd shared-workflows/bot && go run main.go -workflow=docpaths -token="${TOKEN}" -teleport-path="${GITHUB_WORKSPACE}/teleport" -reviewers="${REVIEWERS}"
       # Cache node_modules. Unlike the example in the actions/cache repo, this
       # caches the node_modules directory instead of the yarn cache. This is
       # because yarn needs to build fresh packages even when it copies files
