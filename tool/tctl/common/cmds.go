@@ -59,6 +59,7 @@ func Commands() []CLICommand {
 		&IdPCommand{},
 		&plugin.PluginsCommand{},
 		&decision.Command{},
+		&AutoUpdateCommand{},
 	}
 }
 
