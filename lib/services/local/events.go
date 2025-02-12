@@ -236,6 +236,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newStaticHostUserParser()
 		case types.KindWorkloadIdentity:
 			parser = newWorkloadIdentityParser()
+		case types.KindWorkloadIdentityX509Revocation:
+			parser = newWorkloadIdentityX509RevocationParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -2548,34 +2550,6 @@ func baseTwoKeys(key backend.Key) (string, string, error) {
 	return string(parts[len(parts)-2]), string(parts[len(parts)-1]), nil
 }
 
-func newSPIFFEFederationParser() *spiffeFederationParser {
-	return &spiffeFederationParser{
-		baseParser: newBaseParser(backend.NewKey(spiffeFederationPrefix)),
-	}
-}
-
-type spiffeFederationParser struct {
-	baseParser
-}
-
-func (p *spiffeFederationParser) parse(event backend.Event) (types.Resource, error) {
-	switch event.Type {
-	case types.OpDelete:
-		return resourceHeader(event, types.KindSPIFFEFederation, types.V1, 0)
-	case types.OpPut:
-		federation, err := services.UnmarshalSPIFFEFederation(
-			event.Item.Value,
-			services.WithExpires(event.Item.Expires),
-			services.WithRevision(event.Item.Revision))
-		if err != nil {
-			return nil, trace.Wrap(err, "unmarshalling resource from event")
-		}
-		return types.Resource153ToLegacy(federation), nil
-	default:
-		return nil, trace.BadParameter("event %v is not supported", event.Type)
-	}
-}
-
 func newAccessGraphSettingsParser() *accessGraphSettingsParser {
 	return &accessGraphSettingsParser{
 		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, accessGraphSettingsPrefix)),
@@ -2610,30 +2584,6 @@ func (p *accessGraphSettingsParser) parse(event backend.Event) (types.Resource, 
 	}
 }
 
-func newWorkloadIdentityParser() *workloadIdentityParser {
-	return &workloadIdentityParser{
-		baseParser: newBaseParser(backend.NewKey(workloadIdentityPrefix)),
-	}
-}
-
-type workloadIdentityParser struct {
-	baseParser
-}
-
-func (p *workloadIdentityParser) parse(event backend.Event) (types.Resource, error) {
-	switch event.Type {
-	case types.OpDelete:
-		return resourceHeader(event, types.KindWorkloadIdentity, types.V1, 0)
-	case types.OpPut:
-		resource, err := services.UnmarshalWorkloadIdentity(
-			event.Item.Value,
-			services.WithExpires(event.Item.Expires),
-			services.WithRevision(event.Item.Revision))
-		if err != nil {
-			return nil, trace.Wrap(err, "unmarshalling resource from event")
-		}
-		return types.Resource153ToLegacy(resource), nil
-	default:
-		return nil, trace.BadParameter("event %v is not supported", event.Type)
-	}
-}
+// Thinking of adding a new parser? To avoid this file growing unreasonably
+// large, instead add the parser into the resource specific file, e.g, for the
+// workloadIdentityParser, use the existing `workload_identity.go`.

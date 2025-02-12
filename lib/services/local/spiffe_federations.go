@@ -115,3 +115,31 @@ func (b *SPIFFEFederationService) UpdateSPIFFEFederation(
 	updated, err := b.service.ConditionalUpdateResource(ctx, federation)
 	return updated, trace.Wrap(err)
 }
+
+func newSPIFFEFederationParser() *spiffeFederationParser {
+	return &spiffeFederationParser{
+		baseParser: newBaseParser(backend.NewKey(spiffeFederationPrefix)),
+	}
+}
+
+type spiffeFederationParser struct {
+	baseParser
+}
+
+func (p *spiffeFederationParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindSPIFFEFederation, types.V1, 0)
+	case types.OpPut:
+		federation, err := services.UnmarshalSPIFFEFederation(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision))
+		if err != nil {
+			return nil, trace.Wrap(err, "unmarshalling resource from event")
+		}
+		return types.Resource153ToLegacy(federation), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}

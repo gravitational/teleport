@@ -567,6 +567,10 @@ const (
 	// KindWorkloadIdentity is the WorkloadIdentity resource.
 	KindWorkloadIdentity = "workload_identity"
 
+	// KindWorkloadIdentityX509Revocation is the WorkloadIdentityX509Revocation
+	// resource.
+	KindWorkloadIdentityX509Revocation = "workload_identity_x509_revocation"
+
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"

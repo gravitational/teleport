@@ -367,6 +367,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 		cfg.WorkloadIdentity = workloadIdentity
 	}
+	if cfg.WorkloadIdentityX509Revocations == nil {
+		cfg.WorkloadIdentityX509Revocations, err = local.NewWorkloadIdentityX509RevocationService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating WorkloadIdentityX509Revocation service")
+		}
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -423,47 +429,48 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
-		TrustInternal:             cfg.Trust,
-		PresenceInternal:          cfg.Presence,
-		Provisioner:               cfg.Provisioner,
-		Identity:                  cfg.Identity,
-		Access:                    cfg.Access,
-		DynamicAccessExt:          cfg.DynamicAccessExt,
-		ClusterConfiguration:      cfg.ClusterConfiguration,
-		AutoUpdateService:         cfg.AutoUpdateService,
-		Restrictions:              cfg.Restrictions,
-		Apps:                      cfg.Apps,
-		Kubernetes:                cfg.Kubernetes,
-		Databases:                 cfg.Databases,
-		DatabaseServices:          cfg.DatabaseServices,
-		AuditLogSessionStreamer:   cfg.AuditLog,
-		Events:                    cfg.Events,
-		WindowsDesktops:           cfg.WindowsDesktops,
-		SAMLIdPServiceProviders:   cfg.SAMLIdPServiceProviders,
-		UserGroups:                cfg.UserGroups,
-		SessionTrackerService:     cfg.SessionTrackerService,
-		ConnectionsDiagnostic:     cfg.ConnectionsDiagnostic,
-		Integrations:              cfg.Integrations,
-		UserTasks:                 cfg.UserTasks,
-		DiscoveryConfigs:          cfg.DiscoveryConfigs,
-		Okta:                      cfg.Okta,
-		AccessLists:               cfg.AccessLists,
-		DatabaseObjectImportRules: cfg.DatabaseObjectImportRules,
-		DatabaseObjects:           cfg.DatabaseObjects,
-		SecReports:                cfg.SecReports,
-		UserLoginStates:           cfg.UserLoginState,
-		StatusInternal:            cfg.Status,
-		UsageReporter:             cfg.UsageReporter,
-		UserPreferences:           cfg.UserPreferences,
-		PluginData:                cfg.PluginData,
-		KubeWaitingContainer:      cfg.KubeWaitingContainers,
-		Notifications:             cfg.Notifications,
-		AccessMonitoringRules:     cfg.AccessMonitoringRules,
-		CrownJewels:               cfg.CrownJewels,
-		BotInstance:               cfg.BotInstance,
-		SPIFFEFederations:         cfg.SPIFFEFederations,
-		StaticHostUser:            cfg.StaticHostUsers,
-		WorkloadIdentities:        cfg.WorkloadIdentity,
+		TrustInternal:                   cfg.Trust,
+		PresenceInternal:                cfg.Presence,
+		Provisioner:                     cfg.Provisioner,
+		Identity:                        cfg.Identity,
+		Access:                          cfg.Access,
+		DynamicAccessExt:                cfg.DynamicAccessExt,
+		ClusterConfiguration:            cfg.ClusterConfiguration,
+		AutoUpdateService:               cfg.AutoUpdateService,
+		Restrictions:                    cfg.Restrictions,
+		Apps:                            cfg.Apps,
+		Kubernetes:                      cfg.Kubernetes,
+		Databases:                       cfg.Databases,
+		DatabaseServices:                cfg.DatabaseServices,
+		AuditLogSessionStreamer:         cfg.AuditLog,
+		Events:                          cfg.Events,
+		WindowsDesktops:                 cfg.WindowsDesktops,
+		SAMLIdPServiceProviders:         cfg.SAMLIdPServiceProviders,
+		UserGroups:                      cfg.UserGroups,
+		SessionTrackerService:           cfg.SessionTrackerService,
+		ConnectionsDiagnostic:           cfg.ConnectionsDiagnostic,
+		Integrations:                    cfg.Integrations,
+		UserTasks:                       cfg.UserTasks,
+		DiscoveryConfigs:                cfg.DiscoveryConfigs,
+		Okta:                            cfg.Okta,
+		AccessLists:                     cfg.AccessLists,
+		DatabaseObjectImportRules:       cfg.DatabaseObjectImportRules,
+		DatabaseObjects:                 cfg.DatabaseObjects,
+		SecReports:                      cfg.SecReports,
+		UserLoginStates:                 cfg.UserLoginState,
+		StatusInternal:                  cfg.Status,
+		UsageReporter:                   cfg.UsageReporter,
+		UserPreferences:                 cfg.UserPreferences,
+		PluginData:                      cfg.PluginData,
+		KubeWaitingContainer:            cfg.KubeWaitingContainers,
+		Notifications:                   cfg.Notifications,
+		AccessMonitoringRules:           cfg.AccessMonitoringRules,
+		CrownJewels:                     cfg.CrownJewels,
+		BotInstance:                     cfg.BotInstance,
+		SPIFFEFederations:               cfg.SPIFFEFederations,
+		StaticHostUser:                  cfg.StaticHostUsers,
+		WorkloadIdentities:              cfg.WorkloadIdentity,
+		WorkloadIdentityX509Revocations: cfg.WorkloadIdentityX509Revocations,
 	}
 
 	as := Server{
@@ -679,6 +686,7 @@ type Services struct {
 	services.StaticHostUser
 	services.AutoUpdateService
 	services.WorkloadIdentities
+	services.WorkloadIdentityX509Revocations
 }
 
 // GetWebSession returns existing web session described by req.

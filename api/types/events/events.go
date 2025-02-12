@@ -2393,6 +2393,48 @@ func (m *WorkloadIdentityDelete) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
 
+func (m *WorkloadIdentityX509RevocationCreate) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.Reason = ""
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := nonEmptyStrs(m.Reason)
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.Reason = trimStr(m.Reason, maxFieldsSize)
+
+	return m
+}
+
+func (m *WorkloadIdentityX509RevocationUpdate) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.Reason = ""
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := nonEmptyStrs(m.Reason)
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.Reason = trimStr(m.Reason, maxFieldsSize)
+
+	return m
+}
+
+func (m *WorkloadIdentityX509RevocationDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
 func (m *ContactCreate) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
