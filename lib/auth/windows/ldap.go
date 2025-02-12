@@ -281,11 +281,8 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 	}
 
 	var ldapErr *ldap.Error
-	if !errors.As(err, &ldapErr) {
-		return nil, trace.Wrap(err, "fetching LDAP object %q with filter %q", dn, filter)
-	}
-	referrals := extractReferrals(ldapErr)
-	if len(referrals) > 0 {
+	if errors.As(err, &ldapErr) && ldapErr.ResultCode == ldap.LDAPResultReferral {
+		referrals := extractReferrals(ldapErr)
 		for i := 0; i < len(referrals); i++ {
 			if conn, err := c.connectionCreator(referrals[i]); err == nil {
 				res, err := conn.SearchWithPaging(req, searchPageSize)

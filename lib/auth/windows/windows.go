@@ -87,7 +87,7 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	// Generate the Windows-compatible certificate, see
 	// https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
 	// for requirements.
-	san, err := SubjectAltNameExtension(upn)
+	san, err := subjectAltNameExtension(upn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -332,8 +332,8 @@ var EnhancedKeyUsageExtension = pkix.Extension{
 	}(),
 }
 
-// SubjectAltNameExtension fills in the SAN for a Windows certificate
-func SubjectAltNameExtension(userPrincipalName string) (pkix.Extension, error) {
+// subjectAltNameExtension fills in the SAN for a Windows certificate
+func subjectAltNameExtension(userPrincipalName string) (pkix.Extension, error) {
 	// Setting otherName SAN according to
 	// https://samfira.com/2020/05/16/golang-x-509-certificates-and-othername/
 	//
