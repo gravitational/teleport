@@ -8,7 +8,8 @@ GOLANGCI_LINT_VERSION ?= v1.63.4
 
 # NOTE: Remember to update engines.node in package.json to match the major version.
 # TODO(ravicious): When updating Node.js, see if corepack distributed with the new Node.JS version
-# is >= 0.31.0. If so, remove manual calls to install corepack@0.31.0 from CI scripts.
+# is >= 0.31.0. If so, remove manual calls to install corepack@0.31.0 from CI scripts and
+# COREPACK_INTEGRITY_KEYS env var from windows/build.ps1.
 NODE_VERSION ?= 20.18.0
 
 # Run lint-rust check locally before merging code after you bump this.
