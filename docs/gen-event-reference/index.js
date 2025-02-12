@@ -8,7 +8,9 @@ import {
   removeUnknowns,
 } from './gen-event-reference.js';
 
-const introParagraph = `Teleport components emit audit events to record activity within the cluster. 
+const introParagraph = `{/*cSpell:disable*/}
+
+Teleport components emit audit events to record activity within the cluster. 
 
 Audit event payloads have an \`event\` field that describes the event, which is
 often an operation performed against a dynamic resource (e.g.,
