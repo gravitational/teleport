@@ -266,6 +266,16 @@ auth_service:
         # "14h30m", "1h" etc.
         default_session_ttl: 12h
 
+        stable_unix_user_config:
+            # If set to true, SSH instances will use the same UID for each given
+            # username when automatically creating users. Defaults to false.
+            enabled: false
+
+            # The range of UIDs (including both ends) used for automatic UID
+            # assignment. Ignored if enabled is set to false.
+            #first_uid: 90000
+            #last_uid: 95000
+
     # IP and the port to bind to. Other Teleport Nodes will be connecting to
     # this port (AKA "Auth API" or "Cluster API") to validate client
     # certificates

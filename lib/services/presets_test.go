@@ -20,6 +20,8 @@ package services
 
 import (
 	"context"
+	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -30,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -138,6 +141,9 @@ func TestAddRoleDefaults(t *testing.T) {
 						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
 						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
 						Rules:                 NewPresetAccessRole().GetRules(types.Allow),
+						GitHubPermissions: []types.GitHubPermission{{
+							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
+						}},
 					},
 				},
 			},
@@ -170,6 +176,9 @@ func TestAddRoleDefaults(t *testing.T) {
 						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
 						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
 						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
+						GitHubPermissions: []types.GitHubPermission{{
+							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
+						}},
 					},
 				},
 			},
@@ -185,6 +194,9 @@ func TestAddRoleDefaults(t *testing.T) {
 						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
 						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
 						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
+						GitHubPermissions: []types.GitHubPermission{{
+							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
+						}},
 					},
 				},
 			},
@@ -201,6 +213,9 @@ func TestAddRoleDefaults(t *testing.T) {
 						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
 						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
 						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
+						GitHubPermissions: []types.GitHubPermission{{
+							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
+						}},
 					},
 				},
 			},
@@ -630,6 +645,116 @@ func TestAddRoleDefaults(t *testing.T) {
 				},
 			},
 		},
+		{
+			// This test is here to validate that we properly fix a bug previously introduced in the TF role preset.
+			// All the new resources got added into the same rule, but the preset defaults system only supports adding
+			// new rules, not editing existing ones. The resources got removed from the main rule and put into
+			// smaller individual rules.
+			name: "terraform provider (bugfix of the missing resources)",
+			role: &types.RoleV6{
+				Kind:    types.KindRole,
+				Version: types.V7,
+				Metadata: types.Metadata{
+					Name:        teleport.PresetTerraformProviderRoleName,
+					Namespace:   apidefaults.Namespace,
+					Description: "Default Terraform provider role",
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						AppLabels:            map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+						DatabaseLabels:       map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+						NodeLabels:           map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+						WindowsDesktopLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+						Rules: []types.Rule{
+							{
+								Resources: []string{
+									types.KindAccessList,
+									types.KindApp,
+									types.KindClusterAuthPreference,
+									types.KindClusterMaintenanceConfig,
+									types.KindClusterNetworkingConfig,
+									types.KindDatabase,
+									types.KindDevice,
+									types.KindGithub,
+									types.KindLoginRule,
+									types.KindNode,
+									types.KindOIDC,
+									types.KindOktaImportRule,
+									types.KindRole,
+									types.KindSAML,
+									types.KindSessionRecordingConfig,
+									types.KindToken,
+									types.KindTrustedCluster,
+									types.KindUser,
+									// Some of the new resources got introduced, but not all
+									types.KindBot,
+									types.KindInstaller,
+								},
+								Verbs: RW(),
+							},
+						},
+					},
+				},
+			},
+			expectedErr: require.NoError,
+			expected: &types.RoleV6{
+				Kind:    types.KindRole,
+				Version: types.V7,
+				Metadata: types.Metadata{
+					Name:        teleport.PresetTerraformProviderRoleName,
+					Namespace:   apidefaults.Namespace,
+					Description: "Default Terraform provider role",
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						AppLabels:            map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+						DatabaseLabels:       map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+						NodeLabels:           map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+						WindowsDesktopLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+						Rules: []types.Rule{
+							{
+								Resources: []string{
+									types.KindAccessList,
+									types.KindApp,
+									types.KindClusterAuthPreference,
+									types.KindClusterMaintenanceConfig,
+									types.KindClusterNetworkingConfig,
+									types.KindDatabase,
+									types.KindDevice,
+									types.KindGithub,
+									types.KindLoginRule,
+									types.KindNode,
+									types.KindOIDC,
+									types.KindOktaImportRule,
+									types.KindRole,
+									types.KindSAML,
+									types.KindSessionRecordingConfig,
+									types.KindToken,
+									types.KindTrustedCluster,
+									types.KindUser,
+									// The resources that already got into the main rule are still present.
+									types.KindBot,
+									types.KindInstaller,
+								},
+								Verbs: RW(),
+							},
+							// The missing resources got added as individual rules
+							types.NewRule(types.KindAccessMonitoringRule, RW()),
+							types.NewRule(types.KindDynamicWindowsDesktop, RW()),
+							types.NewRule(types.KindStaticHostUser, RW()),
+							types.NewRule(types.KindWorkloadIdentity, RW()),
+							types.NewRule(types.KindGitServer, RW()),
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -658,4 +783,50 @@ func TestAddRoleDefaults(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPresetRolesDumped(t *testing.T) {
+	// This test ensures that the most recent version of selected preset roles
+	// has been correctly dumped to a generated JSON file. We use a generated
+	// file, because it's simpler to load it from a TypeScript test this way,
+	// rather than calling a Go binary.
+
+	// First, get the required roles, as defined in our codebase, and set their
+	// defaults.
+	access := NewPresetAccessRole()
+	editor := NewPresetEditorRole()
+	auditor := NewPresetAuditorRole()
+	rolesByName := map[string]types.Role{
+		access.GetName():  access,
+		editor.GetName():  editor,
+		auditor.GetName(): auditor,
+	}
+	for _, r := range rolesByName {
+		err := CheckAndSetDefaults(r)
+		require.NoError(t, err)
+	}
+
+	// Next, dump them all to JSON and parse them back again. This step is
+	// necessary, because unmarshaling isn't precisely the opposite of
+	// marshaling, and comparing raw roles to their unmarshaled counterparts
+	// still lead to some discrepancies. We can't also directly compare JSON
+	// blobs, as it's hard to reason whether this process is entirely
+	// deterministic.
+	bytes, err := json.Marshal(rolesByName)
+	require.NoError(t, err)
+	var recreatedRolesByName map[string]types.RoleV6
+	err = json.Unmarshal(bytes, &recreatedRolesByName)
+	require.NoError(t, err)
+
+	// Read the roles defined in the generated file.
+	bytes, err = os.ReadFile("../../gen/preset-roles.json")
+	require.NoError(t, err)
+	var rolesFromFile map[string]types.RoleV6
+	err = json.Unmarshal(bytes, &rolesFromFile)
+	require.NoError(t, err)
+
+	// Finally, compare the roles.
+	require.Equal(t, rolesFromFile, recreatedRolesByName,
+		"The dumped preset roles differ from their representation in code. Please run:\n"+
+			"make dump-preset-roles")
 }

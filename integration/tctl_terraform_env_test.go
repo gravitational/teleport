@@ -52,6 +52,7 @@ import (
 // TestTCTLTerraformCommand_ProxyJoin validates that the command `tctl terraform env` can run against a Teleport Proxy
 // service and generates valid credentials Terraform can use to connect to Teleport.
 func TestTCTLTerraformCommand_ProxyJoin(t *testing.T) {
+	// test is not Parallel because of the metrics black hole
 	testDir := t.TempDir()
 	prometheus.DefaultRegisterer = metricRegistryBlackHole{}
 
@@ -127,7 +128,7 @@ func TestTCTLTerraformCommand_ProxyJoin(t *testing.T) {
 // TestTCTLTerraformCommand_AuthJoin validates that the command `tctl terraform env` can run against a Teleport Auth
 // service and generates valid credentials Terraform can use to connect to Teleport.
 func TestTCTLTerraformCommand_AuthJoin(t *testing.T) {
-	t.Parallel()
+	// test is not Parallel because of the metrics black hole
 	testDir := t.TempDir()
 	prometheus.DefaultRegisterer = metricRegistryBlackHole{}
 

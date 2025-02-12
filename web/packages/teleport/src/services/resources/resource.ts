@@ -22,7 +22,9 @@ import api from 'teleport/services/api';
 import { ResourcesResponse, UnifiedResource } from '../agents';
 import auth, { MfaChallengeScope } from '../auth/auth';
 import {
+  CreateOrOverwriteGitServer,
   DefaultAuthConnector,
+  GitServer,
   makeResource,
   makeResourceList,
   Resource,
@@ -31,6 +33,20 @@ import {
 import { makeUnifiedResource } from './makeUnifiedResource';
 
 class ResourceService {
+  createOrOverwriteGitServer(
+    clusterId: string,
+    req: CreateOrOverwriteGitServer
+  ): Promise<GitServer> {
+    return api.put(
+      cfg.getGitServerUrl({ clusterId }, 'createOrOverwrite'),
+      req
+    );
+  }
+
+  deleteGitServer(clusterId: string, name: string): Promise<GitServer> {
+    return api.delete(cfg.getGitServerUrl({ clusterId, name }, 'delete'));
+  }
+
   fetchTrustedClusters() {
     return api
       .get(cfg.getTrustedClustersUrl())
@@ -55,17 +71,23 @@ class ResourceService {
       });
   }
 
-  fetchGithubConnectors(): Promise<{
+  async fetchGithubConnectors(): Promise<{
     defaultConnector: DefaultAuthConnector;
     connectors: Resource<'github'>[];
   }> {
-    return api.get(cfg.getGithubConnectorsUrl()).then(res => ({
-      defaultConnector: {
-        name: res.defaultConnectorName,
-        type: res.defaultConnectorType,
-      },
-      connectors: makeResourceList<'github'>(res.connectors),
-    }));
+    // MFA reuse needs to be allowed in case we need to fallback to another default connector
+    const challengeResponse =
+      await await auth.getMfaChallengeResponseForAdminAction(true);
+
+    return api
+      .get(cfg.getGithubConnectorsUrl(), undefined, challengeResponse)
+      .then(res => ({
+        defaultConnector: {
+          name: res.defaultConnectorName,
+          type: res.defaultConnectorType,
+        },
+        connectors: makeResourceList<'github'>(res.connectors),
+      }));
   }
 
   async setDefaultAuthConnector(req: DefaultAuthConnector | { type: 'local' }) {

@@ -16,9 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Dispatch, useReducer } from 'react';
+import { current, original } from 'immer';
+import { Dispatch } from 'react';
+import { useImmerReducer } from 'use-immer';
 
-import { Role } from 'teleport/services/resources';
+import { Role, RoleVersion } from 'teleport/services/resources';
 
 import {
   hasModifiedFields,
@@ -43,7 +45,7 @@ import { validateRoleEditorModel } from './validation';
 export const useStandardModel = (
   originalRole?: Role
 ): [StandardEditorModel, StandardModelDispatcher] =>
-  useReducer(reduce, originalRole, initializeState);
+  useImmerReducer(reduce, originalRole, initializeState);
 
 const initializeState = (originalRole?: Role): StandardEditorModel => {
   const role = originalRole ?? newRole();
@@ -61,6 +63,7 @@ export type StandardModelDispatcher = Dispatch<StandardModelAction>;
 
 type StandardModelAction =
   | SetModelAction
+  | ResetToStandardAction
   | SetMetadataAction
   | AddResourceAccessAction
   | SetResourceAccessAction
@@ -72,6 +75,7 @@ type StandardModelAction =
 
 /** Sets the entire model. */
 type SetModelAction = { type: 'set-role-model'; payload: RoleEditorModel };
+type ResetToStandardAction = { type: 'reset-to-standard'; payload?: never };
 type SetMetadataAction = { type: 'set-metadata'; payload: MetadataModel };
 type AddResourceAccessAction = {
   type: 'add-resource-access';
@@ -102,79 +106,98 @@ const reduce = (
   // block will cause a syntax error.
   const { type, payload } = action;
 
+  // This reduce uses Immer, so we modify the model draft directly.
+  // TODO(bl-nero): add immutability to the model data types.
   switch (type) {
     case 'set-role-model':
-      return updateRoleModel(state, payload);
+      state.roleModel = payload;
+      break;
+
+    case 'reset-to-standard':
+      state.roleModel.conversionErrors = [];
+      state.roleModel.requiresReset = false;
+      break;
 
     case 'set-metadata':
-      return updateRoleModel(state, { metadata: payload });
+      state.roleModel.metadata = payload;
+      updateRoleVersionInResources(
+        state.roleModel.resources,
+        payload.version.value
+      );
+      break;
 
     case 'set-options':
-      return updateRoleModel(state, { options: payload });
+      state.roleModel.options = payload;
+      break;
 
     case 'add-resource-access':
-      return updateRoleModel(state, {
-        resources: [
-          ...state.roleModel.resources,
-          newResourceAccess(payload.kind),
-        ],
-      });
+      state.roleModel.resources.push(
+        newResourceAccess(payload.kind, state.roleModel.metadata.version.value)
+      );
+      break;
 
     case 'set-resource-access':
-      return updateRoleModel(state, {
-        resources: state.roleModel.resources.map(r =>
-          r.kind === payload.kind ? payload : r
-        ),
-      });
+      state.roleModel.resources = state.roleModel.resources.map(r =>
+        r.kind === payload.kind ? payload : r
+      );
+      break;
 
     case 'remove-resource-access':
-      return updateRoleModel(state, {
-        resources: state.roleModel.resources.filter(
-          r => r.kind !== payload.kind
-        ),
-      });
+      state.roleModel.resources = state.roleModel.resources.filter(
+        r => r.kind !== payload.kind
+      );
+      break;
 
     case 'add-access-rule':
-      return updateRoleModel(state, {
-        rules: [...state.roleModel.rules, newRuleModel()],
-      });
+      state.roleModel.rules.push(newRuleModel());
+      break;
 
     case 'set-access-rule':
-      return updateRoleModel(state, {
-        rules: state.roleModel.rules.map(r =>
-          r.id === payload.id ? payload : r
-        ),
-      });
+      state.roleModel.rules = state.roleModel.rules.map(r =>
+        r.id === payload.id ? payload : r
+      );
+      break;
 
     case 'remove-access-rule':
-      return updateRoleModel(state, {
-        rules: state.roleModel.rules.filter(r => r.id !== payload.id),
-      });
+      state.roleModel.rules = state.roleModel.rules.filter(
+        r => r.id !== payload.id
+      );
+      break;
 
     default:
       (type) satisfies never;
       return state;
   }
+
+  processEditorModel(state);
 };
 
 /**
- * Creates a new model state given existing state and a patch to
- * RoleEditorModel. Validates the state and recognizes whether it's dirty (i.e.
- * changed from the original).
+ * Recomputes dependent fields of a state draft. Validates the state and
+ * recognizes whether it's dirty (i.e. changed from the original).
  */
-const updateRoleModel = (
-  { roleModel, originalRole, validationResult }: StandardEditorModel,
-  roleModelPatch: Partial<RoleEditorModel>
-): StandardEditorModel => {
-  const newRoleModel = { ...roleModel, ...roleModelPatch };
-  return {
-    roleModel: newRoleModel,
-    originalRole,
-    isDirty: hasModifiedFields(newRoleModel, originalRole),
-    validationResult: validateRoleEditorModel(
-      newRoleModel,
-      roleModel,
-      validationResult
-    ),
-  };
+const processEditorModel = (state: StandardEditorModel) => {
+  const { roleModel, originalRole, validationResult } = state;
+  state.isDirty = hasModifiedFields(roleModel, originalRole);
+  state.validationResult = validateRoleEditorModel(
+    // It's crucial to use `current` and `original` here from the performance
+    // standpoint, since `validateEditorModel` recognizes unchanged state by
+    // reference. We want to make sure that the objects passed to it have
+    // stable identities.
+    current(state).roleModel,
+    original(state).roleModel,
+    validationResult
+  );
+};
+
+const updateRoleVersionInResources = (
+  resources: ResourceAccess[],
+  version: RoleVersion
+) => {
+  for (const res of resources.filter(res => res.kind === 'kube_cluster')) {
+    res.roleVersion = version;
+    for (const kubeRes of res.resources) {
+      kubeRes.roleVersion = version;
+    }
+  }
 };

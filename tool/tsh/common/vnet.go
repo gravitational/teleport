@@ -19,6 +19,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -37,25 +38,52 @@ type vnetCLICommand interface {
 // vnetCommand implements the `tsh vnet` command to run VNet.
 type vnetCommand struct {
 	*kingpin.CmdClause
+	// runDiag determines whether to run diagnostics after VNet starts or not. Intended as a "feature
+	// flag" before we start running diagnostics on each start of VNet.
+	runDiag bool
 }
 
 func newVnetCommand(app *kingpin.Application) *vnetCommand {
 	cmd := &vnetCommand{
 		CmdClause: app.Command("vnet", "Start Teleport VNet, a virtual network for TCP application access."),
 	}
+	cmd.Flag("diag", "Run diagnostics after starting VNet").Hidden().BoolVar(&cmd.runDiag)
 	return cmd
 }
 
 func (c *vnetCommand) run(cf *CLIConf) error {
-	appProvider, err := newVnetAppProvider(cf)
+	clientApp, err := newVnetClientApplication(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	processManager, err := vnet.RunUserProcess(cf.Context, &vnet.UserProcessConfig{AppProvider: appProvider})
+	processManager, nsi, err := vnet.RunUserProcess(cf.Context, &vnet.UserProcessConfig{
+		ClientApplication: clientApp,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Println("VNet is ready.")
+
+	if c.runDiag {
+		go func() {
+			timeout := 2 * time.Second
+			fmt.Printf("Running diagnostics in %s.\n", timeout)
+			select {
+			case <-cf.Context.Done():
+				return
+			case <-time.After(timeout):
+			}
+			// Sleep is needed to give the admin process time to actually set up the routes.
+			// TODO(ravicious): Figure out how to guarantee that routes are set up without sleeping.
+			//nolint:staticcheck // SA4023. runVnetDiagnostics on unsupported platforms always returns err.
+			if err := runVnetDiagnostics(cf.Context, nsi); err != nil {
+				logger.ErrorContext(cf.Context, "Ran into a problem while running diagnostics", "error", err)
+				return
+			}
+			fmt.Println("Done running diagnostics.")
+		}()
+	}
+
 	context.AfterFunc(cf.Context, processManager.Close)
 	return trace.Wrap(processManager.Wait())
 }

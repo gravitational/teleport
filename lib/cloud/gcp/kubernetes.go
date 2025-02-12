@@ -186,7 +186,7 @@ func (g *gkeClient) ListClusters(ctx context.Context, projectID string, location
 		},
 	)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(convertAPIError(err))
 	}
 	var clusters []GKECluster
 	for _, cluster := range res.Clusters {
@@ -226,7 +226,7 @@ func (g *gkeClient) GetClusterRestConfig(ctx context.Context, cfg ClusterDetails
 		},
 	)
 	if err != nil {
-		return nil, time.Time{}, trace.Wrap(err)
+		return nil, time.Time{}, trace.Wrap(convertAPIError(err))
 	}
 
 	// Generate a SA Authentication Token.

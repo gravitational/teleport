@@ -28,16 +28,16 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
-	"github.com/aws/aws-sdk-go/aws/client"
-	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/server"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 // pageSize is the default page size to use when fetching AWS resources
@@ -48,8 +48,6 @@ const pageSize int32 = 500
 type Config struct {
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
-	// CloudClients is the cloud clients to use when fetching AWS resources.
-	CloudClients cloud.Clients
 	// GetEKSClient gets an AWS EKS client for the given region.
 	GetEKSClient EKSClientGetter
 	// GetEC2Client gets an AWS EC2 client for the given region.
@@ -105,12 +103,21 @@ type iamClient interface {
 	ListSAMLProviders(context.Context, *iam.ListSAMLProvidersInput, ...func(*iam.Options)) (*iam.ListSAMLProvidersOutput, error)
 }
 
+// stsClient defines a subset of the AWS STS client API.
+type stsClient interface {
+	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+}
+
 // awsClientProvider provides AWS service API clients.
 type awsClientProvider interface {
 	// getIAMClient provides an [iamClient].
 	getIAMClient(cfg aws.Config, optFns ...func(*iam.Options)) iamClient
 	// getRDSClient provides an [rdsClient].
 	getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient
+	// getS3Client provides an [s3Client].
+	getS3Client(cfg aws.Config, optFns ...func(*s3.Options)) s3Client
+	// getSTSClient provides an [stsClient].
+	getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient
 }
 
 type defaultAWSClients struct{}
@@ -123,6 +130,14 @@ func (defaultAWSClients) getRDSClient(cfg aws.Config, optFns ...func(*rds.Option
 	return rds.NewFromConfig(cfg, optFns...)
 }
 
+func (defaultAWSClients) getS3Client(cfg aws.Config, optFns ...func(*s3.Options)) s3Client {
+	return s3.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient {
+	return stsutils.NewFromConfig(cfg, optFns...)
+}
+
 // AssumeRole is the configuration for assuming an AWS role.
 type AssumeRole struct {
 	// RoleARN is the ARN of the role to assume.
@@ -131,26 +146,12 @@ type AssumeRole struct {
 	ExternalID string
 }
 
-// awsFetcher is a fetcher that fetches AWS resources.
-type awsFetcher struct {
+// Fetcher is a fetcher that fetches AWS resources.
+type Fetcher struct {
 	Config
 	lastError               error
 	lastDiscoveredResources uint64
 	lastResult              *Resources
-}
-
-// AWSSync is the interface for fetching AWS resources.
-type AWSSync interface {
-	// Poll polls all AWS resources and returns the result.
-	Poll(context.Context, Features) (*Resources, error)
-	// Status reports the last known status of the fetcher.
-	Status() (uint64, error)
-	// DiscoveryConfigName returns the name of the Discovery Config.
-	DiscoveryConfigName() string
-	// IsFromDiscoveryConfig returns true if the fetcher is associated with a Discovery Config.
-	IsFromDiscoveryConfig() bool
-	// GetAccountID returns the AWS account ID.
-	GetAccountID() string
 }
 
 // Resources is a collection of polled AWS resources.
@@ -242,12 +243,12 @@ func (r *Resources) UsageReport(numberAccounts int) *usageeventsv1.AccessGraphAW
 	}
 }
 
-// NewAWSFetcher creates a new AWS fetcher.
-func NewAWSFetcher(ctx context.Context, cfg Config) (AWSSync, error) {
+// NewFetcher creates a new AWS fetcher.
+func NewFetcher(ctx context.Context, cfg Config) (*Fetcher, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	a := &awsFetcher{
+	a := &Fetcher{
 		Config:     cfg,
 		lastResult: &Resources{},
 	}
@@ -263,14 +264,14 @@ func NewAWSFetcher(ctx context.Context, cfg Config) (AWSSync, error) {
 // Poll is a blocking call and will return when all resources have been fetched.
 // It's possible that the call returns Resources and an error at the same time
 // if some resources were fetched successfully and some were not.
-func (a *awsFetcher) Poll(ctx context.Context, features Features) (*Resources, error) {
+func (a *Fetcher) Poll(ctx context.Context, features Features) (*Resources, error) {
 	result, err := a.poll(ctx, features)
 	deduplicateResources(result)
 	a.storeReport(result, err)
 	return result, trace.Wrap(err)
 }
 
-func (a *awsFetcher) storeReport(rec *Resources, err error) {
+func (a *Fetcher) storeReport(rec *Resources, err error) {
 	a.lastError = err
 	if rec == nil {
 		return
@@ -279,11 +280,11 @@ func (a *awsFetcher) storeReport(rec *Resources, err error) {
 	a.lastDiscoveredResources = uint64(rec.count())
 }
 
-func (a *awsFetcher) GetAccountID() string {
+func (a *Fetcher) GetAccountID() string {
 	return a.AccountID
 }
 
-func (a *awsFetcher) poll(ctx context.Context, features Features) (*Resources, error) {
+func (a *Fetcher) poll(ctx context.Context, features Features) (*Resources, error) {
 	eGroup, ctx := errgroup.WithContext(ctx)
 	// Set the limit for the number of concurrent pollers running in parallel.
 	// This is to prevent the number of concurrent pollers from growing too large
@@ -362,36 +363,9 @@ func (a *awsFetcher) poll(ctx context.Context, features Features) (*Resources, e
 	return result, trace.NewAggregate(errs...)
 }
 
-// getAWSOptions returns a list of AWSAssumeRoleOptionFn to be used when
-// creating AWS clients.
-func (a *awsFetcher) getAWSOptions() []cloud.AWSOptionsFn {
-	opts := []cloud.AWSOptionsFn{
-		cloud.WithCredentialsMaybeIntegration(a.Config.Integration),
-	}
-
-	if a.Config.AssumeRole != nil {
-		opts = append(opts, cloud.WithAssumeRole(a.Config.AssumeRole.RoleARN, a.Config.AssumeRole.ExternalID))
-	}
-	const maxRetries = 10
-	opts = append(opts,
-		cloud.WithMaxRetries(maxRetries),
-		cloud.WithRetryer(
-			client.DefaultRetryer{
-				NumMaxRetries:    maxRetries,
-				MinRetryDelay:    time.Second,
-				MinThrottleDelay: time.Second,
-				MaxRetryDelay:    300 * time.Second,
-				MaxThrottleDelay: 300 * time.Second,
-			},
-		),
-	)
-
-	return opts
-}
-
-// getAWSV2Options returns a list of options to be used when
-// creating AWS clients with the v2 sdk.
-func (a *awsFetcher) getAWSV2Options() []awsconfig.OptionsFn {
+// getAWSOptions returns a list of options to be used when creating AWS clients
+// with the v2 sdk.
+func (a *Fetcher) getAWSOptions() []awsconfig.OptionsFn {
 	opts := []awsconfig.OptionsFn{
 		awsconfig.WithCredentialsMaybeIntegration(a.Config.Integration),
 	}
@@ -410,8 +384,8 @@ func (a *awsFetcher) getAWSV2Options() []awsconfig.OptionsFn {
 	return opts
 }
 
-func (a *awsFetcher) getAccountId(ctx context.Context) (string, error) {
-	stsClient, err := a.CloudClients.GetAWSSTSClient(
+func (a *Fetcher) getAccountId(ctx context.Context) (string, error) {
+	awsCfg, err := a.AWSConfigProvider.GetConfig(
 		ctx,
 		"", /* region is empty because groups are global */
 		a.getAWSOptions()...,
@@ -419,9 +393,10 @@ func (a *awsFetcher) getAccountId(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+	stsClient := a.awsClients.getSTSClient(awsCfg)
 
 	input := &sts.GetCallerIdentityInput{}
-	req, err := stsClient.GetCallerIdentityWithContext(ctx, input)
+	req, err := stsClient.GetCallerIdentity(ctx, input)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -429,14 +404,14 @@ func (a *awsFetcher) getAccountId(ctx context.Context) (string, error) {
 	return aws.ToString(req.Account), nil
 }
 
-func (a *awsFetcher) DiscoveryConfigName() string {
+func (a *Fetcher) DiscoveryConfigName() string {
 	return a.Config.DiscoveryConfigName
 }
 
-func (a *awsFetcher) IsFromDiscoveryConfig() bool {
+func (a *Fetcher) IsFromDiscoveryConfig() bool {
 	return a.Config.DiscoveryConfigName != ""
 }
 
-func (a *awsFetcher) Status() (uint64, error) {
+func (a *Fetcher) Status() (uint64, error) {
 	return a.lastDiscoveredResources, a.lastError
 }

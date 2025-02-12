@@ -23,17 +23,18 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net/url"
 	"os"
 	"os/user"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -145,7 +146,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
 		Short('c').ExistingFileVar(&ccf.ConfigFile)
 	start.Flag("apply-on-startup",
-		fmt.Sprintf("Path to a non-empty YAML file containing resources to apply on startup. Works on initialized clusters, unlike --bootstrap. Only supports the following kinds: %s.", maps.Keys(auth.ResourceApplyPriority))).
+		fmt.Sprintf("Path to a non-empty YAML file containing resources to apply on startup. Works on initialized clusters, unlike --bootstrap. Only supports the following kinds: %s.", slices.Collect(maps.Keys(auth.ResourceApplyPriority)))).
 		ExistingFileVar(&ccf.ApplyOnStartupFile)
 	start.Flag("bootstrap",
 		"Path to a non-empty YAML file containing bootstrap resources (ignored if already initialized)").ExistingFileVar(&ccf.BootstrapFile)
@@ -572,7 +573,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	getLogLevelCmd := debugCmd.Command("get-log-level", "Fetches current log level.")
 	collectProfilesCmd := debugCmd.Command("profile", "Export the application profiles (pprof format). Outputs to stdout .tar.gz file contents.")
 	collectProfilesCmd.Alias(collectProfileUsageExamples) // We're using "alias" section to display usage examples.
-	collectProfilesCmd.Arg("PROFILES", fmt.Sprintf("Comma-separated profile names to be exported. Supported profiles: %s. Default: %s", strings.Join(maps.Keys(debugclient.SupportedProfiles), ","), strings.Join(defaultCollectProfiles, ","))).StringVar(&ccf.Profiles)
+	collectProfilesCmd.Arg("PROFILES", fmt.Sprintf("Comma-separated profile names to be exported. Supported profiles: %s. Default: %s", strings.Join(slices.Collect(maps.Keys(debugclient.SupportedProfiles)), ","), strings.Join(defaultCollectProfiles, ","))).StringVar(&ccf.Profiles)
 	collectProfilesCmd.Flag("seconds", "For CPU and trace profiles, profile for the given duration (if set to 0, it returns a profile snapshot). For other profiles, return a delta profile. Default: 0").Short('s').Default("0").IntVar(&ccf.ProfileSeconds)
 
 	backendCmd := app.Command("backend", "Commands for managing backend data.")

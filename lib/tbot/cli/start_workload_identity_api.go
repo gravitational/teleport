@@ -52,7 +52,7 @@ func NewWorkloadIdentityAPICommand(parentCmd *kingpin.CmdClause, action MutatorA
 	cmd := parentCmd.Command(
 		"workload-identity-api",
 		fmt.Sprintf("%s tbot with a workload identity API listener. Compatible with the SPIFFE Workload API and Envoy SDS.", mode),
-	).Hidden()
+	)
 
 	c := &WorkloadIdentityAPICommand{}
 	c.sharedStartArgs = newSharedStartArgs(cmd)

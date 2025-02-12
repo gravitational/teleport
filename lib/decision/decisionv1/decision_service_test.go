@@ -22,24 +22,63 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	"github.com/gravitational/teleport/lib/auth"
 )
 
-func TestDecisionService_notImplemented(t *testing.T) {
+func TestDecisionServiceRequiresLocalAdmin(t *testing.T) {
 	t.Parallel()
 
 	env := NewTestenv(t)
-	decisionClient := env.DecisionClient
 	ctx := context.Background()
 
+	_, _, err := auth.CreateUserAndRoleWithoutRoles(env.AuthAdminClient, "alice", []string{"alice"})
+	require.NoError(t, err, "Creating use alice failed")
+
+	aliceClient, err := env.TestServer.NewClient(auth.TestUser("alice"))
+	require.NoError(t, err, "NewClient failed")
+	t.Cleanup(func() {
+		assert.NoError(t, aliceClient.Close(), "aliceClient.Close() failed")
+	})
+
+	tests := []struct {
+		name          string
+		client        decisionpb.DecisionServiceClient
+		expectedError any
+	}{
+		{
+			name:          "admin",
+			client:        env.DecisionClient,
+			expectedError: &trace.NotImplementedError{},
+		},
+		{
+			name:          "alice",
+			client:        aliceClient.DecisionClient(),
+			expectedError: &trace.AccessDeniedError{},
+		},
+	}
+
 	t.Run("EvaluateSSHAccess", func(t *testing.T) {
-		_, err := decisionClient.EvaluateSSHAccess(ctx, &decisionpb.EvaluateSSHAccessRequest{})
-		assert.ErrorAs(t, err, new(*trace.NotImplementedError), "EvaluateSSHAccess error mismatch")
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				_, err := test.client.EvaluateSSHAccess(ctx, &decisionpb.EvaluateSSHAccessRequest{})
+				assert.ErrorAs(t, err, &test.expectedError, "EvaluateSSHAccess error mismatch")
+			})
+		}
 	})
 
 	t.Run("EvaluateDatabaseAccess", func(t *testing.T) {
-		_, err := decisionClient.EvaluateDatabaseAccess(ctx, &decisionpb.EvaluateDatabaseAccessRequest{})
-		assert.ErrorAs(t, err, new(*trace.NotImplementedError), "EvaluateDatabaseAccess error mismatch")
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				_, err := test.client.EvaluateDatabaseAccess(ctx, &decisionpb.EvaluateDatabaseAccessRequest{})
+				assert.ErrorAs(t, err, &test.expectedError, "EvaluateDatabaseAccess error mismatch")
+			})
+		}
 	})
 }

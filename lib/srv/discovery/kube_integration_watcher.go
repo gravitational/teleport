@@ -20,8 +20,9 @@ package discovery
 
 import (
 	"context"
-	"fmt"
 	"maps"
+	"net/url"
+	"path"
 	"slices"
 	"strings"
 	"sync"
@@ -30,10 +31,13 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/webclient"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
@@ -60,10 +64,24 @@ func (s *Server) startKubeIntegrationWatchers() error {
 	}
 	proxyPublicAddr := pingResponse.GetProxyPublicAddr()
 
-	releaseChannels := automaticupgrades.Channels{automaticupgrades.DefaultChannelName: &automaticupgrades.Channel{
-		ForwardURL: fmt.Sprintf("https://%s/webapi/automaticupgrades/channel/%s", proxyPublicAddr, automaticupgrades.DefaultChannelName)}}
-	if err := releaseChannels.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
+	var versionGetter version.Getter
+	if proxyPublicAddr == "" {
+		// If there are no proxy services running, we might fail to get the proxy URL and build a client.
+		// In this case we "gracefully" fallback to our own version.
+		// This is not supposed to happen outside of tests as the discovery service must join via a proxy.
+		s.Log.WarnContext(s.ctx,
+			"Failed to determine proxy public address, agents will install our own Teleport version instead of the one advertised by the proxy.",
+			"version", teleport.Version)
+		versionGetter = version.NewStaticGetter(teleport.Version, nil)
+	} else {
+		versionGetter, err = versionGetterForProxy(s.ctx, proxyPublicAddr)
+		if err != nil {
+			s.Log.WarnContext(s.ctx,
+				"Failed to build a version client, falling back to Discovery service Teleport version.",
+				"error", err,
+				"version", teleport.Version)
+			versionGetter = version.NewStaticGetter(teleport.Version, nil)
+		}
 	}
 
 	watcher, err := common.NewWatcher(s.ctx, common.WatcherConfig{
@@ -78,6 +96,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 		Origin:         types.OriginCloud,
 		TriggerFetchC:  s.newDiscoveryConfigChangedSub(),
 		PreFetchHookFn: s.kubernetesIntegrationWatcherIterationStarted,
+		Clock:          s.clock,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -86,7 +105,6 @@ func (s *Server) startKubeIntegrationWatchers() error {
 
 	go func() {
 		for {
-			discoveryConfigsChanged := map[string]struct{}{}
 			resourcesFoundByGroup := make(map[awsResourceGroup]int)
 			resourcesEnrolledByGroup := make(map[awsResourceGroup]int)
 
@@ -108,7 +126,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 					continue
 				}
 
-				agentVersion, err := s.getKubeAgentVersion(releaseChannels)
+				agentVersion, err := s.getKubeAgentVersion(versionGetter)
 				if err != nil {
 					s.Log.WarnContext(s.ctx, "Could not get agent version to enroll EKS clusters", "error", err)
 					continue
@@ -124,7 +142,6 @@ func (s *Server) startKubeIntegrationWatchers() error {
 
 					resourceGroup := awsResourceGroupFromLabels(newCluster.GetStaticLabels())
 					resourcesFoundByGroup[resourceGroup] += 1
-					discoveryConfigsChanged[resourceGroup.discoveryConfigName] = struct{}{}
 
 					if enrollingClusters[newCluster.GetAWSConfig().Name] ||
 						slices.ContainsFunc(existingServers, func(c types.KubeServer) bool { return c.GetName() == newCluster.GetName() }) ||
@@ -175,10 +192,6 @@ func (s *Server) startKubeIntegrationWatchers() error {
 			for group, count := range resourcesEnrolledByGroup {
 				s.awsEKSResourcesStatus.incrementEnrolled(group, count)
 			}
-
-			for dc := range discoveryConfigsChanged {
-				s.updateDiscoveryConfigStatus(dc)
-			}
 		}
 	}()
 	return nil
@@ -203,16 +216,16 @@ func (s *Server) kubernetesIntegrationWatcherIterationStarted() {
 			return resourceGroup, include
 		},
 	)
-	for _, g := range awsResultGroups {
-		s.awsEKSResourcesStatus.iterationStarted(g)
-	}
 
 	discoveryConfigs := libslices.FilterMapUnique(awsResultGroups, func(g awsResourceGroup) (s string, include bool) {
 		return g.discoveryConfigName, true
 	})
 	s.updateDiscoveryConfigStatus(discoveryConfigs...)
-
 	s.awsEKSResourcesStatus.reset()
+	for _, g := range awsResultGroups {
+		s.awsEKSResourcesStatus.iterationStarted(g)
+	}
+
 	s.awsEKSTasks.reset()
 }
 
@@ -232,7 +245,6 @@ func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName stri
 		}
 		mu.Unlock()
 
-		s.updateDiscoveryConfigStatus(discoveryConfigName)
 		s.upsertTasksForAWSEKSFailedEnrollments()
 	}()
 
@@ -311,8 +323,8 @@ func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName stri
 	}
 }
 
-func (s *Server) getKubeAgentVersion(releaseChannels automaticupgrades.Channels) (string, error) {
-	return kubeutils.GetKubeAgentVersion(s.ctx, s.AccessPoint, s.ClusterFeatures(), releaseChannels)
+func (s *Server) getKubeAgentVersion(versionGetter version.Getter) (string, error) {
+	return kubeutils.GetKubeAgentVersion(s.ctx, s.AccessPoint, s.ClusterFeatures(), versionGetter)
 }
 
 type IntegrationFetcher interface {
@@ -371,4 +383,30 @@ func (s *Server) getKubeIntegrationFetchers() []common.Fetcher {
 
 func (s *Server) getKubeNonIntegrationFetchers() []common.Fetcher {
 	return s.getKubeFetchers(false)
+}
+
+func versionGetterForProxy(ctx context.Context, proxyPublicAddr string) (version.Getter, error) {
+	proxyClt, err := webclient.NewReusableClient(&webclient.Config{
+		Context:   ctx,
+		ProxyAddr: proxyPublicAddr,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to build proxy client")
+	}
+
+	baseURL := &url.URL{
+		Scheme:  "https",
+		Host:    proxyPublicAddr,
+		RawPath: path.Join("/webapi/automaticupgrades/channel", automaticupgrades.DefaultChannelName),
+	}
+	if err != nil {
+		return nil, trace.Wrap(err, "crafting the channel base URL (this is a bug)")
+	}
+
+	return version.FailoverGetter{
+		// We try getting the version via the new webapi
+		version.NewProxyVersionGetter(proxyClt),
+		// If this is not implemented, we fallback to the release channels
+		version.NewBasicHTTPVersionGetter(baseURL),
+	}, nil
 }

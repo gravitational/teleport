@@ -28,7 +28,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
 	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
-	"github.com/aws/aws-sdk-go/service/memorydb"
+	"github.com/aws/aws-sdk-go-v2/service/memorydb"
+	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -83,15 +84,14 @@ func TestAuthTokens(t *testing.T) {
 	}
 	ecMock.AddMockUser(elastiCacheIAMUser, nil)
 
-	memorydbMock := &mocks.MemoryDBMock{}
-	memorydbIAMUser := &memorydb.User{
+	memorydbMock := &mocks.MemoryDBClient{}
+	memorydbIAMUser := memorydbtypes.User{
 		Name:           aws.String("default"),
-		Authentication: &memorydb.Authentication{Type: aws.String("iam")},
+		Authentication: &memorydbtypes.Authentication{Type: memorydbtypes.AuthenticationTypeIam},
 	}
 	memorydbMock.AddMockUser(memorydbIAMUser, nil)
 	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
 		Databases: databases,
-		MemoryDB:  memorydbMock,
 		GetEngineFn: func(db types.Database, conf common.EngineConfig) (common.Engine, error) {
 			if db.GetProtocol() != defaults.ProtocolRedis {
 				return common.GetEngine(db, conf)
@@ -103,7 +103,8 @@ func TestAuthTokens(t *testing.T) {
 			return &redis.Engine{
 				EngineConfig: conf,
 				AWSClients: fakeRedisAWSClients{
-					ecClient: ecMock,
+					ecClient:  ecMock,
+					mdbClient: memorydbMock,
 				},
 			}, nil
 		},
@@ -487,9 +488,14 @@ func TestMongoDBAtlas(t *testing.T) {
 }
 
 type fakeRedisAWSClients struct {
-	ecClient redis.ElastiCacheClient
+	mdbClient redis.MemoryDBClient
+	ecClient  redis.ElastiCacheClient
 }
 
 func (f fakeRedisAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) redis.ElastiCacheClient {
 	return f.ecClient
+}
+
+func (f fakeRedisAWSClients) GetMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) redis.MemoryDBClient {
+	return f.mdbClient
 }

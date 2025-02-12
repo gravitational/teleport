@@ -105,7 +105,7 @@ func runPortForwardingHTTPStreams(req portForwardRequest) error {
 	defer h.Close()
 
 	h.logger.DebugContext(req.context, "Setting port forwarding streaming connection idle timeout", "idle_timeout", req.idleTimeout)
-	conn.SetIdleTimeout(req.idleTimeout)
+	conn.SetIdleTimeout(adjustIdleTimeoutForConn(req.idleTimeout))
 
 	h.run()
 	return nil

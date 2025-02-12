@@ -23,6 +23,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
+	memorydb "github.com/aws/aws-sdk-go-v2/service/memorydb"
+	opensearch "github.com/aws/aws-sdk-go-v2/service/opensearch"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
@@ -309,14 +311,24 @@ func newRegionalFakeRDSClientProvider(cs map[string]RDSClient) fakeRegionalRDSCl
 }
 
 type fakeAWSClients struct {
-	ecClient       ElastiCacheClient
-	rdsClient      RDSClient
-	redshiftClient RedshiftClient
-	rssClient      RSSClient
+	ecClient         ElastiCacheClient
+	mdbClient        MemoryDBClient
+	openSearchClient OpenSearchClient
+	rdsClient        RDSClient
+	redshiftClient   RedshiftClient
+	rssClient        RSSClient
 }
 
 func (f fakeAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) ElastiCacheClient {
 	return f.ecClient
+}
+
+func (f fakeAWSClients) GetMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) MemoryDBClient {
+	return f.mdbClient
+}
+
+func (f fakeAWSClients) GetOpenSearchClient(cfg aws.Config, optFns ...func(*opensearch.Options)) OpenSearchClient {
+	return f.openSearchClient
 }
 
 func (f fakeAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) RDSClient {

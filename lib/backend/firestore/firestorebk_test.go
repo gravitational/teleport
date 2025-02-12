@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 func TestMain(m *testing.M) {
@@ -126,7 +127,7 @@ func TestFirestoreDB(t *testing.T) {
 	ensureTestsEnabled(t)
 	ensureEmulatorRunning(t, cfg)
 
-	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
+	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clocki.FakeClock, error) {
 		testCfg, err := test.ApplyOptions(options)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)

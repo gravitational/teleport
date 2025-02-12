@@ -63,7 +63,10 @@ func (f *FakeOIDCIntegrationClient) GetIntegration(ctx context.Context, name str
 	if f.Unauth {
 		return nil, trace.AccessDenied("unauthorized")
 	}
-	return f.Integration, nil
+	if f.Integration.GetName() == name {
+		return f.Integration, nil
+	}
+	return nil, trace.NotFound("integration %q not found", name)
 }
 
 func (f *FakeOIDCIntegrationClient) GenerateAWSOIDCToken(ctx context.Context, integrationName string) (string, error) {

@@ -56,6 +56,7 @@ jobs:
 
       - name: Setup pnpm
         run: |
+          npm install -g corepack@0.31.0
           corepack enable pnpm
 
       - name: Install Go Toolchain

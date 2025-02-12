@@ -172,7 +172,7 @@ func TestSessionEndEvent(t *testing.T) {
 
 	id, audit := setup(testDesktop)
 
-	audit.clock.(clockwork.FakeClock).Advance(30 * time.Second)
+	audit.clock.(*clockwork.FakeClock).Advance(30 * time.Second)
 
 	endEvent := audit.makeSessionEnd(true)
 

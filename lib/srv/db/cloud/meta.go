@@ -27,22 +27,24 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
 	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	memorydb "github.com/aws/aws-sdk-go-v2/service/memorydb"
+	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
+	opensearch "github.com/aws/aws-sdk-go-v2/service/opensearch"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
-	"github.com/aws/aws-sdk-go/service/memorydb"
-	"github.com/aws/aws-sdk-go/service/memorydb/memorydbiface"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -59,6 +61,16 @@ type iamClient interface {
 	GetUserPolicy(context.Context, *iam.GetUserPolicyInput, ...func(*iam.Options)) (*iam.GetUserPolicyOutput, error)
 	PutRolePolicy(context.Context, *iam.PutRolePolicyInput, ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
 	PutUserPolicy(context.Context, *iam.PutUserPolicyInput, ...func(*iam.Options)) (*iam.PutUserPolicyOutput, error)
+}
+
+// memoryDBClient defines a subset of the AWS MemoryDB client API.
+type memoryDBClient interface {
+	memorydb.DescribeClustersAPIClient
+}
+
+// openSearchClient defines a subset of the AWS OpenSearch client API.
+type openSearchClient interface {
+	DescribeDomains(context.Context, *opensearch.DescribeDomainsInput, ...func(*opensearch.Options)) (*opensearch.DescribeDomainsOutput, error)
 }
 
 // rdsClient defines a subset of the AWS RDS client API.
@@ -82,13 +94,21 @@ type rssClient interface {
 	GetWorkgroup(ctx context.Context, params *rss.GetWorkgroupInput, optFns ...func(*rss.Options)) (*rss.GetWorkgroupOutput, error)
 }
 
+// stsClient defines a subset of the AWS STS client API.
+type stsClient interface {
+	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+}
+
 // awsClientProvider is an AWS SDK client provider.
 type awsClientProvider interface {
 	getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient
 	getIAMClient(cfg aws.Config, optFns ...func(*iam.Options)) iamClient
+	getMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) memoryDBClient
+	getOpenSearchClient(cfg aws.Config, optFns ...func(*opensearch.Options)) openSearchClient
 	getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient
 	getRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient
 	getRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) rssClient
+	getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient
 }
 
 type defaultAWSClients struct{}
@@ -99,6 +119,14 @@ func (defaultAWSClients) getElastiCacheClient(cfg aws.Config, optFns ...func(*el
 
 func (defaultAWSClients) getIAMClient(cfg aws.Config, optFns ...func(*iam.Options)) iamClient {
 	return iam.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) getMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) memoryDBClient {
+	return memorydb.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) getOpenSearchClient(cfg aws.Config, optFns ...func(*opensearch.Options)) openSearchClient {
+	return opensearch.NewFromConfig(cfg, optFns...)
 }
 
 func (defaultAWSClients) getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient {
@@ -113,10 +141,12 @@ func (defaultAWSClients) getRedshiftServerlessClient(cfg aws.Config, optFns ...f
 	return rss.NewFromConfig(cfg, optFns...)
 }
 
+func (defaultAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient {
+	return stsutils.NewFromConfig(cfg, optFns...)
+}
+
 // MetadataConfig is the cloud metadata service config.
 type MetadataConfig struct {
-	// Clients is an interface for retrieving cloud clients.
-	Clients cloud.Clients
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
 
@@ -126,13 +156,6 @@ type MetadataConfig struct {
 
 // Check validates the metadata service config.
 func (c *MetadataConfig) Check() error {
-	if c.Clients == nil {
-		cloudClients, err := cloud.NewClients()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		c.Clients = cloudClients
-	}
 	if c.AWSConfigProvider == nil {
 		return trace.BadParameter("missing AWSConfigProvider")
 	}
@@ -318,14 +341,15 @@ func (m *Metadata) fetchElastiCacheMetadata(ctx context.Context, database types.
 // fetchMemoryDBMetadata fetches metadata for the provided MemoryDB database.
 func (m *Metadata) fetchMemoryDBMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
 	meta := database.GetAWS()
-	memoryDBClient, err := m.cfg.Clients.GetAWSMemoryDBClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := m.cfg.AWSConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cluster, err := describeMemoryDBCluster(ctx, memoryDBClient, meta.MemoryDB.ClusterName)
+	clt := m.cfg.awsClients.getMemoryDBClient(awsCfg)
+	cluster, err := describeMemoryDBCluster(ctx, clt, meta.MemoryDB.ClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -411,8 +435,8 @@ func describeElastiCacheCluster(ctx context.Context, elastiCacheClient elasticac
 }
 
 // describeMemoryDBCluster returns AWS MemoryDB cluster for the specified ID.
-func describeMemoryDBCluster(ctx context.Context, client memorydbiface.MemoryDBAPI, clusterName string) (*memorydb.Cluster, error) {
-	out, err := client.DescribeClustersWithContext(ctx, &memorydb.DescribeClustersInput{
+func describeMemoryDBCluster(ctx context.Context, client memoryDBClient, clusterName string) (*memorydbtypes.Cluster, error) {
+	out, err := client.DescribeClusters(ctx, &memorydb.DescribeClustersInput{
 		ClusterName: aws.String(clusterName),
 	})
 	if err != nil {
@@ -421,7 +445,7 @@ func describeMemoryDBCluster(ctx context.Context, client memorydbiface.MemoryDBA
 	if len(out.Clusters) != 1 {
 		return nil, trace.BadParameter("expected 1 MemoryDB cluster for %v, got %+v", clusterName, out.Clusters)
 	}
-	return out.Clusters[0], nil
+	return &out.Clusters[0], nil
 }
 
 // fetchRDSProxyMetadata fetches metadata about specified RDS Proxy name.

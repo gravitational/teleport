@@ -32,14 +32,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
 	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
-	"github.com/aws/aws-sdk-go/service/memorydb"
+	memorydb "github.com/aws/aws-sdk-go-v2/service/memorydb"
+	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
 	"github.com/gravitational/trace"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/lib/cloud"
 	libaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -89,8 +89,10 @@ type Engine struct {
 
 // AWSClientProvider provides AWS service API clients.
 type AWSClientProvider interface {
-	// GetElastiCacheClient provides an [ElasticacheClient].
+	// GetElastiCacheClient provides an [ElastiCacheClient].
 	GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) ElastiCacheClient
+	// GetMemoryDBClient provides an [MemoryDBClient].
+	GetMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) MemoryDBClient
 }
 
 // ElastiCacheClient is a subset of the AWS ElastiCache API.
@@ -98,10 +100,19 @@ type ElastiCacheClient interface {
 	elasticache.DescribeUsersAPIClient
 }
 
+// MemoryDBClient is a subset of the AWS MemoryDB API.
+type MemoryDBClient interface {
+	memorydb.DescribeUsersAPIClient
+}
+
 type defaultAWSClients struct{}
 
 func (defaultAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) ElastiCacheClient {
 	return elasticache.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) GetMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) MemoryDBClient {
+	return memorydb.NewFromConfig(cfg, optFns...)
 }
 
 // InitializeConnection initializes the database connection.
@@ -354,7 +365,7 @@ func (e *Engine) createCredentialsProvider(ctx context.Context, sessionCtx *comm
 	// ensures the correct password is used for each shard connection when
 	// Redis is in cluster mode.
 	case slices.Contains(sessionCtx.Database.GetManagedUsers(), sessionCtx.DatabaseUser):
-		credFetchFn := managedUserCredFetchFunc(sessionCtx, e.Auth, e.Users)
+		credFetchFn := managedUserCredFetchFunc(sessionCtx, e.Users)
 		return fetchCredentialsOnConnect(e.Context, sessionCtx, e.Audit, credFetchFn), nil
 
 	// AWS ElastiCache has limited support for IAM authentication.
@@ -424,7 +435,7 @@ func (e *Engine) checkUserIAMAuthIsEnabled(ctx context.Context, sessionCtx *comm
 	case types.DatabaseTypeElastiCache:
 		return e.checkElastiCacheUserIAMAuthIsEnabled(ctx, sessionCtx.Database.GetAWS(), username)
 	case types.DatabaseTypeMemoryDB:
-		return checkMemoryDBUserIAMAuthIsEnabled(ctx, e.CloudClients, sessionCtx.Database.GetAWS(), username)
+		return e.checkMemoryDBUserIAMAuthIsEnabled(ctx, sessionCtx.Database.GetAWS(), username)
 	default:
 		return false, nil
 	}
@@ -445,7 +456,7 @@ func (e *Engine) checkElastiCacheUserIAMAuthIsEnabled(ctx context.Context, awsMe
 	input := elasticache.DescribeUsersInput{UserId: aws.String(username)}
 	out, err := client.DescribeUsers(ctx, &input)
 	if err != nil {
-		return false, trace.Wrap(libaws.ConvertRequestFailureErrorV2(err))
+		return false, trace.Wrap(libaws.ConvertRequestFailureError(err))
 	}
 	if len(out.Users) < 1 || out.Users[0].Authentication == nil {
 		return false, nil
@@ -454,24 +465,25 @@ func (e *Engine) checkElastiCacheUserIAMAuthIsEnabled(ctx context.Context, awsMe
 	return ectypes.AuthenticationTypeIam == authType, nil
 }
 
-func checkMemoryDBUserIAMAuthIsEnabled(ctx context.Context, clients cloud.Clients, awsMeta types.AWS, username string) (bool, error) {
-	client, err := clients.GetAWSMemoryDBClient(ctx, awsMeta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(awsMeta),
-		cloud.WithAmbientCredentials(),
+func (e *Engine) checkMemoryDBUserIAMAuthIsEnabled(ctx context.Context, awsMeta types.AWS, username string) (bool, error) {
+	awsCfg, err := e.AWSConfigProvider.GetConfig(ctx, awsMeta.Region,
+		awsconfig.WithAssumeRole(awsMeta.AssumeRoleARN, awsMeta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
+	client := e.AWSClients.GetMemoryDBClient(awsCfg)
 	input := memorydb.DescribeUsersInput{UserName: aws.String(username)}
-	out, err := client.DescribeUsersWithContext(ctx, &input)
+	out, err := client.DescribeUsers(ctx, &input)
 	if err != nil {
 		return false, trace.Wrap(libaws.ConvertRequestFailureError(err))
 	}
 	if len(out.Users) < 1 || out.Users[0].Authentication == nil {
 		return false, nil
 	}
-	authType := aws.ToString(out.Users[0].Authentication.Type)
-	return memorydb.AuthenticationTypeIam == authType, nil
+	authType := out.Users[0].Authentication.Type
+	return memorydbtypes.AuthenticationTypeIam == authType, nil
 }
 
 // reconnect closes the current Redis server connection and creates a new one pre-authenticated
@@ -554,7 +566,7 @@ func (e *Engine) processServerResponse(cmd *redis.Cmd, err error, sessionCtx *co
 
 	switch {
 	case e.isIAMAuthError(err):
-		return common.ConvertConnectError(trace.AccessDenied(err.Error()), sessionCtx), nil
+		return common.ConvertConnectError(trace.AccessDenied("%s", err), sessionCtx), nil
 	case isRedisError(err):
 		// Redis errors should be returned to the client.
 		return err, nil

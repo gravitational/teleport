@@ -29,9 +29,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
+	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
-	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -1612,15 +1612,15 @@ func TestDatabaseFromElastiCacheNodeGroupsNameOverride(t *testing.T) {
 }
 
 func TestDatabaseFromMemoryDBCluster(t *testing.T) {
-	cluster := &memorydb.Cluster{
+	cluster := &memorydbtypes.Cluster{
 		ARN:        aws.String("arn:aws:memorydb:us-east-1:123456789012:cluster:my-cluster"),
 		Name:       aws.String("my-cluster"),
 		Status:     aws.String("available"),
 		TLSEnabled: aws.Bool(true),
 		ACLName:    aws.String("my-user-group"),
-		ClusterEndpoint: &memorydb.Endpoint{
+		ClusterEndpoint: &memorydbtypes.Endpoint{
 			Address: aws.String("memorydb.localhost"),
-			Port:    aws.Int64(6379),
+			Port:    6379,
 		},
 	}
 	extraLabels := map[string]string{"key": "value"}
@@ -1733,15 +1733,15 @@ func TestDatabaseFromRedshiftServerlessVPCEndpoint(t *testing.T) {
 func TestDatabaseFromMemoryDBClusterNameOverride(t *testing.T) {
 	for _, overrideLabel := range types.AWSDatabaseNameOverrideLabels {
 		t.Run("via "+overrideLabel, func(t *testing.T) {
-			cluster := &memorydb.Cluster{
+			cluster := &memorydbtypes.Cluster{
 				ARN:        aws.String("arn:aws:memorydb:us-east-1:123456789012:cluster:my-cluster"),
 				Name:       aws.String("my-cluster"),
 				Status:     aws.String("available"),
 				TLSEnabled: aws.Bool(true),
 				ACLName:    aws.String("my-user-group"),
-				ClusterEndpoint: &memorydb.Endpoint{
+				ClusterEndpoint: &memorydbtypes.Endpoint{
 					Address: aws.String("memorydb.localhost"),
-					Port:    aws.Int64(6379),
+					Port:    6379,
 				},
 			}
 			extraLabels := map[string]string{
@@ -1884,13 +1884,14 @@ func TestExtraElastiCacheLabels(t *testing.T) {
 }
 
 func TestExtraMemoryDBLabels(t *testing.T) {
-	cluster := &memorydb.Cluster{
+	cluster := &memorydbtypes.Cluster{
 		Name:            aws.String("my-cluster"),
 		SubnetGroupName: aws.String("my-subnet-group"),
+		Engine:          aws.String("redis"),
 		EngineVersion:   aws.String("6.6.6"),
 	}
 
-	allSubnetGroups := []*memorydb.SubnetGroup{
+	allSubnetGroups := []memorydbtypes.SubnetGroup{
 		{
 			Name:  aws.String("other-subnet-group"),
 			VpcId: aws.String("other-vpc-id"),
@@ -1901,7 +1902,7 @@ func TestExtraMemoryDBLabels(t *testing.T) {
 		},
 	}
 
-	resourceTags := []*memorydb.Tag{
+	resourceTags := []memorydbtypes.Tag{
 		{Key: aws.String("key1"), Value: aws.String("value1")},
 		{Key: aws.String("key2"), Value: aws.String("value2")},
 	}
@@ -1909,6 +1910,7 @@ func TestExtraMemoryDBLabels(t *testing.T) {
 	expected := map[string]string{
 		"key1":           "value1",
 		"key2":           "value2",
+		"engine":         "redis",
 		"engine-version": "6.6.6",
 		"vpc-id":         "my-vpc-id",
 	}

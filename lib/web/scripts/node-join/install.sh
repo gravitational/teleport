@@ -18,6 +18,7 @@ TARGET_PORT_DEFAULT=443
 TELEPORT_ARCHIVE_PATH='{{.packageName}}'
 TELEPORT_BINARY_DIR="/usr/local/bin"
 TELEPORT_BINARY_LIST="teleport tctl tsh teleport-update"
+TELEPORT_BINARY_LIST_darwin="teleport" # only install server binaries for macOS
 TELEPORT_CONFIG_PATH="/etc/teleport.yaml"
 TELEPORT_DATA_DIR="/var/lib/teleport"
 TELEPORT_DOCS_URL="https://goteleport.com/docs/"
@@ -747,6 +748,7 @@ if [[ "${OSTYPE}" == "linux"* ]]; then
 elif [[ "${OSTYPE}" == "darwin"* ]]; then
     # macOS host, now detect arch
     TELEPORT_BINARY_TYPE="darwin"
+    TELEPORT_BINARY_LIST="${TELEPORT_BINARY_LIST_darwin}"
     ARCH=$(uname -m)
     log "Detected host: ${OSTYPE}, using Teleport binary type ${TELEPORT_BINARY_TYPE}"
     if [[ ${ARCH} == "arm64" ]]; then

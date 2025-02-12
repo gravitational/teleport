@@ -20,6 +20,7 @@ import {
   Application as ApplicationIcon,
   Database as DatabaseIcon,
   Desktop as DesktopIcon,
+  GitHub as GitHubIcon,
   Kubernetes as KubernetesIcon,
   Server as ServerIcon,
 } from 'design/Icon';
@@ -32,6 +33,7 @@ import {
   UnifiedResourceApp,
   UnifiedResourceDatabase,
   UnifiedResourceDesktop,
+  UnifiedResourceGitServer,
   UnifiedResourceKube,
   UnifiedResourceNode,
   UnifiedResourceUi,
@@ -170,6 +172,26 @@ export function makeUnifiedResourceViewItemUserGroup(
   };
 }
 
+export function makeUnifiedResourceViewItemGitServer(
+  resource: UnifiedResourceGitServer,
+  ui: UnifiedResourceUi
+): UnifiedResourceViewItem {
+  return {
+    name: resource.github ? resource.github.organization : resource.hostname,
+    SecondaryIcon: GitHubIcon,
+    primaryIconName: 'git',
+    ActionButton: ui.ActionButton,
+    labels: resource.labels,
+    cardViewProps: {
+      primaryDesc: 'GitHub Organization',
+    },
+    listViewProps: {
+      resourceType: 'GitHub Organization',
+    },
+    requiresRequest: resource.requiresRequest,
+  };
+}
+
 function formatNodeSubKind(subKind: NodeSubKind): string {
   switch (subKind) {
     case 'openssh-ec2-ice':
@@ -181,7 +203,7 @@ function formatNodeSubKind(subKind: NodeSubKind): string {
   }
 }
 
-function getDatabaseIconName(protocol: DbProtocol): ResourceIconName {
+export function getDatabaseIconName(protocol: DbProtocol): ResourceIconName {
   switch (protocol) {
     case 'postgres':
       return 'postgres';
@@ -214,5 +236,7 @@ export function mapResourceToViewItem({ resource, ui }: SharedUnifiedResource) {
       return makeUnifiedResourceViewItemDesktop(resource, ui);
     case 'user_group':
       return makeUnifiedResourceViewItemUserGroup(resource, ui);
+    case 'git_server':
+      return makeUnifiedResourceViewItemGitServer(resource, ui);
   }
 }

@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -77,14 +78,16 @@ func TestReadIdentity(t *testing.T) {
 	caSigner, err := ssh.ParsePrivateKey(priv)
 	require.NoError(t, err)
 
-	cert, err := a.GenerateHostCert(services.HostCertParams{
+	cert, err := a.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      caSigner,
 		PublicHostKey: pub,
 		HostID:        "id1",
 		NodeName:      "node-name",
-		ClusterName:   "example.com",
-		Role:          types.RoleNode,
 		TTL:           0,
+		Identity: sshca.Identity{
+			ClusterName: "example.com",
+			SystemRole:  types.RoleNode,
+		},
 	})
 	require.NoError(t, err)
 
@@ -98,14 +101,16 @@ func TestReadIdentity(t *testing.T) {
 	// test TTL by converting the generated cert to text -> back and making sure ExpireAfter is valid
 	ttl := 10 * time.Second
 	expiryDate := clock.Now().Add(ttl)
-	bytes, err := a.GenerateHostCert(services.HostCertParams{
+	bytes, err := a.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      caSigner,
 		PublicHostKey: pub,
 		HostID:        "id1",
 		NodeName:      "node-name",
-		ClusterName:   "example.com",
-		Role:          types.RoleNode,
 		TTL:           ttl,
+		Identity: sshca.Identity{
+			ClusterName: "example.com",
+			SystemRole:  types.RoleNode,
+		},
 	})
 	require.NoError(t, err)
 	copy, err := apisshutils.ParseCertificate(bytes)
@@ -125,14 +130,16 @@ func TestBadIdentity(t *testing.T) {
 	require.IsType(t, trace.BadParameter(""), err)
 
 	// missing authority domain
-	cert, err := a.GenerateHostCert(services.HostCertParams{
+	cert, err := a.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      caSigner,
 		PublicHostKey: pub,
 		HostID:        "id2",
 		NodeName:      "",
-		ClusterName:   "",
-		Role:          types.RoleNode,
 		TTL:           0,
+		Identity: sshca.Identity{
+			ClusterName: "",
+			SystemRole:  types.RoleNode,
+		},
 	})
 	require.NoError(t, err)
 
@@ -140,14 +147,16 @@ func TestBadIdentity(t *testing.T) {
 	require.IsType(t, trace.BadParameter(""), err)
 
 	// missing host uuid
-	cert, err = a.GenerateHostCert(services.HostCertParams{
+	cert, err = a.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      caSigner,
 		PublicHostKey: pub,
 		HostID:        "example.com",
 		NodeName:      "",
-		ClusterName:   "",
-		Role:          types.RoleNode,
 		TTL:           0,
+		Identity: sshca.Identity{
+			ClusterName: "",
+			SystemRole:  types.RoleNode,
+		},
 	})
 	require.NoError(t, err)
 
@@ -155,14 +164,16 @@ func TestBadIdentity(t *testing.T) {
 	require.IsType(t, trace.BadParameter(""), err)
 
 	// unrecognized role
-	cert, err = a.GenerateHostCert(services.HostCertParams{
+	cert, err = a.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      caSigner,
 		PublicHostKey: pub,
 		HostID:        "example.com",
 		NodeName:      "",
-		ClusterName:   "id1",
-		Role:          "bad role",
 		TTL:           0,
+		Identity: sshca.Identity{
+			ClusterName: "id1",
+			SystemRole:  "bad role",
+		},
 	})
 	require.NoError(t, err)
 
@@ -780,6 +791,7 @@ func TestPresets(t *testing.T) {
 		teleport.PresetAccessRoleName,
 		teleport.PresetAuditorRoleName,
 		teleport.PresetTerraformProviderRoleName,
+		teleport.PresetWildcardWorkloadIdentityIssuerRoleName,
 	}
 
 	t.Run("EmptyCluster", func(t *testing.T) {
@@ -2268,6 +2280,57 @@ func Test_createPresetDatabaseObjectImportRule(t *testing.T) {
 			require.NoError(t, err)
 			require.True(t, proto.Equal(test.expectCreate, m.created))
 			require.True(t, proto.Equal(test.expectUpsert, m.upserted))
+		})
+	}
+}
+
+// TestInitWithAutoUpdateResources verifies that auth init support bootstrapping and apply
+// `AutoUpdateConfig` and `AutoUpdateVersion` resources as well as unmarshalling them from
+// yaml configuration.
+func TestInitWithAutoUpdateResources(t *testing.T) {
+	t.Parallel()
+
+	const autoUpdateConfigYAML = `kind: autoupdate_config
+metadata:
+  name: autoupdate-config
+spec:
+  tools:
+    mode: enabled
+version: v1`
+	const autoUpdateVersionYAML = `kind: autoupdate_version
+metadata:
+  name: autoupdate-version
+spec:
+  tools:
+    target_version: 1.2.3
+version: v1`
+
+	ctx := context.Background()
+	resources := []types.Resource{
+		resourceFromYAML(t, autoUpdateConfigYAML),
+		resourceFromYAML(t, autoUpdateVersionYAML),
+	}
+
+	for _, test := range []struct {
+		name string
+		fn   func(cfg *InitConfig)
+	}{
+		{name: "bootstrap", fn: func(cfg *InitConfig) { cfg.BootstrapResources = resources }},
+		{name: "apply", fn: func(cfg *InitConfig) { cfg.ApplyOnStartupResources = resources }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := setupConfig(t)
+			test.fn(&cfg)
+			auth, err := Init(ctx, cfg)
+			require.NoError(t, err)
+
+			config, err := auth.GetAutoUpdateConfig(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, "enabled", config.GetSpec().GetTools().GetMode())
+
+			version, err := auth.GetAutoUpdateVersion(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, "1.2.3", version.GetSpec().GetTools().GetTargetVersion())
 		})
 	}
 }

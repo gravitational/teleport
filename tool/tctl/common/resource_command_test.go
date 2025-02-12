@@ -1408,6 +1408,10 @@ func TestCreateResources(t *testing.T) {
 			},
 		},
 		{
+			kind:   "empty-doc",
+			create: testCreateWithEmptyDocument,
+		},
+		{
 			kind:   types.KindDatabaseObjectImportRule,
 			create: testCreateDatabaseObjectImportRule,
 		},
@@ -1672,6 +1676,22 @@ spec:
 	require.True(t, trace.IsAlreadyExists(err))
 
 	_, err = runResourceCommand(t, clt, []string{"create", "-f", serverInfoYAMLPath})
+	require.NoError(t, err)
+}
+
+func testCreateWithEmptyDocument(t *testing.T, clt *authclient.Client) {
+	const userYAML = `
+---
+kind: user
+version: v2
+metadata:
+  name: llama2
+spec:
+  roles: ["access"]
+`
+	userYAMLPath := filepath.Join(t.TempDir(), "user.yaml")
+	require.NoError(t, os.WriteFile(userYAMLPath, []byte(userYAML), 0644))
+	_, err := runResourceCommand(t, clt, []string{"create", userYAMLPath})
 	require.NoError(t, err)
 }
 

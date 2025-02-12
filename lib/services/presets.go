@@ -104,6 +104,10 @@ func NewSystemAutomaticAccessBotUser() types.User {
 // NewPresetEditorRole returns a new pre-defined role for cluster
 // editors who can edit cluster configuration resources.
 func NewPresetEditorRole() types.Role {
+	// IMPORTANT: Before adding new defaults, please make sure that the
+	// underlying field is supported by the standard role editor UI. This role
+	// should be editable with a rich UI, without requiring the user to dive into
+	// YAML.
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V7,
@@ -116,6 +120,10 @@ func NewPresetEditorRole() types.Role {
 			},
 		},
 		Spec: types.RoleSpecV6{
+			// IMPORTANT: Before adding new defaults, please make sure that the
+			// underlying field is supported by the standard role editor UI. This role
+			// should be editable with a rich UI, without requiring the user to dive into
+			// YAML.
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
@@ -133,6 +141,10 @@ func NewPresetEditorRole() types.Role {
 					Desktop: types.NewBoolOption(false),
 				},
 			},
+			// IMPORTANT: Before adding new defaults, please make sure that the
+			// underlying field is supported by the standard role editor UI. This role
+			// should be editable with a rich UI, without requiring the user to dive into
+			// YAML.
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},
 				Rules: []types.Rule{
@@ -196,6 +208,9 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindWorkloadIdentity, RW()),
 					types.NewRule(types.KindAutoUpdateVersion, RW()),
 					types.NewRule(types.KindAutoUpdateConfig, RW()),
+					types.NewRule(types.KindAutoUpdateAgentRollout, RO()),
+					types.NewRule(types.KindGitServer, RW()),
+					types.NewRule(types.KindWorkloadIdentityX509Revocation, RW()),
 				},
 			},
 		},
@@ -206,6 +221,10 @@ func NewPresetEditorRole() types.Role {
 // NewPresetAccessRole creates a role for users who are allowed to initiate
 // interactive sessions.
 func NewPresetAccessRole() types.Role {
+	// IMPORTANT: Before adding new defaults, please make sure that the
+	// underlying field is supported by the standard role editor UI. This role
+	// should be editable with a rich UI, without requiring the user to dive into
+	// YAML.
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V7,
@@ -218,6 +237,10 @@ func NewPresetAccessRole() types.Role {
 			},
 		},
 		Spec: types.RoleSpecV6{
+			// IMPORTANT: Before adding new defaults, please make sure that the
+			// underlying field is supported by the standard role editor UI. This role
+			// should be editable with a rich UI, without requiring the user to dive into
+			// YAML.
 			Options: types.RoleOptions{
 				CertificateFormat: constants.CertificateFormatStandard,
 				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
@@ -233,6 +256,10 @@ func NewPresetAccessRole() types.Role {
 				BPF:           apidefaults.EnhancedEvents(),
 				RecordSession: &types.RecordSession{Desktop: types.NewBoolOption(true)},
 			},
+			// IMPORTANT: Before adding new defaults, please make sure that the
+			// underlying field is supported by the standard role editor UI. This role
+			// should be editable with a rich UI, without requiring the user to dive into
+			// YAML.
 			Allow: types.RoleConditions{
 				Namespaces:            []string{apidefaults.Namespace},
 				NodeLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -252,6 +279,9 @@ func NewPresetAccessRole() types.Role {
 						Verbs:     []string{types.Wildcard},
 					},
 				},
+				GitHubPermissions: []types.GitHubPermission{{
+					Organizations: []string{teleport.TraitInternalGitHubOrgs},
+				}},
 				Rules: []types.Rule{
 					types.NewRule(types.KindEvent, RO()),
 					{
@@ -265,6 +295,10 @@ func NewPresetAccessRole() types.Role {
 			},
 		},
 	}
+	// IMPORTANT: Before adding new defaults, please make sure that the
+	// underlying field is supported by the standard role editor UI. This role
+	// should be editable with a rich UI, without requiring the user to dive into
+	// YAML.
 	role.SetLogins(types.Allow, []string{teleport.TraitInternalLoginsVariable})
 	role.SetWindowsLogins(types.Allow, []string{teleport.TraitInternalWindowsLoginsVariable})
 	role.SetKubeUsers(types.Allow, []string{teleport.TraitInternalKubeUsersVariable})
@@ -279,6 +313,10 @@ func NewPresetAccessRole() types.Role {
 // auditor - someone who can review cluster events and replay sessions,
 // but can't initiate interactive sessions or modify configuration.
 func NewPresetAuditorRole() types.Role {
+	// IMPORTANT: Before adding new defaults, please make sure that the
+	// underlying field is supported by the standard role editor UI. This role
+	// should be editable with a rich UI, without requiring the user to dive into
+	// YAML.
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V7,
@@ -516,6 +554,34 @@ func NewPresetRequireTrustedDeviceRole() types.Role {
 	}
 }
 
+// NewPresetWildcardWorkloadIdentityIssuerRole returns a new pre-defined role
+// for issuing workload identities.
+func NewPresetWildcardWorkloadIdentityIssuerRole() types.Role {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetWildcardWorkloadIdentityIssuerRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Issue workload identities",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				WorkloadIdentityLabels: types.Labels{
+					types.Wildcard: []string{types.Wildcard},
+				},
+				Rules: []types.Rule{
+					types.NewRule(types.KindWorkloadIdentity, RO()),
+				},
+			},
+		},
+	}
+	return role
+}
+
 // SystemOktaAccessRoleName is the name of the system role that allows
 // access to Okta resources. This will be used by the Okta requester role to
 // search for Okta resources.
@@ -638,35 +704,33 @@ func NewPresetTerraformProviderRole() types.Role {
 				WindowsDesktopLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 				// Every resource currently supported by the Terraform provider.
 				Rules: []types.Rule{
-					{
-						Resources: []string{
-							types.KindAccessList,
-							types.KindApp,
-							types.KindClusterAuthPreference,
-							types.KindClusterMaintenanceConfig,
-							types.KindClusterNetworkingConfig,
-							types.KindDatabase,
-							types.KindDynamicWindowsDesktop,
-							types.KindDevice,
-							types.KindGithub,
-							types.KindLoginRule,
-							types.KindNode,
-							types.KindOIDC,
-							types.KindOktaImportRule,
-							types.KindRole,
-							types.KindSAML,
-							types.KindSessionRecordingConfig,
-							types.KindToken,
-							types.KindTrustedCluster,
-							types.KindUser,
-							types.KindBot,
-							types.KindInstaller,
-							types.KindAccessMonitoringRule,
-							types.KindStaticHostUser,
-							types.KindWorkloadIdentity,
-						},
-						Verbs: RW(),
-					},
+					// You must add new resources as separate rules for the
+					// default rule addition logic to work properly.
+					types.NewRule(types.KindAccessList, RW()),
+					types.NewRule(types.KindApp, RW()),
+					types.NewRule(types.KindClusterAuthPreference, RW()),
+					types.NewRule(types.KindClusterMaintenanceConfig, RW()),
+					types.NewRule(types.KindClusterNetworkingConfig, RW()),
+					types.NewRule(types.KindDatabase, RW()),
+					types.NewRule(types.KindDevice, RW()),
+					types.NewRule(types.KindGithub, RW()),
+					types.NewRule(types.KindLoginRule, RW()),
+					types.NewRule(types.KindNode, RW()),
+					types.NewRule(types.KindOIDC, RW()),
+					types.NewRule(types.KindOktaImportRule, RW()),
+					types.NewRule(types.KindRole, RW()),
+					types.NewRule(types.KindSAML, RW()),
+					types.NewRule(types.KindSessionRecordingConfig, RW()),
+					types.NewRule(types.KindToken, RW()),
+					types.NewRule(types.KindTrustedCluster, RW()),
+					types.NewRule(types.KindUser, RW()),
+					types.NewRule(types.KindBot, RW()),
+					types.NewRule(types.KindInstaller, RW()),
+					types.NewRule(types.KindAccessMonitoringRule, RW()),
+					types.NewRule(types.KindDynamicWindowsDesktop, RW()),
+					types.NewRule(types.KindStaticHostUser, RW()),
+					types.NewRule(types.KindWorkloadIdentity, RW()),
+					types.NewRule(types.KindGitServer, RW()),
 				},
 			},
 		},
@@ -702,9 +766,10 @@ func bootstrapRoleMetadataLabels() map[string]map[string]string {
 }
 
 var defaultAllowRulesMap = map[string][]types.Rule{
-	teleport.PresetAuditorRoleName: NewPresetAuditorRole().GetRules(types.Allow),
-	teleport.PresetEditorRoleName:  NewPresetEditorRole().GetRules(types.Allow),
-	teleport.PresetAccessRoleName:  NewPresetAccessRole().GetRules(types.Allow),
+	teleport.PresetAuditorRoleName:           NewPresetAuditorRole().GetRules(types.Allow),
+	teleport.PresetEditorRoleName:            NewPresetEditorRole().GetRules(types.Allow),
+	teleport.PresetAccessRoleName:            NewPresetAccessRole().GetRules(types.Allow),
+	teleport.PresetTerraformProviderRoleName: NewPresetTerraformProviderRole().GetRules(types.Allow),
 }
 
 // defaultAllowRules has the Allow rules that should be set as default when
@@ -928,6 +993,16 @@ func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
 		}
 	}
 
+	// GitHub permissions.
+	if len(role.GetGitHubPermissions(types.Allow)) == 0 {
+		if githubOrgs := defaultGitHubOrgs()[role.GetName()]; len(githubOrgs) > 0 {
+			role.SetGitHubPermissions(types.Allow, []types.GitHubPermission{{
+				Organizations: githubOrgs,
+			}})
+			changed = true
+		}
+	}
+
 	if !changed {
 		return nil, trace.AlreadyExists("no change")
 	}
@@ -1038,4 +1113,10 @@ func updateAllowLabels(role types.Role, kind string, defaultLabels types.Labels)
 	}
 
 	return changed, nil
+}
+
+func defaultGitHubOrgs() map[string][]string {
+	return map[string][]string{
+		teleport.PresetAccessRoleName: []string{teleport.TraitInternalGitHubOrgs},
+	}
 }

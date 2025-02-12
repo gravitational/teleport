@@ -35,12 +35,11 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	rdsauth "github.com/aws/aws-sdk-go-v2/feature/rds/auth"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
-	"github.com/aws/aws-sdk-go/service/memorydb"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/oauth2"
@@ -63,12 +62,19 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
-	"github.com/gravitational/teleport/lib/utils/aws/migration"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
-// azureVirtualMachineCacheTTL is the default TTL for Azure virtual machine
-// cache entries.
-const azureVirtualMachineCacheTTL = 5 * time.Minute
+const (
+	// azureVirtualMachineCacheTTL is the default TTL for Azure virtual machine
+	// cache entries.
+	azureVirtualMachineCacheTTL = 5 * time.Minute
+
+	// emptyPayloadHash is the SHA-256 for an empty element (as in echo -n | sha256sum).
+	// PresignHTTP requires the hash of the body, but when there is no body we hash the empty string.
+	// https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html
+	emptyPayloadHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+)
 
 // Auth defines interface for creating auth tokens and TLS configurations.
 type Auth interface {
@@ -136,10 +142,16 @@ type rssClient interface {
 	GetCredentials(context.Context, *rss.GetCredentialsInput, ...func(*rss.Options)) (*rss.GetCredentialsOutput, error)
 }
 
+// stsClient defines a subset of the AWS STS client API.
+type stsClient interface {
+	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+}
+
 // awsClientProvider is an AWS SDK client provider.
 type awsClientProvider interface {
 	getRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) redshiftClient
 	getRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) rssClient
+	getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient
 }
 
 type defaultAWSClients struct{}
@@ -150,6 +162,10 @@ func (defaultAWSClients) getRedshiftClient(cfg aws.Config, optFns ...func(*redsh
 
 func (defaultAWSClients) getRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) rssClient {
 	return rss.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient {
+	return stsutils.NewFromConfig(cfg, optFns...)
 }
 
 // AuthConfig is the database access authenticator configuration.
@@ -649,23 +665,23 @@ func (a *dbAuth) GetElastiCacheRedisToken(ctx context.Context, database types.Da
 	tokenReq := &awsRedisIAMTokenRequest{
 		// For IAM-enabled ElastiCache users, the username and user id properties must be identical.
 		// https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth-iam.html#auth-iam-limits
-		userID:      databaseUser,
-		targetID:    meta.ElastiCache.ReplicationGroupID,
-		serviceName: "elasticache",
-		region:      meta.Region,
-		credentials: migration.NewCredentialsAdapter(awsCfg.Credentials),
-		clock:       a.cfg.Clock,
+		userID:       databaseUser,
+		targetID:     meta.ElastiCache.ReplicationGroupID,
+		serviceName:  "elasticache",
+		region:       meta.Region,
+		credProvider: awsCfg.Credentials,
+		clock:        a.cfg.Clock,
 	}
-	token, err := tokenReq.toSignedRequestURI()
+	token, err := tokenReq.toSignedRequestURI(ctx)
 	return token, trace.Wrap(err)
 }
 
 // GetMemoryDBToken generates a MemoryDB auth token.
 func (a *dbAuth) GetMemoryDBToken(ctx context.Context, database types.Database, databaseUser string) (string, error) {
 	meta := database.GetAWS()
-	awsSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := a.cfg.AWSConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -675,14 +691,14 @@ func (a *dbAuth) GetMemoryDBToken(ctx context.Context, database types.Database, 
 		"database_user", databaseUser,
 	)
 	tokenReq := &awsRedisIAMTokenRequest{
-		userID:      databaseUser,
-		targetID:    meta.MemoryDB.ClusterName,
-		serviceName: strings.ToLower(memorydb.ServiceName),
-		region:      meta.Region,
-		credentials: awsSession.Config.Credentials,
-		clock:       a.cfg.Clock,
+		userID:       databaseUser,
+		targetID:     meta.MemoryDB.ClusterName,
+		serviceName:  "memorydb",
+		region:       meta.Region,
+		credProvider: awsCfg.Credentials,
+		clock:        a.cfg.Clock,
 	}
-	token, err := tokenReq.toSignedRequestURI()
+	token, err := tokenReq.toSignedRequestURI(ctx)
 	return token, trace.Wrap(err)
 }
 
@@ -1142,12 +1158,13 @@ func (a *dbAuth) buildAWSRoleARNFromDatabaseUser(ctx context.Context, database t
 			awsAccountID = assumeRoleARN.AccountID
 		default:
 			a.cfg.Logger.DebugContext(ctx, "Fetching AWS Account ID to build role ARN")
-			stsClient, err := a.cfg.Clients.GetAWSSTSClient(ctx, dbAWS.Region, cloud.WithAmbientCredentials())
+			awsCfg, err := a.cfg.AWSConfigProvider.GetConfig(ctx, dbAWS.Region, awsconfig.WithAmbientCredentials())
 			if err != nil {
 				return "", trace.Wrap(err)
 			}
+			clt := a.cfg.awsClients.getSTSClient(awsCfg)
 
-			identity, err := awslib.GetIdentityWithClient(ctx, stsClient)
+			identity, err := awslib.GetIdentityWithClient(ctx, clt)
 			if err != nil {
 				return "", trace.Wrap(err)
 			}
@@ -1169,26 +1186,18 @@ func (a *dbAuth) GetAWSIAMCreds(ctx context.Context, database types.Database, da
 		return "", "", "", trace.Wrap(err)
 	}
 
-	baseSession, err := a.cfg.Clients.GetAWSSession(ctx, dbAWS.Region,
-		cloud.WithAssumeRoleFromAWSMeta(dbAWS),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := a.cfg.AWSConfigProvider.GetConfig(ctx, dbAWS.Region,
+		awsconfig.WithAssumeRole(dbAWS.AssumeRoleARN, dbAWS.ExternalID),
+		// ExternalID should only be used once. If the baseSession assumes a role,
+		// the chained sessions should have an empty external ID.
+		awsconfig.WithAssumeRole(arn, externalIDForChainedAssumeRole(dbAWS)),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return "", "", "", trace.Wrap(err)
 	}
 
-	// ExternalID should only be used once. If the baseSession assumes a role,
-	// the chained sessions should have an empty external ID.
-
-	sess, err := a.cfg.Clients.GetAWSSession(ctx, dbAWS.Region,
-		cloud.WithChainedAssumeRole(baseSession, arn, externalIDForChainedAssumeRole(dbAWS)),
-		cloud.WithAmbientCredentials(),
-	)
-	if err != nil {
-		return "", "", "", trace.Wrap(err)
-	}
-
-	creds, err := sess.Config.Credentials.Get()
+	creds, err := awsCfg.Credentials.Retrieve(ctx)
 	if err != nil {
 		return "", "", "", trace.Wrap(err)
 	}
@@ -1267,8 +1276,8 @@ type awsRedisIAMTokenRequest struct {
 	targetID string
 	// region is the AWS region.
 	region string
-	// credentials are used to presign with AWS SigV4.
-	credentials *credentials.Credentials
+	// credProvider are used to presign with AWS SigV4.
+	credProvider aws.CredentialsProvider
 	// clock is the clock implementation.
 	clock clockwork.Clock
 	// serviceName is the AWS service name used for signing.
@@ -1286,8 +1295,8 @@ func (r *awsRedisIAMTokenRequest) checkAndSetDefaults() error {
 	if r.region == "" {
 		return trace.BadParameter("missing region")
 	}
-	if r.credentials == nil {
-		return trace.BadParameter("missing credentials")
+	if r.credProvider == nil {
+		return trace.BadParameter("missing credentials provider")
 	}
 	if r.serviceName == "" {
 		return trace.BadParameter("missing service name")
@@ -1301,7 +1310,7 @@ func (r *awsRedisIAMTokenRequest) checkAndSetDefaults() error {
 // toSignedRequestURI creates a new AWS SigV4 pre-signed request URI.
 // This pre-signed request URI can then be used to authenticate as an
 // ElastiCache Redis or MemoryDB user.
-func (r *awsRedisIAMTokenRequest) toSignedRequestURI() (string, error) {
+func (r *awsRedisIAMTokenRequest) toSignedRequestURI(ctx context.Context) (string, error) {
 	if err := r.checkAndSetDefaults(); err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -1309,17 +1318,16 @@ func (r *awsRedisIAMTokenRequest) toSignedRequestURI() (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	s := v4.NewSigner(r.credentials)
-	_, err = s.Presign(req, nil, r.serviceName, r.region, time.Minute*15, r.clock.Now())
+	signer := v4.NewSigner()
+	creds, err := r.credProvider.Retrieve(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	res := url.URL{
-		Host:     req.URL.Host,
-		Path:     "/",
-		RawQuery: req.URL.RawQuery,
+	signedURI, _, err := signer.PresignHTTP(ctx, creds, req, emptyPayloadHash, r.serviceName, r.region, r.clock.Now())
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
-	return strings.TrimPrefix(res.String(), "//"), nil
+	return strings.TrimPrefix(signedURI, "http://"), nil
 }
 
 // getSignableRequest creates a new request suitable for pre-signing with SigV4.

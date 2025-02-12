@@ -55,9 +55,17 @@ issues:
     - path: provider/provider.go # integrations/terraform
       linters: [staticcheck]
       text: 'grpc.WithReturnConnectionError is deprecated'
-    - linters: [govet]
-      path-except: ^e/
-      text: 'non-constant format string in call to github.com/gravitational/trace.'
+    # BlockUntilContext should indeed be favored, this exception exists because
+    # at this time there are too many offenders.
+    - linters: [staticcheck]
+      text: 'BlockUntil is deprecated: New code should prefer BlockUntilContext'
+    # lib/utils/aws/ subpackages are allowed to use AWS SDK constructors.
+    - path: lib/utils/aws/stsutils/sts.go
+      linters: [forbidigo]
+      text: 'sts.NewFromConfig'
+    - path: lib/utils/aws/stsutils/sts_v1.go
+      linters: [forbidigo]
+      text: 'sts.New'
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
@@ -389,6 +397,10 @@ linters-settings:
     forbid:
       - p: '^rsa\.GenerateKey$'
         msg: 'generating RSA keys is slow, use lib/cryptosuites to generate an appropriate key type'
+      - p: '^sts\.NewFromConfig$'
+        msg: 'Use stsutils.NewFromConfig'
+      - p: '^sts\.New$'
+        msg: 'Use stsutils.NewV1'
 
 run:
   go: '1.23'

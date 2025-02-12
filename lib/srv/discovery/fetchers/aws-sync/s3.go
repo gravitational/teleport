@@ -24,8 +24,9 @@ import (
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
@@ -35,9 +36,20 @@ import (
 	awsutil "github.com/gravitational/teleport/lib/utils/aws"
 )
 
+// s3Client defines a subset of the AWS S3 client API.
+type s3Client interface {
+	s3.ListBucketsAPIClient
+
+	GetBucketAcl(context.Context, *s3.GetBucketAclInput, ...func(*s3.Options)) (*s3.GetBucketAclOutput, error)
+	GetBucketLocation(context.Context, *s3.GetBucketLocationInput, ...func(*s3.Options)) (*s3.GetBucketLocationOutput, error)
+	GetBucketPolicy(context.Context, *s3.GetBucketPolicyInput, ...func(*s3.Options)) (*s3.GetBucketPolicyOutput, error)
+	GetBucketPolicyStatus(context.Context, *s3.GetBucketPolicyStatusInput, ...func(*s3.Options)) (*s3.GetBucketPolicyStatusOutput, error)
+	GetBucketTagging(context.Context, *s3.GetBucketTaggingInput, ...func(*s3.Options)) (*s3.GetBucketTaggingOutput, error)
+}
+
 // pollAWSS3Buckets is a function that returns a function that fetches
 // AWS s3 buckets and their inline and attached policies.
-func (a *awsFetcher) pollAWSS3Buckets(ctx context.Context, result *Resources, collectErr func(error)) func() error {
+func (a *Fetcher) pollAWSS3Buckets(ctx context.Context, result *Resources, collectErr func(error)) func() error {
 	return func() error {
 		var err error
 		result.S3Buckets, err = a.fetchS3Buckets(ctx)
@@ -50,7 +62,7 @@ func (a *awsFetcher) pollAWSS3Buckets(ctx context.Context, result *Resources, co
 
 // fetchS3Buckets fetches AWS s3 buckets and returns them as a slice of
 // accessgraphv1alpha.AWSS3BucketV1.
-func (a *awsFetcher) fetchS3Buckets(ctx context.Context) ([]*accessgraphv1alpha.AWSS3BucketV1, error) {
+func (a *Fetcher) fetchS3Buckets(ctx context.Context) ([]*accessgraphv1alpha.AWSS3BucketV1, error) {
 	var s3s []*accessgraphv1alpha.AWSS3BucketV1
 	var errs []error
 	var mu sync.Mutex
@@ -145,18 +157,18 @@ func awsS3Bucket(name string,
 	return s3
 }
 
-func awsACLsToProtoACLs(grants []*s3.Grant) []*accessgraphv1alpha.AWSS3BucketACL {
+func awsACLsToProtoACLs(grants []s3types.Grant) []*accessgraphv1alpha.AWSS3BucketACL {
 	var acls []*accessgraphv1alpha.AWSS3BucketACL
 	for _, grant := range grants {
 		acls = append(acls, &accessgraphv1alpha.AWSS3BucketACL{
 			Grantee: &accessgraphv1alpha.AWSS3BucketACLGrantee{
 				Id:           aws.ToString(grant.Grantee.ID),
 				DisplayName:  aws.ToString(grant.Grantee.DisplayName),
-				Type:         aws.ToString(grant.Grantee.Type),
+				Type:         string(grant.Grantee.Type),
 				Uri:          aws.ToString(grant.Grantee.URI),
 				EmailAddress: aws.ToString(grant.Grantee.EmailAddress),
 			},
-			Permission: aws.ToString(grant.Permission),
+			Permission: string(grant.Permission),
 		})
 	}
 	return acls
@@ -201,16 +213,12 @@ type s3Details struct {
 	tags         *s3.GetBucketTaggingOutput
 }
 
-func (a *awsFetcher) getS3BucketDetails(ctx context.Context, bucket *s3.Bucket, bucketRegion string) (s3Details, failedRequests, []error) {
+func (a *Fetcher) getS3BucketDetails(ctx context.Context, bucket s3types.Bucket, bucketRegion string) (s3Details, failedRequests, []error) {
 	var failedReqs failedRequests
 	var errs []error
 	var details s3Details
 
-	s3Client, err := a.CloudClients.GetAWSS3Client(
-		ctx,
-		bucketRegion,
-		a.getAWSOptions()...,
-	)
+	awsCfg, err := a.AWSConfigProvider.GetConfig(ctx, bucketRegion, a.getAWSOptions()...)
 	if err != nil {
 		errs = append(errs,
 			trace.Wrap(err, "failed to create s3 client for bucket %q", aws.ToString(bucket.Name)),
@@ -224,8 +232,9 @@ func (a *awsFetcher) getS3BucketDetails(ctx context.Context, bucket *s3.Bucket, 
 				failedTags:         true,
 			}, errs
 	}
+	s3Client := a.awsClients.getS3Client(awsCfg)
 
-	details.policy, err = s3Client.GetBucketPolicyWithContext(ctx, &s3.GetBucketPolicyInput{
+	details.policy, err = s3Client.GetBucketPolicy(ctx, &s3.GetBucketPolicyInput{
 		Bucket: bucket.Name,
 	})
 	if err != nil && !isS3BucketPolicyNotFound(err) {
@@ -235,7 +244,7 @@ func (a *awsFetcher) getS3BucketDetails(ctx context.Context, bucket *s3.Bucket, 
 		failedReqs.policyFailed = true
 	}
 
-	details.policyStatus, err = s3Client.GetBucketPolicyStatusWithContext(ctx, &s3.GetBucketPolicyStatusInput{
+	details.policyStatus, err = s3Client.GetBucketPolicyStatus(ctx, &s3.GetBucketPolicyStatusInput{
 		Bucket: bucket.Name,
 	})
 	if err != nil && !isS3BucketPolicyNotFound(err) {
@@ -245,7 +254,7 @@ func (a *awsFetcher) getS3BucketDetails(ctx context.Context, bucket *s3.Bucket, 
 		failedReqs.failedPolicyStatus = true
 	}
 
-	details.acls, err = s3Client.GetBucketAclWithContext(ctx, &s3.GetBucketAclInput{
+	details.acls, err = s3Client.GetBucketAcl(ctx, &s3.GetBucketAclInput{
 		Bucket: bucket.Name,
 	})
 	if err != nil {
@@ -255,7 +264,7 @@ func (a *awsFetcher) getS3BucketDetails(ctx context.Context, bucket *s3.Bucket, 
 		failedReqs.failedAcls = true
 	}
 
-	details.tags, err = s3Client.GetBucketTaggingWithContext(ctx, &s3.GetBucketTaggingInput{
+	details.tags, err = s3Client.GetBucketTagging(ctx, &s3.GetBucketTaggingInput{
 		Bucket: bucket.Name,
 	})
 	if err != nil && !isS3BucketNoTagSet(err) {
@@ -268,38 +277,41 @@ func (a *awsFetcher) getS3BucketDetails(ctx context.Context, bucket *s3.Bucket, 
 	return details, failedReqs, errs
 }
 
+func isAPIErrorCode(err error, code string) bool {
+	var ae smithy.APIError
+	if errors.As(err, &ae) {
+		return ae.ErrorCode() == code
+	}
+	return false
+}
+
 func isS3BucketPolicyNotFound(err error) bool {
-	var awsErr awserr.Error
-	return errors.As(err, &awsErr) && awsErr.Code() == "NoSuchBucketPolicy"
+	return isAPIErrorCode(err, "NoSuchBucketPolicy")
 }
 
 func isS3BucketNoTagSet(err error) bool {
-	var awsErr awserr.Error
-	return errors.As(err, &awsErr) && awsErr.Code() == "NoSuchTagSet"
+	return isAPIErrorCode(err, "NoSuchTagSet")
 }
 
-func (a *awsFetcher) listS3Buckets(ctx context.Context) ([]*s3.Bucket, func(*string) (string, error), error) {
+func (a *Fetcher) listS3Buckets(ctx context.Context) ([]s3types.Bucket, func(*string) (string, error), error) {
 	region := awsutil.GetKnownRegions()[0]
 	if len(a.Regions) > 0 {
 		region = a.Regions[0]
 	}
 
 	// use any region to list buckets
-	s3Client, err := a.CloudClients.GetAWSS3Client(
-		ctx,
-		region,
-		a.getAWSOptions()...,
-	)
+	awsCfg, err := a.AWSConfigProvider.GetConfig(ctx, region, a.getAWSOptions()...)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	rsp, err := s3Client.ListBucketsWithContext(ctx, &s3.ListBucketsInput{})
+	s3Client := a.awsClients.getS3Client(awsCfg)
+	rsp, err := s3Client.ListBuckets(ctx, &s3.ListBucketsInput{})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 	return rsp.Buckets,
 		func(bucket *string) (string, error) {
-			rsp, err := s3Client.GetBucketLocationWithContext(
+			rsp, err := s3Client.GetBucketLocation(
 				ctx,
 				&s3.GetBucketLocationInput{
 					Bucket: bucket,
@@ -308,9 +320,9 @@ func (a *awsFetcher) listS3Buckets(ctx context.Context) ([]*s3.Bucket, func(*str
 			if err != nil {
 				return "", trace.Wrap(err, "failed to fetch bucket %q region", aws.ToString(bucket))
 			}
-			if rsp.LocationConstraint == nil {
+			if rsp.LocationConstraint == "" {
 				return "us-east-1", nil
 			}
-			return aws.ToString(rsp.LocationConstraint), nil
+			return string(rsp.LocationConstraint), nil
 		}, nil
 }

@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/constants"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
@@ -223,6 +224,8 @@ func TestForwardServer(t *testing.T) {
 				LockWatcher:     makeLockWatcher(t),
 				SrcAddr:         utils.MustParseAddr("127.0.0.1:12345"),
 				DstAddr:         utils.MustParseAddr("127.0.0.1:2222"),
+				// Not used in test, yet.
+				KeyManager: new(KeyManager),
 			})
 			require.NoError(t, err)
 
@@ -279,11 +282,11 @@ func makeUserCert(t *testing.T, caSigner ssh.Signer) ssh.Signer {
 		PublicUserKey:     clientPrivateKey.MarshalSSHPublicKey(),
 		CertificateFormat: constants.CertificateFormatStandard,
 		Identity: sshca.Identity{
-			Username:      "alice",
-			AllowedLogins: []string{"does-not-matter"},
-			GitHubUserID:  "1234567",
-			Traits:        wrappers.Traits{},
-			Roles:         []string{"editor"},
+			Username:     "alice",
+			Principals:   []string{"does-not-matter"},
+			GitHubUserID: "1234567",
+			Traits:       wrappers.Traits{},
+			Roles:        []string{"editor"},
 		},
 	})
 	require.NoError(t, err)
@@ -324,6 +327,7 @@ type mockGitHostingService struct {
 	*sshutils.Reply
 	receivedExec sshutils.ExecReq
 	exitCode     int
+	hostKey      ssh.PublicKey
 }
 
 func newMockGitHostingService(t *testing.T, caSigner ssh.Signer) *mockGitHostingService {
@@ -331,7 +335,8 @@ func newMockGitHostingService(t *testing.T, caSigner ssh.Signer) *mockGitHosting
 	hostCert, err := apisshutils.MakeRealHostCert(caSigner)
 	require.NoError(t, err)
 	m := &mockGitHostingService{
-		Reply: &sshutils.Reply{},
+		Reply:   &sshutils.Reply{},
+		hostKey: hostCert.PublicKey(),
 	}
 	server, err := sshutils.NewServer(
 		"git.test",
@@ -387,12 +392,21 @@ func (m *mockGitHostingService) HandleNewChan(ctx context.Context, ccx *sshutils
 
 type mockAuthClient struct {
 	authclient.ClientI
+	events types.Events
+}
+
+func (m mockAuthClient) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	if m.events == nil {
+		return nil, trace.AccessDenied("unauthorized")
+	}
+	return m.events.NewWatcher(ctx, watch)
 }
 
 type mockAccessPoint struct {
 	srv.AccessPoint
 	ca               ssh.Signer
 	allowedGitHubOrg string
+	services.GitServers
 }
 
 func (m mockAccessPoint) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
@@ -436,4 +450,7 @@ func (m mockAccessPoint) GetCertAuthorities(_ context.Context, caType types.Cert
 		return nil, trace.Wrap(err)
 	}
 	return []types.CertAuthority{ca}, nil
+}
+func (m mockAccessPoint) GitServerReadOnlyClient() gitserver.ReadOnlyClient {
+	return m.GitServers
 }

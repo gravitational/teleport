@@ -96,7 +96,7 @@ func readHandshakeError(connBuf io.Reader) (string, error) {
 	if !ok {
 		return "", trace.BadParameter("expected MySQL error package, got %T", handshakePacket)
 	}
-	return "", trace.ConnectionProblem(errors.New("failed to fetch MySQL version"), errPackage.Error())
+	return "", trace.ConnectionProblem(errors.New("failed to fetch MySQL version"), "%s", errPackage.Error())
 }
 
 // connReader is a net.Conn wrapper with additional Peek() method.

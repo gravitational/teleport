@@ -42,16 +42,13 @@ import { Redirect, Route, Switch } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 import { FeaturesContextProvider, useFeatures } from 'teleport/FeaturesContext';
 import { Navigation } from 'teleport/Navigation';
-import { Navigation as SideNavigation } from 'teleport/Navigation/SideNavigation/Navigation';
 import {
   ClusterAlert,
   LINK_DESTINATION_LABEL,
   LINK_TEXT_LABEL,
 } from 'teleport/services/alerts/alerts';
 import { storageService } from 'teleport/services/storageService';
-import { TopBar } from 'teleport/TopBar';
-import { TopBarProps } from 'teleport/TopBar/TopBar';
-import { TopBar as TopBarSideNav } from 'teleport/TopBar/TopBarSideNav';
+import { TopBar, TopBarProps } from 'teleport/TopBar';
 import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 import { useUser } from 'teleport/User/UserContext';
 import useTeleport from 'teleport/useTeleport';
@@ -77,13 +74,6 @@ export function Main(props: MainProps) {
   const { attempt, setAttempt, run } = useAttempt('processing');
 
   const { preferences } = useUser();
-
-  const isTopBarView = storageService.getIsTopBarView();
-  const TopBarComponent =
-    //TODO(rudream): Add sidenav dashboard view.
-    isTopBarView || cfg.isDashboard ? TopBar : TopBarSideNav;
-  const NavigationComponent =
-    isTopBarView || cfg.isDashboard ? Navigation : SideNavigation;
 
   useEffect(() => {
     if (ctx.storeUser.state) {
@@ -195,7 +185,7 @@ export function Main(props: MainProps) {
 
   return (
     <FeaturesContextProvider value={features}>
-      <TopBarComponent
+      <TopBar
         CustomLogo={
           props.topBarProps?.showPoweredByLogo
             ? props.topBarProps.CustomLogo
@@ -204,7 +194,7 @@ export function Main(props: MainProps) {
       />
       <Wrapper>
         <MainContainer>
-          <NavigationComponent />
+          <Navigation />
           <ContentWrapper>
             <ContentMinWidth>
               <BannerList

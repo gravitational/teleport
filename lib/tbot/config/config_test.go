@@ -350,7 +350,7 @@ func testYAML[T any](t *testing.T, tests []testYAMLCase[T]) {
 			decoder := yaml.NewDecoder(b)
 			var unmarshalled T
 			require.NoError(t, decoder.Decode(&unmarshalled))
-			require.Equal(t, unmarshalled, tt.in, "unmarshalling did not result in same object as input")
+			require.Equal(t, tt.in, unmarshalled, "unmarshalling did not result in same object as input")
 		})
 	}
 }

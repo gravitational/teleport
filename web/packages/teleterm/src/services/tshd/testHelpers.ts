@@ -245,7 +245,7 @@ export const makeLoggedInUser = (
 export const makeDatabaseGateway = (
   props: Partial<tsh.Gateway> = {}
 ): tsh.Gateway => ({
-  uri: '/gateways/foo',
+  uri: '/gateways/db',
   targetName: 'sales-production',
   targetUri: databaseUri,
   targetUser: 'alice',
@@ -265,7 +265,7 @@ export const makeDatabaseGateway = (
 export const makeKubeGateway = (
   props: Partial<tsh.Gateway> = {}
 ): tsh.Gateway => ({
-  uri: '/gateways/foo',
+  uri: '/gateways/kube',
   targetName: 'foo',
   targetUri: kubeUri,
   targetUser: '',
@@ -285,7 +285,7 @@ export const makeKubeGateway = (
 export const makeAppGateway = (
   props: Partial<tsh.Gateway> = {}
 ): tsh.Gateway => ({
-  uri: '/gateways/bar',
+  uri: '/gateways/app',
   targetName: 'sales-production',
   targetUri: appUri,
   localAddress: 'localhost',

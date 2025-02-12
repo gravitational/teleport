@@ -34,6 +34,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -629,7 +630,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				// part[0] is empty space from leading slash "/"
 				// part[1] is the prefix "v1"
 				switch pathParts[2] {
-				case "webapi", "enterprise", "scripts", ".well-known", "workload-identity":
+				case "webapi", "enterprise", "scripts", ".well-known", "workload-identity", "web":
 					http.StripPrefix(v1Prefix, h).ServeHTTP(w, r)
 					return
 				}
@@ -1011,6 +1012,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsUpdate))
 	h.GET("/webapi/sites/:site/integrations/:name/stats", h.WithClusterAuth(h.integrationStats))
 	h.GET("/webapi/sites/:site/integrations/:name/discoveryrules", h.WithClusterAuth(h.integrationDiscoveryRules))
+	h.GET("/webapi/sites/:site/integrations/:name/ca", h.WithClusterAuth(h.integrationsExportCA))
 	h.DELETE("/webapi/sites/:site/integrations/:name_or_subkind", h.WithClusterAuth(h.integrationsDelete))
 
 	// GET the Microsoft Teams plugin app.zip file.
@@ -1134,6 +1136,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/sites/:site/lastseennotification", h.WithClusterAuth(h.notificationsUpsertLastSeenTimestamp))
 	// Upsert a notification state when to mark a notification as read or hide it.
 	h.PUT("/webapi/sites/:site/notificationstate", h.WithClusterAuth(h.notificationsUpsertNotificationState))
+
+	// Git servers
+	h.PUT("/webapi/sites/:site/gitservers", h.WithClusterAuth(h.gitServerCreateOrUpsert))
+	h.GET("/webapi/sites/:site/gitservers/:name", h.WithClusterAuth(h.gitServerGet))
+	h.DELETE("/webapi/sites/:site/gitservers/:name", h.WithClusterAuth(h.gitServerDelete))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -1838,11 +1845,17 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	automaticUpgradesEnabled := clusterFeatures.GetAutomaticUpgrades()
 	var automaticUpgradesTargetVersion string
 	if automaticUpgradesEnabled {
-		automaticUpgradesTargetVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(r.Context())
+		const group, updaterUUID = "", ""
+		agentVersion, err := h.autoUpdateAgentVersion(r.Context(), group, updaterUUID)
 		if err != nil {
-			h.logger.ErrorContext(r.Context(), "Cannot read target version", "error", err)
+			h.logger.ErrorContext(r.Context(), "Cannot read autoupdate target version", "error", err)
+		} else {
+			// agentVersion doesn't have the leading "v" which is expected here.
+			automaticUpgradesTargetVersion = fmt.Sprintf("v%s", agentVersion)
 		}
 	}
+
+	disableRoleVisualizer, _ := strconv.ParseBool(os.Getenv("TELEPORT_UNSTABLE_DISABLE_ROLE_VISUALIZER"))
 
 	webCfg := webclient.WebConfig{
 		Edition:                        modules.GetModules().BuildType(),
@@ -1852,6 +1865,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		TunnelPublicAddress:            tunnelPublicAddr,
 		RecoveryCodesEnabled:           clusterFeatures.GetRecoveryCodes(),
 		UI:                             h.getUIConfig(r.Context()),
+		IsPolicyRoleVisualizerEnabled:  !disableRoleVisualizer,
 		IsDashboard:                    services.IsDashboard(clusterFeatures),
 		IsTeam:                         false,
 		IsUsageBasedBilling:            clusterFeatures.GetIsUsageBased(),
@@ -1930,7 +1944,7 @@ func setEntitlementsWithLegacyLogic(webCfg *webclient.WebConfig, clusterFeatures
 		// set default Identity fields to legacy feature value
 		webCfg.Entitlements[string(entitlements.AccessLists)] = webclient.EntitlementInfo{Enabled: true, Limit: clusterFeatures.GetAccessList().GetCreateLimit()}
 		webCfg.Entitlements[string(entitlements.AccessMonitoring)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetAccessMonitoring().GetEnabled(), Limit: clusterFeatures.GetAccessMonitoring().GetMaxReportRangeLimit()}
-		webCfg.Entitlements[string(entitlements.AccessRequests)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetAccessRequests().MonthlyRequestLimit > 0, Limit: clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit()}
+		webCfg.Entitlements[string(entitlements.AccessRequests)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit() > 0, Limit: clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit()}
 		webCfg.Entitlements[string(entitlements.DeviceTrust)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetDeviceTrust().GetEnabled(), Limit: clusterFeatures.GetDeviceTrust().GetDevicesUsageLimit()}
 		// override Identity Package features if Identity is enabled: set true and clear limit
 		if clusterFeatures.GetIdentityGovernance() {
@@ -1944,7 +1958,7 @@ func setEntitlementsWithLegacyLogic(webCfg *webclient.WebConfig, clusterFeatures
 		}
 
 		// webCfg.<legacy fields>: set equal to legacy feature value
-		webCfg.AccessRequests = clusterFeatures.GetAccessRequests().MonthlyRequestLimit > 0
+		webCfg.AccessRequests = clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit() > 0
 		webCfg.ExternalAuditStorage = clusterFeatures.GetExternalAuditStorage()
 		webCfg.HideInaccessibleFeatures = clusterFeatures.GetFeatureHiding()
 		webCfg.IsIGSEnabled = clusterFeatures.GetIdentityGovernance()
@@ -2054,18 +2068,18 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadResourceJSON(r, req); err != nil {
 		logger.ErrorContext(r.Context(), "Error reading json", "error", err)
-		return nil, trace.AccessDenied(SSOLoginFailureMessage)
+		return nil, trace.AccessDenied("%s", SSOLoginFailureMessage)
 	}
 
 	if err := req.CheckAndSetDefaults(); err != nil {
 		logger.ErrorContext(r.Context(), "Missing request parameters", "error", err)
-		return nil, trace.AccessDenied(SSOLoginFailureMessage)
+		return nil, trace.AccessDenied("%s", SSOLoginFailureMessage)
 	}
 
 	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Failed to parse request remote address", "error", err)
-		return nil, trace.AccessDenied(SSOLoginFailureMessage)
+		return nil, trace.AccessDenied("%s", SSOLoginFailureMessage)
 	}
 
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
@@ -2084,9 +2098,9 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Failed to create GitHub auth request", "error", err)
 		if strings.Contains(err.Error(), auth.InvalidClientRedirectErrorMessage) {
-			return nil, trace.AccessDenied(SSOLoginFailureInvalidRedirect)
+			return nil, trace.AccessDenied("%s", SSOLoginFailureInvalidRedirect)
 		}
-		return nil, trace.AccessDenied(SSOLoginFailureMessage)
+		return nil, trace.AccessDenied("%s", SSOLoginFailureMessage)
 	}
 
 	return &client.SSOLoginConsoleResponse{
@@ -2367,6 +2381,8 @@ type CreateSessionResponse struct {
 	Token string `json:"token"`
 	// TokenExpiresIn sets seconds before this token is not valid
 	TokenExpiresIn int `json:"expires_in"`
+	// SessionExpiresIn is the seconds before the session itself expires.
+	SessionExpiresIn int `json:"sessionExpiresIn,omitempty"`
 	// SessionExpires is when this session expires.
 	SessionExpires time.Time `json:"sessionExpires,omitempty"`
 	// SessionInactiveTimeoutMS specifies how long in milliseconds
@@ -2398,10 +2414,15 @@ func newSessionResponse(sctx *SessionContext) (*CreateSessionResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	now := sctx.cfg.Parent.clock.Now()
+	sessionExpiryTime := sctx.cfg.Session.GetExpiryTime()
+
 	return &CreateSessionResponse{
 		TokenType:                roundtrip.AuthBearer,
 		Token:                    token.GetName(),
-		TokenExpiresIn:           int(token.Expiry().Sub(sctx.cfg.Parent.clock.Now()) / time.Second),
+		TokenExpiresIn:           int(token.Expiry().Sub(now) / time.Second),
+		SessionExpiresIn:         int(sessionExpiryTime.Sub(now) / time.Second),
+		SessionExpires:           sessionExpiryTime,
 		SessionInactiveTimeoutMS: int(sctx.cfg.Session.GetIdleTimeout().Milliseconds()),
 		DeviceWebToken:           sctx.cfg.Session.GetDeviceWebToken(),
 		TrustedDeviceRequirement: int32(sctx.cfg.Session.GetTrustedDeviceRequirement()),
@@ -2466,12 +2487,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	res, err := newSessionResponse(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	res.SessionExpires = webSession.GetExpiryTime()
-
-	return res, nil
+	return res, trace.Wrap(err)
 }
 
 func clientMetaFromReq(r *http.Request) *authclient.ForwardedClientMetadata {
@@ -2589,12 +2605,7 @@ func (h *Handler) renewWebSession(w http.ResponseWriter, r *http.Request, params
 	}
 
 	res, err := newSessionResponse(newContext)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	res.SessionExpires = newSession.GetExpiryTime()
-
-	return res, nil
+	return res, trace.Wrap(err)
 }
 
 type changeUserAuthenticationRequest struct {
@@ -2991,6 +3002,7 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 			types.KindWindowsDesktop,
 			types.KindKubernetesCluster,
 			types.KindSAMLIdPServiceProvider,
+			types.KindGitServer,
 		}
 	}
 
@@ -3117,12 +3129,16 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 	for _, enriched := range page {
 		switch r := enriched.ResourceWithLabels.(type) {
 		case types.Server:
-			logins, err := calculateSSHLogins(identity, enriched.Logins)
-			if err != nil {
-				return nil, trace.Wrap(err)
+			switch enriched.GetKind() {
+			case types.KindNode:
+				logins, err := calculateSSHLogins(identity, enriched.Logins)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				unifiedResources = append(unifiedResources, ui.MakeServer(site.GetName(), r, logins, enriched.RequiresRequest))
+			case types.KindGitServer:
+				unifiedResources = append(unifiedResources, ui.MakeGitServer(site.GetName(), r, enriched.RequiresRequest))
 			}
-
-			unifiedResources = append(unifiedResources, ui.MakeServer(site.GetName(), r, logins, enriched.RequiresRequest))
 		case types.DatabaseServer:
 			db := ui.MakeDatabase(r.GetDatabase(), accessChecker, h.cfg.DatabaseREPLRegistry, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, db)
@@ -4495,6 +4511,10 @@ var authnWsUpgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin:     func(r *http.Request) bool { return true },
+	// We’re disabling the error handler here since error handling is managed within the handler itself.
+	// Allowing the WS error handler to operate would result in it writing to the response writer,
+	// which conflicts with our custom error handler and leads to unintended errors.
+	Error: func(http.ResponseWriter, *http.Request, int, error) {},
 }
 
 // WithClusterAuthWebSocket wraps a ClusterWebsocketHandler to ensure that a request is authenticated
@@ -4557,15 +4577,6 @@ func (h *Handler) authenticateRequestWithCluster(w http.ResponseWriter, r *http.
 // remote trusted cluster) as specified by the ":site" url parameter.
 func (h *Handler) getSiteByParams(ctx context.Context, sctx *SessionContext, p httprouter.Params) (reversetunnelclient.RemoteSite, error) {
 	clusterName := p.ByName("site")
-	if clusterName == currentSiteShortcut {
-		res, err := h.cfg.ProxyClient.GetClusterName()
-		if err != nil {
-			h.logger.WarnContext(ctx, "Failed to query cluster name", "error", err)
-			return nil, trace.Wrap(err)
-		}
-		clusterName = res.GetClusterName()
-	}
-
 	site, err := h.getSiteByClusterName(ctx, sctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4575,6 +4586,15 @@ func (h *Handler) getSiteByParams(ctx context.Context, sctx *SessionContext, p h
 }
 
 func (h *Handler) getSiteByClusterName(ctx context.Context, sctx *SessionContext, clusterName string) (reversetunnelclient.RemoteSite, error) {
+	if clusterName == currentSiteShortcut {
+		res, err := h.cfg.ProxyClient.GetClusterName()
+		if err != nil {
+			h.logger.WarnContext(ctx, "Failed to query cluster name", "error", err)
+			return nil, trace.Wrap(err)
+		}
+		clusterName = res.GetClusterName()
+	}
+
 	proxy, err := h.ProxyWithRoles(ctx, sctx)
 	if err != nil {
 		h.logger.WarnContext(ctx, "Failed to get proxy with roles", "error", err)
@@ -4860,7 +4880,7 @@ func (h *Handler) validateCookie(w http.ResponseWriter, r *http.Request) (*Sessi
 	const missingCookieMsg = "missing session cookie"
 	cookie, err := r.Cookie(websession.CookieName)
 	if err != nil || (cookie != nil && cookie.Value == "") {
-		return nil, trace.AccessDenied(missingCookieMsg)
+		return nil, trace.AccessDenied("%s", missingCookieMsg)
 	}
 	decodedCookie, err := websession.DecodeCookie(cookie.Value)
 	if err != nil {
@@ -5199,36 +5219,6 @@ func SSOSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, resp
 	response.ClientRedirectURL = parsedRedirectURL
 
 	return nil
-}
-
-// authExportPublic returns the CA Certs that can be used to set up a chain of trust which includes the current Teleport Cluster
-//
-// GET /webapi/sites/:site/auth/export?type=<auth type>
-// GET /webapi/auth/export?type=<auth type>
-func (h *Handler) authExportPublic(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	err := rateLimitRequest(r, h.limiter)
-	if err != nil {
-		http.Error(w, err.Error(), trace.ErrorToCode(err))
-		return
-	}
-	authorities, err := client.ExportAuthorities(
-		r.Context(),
-		h.GetProxyClient(),
-		client.ExportAuthoritiesRequest{
-			AuthType: r.URL.Query().Get("type"),
-		},
-	)
-	if err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to generate CA Certs", "error", err)
-		http.Error(w, err.Error(), trace.ErrorToCode(err))
-		return
-	}
-
-	reader := strings.NewReader(authorities)
-
-	// ServeContent sets the correct headers: Content-Type, Content-Length and Accept-Ranges.
-	// It also handles the Range negotiation
-	http.ServeContent(w, r, "authorized_hosts.txt", time.Now(), reader)
 }
 
 const robots = `User-agent: *

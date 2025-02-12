@@ -59,7 +59,7 @@ func (d *Duration) UnmarshalJSON(data []byte) error {
 	}
 	out, err := parseDuration(stringVar)
 	if err != nil {
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	}
 	*d = out
 	return nil
@@ -83,7 +83,7 @@ func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	out, err := parseDuration(stringVar)
 	if err != nil {
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	}
 	*d = out
 	return nil
@@ -189,7 +189,7 @@ func parseDuration(s string) (Duration, error) {
 		return 0, nil
 	}
 	if s == "" {
-		return 0, trace.BadParameter("time: invalid duration " + orig)
+		return 0, trace.BadParameter("time: invalid duration %q", orig)
 	}
 	for s != "" {
 		var (
@@ -201,13 +201,13 @@ func parseDuration(s string) (Duration, error) {
 
 		// The next character must be [0-9.]
 		if !(s[0] == '.' || '0' <= s[0] && s[0] <= '9') {
-			return 0, trace.BadParameter("time: invalid duration " + orig)
+			return 0, trace.BadParameter("time: invalid duration %q", orig)
 		}
 		// Consume [0-9]*
 		pl := len(s)
 		v, s, err = leadingInt(s)
 		if err != nil {
-			return 0, trace.BadParameter("time: invalid duration " + orig)
+			return 0, trace.BadParameter("time: invalid duration %q", orig)
 		}
 		pre := pl != len(s) // whether we consumed anything before a period
 
@@ -221,7 +221,7 @@ func parseDuration(s string) (Duration, error) {
 		}
 		if !pre && !post {
 			// no digits (e.g. ".s" or "-.s")
-			return 0, trace.BadParameter("time: invalid duration " + orig)
+			return 0, trace.BadParameter("time: invalid duration %q", orig)
 		}
 
 		// Consume unit.
@@ -233,17 +233,17 @@ func parseDuration(s string) (Duration, error) {
 			}
 		}
 		if i == 0 {
-			return 0, trace.BadParameter("time: missing unit in duration " + orig)
+			return 0, trace.BadParameter("time: missing unit in duration %q", orig)
 		}
 		u := s[:i]
 		s = s[i:]
 		unit, ok := unitMap[u]
 		if !ok {
-			return 0, trace.BadParameter("time: unknown unit " + " in duration " + orig)
+			return 0, trace.BadParameter("time: unknown unit in duration %q", orig)
 		}
 		if v > (1<<63-1)/unit {
 			// overflow
-			return 0, trace.BadParameter("time: invalid duration " + orig)
+			return 0, trace.BadParameter("time: invalid duration %q", orig)
 		}
 		v *= unit
 		if f > 0 {
@@ -252,13 +252,13 @@ func parseDuration(s string) (Duration, error) {
 			v += int64(float64(f) * (float64(unit) / scale))
 			if v < 0 {
 				// overflow
-				return 0, trace.BadParameter("time: invalid duration " + orig)
+				return 0, trace.BadParameter("time: invalid duration %q", orig)
 			}
 		}
 		d += v
 		if d < 0 {
 			// overflow
-			return 0, trace.BadParameter("time: invalid duration " + orig)
+			return 0, trace.BadParameter("time: invalid duration %q", orig)
 		}
 	}
 

@@ -687,11 +687,23 @@ const (
 	WorkloadIdentityUpdateCode = "WID002I"
 	// WorkloadIdentityDeleteCode is the workload identity delete event code.
 	WorkloadIdentityDeleteCode = "WID003I"
+	// WorkloadIdentityX509RevocationCreateCode is the
+	// WorkloadIdentityX509Revocation create event code.
+	WorkloadIdentityX509RevocationCreateCode = "WID004I"
+	// WorkloadIdentityX509RevocationUpdateCode is the
+	// WorkloadIdentityX509Revocation update event code.
+	WorkloadIdentityX509RevocationUpdateCode = "WID005I"
+	// WorkloadIdentityX509RevocationDeleteCode is the
+	// WorkloadIdentityX509Revocation delete event code.
+	WorkloadIdentityX509RevocationDeleteCode = "WID006I"
 
 	// GitCommandCode is the git command event code
 	GitCommandCode = "TGIT001I"
 	// GitCommandFailureCode is the git command feature event code.
 	GitCommandFailureCode = "TGIT001E"
+
+	// StableUNIXUserCreateCode is the stable UNIX user create event code.
+	StableUNIXUserCreateCode = "TSUU001I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
