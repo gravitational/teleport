@@ -28,6 +28,7 @@ use crate::client::global::get_client_handle;
 use crate::client::Client;
 use crate::rdpdr::tdp::SharedDirectoryAnnounce;
 use client::{ClientHandle, ClientResult, ConnectParams};
+use ironrdp_session::x224::DisconnectDescription;
 use log::{error, trace, warn};
 use rdpdr::path::UnixPath;
 use rdpdr::tdp::{
@@ -107,9 +108,16 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
         Ok(res) => CGOResult {
             err_code: CGOErrCode::ErrCodeSuccess,
             message: match res {
-                Some(reason) => CString::new(reason.description().to_string())
-                    .map(|c| c.into_raw())
-                    .unwrap_or(ptr::null_mut()),
+                Some(DisconnectDescription::McsDisconnect(reason)) => {
+                    CString::new(reason.description().to_string())
+                        .map(|c| c.into_raw())
+                        .unwrap_or(ptr::null_mut())
+                }
+                Some(DisconnectDescription::ErrorInfo(info)) => {
+                    CString::new(info.description().to_string())
+                        .map(|c| c.into_raw())
+                        .unwrap_or(ptr::null_mut())
+                }
                 None => ptr::null_mut(),
             },
         },
