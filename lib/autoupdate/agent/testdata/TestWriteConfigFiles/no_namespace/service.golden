@@ -5,4 +5,4 @@ Description=Teleport auto-update service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/teleport-update update
+ExecStart=/usr/local/bin/teleport-update --install-suffix= --install-dir="/opt/teleport" --link-dir="/usr/local/bin" update

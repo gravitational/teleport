@@ -435,13 +435,13 @@ func emptyRevert(_ context.Context) bool {
 }
 
 // LinkSystem links the system (package) version into LinkBinDir and CopyServiceFile.
-// LinkSystem returns ErrInvalid if LinkBinDir is not DefaultLinkDir.
+// LinkSystem returns ErrInvalid if LinkBinDir is not defaultLinkDir.
 // This prevents namespaced installations in /opt/teleport from linking to the system package.
 // The revert function restores the previous linking.
 // See Installer interface for additional specs.
 func (li *LocalInstaller) LinkSystem(ctx context.Context) (revert func(context.Context) bool, err error) {
-	if filepath.Clean(li.LinkBinDir) != filepath.Clean(DefaultLinkDir) {
-		return emptyRevert, trace.Wrap(ErrInvalid, "refusing to link into %s instead of %s", li.LinkBinDir, DefaultLinkDir)
+	if filepath.Clean(li.LinkBinDir) != filepath.Clean(defaultLinkDir) {
+		return emptyRevert, trace.Wrap(ErrInvalid, "refusing to link into %s instead of %s", li.LinkBinDir, defaultLinkDir)
 	}
 	revert, err = li.forceLinks(ctx, li.SystemBinDir, li.SystemServiceFile, false)
 	return revert, trace.Wrap(err)
@@ -463,11 +463,11 @@ func (li *LocalInstaller) TryLink(ctx context.Context, revision Revision) error 
 
 // TryLinkSystem links the system installation, but only in the case that
 // no installation of Teleport is already linked or partially linked.
-// TryLinkSystem returns ErrInvalid if LinkBinDir is not DefaultLinkDir.
+// TryLinkSystem returns ErrInvalid if LinkBinDir is not defaultLinkDir.
 // See Installer interface for additional specs.
 func (li *LocalInstaller) TryLinkSystem(ctx context.Context) error {
-	if filepath.Clean(li.LinkBinDir) != filepath.Clean(DefaultLinkDir) {
-		return trace.Wrap(ErrInvalid, "refusing to link into %s instead of %s", li.LinkBinDir, DefaultLinkDir)
+	if filepath.Clean(li.LinkBinDir) != filepath.Clean(defaultLinkDir) {
+		return trace.Wrap(ErrInvalid, "refusing to link into %s instead of %s", li.LinkBinDir, defaultLinkDir)
 	}
 	return trace.Wrap(li.tryLinks(ctx, li.SystemBinDir, li.SystemServiceFile))
 }
