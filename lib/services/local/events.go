@@ -236,16 +236,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newStaticHostUserParser()
 		case types.KindWorkloadIdentity:
 			parser = newWorkloadIdentityParser()
-<<<<<<< HEAD
-=======
-		case types.KindPluginStaticCredentials:
-			parser = newPluginStaticCredentialsParser()
-		case types.KindGitServer:
-			parser = newGitServerParser()
 		case types.KindWorkloadIdentityX509Revocation:
 			parser = newWorkloadIdentityX509RevocationParser()
->>>>>>> ec2dcebde9 (Add backend WorkloadIdentityX509Revocations service (#51997))
-		default:
 			if watch.AllowPartialSuccess {
 				continue
 			}
