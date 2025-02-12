@@ -77,7 +77,7 @@ func NewKubernetesAttestor(cfg KubernetesAttestorConfig, log *slog.Logger) *Kube
 func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (*workloadidentityv1pb.WorkloadAttrsKubernetes, error) {
 	a.log.DebugContext(ctx, "Starting Kubernetes workload attestation", "pid", pid)
 
-	container, err := container.LookupPID(a.rootPath, pid)
+	container, err := container.LookupPID(a.rootPath, pid, container.Kubernetes)
 	if err != nil {
 		return nil, trace.Wrap(err, "determining pod and container ID")
 	}
@@ -85,7 +85,7 @@ func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (*workloadiden
 	a.log.DebugContext(ctx,
 		"Found pod and container ID",
 		"pod_id", container.PodID,
-		"container_id", container.ContainerID,
+		"container_id", container.ID,
 	)
 
 	pod, err := a.getPodForID(ctx, container.PodID)

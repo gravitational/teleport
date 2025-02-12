@@ -18,12 +18,84 @@
 
 package container
 
-// Identifiers holds the container and pod IDs inferred from a process' cgroup.
-type Identifiers struct {
-	// ContainerID identifies the container.
-	ContainerID string
+import (
+	"path"
+	"strconv"
 
-	// PodID identifies to which "pod" the container belongs, in supported
-	// platforms such as Kubernetes and Podman.
+	"github.com/gravitational/trace"
+	"k8s.io/utils/mount"
+)
+
+// Rootfulness describes whether a container was started by an unprivileged user
+// as in "rootless" Podman or by root. It's a best guess based on information
+// gleaned from procfs, not authoratative.
+type Rootfulness int
+
+const (
+	// RootfulnessUnknown means we were unable to infer whether the container is
+	// rootless or not.
+	RootfulnessUnknown Rootfulness = iota
+
+	// Rootful means the container was probably started by root.
+	Rootful
+
+	// Rootless means the container was probably started by an unprivileged user.
+	Rootless
+)
+
+// Info holds the information discovered about the container.
+type Info struct {
+	// ID is the container's  ID.
+	ID string
+
+	// PodID identifies to which "pod" the container belongs, in engines that
+	// support pods such as Kubernetes and Podman.
 	PodID string
+
+	// Rootfulness describes whether a container was started by an unprivileged
+	// user as in "rootless" Podman or by root. It's a best guess based on
+	// information gleaned from procfs, not authoratative.
+	Rootfulness Rootfulness
+}
+
+// Engine represents the container engine/runtime.
+type Engine interface {
+	// parseCgroupMount extracts the container and pod IDs from the given cgroup
+	// mount path.
+	parseCgroupMount(mountPath string) (*Info, error)
+}
+
+// LookupPID discovers information about the container in which the process with
+// the given PID is running, by interrogating procfs.
+//
+// rootPath allows you to optionally override the system root path in tests,
+// pass an empty string to use the real root.
+func LookupPID(rootPath string, pid int, engine Engine) (*Info, error) {
+	info, err := mount.ParseMountInfo(
+		path.Join(rootPath, "/proc", strconv.Itoa(pid), "mountinfo"),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing mountinfo")
+	}
+
+	// Find the cgroup or cgroupv2 mount.
+	//
+	// For cgroup v2, we expect a single mount. But for cgroup v1, there will
+	// be one mount per subsystem, but regardless, they will all contain the
+	// same container ID/pod ID.
+	var cgroupMount mount.MountInfo
+	for _, m := range info {
+		if m.FsType == "cgroup" || m.FsType == "cgroup2" {
+			cgroupMount = m
+			break
+		}
+	}
+
+	ids, err := engine.parseCgroupMount(cgroupMount.Root)
+	if err != nil {
+		return nil, trace.Wrap(
+			err, "parsing cgroup mount (root: %q)", cgroupMount.Root,
+		)
+	}
+	return ids, nil
 }
