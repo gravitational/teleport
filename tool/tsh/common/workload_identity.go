@@ -286,6 +286,11 @@ func newSVIDIssueCommand(parent *kingpin.CmdClause) *svidIssueCommand {
 }
 
 func (c *svidIssueCommand) run(cf *CLIConf) error {
+	logger.WarnContext(
+		cf.Context,
+		"The 'tsh svid issue' command is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
+	)
+
 	ctx := cf.Context
 	// Validate flags
 	if c.svidType != svidTypeX509 {
