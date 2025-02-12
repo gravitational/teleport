@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -128,15 +129,16 @@ type packageURL struct {
 	Optional bool
 }
 
-// teleportPackageURLs returns the URL for the Teleport archive to download.
-func teleportPackageURLs(uriTmpl string, baseURL, version string) ([]packageURL, error) {
+// teleportPackageURLs returns URLs for the Teleport archives to download.
+func teleportPackageURLs(ctx context.Context, uriTmpl string, baseURL, version string) ([]packageURL, error) {
+	m := modules.GetModules()
 	envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar)
-	if modules.GetModules().BuildType() == modules.BuildOSS && envBaseURL == "" {
+	if m.BuildType() == modules.BuildOSS && envBaseURL == "" {
+		slog.WarnContext(ctx, "Client tools updates are disabled as they are licensed under AGPL. To use Community Edition builds or custom binaries, set the 'TELEPORT_CDN_BASE_URL' environment variable.")
 		return nil, errNoBaseURL
 	}
 
 	var flags autoupdate.InstallFlags
-	m := modules.GetModules()
 	if m.IsBoringBinary() {
 		flags |= autoupdate.FlagFIPS
 	}
