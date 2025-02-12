@@ -37,6 +37,7 @@ import (
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/server"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 // pageSize is the default page size to use when fetching AWS resources
@@ -134,7 +135,7 @@ func (defaultAWSClients) getS3Client(cfg aws.Config, optFns ...func(*s3.Options)
 }
 
 func (defaultAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient {
-	return sts.NewFromConfig(cfg, optFns...)
+	return stsutils.NewFromConfig(cfg, optFns...)
 }
 
 // AssumeRole is the configuration for assuming an AWS role.
