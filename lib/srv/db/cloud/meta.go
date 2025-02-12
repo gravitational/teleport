@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -118,7 +119,7 @@ func (defaultAWSClients) getElastiCacheClient(cfg aws.Config, optFns ...func(*el
 }
 
 func (defaultAWSClients) getIAMClient(cfg aws.Config, optFns ...func(*iam.Options)) iamClient {
-	return iam.NewFromConfig(cfg, optFns...)
+	return iamutils.NewFromConfig(cfg, optFns...)
 }
 
 func (defaultAWSClients) getMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) memoryDBClient {
