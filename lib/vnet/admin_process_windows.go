@@ -249,8 +249,9 @@ func createNamedPipe(ctx context.Context, userSID string) (*winpipe, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "converting string to UTF16")
 	}
-	// Allow GA (Generic All) pipe access to the user.
-	sdString := fmt.Sprintf("D:P(A;;GA;;;%s)", userSID)
+	// https://learn.microsoft.com/en-us/windows/win32/secauthz/security-descriptor-definition-language
+	// This discretionary ACL grants GA (Generic All) pipe access to the user.
+	sdString := fmt.Sprintf("D:(A;;GA;;;%s)", userSID)
 	sd, err := windows.SecurityDescriptorFromString(sdString)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating security descriptor from string")
