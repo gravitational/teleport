@@ -16,7 +16,6 @@ syntax = "proto3";
 
 package teleport.decision.v1alpha1;
 
-import "google/protobuf/duration.proto";
 import "teleport/decision/v1alpha1/denial_metadata.proto";
 import "teleport/decision/v1alpha1/permit_metadata.proto";
 import "teleport/decision/v1alpha1/request_metadata.proto";
@@ -25,9 +24,9 @@ import "teleport/decision/v1alpha1/ssh_identity.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpb";
 
-// EvaluateSSHAccessRequest describes a request to evaluate whether or not a
-// given ssh access attempt should be permitted.
-message EvaluateSSHAccessRequest {
+// EvaluateSSHJoinRequest describes a request to evaluate whether or not a
+// given ssh session-joining attempt should be permitted.
+message EvaluateSSHJoinRequest {
   // Metadata holds common authorization decision request fields.
   RequestMetadata metadata = 1;
 
@@ -40,51 +39,26 @@ message EvaluateSSHAccessRequest {
   // Node references the target node the user is attempting to access.
   Resource node = 4;
 
-  // OSUser is the user on the target node the user is attempting to access.
-  string os_user = 5;
+  // SessionId is the ID of the session the user is attempting to join.
+  string session_id = 5;
 }
 
-// EvaluateSSHAccessResponse describes the result of an SSH access evaluation.
-message EvaluateSSHAccessResponse {
+// EvaluateSSHJoinResponse describes the result of an SSH session-joining evaluation.
+message EvaluateSSHJoinResponse {
   oneof decision {
-    SSHAccessPermit permit = 1;
-    SSHAccessDenial denial = 2;
+    SSHJoinPermit permit = 1;
+    SSHJoinDenial denial = 2;
   }
 }
 
-// SSHAccessPermit describes the parameters/constraints of a permissible SSH
+// SSHJoinPermit describes the parameters/constraints of a permissible SSH
 // access attempt.
-message SSHAccessPermit {
+message SSHJoinPermit {
   PermitMetadata metadata = 1;
-  repeated string logins = 2;
-  bool forward_agent = 3;
-  google.protobuf.Duration max_session_ttl = 4;
-  SSHPortForwardMode port_forward_mode = 5;
-  google.protobuf.Duration client_idle_timeout = 6;
-  bool disconnect_expired_cert = 7;
-  repeated string bpf = 8;
-  bool x11_forwarding = 9;
-  int64 max_connections = 10;
-  int64 max_sessions = 11;
-  string lock = 12;
-  bool create_host_user = 13;
-  bool ssh_file_copy = 14;
-  string create_host_user_mode = 15;
-  string create_host_user_shell = 16;
-  repeated string host_groups = 17;
-  repeated string host_sudoers = 18;
+  // TODO
 }
 
-// SSHAccessDenial describes an SSH access denial.
-message SSHAccessDenial {
+// SSHJoinDenial describes an SSH session-joining denial.
+message SSHJoinDenial {
   DenialMetadata metadata = 1;
-}
-
-// SSHPortForwardMode describes the mode of port forwarding permitted.
-enum SSHPortForwardMode {
-  SSH_PORT_FORWARD_MODE_UNSPECIFIED = 0;
-  SSH_PORT_FORWARD_MODE_OFF = 1;
-  SSH_PORT_FORWARD_MODE_ON = 2;
-  SSH_PORT_FORWARD_MODE_LOCAL = 3;
-  SSH_PORT_FORWARD_MODE_REMOTE = 4;
 }

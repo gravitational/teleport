@@ -37,6 +37,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -194,6 +195,9 @@ type IdentityContext struct {
 	// cross-cluster mapping applied.
 	UnmappedIdentity *sshca.Identity
 
+	// AccessPermit encodes the parameters/constraints associated with an authorized ssh access.
+	AccessPermit *decisionpb.SSHAccessPermit
+
 	// TeleportUser is the Teleport user associated with the connection.
 	TeleportUser string
 
@@ -230,10 +234,6 @@ type IdentityContext struct {
 	// Renewable indicates this certificate is renewable.
 	Renewable bool
 
-	// Generation counts the number of times this identity's certificate has
-	// been renewed.
-	Generation uint64
-
 	// BotName is the name of the Machine ID bot this identity is associated
 	// with, if any.
 	BotName string
@@ -241,10 +241,6 @@ type IdentityContext struct {
 	// BotInstanceID is the unique identifier of the Machine ID bot instance
 	// this identity is associated with, if any.
 	BotInstanceID string
-
-	// AllowedResourceIDs lists the resources this identity should be allowed to
-	// access
-	AllowedResourceIDs []types.ResourceID
 
 	// PreviousIdentityExpires is the expiry time of the identity/cert that this
 	// identity/cert was derived from. It is used to determine a session's hard
@@ -408,13 +404,13 @@ type ServerContext struct {
 // associated with the scope of the parent ConnectionContext to ensure that
 // cancellation of the ConnectionContext propagates to the ServerContext.
 func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, srv Server, identityContext IdentityContext, monitorOpts ...func(*MonitorConfig)) (*ServerContext, error) {
-	netConfig, err := srv.GetAccessPoint().GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	recConfig, err := srv.GetAccessPoint().GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if identityContext.AccessPermit == nil {
+		fmt.Printf("---> nil access permit: %+v\n", identityContext)
 	}
 
 	cancelContext, cancel := context.WithCancel(ctx)
@@ -428,7 +424,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		ClusterName:            parent.ServerConn.Permissions.Extensions[utils.CertTeleportClusterName],
 		SessionRecordingConfig: recConfig,
 		Identity:               identityContext,
-		clientIdleTimeout:      identityContext.AccessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		clientIdleTimeout:      durationToGoDuration(identityContext.AccessPermit.ClientIdleTimeout),
 		cancelContext:          cancelContext,
 		cancel:                 cancel,
 		ServerSubKind:          srv.TargetMetadata().ServerSubKind,

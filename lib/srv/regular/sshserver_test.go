@@ -850,20 +850,26 @@ func setPortForwarding(t *testing.T, ctx context.Context, f *sshTestFixture, leg
 // forwarding is built upon.
 func TestDirectTCPIP(t *testing.T) {
 	ctx := context.Background()
-	t.Parallel()
-	f := newFixtureWithoutDiskBasedLogging(t)
 
-	// Startup a test server that will reply with "hello, world\n"
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, "hello, world")
-	}))
-	defer ts.Close()
+	setup := func(t *testing.T) (*sshTestFixture, *httptest.Server, *url.URL) {
+		f := newFixtureWithoutDiskBasedLogging(t)
 
-	// Extract the host:port the test HTTP server is running on.
-	u, err := url.Parse(ts.URL)
-	require.NoError(t, err)
+		// Startup a test server that will reply with "hello, world\n"
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintln(w, "hello, world")
+		}))
+
+		// Extract the host:port the test HTTP server is running on.
+		u, err := url.Parse(ts.URL)
+		require.NoError(t, err)
+
+		return f, ts, u
+	}
 
 	t.Run("Local forwarding is successful", func(t *testing.T) {
+		f, ts, u := setup(t)
+		defer ts.Close()
+
 		// Build a http.Client that will dial through the server to establish the
 		// connection. That's why a custom dialer is used and the dialer uses
 		// s.clt.Dial (which performs the "direct-tcpip" request).
@@ -887,6 +893,9 @@ func TestDirectTCPIP(t *testing.T) {
 	})
 
 	t.Run("Local forwarding fails when access is denied", func(t *testing.T) {
+		f, ts, u := setup(t)
+		defer ts.Close()
+
 		httpClient := http.Client{
 			Transport: &http.Transport{
 				Dial: func(network string, addr string) (net.Conn, error) {
@@ -903,6 +912,9 @@ func TestDirectTCPIP(t *testing.T) {
 	})
 
 	t.Run("Local forwarding fails when access is denied by legacy config", func(t *testing.T) {
+		f, ts, u := setup(t)
+		defer ts.Close()
+
 		httpClient := http.Client{
 			Transport: &http.Transport{
 				Dial: func(network string, addr string) (net.Conn, error) {
@@ -919,6 +931,9 @@ func TestDirectTCPIP(t *testing.T) {
 	})
 
 	t.Run("SessionJoinPrincipal cannot use direct-tcpip", func(t *testing.T) {
+		f, ts, u := setup(t)
+		defer ts.Close()
+
 		// Ensure that ssh client using SessionJoinPrincipal as Login, cannot
 		// connect using "direct-tcpip".
 		ctx := context.Background()

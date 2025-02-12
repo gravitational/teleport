@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -62,9 +63,9 @@ type mockLoginChecker struct {
 	rbacChecked bool
 }
 
-func (m *mockLoginChecker) canLoginWithRBAC(_ *sshca.Identity, _ types.CertAuthority, _ string, _ types.Server, _ string) error {
+func (m *mockLoginChecker) evaluateSSHAccess(_ *sshca.Identity, _ types.CertAuthority, _ string, _ types.Server, _ string) (*decisionpb.SSHAccessPermit, error) {
 	m.rbacChecked = true
-	return nil
+	return nil, nil
 }
 
 type mockConnMetadata struct{}
@@ -411,7 +412,7 @@ func TestRBACJoinMFA(t *testing.T) {
 			ident, err := sshca.DecodeIdentity(cert)
 			require.NoError(t, err)
 
-			err = ah.canLoginWithRBAC(ident, userCA, clusterName, node, teleport.SSHSessionJoinPrincipal)
+			_, err = ah.evaluateSSHAccess(ident, userCA, clusterName, node, teleport.SSHSessionJoinPrincipal)
 			tt.testError(t, err)
 		})
 	}

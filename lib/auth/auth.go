@@ -94,6 +94,7 @@ import (
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
 	"github.com/gravitational/teleport/lib/events"
@@ -560,6 +561,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			}
 		}),
 	)
+
+	as.pdp, err = decision.NewService(decision.Config{
+		AccessPoint: as,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	for _, o := range opts {
 		if err := o(&as); err != nil {
 			return nil, trace.Wrap(err)
@@ -1019,6 +1028,8 @@ type Server struct {
 	GlobalNotificationCache *services.GlobalNotificationCache
 
 	inventory *inventory.Controller
+
+	pdp *decision.Service
 
 	// githubOrgSSOCache is used to cache whether Github organizations use
 	// external SSO or not.
