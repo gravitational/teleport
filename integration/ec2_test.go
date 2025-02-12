@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 func newSilentLogger() utils.Logger {
@@ -150,7 +151,7 @@ func getCallerIdentity(ctx context.Context, t *testing.T) *sts.GetCallerIdentity
 		cfg.Region, err = imdsClient.GetRegion(ctx)
 		require.NoError(t, err, "trying to get local region from IMDSv2")
 	}
-	stsClient := sts.NewFromConfig(cfg)
+	stsClient := stsutils.NewFromConfig(cfg)
 	output, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 	require.NoError(t, err)
 	return output
