@@ -313,6 +313,7 @@ export const eventCodes = {
   GIT_COMMAND: 'TGIT001I',
   GIT_COMMAND_FAILURE: 'TGIT001E',
   STABLE_UNIX_USER_CREATE: 'TSUU001I',
+  AWS_IC_RESOURCE_SYNC: 'TAIC001I',
 } as const;
 
 /**
@@ -1795,6 +1796,9 @@ export type RawEvents = {
       };
     }
   >;
+  [eventCodes.AWS_IC_RESOURCE_SYNC]: RawEventAwsIcResourceSync<
+    typeof eventCodes.AWS_IC_RESOURCE_SYNC
+  >;
 };
 
 /**
@@ -1992,6 +1996,20 @@ type RawSpannerRPCEvent<T extends EventCode> = RawEvent<
     db_service: string;
     db_name: string;
     args: { sql?: string };
+  }
+>;
+
+/**
+ * RawEventAwsIcResourceSync extends RawEvent with custom fields
+ * present in the AWS Identity Center resource sync event.
+ */
+type RawEventAwsIcResourceSync<T extends EventCode> = RawEvent<
+  T,
+  {
+    total_accounts: number;
+    total_account_assignment: number;
+    total_user_group: number;
+    total_permission_set: number;
   }
 >;
 
