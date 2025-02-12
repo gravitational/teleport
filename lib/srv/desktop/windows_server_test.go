@@ -188,7 +188,7 @@ func TestGenerateCredentials(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, cert)
 
-		require.Equal(t, user, cert.Subject.CommonName)
+		require.Equal(t, user+"@"+domain, cert.Subject.CommonName)
 		require.ElementsMatch(t, cert.CRLDistributionPoints, []string{test.cdp})
 
 		foundKeyUsage := false
