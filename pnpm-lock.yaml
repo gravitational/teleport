@@ -269,7 +269,7 @@ importers:
         specifier: ^26.0.0
         version: 26.0.0
       rollup-plugin-visualizer:
-        specifier: ^5.14.0
+        specifier: ^5.13.1
         version: 5.14.0(rollup@4.30.1)
       typescript-eslint:
         specifier: ^8.22.0
