@@ -536,7 +536,7 @@ func (wis *WorkloadIdentityService) SignJWTSVIDs(
 
 	wis.logger.WarnContext(
 		ctx,
-		"The 'SignX509SVIDs' RPC has been invoked. This RPC is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
+		"The 'SignJWTSVIDs' RPC has been invoked. This RPC is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
 	)
 
 	return res, nil
