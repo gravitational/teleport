@@ -235,7 +235,7 @@ type svidCommands struct {
 }
 
 func newSVIDCommands(app *kingpin.Application) svidCommands {
-	cmd := app.Command("svid", "Manage Teleport Workload Identity SVIDs.")
+	cmd := app.Command("svid", "Manage Teleport Workload Identity SVIDs.").Hidden()
 	cmds := svidCommands{
 		issue: newSVIDIssueCommand(cmd),
 	}
