@@ -33,7 +33,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/digitorus/pkcs7"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -41,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 type ec2Client interface {
@@ -96,7 +96,7 @@ func checkInstanceRunning(ctx context.Context, instanceID, region, IAMRole strin
 
 	// assume the configured IAM role if necessary
 	if IAMRole != "" {
-		stsClient := sts.NewFromConfig(awsClientConfig)
+		stsClient := stsutils.NewFromConfig(awsClientConfig)
 		creds := stscreds.NewAssumeRoleProvider(stsClient, IAMRole)
 		awsClientConfig.Credentials = aws.NewCredentialsCache(creds)
 	}

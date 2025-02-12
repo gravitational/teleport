@@ -28,7 +28,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/glue"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
 	ecatypes "github.com/gravitational/teleport/api/types/externalauditstorage"
@@ -41,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/samlidp"
 	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 func onIntegrationConfDeployService(ctx context.Context, params config.IntegrationConfDeployServiceIAM) error {
@@ -202,7 +202,7 @@ func onIntegrationConfExternalAuditCmd(ctx context.Context, params easconfig.Ext
 
 	clt := &awsoidc.DefaultConfigureExternalAuditStorageClient{
 		Iam: iam.NewFromConfig(cfg),
-		Sts: sts.NewFromConfig(cfg),
+		Sts: stsutils.NewFromConfig(cfg),
 	}
 	return trace.Wrap(awsoidc.ConfigureExternalAuditStorage(ctx, clt, params))
 }

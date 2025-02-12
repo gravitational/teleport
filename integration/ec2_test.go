@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 func newSilentLogger() utils.Logger {
@@ -145,7 +146,7 @@ func getCallerIdentity(t *testing.T) *sts.GetCallerIdentityOutput {
 		SharedConfigState: session.SharedConfigEnable,
 	})
 	require.NoError(t, err)
-	stsService := sts.New(sess)
+	stsService := stsutils.NewV1(sess)
 	output, err := stsService.GetCallerIdentity(nil /*input*/)
 	require.NoError(t, err)
 	return output
