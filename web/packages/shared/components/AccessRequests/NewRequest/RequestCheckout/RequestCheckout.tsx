@@ -18,7 +18,7 @@
 
 import React, { forwardRef, useEffect, useRef, useState } from 'react';
 import type { TransitionStatus } from 'react-transition-group';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
 import {
   Alert,
@@ -64,6 +64,7 @@ import { KubeNamespaceSelector } from './KubeNamespaceSelector';
 import { SelectReviewers } from './SelectReviewers';
 import shieldCheck from './shield-check.png';
 import { ReviewerOption } from './types';
+import { Toggle } from 'design/Toggle';
 
 export const RequestCheckoutWithSlider = forwardRef<
   HTMLDivElement,
@@ -170,6 +171,41 @@ export function RequestCheckout<T extends PendingListItem>({
   updateNamespacesForKubeCluster,
 }: RequestCheckoutProps<T>) {
   const [reason, setReason] = useState('');
+  const [isLongTermAccess, setIsLongTermAccess] = useState(false);
+  const [warningStates, setWarningStates] = useState({
+    ineligible: [] as string[],
+    separateRequest: [] as string[],
+  });
+
+  const theme = useTheme();
+
+  // Update warning states when resources change
+  useEffect(() => {
+    if (!isLongTermAccess) {
+      setWarningStates({ ineligible: [], separateRequest: [] });
+      return;
+    }
+
+    const ineligible = [];
+    const separateRequest = [];
+
+    // For demo purposes, just check resource names
+    pendingAccessRequests.forEach(resource => {
+      if (resource.name === 'prod-db') {
+        ineligible.push(resource.name);
+      }
+    });
+
+    // Check if both aurora and teleport-dev are present
+    const hasAurora = pendingAccessRequests.some(r => r.name === 'aurora');
+    const hasTeleportDev = pendingAccessRequests.some(r => r.name === 'teleport-dev');
+
+    if (hasAurora && hasTeleportDev) {
+      separateRequest.push('aurora', 'teleport-dev');
+    }
+
+    setWarningStates({ ineligible, separateRequest });
+  }, [isLongTermAccess, pendingAccessRequests]);
 
   function updateReason(reason: string) {
     setReason(reason);
@@ -186,6 +222,7 @@ export function RequestCheckout<T extends PendingListItem>({
       maxDuration: maxDuration ? new Date(maxDuration.value) : null,
       requestTTL: pendingRequestTtl ? new Date(pendingRequestTtl.value) : null,
       start: startTime,
+      isLongTermAccess,
     });
   }
 
@@ -205,7 +242,10 @@ export function RequestCheckout<T extends PendingListItem>({
     isInvalidRoleSelection ||
     (fetchResourceRequestRolesAttempt.status === 'failed' &&
       hasUnsupporteKubeResourceKinds) ||
-    fetchResourceRequestRolesAttempt.status === 'processing';
+    fetchResourceRequestRolesAttempt.status === 'processing' ||
+    // Disable if there are warning states
+    warningStates.ineligible.length > 0 ||
+    warningStates.separateRequest.length > 0;
 
   const cancelBtnDisabled =
     createAttempt.status === 'processing' ||
@@ -236,6 +276,10 @@ export function RequestCheckout<T extends PendingListItem>({
   };
 
   function customRow(item: T) {
+    const isIneligible = warningStates.ineligible.includes(item.name);
+    const isSeparateRequest = warningStates.separateRequest.includes(item.name);
+    console.log('Row item:', item.name, { isIneligible, isSeparateRequest });
+
     if (item.kind === 'kube_cluster') {
       return (
         <td colSpan={showClusterNameColumn ? 4 : 3}>
@@ -270,6 +314,28 @@ export function RequestCheckout<T extends PendingListItem>({
         </td>
       );
     }
+
+    // Default case for non-kube_cluster items
+    return (
+      <td
+        colSpan={showClusterNameColumn ? 4 : 3}
+        data-state={isIneligible ? 'danger' : isSeparateRequest ? 'warning' : undefined}
+      >
+        <Flex justifyContent="space-between" alignItems="center" width="100%">
+          <Flex gap={5}>
+            {showClusterNameColumn && <Box>{item.clusterName}</Box>}
+            <Box>{getPrettyResourceKind(item.kind)}</Box>
+            <Box>{item.name}</Box>
+          </Flex>
+          <CrossIcon
+            clearAttempt={clearAttempt}
+            item={item}
+            toggleResource={toggleResource}
+            createAttempt={createAttempt}
+          />
+        </Flex>
+      </td>
+    );
   }
 
   return (
@@ -358,12 +424,54 @@ export function RequestCheckout<T extends PendingListItem>({
                   {createAttempt.status === 'failed' && (
                     <Alert kind="danger" children={createAttempt.statusText} />
                   )}
+
+
+                  {isLongTermAccess && warningStates.ineligible.length > 0 && (
+                    <Alert kind="danger" mb={3}>
+                      <Box mb={0}>
+                        <Text typography="body3" bold>
+                          Long-term access not available
+                        </Text>
+                      </Box>
+                      <Text typography="body3">
+                        Remove <Text as="span" typography="body3" bold>{warningStates.ineligible.join(', ')}</Text> or switch to short-term request and submit
+                      </Text>
+                    </Alert>
+                  )}
+
+                  {isLongTermAccess && warningStates.separateRequest.length > 0 && (
+                    <Alert kind="warning" mb={3}>
+                      <Box mb={0}>
+                        <Text typography="body3" bold>
+                          Resources cannot be grouped in this request
+                        </Text>
+                      </Box>
+                      <Text typography="body3">
+                        Remove <Text as="span" typography="body3" bold>{warningStates.separateRequest.join(', ')}</Text> and request them separately, or switch to short-term request.
+                      </Text>
+                    </Alert>
+                  )}
+
                   <StyledTable
                     data={pendingAccessRequests.filter(
                       d => d.kind !== 'namespace'
                     )}
                     row={{
                       customRow,
+                      getStyle: (item: T) => {
+                        const isIneligible = warningStates.ineligible.includes(item.name);
+                        const isSeparateRequest = warningStates.separateRequest.includes(item.name);
+
+                        return {
+                          backgroundColor: isIneligible
+                            ? `${theme.colors.interactive.tonal.danger[0]}`
+                            : isSeparateRequest
+                              ? `${theme.colors.interactive.tonal.alert[0]}`
+                              : 'transparent',
+                          transition: 'background-color 0.15s ease-in-out',
+                          'data-state': isIneligible ? 'danger' : isSeparateRequest ? 'warning' : undefined,
+                        };
+                      },
                     }}
                     columns={[
                       {
@@ -398,6 +506,17 @@ export function RequestCheckout<T extends PendingListItem>({
                     ]}
                     emptyText="No resources are selected"
                   />
+
+                  <Box mt={4} mb={4}>
+                    <Flex alignItems="center" gap={2}>
+                      <Toggle
+                        isToggled={isLongTermAccess}
+                        onToggle={() => setIsLongTermAccess(!isLongTermAccess)}
+                      />
+                      <span>Long-term access request</span>
+                    </Flex>
+                  </Box>
+
                   {userGroupFetchAttempt?.status === 'processing' && (
                     <Flex mt={4} alignItems="center" justifyContent="center">
                       <Indicator size="small" />
@@ -465,7 +584,7 @@ export function RequestCheckout<T extends PendingListItem>({
                         background: ${({ theme }) =>
                           theme.colors.levels.sunken};
                         border-top: 1px solid
-                          ${props => props.theme.colors.spotBackground[1]};
+                          ${({ theme }) => theme.colors.spotBackground[1]};
                       `}
                     >
                       <ButtonPrimary
@@ -529,7 +648,7 @@ function AppsGrantedAccess({ apps }: { apps: string[] }) {
           borderBottom={1}
           onClick={() => setExpanded(!expanded)}
           css={`
-            border-color: ${props => props.theme.colors.spotBackground[1]};
+            border-color: ${({ theme }) => theme.colors.spotBackground[1]};
           `}
         >
           <Flex flexDirection="column" width="100%">
@@ -588,7 +707,7 @@ function ResourceRequestRoles({
           borderBottom={1}
           onClick={() => setExpanded(!expanded)}
           css={`
-            border-color: ${props => props.theme.colors.spotBackground[1]};
+            border-color: ${({ theme }) => theme.colors.spotBackground[1]};
           `}
         >
           <Flex alignItems="center" gap={2}>
@@ -758,7 +877,7 @@ function TextBox({
           &:hover,
           &:focus,
           &:active {
-            border: 1px solid ${props => props.theme.colors.text.slightlyMuted};
+            border: 1px solid ${({ theme }) => theme.colors.text.slightlyMuted};
           }
         `}
       />
@@ -848,9 +967,26 @@ const Dimmer = styled(Box)`
   z-index: 10;
 `;
 
-const StyledTable = styled(Table)`
+interface StyledTableProps {
+  theme: any;
+}
+
+const StyledTable = styled(Table)<StyledTableProps>`
+  & > tbody > tr {
+    transition: background-color 0.15s ease-in-out;
+  }
+
+  & > tbody > tr > td[data-state="warning"] {
+    border-top: 2px solid ${props => props.theme.colors.interactive.tonal.alert[2]};
+  }
+
+  & > tbody > tr > td[data-state="danger"] {
+    border-top: 2px solid ${props => props.theme.colors.interactive.tonal.danger[2]};
+  }
+
   & > tbody > tr > td {
     vertical-align: middle;
+    background-color: inherit !important;
   }
 
   & > thead > tr > th {
