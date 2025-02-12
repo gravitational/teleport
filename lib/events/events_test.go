@@ -250,6 +250,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	WorkloadIdentityDeleteEvent:                 &apievents.WorkloadIdentityDelete{},
 	AccessRequestExpireEvent:                    &apievents.AccessRequestExpire{},
 	StableUNIXUserCreateEvent:                   &apievents.StableUNIXUserCreate{},
+	AWSICResourceSyncEvent:                      &apievents.AWSICResourceSync{},
 }
 
 // TestJSON tests JSON marshal events
