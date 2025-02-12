@@ -411,6 +411,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating GitServer service")
 		}
 	}
+	if cfg.WorkloadIdentityX509Revocations == nil {
+		cfg.WorkloadIdentityX509Revocations, err = local.NewWorkloadIdentityX509RevocationService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating WorkloadIdentityX509Revocation service")
+		}
+	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
 	}
@@ -464,6 +470,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
+<<<<<<< HEAD
 		TrustInternal:             cfg.Trust,
 		PresenceInternal:          cfg.Presence,
 		Provisioner:               cfg.Provisioner,
@@ -510,6 +517,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		WorkloadIdentities:        cfg.WorkloadIdentity,
 		PluginStaticCredentials:   cfg.PluginStaticCredentials,
 		GitServers:                cfg.GitServers,
+		WorkloadIdentityX509Revocations: cfg.WorkloadIdentityX509Revocations,
 	}
 
 	as := Server{
@@ -730,6 +738,7 @@ type Services struct {
 	services.WorkloadIdentities
 	services.PluginStaticCredentials
 	services.GitServers
+	services.WorkloadIdentityX509Revocations
 }
 
 // GetWebSession returns existing web session described by req.

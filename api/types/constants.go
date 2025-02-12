@@ -607,6 +607,10 @@ const (
 	// KindWorkloadIdentity is the WorkloadIdentity resource.
 	KindWorkloadIdentity = "workload_identity"
 
+	// KindWorkloadIdentityX509Revocation is the WorkloadIdentityX509Revocation
+	// resource.
+	KindWorkloadIdentityX509Revocation = "workload_identity_x509_revocation"
+
 	// KindGitServer represents a Git server that can proxy git commands.
 	KindGitServer = "git_server"
 	// SubKindGitHub specifies the GitHub subkind of a Git server.
