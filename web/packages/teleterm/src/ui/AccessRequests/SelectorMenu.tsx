@@ -20,7 +20,7 @@ import { formatDistanceToNow, isPast } from 'date-fns';
 import { ComponentType, useEffect, useMemo, useRef, useState } from 'react';
 import styled, { css, useTheme } from 'styled-components';
 
-import { ButtonText, Flex, P3, Popover } from 'design';
+import { ButtonText, Flex, Indicator, P3, Popover } from 'design';
 import * as Icon from 'design/Icon';
 import { IconProps } from 'design/Icon/Icon';
 import { MenuItemSectionLabel } from 'design/Menu/MenuItem';
@@ -28,7 +28,12 @@ import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import { AccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest';
 import { getResourcesOrRolesFromRequest } from 'shared/components/AccessRequests/Shared/Shared';
-import { Attempt, mapAttempt, useAsync } from 'shared/hooks/useAsync';
+import {
+  Attempt,
+  mapAttempt,
+  useAsync,
+  useDelayedRepeatedAttempt,
+} from 'shared/hooks/useAsync';
 import { AccessRequest as SharedAccessRequest } from 'shared/services/accessRequests';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -59,8 +64,15 @@ export function SelectorMenu() {
   const [assumedSnapshot, setAssumedSnapshot] = useState<
     Map<string, AccessRequest>
   >(() => new Map());
-  const { canUse, assumed, fetchRequestsAttempt, fetchRequests } =
-    useAccessRequestsContext();
+  const {
+    canUse,
+    assumed,
+    fetchRequestsAttempt: eagerFetchRequestsAttempt,
+    fetchRequests,
+  } = useAccessRequestsContext();
+  const fetchRequestsAttempt = useDelayedRepeatedAttempt(
+    eagerFetchRequestsAttempt
+  );
   const { rootClusterUri } = useWorkspaceContext();
   const ctx = useAppContext();
   const { clustersService } = ctx;
@@ -162,6 +174,7 @@ export function SelectorMenu() {
   });
 
   function openMenu(): void {
+    void fetchRequests();
     setAssumedSnapshot(assumed);
     setOpen(true);
   }
@@ -228,9 +241,6 @@ export function SelectorMenu() {
           <MenuItemSectionLabel
             css={`
               justify-content: space-between;
-              &:hover .refresh {
-                visibility: visible;
-              }
             `}
             color="text.muted"
             ml="8px"
@@ -238,21 +248,19 @@ export function SelectorMenu() {
             my={1}
           >
             Available Requests
-            <ButtonText
-              size="small"
-              title="Refresh"
-              css={`
-                visibility: hidden;
-              `}
-              className="refresh"
-            >
-              <Icon.Refresh
-                size="small"
+            {fetchRequestsAttempt.status === 'processing' ? (
+              <Indicator delay="none" size="small" />
+            ) : (
+              <ButtonText
                 onClick={() => {
                   void fetchRequests();
                 }}
-              />
-            </ButtonText>
+                size="small"
+                title="Refresh"
+              >
+                <Icon.Refresh size="small" />
+              </ButtonText>
+            )}
           </MenuItemSectionLabel>
           {fetchRequestsStatusText && (
             <MenuListItem
@@ -401,7 +409,10 @@ function getFetchRequestsStatusText(
       }
       return;
     case 'processing':
-      return 'Loading…';
+      if (!assumable.length) {
+        return 'Loading…';
+      }
+      return;
     case 'error':
       return `Could not fetch available requests: ${attempt.statusText}`;
   }
