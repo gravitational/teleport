@@ -125,28 +125,27 @@ func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm 
 	return pm, nsi, nil
 }
 
-// secureCredDir sets ACLs so that the current user can write credentials files
-// to dir but cannot read them. Only the LocalSystem account is allowed to read
-// and delete the files.
+// secureCredDir sets ACLs so that the current user can write and delete
+// credential files in dir, but denies all regular users from reading them. Only
+// the LocalSystem account is allowed to read them.
 func secureCredDir(dir string, userSID string) error {
 	// S-1-5-18 is the well-known SID (security identifier) for the LocalSystem
 	// service account, which the VNet windows service runs as.
 	// * https://learn.microsoft.com/en-us/windows/win32/secauthz/well-known-sids
 	const serviceSID = "S-1-5-18"
-	// O: Set Owner as current user (Windows won't allow LocalSystem to be the owner)
-	// G: Set Primary Group as current user
+	// https://learn.microsoft.com/en-us/windows/win32/secauthz/security-descriptor-definition-language
 	// D: Discretionary ACL
 	//   Grant GA (Generic All) to LocalSystem
 	//   Grant GWSD (Generic Write, Standard Delete) to the current user so we can add files and later delete them
 	//   Deny GR (Generic Read) to WD (Everyone*) so other processes can't read the credentials
-	//   * This doesn't seems to deny access to the LocalSystem account, but all users are denied read access
-	//   * https://learn.microsoft.com/en-us/windows/win32/secauthz/sid-strings?utm_source=chatgpt.com
+	//   * This doesn't seem to deny access to the LocalSystem account, but all users are denied read access
+	//   * https://learn.microsoft.com/en-us/windows/win32/secauthz/sid-strings
 	//   OICI (Object Inherit, Container Inherit) propagates permissions to files/folders
-	sdString := fmt.Sprintf("O:%[1]sG:%[1]sD:"+
-		"(A;OICI;GA;;;%[2]s)"+
-		"(A;OICI;GWSD;;;%[1]s)"+
+	sdString := fmt.Sprintf("D:"+
+		"(A;OICI;GA;;;%s)"+
+		"(A;OICI;GWSD;;;%s)"+
 		"(D;OICI;GR;;;WD)",
-		userSID, serviceSID,
+		serviceSID, userSID,
 	)
 	if err := applySecurityDescriptor(sdString, dir); err != nil {
 		return trace.Wrap(err)
@@ -159,14 +158,6 @@ func applySecurityDescriptor(sdString, path string) error {
 	if err != nil {
 		return trace.Wrap(err, "parsing security descriptor string %s", sdString)
 	}
-	owner, _, err := sd.Owner()
-	if err != nil {
-		return trace.Wrap(err, "getting owner from security descriptor")
-	}
-	group, _, err := sd.Group()
-	if err != nil {
-		return trace.Wrap(err, "getting group from security descriptor")
-	}
 	dacl, _, err := sd.DACL()
 	if err != nil {
 		return trace.Wrap(err, "getting DACL from security descriptor")
@@ -174,9 +165,9 @@ func applySecurityDescriptor(sdString, path string) error {
 	if err := windows.SetNamedSecurityInfo(
 		path,
 		windows.SE_FILE_OBJECT,
-		windows.OWNER_SECURITY_INFORMATION|windows.GROUP_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION,
-		owner,
-		group,
+		windows.DACL_SECURITY_INFORMATION,
+		nil, // owner
+		nil, // group
 		dacl,
 		nil, // SACL
 	); err != nil {
