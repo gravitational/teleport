@@ -21,7 +21,10 @@ package services_test
 import (
 	"context"
 	"fmt"
+	"iter"
+	"maps"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -111,7 +114,6 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	_, err = clt.UpsertDatabaseServer(ctx, dbServer)
 	require.NoError(t, err)
 	gitServer := newGitServer(t, "my-org")
-	require.NoError(t, err)
 	_, err = clt.CreateGitServer(ctx, gitServer)
 	require.NoError(t, err)
 
@@ -257,6 +259,554 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		// Ignore order.
 		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
 	))
+}
+
+func TestUnifiedResourceCacheIterateResources(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	clt := newClient(t)
+
+	node := newNodeServer(t, "node1", "hostname1", "127.0.0.1:22", false /*tunnel*/)
+	_, err := clt.UpsertNode(ctx, node)
+	require.NoError(t, err)
+
+	db, err := types.NewDatabaseV3(types.Metadata{
+		Name: "db1",
+	}, types.DatabaseSpecV3{
+		Protocol: "test-protocol",
+		URI:      "test-uri",
+	})
+	require.NoError(t, err)
+	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "db1-server",
+	}, types.DatabaseServerSpecV3{
+		Hostname: "db-hostname",
+		HostID:   uuid.NewString(),
+		Database: db,
+	})
+	require.NoError(t, err)
+	_, err = clt.UpsertDatabaseServer(ctx, dbServer)
+	require.NoError(t, err)
+	gitServer := newGitServer(t, "my-org")
+	_, err = clt.CreateGitServer(ctx, gitServer)
+	require.NoError(t, err)
+
+	// Add app to the backend.
+	app, err := types.NewAppServerV3(
+		types.Metadata{Name: "app1"},
+		types.AppServerSpecV3{
+			HostID: "app1-host-id",
+			App:    newApp(t, "app1"),
+		},
+	)
+	require.NoError(t, err)
+	_, err = clt.UpsertApplicationServer(ctx, app)
+	require.NoError(t, err)
+
+	// Add saml idp service provider to the backend.
+	samlapp, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "sp1",
+		},
+		types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: newTestEntityDescriptor("sp1"),
+			EntityID:         "sp1",
+		},
+	)
+	require.NoError(t, err)
+	err = clt.CreateSAMLIdPServiceProvider(ctx, samlapp)
+	require.NoError(t, err)
+
+	win, err := types.NewWindowsDesktopV3(
+		"win1",
+		nil,
+		types.WindowsDesktopSpecV3{Addr: "localhost", HostID: "win1-host-id"},
+	)
+	require.NoError(t, err)
+	err = clt.UpsertWindowsDesktop(ctx, win)
+	require.NoError(t, err)
+
+	kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{Name: "kube-cluster"}, types.KubernetesClusterSpecV3{})
+	require.NoError(t, err)
+	kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "foo", "1")
+	require.NoError(t, err)
+	_, err = clt.UpsertKubernetesServer(ctx, kubeServer)
+	require.NoError(t, err)
+
+	icAcct := newICAccount(t, ctx, clt)
+	icAcctAssignment := newICAccountAssignment(t, ctx, clt)
+
+	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentUnifiedResource,
+			Client:    clt,
+		},
+		ResourceGetter: clt,
+	})
+	require.NoError(t, err)
+
+	assert.Eventually(t, func() bool {
+		return w.IsInitialized()
+	}, 5*time.Second, 10*time.Millisecond, "unified resource watcher never initialized")
+
+	compareResourceOpts := []cmp.Option{cmpopts.EquateEmpty(),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+
+		// Allow comparison of the wrapped values inside a Resource153ToLegacyAdapter
+		cmp.Transformer("Unwrap",
+			func(t types.Resource153Unwrapper) types.Resource153 {
+				return t.Unwrap()
+			}),
+
+		// Ignore unexported values in RFD153-style resources
+		cmpopts.IgnoreUnexported(
+			headerv1.Metadata{},
+			identitycenterv1.Account{},
+			identitycenterv1.AccountSpec{},
+			identitycenterv1.PermissionSetInfo{},
+			identitycenterv1.AccountAssignment{},
+			identitycenterv1.AccountAssignmentSpec{}),
+
+		// Ignore order.
+		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
+	}
+
+	expected := map[string]types.ResourceWithLabels{
+		types.KindApp:                             app,
+		types.KindDatabase:                        dbServer,
+		types.KindNode:                            node,
+		types.KindWindowsDesktop:                  win,
+		types.KindKubernetesCluster:               kubeServer,
+		types.KindSAMLIdPServiceProvider:          samlapp,
+		types.KindGitServer:                       gitServer,
+		types.KindIdentityCenterAccount:           types.Resource153ToUnifiedResource(icAcct),
+		types.KindIdentityCenterAccountAssignment: types.Resource153ToUnifiedResource(icAcctAssignment),
+	}
+
+	for r, err := range w.IterateResources(ctx, "", types.SortBy{Field: services.SortByKind}) {
+		require.NoError(t, err)
+
+		kind := r.GetKind()
+		switch kind {
+		case types.KindAppServer:
+			kind = types.KindApp
+		case types.KindDatabaseServer:
+			kind = types.KindDatabase
+		case types.KindKubeServer:
+			kind = types.KindKubernetesCluster
+		}
+
+		expectedResource, ok := expected[kind]
+		require.True(t, ok, "resource not expected %v", r)
+
+		assert.Empty(t, cmp.Diff(
+			expectedResource,
+			r,
+			compareResourceOpts...,
+		))
+	}
+
+	for len(expected) > 0 {
+		count := 0
+		kinds := slices.Collect(maps.Keys(expected))
+		for r, err := range w.IterateResources(ctx, "", types.SortBy{Field: services.SortByKind}, kinds...) {
+			require.NoError(t, err)
+
+			kind := r.GetKind()
+			switch kind {
+			case types.KindAppServer:
+				kind = types.KindApp
+			case types.KindDatabaseServer:
+				kind = types.KindDatabase
+			case types.KindKubeServer:
+				kind = types.KindKubernetesCluster
+			}
+
+			expectedResource, ok := expected[kind]
+			require.True(t, ok, "resource not expected %v", r)
+
+			if count == 0 {
+				delete(expected, kind)
+			}
+
+			assert.Empty(t, cmp.Diff(
+				expectedResource,
+				r,
+				compareResourceOpts...,
+			))
+			count++
+		}
+		assert.Equal(t, len(kinds), count)
+	}
+}
+
+func TestUnifiedResourceCacheIteration(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	const resourceCount = 1234
+	ids := make([]string, 0, resourceCount)
+	for i := 0; i < resourceCount; i++ {
+		ids = append(ids, "resource"+strconv.Itoa(i))
+	}
+
+	slices.Sort(ids)
+
+	type GetNamer interface {
+		GetName() string
+	}
+
+	tests := []struct {
+		name             string
+		createResource   func(name string, c *client) error
+		iterateResources func(urc *services.UnifiedResourceCache) iter.Seq2[GetNamer, error]
+	}{
+		{
+			name: "nodes",
+			createResource: func(name string, c *client) error {
+				node := newNodeServer(t, name, "hostname1", "127.0.0.1:22", false)
+				_, err := c.UpsertNode(ctx, node)
+				return err
+			},
+			iterateResources: func(urc *services.UnifiedResourceCache) iter.Seq2[GetNamer, error] {
+				return func(yield func(GetNamer, error) bool) {
+					for n, err := range urc.IterateNodes(ctx, "", types.SortBy{Field: services.SortByName}) {
+						if err != nil {
+							yield(nil, err)
+							return
+						}
+
+						if !yield(n, nil) {
+							return
+						}
+					}
+				}
+			},
+		},
+		{
+			name: "databases",
+			createResource: func(name string, c *client) error {
+				db, err := types.NewDatabaseV3(types.Metadata{
+					Name: name,
+				}, types.DatabaseSpecV3{
+					Protocol: "test-protocol",
+					URI:      "test-uri",
+				})
+				if err != nil {
+					return err
+				}
+				dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+					Name: name,
+				}, types.DatabaseServerSpecV3{
+					Hostname: "hostname:" + name,
+					HostID:   uuid.NewString(),
+					Database: db,
+				})
+				if err != nil {
+					return err
+				}
+				_, err = c.UpsertDatabaseServer(ctx, dbServer)
+				return err
+			},
+			iterateResources: func(urc *services.UnifiedResourceCache) iter.Seq2[GetNamer, error] {
+				return func(yield func(GetNamer, error) bool) {
+					for n, err := range urc.IterateDatabaseServers(ctx, "", types.SortBy{Field: services.SortByName}) {
+						if err != nil {
+							yield(nil, err)
+							return
+						}
+
+						if !yield(n, nil) {
+							return
+						}
+					}
+				}
+			},
+		},
+		{
+			name: "apps",
+			createResource: func(name string, c *client) error {
+				app, err := types.NewAppServerV3(
+					types.Metadata{Name: name},
+					types.AppServerSpecV3{
+						HostID: "app1-host-id",
+						App:    newApp(t, name),
+					},
+				)
+				if err != nil {
+					return err
+				}
+				_, err = c.UpsertApplicationServer(ctx, app)
+				return err
+			},
+			iterateResources: func(urc *services.UnifiedResourceCache) iter.Seq2[GetNamer, error] {
+				return func(yield func(GetNamer, error) bool) {
+					for n, err := range urc.IterateAppServers(ctx, "", types.SortBy{Field: services.SortByName}) {
+						if err != nil {
+							yield(nil, err)
+							return
+						}
+
+						if !yield(n, nil) {
+							return
+						}
+					}
+				}
+			},
+		},
+		{
+			name: "kubernetes",
+			createResource: func(name string, c *client) error {
+				kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{Name: name}, types.KubernetesClusterSpecV3{})
+				if err != nil {
+					return err
+				}
+				kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, name, "1")
+				if err != nil {
+					return err
+				}
+				_, err = c.UpsertKubernetesServer(ctx, kubeServer)
+				return err
+			},
+			iterateResources: func(urc *services.UnifiedResourceCache) iter.Seq2[GetNamer, error] {
+				return func(yield func(GetNamer, error) bool) {
+					for n, err := range urc.IterateKubernetesServers(ctx, "", types.SortBy{Field: services.SortByName}) {
+						if err != nil {
+							yield(nil, err)
+							return
+						}
+
+						if !yield(n, nil) {
+							return
+						}
+					}
+				}
+			},
+		},
+		{
+			name: "git",
+			createResource: func(name string, c *client) error {
+				gitServer, err := types.NewGitHubServerWithName(name, types.GitHubServerMetadata{
+					Organization: name,
+					Integration:  name,
+				})
+				if err != nil {
+					return err
+				}
+
+				_, err = c.CreateGitServer(ctx, gitServer)
+				return err
+			},
+			iterateResources: func(urc *services.UnifiedResourceCache) iter.Seq2[GetNamer, error] {
+				return func(yield func(GetNamer, error) bool) {
+					for n, err := range urc.IterateGitServers(ctx, "", types.SortBy{Field: services.SortByName}) {
+						if err != nil {
+							yield(nil, err)
+							return
+						}
+
+						if !yield(n, nil) {
+							return
+						}
+					}
+				}
+			},
+		},
+		{
+			name: "desktops",
+			createResource: func(name string, c *client) error {
+				win, err := types.NewWindowsDesktopV3(
+					name,
+					nil,
+					types.WindowsDesktopSpecV3{Addr: "localhost", HostID: "win1-host-id"},
+				)
+				if err != nil {
+					return err
+				}
+				err = c.UpsertWindowsDesktop(ctx, win)
+				return err
+			},
+			iterateResources: func(urc *services.UnifiedResourceCache) iter.Seq2[GetNamer, error] {
+				return func(yield func(GetNamer, error) bool) {
+					for n, err := range urc.IterateWindowsDesktops(ctx, "", types.SortBy{Field: services.SortByName}) {
+						if err != nil {
+							yield(nil, err)
+							return
+						}
+
+						if !yield(n, nil) {
+							return
+						}
+					}
+				}
+			},
+		},
+		{
+			name: "saml",
+			createResource: func(name string, c *client) error {
+				app, err := types.NewSAMLIdPServiceProvider(
+					types.Metadata{
+						Name: name,
+					},
+					types.SAMLIdPServiceProviderSpecV1{
+						EntityDescriptor: newTestEntityDescriptor(name),
+						EntityID:         name,
+					},
+				)
+				if err != nil {
+					return err
+				}
+				err = c.CreateSAMLIdPServiceProvider(ctx, app)
+				return err
+			},
+			iterateResources: func(urc *services.UnifiedResourceCache) iter.Seq2[GetNamer, error] {
+				return func(yield func(GetNamer, error) bool) {
+					for n, err := range urc.IterateSAMLIdPServiceProvider(ctx, "", types.SortBy{Field: services.SortByName}) {
+						if err != nil {
+							yield(nil, err)
+							return
+						}
+
+						if !yield(n, nil) {
+							return
+						}
+					}
+				}
+			},
+		},
+		{
+			name: "identity center account",
+			createResource: func(name string, c *client) error {
+				_, err := c.CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{
+					Account: &identitycenterv1.Account{
+						Kind:    types.KindIdentityCenterAccount,
+						Version: types.V1,
+						Metadata: &headerv1.Metadata{
+							Name: name,
+							Labels: map[string]string{
+								types.OriginLabel: common.OriginAWSIdentityCenter,
+							},
+						},
+						Spec: &identitycenterv1.AccountSpec{
+							Id:          name,
+							Arn:         "arn:aws:sso:::account/" + name,
+							Name:        "Test AWS Account",
+							Description: "Used for testing",
+							PermissionSetInfo: []*identitycenterv1.PermissionSetInfo{
+								{
+									Name: "Alpha",
+									Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-alpha",
+								},
+								{
+									Name: "Beta",
+									Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-beta",
+								},
+							},
+						},
+					}})
+				return err
+			},
+			iterateResources: func(urc *services.UnifiedResourceCache) iter.Seq2[GetNamer, error] {
+				return func(yield func(GetNamer, error) bool) {
+					for n, err := range urc.IterateIdentityCenterAccount(ctx, "", types.SortBy{Field: services.SortByName}) {
+						if err != nil {
+							yield(nil, err)
+							return
+						}
+
+						if !yield(types.Resource153ToResourceWithLabels(n), nil) {
+							return
+						}
+					}
+				}
+			},
+		},
+		{
+			name: "identity center account assignment",
+			createResource: func(name string, c *client) error {
+				_, err := c.CreateAccountAssignment(ctx, services.IdentityCenterAccountAssignment{
+					AccountAssignment: &identitycenterv1.AccountAssignment{
+						Kind:    types.KindIdentityCenterAccountAssignment,
+						Version: types.V1,
+						Metadata: &headerv1.Metadata{
+							Name: name,
+							Labels: map[string]string{
+								types.OriginLabel: common.OriginAWSIdentityCenter,
+							},
+						},
+						Spec: &identitycenterv1.AccountAssignmentSpec{
+							Display: "Admin access on Production",
+							PermissionSet: &identitycenterv1.PermissionSetInfo{
+								Arn:          "arn:aws::::ps-Admin",
+								Name:         "Admin",
+								AssignmentId: "production--admin",
+							},
+							AccountName: "Production",
+							AccountId:   "99999999",
+						},
+					}})
+				return err
+			},
+			iterateResources: func(urc *services.UnifiedResourceCache) iter.Seq2[GetNamer, error] {
+				return func(yield func(GetNamer, error) bool) {
+					for n, err := range urc.IterateIdentityCenterAccountAssignment(ctx, "", types.SortBy{Field: services.SortByName}) {
+						if err != nil {
+							yield(nil, err)
+							return
+						}
+
+						if !yield(types.Resource153ToResourceWithLabels(n), nil) {
+							return
+						}
+					}
+				}
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			clt := newClient(t)
+
+			w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
+				ResourceWatcherConfig: services.ResourceWatcherConfig{
+					Component: teleport.ComponentUnifiedResource,
+					Client:    clt,
+				},
+				ResourceGetter: clt,
+			})
+			require.NoError(t, err)
+
+			for i := 0; i < resourceCount; i++ {
+				require.NoError(t, test.createResource(ids[i], clt), "creating resource %d", i)
+			}
+
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				found, err := w.GetUnifiedResources(ctx)
+				assert.NoError(t, err)
+				assert.Len(t, found, resourceCount)
+			}, 10*time.Second, 100*time.Millisecond)
+
+			count := 0
+			for r, err := range test.iterateResources(w) {
+				require.NoError(t, err)
+
+				if r.GetName() != ids[count] {
+					t.Fatalf("expected resource named %s, got %s", ids[count], r.GetName())
+				}
+				count++
+			}
+
+			if count != resourceCount {
+				t.Fatalf("iteration completed early, expected %d apps, got %d", resourceCount, count)
+			}
+		})
+	}
 }
 
 func TestUnifiedResourceWatcher_PreventDuplicates(t *testing.T) {
