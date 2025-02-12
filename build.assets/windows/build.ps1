@@ -147,6 +147,8 @@ function Install-Node {
         # --force is needed because binaries distributed with Node.js and
         # binaries installed globally through npm are put in the same dir.
         # As such, corepack tries to add the yarn binary which already exists.
+        # TODO(ravicious): Remove usage of $NpmGlobalBin below when removing
+        # manual installation of corepack.
         npm install -g corepack@0.31.0 --force
         corepack enable pnpm
         Write-Host "::endgroup::"
@@ -164,7 +166,8 @@ function Enable-Node {
         [string] $ToolchainDir
     )
     begin {
-        $Env:Path = "$ToolchainDir/node;$Env:Path"
+        $NpmGlobalBin = npm -g bin
+        $Env:Path = "$NpmGlobalBin;$ToolchainDir/node;$Env:Path"
     }
 }
 
