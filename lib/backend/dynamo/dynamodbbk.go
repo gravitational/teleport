@@ -46,8 +46,8 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
+	"github.com/gravitational/teleport/lib/utils/aws/dynamodbutils"
 )
 
 func init() {
@@ -247,7 +247,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 
 	// determine if the FIPS endpoints should be used
 	useFIPSEndpoint := endpoints.FIPSEndpointStateUnset
-	if modules.GetModules().IsBoringBinary() {
+	if dynamodbutils.IsFIPSEnabled() {
 		useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
 	}
 

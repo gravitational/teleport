@@ -24,6 +24,17 @@ issues:
     - linters: [testifylint]
       text: "suite-thelper: suite helper method must start with"
       path: 'integrations/.+'
+      # lib/utils/aws/ subpackages are allowed to use AWS SDK constructors.
+    - path: lib/utils/aws/stsutils/sts.go
+      linters: [forbidigo]
+      text: 'sts.NewFromConfig'
+    - path: lib/utils/aws/stsutils/sts_v1.go
+      linters: [forbidigo]
+      text: 'sts.New'
+    # TODO(codingllama): Remove once e/ is updated.
+    - path: e/lib/cloud/aws/aws.go
+      linters: [forbidigo]
+      text: 'sts.NewFromConfig'
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
@@ -34,6 +45,7 @@ linters:
   enable:
     - bodyclose
     - depguard
+    - forbidigo
     - gci
     - goimports
     - gosimple
@@ -146,6 +158,12 @@ linters-settings:
       - len
       - suite-extra-assert-call
       - suite-thelper
+  forbidigo:
+    forbid:
+      - p: '^sts\.NewFromConfig$'
+        msg: 'Use stsutils.NewFromConfig'
+      - p: '^sts\.New$'
+        msg: 'Use stsutils.NewV1'
 
 run:
   go: '1.22'
