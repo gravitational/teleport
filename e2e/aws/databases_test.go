@@ -128,12 +128,8 @@ const (
 func postgresConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, route tlsca.RouteToDatabase, query string) {
 	t.Helper()
 	var pgConn *pgconn.PgConn
-	// retry for a while, the database service might need time to give
-	// itself IAM rds:connect permissions.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
+	waitForDBConnection(t, func(ctx context.Context) error {
 		var err error
-		ctx, cancel := context.WithTimeout(context.Background(), connRetryTick)
-		defer cancel()
 		pgConn, err = postgres.MakeTestClient(ctx, common.TestClientConfig{
 			AuthClient:      cluster.GetSiteAPI(cluster.Secrets.SiteName),
 			AuthServer:      cluster.Process.GetAuthServer(),
@@ -142,10 +138,8 @@ func postgresConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, 
 			Username:        user,
 			RouteToDatabase: route,
 		})
-		assert.NoError(t, err)
-		assert.NotNil(t, pgConn)
-	}, waitForConnTimeout, connRetryTick, "connecting to postgres")
-
+		return err
+	})
 	execPGTestQuery(t, pgConn, query)
 }
 
@@ -160,17 +154,11 @@ func postgresLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, use
 	pgconnConfig.User = route.Username
 	pgconnConfig.Database = route.Database
 	var pgConn *pgconn.PgConn
-	// retry for a while, the database service might need time to give
-	// itself IAM rds:connect permissions.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
+	waitForDBConnection(t, func(ctx context.Context) error {
 		var err error
-		ctx, cancel := context.WithTimeout(context.Background(), connRetryTick)
-		defer cancel()
 		pgConn, err = pgconn.ConnectConfig(ctx, pgconnConfig)
-		assert.NoError(t, err)
-		assert.NotNil(t, pgConn)
-	}, waitForConnTimeout, connRetryTick, "connecting to postgres")
-
+		return err
+	})
 	execPGTestQuery(t, pgConn, query)
 }
 
@@ -203,13 +191,9 @@ func mysqlLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, user s
 	lp := startLocalALPNProxy(t, user, cluster, route)
 
 	var conn *mysqlclient.Conn
-	// retry for a while, the database service might need time to give
-	// itself IAM rds:connect permissions.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
+	waitForDBConnection(t, func(ctx context.Context) error {
 		var err error
 		var nd net.Dialer
-		ctx, cancel := context.WithTimeout(context.Background(), connRetryTick)
-		defer cancel()
 		conn, err = mysqlclient.ConnectWithDialer(ctx, "tcp",
 			lp.GetAddr(),
 			route.Username,
@@ -217,9 +201,8 @@ func mysqlLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, user s
 			route.Database,
 			nd.DialContext,
 		)
-		assert.NoError(t, err)
-		assert.NotNil(t, conn)
-	}, waitForConnTimeout, connRetryTick, "connecting to mysql")
+		return err
+	})
 	defer func() {
 		// Disconnect.
 		require.NoError(t, conn.Close())
@@ -409,6 +392,10 @@ func (c *pgConn) Exec(ctx context.Context, sql string, args ...interface{}) (pgc
 		out, err = c.Conn.Exec(ctx, sql, args...)
 		return trace.Wrap(err)
 	})
+	c.logger.InfoContext(ctx, "Executed sql statement",
+		"sql", sql,
+		"error", err,
+	)
 	return out, trace.Wrap(err)
 }
 
@@ -468,4 +455,29 @@ func isRetryable(err error) bool {
 		return true
 	}
 	return pgconn.SafeToRetry(err)
+}
+
+func waitForDBConnection(t *testing.T, connectFn func(context.Context) error) {
+	t.Helper()
+	// retry for a while, the database service might need time to give itself
+	// IAM permissions.
+	waitForSuccess(t, func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), connRetryTick)
+		defer cancel()
+		return connectFn(ctx)
+	}, waitForConnTimeout, connRetryTick, "connecting to database")
+}
+
+// waitForSuccess is a test helper that wraps require.EventuallyWithT but runs
+// the given fn first to avoid waiting for the first timer tick.
+func waitForSuccess(t *testing.T, fn func() error, waitDur, tick time.Duration, msgAndArgs ...any) {
+	t.Helper()
+	// EventuallyWithT waits for the first tick before it makes the first
+	// attempt, so to speed things up we check for fn success first.
+	if err := fn(); err == nil {
+		return
+	}
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assert.NoError(t, fn())
+	}, waitDur, tick, msgAndArgs...)
 }
