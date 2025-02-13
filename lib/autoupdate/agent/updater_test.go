@@ -1869,7 +1869,7 @@ func TestUpdater_Setup(t *testing.T) {
 				},
 			}
 			updater.SetupNamespace = func(_ context.Context, path string) error {
-				require.Equal(t, path, "test")
+				require.Equal(t, "test", path)
 				return tt.setupErr
 			}
 
