@@ -192,6 +192,7 @@ func TestGetIntegrationCertAuthorities(t *testing.T) {
 		metadataWithName("github-success"),
 		githubSpec,
 	)
+	require.NoError(t, err)
 	githubIntegration.SetCredentials(&types.PluginCredentialsV1{
 		Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
 			StaticCredentialsRef: NewRef(),
