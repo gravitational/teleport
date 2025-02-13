@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
@@ -342,7 +343,7 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 			c.AWSSTSClient = stsutils.NewV1(c.AWSSession)
 		}
 		if c.AWSIAMClient == nil {
-			c.AWSIAMClient = iam.New(c.AWSSession)
+			c.AWSIAMClient = iamutils.NewV1(c.AWSSession)
 		}
 		if c.Identity == nil {
 			c.Identity, err = awslib.GetIdentityWithClient(context.Background(), c.AWSSTSClient)
@@ -377,7 +378,7 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 		}
 
 		if c.Policies == nil {
-			c.Policies = awslib.NewPolicies(c.Identity.GetPartition(), c.Identity.GetAccountID(), iam.New(c.AWSSession))
+			c.Policies = awslib.NewPolicies(c.Identity.GetPartition(), c.Identity.GetAccountID(), iamutils.NewV1(c.AWSSession))
 		}
 	}
 
