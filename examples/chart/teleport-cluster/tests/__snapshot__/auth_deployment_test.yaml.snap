@@ -1,6 +1,6 @@
 should add an operator side-car when operator is enabled:
   1: |
-    image: public.ecr.aws/gravitational/teleport-operator:14.3.34
+    image: public.ecr.aws/gravitational/teleport-operator:14.3.36
     imagePullPolicy: IfNotPresent
     livenessProbe:
       httpGet:
@@ -41,7 +41,7 @@ should add an operator side-car when operator is enabled:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:14.3.34
+      image: public.ecr.aws/gravitational/teleport-distroless:14.3.36
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -174,7 +174,7 @@ should set nodeSelector when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:14.3.34
+      image: public.ecr.aws/gravitational/teleport-distroless:14.3.36
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -271,7 +271,7 @@ should set resources when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:14.3.34
+      image: public.ecr.aws/gravitational/teleport-distroless:14.3.36
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -357,7 +357,7 @@ should set securityContext when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:14.3.34
+      image: public.ecr.aws/gravitational/teleport-distroless:14.3.36
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
