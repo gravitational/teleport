@@ -262,6 +262,9 @@ export function SelectorMenu() {
             ) : (
               <ButtonText
                 onClick={() => {
+                  //TODO(gzdunek): Allow useDelayedRepeatedAttempt to show feedback immediately.
+                  // Explicit calls to refresh the list shouldn't depend on the delayed
+                  // behavior, and instead show feedback immediately.
                   void fetchRequests();
                 }}
                 size="small"
