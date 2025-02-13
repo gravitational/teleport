@@ -375,7 +375,7 @@ func (s SystemdService) Enable(ctx context.Context, now bool) error {
 	if now {
 		args = append(args, "--now")
 	}
-	code := s.systemctl(ctx, slog.LevelInfo, args...)
+	code := s.systemctl(ctx, slog.LevelError, args...)
 	if code != 0 {
 		return trace.Errorf("unable to enable systemd service")
 	}
@@ -392,7 +392,7 @@ func (s SystemdService) Disable(ctx context.Context, now bool) error {
 	if now {
 		args = append(args, "--now")
 	}
-	code := s.systemctl(ctx, slog.LevelInfo, args...)
+	code := s.systemctl(ctx, slog.LevelError, args...)
 	if code != 0 {
 		return trace.Errorf("unable to disable systemd service")
 	}
@@ -480,7 +480,7 @@ func (s SystemdService) systemctl(ctx context.Context, errLevel slog.Level, args
 		return code
 	}
 	if code >= 0 {
-		s.Log.Log(ctx, errLevel, "Error running systemctl.",
+		s.Log.Log(ctx, errLevel, "Non-zero exit code or error running systemctl.",
 			"args", args, "code", code)
 		return code
 	}

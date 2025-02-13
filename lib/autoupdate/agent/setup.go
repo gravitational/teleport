@@ -263,7 +263,7 @@ func (ns *Namespace) Teardown(ctx context.Context) error {
 		Log:         ns.log,
 	}
 	if err := svc.Disable(ctx, true); err != nil {
-		return trace.Wrap(err, "failed to disable teleport-update systemd timer")
+		ns.log.WarnContext(ctx, "Unable to disable teleport-update systemd timer before removing.", errorKey, err)
 	}
 	for _, p := range []string{
 		ns.updaterServiceFile,
