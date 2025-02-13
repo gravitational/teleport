@@ -42,7 +42,7 @@ type mockCAandAuthPrefGetter struct {
 	AccessPoint
 
 	authPref types.AuthPreference
-	cas      map[types.CertAuthType]types.CertAuthority
+	cas      map[types.CertAuthType][]types.CertAuthority
 }
 
 func (m mockCAandAuthPrefGetter) GetAuthPreference(s_12345678 context.Context) (types.AuthPreference, error) {
@@ -50,12 +50,12 @@ func (m mockCAandAuthPrefGetter) GetAuthPreference(s_12345678 context.Context) (
 }
 
 func (m mockCAandAuthPrefGetter) GetCertAuthorities(_ context.Context, caType types.CertAuthType, _ bool) ([]types.CertAuthority, error) {
-	ca, ok := m.cas[caType]
+	cas, ok := m.cas[caType]
 	if !ok {
 		return nil, trace.NotFound("CA not found")
 	}
 
-	return []types.CertAuthority{ca}, nil
+	return cas, nil
 }
 
 type mockLoginChecker struct {
@@ -189,8 +189,8 @@ func TestRBAC(t *testing.T) {
 	accessPoint := mockCAandAuthPrefGetter{
 		AccessPoint: server.auth,
 		authPref:    types.DefaultAuthPreference(),
-		cas: map[types.CertAuthType]types.CertAuthority{
-			types.UserCA: userCA,
+		cas: map[types.CertAuthType][]types.CertAuthority{
+			types.UserCA: {userCA},
 		},
 	}
 
@@ -238,6 +238,132 @@ func TestRBAC(t *testing.T) {
 	}
 }
 
+// TestForwardingGitLocalOnly verifies that remote identities are categorically rejected
+// by UserKeyAuth when the auth handler is running as a ForwardingGit component.
+func TestForwardingGitLocalOnly(t *testing.T) {
+	t.Parallel()
+
+	gitServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
+		Integration:  "org",
+		Organization: "org",
+	})
+	require.NoError(t, err)
+
+	// create local User CA
+	localCAPriv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	localCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.UserCA,
+		ClusterName: "localhost",
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{
+				{
+					PublicKey:      localCAPriv.MarshalSSHPublicKey(),
+					PrivateKey:     localCAPriv.PrivateKeyPEM(),
+					PrivateKeyType: types.PrivateKeyType_RAW,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// create remote User CA
+	remoteCAPriv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	remoteCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.UserCA,
+		ClusterName: "remotehost",
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{
+				{
+					PublicKey:      remoteCAPriv.MarshalSSHPublicKey(),
+					PrivateKey:     remoteCAPriv.PrivateKeyPEM(),
+					PrivateKeyType: types.PrivateKeyType_RAW,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// create mock SSH server and add a cluster name
+	server := newMockServer(t)
+	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: "localhost",
+		ClusterID:   "cluster_id",
+	})
+	require.NoError(t, err)
+	err = server.auth.SetClusterName(clusterName)
+	require.NoError(t, err)
+
+	accessPoint := mockCAandAuthPrefGetter{
+		AccessPoint: server.auth,
+		authPref:    types.DefaultAuthPreference(),
+		cas: map[types.CertAuthType][]types.CertAuthority{
+			types.UserCA: {remoteCA, localCA},
+		},
+	}
+
+	config := &AuthHandlerConfig{
+		Server:       server,
+		Component:    teleport.ComponentForwardingGit,
+		Emitter:      &eventstest.MockRecorderEmitter{},
+		AccessPoint:  accessPoint,
+		TargetServer: gitServer,
+	}
+	ah, err := NewAuthHandlers(config)
+	require.NoError(t, err)
+
+	lc := mockLoginChecker{}
+	ah.loginChecker = &lc
+
+	privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	keygen := testauthority.New()
+
+	// create local SSH certificate
+	localCASigner, err := ssh.NewSignerFromKey(localCAPriv)
+	require.NoError(t, err)
+
+	localCertRaw, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+		CASigner:      localCASigner,
+		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+		Identity: sshca.Identity{
+			Username:   "testuser",
+			Principals: []string{"testuser"},
+		},
+	})
+	require.NoError(t, err)
+
+	localCert, err := sshutils.ParseCertificate(localCertRaw)
+	require.NoError(t, err)
+
+	// create remote SSH certificate
+	remoteCASigner, err := ssh.NewSignerFromKey(remoteCAPriv)
+	require.NoError(t, err)
+
+	remoteCertRaw, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+		CASigner:      remoteCASigner,
+		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+		Identity: sshca.Identity{
+			Username:   "testuser",
+			Principals: []string{"testuser"},
+		},
+	})
+	require.NoError(t, err)
+
+	remoteCert, err := sshutils.ParseCertificate(remoteCertRaw)
+	require.NoError(t, err)
+
+	// verify that authentication succeeds for local cert but is rejected categorically for remote
+	_, err = ah.UserKeyAuth(&mockConnMetadata{}, localCert)
+	require.NoError(t, err)
+
+	_, err = ah.UserKeyAuth(&mockConnMetadata{}, remoteCert)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "cross-cluster git forwarding is not supported")
+}
+
 // TestRBACJoinMFA tests that MFA is enforced correctly when joining
 // sessions depending on the cluster auth preference and roles presented.
 func TestRBACJoinMFA(t *testing.T) {
@@ -277,8 +403,8 @@ func TestRBACJoinMFA(t *testing.T) {
 
 	accessPoint := &mockCAandAuthPrefGetter{
 		AccessPoint: server.auth,
-		cas: map[types.CertAuthType]types.CertAuthority{
-			types.UserCA: userCA,
+		cas: map[types.CertAuthType][]types.CertAuthority{
+			types.UserCA: {userCA},
 		},
 	}
 

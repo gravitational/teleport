@@ -266,6 +266,7 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 				"error", err,
 			)
 		}
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -301,6 +302,7 @@ func (e *Engine) removePermissions(ctx context.Context, sessionCtx *common.Sessi
 		logger.ErrorContext(ctx, "Removing permissions from user failed",
 			"error", err,
 		)
+		return trace.Wrap(err)
 	}
 	return nil
 }

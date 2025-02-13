@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 const (
@@ -388,7 +389,7 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 		}
 
 		if c.stsClient == nil {
-			c.stsClient = sts.NewFromConfig(*c.awsCfg)
+			c.stsClient = stsutils.NewFromConfig(*c.awsCfg)
 		}
 		if c.iamClient == nil {
 			c.iamClient = iam.NewFromConfig(*c.awsCfg)
