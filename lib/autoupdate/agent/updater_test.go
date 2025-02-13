@@ -85,11 +85,10 @@ func TestUpdater_Disable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			cfgPath := filepath.Join(dir, updateConfigName)
-
-			ns := &Namespace{
-				updaterConfigFile: cfgPath,
-			}
+			ns := &Namespace{installDir: dir}
+			_, err := ns.Init()
+			require.NoError(t, err)
+			cfgPath := filepath.Join(ns.Dir(), updateConfigName)
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{
 				InsecureSkipVerify: true,
 			}, ns)
@@ -173,11 +172,11 @@ func TestUpdater_Unpin(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			cfgPath := filepath.Join(dir, updateConfigName)
+			ns := &Namespace{installDir: dir}
+			_, err := ns.Init()
+			require.NoError(t, err)
+			cfgPath := filepath.Join(ns.Dir(), updateConfigName)
 
-			ns := &Namespace{
-				updaterConfigFile: cfgPath,
-			}
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{
 				InsecureSkipVerify: true,
 			}, ns)
@@ -249,6 +248,7 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
+					Path:    defaultPathDir,
 					Group:   "group",
 					BaseURL: "https://example.com",
 					Enabled: true,
@@ -273,6 +273,7 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
+					Path:    defaultPathDir,
 					Group:   "group",
 					BaseURL: "https://example.com",
 					Enabled: true,
@@ -297,6 +298,7 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
+					Path:    defaultPathDir,
 					Group:   "group",
 					BaseURL: "https://example.com",
 					Enabled: true,
@@ -323,6 +325,7 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
+					Path:    defaultPathDir,
 					Group:   "group",
 					BaseURL: "https://example.com",
 					Enabled: false,
@@ -334,11 +337,29 @@ func TestUpdater_Update(t *testing.T) {
 			inWindow: true,
 		},
 		{
+			name: "missing path during window",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Group:   "group",
+					BaseURL: "https://example.com",
+					Enabled: true,
+				},
+				Status: UpdateStatus{
+					Active: NewRevision("old-version", 0),
+				},
+			},
+			inWindow: true,
+			errMatch: "destination path",
+		},
+		{
 			name: "updates enabled outside of window",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
+					Path:    defaultPathDir,
 					Group:   "group",
 					BaseURL: "https://example.com",
 					Enabled: true,
@@ -355,6 +376,7 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
+					Path:    defaultPathDir,
 					Group:   "group",
 					BaseURL: "https://example.com",
 					Enabled: false,
@@ -370,6 +392,7 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
+					Path:    defaultPathDir,
 					BaseURL: "http://example.com",
 					Enabled: true,
 				},
@@ -384,6 +407,7 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
+					Path:    defaultPathDir,
 					Enabled: true,
 				},
 			},
@@ -400,6 +424,7 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
+					Path:    defaultPathDir,
 					BaseURL: "https://example.com",
 					Enabled: true,
 				},
@@ -415,6 +440,7 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
+					Path:    defaultPathDir,
 					BaseURL: "https://example.com",
 					Enabled: true,
 				},
@@ -429,6 +455,7 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
+					Path:    defaultPathDir,
 					BaseURL: "https://example.com",
 					Enabled: true,
 				},
@@ -455,6 +482,7 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
+					Path:    defaultPathDir,
 					BaseURL: "https://example.com",
 					Enabled: true,
 				},
@@ -474,6 +502,7 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
+					Path:    defaultPathDir,
 					BaseURL: "https://example.com",
 					Enabled: true,
 				},
@@ -506,6 +535,7 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
+					Path:    defaultPathDir,
 					BaseURL: "https://example.com",
 					Enabled: true,
 				},
@@ -535,6 +565,7 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
+					Path:    defaultPathDir,
 					Enabled: true,
 				},
 				Status: UpdateStatus{
@@ -556,6 +587,7 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
+					Path:    defaultPathDir,
 					BaseURL: "https://example.com",
 					Enabled: true,
 				},
@@ -573,6 +605,7 @@ func TestUpdater_Update(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 				Spec: UpdateSpec{
+					Path:    defaultPathDir,
 					BaseURL: "https://example.com",
 					Enabled: true,
 					Pinned:  true,
@@ -611,11 +644,14 @@ func TestUpdater_Update(t *testing.T) {
 			t.Cleanup(server.Close)
 
 			dir := t.TempDir()
-			cfgPath := filepath.Join(dir, updateConfigName)
-
 			ns := &Namespace{
-				updaterConfigFile: cfgPath,
+				installDir:     dir,
+				defaultPathDir: "ignored",
 			}
+			_, err := ns.Init()
+			require.NoError(t, err)
+			cfgPath := filepath.Join(ns.Dir(), updateConfigName)
+
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{
 				InsecureSkipVerify: true,
 			}, ns)
@@ -641,12 +677,12 @@ func TestUpdater_Update(t *testing.T) {
 				reloadCalls       int
 			)
 			updater.Installer = &testInstaller{
-				FuncInstall: func(_ context.Context, rev Revision, baseURL string) error {
+				FuncInstall: func(_ context.Context, rev Revision, baseURL string, force bool) error {
 					installedRevision = rev
 					installedBaseURL = baseURL
 					return tt.installErr
 				},
-				FuncLink: func(_ context.Context, rev Revision, force bool) (revert func(context.Context) bool, err error) {
+				FuncLink: func(_ context.Context, rev Revision, path string, force bool) (revert func(context.Context) bool, err error) {
 					linkedRevision = rev
 					return func(_ context.Context) bool {
 						revertFuncCalls++
@@ -663,6 +699,9 @@ func TestUpdater_Update(t *testing.T) {
 				FuncRemove: func(_ context.Context, rev Revision) error {
 					removedRevisions = append(removedRevisions, rev)
 					return nil
+				},
+				FuncIsLinked: func(ctx context.Context, rev Revision, path string) (bool, error) {
+					return false, nil
 				},
 			}
 			updater.Process = &testProcess{
@@ -681,12 +720,12 @@ func TestUpdater_Update(t *testing.T) {
 				},
 			}
 			var restarted bool
-			updater.ReexecSetup = func(_ context.Context, restart bool) error {
-				restarted = restart
+			updater.ReexecSetup = func(_ context.Context, path string, reload bool) error {
+				restarted = reload
 				setupCalls++
 				return tt.setupErr
 			}
-			updater.SetupNamespace = func(_ context.Context) error {
+			updater.SetupNamespace = func(_ context.Context, path string) error {
 				revertSetupCalls++
 				return nil
 			}
@@ -854,11 +893,11 @@ func TestUpdater_LinkPackage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			cfgPath := filepath.Join(dir, updateConfigName)
+			ns := &Namespace{installDir: dir}
+			_, err := ns.Init()
+			require.NoError(t, err)
+			cfgPath := filepath.Join(ns.Dir(), updateConfigName)
 
-			ns := &Namespace{
-				updaterConfigFile: cfgPath,
-			}
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{
 				InsecureSkipVerify: true,
 			}, ns)
@@ -940,10 +979,26 @@ func TestUpdater_Remove(t *testing.T) {
 			teardownCalls: 1,
 		},
 		{
+			name: "no conflicting system links, process disabled, force",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Status: UpdateStatus{
+					Active: NewRevision(version, 0),
+				},
+			},
+			unlinkedVersion: version,
+			teardownCalls:   1,
+			force:           true,
+		},
+		{
 			name: "no system links, process enabled, force",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: defaultPathDir,
+				},
 				Status: UpdateStatus{
 					Active: NewRevision(version, 0),
 				},
@@ -959,6 +1014,9 @@ func TestUpdater_Remove(t *testing.T) {
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: defaultPathDir,
+				},
 				Status: UpdateStatus{
 					Active: NewRevision(version, 0),
 				},
@@ -974,6 +1032,9 @@ func TestUpdater_Remove(t *testing.T) {
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: defaultPathDir,
+				},
 				Status: UpdateStatus{
 					Active: NewRevision(version, 0),
 				},
@@ -987,6 +1048,9 @@ func TestUpdater_Remove(t *testing.T) {
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: defaultPathDir,
+				},
 				Status: UpdateStatus{
 					Active: NewRevision(version, 0),
 				},
@@ -1003,6 +1067,9 @@ func TestUpdater_Remove(t *testing.T) {
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: defaultPathDir,
+				},
 				Status: UpdateStatus{
 					Active: NewRevision(version, 0),
 				},
@@ -1017,6 +1084,9 @@ func TestUpdater_Remove(t *testing.T) {
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: defaultPathDir,
+				},
 				Status: UpdateStatus{
 					Active: NewRevision(version, 0),
 				},
@@ -1033,6 +1103,9 @@ func TestUpdater_Remove(t *testing.T) {
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: defaultPathDir,
+				},
 				Status: UpdateStatus{
 					Active: NewRevision(version, 0),
 				},
@@ -1048,6 +1121,9 @@ func TestUpdater_Remove(t *testing.T) {
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: defaultPathDir,
+				},
 				Status: UpdateStatus{
 					Active: NewRevision(version, 0),
 				},
@@ -1063,6 +1139,9 @@ func TestUpdater_Remove(t *testing.T) {
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: defaultPathDir,
+				},
 				Status: UpdateStatus{
 					Active: NewRevision(version, 0),
 				},
@@ -1079,11 +1158,11 @@ func TestUpdater_Remove(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			cfgPath := filepath.Join(dir, updateConfigName)
+			ns := &Namespace{installDir: dir}
+			_, err := ns.Init()
+			require.NoError(t, err)
+			cfgPath := filepath.Join(ns.Dir(), updateConfigName)
 
-			ns := &Namespace{
-				updaterConfigFile: cfgPath,
-			}
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{
 				InsecureSkipVerify: true,
 			}, ns)
@@ -1113,7 +1192,7 @@ func TestUpdater_Remove(t *testing.T) {
 						return true
 					}, tt.linkSystemErr
 				},
-				FuncUnlink: func(_ context.Context, rev Revision) error {
+				FuncUnlink: func(_ context.Context, rev Revision, path string) error {
 					unlinkedVersion = rev.Version
 					return nil
 				},
@@ -1192,6 +1271,7 @@ func TestUpdater_Install(t *testing.T) {
 				Spec: UpdateSpec{
 					Enabled: true,
 					Group:   "group",
+					Path:    "/path",
 					BaseURL: "https://example.com",
 				},
 				Status: UpdateStatus{
@@ -1222,6 +1302,7 @@ func TestUpdater_Install(t *testing.T) {
 			userCfg: OverrideConfig{
 				UpdateSpec: UpdateSpec{
 					Enabled: true,
+					Path:    "/path",
 					Group:   "new-group",
 					BaseURL: "https://example.com/new",
 				},
@@ -1431,11 +1512,15 @@ func TestUpdater_Install(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			cfgPath := filepath.Join(dir, updateConfigName)
-
 			ns := &Namespace{
-				updaterConfigFile: cfgPath,
+				installDir:       dir,
+				defaultPathDir:   defaultPathDir,
+				defaultProxyAddr: "default-proxy",
 			}
+			_, err := ns.Init()
+			require.NoError(t, err)
+			cfgPath := filepath.Join(ns.Dir(), updateConfigName)
+
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{
 				InsecureSkipVerify: true,
 			}, ns)
@@ -1485,12 +1570,12 @@ func TestUpdater_Install(t *testing.T) {
 				revertSetupCalls  int
 			)
 			updater.Installer = &testInstaller{
-				FuncInstall: func(_ context.Context, rev Revision, baseURL string) error {
+				FuncInstall: func(_ context.Context, rev Revision, baseURL string, force bool) error {
 					installedRevision = rev
 					installedBaseURL = baseURL
 					return tt.installErr
 				},
-				FuncLink: func(_ context.Context, rev Revision, force bool) (revert func(context.Context) bool, err error) {
+				FuncLink: func(_ context.Context, rev Revision, path string, force bool) (revert func(context.Context) bool, err error) {
 					linkedRevision = rev
 					return func(_ context.Context) bool {
 						revertFuncCalls++
@@ -1503,6 +1588,9 @@ func TestUpdater_Install(t *testing.T) {
 				FuncRemove: func(_ context.Context, rev Revision) error {
 					removedRevision = rev
 					return nil
+				},
+				FuncIsLinked: func(ctx context.Context, rev Revision, path string) (bool, error) {
+					return false, nil
 				},
 			}
 			updater.Process = &testProcess{
@@ -1521,12 +1609,12 @@ func TestUpdater_Install(t *testing.T) {
 				},
 			}
 			var restarted bool
-			updater.ReexecSetup = func(_ context.Context, restart bool) error {
+			updater.ReexecSetup = func(_ context.Context, path string, reload bool) error {
 				setupCalls++
-				restarted = restart
+				restarted = reload
 				return tt.setupErr
 			}
-			updater.SetupNamespace = func(_ context.Context) error {
+			updater.SetupNamespace = func(_ context.Context, path string) error {
 				revertSetupCalls++
 				return nil
 			}
@@ -1716,12 +1804,13 @@ func TestUpdater_Setup(t *testing.T) {
 					return tt.present, tt.presentErr
 				},
 			}
-			updater.SetupNamespace = func(_ context.Context) error {
+			updater.SetupNamespace = func(_ context.Context, path string) error {
+				require.Equal(t, path, "test")
 				return tt.setupErr
 			}
 
 			ctx := context.Background()
-			err = updater.Setup(ctx, tt.restart)
+			err = updater.Setup(ctx, "test", tt.restart)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
@@ -1739,43 +1828,44 @@ func blankTestAddr(s []byte) []byte {
 }
 
 type testInstaller struct {
-	FuncInstall       func(ctx context.Context, rev Revision, baseURL string) error
+	FuncInstall       func(ctx context.Context, rev Revision, baseURL string, force bool) error
 	FuncRemove        func(ctx context.Context, rev Revision) error
-	FuncLink          func(ctx context.Context, rev Revision, force bool) (revert func(context.Context) bool, err error)
+	FuncLink          func(ctx context.Context, rev Revision, path string, force bool) (revert func(context.Context) bool, err error)
 	FuncLinkSystem    func(ctx context.Context) (revert func(context.Context) bool, err error)
-	FuncTryLink       func(ctx context.Context, rev Revision) error
+	FuncTryLink       func(ctx context.Context, rev Revision, path string) error
 	FuncTryLinkSystem func(ctx context.Context) error
-	FuncUnlink        func(ctx context.Context, rev Revision) error
+	FuncUnlink        func(ctx context.Context, rev Revision, path string) error
 	FuncUnlinkSystem  func(ctx context.Context) error
 	FuncList          func(ctx context.Context) (revs []Revision, err error)
+	FuncIsLinked      func(ctx context.Context, rev Revision, path string) (bool, error)
 }
 
-func (ti *testInstaller) Install(ctx context.Context, rev Revision, baseURL string) error {
-	return ti.FuncInstall(ctx, rev, baseURL)
+func (ti *testInstaller) Install(ctx context.Context, rev Revision, baseURL string, force bool) error {
+	return ti.FuncInstall(ctx, rev, baseURL, force)
 }
 
 func (ti *testInstaller) Remove(ctx context.Context, rev Revision) error {
 	return ti.FuncRemove(ctx, rev)
 }
 
-func (ti *testInstaller) Link(ctx context.Context, rev Revision, force bool) (revert func(context.Context) bool, err error) {
-	return ti.FuncLink(ctx, rev, force)
+func (ti *testInstaller) Link(ctx context.Context, rev Revision, path string, force bool) (revert func(context.Context) bool, err error) {
+	return ti.FuncLink(ctx, rev, path, force)
 }
 
 func (ti *testInstaller) LinkSystem(ctx context.Context) (revert func(context.Context) bool, err error) {
 	return ti.FuncLinkSystem(ctx)
 }
 
-func (ti *testInstaller) TryLink(ctx context.Context, rev Revision) error {
-	return ti.FuncTryLink(ctx, rev)
+func (ti *testInstaller) TryLink(ctx context.Context, rev Revision, path string) error {
+	return ti.FuncTryLink(ctx, rev, path)
 }
 
 func (ti *testInstaller) TryLinkSystem(ctx context.Context) error {
 	return ti.FuncTryLinkSystem(ctx)
 }
 
-func (ti *testInstaller) Unlink(ctx context.Context, rev Revision) error {
-	return ti.FuncUnlink(ctx, rev)
+func (ti *testInstaller) Unlink(ctx context.Context, rev Revision, path string) error {
+	return ti.FuncUnlink(ctx, rev, path)
 }
 
 func (ti *testInstaller) UnlinkSystem(ctx context.Context) error {
@@ -1784,6 +1874,10 @@ func (ti *testInstaller) UnlinkSystem(ctx context.Context) error {
 
 func (ti *testInstaller) List(ctx context.Context) (revs []Revision, err error) {
 	return ti.FuncList(ctx)
+}
+
+func (ti *testInstaller) IsLinked(ctx context.Context, rev Revision, path string) (bool, error) {
+	return ti.FuncIsLinked(ctx, rev, path)
 }
 
 type testProcess struct {
