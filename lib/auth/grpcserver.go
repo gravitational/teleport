@@ -4227,24 +4227,27 @@ func (g *GRPCServer) ListUnifiedResources(ctx context.Context, req *authpb.ListU
 
 // ListResources retrieves a paginated list of resources.
 func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResourcesRequest) (*authpb.ListResourcesResponse, error) {
-	auth, err := g.authenticate(ctx)
+	resp, err := g.ListUnifiedResources(ctx, &authpb.ListUnifiedResourcesRequest{
+		Kinds:                []string{req.ResourceType},
+		Limit:                req.Limit,
+		StartKey:             req.StartKey,
+		Labels:               req.Labels,
+		PredicateExpression:  req.PredicateExpression,
+		SearchKeywords:       req.SearchKeywords,
+		SortBy:               req.SortBy,
+		WindowsDesktopFilter: req.WindowsDesktopFilter,
+		UseSearchAsRoles:     req.UseSearchAsRoles,
+		UsePreviewAsRoles:    req.UsePreviewAsRoles,
+		IncludeLogins:        req.IncludeLogins,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := auth.ListResources(ctx, *req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	paginatedResources, err := services.MakePaginatedResources(ctx, req.ResourceType, resp.Resources, nil /* requestable map */)
-	if err != nil {
-		return nil, trace.Wrap(err, "making paginated resources")
-	}
 	protoResp := &authpb.ListResourcesResponse{
 		NextKey:    resp.NextKey,
-		Resources:  paginatedResources,
-		TotalCount: int32(resp.TotalCount),
+		Resources:  resp.Resources,
+		TotalCount: 0,
 	}
 
 	return protoResp, nil
