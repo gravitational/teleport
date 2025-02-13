@@ -658,7 +658,7 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 	}, nil
 }
 
-func getConfigForClient(ctx context.Context, conf *tls.Config, ap authclient.ReadDatabaseAccessPoint, log *slog.Logger, caTypes ...types.CertAuthType) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+func getConfigForClient(ctx context.Context, conf *tls.Config, ap authclient.ReadDatabaseAccessPoint, log *slog.Logger, caType types.CertAuthType) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string
 		var err error
@@ -668,7 +668,7 @@ func getConfigForClient(ctx context.Context, conf *tls.Config, ap authclient.Rea
 				log.DebugContext(ctx, "Ignoring unsupported cluster name.", "cluster_name", info.ServerName)
 			}
 		}
-		pool, _, err := authclient.ClientCertPool(info.Context(), ap, clusterName, caTypes...)
+		pool, _, err := authclient.ClientCertPool(info.Context(), ap, clusterName, caType)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to retrieve client CA pool.", "error", err)
 			return nil, nil // Fall back to the default config.
