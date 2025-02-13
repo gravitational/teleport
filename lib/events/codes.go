@@ -710,7 +710,7 @@ const (
 	AWSICResourceSyncSuccessCode = "TAIC001I"
 	// AWSICResourceSyncFailureCode is the AWS Identity Center resource
 	// sync attempt failure code.
-	AWSICResourceSyncFailureCode = "TAIC002I"
+	AWSICResourceSyncFailureCode = "TAIC001E"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
