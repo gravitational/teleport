@@ -219,17 +219,18 @@ func TestUpdater_Update(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		cfg        *UpdateConfig // nil -> file not present
-		flags      autoupdate.InstallFlags
-		inWindow   bool
-		now        bool
-		agpl       bool
-		installErr error
-		setupErr   error
-		reloadErr  error
-		notActive  bool
-		notEnabled bool
+		name            string
+		cfg             *UpdateConfig // nil -> file not present
+		flags           autoupdate.InstallFlags
+		inWindow        bool
+		now             bool
+		agpl            bool
+		installErr      error
+		setupErr        error
+		reloadErr       error
+		notActive       bool
+		notEnabled      bool
+		linkedRevisions []Revision
 
 		removedRevisions  []Revision
 		installedRevision Revision
@@ -450,6 +451,32 @@ func TestUpdater_Update(t *testing.T) {
 			},
 		},
 		{
+			name: "version detects as linked",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path:    defaultPathDir,
+					BaseURL: "https://example.com",
+					Enabled: true,
+				},
+				Status: UpdateStatus{
+					Active: NewRevision("old-version", 0),
+				},
+			},
+			linkedRevisions: []Revision{NewRevision("16.3.0", 0)},
+			inWindow:        true,
+
+			installedRevision: NewRevision("16.3.0", 0),
+			installedBaseURL:  "https://example.com",
+			linkedRevision:    NewRevision("16.3.0", 0),
+			removedRevisions: []Revision{
+				NewRevision("unknown-version", 0),
+			},
+			setupCalls: 1,
+			restarted:  true,
+		},
+		{
 			name: "backup version removed on install",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
@@ -471,6 +498,33 @@ func TestUpdater_Update(t *testing.T) {
 			linkedRevision:    NewRevision("16.3.0", 0),
 			removedRevisions: []Revision{
 				NewRevision("backup-version", 0),
+				NewRevision("unknown-version", 0),
+			},
+			setupCalls: 1,
+			restarted:  true,
+		},
+		{
+			name: "backup version is linked",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path:    defaultPathDir,
+					BaseURL: "https://example.com",
+					Enabled: true,
+				},
+				Status: UpdateStatus{
+					Active: NewRevision("old-version", 0),
+					Backup: toPtr(NewRevision("backup-version", 0)),
+				},
+			},
+			inWindow:        true,
+			linkedRevisions: []Revision{NewRevision("backup-version", 0)},
+
+			installedRevision: NewRevision("16.3.0", 0),
+			installedBaseURL:  "https://example.com",
+			linkedRevision:    NewRevision("16.3.0", 0),
+			removedRevisions: []Revision{
 				NewRevision("unknown-version", 0),
 			},
 			setupCalls: 1,
@@ -678,6 +732,11 @@ func TestUpdater_Update(t *testing.T) {
 			)
 			updater.Installer = &testInstaller{
 				FuncInstall: func(_ context.Context, rev Revision, baseURL string, force bool) error {
+					for _, r := range tt.linkedRevisions {
+						if r == rev {
+							require.False(t, force)
+						}
+					}
 					installedRevision = rev
 					installedBaseURL = baseURL
 					return tt.installErr
@@ -701,6 +760,11 @@ func TestUpdater_Update(t *testing.T) {
 					return nil
 				},
 				FuncIsLinked: func(ctx context.Context, rev Revision, path string) (bool, error) {
+					for _, r := range tt.linkedRevisions {
+						if r == rev {
+							return true, nil
+						}
+					}
 					return false, nil
 				},
 			}
