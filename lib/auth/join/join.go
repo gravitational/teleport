@@ -462,6 +462,9 @@ func registerThroughAuthClient(
 	params RegisterParams,
 	client AuthJoinClient,
 ) (result *RegisterResult, err error) {
+	ctx, span := tracer.Start(ctx, "registerThroughAuthClient")
+	defer func() { tracing.EndSpan(span, err) }()
+
 	hostKeys, err := generateHostKeysForAuth(ctx, client)
 	if err != nil {
 		return nil, trace.Wrap(err, "generating host keys")
