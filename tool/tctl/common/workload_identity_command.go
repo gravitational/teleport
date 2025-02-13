@@ -58,6 +58,9 @@ type WorkloadIdentityCommand struct {
 	revocationSerial string
 	revocationReason string
 	revocationExpiry string
+	revokedAt        string
+
+	now func() time.Time
 
 	stdout io.Writer
 }
@@ -106,8 +109,8 @@ func (c *WorkloadIdentityCommand) Initialize(
 		StringVar(&c.revocationReason)
 	c.revocationsAddCmd.
 		Flag(
-			"expiry",
-			"Time that the revocation should expire, usually this should match the expiry time of the credential. This should be specified using RFC3339 e.g 2024-02-05T15:04:00Z. If unspecified, the time 1 week from now is used.").
+			"expires-at",
+			"Time that the revocation should expire, usually this should match the expiry time of the credential. This should be specified using RFC3339 e.g '2024-02-05T15:04:00Z'. If unspecified, the time 1 week from now is used.").
 		StringVar(&c.revocationExpiry)
 
 	c.revocationsRmCmd = revocationsCmd.Command("rm", "Delete a revocation.")
@@ -126,6 +129,9 @@ func (c *WorkloadIdentityCommand) Initialize(
 
 	if c.stdout == nil {
 		c.stdout = os.Stdout
+	}
+	if c.now == nil {
+		c.now = time.Now
 	}
 }
 
@@ -234,6 +240,8 @@ func normalizeCertificateSerial(str string) (string, error) {
 	return value.Text(16), nil
 }
 
+// AddRevocation creates a new revocation. Currently, only the X509 type is
+// supported.
 func (c *WorkloadIdentityCommand) AddRevocation(
 	ctx context.Context,
 	client *authclient.Client,
@@ -248,11 +256,11 @@ func (c *WorkloadIdentityCommand) AddRevocation(
 
 	// Default to a weeks TTL as this aligns with the longest possible TTL of
 	// an issued credential.
-	expiry := time.Now().Add(time.Hour * 24 * 7)
+	expiry := c.now().Add(time.Hour * 24 * 7)
 	if c.revocationExpiry != "" {
 		expiry, err = time.Parse(time.RFC3339, c.revocationExpiry)
 		if err != nil {
-			return trace.Wrap(err, "parsing expiry time")
+			return trace.Wrap(err, "parsing expires-at time")
 		}
 	}
 
@@ -267,7 +275,7 @@ func (c *WorkloadIdentityCommand) AddRevocation(
 			},
 			Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
 				Reason:    c.revocationReason,
-				RevokedAt: timestamppb.Now(),
+				RevokedAt: timestamppb.New(c.now()),
 			},
 		},
 	})
@@ -284,6 +292,8 @@ func (c *WorkloadIdentityCommand) AddRevocation(
 	return nil
 }
 
+// DeleteRevocation deletes a revocation. Currently, only the X509 type is
+// supported.
 func (c *WorkloadIdentityCommand) DeleteRevocation(
 	ctx context.Context,
 	client *authclient.Client,
@@ -313,6 +323,8 @@ func (c *WorkloadIdentityCommand) DeleteRevocation(
 	return nil
 }
 
+// ListRevocations lists the existing X509 revocations, and can display them as
+// a table or as YAML.
 func (c *WorkloadIdentityCommand) ListRevocations(
 	ctx context.Context, client *authclient.Client,
 ) error {
@@ -349,7 +361,7 @@ func (c *WorkloadIdentityCommand) ListRevocations(
 				fmt.Sprintf(
 					"%s (%s)",
 					expiryTime.Format(time.RFC3339),
-					expiryTime.Sub(time.Now()).Truncate(time.Second).String(),
+					expiryTime.Sub(c.now()).Truncate(time.Second).String(),
 				),
 				u.GetSpec().GetReason(),
 			})
