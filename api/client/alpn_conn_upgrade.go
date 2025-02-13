@@ -30,9 +30,12 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
@@ -49,8 +52,23 @@ import (
 // In those cases, the Teleport client should make a HTTP "upgrade" call to the
 // Proxy Service to establish a tunnel for the originally planned traffic to
 // preserve the ALPN and SNI information.
-func IsALPNConnUpgradeRequired(ctx context.Context, addr string, insecure bool, opts ...DialOption) bool {
+func IsALPNConnUpgradeRequired(ctx context.Context, addr string, insecure bool, opts ...DialOption) (result bool) {
+	ctx, span := tracer.Start(
+		ctx,
+		"IsALPNConnUpgradeRequired",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("address", addr),
+			attribute.Bool("insecure", insecure),
+		),
+	)
+	defer func() {
+		span.SetAttributes(attribute.Bool("upgrade_required", result))
+		tracing.EndSpan(span, nil)
+	}()
+
 	if result, ok := OverwriteALPNConnUpgradeRequirementByEnv(addr); ok {
+		span.AddEvent("ALPN connection upgrade requirement is overwritten by environment variable.")
 		return result
 	}
 
@@ -74,10 +92,12 @@ func IsALPNConnUpgradeRequired(ctx context.Context, addr string, insecure bool, 
 	logger := slog.With("address", addr)
 	if err != nil {
 		if isRemoteNoALPNError(err) {
+			span.AddEvent("No ALPN protocol is negotiated by the server.")
 			logger.DebugContext(ctx, "No ALPN protocol is negotiated by the server.", "upgrade_required", true)
 			return true
 		}
 		if isUnadvertisedALPNError(err) {
+			span.AddEvent("ALPN connection upgrade received an unadvertised ALPN protocol.")
 			logger.DebugContext(ctx, "ALPN connection upgrade received an unadvertised ALPN protocol.", "error", err)
 			return true
 		}
@@ -85,6 +105,8 @@ func IsALPNConnUpgradeRequired(ctx context.Context, addr string, insecure bool, 
 		// If dialing TLS fails for any other reason, we assume connection
 		// upgrade is not required so it will fallback to original connection
 		// method.
+		span.RecordError(err)
+		span.AddEvent("ALPN connection upgrade test failed.")
 		logger.InfoContext(ctx, "ALPN connection upgrade test failed.", "error", err)
 		return false
 	}
@@ -92,7 +114,8 @@ func IsALPNConnUpgradeRequired(ctx context.Context, addr string, insecure bool, 
 
 	// Upgrade required when ALPN is not supported on the remote side so
 	// NegotiatedProtocol comes back as empty.
-	result := testConn.ConnectionState().NegotiatedProtocol == ""
+	result = testConn.ConnectionState().NegotiatedProtocol == ""
+	span.AddEvent("Server did not negotiate an ALPN protocol.")
 	logger.DebugContext(ctx, "ALPN connection upgrade test complete", "upgrade_required", result)
 	return result
 }
@@ -188,7 +211,19 @@ func newALPNConnUpgradeDialer(dialer ContextDialer, tlsConfig *tls.Config, withP
 }
 
 // DialContext implements ContextDialer
-func (d *alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+func (d *alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr string) (_ net.Conn, err error) {
+	ctx, span := tracer.Start(
+		ctx,
+		"alpnConnUpgradeDialer/DialContext",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("address", addr),
+		),
+	)
+	defer func() {
+		tracing.EndSpan(span, err)
+	}()
+
 	tlsConn, err := tlsutils.TLSDial(ctx, d.dialer, network, addr, d.tlsConfig.Clone())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -199,7 +234,7 @@ func (d *alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr s
 		Path:   constants.WebAPIConnUpgrade,
 	}
 
-	conn, err := upgradeConnThroughWebAPI(tlsConn, upgradeURL, d.upgradeType())
+	conn, err := upgradeConnThroughWebAPI(ctx, tlsConn, upgradeURL, d.upgradeType())
 	if err != nil {
 		return nil, trace.NewAggregate(tlsConn.Close(), err)
 	}
@@ -213,7 +248,21 @@ func (d *alpnConnUpgradeDialer) upgradeType() string {
 	return constants.WebAPIConnUpgradeTypeALPN
 }
 
-func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, alpnUpgradeType string) (net.Conn, error) {
+func upgradeConnThroughWebAPI(
+	ctx context.Context, conn net.Conn, api url.URL, alpnUpgradeType string,
+) (_ net.Conn, err error) {
+	ctx, span := tracer.Start(
+		ctx,
+		"upgradeConnThroughWebAPI",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("alpnUpgradeType", alpnUpgradeType),
+		),
+	)
+	defer func() {
+		tracing.EndSpan(span, err)
+	}()
+
 	req, err := http.NewRequest(http.MethodGet, api.String(), nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
