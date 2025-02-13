@@ -1,0 +1,2360 @@
+{
+  "components": {
+    "schemas": {
+      "AccountConfigurationDigicert": {
+        "additionalProperties": false,
+        "description": "Do not modify this file directly. It is automatically generated from the model definition.",
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "accountId",
+          "organizationId"
+        ],
+        "type": "object"
+      },
+      "AccountConfigurationIdentrust": {
+        "additionalProperties": false,
+        "description": "Do not modify this file directly. It is automatically generated from the model definition.",
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "accountType": {
+            "type": "number"
+          },
+          "apiKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId",
+          "accountType",
+          "apiKey"
+        ],
+        "type": "object"
+      },
+      "AccountConfigurationLogging": {
+        "additionalProperties": false,
+        "description": "Do not modify this file directly. It is automatically generated from the model definition.",
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "awsAccessKeyId": {
+            "type": "string"
+          },
+          "bucketName": {
+            "type": "string"
+          },
+          "pathPrefix": {
+            "type": "string"
+          },
+          "regionName": {
+            "type": "string"
+          },
+          "useCompression": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "accountId",
+          "bucketName",
+          "useCompression"
+        ],
+        "type": "object"
+      },
+      "CertRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "commonName": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "csr": {
+            "type": "string"
+          },
+          "details": {
+            "additionalProperties": {
+              "type": "object"
+            },
+            "type": "object"
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "issuanceStatus": {
+            "$ref": "#/components/schemas/IssuanceStatus"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/NamedObject"
+          },
+          "source": {
+            "$ref": "#/components/schemas/CertRequestSource"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserMinimal"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "fingerprint",
+          "csr",
+          "commonName",
+          "details",
+          "issuanceStatus",
+          "createdAt",
+          "policy",
+          "user"
+        ],
+        "type": "object"
+      },
+      "CertRequestBody": {
+        "additionalProperties": false,
+        "properties": {
+          "CN": {
+            "type": "string"
+          },
+          "clearRemindersCertificateId": {
+            "type": "string"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "csr": {
+            "type": "string"
+          },
+          "customExtensions": {
+            "additionalProperties": {
+              "type": "object"
+            },
+            "type": "object"
+          },
+          "customFields": {
+            "additionalProperties": {
+              "type": "object"
+            },
+            "type": "object"
+          },
+          "dnComponents": {
+            "$ref": "#/components/schemas/CertRequestBodyDnComponents"
+          },
+          "expiryEmails": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "policy": {
+            "type": "string"
+          },
+          "subjectAltNames": {
+            "$ref": "#/components/schemas/CertRequestBodySubjectAltNames"
+          },
+          "validity": {
+            "$ref": "#/components/schemas/CertRequestBodyValidity"
+          }
+        },
+        "required": [
+          "policy",
+          "csr",
+          "dnComponents"
+        ],
+        "type": "object"
+      },
+      "CertRequestBodyDnComponents": {
+        "additionalProperties": false,
+        "properties": {
+          "AEID": {
+            "type": "string"
+          },
+          "C": {
+            "type": "string"
+          },
+          "CN": {
+            "type": "string"
+          },
+          "DC": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "EMAIL": {
+            "type": "string"
+          },
+          "L": {
+            "type": "string"
+          },
+          "O": {
+            "type": "string"
+          },
+          "OU": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "ST": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CertRequestBodySubjectAltNames": {
+        "additionalProperties": false,
+        "properties": {
+          "DNSNAME": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "IPADDRESS": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "RFC822NAME": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "UPN": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "URI": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "CertRequestBodyValidity": {
+        "additionalProperties": false,
+        "properties": {
+          "days": {
+            "type": "number"
+          },
+          "months": {
+            "type": "number"
+          },
+          "notAfter": {
+            "type": "string"
+          },
+          "years": {
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "CertRequestSource": {
+        "enum": [
+          "ACM",
+          "ACME",
+          "EST",
+          "RESTv1",
+          "RESTv2",
+          "SCEP",
+          "SOAP",
+          "Portal, //ACM-1556 add (lower case because they are in the specification)"
+        ],
+        "type": "string",
+        "x-enum-varnames": [
+          "ACM",
+          "ACME",
+          "EST",
+          "RESTV1",
+          "RESTV2",
+          "SCEP",
+          "SOAP",
+          "Portal"
+        ]
+      },
+      "CertRequestStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "certificateId": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "issuanceStatus": {
+            "$ref": "#/components/schemas/IssuanceStatus"
+          },
+          "issuanceStatusDetails": {
+            "additionalProperties": {
+              "type": "object"
+            },
+            "type": "object"
+          },
+          "revocationStatus": {
+            "$ref": "#/components/schemas/CertRequestStatusRevocationStatus"
+          }
+        },
+        "required": [
+          "id",
+          "issuanceStatus"
+        ],
+        "type": "object"
+      },
+      "CertRequestStatusRevocationStatus": {
+        "enum": [
+          "VALID",
+          "PENDING",
+          "IN_PROCESS",
+          "REVOKED",
+          "FAILED"
+        ],
+        "type": "string",
+        "x-enum-varnames": [
+          "VALID",
+          "PENDING",
+          "IN_PROCESS",
+          "REVOKED",
+          "FAILED"
+        ]
+      },
+      "Certificate": {
+        "additionalProperties": false,
+        "properties": {
+          "SANs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "account": {
+            "$ref": "#/components/schemas/NamedObject"
+          },
+          "certRequestId": {
+            "type": "string"
+          },
+          "commonName": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "discovered": {
+            "type": "boolean"
+          },
+          "expiryNotifications": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "imported": {
+            "type": "boolean"
+          },
+          "issuerDN": {
+            "type": "string"
+          },
+          "notAfter": {
+            "type": "string"
+          },
+          "notBefore": {
+            "type": "string"
+          },
+          "organization": {
+            "$ref": "#/components/schemas/NamedObject"
+          },
+          "pem": {
+            "type": "string"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/NamedObject"
+          },
+          "revocationDate": {
+            "type": "string"
+          },
+          "revocationReason": {
+            "type": "number"
+          },
+          "revocationStatus": {
+            "$ref": "#/components/schemas/RevocationStatusEnum"
+          },
+          "selfSigned": {
+            "type": "boolean"
+          },
+          "serial": {
+            "type": "string"
+          },
+          "signatureAlgorithm": {
+            "type": "string"
+          },
+          "subjectDN": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserMinimal"
+          }
+        },
+        "required": [
+          "id",
+          "serial",
+          "commonName",
+          "subjectDN",
+          "issuerDN",
+          "notBefore",
+          "notAfter",
+          "signatureAlgorithm",
+          "revocationStatus",
+          "revocationReason",
+          "pem",
+          "imported",
+          "discovered",
+          "selfSigned",
+          "createdAt",
+          "SANs",
+          "policy",
+          "user",
+          "account",
+          "organization",
+          "expiryNotifications"
+        ],
+        "type": "object"
+      },
+      "CertificateStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "revocationDate": {
+            "type": "string"
+          },
+          "revocationReason": {
+            "$ref": "#/components/schemas/RevocationReasons"
+          },
+          "revocationStatus": {
+            "$ref": "#/components/schemas/RevocationStatusEnum"
+          }
+        },
+        "required": [
+          "id",
+          "revocationStatus"
+        ],
+        "type": "object"
+      },
+      "GetCertificatesPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "common_name": {
+            "type": "string"
+          },
+          "created_since": {
+            "type": "string"
+          },
+          "discovered": {
+            "type": "boolean"
+          },
+          "expired": {
+            "type": "boolean"
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "imported": {
+            "type": "boolean"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "not_after": {
+            "type": "string"
+          },
+          "not_before": {
+            "type": "string"
+          },
+          "offset": {
+            "type": "number"
+          },
+          "organization": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "pem": {
+            "type": "boolean"
+          },
+          "policy": {
+            "type": "string"
+          },
+          "renewed": {
+            "type": "boolean"
+          },
+          "selfSigned": {
+            "type": "boolean"
+          },
+          "serial": {
+            "type": "string"
+          },
+          "sort_direction": {
+            "$ref": "#/components/schemas/SortDirectionEnum"
+          },
+          "sort_type": {
+            "type": "string"
+          },
+          "span": {
+            "type": "number"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RevocationStatusEnum"
+          },
+          "updated_since": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "GetCertificatesResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "type": "number"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/GetCertificatesResponseItem"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "GetCertificatesResponseItem": {
+        "additionalProperties": false,
+        "properties": {
+          "SANs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "commonName": {
+            "type": "string"
+          },
+          "discovered": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "imported": {
+            "type": "boolean"
+          },
+          "notAfter": {
+            "type": "string"
+          },
+          "notBefore": {
+            "type": "string"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/NameObject"
+          },
+          "revocationStatus": {
+            "$ref": "#/components/schemas/RevocationStatusEnum"
+          },
+          "selfSigned": {
+            "type": "boolean"
+          },
+          "serial": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "imported",
+          "discovered",
+          "selfSigned"
+        ],
+        "type": "object"
+      },
+      "HawkCredential": {
+        "additionalProperties": false,
+        "description": "Do not modify this file directly. It is automatically generated from the model definition.",
+        "properties": {
+          "comments": {
+            "description": "Comment for HAWK credential",
+            "type": "string"
+          },
+          "createdAt": {
+            "description": "Date/time HAWK credential created",
+            "type": "string"
+          },
+          "id": {
+            "description": "HAWK Identifier",
+            "type": "string"
+          },
+          "lastUsed": {
+            "description": "Date/time HAWK credential last used",
+            "type": "string"
+          },
+          "updatedAt": {
+            "description": "Date/time HAWK credential updated",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "HawkCredentialComment": {
+        "additionalProperties": false,
+        "properties": {
+          "comments": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HawkCredentialComments": {
+        "additionalProperties": false,
+        "properties": {
+          "comments": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HawkCredentialDeleteResults": {
+        "additionalProperties": false,
+        "properties": {
+          "deleted": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HawkCredentialWithKey": {
+        "additionalProperties": false,
+        "properties": {
+          "comments": {
+            "description": "Comment for HAWK credential",
+            "type": "string"
+          },
+          "createdAt": {
+            "description": "Date/time HAWK credential created",
+            "type": "string"
+          },
+          "id": {
+            "description": "HAWK Identifier",
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "lastUsed": {
+            "description": "Date/time HAWK credential last used",
+            "type": "string"
+          },
+          "updatedAt": {
+            "description": "Date/time HAWK credential updated",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "id",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "IssuanceStatus": {
+        "enum": [
+          "APPROVAL_REQUIRED",
+          "CANCELLED",
+          "FAILED",
+          "IN_PROCESS",
+          "ISSUED",
+          "PENDING",
+          "REJECTED",
+          "APPROVED"
+        ],
+        "type": "string",
+        "x-enum-varnames": [
+          "APPROVAL_REQUIRED",
+          "CANCELLED",
+          "FAILED",
+          "IN_PROCESS",
+          "ISSUED",
+          "PENDING",
+          "REJECTED",
+          "APPROVED"
+        ]
+      },
+      "MockPolicy": {
+        "additionalProperties": false,
+        "description": "Do not modify this file directly. It is automatically generated from the model definition.",
+        "properties": {
+          "certificateType": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "certificateType",
+          "organizationId"
+        ],
+        "type": "object"
+      },
+      "NameObject": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "NamedObject": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "Policy": {
+        "additionalProperties": false,
+        "properties": {
+          "MockPolicy": {
+            "$ref": "#/components/schemas/MockPolicy"
+          },
+          "apiId": {
+            "type": "number"
+          },
+          "certificateAuthorityId": {
+            "type": "string"
+          },
+          "details": {
+            "$ref": "#/components/schemas/PolicyDetails"
+          },
+          "enabled": {
+            "$ref": "#/components/schemas/PolicyEnabled"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "apiId",
+          "details",
+          "enabled",
+          "organizationId",
+          "certificateAuthorityId"
+        ],
+        "type": "object"
+      },
+      "PolicyDetails": {
+        "additionalProperties": false,
+        "properties": {
+          "approvalRequired": {
+            "type": "boolean"
+          },
+          "customExtensions": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyDetailsCustomExtensions"
+            },
+            "type": "array"
+          },
+          "customFields": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyDetailsCustomFields"
+            },
+            "type": "array"
+          },
+          "dnComponents": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyDetailsDnComponents"
+            },
+            "type": "array"
+          },
+          "expiryEmails": {
+            "$ref": "#/components/schemas/PolicyDetailsExpiryEmails"
+          },
+          "renewCanReuseCSR": {
+            "type": "boolean"
+          },
+          "subjectAltNames": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyDetailsSubjectAltNames"
+            },
+            "type": "array"
+          },
+          "validator": {
+            "type": "string"
+          },
+          "validity": {
+            "$ref": "#/components/schemas/PolicyDetailsValidity"
+          }
+        },
+        "required": [
+          "dnComponents"
+        ],
+        "type": "object"
+      },
+      "PolicyDetailsCustomExtensions": {
+        "additionalProperties": false,
+        "description": "Do not modify this file directly. It is automatically generated from the model definition.",
+        "properties": {
+          "defaultValue": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "modifiable": {
+            "type": "boolean"
+          },
+          "oid": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "PolicyDetailsCustomFields": {
+        "additionalProperties": false,
+        "description": "Do not modify this file directly. It is automatically generated from the model definition.",
+        "properties": {
+          "defaultValue": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "modifiable": {
+            "type": "boolean"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "tag": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "PolicyDetailsDnComponents": {
+        "additionalProperties": false,
+        "properties": {
+          "copyAsFirstSAN": {
+            "type": "boolean"
+          },
+          "defaultValue": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "modifiable": {
+            "type": "boolean"
+          },
+          "regEx": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "tag": {
+            "$ref": "#/components/schemas/PolicyDetailsDnComponentsTag"
+          }
+        },
+        "type": "object"
+      },
+      "PolicyDetailsDnComponentsTag": {
+        "enum": [
+          "CN",
+          "OU",
+          "O",
+          "L",
+          "ST",
+          "C",
+          "DC",
+          "EMAIL",
+          "AEID"
+        ],
+        "type": "string",
+        "x-enum-varnames": [
+          "CN",
+          "OU",
+          "O",
+          "L",
+          "ST",
+          "C",
+          "DC",
+          "EMAIL",
+          "AEID"
+        ]
+      },
+      "PolicyDetailsExpiryEmails": {
+        "additionalProperties": false,
+        "properties": {
+          "defaultValue": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "modifiable": {
+            "type": "boolean"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "tag": {
+            "$ref": "#/components/schemas/PolicyDetailsExpiryEmailsTag"
+          }
+        },
+        "type": "object"
+      },
+      "PolicyDetailsExpiryEmailsTag": {
+        "enum": [
+          "expiryEmails"
+        ],
+        "type": "string",
+        "x-enum-varnames": [
+          "EXPIRY_EMAILS"
+        ]
+      },
+      "PolicyDetailsSubjectAltNames": {
+        "additionalProperties": false,
+        "properties": {
+          "defaultValue": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "modifiable": {
+            "type": "boolean"
+          },
+          "regEx": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "tag": {
+            "$ref": "#/components/schemas/PolicyDetailsSubjectAltNamesTag"
+          }
+        },
+        "type": "object"
+      },
+      "PolicyDetailsSubjectAltNamesTag": {
+        "enum": [
+          "DNSNAME",
+          "IPADDRESS",
+          "RFC822NAME",
+          "UPN",
+          "URI"
+        ],
+        "type": "string",
+        "x-enum-varnames": [
+          "DNSNAME",
+          "IPADDRESS",
+          "RFC822_NAME",
+          "UPN",
+          "URI"
+        ]
+      },
+      "PolicyDetailsValidity": {
+        "additionalProperties": false,
+        "properties": {
+          "allowDatePicker": {
+            "type": "boolean"
+          },
+          "blackoutDates": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyDetailsValidityBlackoutDates"
+            },
+            "type": "array"
+          },
+          "days": {
+            "type": "string"
+          },
+          "defaultValue": {
+            "$ref": "#/components/schemas/ValidityPeriod"
+          },
+          "maxValue": {
+            "$ref": "#/components/schemas/ValidityPeriod"
+          },
+          "modifiable": {
+            "type": "boolean"
+          },
+          "months": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "years": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PolicyDetailsValidityBlackoutDate": {
+        "additionalProperties": false,
+        "description": "Do not modify this file directly. It is automatically generated from the model definition.",
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "day": {
+            "type": "number"
+          },
+          "month": {
+            "type": "number"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "year": {
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "PolicyDetailsValidityBlackoutDates": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "end": {
+            "$ref": "#/components/schemas/PolicyDetailsValidityBlackoutDate"
+          },
+          "start": {
+            "$ref": "#/components/schemas/PolicyDetailsValidityBlackoutDate"
+          },
+          "timeZone": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "type": "object"
+      },
+      "PolicyEnabled": {
+        "additionalProperties": false,
+        "description": "Do not modify this file directly. It is automatically generated from the model definition.",
+        "properties": {
+          "acme": {
+            "type": "boolean"
+          },
+          "est": {
+            "type": "boolean"
+          },
+          "rest": {
+            "type": "boolean"
+          },
+          "scep": {
+            "type": "boolean"
+          },
+          "ui": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "RenewCertificatePayload": {
+        "additionalProperties": false,
+        "properties": {
+          "csr": {
+            "type": "string"
+          },
+          "reuseCsr": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "RenewCertificateStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "revocationStatus": {
+            "$ref": "#/components/schemas/SetRenewStatusEnum"
+          }
+        },
+        "type": "object"
+      },
+      "ResultError": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "type": "object"
+      },
+      "RevocationReasons": {
+        "enum": [
+          0,
+          1,
+          3,
+          4,
+          5
+        ],
+        "type": "number",
+        "x-enum-varnames": [
+          "NUMBER_0",
+          "NUMBER_1",
+          "NUMBER_3",
+          "NUMBER_4",
+          "NUMBER_5"
+        ]
+      },
+      "RevocationStatusEnum": {
+        "enum": [
+          "VALID",
+          "PENDING",
+          "IN_PROCESS",
+          "REVOKED",
+          "FAILED",
+          "EXPIRED",
+          "RENEWED"
+        ],
+        "type": "string",
+        "x-enum-varnames": [
+          "VALID",
+          "PENDING",
+          "IN_PROCESS",
+          "REVOKED",
+          "FAILED",
+          "EXPIRED",
+          "RENEWED"
+        ]
+      },
+      "RevokeCertificateReasonIssuerDN": {
+        "additionalProperties": false,
+        "properties": {
+          "issuerDN": {
+            "description": "Issuer distinguished name",
+            "type": "string"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/RevocationReasons"
+          },
+          "revocationDate": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
+      "SetRenewStatusEnum": {
+        "enum": [
+          "VALID",
+          "RENEWED"
+        ],
+        "type": "string",
+        "x-enum-varnames": [
+          "VALID",
+          "RENEWED"
+        ]
+      },
+      "SortDirectionEnum": {
+        "enum": [
+          "asc",
+          "desc"
+        ],
+        "type": "string",
+        "x-enum-varnames": [
+          "ASC",
+          "DESC"
+        ]
+      },
+      "UserMinimal": {
+        "additionalProperties": false,
+        "description": "Do not modify this file directly. It is automatically generated from the model definition.",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "firstName",
+          "lastName"
+        ],
+        "type": "object"
+      },
+      "ValidityPeriod": {
+        "additionalProperties": false,
+        "description": "Do not modify this file directly. It is automatically generated from the model definition.",
+        "properties": {
+          "days": {
+            "type": "number"
+          },
+          "months": {
+            "type": "number"
+          },
+          "years": {
+            "type": "number"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "OAuth2AuthorizationCodeBearer": {
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "",
+            "scopes": {},
+            "tokenUrl": "/token"
+          }
+        },
+        "type": "oauth2"
+      }
+    }
+  },
+  "info": {
+    "description": "Venafi provides customers the ability to manage the lifecycle of PKI certificates via the web based ZTPKI REST API service.  This document\noutlines the methods to control the generation, retrieval and revocation of certificates.\n\nZTPKI groups methods into 3 categories when dealing with the certificate lifecycle:\n  * Policies\n  * Certificate Requests\n  * Certificates\n\n### Policies\n\nDescribes the required, optional and default value for data elements that make up a certificate request.  Includes:\n  * Subject DN components - CN, OU, O, C, etc.\n  * SAN elements - DNSName, IPAddress, RFC822Name, UPN, URI, etc.\n  * Custom Extensions - X509v3 extensions included in the certificate, i.e. Microsoft Application Policies, Template Information, etc.\n  * Custom Fields - descriptive non-certificate attributes used by the customer for reporting/identification, i.e. Department, Charge code, etc.\n\nACTION | URI                                       | DESCRIPTION\n------ | ----------------------------------------- | -----------\nGET    | /api/v2/policies                          | Retrieves all policies available to user\nGET    | /api/v2/policies/{policyId}               | Retrieves a given policy\n\n### Certificate Requests\n\nDescribes all requests to generate certificates.  After issued, links to a certificateId for operations on\nthe actual certificate.\n\nACTION | URI                                       | DESCRIPTION\n------ | ----------------------------------------- | -----------\nPOST   | /api/v2/csr                               | Creates a new request, returning certRequestId\nGET    | /api/v2/csr/{certRequestId}               | Retrieves a given certRequest, including all details\nGET    | /api/v2/csr/{certRequestId}/status        | Retrieves issuance status of certRequest, including certificateId if issued\n\n### Certificates\n\nDescribes all certificates issued by the user or others the user has access to.\n\nACTION | URI                                       | DESCRIPTION\n------ | ----------------------------------------- | -----------\nPOST   | /api/v2/certificates                      | Retrieves all certificates available to user\nGET    | /api/v2/certificates/{certificateId}      | Retrieves a given certificate, including status & PEM format cert\nGET    | /api/v2/certificates/{certificateId}/der  | Retrieves a binary DER format certificate\nGET    | /api/v2/certificates/{certificateId}/pem  | Retrieves a PEM format certificate\nPATCH  | /api/v2/certificates/{certificateId}      | Revokes a given certificate, given a certificateId\nPATCH  | /api/v2/certificates/{serialNumber}       | Revokes a given certificate, given a serialNumber and issuerDN\nGET    | /api/v2/certificates/{certificateId}/status | Retrieves current revocation status\n\n## Authentication\n\nAll REST methods are require authentication via the \"HTTP Holder-Of-Key Authentication Scheme\",\nknown as \"Hawk Authentication\" (see <https://github.com/mozilla/hawk/blob/main/API.md> ).  Hawk is an HTTP authentication scheme providing mechanisms\nfor making authenticated HTTP requests with partial cryptographic verification of the request and response, covering the HTTP\nmethod, request URI, host, and optionally the request payload.\n\nWith Hawk Auth, each user will be issued a two randomly generated strings by Venafi - an ID that will appear in the request,\nas well as a key that will be used to sign the request.  Each REST method requires an `Authorization` header formatted as below:\n\n```http\nAuthorization: Hawk id=\"<hawk id>\", ts=\"<timestamp in seconds>\", nonce=\"<random string>\", mac=\"<Base64 HMAC>\", hash=\"<SHA256 Hash>\"\n```\n\nAlso, please note that any REST actions that require a payload (POST/PATCH, etc.) will require the \"hash\" element for payload\nvalidation - see [Payload Validation](https://github.com/mozilla/hawk/blob/main/API.md#payload-validation) for more information.\nResponses may contain a `Server-Authorization` header with a hash of the response payload - see\n[Response Payload Validation](https://github.com/mozilla/hawk/blob/main/API.md#response-payload-validation).\n\nSee the [Hawk Authentication](https://github.com/mozilla/hawk/blob/main/API.md#response-payload-validation) page on GitHub for links to\nimplementations in NodeJS, .Net, Ruby, Java, etc.\n\nZTPKI provides REST API methods to manage Hawk credentials for a user. Each user account is allowed up to 5 sets of Hawk credentials to\naccess the REST API.  It is recommended that users \"roll\" their credentials from the initial values set by Venafi and on as\nas needed basis for security. Optional comments can be added to credentials for descriptive purposes.  The following actions are\navailable:\n\nACTION | URI                                       | DESCRIPTION\n------ | ----------------------------------------- | -----------\nPOST   | /api/v2/hawk                              | Creates a new request, returning certRequestId\nGET    | /api/v2/hawk                              | Retrieves all credentials associated with the current user\nGET    | /api/v2/hawk/{hawkId}                     | Retrieves a specific Hawk credential\nPUT    | /api/v2/hawk/{hawkId}                     | Rolls a credential by establishing a new secret key\nDELETE | /api/v2/hawk/{hawkId}                     | Disables and removes a credential\n\n\n## Certificate Request Pseudocode\n\nRequesting a certificate will normally flow like this:\n\n```\nGenerate CSR\n\nSubmit Request via POST /api/v2/csr, returning certRequestId\n\nWhile CertRequest issuanceStatus == APPROVAL_REQUIRED | IN_PROCESS | PENDING\n    Get CertRequest Status via GET /api/v2/csr/{certRequestId}/status\n\nIf issuanceStatus == ISSUED\n    Download PEM certificate via GET /api/v2/certificates/{certificateId}\n```\n\nPlease contact Venafi for sample code in various languages.\n",
+    "title": "Venafi Zero Touch PKI (ZTPKI) API",
+    "version": "1.11.0"
+  },
+  "openapi": "3.0.2",
+  "paths": {
+    "/certificates/": {
+      "post": {
+        "deprecated": false,
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetCertificatesPayload"
+              }
+            }
+          },
+          "description": "Filter certificates",
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetCertificatesResponse"
+                }
+              }
+            },
+            "description": "A list of Certificates"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "InvalidRequestError"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "WrappedError"
+          }
+        },
+        "summary": "Get Certificates",
+        "tags": [
+          "Certificates"
+        ]
+      }
+    },
+    "/certificates/{id}": {
+      "get": {
+        "deprecated": false,
+        "parameters": [
+          {
+            "description": null,
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Certificate"
+                }
+              }
+            },
+            "description": "A Certificate."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "NotFoundError"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "WrappedError"
+          }
+        },
+        "summary": "Get a specific certificate",
+        "tags": [
+          "Certificates"
+        ]
+      },
+      "patch": {
+        "deprecated": false,
+        "parameters": [
+          {
+            "description": "Certificate id or serial number",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeCertificateReasonIssuerDN"
+              }
+            }
+          },
+          "description": "Revocation reason and optional issuer DN",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertificateStatus"
+                }
+              }
+            },
+            "description": "A Certificate revocation request status"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "NotAllowedError"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "NotFoundError"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "InvalidRequestError"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "WrappedError"
+          }
+        },
+        "summary": "Revoke a certificate given a certificate id or serial_number and issuerDN",
+        "tags": [
+          "Certificates"
+        ]
+      }
+    },
+    "/certificates/{id}/der": {
+      "get": {
+        "deprecated": false,
+        "parameters": [
+          {
+            "description": "Certificate ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "File extension",
+            "in": "query",
+            "name": "extension",
+            "required": false,
+            "schema": {
+              "default": "cer",
+              "enum": [
+                "cer",
+                "crt"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Include Chain",
+            "in": "query",
+            "name": "chain",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pkix-cert": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "A DER format certificate"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "NotFoundError"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "WrappedError"
+          }
+        },
+        "summary": "Download DER format certificate",
+        "tags": [
+          "Certificates"
+        ]
+      }
+    },
+    "/certificates/{id}/pem": {
+      "get": {
+        "deprecated": false,
+        "parameters": [
+          {
+            "description": "Certificate ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "File extension",
+            "in": "query",
+            "name": "extension",
+            "required": false,
+            "schema": {
+              "default": "cer",
+              "enum": [
+                "cer",
+                "crt"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Include Chain",
+            "in": "query",
+            "name": "chain",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/x-pem-file": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "A PEM format certificate"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "NotFoundError"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "WrappedError"
+          }
+        },
+        "summary": "Download PEM format certificate",
+        "tags": [
+          "Certificates"
+        ]
+      }
+    },
+    "/certificates/{id}/renew": {
+      "post": {
+        "deprecated": false,
+        "parameters": [
+          {
+            "description": null,
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenewCertificatePayload"
+              }
+            }
+          },
+          "description": "A new CSR is required unless `renewCanReuseCSR` is set on the corresponding ACM policy.",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertRequestStatus"
+                }
+              }
+            },
+            "description": "A Certificate renew request status"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "NotFoundError"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "WrappedError"
+          }
+        },
+        "summary": "Renew a certificate given a certificate id.",
+        "tags": [
+          "Certificates"
+        ]
+      }
+    },
+    "/certificates/{id}/status": {
+      "get": {
+        "deprecated": false,
+        "parameters": [
+          {
+            "description": null,
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertificateStatus"
+                }
+              }
+            },
+            "description": "Certificate status"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "NotFoundError"
+          }
+        },
+        "summary": "Get certificate status",
+        "tags": [
+          "Certificates"
+        ]
+      },
+      "patch": {
+        "deprecated": false,
+        "parameters": [
+          {
+            "description": null,
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenewCertificateStatus"
+              }
+            }
+          },
+          "description": "Contains the updated status for the certificate. Can be either \"RENEWED\" (to signify the certificate has been renewed already); or \"VALID\" to un-set the status from \"RENEWED\".",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertificateStatus"
+                }
+              }
+            },
+            "description": "A Certificate request status"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "NotFoundError"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Set the renewed status of a certificate",
+        "tags": [
+          "Certificates"
+        ]
+      }
+    },
+    "/csr/": {
+      "post": {
+        "deprecated": false,
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CertRequestBody"
+              }
+            }
+          },
+          "description": null,
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertRequestStatus"
+                }
+              }
+            },
+            "description": null
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "InvalidRequestError"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "Unknown"
+          }
+        },
+        "summary": "Create a certificate request",
+        "tags": [
+          "Certificate Requests"
+        ]
+      }
+    },
+    "/csr/{id}": {
+      "get": {
+        "deprecated": false,
+        "parameters": [
+          {
+            "description": null,
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertRequest"
+                }
+              }
+            },
+            "description": "A Certificate Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "NotFoundError"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "WrappedError"
+          }
+        },
+        "summary": "Retrieves a given certRequest, including all details",
+        "tags": [
+          "Certificate Requests"
+        ]
+      }
+    },
+    "/csr/{id}/status": {
+      "get": {
+        "deprecated": false,
+        "parameters": [
+          {
+            "description": null,
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertRequestStatus"
+                }
+              }
+            },
+            "description": null
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "NotFoundError"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "InvalidRequestError"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "WrappedError"
+          }
+        },
+        "summary": "Retrieves issuance status of certRequest, including certificateId if issued",
+        "tags": [
+          "Certificate Requests"
+        ]
+      }
+    },
+    "/hawk/": {
+      "get": {
+        "deprecated": false,
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HawkCredential"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": null
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "InvalidRequestError"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "WrappedError"
+          }
+        },
+        "summary": "Get all HAWK Credentials associated with the current user",
+        "tags": [
+          "Authentication"
+        ]
+      },
+      "post": {
+        "deprecated": false,
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HawkCredentialComments"
+              }
+            }
+          },
+          "description": null,
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HawkCredentialWithKey"
+                }
+              }
+            },
+            "description": null
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "InvalidRequestError"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "WrappedError"
+          }
+        },
+        "summary": "Create a new HAWK Credential for the current user",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/hawk/{hawkId}": {
+      "delete": {
+        "deprecated": false,
+        "parameters": [
+          {
+            "description": null,
+            "in": "path",
+            "name": "hawkId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HawkCredentialDeleteResults"
+                }
+              }
+            },
+            "description": null
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "InvalidRequestError"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "WrappedError"
+          }
+        },
+        "summary": "Delete a specific HAWK credential",
+        "tags": [
+          "Authentication"
+        ]
+      },
+      "get": {
+        "deprecated": false,
+        "parameters": [
+          {
+            "description": null,
+            "in": "path",
+            "name": "hawkId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HawkCredential"
+                }
+              }
+            },
+            "description": null
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "InvalidRequestError"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "WrappedError"
+          }
+        },
+        "summary": "Get a specific HAWK Credential",
+        "tags": [
+          "Authentication"
+        ]
+      },
+      "put": {
+        "deprecated": false,
+        "parameters": [
+          {
+            "description": null,
+            "in": "path",
+            "name": "hawkId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HawkCredentialComment"
+              }
+            }
+          },
+          "description": null,
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HawkCredentialWithKey"
+                }
+              }
+            },
+            "description": null
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "InvalidRequestError"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "WrappedError"
+          }
+        },
+        "summary": "Create a new secret for a specific HAWK credential.",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/policies/": {
+      "get": {
+        "deprecated": false,
+        "parameters": [
+          {
+            "description": "Load imported policies (type = IMPORTED) - true: include imported, false: exclude imported, only: only imported",
+            "in": "query",
+            "name": "imported",
+            "required": false,
+            "schema": {
+              "enum": [
+                true,
+                false,
+                "only"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Policy"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "A list of policies."
+          }
+        },
+        "summary": "Get all policies",
+        "tags": [
+          "Policies"
+        ]
+      }
+    },
+    "/policies/{id}": {
+      "get": {
+        "deprecated": false,
+        "parameters": [
+          {
+            "description": null,
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Policy"
+                }
+              }
+            },
+            "description": "A Policy."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "NotFoundError"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultError"
+                }
+              }
+            },
+            "description": "WrappedError"
+          }
+        },
+        "summary": "Get a specific policy",
+        "tags": [
+          "Policies"
+        ]
+      }
+    }
+  },
+  "security": [
+    {
+      "OAuth2AuthorizationCodeBearer": []
+    }
+  ],
+  "servers": [
+    {
+      "description": "Staging server, used for customer integration testing",
+      "url": "https://ztpki-staging.venafi.com/api/v2"
+    },
+    {
+      "description": "Staging server, used for EU customer integration testing",
+      "url": "https://ztpki-staging.eu.venafi.com/api/v2"
+    },
+    {
+      "description": "Production server",
+      "url": "https://ztpki.venafi.com/api/v2"
+    },
+    {
+      "description": "Production EU server",
+      "url": "https://ztpki.eu.venafi.com/api/v2"
+    }
+  ]
+}
