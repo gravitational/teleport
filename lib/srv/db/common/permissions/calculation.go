@@ -73,7 +73,7 @@ func SummarizePermissions(perms PermissionSet) (string, []events.DatabasePermiss
 	for _, perm := range permNames {
 		objects := perms[perm]
 		countText, countMap := CountObjectKinds(objects)
-		fragments = append(fragments, fmt.Sprintf("%q: %v objects (%v)", perm, len(objects), countText))
+		fragments = append(fragments, fmt.Sprintf("%s: %d objects (%v)", perm, len(objects), countText))
 		eventData[perm] = countMap
 	}
 
