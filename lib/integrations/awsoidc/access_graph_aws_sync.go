@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
 )
 
 const (
@@ -76,7 +77,7 @@ func NewAccessGraphIAMConfigureClient(ctx context.Context) (AccessGraphIAMConfig
 	}
 
 	return &defaultTAGIAMConfigureClient{
-		Client: iam.NewFromConfig(cfg),
+		Client: iamutils.NewFromConfig(cfg),
 	}, nil
 }
 

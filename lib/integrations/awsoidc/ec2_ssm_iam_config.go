@@ -32,6 +32,7 @@ import (
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
+	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
 )
 
 const (
@@ -134,7 +135,7 @@ func NewEC2SSMConfigureClient(ctx context.Context, region string) (EC2SSMConfigu
 	}
 
 	return &defaultEC2SSMConfigureClient{
-		Client:    iam.NewFromConfig(cfg),
+		Client:    iamutils.NewFromConfig(cfg),
 		ssmClient: ssm.NewFromConfig(cfg),
 	}, nil
 }
