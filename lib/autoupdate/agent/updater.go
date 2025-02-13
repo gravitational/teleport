@@ -132,12 +132,11 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 				"--install-dir", ns.installDir,
 				"--install-suffix", ns.name,
 				"--log-format", cfg.LogFormat,
-				"--path", path,
 			}
 			if cfg.Debug {
 				args = append(args, "--debug")
 			}
-			args = append(args, "setup")
+			args = append(args, "setup", "--path", path)
 			if reload {
 				args = append(args, "--reload")
 			}
