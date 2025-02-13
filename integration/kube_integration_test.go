@@ -1695,6 +1695,18 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 
 	auth := cluster.Process.GetAuthServer()
 
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		var found bool
+		for ks, err := range auth.UnifiedResourceCache.IterateKubernetesServers(context.Background(), "", types.SortBy{Field: services.SortByName}) {
+			if !assert.NoError(t, err) {
+				return
+			}
+
+			found = found || ks.GetName() == kubeClusterName
+		}
+		assert.True(t, found)
+	}, time.Second*10, time.Millisecond*500, "kube clusters failed to register")
+
 	userPassword := uuid.NewString()
 	require.NoError(t, auth.UpsertPassword(testUser, []byte(userPassword)))
 

@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
@@ -446,6 +447,30 @@ func TestTeletermKubeGateway(t *testing.T) {
 		withRootAndLeafTrustedClusterReset(),
 		withTrustedCluster(),
 	)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		var found bool
+		for ks, err := range suite.root.Process.GetAuthServer().UnifiedResourceCache.IterateKubernetesServers(context.Background(), "", types.SortBy{Field: services.SortByName}) {
+			if !assert.NoError(t, err) {
+				return
+			}
+
+			found = found || ks.GetName() == kubeClusterName
+		}
+		assert.True(t, found)
+	}, time.Second*10, time.Millisecond*500, "kube clusters failed to register")
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		var found bool
+		for ks, err := range suite.leaf.Process.GetAuthServer().UnifiedResourceCache.IterateKubernetesServers(context.Background(), "", types.SortBy{Field: services.SortByName}) {
+			if !assert.NoError(t, err) {
+				return
+			}
+
+			found = found || ks.GetName() == kubeClusterName
+		}
+		assert.True(t, found)
+	}, time.Second*10, time.Millisecond*500, "kube clusters failed to register")
 
 	t.Run("root", func(t *testing.T) {
 		profileName := mustGetProfileName(t, suite.root.Web)
