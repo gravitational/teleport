@@ -70,7 +70,7 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, error) {
 		w, err = NewSyslogWriter()
 		if err != nil {
 			slog.ErrorContext(context.Background(), "Failed to switch logging to syslog", "error", err)
-			slog.SetDefault(slog.New(DiscardHandler{}))
+			slog.SetDefault(slog.New(slog.DiscardHandler))
 			return slog.Default(), level, nil
 		}
 	default:

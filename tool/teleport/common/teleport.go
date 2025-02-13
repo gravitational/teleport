@@ -1028,7 +1028,7 @@ func onSCP(scpFlags *scp.Flags) error {
 	})
 	if err != nil {
 		// If something went wrong, discard all logs and continue command execution.
-		slog.SetDefault(slog.New(logutils.DiscardHandler{}))
+		slog.SetDefault(slog.New(slog.DiscardHandler))
 	}
 
 	if len(scpFlags.Target) == 0 {

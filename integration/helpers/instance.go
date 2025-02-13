@@ -70,7 +70,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/web"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/terminal"
@@ -351,7 +350,7 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = slog.New(logutils.DiscardHandler{})
+		cfg.Logger = slog.New(slog.DiscardHandler)
 	}
 
 	// generate instance secrets (keys):
