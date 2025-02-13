@@ -19,6 +19,7 @@
 import { Fragment } from 'react';
 
 import { Flex, Text } from 'design';
+import { ChevronRight } from 'design/Icon';
 
 import { AccessRequestCheckoutButton } from './AccessRequestCheckoutButton';
 import { ShareFeedback } from './ShareFeedback';
@@ -69,7 +70,8 @@ export function StatusBar() {
                 )}
                 <Text>{breadcrumb.name}</Text>
                 {index !== breadcrumbs.length - 1 && (
-                  <Text color="text.disabled">→</Text>
+                  // Size 'small' is too large here.
+                  <ChevronRight size={13} color="text.muted" />
                 )}
               </Fragment>
             ))}
