@@ -17,6 +17,7 @@ package envutils
 
 import (
 	"bytes"
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -24,6 +25,7 @@ import (
 
 func TestReadEnvironment(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	// contents of environment file
 	rawenv := []byte(`
@@ -39,7 +41,7 @@ bar=foo
 LD_PRELOAD=attack
 `)
 
-	env, err := readEnvironment(bytes.NewReader(rawenv))
+	env, err := ReadEnvironment(ctx, bytes.NewReader(rawenv))
 	require.NoError(t, err)
 
 	// check we parsed it correctly
