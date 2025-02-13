@@ -7969,7 +7969,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		// Build the client CA pool containing the cluster's user CA in
 		// order to be able to validate certificates provided by users.
 		var err error
-		tlsClone.ClientCAs, _, err = authclient.DefaultClientCertPool(info.Context(), authServer.Auth(), clustername)
+		tlsClone.ClientCAs, _, _, err = authclient.DefaultClientCertPool(info.Context(), authServer.Auth(), clustername)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -94,7 +94,7 @@ func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) ty
 	priv, pub, err := ta.GenerateKeyPair()
 	require.NoError(t, err)
 
-	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: domain}, nil, time.Hour)
+	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: domain, Organization: []string{domain}}, nil, time.Hour)
 	require.NoError(t, err)
 
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
