@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=https://spec.openapis.org/overlay/1.0/schema/2024-10-22
+overlay: 1.0.0
+info:
+  title: Overlay
+  version: 0.0.0
+actions:
+  - target: $.components.schemas.*.x-enum-varnames
+    remove: true
+  - target: $.components.schemas.CertRequest.properties.details.additionalProperties
+    remove: true
+  - target: $.components.schemas.CertRequestBody.properties.customFields.additionalProperties
+    remove: true
+  - target: $.components.schemas.CertRequestBody.properties.customExtensions.additionalProperties
+    remove: true
+  - target: $.components.schemas.CertRequestStatus.properties.issuanceStatusDetails.additionalProperties
+    remove: true
+  - target: $.components.schemas.CertRequestSource.enum[?(@ == 'Portal, //ACM-1556 add (lower case because they are in the specification)')]
+    update: "Portal"
+  - target: $.components.schemas.PolicyDetailsValidity.properties.days.type
+    remove: true
+  - target: $.components.schemas.PolicyDetailsValidity.properties.years.type
+    remove: true
+  - target: $.components.schemas.PolicyDetailsValidity.properties.months.type
+    remove: true

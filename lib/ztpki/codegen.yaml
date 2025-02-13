@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/oapi-codegen/oapi-codegen/HEAD/configuration-schema.json
+package: ztpki
+output: ztpki.gen.go
+generate:
+  models: true
+  client: true
+output-options:
+  overlay:
+    path: overlay.yaml
+compatibility:
+  always-prefix-enum-values: true
