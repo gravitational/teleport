@@ -224,14 +224,14 @@ The auto approval flow will look like this:
 sequenceDiagram
     participant requester
     participant teleport
-    participant access-native
+    participant automatic_approval_service
 
     requester->>teleport: tsh request create --roles='cloud-dev'
-    access-native->>teleport: watch(AMR, AR)
-    access-native->>teleport: requestUser(requester)
-    teleport->>access-native: responseUser(requester)
-    access-native->>access-native: isConditionMatched(AMR, AR, requester.annotations)
-    access-native->>teleport: approve AR
+    automatic_approval_service->>teleport: watch(AMR, AR)
+    automatic_approval_service->>teleport: requestUser(requester)
+    teleport->>automatic_approval_service: responseUser(requester)
+    automatic_approval_service->>automatic_approval_service: isConditionMatched(AMR, AR, requester.annotations)
+    automatic_approval_service->>teleport: approve AR
     requester->>teleport: tsh login --request-id=<request-id>
 ```
 1. The automatic approval serivce is initialized and watches for ARs from Teleport.
