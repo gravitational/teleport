@@ -21,15 +21,15 @@ import (
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/service/sts"
 
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/awsfips"
 )
 
 // NewV1 wraps [sts.New] and applies FIPS settings according to environment
 // variables.
 //
-// See [awsutils.IsFIPSDisabledByEnv].
+// See [awsfips.IsFIPSDisabledByEnv].
 func NewV1(p client.ConfigProvider, cfgs ...*aws.Config) *sts.STS {
-	if awsutils.IsFIPSDisabledByEnv() {
+	if awsfips.IsFIPSDisabledByEnv() {
 		// append so it overrides any preceding settings.
 		cfgs = append(cfgs, aws.NewConfig().WithUseFIPSEndpoint(false))
 	}

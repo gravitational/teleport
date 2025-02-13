@@ -22,19 +22,19 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/awsfips"
 )
 
 // NewCredentialsV1 wraps [stscreds.NewCredentials] and applies FIPS settings
 // according to environment variables.
 //
-// See [awsutils.IsFIPSDisabledByEnv].
+// See [awsfips.IsFIPSDisabledByEnv].
 func NewCredentialsV1(
 	c client.ConfigProvider,
 	roleARN string,
 	options ...func(*stscreds.AssumeRoleProvider),
 ) *credentials.Credentials {
-	if awsutils.IsFIPSDisabledByEnv() {
+	if awsfips.IsFIPSDisabledByEnv() {
 		c = fipsDisabledProvider{provider: c}
 	}
 	return stscreds.NewCredentials(c, roleARN, options...)
