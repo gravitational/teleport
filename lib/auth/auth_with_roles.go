@@ -3178,8 +3178,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			return nil, trace.AccessDenied("access denied: impersonated user can not request new roles")
 		}
 		if isRoleImpersonation(req) {
-			// Note: technically this should never be needed as all role
-			// impersonated certs should have the DisallowReissue set.
+			// Disallow role impersonated certs from performing further role
+			// impersonation, to reduce the risk of privilege escalation.
 			return nil, trace.AccessDenied("access denied: impersonated roles can not request other roles")
 		}
 		if req.Username != a.context.User.GetName() {
