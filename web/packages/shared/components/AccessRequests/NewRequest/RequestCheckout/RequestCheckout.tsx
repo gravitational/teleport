@@ -200,7 +200,7 @@ export function RequestCheckout<T extends PendingListItem>({
     const hasAurora = pendingAccessRequests.some(r => r.name === 'aurora');
     const hasTeleportDev = pendingAccessRequests.some(r => r.name === 'teleport-dev');
 
-    if (hasAurora && hasTeleportDev) {
+    if (hasAurora || hasTeleportDev) {
       separateRequest.push('aurora', 'teleport-dev');
     }
 
