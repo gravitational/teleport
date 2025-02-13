@@ -107,8 +107,13 @@ spec:
         - mountPath: /etc/teleport-secrets
           name: "auth-token"
           readOnly: true
+          {{- if .Values.storage.enabled }}
         - mountPath: /var/lib/teleport
           name: "{{ .Release.Name }}-teleport-data"
+          {{- else }}
+        - mountPath: /var/lib/teleport
+          name: "data"
+          {{- end }}
           {{- if .Values.tls.existingCASecretName }}
         - mountPath: /etc/teleport-tls-ca
           name: "teleport-tls-ca"
