@@ -127,7 +127,9 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 		s.getBotIdentity(),
 		roles,
 		s.botCfg.CertificateTTL,
-		nil,
+		func(req *proto.UserCertsRequest) {
+			req.ReissuableRoleImpersonation = s.cfg.AllowReissue
+		},
 	)
 	if err != nil {
 		return trace.Wrap(err, "generating identity")
@@ -150,6 +152,7 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 			s.botCfg.CertificateTTL,
 			func(req *proto.UserCertsRequest) {
 				req.RouteToCluster = s.cfg.Cluster
+				req.ReissuableRoleImpersonation = s.cfg.AllowReissue
 			},
 		)
 		if err != nil {

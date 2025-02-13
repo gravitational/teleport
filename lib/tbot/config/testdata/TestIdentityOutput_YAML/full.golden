@@ -5,3 +5,4 @@ roles:
   - access
 cluster: leaf.example.com
 ssh_config: "off"
+allow_reissue: true
