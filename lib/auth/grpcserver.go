@@ -5217,6 +5217,17 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	workloadidentityv1pb.RegisterWorkloadIdentityIssuanceServiceServer(server, workloadIdentityIssuanceService)
 
+	workloadIdentityRevocationService, err := workloadidentityv1.NewRevocationService(&workloadidentityv1.RevocationServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Emitter:    cfg.Emitter,
+		Clock:      cfg.AuthServer.GetClock(),
+		Store:      cfg.AuthServer.Services.WorkloadIdentityX509Revocations,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating workload identity issuance service")
+	}
+	workloadidentityv1pb.RegisterWorkloadIdentityRevocationServiceServer(server, workloadIdentityRevocationService)
+
 	dbObjectImportRuleService, err := dbobjectimportrulev1.NewDatabaseObjectImportRuleService(dbobjectimportrulev1.DatabaseObjectImportRuleServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
