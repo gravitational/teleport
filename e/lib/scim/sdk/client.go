@@ -42,6 +42,8 @@ type Client interface {
 	ListUsers(ctx context.Context, queryOptions ...QueryOption) (*ListUserResponse, error)
 	// CreateGroup creates a group on the SCIM server.
 	CreateGroup(ctx context.Context, group *Group) (*Group, error)
+	// UpdateGroup updates a group on the SCIM server.
+	UpdateGroup(ctx context.Context, group *Group) (*Group, error)
 	// DeleteGroup deletes a group from the SCIM server.
 	DeleteGroup(ctx context.Context, id string) error
 	// ListGroups returns a list of groups from the SCIM server.
@@ -60,6 +62,10 @@ type Client interface {
 	GetUserByUserName(ctx context.Context, userName string) (*User, error)
 	// Ping checks the connection to the SCIM server.
 	Ping(ctx context.Context) error
+	// GetUser returns a user by ID.
+	GetUser(ctx context.Context, id string) (*User, error)
+	// GetGroup returns a group by ID.
+	GetGroup(ctx context.Context, id string) (*Group, error)
 }
 
 // ClientProvider is a function that creates a new SCIM SDK client.
@@ -73,7 +79,7 @@ func New(config *Config) (Client, error) {
 	return c, trace.Wrap(err)
 }
 
-func nativeClientProvider(config *Config) (Client, error) {
+func nativeClientProvider(config *Config) (*client, error) {
 	if err := config.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -84,6 +90,92 @@ func nativeClientProvider(config *Config) (Client, error) {
 
 type client struct {
 	*Config
+}
+
+// GetUser returns a user by ID from the SCIM server.
+func (c *client) GetUser(ctx context.Context, id string) (*User, error) {
+	u, err := c.endpointURL("Users", id)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := c.do(ctx, u, http.MethodGet, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+	default:
+		return nil, decodeError(resp)
+	}
+
+	var out User
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &out, nil
+}
+
+// GetGroup returns a group by ID from the SCIM server.
+func (c *client) GetGroup(ctx context.Context, id string) (*Group, error) {
+	u, err := c.endpointURL("Groups", id)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := c.do(ctx, u, http.MethodGet, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+	default:
+		return nil, decodeError(resp)
+	}
+
+	var out Group
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &out, nil
+}
+
+// UpdateGroup updates a group on the SCIM server.
+func (c *client) UpdateGroup(ctx context.Context, group *Group) (*Group, error) {
+	if c.Config.IntegrationType == types.PluginTypeAWSIdentityCenter {
+		return nil, trace.BadParameter("AWS Identity Center does not support updating groups")
+	}
+	u, err := c.endpointURL("Groups", group.ID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	payload, err := json.Marshal(group)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := c.do(ctx, u, http.MethodPut, bytes.NewReader(payload))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+	default:
+		return nil, decodeError(resp)
+	}
+
+	var out Group
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &out, nil
 }
 
 // GetUserByUserName returns a user by userName from the SCIM server.

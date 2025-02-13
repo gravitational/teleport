@@ -126,6 +126,18 @@ func testSCIMIntegration(t *testing.T, ctx context.Context, cli Client) {
 	err = cli.ReplaceGroupMembers(ctx, testGroup.ID, members)
 	require.NoError(t, err)
 
+	g, err := cli.GetGroup(ctx, testGroup.ID)
+	require.NoError(t, err)
+	require.Equal(t, testGroup.ID, g.ID)
+
+	g.DisplayName = "TestGroupUpdated"
+	_, err = cli.UpdateGroup(ctx, g)
+	require.NoError(t, err)
+
+	u, err = cli.GetUser(ctx, richardUser.ID)
+	require.NoError(t, err)
+	require.Equal(t, richardUser.ID, u.ID)
+
 }
 
 func mkUserGenerator() func() *User {

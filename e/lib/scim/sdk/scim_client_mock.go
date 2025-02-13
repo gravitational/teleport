@@ -24,6 +24,36 @@ type ClientMock struct {
 	Mu     sync.Mutex
 }
 
+func (s *ClientMock) UpdateGroup(ctx context.Context, group *Group) (*Group, error) {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+	if _, exists := s.Groups[group.ID]; !exists {
+		return nil, trace.NotFound("group with ID %q not found", group.ID)
+	}
+	s.Groups[group.ID] = group
+	return group, nil
+}
+
+func (s *ClientMock) GetUser(ctx context.Context, id string) (*User, error) {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+	u, ok := s.Users[id]
+	if !ok {
+		return nil, trace.NotFound("user with ID %q not found", id)
+	}
+	return u, nil
+}
+
+func (s *ClientMock) GetGroup(ctx context.Context, id string) (*Group, error) {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+	u, ok := s.Groups[id]
+	if !ok {
+		return nil, trace.NotFound("user with ID %q not found", id)
+	}
+	return u, nil
+}
+
 // CreateUser creates a new user.
 func (s *ClientMock) CreateUser(ctx context.Context, user *User) (*User, error) {
 	s.Mu.Lock()
