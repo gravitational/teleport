@@ -1882,6 +1882,17 @@ func (s *Server) resolveCreateErr(createErr error, discoveryOrigin string, gette
 
 	old, err := getter()
 	if err != nil {
+		if trace.IsNotFound(err) {
+			// if we get an AlreadyExists error while creating the resource and
+			// a NotFound error when retrieving it, then it's a resource that
+			// already exists and we are not allowed to read it, so we can't
+			// update it either. NotFound comes from the discovery service's
+			// cache which only contains resources that this process is allowed
+			// to access.
+			return trace.Wrap(createErr,
+				"not updating because the existing resource is not managed by auto-discovery",
+			)
+		}
 		return trace.NewAggregate(createErr, err)
 	}
 
