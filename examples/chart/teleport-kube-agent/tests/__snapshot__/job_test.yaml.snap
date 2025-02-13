@@ -25,7 +25,7 @@ should create ServiceAccount for post-delete hook by default:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.4.26
+      image: public.ecr.aws/gravitational/teleport-distroless:15.4.28
       imagePullPolicy: IfNotPresent
       name: post-delete-job
       securityContext:
@@ -106,7 +106,7 @@ should not create ServiceAccount for post-delete hook if serviceAccount.create i
                   fieldPath: metadata.namespace
             - name: RELEASE_NAME
               value: RELEASE-NAME
-            image: public.ecr.aws/gravitational/teleport-distroless:15.4.26
+            image: public.ecr.aws/gravitational/teleport-distroless:15.4.28
             imagePullPolicy: IfNotPresent
             name: post-delete-job
             securityContext:
@@ -134,7 +134,7 @@ should not create ServiceAccount, Role or RoleBinding for post-delete hook if se
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.4.26
+      image: public.ecr.aws/gravitational/teleport-distroless:15.4.28
       imagePullPolicy: IfNotPresent
       name: post-delete-job
       securityContext:
@@ -162,7 +162,7 @@ should set nodeSelector in post-delete hook:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.4.26
+      image: public.ecr.aws/gravitational/teleport-distroless:15.4.28
       imagePullPolicy: IfNotPresent
       name: post-delete-job
       securityContext:
@@ -192,7 +192,7 @@ should set resources in the Job's pod spec if resources is set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.4.26
+      image: public.ecr.aws/gravitational/teleport-distroless:15.4.28
       imagePullPolicy: IfNotPresent
       name: post-delete-job
       resources:
@@ -227,7 +227,7 @@ should set securityContext in post-delete hook:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:15.4.26
+      image: public.ecr.aws/gravitational/teleport-distroless:15.4.28
       imagePullPolicy: IfNotPresent
       name: post-delete-job
       securityContext:

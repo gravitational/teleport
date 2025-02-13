@@ -1099,7 +1099,7 @@ platforms, the default shortcuts have been changed to a combination of
 Ctrl+Shift+*.
 
 On macOS, the default shortcut to open a new terminal has been changed to
-Ctrl+Shift+`.
+Ctrl+Shift+\`.
 
 See the [configuration guide](https://github.com/gravitational/teleport/blob/branch/v16/docs/pages/connect-your-client/teleport-connect.mdx#configuration)
 for a list of updated keyboard shortcuts.
@@ -1122,6 +1122,40 @@ follow the manual setup guide.
 
 All Teleport Assist functionality and OpenAI integration has been removed from
 Teleport.
+
+## 15.4.28 (02/13/25)
+
+### Security Fixes
+
+* Fixed security issue with arbitrary file reads on SSH nodes. [#52138](https://github.com/gravitational/teleport/pull/52138)
+* Verify that cluster name of TLS peer certs matches the cluster name of the CA that issued it to prevent Auth bypasses. [#52132](https://github.com/gravitational/teleport/pull/52132)
+
+### Other fixes and improvements
+
+* Fixed graceful closing of networking subprocesses when the Teleport parent process is gracefully closed (SIGQUIT). [#52117](https://github.com/gravitational/teleport/pull/52117)
+* Updated Go to 1.23.6. [#52087](https://github.com/gravitational/teleport/pull/52087)
+* Updated OpenSSL to 3.0.16. [#52039](https://github.com/gravitational/teleport/pull/52039)
+* Reduced CPU consumption required to map roles between clusters and perform trait to role resolution. [#51941](https://github.com/gravitational/teleport/pull/51941)
+* Client tools managed updates require a base URL for the open-source build type. [#51934](https://github.com/gravitational/teleport/pull/51934)
+* Added an escape hatch to allow non-FIPS AWS endpoints on FIPS binaries (`TELEPORT_UNSTABLE_DISABLE_AWS_FIPS=yes`). [#51932](https://github.com/gravitational/teleport/pull/51932)
+* Added securityContext value to the tbot Helm chart. [#51909](https://github.com/gravitational/teleport/pull/51909)
+* Teleport agents always create the `debug.sock` UNIX socket. The configuration field `debug_service.enabled` now controls if the debug and metrics endpoints are available via the UNIX socket. [#51890](https://github.com/gravitational/teleport/pull/51890)
+* Updated Go to 1.22.12. [#51837](https://github.com/gravitational/teleport/pull/51837)
+* Improved instance.join event error messaging. [#51781](https://github.com/gravitational/teleport/pull/51781)
+* Added support for caching Microsoft Remote Desktop Services licenses. [#51686](https://github.com/gravitational/teleport/pull/51686)
+* Added Audit Log statistics to `tctl top`. [#51656](https://github.com/gravitational/teleport/pull/51656)
+* Fixed an issue where the Postgres backend would drop App Access events. [#51645](https://github.com/gravitational/teleport/pull/51645)
+* Fixed a rare crash that can happen with malformed SAML connector. [#51636](https://github.com/gravitational/teleport/pull/51636)
+* Fixed occasional Web UI session renewal issues (reverts "Avoid tight renewals for sessions with short TTL"). [#51604](https://github.com/gravitational/teleport/pull/51604)
+* Quoted the `KUBECONFIG` environment variable output by the `tsh proxy kube` command. [#51525](https://github.com/gravitational/teleport/pull/51525)
+* Added support for customizing the base URL for downloading Teleport packages used in client tools managed updates. [#51482](https://github.com/gravitational/teleport/pull/51482)
+* Added support for continuous profile collection with Pyroscope. [#51480](https://github.com/gravitational/teleport/pull/51480)
+* Improved handling of client session termination during Kubernetes Exec sessions. The disconnection reason is now accurately returned for cases such as certificate expiration, forced lock activation, or idle timeout. [#51456](https://github.com/gravitational/teleport/pull/51456)
+* Fixed an issue that prevented IPs provided in the `X-Forwarded-For` header from being honored in some scenarios when `TrustXForwardedFor` is enabled. [#51425](https://github.com/gravitational/teleport/pull/51425)
+* Added support for multiple active CAs in the /auth/export endpoint. [#51420](https://github.com/gravitational/teleport/pull/51420)
+* Fixed a bug in GKE auto-discovery where the process failed to discover any clusters if the identity lacked permissions for one or more detected GCP project IDs. [#51401](https://github.com/gravitational/teleport/pull/51401)
+* Added support for multiple active CAs in tctl auth export. [#51377](https://github.com/gravitational/teleport/pull/51377)
+* Added more granular audit logging surrounding SSH port forwarding. [#51327](https://github.com/gravitational/teleport/pull/51327)
 
 ## 15.4.26 (01/21/2025)
 
