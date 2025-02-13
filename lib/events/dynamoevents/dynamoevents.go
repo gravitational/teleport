@@ -58,10 +58,10 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	awsmetrics "github.com/gravitational/teleport/lib/observability/metrics/aws"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/dynamodbutils"
 	"github.com/gravitational/teleport/lib/utils/aws/endpoint"
 )
 
@@ -324,7 +324,8 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	// FIPS settings are applied on the individual service instead of the aws config,
 	// as DynamoDB Streams and Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
 	// See also: https://aws.amazon.com/compliance/fips/#FIPS_Endpoints_by_Service
-	if modules.GetModules().IsBoringBinary() && cfg.UseFIPSEndpoint == types.ClusterAuditConfigSpecV2_FIPS_ENABLED {
+	if dynamodbutils.IsFIPSEnabled() &&
+		cfg.UseFIPSEndpoint == types.ClusterAuditConfigSpecV2_FIPS_ENABLED {
 		dynamoOpts = append(dynamoOpts, func(o *dynamodb.Options) {
 			o.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateEnabled
 		})
