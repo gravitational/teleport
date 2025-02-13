@@ -267,6 +267,48 @@ credential for per-session MFA.
 
 TOTP will continue to be accepted for the initial login.
 
+## 16.4.16 (02/13/25)
+
+### Security Fixes
+
+* Fixed security issue with arbitrary file reads on SSH nodes. [#52137](https://github.com/gravitational/teleport/pull/52137)
+* Verify that cluster name of TLS peer certs matches the cluster name of the CA that issued it to prevent Auth bypasses. [#52131](https://github.com/gravitational/teleport/pull/52131)
+
+### Other fixes and improvements
+
+* Fixed Postgres database access control privileges auto-provisioning to grant USAGE on schemas as needed for table privileges and fixed an issue that prevented user privileges from being revoked at the end of their session in some cases. [#52100](https://github.com/gravitational/teleport/pull/52100)
+* Updated Go to 1.23.6. [#52083](https://github.com/gravitational/teleport/pull/52083)
+* Added an escape hatch to allow non-FIPS AWS endpoints on FIPS binaries (`TELEPORT_UNSTABLE_DISABLE_AWS_FIPS=yes`). [#52082](https://github.com/gravitational/teleport/pull/52082)
+* Updated OpenSSL to 3.0.16. [#52038](https://github.com/gravitational/teleport/pull/52038)
+* Reduced CPU consumption required to map roles between clusters and perform trait to role resolution. [#51940](https://github.com/gravitational/teleport/pull/51940)
+* Client tools managed updates require a base URL for the open-source build type. [#51933](https://github.com/gravitational/teleport/pull/51933)
+* Added `securityContext` value to the tbot Helm chart. [#51910](https://github.com/gravitational/teleport/pull/51910)
+* Teleport agents always create the `debug.sock` UNIX socket. The configuration field `debug_service.enabled` now controls if the debug and metrics endpoints are available via the UNIX socket. [#51888](https://github.com/gravitational/teleport/pull/51888)
+* Fixed connecting to Apps in a leaf cluster when Per-session MFA is enabled. [#51854](https://github.com/gravitational/teleport/pull/51854)
+* Fixed bug where role `max_duration` is not respected unless request `max_duration` is set. [#51828](https://github.com/gravitational/teleport/pull/51828)
+* Improved `instance.join` event error messaging. [#51780](https://github.com/gravitational/teleport/pull/51780)
+* Include the `format` (indicates which format the session was accessed in) and `session_type` (represents the type of the recording, for example, `ssh`) fields for the `session.recording.access` audit event. [#51695](https://github.com/gravitational/teleport/pull/51695)
+* Added support for caching Microsoft Remote Desktop Services licenses. [#51685](https://github.com/gravitational/teleport/pull/51685)
+* Added Audit Log statistics to `tctl top`. [#51657](https://github.com/gravitational/teleport/pull/51657)
+* Fixed an issue where the Postgres backend would drop App Access events. [#51644](https://github.com/gravitational/teleport/pull/51644)
+* Fixed a rare crash that can happen with malformed SAML connector. [#51635](https://github.com/gravitational/teleport/pull/51635)
+* Introduced `tsh workload-identity issue-x509` as the replacement to `tsh svid issue` and which is compatible with the new `WorkloadIdentity` resource. [#51607](https://github.com/gravitational/teleport/pull/51607)
+* Fixed occasional Web UI session renewal issues (reverts "Avoid tight renewals for sessions with short TTL"). [#51602](https://github.com/gravitational/teleport/pull/51602)
+* Quoted the `KUBECONFIG` environment variable output by the `tsh proxy kube` command. [#51524](https://github.com/gravitational/teleport/pull/51524)
+* Added support for continuous profile collection with Pyroscope. [#51479](https://github.com/gravitational/teleport/pull/51479)
+* Added support for customizing the base URL for downloading Teleport packages used in client tools managed updates. [#51478](https://github.com/gravitational/teleport/pull/51478)
+* Improved handling of client session termination during Kubernetes Exec sessions. The disconnection reason is now accurately returned for cases such as certificate expiration, forced lock activation, or idle timeout. [#51455](https://github.com/gravitational/teleport/pull/51455)
+* Fixed an issue that prevented IPs provided in the `X-Forwarded-For` header from being honored in some scenarios when `TrustXForwardedFor` is enabled. [#51424](https://github.com/gravitational/teleport/pull/51424)
+* Added support for multiple active CAs in the `/auth/export` endpoint. [#51418](https://github.com/gravitational/teleport/pull/51418)
+* Fixed a bug in GKE auto-discovery where the process failed to discover any clusters if the identity lacked permissions for one or more detected GCP project IDs. [#51400](https://github.com/gravitational/teleport/pull/51400)
+* Added support for multiple active CAs in `tctl auth export`. [#51376](https://github.com/gravitational/teleport/pull/51376)
+* Added ability to disable path-style S3 access for third-party endpoints. [#51360](https://github.com/gravitational/teleport/pull/51360)
+* Added `wildcard-workload-identity-issuer` preset role to improve Day 0 experience with configuring Teleport Workload Identity. [#51346](https://github.com/gravitational/teleport/pull/51346)
+* Improved Azure join validation by verifying subscription ID. [#51329](https://github.com/gravitational/teleport/pull/51329)
+* Added more granular audit logging surrounding SSH port forwarding. [#51326](https://github.com/gravitational/teleport/pull/51326)
+* Fixes a bug causing the `terraform-provider` preset role to not automatically allow newly supported resources. [#51321](https://github.com/gravitational/teleport/pull/51321)
+* Introduced the new `workload_identity` resource for configuring Teleport Workload Identity. [#51289](https://github.com/gravitational/teleport/pull/51289)
+
 ## 16.4.14 (01/21/2025)
 
 * Fixed WebAuthn attestation for Windows Hello. [#51248](https://github.com/gravitational/teleport/pull/51248)
