@@ -72,8 +72,6 @@ type cliConfig struct {
 	LogFormat string
 	// InstallDir for Teleport (usually /opt/teleport)
 	InstallDir string
-	// LinkDir for linking binaries and systemd services
-	LinkDir string
 	// InstallSuffix is the isolated suffix for the installation.
 	InstallSuffix string
 	// SelfSetup mode for using the current version of the teleport-update to setup the update service.
@@ -101,8 +99,6 @@ func Run(args []string) int {
 		Default(libutils.LogFormatText).EnumVar(&ccfg.LogFormat, libutils.LogFormatJSON, libutils.LogFormatText)
 	app.Flag("install-suffix", "Suffix for creating an agent installation outside of the default $PATH. Note: this changes the default data directory.").
 		Short('i').StringVar(&ccfg.InstallSuffix)
-	app.Flag("link-dir", "Directory to link the active Teleport installation's binaries into.").
-		Hidden().StringVar(&ccfg.LinkDir)
 	app.Flag("install-dir", "Directory containing Teleport installations.").
 		Hidden().StringVar(&ccfg.InstallDir)
 	app.Flag("insecure", "Insecure mode disables certificate verification. Do not use in production.").
@@ -122,9 +118,11 @@ func Run(args []string) int {
 	enableCmd.Flag("overwrite", "Allow existing installed Teleport binaries to be overwritten.").
 		Short('o').BoolVar(&ccfg.AllowOverwrite)
 	enableCmd.Flag("force-version", "Force the provided version instead of using the version provided by the Teleport cluster.").
-		Short('f').Envar(updateVersionEnvVar).Hidden().StringVar(&ccfg.ForceVersion)
+		Hidden().Short('f').Envar(updateVersionEnvVar).StringVar(&ccfg.ForceVersion)
 	enableCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for managed updates.").
-		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
+		Hidden().BoolVar(&ccfg.SelfSetup)
+	enableCmd.Flag("path", "Directory to link the active Teleport installation's binaries into.").
+		Hidden().StringVar(&ccfg.Path)
 	// TODO(sclevine): add force-fips and force-enterprise as hidden flags
 
 	disableCmd := app.Command("disable", "Disable agent managed updates. Does not affect the active installation of Teleport.")
@@ -141,7 +139,9 @@ func Run(args []string) int {
 	pinCmd.Flag("force-version", "Force the provided version instead of using the version provided by the Teleport cluster.").
 		Short('f').Envar(updateVersionEnvVar).StringVar(&ccfg.ForceVersion)
 	pinCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for managed updates.").
-		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
+		Hidden().BoolVar(&ccfg.SelfSetup)
+	pinCmd.Flag("path", "Directory to link the active Teleport installation's binaries into.").
+		Hidden().StringVar(&ccfg.Path)
 
 	unpinCmd := app.Command("unpin", "Unpin the current version, allowing it to be updated.")
 
@@ -149,7 +149,7 @@ func Run(args []string) int {
 	updateCmd.Flag("now", "Force immediate update even if update window is not active.").
 		Short('n').BoolVar(&ccfg.UpdateNow)
 	updateCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for managed updates and verify the Teleport installation.").
-		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
+		Hidden().BoolVar(&ccfg.SelfSetup)
 
 	linkCmd := app.Command("link-package", "Link the system installation of Teleport from the Teleport package, if managed updates is disabled.")
 	unlinkCmd := app.Command("unlink-package", "Unlink the system installation of Teleport from the Teleport package.")
@@ -157,7 +157,9 @@ func Run(args []string) int {
 	setupCmd := app.Command("setup", "Write configuration files that run the update subcommand on a timer and verify the Teleport installation.").
 		Hidden()
 	setupCmd.Flag("reload", "Reload the Teleport agent. If not set, Teleport is not reloaded or restarted.").
-		Short('r').BoolVar(&ccfg.Reload)
+		BoolVar(&ccfg.Reload)
+	setupCmd.Flag("path", "Directory that the active Teleport installation's binaries are linked into.").
+		Required().StringVar(&ccfg.Path)
 
 	statusCmd := app.Command("status", "Show Teleport agent auto-update status.")
 
@@ -233,7 +235,7 @@ func setupLogger(debug bool, format string) error {
 }
 
 func initConfig(ctx context.Context, ccfg *cliConfig) (updater *autoupdate.Updater, lockFile string, err error) {
-	ns, err := autoupdate.NewNamespace(ctx, plog, ccfg.InstallSuffix, ccfg.InstallDir, ccfg.LinkDir)
+	ns, err := autoupdate.NewNamespace(ctx, plog, ccfg.InstallSuffix, ccfg.InstallDir)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -252,7 +254,7 @@ func initConfig(ctx context.Context, ccfg *cliConfig) (updater *autoupdate.Updat
 }
 
 func statusConfig(ctx context.Context, ccfg *cliConfig) (*autoupdate.Updater, error) {
-	ns, err := autoupdate.NewNamespace(ctx, plog, ccfg.InstallSuffix, ccfg.InstallDir, ccfg.LinkDir)
+	ns, err := autoupdate.NewNamespace(ctx, plog, ccfg.InstallSuffix, ccfg.InstallDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -311,7 +313,7 @@ func cmdUnpin(ctx context.Context, ccfg *cliConfig) error {
 // cmdInstall installs Teleport and sets configuration.
 func cmdInstall(ctx context.Context, ccfg *cliConfig) error {
 	if ccfg.InstallSuffix != "" {
-		ns, err := autoupdate.NewNamespace(ctx, plog, ccfg.InstallSuffix, ccfg.InstallDir, ccfg.LinkDir)
+		ns, err := autoupdate.NewNamespace(ctx, plog, ccfg.InstallSuffix, ccfg.InstallDir)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -419,7 +421,7 @@ func cmdUnlinkPackage(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdSetup writes configuration files that are needed to run teleport-update update.
 func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
-	ns, err := autoupdate.NewNamespace(ctx, plog, ccfg.InstallSuffix, ccfg.InstallDir, ccfg.LinkDir)
+	ns, err := autoupdate.NewNamespace(ctx, plog, ccfg.InstallSuffix, ccfg.InstallDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -433,7 +435,7 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = updater.Setup(ctx, ccfg.Reload)
+	err = updater.Setup(ctx, ccfg.Path, ccfg.Reload)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -35,25 +35,21 @@ import (
 
 func TestNewNamespace(t *testing.T) {
 	for _, p := range []struct {
-		name      string
-		namespace string
-		linkDir   string
-		errMatch  string
-		ns        *Namespace
+		name       string
+		namespace  string
+		installDir string
+		errMatch   string
+		ns         *Namespace
 	}{
 		{
 			name: "no namespace",
 			ns: &Namespace{
 				dataDir:             "/var/lib/teleport",
 				installDir:          "/opt/teleport",
-				linkDir:             "/usr/local/bin",
+				defaultPathDir:      "/usr/local/bin",
 				serviceFile:         "/lib/systemd/system/teleport.service",
 				configFile:          "/etc/teleport.yaml",
 				pidFile:             "/run/teleport.pid",
-				updaterVersionsDir:  "/opt/teleport/default/versions",
-				updaterLockFile:     "/opt/teleport/default/update.lock",
-				updaterConfigFile:   "/opt/teleport/default/update.yaml",
-				updaterBinFile:      "/usr/local/bin/teleport-update",
 				updaterServiceFile:  "/etc/systemd/system/teleport-update.service",
 				updaterTimerFile:    "/etc/systemd/system/teleport-update.timer",
 				dropInFile:          "/etc/systemd/system/teleport.service.d/teleport-update.conf",
@@ -61,19 +57,15 @@ func TestNewNamespace(t *testing.T) {
 			},
 		},
 		{
-			name:    "no namespace with dirs",
-			linkDir: "/link",
+			name:       "no namespace with dirs",
+			installDir: "/install",
 			ns: &Namespace{
 				dataDir:             "/var/lib/teleport",
-				installDir:          "/opt/teleport",
-				linkDir:             "/link",
+				installDir:          "/install",
+				defaultPathDir:      "/usr/local/bin",
 				serviceFile:         "/lib/systemd/system/teleport.service",
 				configFile:          "/etc/teleport.yaml",
 				pidFile:             "/run/teleport.pid",
-				updaterVersionsDir:  "/opt/teleport/default/versions",
-				updaterLockFile:     "/opt/teleport/default/update.lock",
-				updaterConfigFile:   "/opt/teleport/default/update.yaml",
-				updaterBinFile:      "/link/teleport-update",
 				updaterServiceFile:  "/etc/systemd/system/teleport-update.service",
 				updaterTimerFile:    "/etc/systemd/system/teleport-update.timer",
 				dropInFile:          "/etc/systemd/system/teleport.service.d/teleport-update.conf",
@@ -87,14 +79,10 @@ func TestNewNamespace(t *testing.T) {
 				name:                "test",
 				dataDir:             "/var/lib/teleport_test",
 				installDir:          "/opt/teleport",
-				linkDir:             "/opt/teleport/test/bin",
+				defaultPathDir:      "/opt/teleport/test/bin",
 				serviceFile:         "/etc/systemd/system/teleport_test.service",
 				configFile:          "/etc/teleport_test.yaml",
 				pidFile:             "/run/teleport_test.pid",
-				updaterVersionsDir:  "/opt/teleport/test/versions",
-				updaterLockFile:     "/opt/teleport/test/update.lock",
-				updaterConfigFile:   "/opt/teleport/test/update.yaml",
-				updaterBinFile:      "/opt/teleport/test/bin/teleport-update",
 				updaterServiceFile:  "/etc/systemd/system/teleport-update_test.service",
 				updaterTimerFile:    "/etc/systemd/system/teleport-update_test.timer",
 				dropInFile:          "/etc/systemd/system/teleport_test.service.d/teleport-update_test.conf",
@@ -102,20 +90,16 @@ func TestNewNamespace(t *testing.T) {
 			},
 		},
 		{
-			name:      "test namespace with dirs",
-			namespace: "test",
-			linkDir:   "/link",
+			name:       "test namespace with dirs",
+			namespace:  "test",
+			installDir: "/install",
 			ns: &Namespace{
 				name:                "test",
 				dataDir:             "/var/lib/teleport_test",
-				installDir:          "/opt/teleport",
-				linkDir:             "/link",
-				updaterVersionsDir:  "/opt/teleport/test/versions",
+				installDir:          "/install",
+				defaultPathDir:      "/install/test/bin",
 				configFile:          "/etc/teleport_test.yaml",
 				pidFile:             "/run/teleport_test.pid",
-				updaterLockFile:     "/opt/teleport/test/update.lock",
-				updaterConfigFile:   "/opt/teleport/test/update.yaml",
-				updaterBinFile:      "/link/teleport-update",
 				serviceFile:         "/etc/systemd/system/teleport_test.service",
 				updaterServiceFile:  "/etc/systemd/system/teleport-update_test.service",
 				updaterTimerFile:    "/etc/systemd/system/teleport-update_test.timer",
@@ -137,7 +121,7 @@ func TestNewNamespace(t *testing.T) {
 		t.Run(p.name, func(t *testing.T) {
 			log := slog.Default()
 			ctx := context.Background()
-			ns, err := NewNamespace(ctx, log, p.namespace, "", p.linkDir)
+			ns, err := NewNamespace(ctx, log, p.namespace, p.installDir)
 			if p.errMatch != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), p.errMatch)
@@ -167,13 +151,13 @@ func TestWriteConfigFiles(t *testing.T) {
 			log := slog.Default()
 			linkDir := t.TempDir()
 			ctx := context.Background()
-			ns, err := NewNamespace(ctx, log, p.namespace, "", linkDir)
+			ns, err := NewNamespace(ctx, log, p.namespace, "")
 			require.NoError(t, err)
 			ns.updaterServiceFile = filepath.Join(linkDir, serviceDir, filepath.Base(ns.updaterServiceFile))
 			ns.updaterTimerFile = filepath.Join(linkDir, serviceDir, filepath.Base(ns.updaterTimerFile))
 			ns.dropInFile = filepath.Join(linkDir, serviceDir, filepath.Base(filepath.Dir(ns.dropInFile)), filepath.Base(ns.dropInFile))
 			ns.needrestartConfFile = filepath.Join(linkDir, filepath.Base(ns.dropInFile))
-			err = ns.writeConfigFiles(ctx)
+			err = ns.writeConfigFiles(ctx, linkDir)
 			require.NoError(t, err)
 
 			for _, tt := range []struct {
@@ -189,7 +173,7 @@ func TestWriteConfigFiles(t *testing.T) {
 					data, err := os.ReadFile(tt.path)
 					require.NoError(t, err)
 					data = replaceValues(data, map[string]string{
-						defaultLinkDir: linkDir,
+						defaultPathDir: linkDir,
 					})
 					if golden.ShouldSet() {
 						golden.Set(t, data)
@@ -223,16 +207,16 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 				DataDir:     "/data",
 			},
 			want: Namespace{
-				proxyAddr: "example.com:3080",
-				dataDir:   "/data",
+				defaultProxyAddr: "example.com:3080",
+				dataDir:          "/data",
 			},
 		},
 		{
 			name: "empty",
 			cfg:  &unversionedTeleport{},
 			want: Namespace{
-				proxyAddr: "default.example.com",
-				dataDir:   "/var/lib/teleport",
+				defaultProxyAddr: "default.example.com",
+				dataDir:          "/var/lib/teleport",
 			},
 		},
 		{
@@ -241,8 +225,8 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 				ProxyServer: "https://example.com:8080",
 			},
 			want: Namespace{
-				proxyAddr: "example.com:8080",
-				dataDir:   "/var/lib/teleport",
+				defaultProxyAddr: "example.com:8080",
+				dataDir:          "/var/lib/teleport",
 			},
 		},
 		{
@@ -251,8 +235,8 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 				ProxyServer: "https://example.com",
 			},
 			want: Namespace{
-				proxyAddr: "example.com:3080",
-				dataDir:   "/var/lib/teleport",
+				defaultProxyAddr: "example.com:3080",
+				dataDir:          "/var/lib/teleport",
 			},
 		},
 		{
@@ -261,8 +245,8 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 				ProxyServer: "example.com:443",
 			},
 			want: Namespace{
-				proxyAddr: "example.com:443",
-				dataDir:   "/var/lib/teleport",
+				defaultProxyAddr: "example.com:443",
+				dataDir:          "/var/lib/teleport",
 			},
 		},
 		{
@@ -271,8 +255,8 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 				ProxyServer: "example.com",
 			},
 			want: Namespace{
-				proxyAddr: "example.com:3080",
-				dataDir:   "/var/lib/teleport",
+				defaultProxyAddr: "example.com:3080",
+				dataDir:          "/var/lib/teleport",
 			},
 		},
 		{
@@ -281,8 +265,8 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 				AuthServer: "example.com",
 			},
 			want: Namespace{
-				proxyAddr: "example.com:3025",
-				dataDir:   "/var/lib/teleport",
+				defaultProxyAddr: "example.com:3025",
+				dataDir:          "/var/lib/teleport",
 			},
 		},
 		{
@@ -294,8 +278,8 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 				},
 			},
 			want: Namespace{
-				proxyAddr: "one.example.com:3025",
-				dataDir:   "/var/lib/teleport",
+				defaultProxyAddr: "one.example.com:3025",
+				dataDir:          "/var/lib/teleport",
 			},
 		},
 		{
@@ -306,8 +290,8 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 				AuthServers: []string{"three.example.com"},
 			},
 			want: Namespace{
-				proxyAddr: "one.example.com:3080",
-				dataDir:   "/var/lib/teleport",
+				defaultProxyAddr: "one.example.com:3080",
+				dataDir:          "/var/lib/teleport",
 			},
 		},
 		{
@@ -317,25 +301,25 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 				AuthServers: []string{"three.example.com"},
 			},
 			want: Namespace{
-				proxyAddr: "two.example.com:3025",
-				dataDir:   "/var/lib/teleport",
+				defaultProxyAddr: "two.example.com:3025",
+				dataDir:          "/var/lib/teleport",
 			},
 		},
 		{
 			name: "missing",
 			want: Namespace{
-				proxyAddr: "default.example.com",
-				dataDir:   "/var/lib/teleport",
+				defaultProxyAddr: "default.example.com",
+				dataDir:          "/var/lib/teleport",
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ns := &Namespace{
-				log:        slog.Default(),
-				configFile: filepath.Join(t.TempDir(), "teleport.yaml"),
-				proxyAddr:  "default.example.com",
-				dataDir:    "/var/lib/teleport",
+				log:              slog.Default(),
+				configFile:       filepath.Join(t.TempDir(), "teleport.yaml"),
+				defaultProxyAddr: "default.example.com",
+				dataDir:          "/var/lib/teleport",
 			}
 			if tt.cfg != nil {
 				out, err := yaml.Marshal(unversionedConfig{Teleport: *tt.cfg})
