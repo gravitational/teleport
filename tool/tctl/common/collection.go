@@ -1816,6 +1816,42 @@ func (c *workloadIdentityCollection) writeText(w io.Writer, verbose bool) error 
 	return trace.Wrap(err)
 }
 
+type workloadIdentityX509RevocationCollection struct {
+	items []*workloadidentityv1pb.WorkloadIdentityX509Revocation
+}
+
+func (c *workloadIdentityX509RevocationCollection) resources() []types.Resource {
+	r := make([]types.Resource, 0, len(c.items))
+	for _, resource := range c.items {
+		r = append(r, types.ProtoResource153ToLegacy(resource))
+	}
+	return r
+}
+
+func (c *workloadIdentityX509RevocationCollection) writeText(w io.Writer, verbose bool) error {
+	headers := []string{"Serial", "Revoked At", "Expires At", "Reason"}
+
+	var rows [][]string
+	for _, item := range c.items {
+		expiryTime := item.GetMetadata().GetExpires().AsTime()
+		revokeTime := item.GetSpec().GetRevokedAt().AsTime()
+
+		rows = append(rows, []string{
+			item.Metadata.Name,
+			revokeTime.Format(time.RFC3339),
+			expiryTime.Format(time.RFC3339),
+			item.GetSpec().GetReason(),
+		})
+	}
+
+	t := asciitable.MakeTable(headers, rows...)
+
+	// stable sort by name.
+	t.SortRowsBy([]int{0}, true)
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
 type staticHostUserCollection struct {
 	items []*userprovisioningpb.StaticHostUser
 }
