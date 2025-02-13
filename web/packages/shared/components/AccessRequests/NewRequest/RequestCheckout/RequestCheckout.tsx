@@ -537,36 +537,36 @@ export function RequestCheckout<T extends PendingListItem>({
                       fetchAttempt={fetchResourceRequestRolesAttempt}
                     />
                   )}
-                  <Box mt={6} mb={1}>
-                    <SelectReviewers
-                      reviewers={
-                        dryRunResponse?.reviewers.map(r => r.name) ?? []
-                      }
-                      selectedReviewers={selectedReviewers}
-                      setSelectedReviewers={setSelectedReviewers}
-                    />
-                  </Box>
                   <Flex mt={6} flexDirection="column" gap={1}>
-                    {dryRunResponse && (
-                      <Box mb={1}>
-                        <AssumeStartTime
-                          start={startTime}
-                          onStartChange={onStartTimeChange}
-                          accessRequest={dryRunResponse}
-                        />
-                        <AccessDurationRequest
-                          maxDuration={maxDuration}
-                          onMaxDurationChange={onMaxDurationChange}
-                          maxDurationOptions={maxDurationOptions}
-                        />
-                      </Box>
+                    {!isLongTermAccess && dryRunResponse && (
+                      <>
+                        <Box mb={1}>
+                          <AssumeStartTime
+                            start={startTime}
+                            onStartChange={onStartTimeChange}
+                            accessRequest={dryRunResponse}
+                          />
+                          <AccessDurationRequest
+                            maxDuration={maxDuration}
+                            onMaxDurationChange={onMaxDurationChange}
+                            maxDurationOptions={maxDurationOptions}
+                          />
+                        </Box>
+                        <Box mt={4} mb={4}>
+                          <SelectReviewers
+                            reviewers={dryRunResponse?.reviewers.map(r => r.name) ?? []}
+                            selectedReviewers={selectedReviewers}
+                            setSelectedReviewers={setSelectedReviewers}
+                          />
+                        </Box>
+                      </>
                     )}
                     <TextBox
                       reason={reason}
                       updateReason={updateReason}
                       requireReason={requireReason}
                     />
-                    {dryRunResponse && maxDuration && (
+                    {!isLongTermAccess && dryRunResponse && maxDuration && (
                       <AdditionalOptions
                         selectedMaxDurationTimestamp={maxDuration.value}
                         setPendingRequestTtl={setPendingRequestTtl}
