@@ -1,5 +1,13 @@
 # Changelog
 
+## 14.3.36 (02/13/25)
+
+### Security Fixes
+
+* Fixed security issue with arbitrary file reads on SSH nodes. [#52139](https://github.com/gravitational/teleport/pull/52139)
+* Verify that cluster name of TLS peer certs matches the cluster name of the CA that issued it to prevent Auth bypasses. [#52133](https://github.com/gravitational/teleport/pull/52133)
+* Updated golang.org/x/crypto to v0.31.0 (CVE-2024-45337). [#50081](https://github.com/gravitational/teleport/pull/50081)
+
 ## 14.3.34 (11/27/24)
 
 * Fixed a bug in the `teleport-cluster` Helm chart that can cause token mount to fail when using ArgoCD. [#49071](https://github.com/gravitational/teleport/pull/49071)
