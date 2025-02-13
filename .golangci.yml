@@ -62,6 +62,9 @@ issues:
     - path: lib/utils/aws/iamutils/iam.go
       linters: [forbidigo]
       text: 'iam.NewFromConfig'
+    - path: lib/utils/aws/iamutils/iam_v1.go
+      linters: [forbidigo]
+      text: 'iam.New'
     - path: lib/utils/aws/stsutils/sts.go
       linters: [forbidigo]
       text: 'sts.NewFromConfig'
@@ -286,6 +289,8 @@ linters-settings:
       # AWS SDK wrapped constructors.
       - p: '^iam\.NewFromConfig$'
         msg: 'Use iamutils.NewFromConfig'
+      - p: '^iam\.New$'
+        msg: 'Use iamutils.NewV1'
       - p: '^sts\.NewFromConfig$'
         msg: 'Use stsutils.NewFromConfig'
       - p: '^sts\.New$'
