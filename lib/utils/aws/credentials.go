@@ -37,6 +37,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 // GetCredentialsRequest is the request for obtaining STS credentials.
@@ -72,7 +73,7 @@ func NewCredentialsGetter() CredentialsGetter {
 // Get obtains STS credentials.
 func (g *credentialsGetter) Get(_ context.Context, request GetCredentialsRequest) (*credentials.Credentials, error) {
 	logrus.Debugf("Creating STS session %q for %q.", request.SessionName, request.RoleARN)
-	return stscreds.NewCredentials(request.Provider, request.RoleARN,
+	return stsutils.NewCredentialsV1(request.Provider, request.RoleARN,
 		func(cred *stscreds.AssumeRoleProvider) {
 			cred.RoleSessionName = MaybeHashRoleSessionName(request.SessionName)
 			cred.Expiry.SetExpiration(request.Expiry, 0)
