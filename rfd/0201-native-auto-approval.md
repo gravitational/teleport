@@ -54,7 +54,8 @@ For example, the requesting user is pre-approved to access all resources in the
 7. User experience is the focus. The feature should be easy to use and configure.
 8. Implementation should be compatible with future plugin interface refactoring.
 9. Support configuration of automatic approvals using the Terraform provider.
-10. Support automatic approvals with tbot service users.
+10. Support automatic approval of access requests created by a Machine ID bot
+user.
 
 Note: Access monitoring rules do not currently support access requests by
 resources, in any capacity. It will require more than just extending the access
@@ -71,6 +72,18 @@ plugins. Auto approval support for other plugins is out of scope for this RFD,
 but it is something to consider while we decide how to implement native auto
 approvals. This is why [8] is included in the goals list. See
 https://github.com/gravitational/teleport/issues/47150 for more details.
+
+Note: Regarding goal [10], if access requests are compatible with bot users,
+then automatic approvals will be compatible with bot users. However, access
+requests are not quite compatible with bot users right now. The Teleport access
+request validation logic uses only the user's "statically assigned" roles to
+check if the user is permitted to create an access request.
+
+Deciding how to address this issue is out of scope for this RFD, but some
+options that can be considered:
+- Grant the bot user "statically assigned" permissions to create access requests.
+- Modify the access request validation logic to permit users to create access
+requests based on impersonated/dynamically assigned roles.
 
 ## User Stories
 Some example use cases that should be supported.
