@@ -383,3 +383,79 @@ func changeHomeDir(t *testing.T, username, home string) {
 	assert.NoError(t, err, "changing home should not error")
 	assert.Equal(t, 0, cmd.ProcessState.ExitCode(), "changing home should exit 0")
 }
+
+func TestRootOpenFileAsUser(t *testing.T) {
+	utils.RequireRoot(t)
+	euid := os.Geteuid()
+	egid := os.Getegid()
+
+	username := "processing-user"
+
+	arg := os.Args[1]
+	os.Args[1] = teleport.ExecSubCommand
+	defer func() {
+		os.Args[1] = arg
+	}()
+
+	_, err := host.UserAdd(username, nil, host.UserOpts{})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		_, err := host.UserDel(username)
+		require.NoError(t, err)
+	})
+
+	tmp := t.TempDir()
+	testFile := filepath.Join(tmp, "testfile")
+	fileContent := "one does not simply open without permission"
+
+	err = os.WriteFile(testFile, []byte(fileContent), 0777)
+	require.NoError(t, err)
+
+	testUser, err := user.Lookup(username)
+	require.NoError(t, err)
+
+	// no access
+	file, err := openFileAsUser(testUser, testFile)
+	require.True(t, trace.IsAccessDenied(err))
+	require.Nil(t, file)
+
+	// ensure we fallback to root after
+	file, err = os.Open(testFile)
+	require.NoError(t, err)
+	require.NotNil(t, file)
+	file.Close()
+
+	// has access
+	uid, err := strconv.Atoi(testUser.Uid)
+	require.NoError(t, err)
+
+	gid, err := strconv.Atoi(testUser.Gid)
+	require.NoError(t, err)
+
+	err = os.Chown(filepath.Dir(tmp), uid, gid)
+	require.NoError(t, err)
+
+	err = os.Chown(tmp, uid, gid)
+	require.NoError(t, err)
+
+	err = os.Chown(testFile, uid, gid)
+	require.NoError(t, err)
+
+	file, err = openFileAsUser(testUser, testFile)
+	require.NoError(t, err)
+	require.NotNil(t, file)
+
+	data, err := io.ReadAll(file)
+	file.Close()
+	require.NoError(t, err)
+	require.Equal(t, fileContent, string(data))
+
+	// not exist
+	file, err = openFileAsUser(testUser, filepath.Join(tmp, "no_exist"))
+	require.ErrorIs(t, err, os.ErrNotExist)
+	require.Nil(t, file)
+
+	require.Equal(t, euid, os.Geteuid())
+	require.Equal(t, egid, os.Getegid())
+}
