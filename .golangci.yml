@@ -31,10 +31,6 @@ issues:
     - path: lib/utils/aws/stsutils/sts_v1.go
       linters: [forbidigo]
       text: 'sts.New'
-    # TODO(codingllama): Remove once e/ is updated.
-    - path: e/lib/cloud/aws/aws.go
-      linters: [forbidigo]
-      text: 'sts.NewFromConfig'
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
@@ -166,6 +162,6 @@ linters-settings:
         msg: 'Use stsutils.NewV1'
 
 run:
-  go: '1.22'
+  go: '1.23'
   build-tags: []
   timeout: 15m

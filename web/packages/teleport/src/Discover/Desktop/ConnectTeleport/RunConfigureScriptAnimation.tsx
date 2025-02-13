@@ -76,7 +76,7 @@ windows_desktop_service:
     delay: 500,
   },
   {
-    text: 'Desktop Access Configuration Reference: https://goteleport.com/docs/desktop-access/reference/configuration/',
+    text: 'Desktop Access Configuration Reference: https://goteleport.com/docs/reference/agent-services/desktop-access-reference/configuration/',
     isCommand: false,
     delay: 500,
   },
