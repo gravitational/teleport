@@ -25,61 +25,60 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds"
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
-	awssession "github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials/ec2rolecreds"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/tlsca"
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 func TestIsSessionUsingTemporaryCredentials(t *testing.T) {
+	ctx := context.Background()
+
 	tests := []struct {
 		name        string
-		credentials *credentials.Credentials
+		credentials aws.CredentialsProvider
 		expectBool  bool
 		expectError func(error) bool
 	}{
 		{
 			name: "ec2 role",
-			credentials: credentials.NewCredentials(&mockCredentialsProvider{
-				retrieveValue: credentials.Value{
+			credentials: &mockCredentialsProvider{
+				retrieveValue: aws.Credentials{
 					AccessKeyID:     "id",
 					SecretAccessKey: "secret",
-					ProviderName:    ec2rolecreds.ProviderName,
+					Source:          ec2rolecreds.ProviderName,
 				},
-			}),
+			},
 			expectBool: false,
 		},
 		{
 			name: "web identity",
-			credentials: credentials.NewCredentials(&mockCredentialsProvider{
-				retrieveValue: credentials.Value{
+			credentials: &mockCredentialsProvider{
+				retrieveValue: aws.Credentials{
 					AccessKeyID:     "id",
 					SecretAccessKey: "secret",
 					SessionToken:    "token",
-					ProviderName:    stscreds.WebIdentityProviderName,
+					Source:          stscreds.WebIdentityProviderName,
 				},
-			}),
+			},
 			expectBool: true,
 		},
 		{
 			name: "session token exists",
-			credentials: credentials.NewCredentials(&mockCredentialsProvider{
-				retrieveValue: credentials.Value{
+			credentials: &mockCredentialsProvider{
+				retrieveValue: aws.Credentials{
 					AccessKeyID:     "id",
 					SecretAccessKey: "secret",
 					SessionToken:    "token",
-					ProviderName:    "SharedConfigCredentials",
+					Source:          "SharedConfigCredentials",
 				},
-			}),
+			},
 			expectBool: true,
 		},
 		{
@@ -89,9 +88,9 @@ func TestIsSessionUsingTemporaryCredentials(t *testing.T) {
 		},
 		{
 			name: "failed to get credentials",
-			credentials: credentials.NewCredentials(&mockCredentialsProvider{
+			credentials: &mockCredentialsProvider{
 				retrieveError: trace.AccessDenied(""),
-			}),
+			},
 			expectError: trace.IsAccessDenied,
 		},
 	}
@@ -100,12 +99,7 @@ func TestIsSessionUsingTemporaryCredentials(t *testing.T) {
 		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			session := &awssession.Session{
-				Config: &aws.Config{
-					Credentials: test.credentials,
-				},
-			}
-			isTemporary, err := isSessionUsingTemporaryCredentials(session)
+			isTemporary, err := isSessionUsingTemporaryCredentials(ctx, aws.Config{Credentials: test.credentials})
 
 			if test.expectError != nil {
 				require.True(t, test.expectError(err))
@@ -154,12 +148,9 @@ func TestCloudGetFederationDuration(t *testing.T) {
 		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			awsSession := &awssession.Session{Config: &aws.Config{
-				Credentials: credentials.NewCredentials(&mockCredentialsProvider{}),
-			}}
 			c, err := NewCloud(CloudConfig{
-				SessionGetter: awsutils.StaticAWSSessionProvider(awsSession),
-				Clock:         clockwork.NewFakeClockAt(now),
+				AWSConfigProvider: &mocks.AWSConfigProvider{},
+				Clock:             clockwork.NewFakeClockAt(now),
 			})
 			require.NoError(t, err)
 
@@ -188,7 +179,7 @@ func TestCloudGetFederationDuration(t *testing.T) {
 }
 
 func TestCheckAndSetDefaults(t *testing.T) {
-	t.Run("session getter is required", func(t *testing.T) {
+	t.Run("AWS config provider is required", func(t *testing.T) {
 		err := (&CloudConfig{}).CheckAndSetDefaults()
 		require.True(t, trace.IsBadParameter(err))
 	})
@@ -199,47 +190,41 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 
 	tests := []struct {
 		name                    string
-		sessionCredentials      *credentials.Credentials
 		federationServerHandler http.HandlerFunc
 		expectedToken           string
 		expectedErrorIs         func(error) bool
 		expectedError           bool
 	}{
 		{
-			name:               "get failed",
-			sessionCredentials: credentials.NewStaticCredentials("id", "secret", ""),
+			name: "get failed",
 			federationServerHandler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusBadRequest)
 			}),
 			expectedErrorIs: trace.IsBadParameter,
 		},
 		{
-			name:               "bad response",
-			sessionCredentials: credentials.NewStaticCredentials("id", "secret", ""),
+			name: "bad response",
 			federationServerHandler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Write([]byte("not valid json"))
 			}),
 			expectedError: true,
 		},
 		{
-			name:               "validate URL parameters",
-			sessionCredentials: credentials.NewStaticCredentials("id", "secret", ""),
+			name: "validate URL parameters",
 			federationServerHandler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				values := r.URL.Query()
 				require.Equal(t, "getSigninToken", values.Get("Action"))
-				require.Equal(t, `{"sessionId":"keyid","sessionKey":"accesskey","sessionToken":"sessiontoken"}`, values.Get("Session"))
-				require.Equal(t, "43200", values.Get("SessionDuration"))
+				require.Equal(t, `{"sessionId":"FAKEACCESSKEYID","sessionKey":"secret","sessionToken":"token"}`, values.Get("Session"))
 				w.Write([]byte(`{"SigninToken":"generated-token"}`))
 			}),
 			expectedToken: "generated-token",
 		},
 		{
-			name:               "validate URL parameters temporary session",
-			sessionCredentials: credentials.NewStaticCredentials("id", "secret", "sessiontoken"),
+			name: "validate URL parameters temporary session",
 			federationServerHandler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				values := r.URL.Query()
 				require.Equal(t, "getSigninToken", values.Get("Action"))
-				require.Equal(t, `{"sessionId":"keyid","sessionKey":"accesskey","sessionToken":"sessiontoken"}`, values.Get("Session"))
+				require.Equal(t, `{"sessionId":"FAKEACCESSKEYID","sessionKey":"secret","sessionToken":"token"}`, values.Get("Session"))
 				require.Equal(t, "", values.Get("SessionDuration"))
 				w.Write([]byte(`{"SigninToken":"generated-token"}`))
 			}),
@@ -251,29 +236,13 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			mockProviderClient := func(provider *stscreds.AssumeRoleProvider) {
-				provider.Client = &mockAssumeRoler{
-					output: &sts.AssumeRoleOutput{
-						Credentials: &sts.Credentials{
-							AccessKeyId:     aws.String("keyid"),
-							Expiration:      aws.Time(time.Now().Add(time.Hour)),
-							SecretAccessKey: aws.String("accesskey"),
-							SessionToken:    aws.String("sessiontoken"),
-						},
-					},
-				}
-			}
-			mockFedurationServer := httptest.NewServer(test.federationServerHandler)
-			t.Cleanup(mockFedurationServer.Close)
+			mockFederationServer := httptest.NewServer(test.federationServerHandler)
+			t.Cleanup(mockFederationServer.Close)
 
-			awsSession := &awssession.Session{
-				Config: &aws.Config{
-					Credentials: test.sessionCredentials,
-					Endpoint:    aws.String("http://localhost"),
-				},
-			}
 			c, err := NewCloud(CloudConfig{
-				SessionGetter: awsutils.StaticAWSSessionProvider(awsSession),
+				AWSConfigProvider: &mocks.AWSConfigProvider{
+					STSClient: &mocks.STSClient{},
+				},
 			})
 			require.NoError(t, err)
 
@@ -290,7 +259,7 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 				Issuer: "test",
 			}
 
-			actualToken, err := cloud.getAWSSigninToken(ctx, req, mockFedurationServer.URL, mockProviderClient)
+			actualToken, err := cloud.getAWSSigninToken(ctx, req, mockFederationServer.URL)
 			if test.expectedErrorIs != nil {
 				require.True(t, test.expectedErrorIs(err))
 			} else if test.expectedError {

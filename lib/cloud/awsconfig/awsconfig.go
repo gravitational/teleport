@@ -22,6 +22,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -80,6 +81,9 @@ type AssumeRole struct {
 	// Tags is a list of STS session tags to pass when assuming the role.
 	// https://docs.aws.amazon.com/IAM/latest/UserGuide/id_session-tags.html
 	Tags map[string]string `json:"tags,omitempty"`
+	// Duration is the expirity duration of the generated credentials. Empty
+	// value will use the AWS SDK default expiration time.
+	Duration time.Duration `json:"duraiton,omitempty"`
 }
 
 // options is a struct of additional options for assuming an AWS role
@@ -326,6 +330,7 @@ func getAssumeRoleProvider(ctx context.Context, clt stscreds.AssumeRoleAPIClient
 			aro.ExternalID = aws.String(role.ExternalID)
 		}
 		aro.RoleSessionName = maybeHashRoleSessionName(role.SessionName)
+		aro.Duration = role.Duration
 		for k, v := range role.Tags {
 			aro.Tags = append(aro.Tags, ststypes.Tag{
 				Key:   aws.String(k),
