@@ -99,19 +99,32 @@ access by default, but allow them to get access to resources based on the user's
 traits, and based on the resource's labels.
 
 ## Web UI Access Monitoring Rules
-The Teleport Web UI will provide a more user friendly approach to configuring
-auto approvals. Users will now be able to navigate to the **Access Requests**
+The Teleport Web UI now provides a more user friendly approach to configuring
+auto approvals. Users are now able to navigate to the **Access Requests**
 page and configure auto approvals, similarly to how notification routing is
 configured.
 
-The `Create a New Access Monitoring Rule` form will now be used to configure
+The `Create a New Access Monitoring Rule` form can now be used to configure
 both notification routing rules, as well as automatic approval rules. The
-available configuration input for automatic approvals will be toggled depending
-on the selected plugin name/type.
+`Match Condition` provides an additional `Requester Traits` input that are used
+to match a requesting user's Teleport traits. The `Auto Approvals` input is used
+to select which plugin is responsible for handling the automatic approvals for
+matching access requests.
 
 ![create-amr](assets/0201-create-amr.png)
 
-The submitted form will be converted into an AMR that would look like:
+The submitted form will be converted into an access monitoring rule that would
+look like the following yaml. More details about the access monitoring rule
+changes will be provided in following sections.
+
+Note that the converted conditions use AND logic across traits, and OR
+logic within a trait. The user must match at least one of the values among each
+configured trait. For example, given the following converted AMR, a user is
+pre-approved if they are any level "L1" or "L2" and they are on the "Cloud" team
+and they are located in "Seattle". If the user is level "L1" and located in
+"Seattle", but they are on the "Tools" team, they would not be pre-approved. If
+the user requires more control over the condition matching, they will need to
+edit the access monitoring rule yaml directly.
 
 ```yaml
 kind: access_monitoring_rule
@@ -119,22 +132,23 @@ version: v1
 metadata:
   name: cloud-dev-pre-approved
 spec:
-  notification:
-    name: slack-default
-    recipients: ["#dev-cloud"]
-  automatic_approval:
-    name: access-native
-    native:
-       level: ["L1"]
-       team: ["Cloud"]
-       location: ["Seattle"]
-  condition: |
-    contains_any(access_request.spec.roles, set("cloud-dev"))
   subjects:
     - access_request
+  states:
+    - approved
+  condition: >
+    contains_any(access_request.spec.roles, set("cloud-dev")) &&
+    contains_any(user.traits["level"], set("L1", "L2")) &&
+    contains_any(user.traits["team"], set("Cloud")) &&
+    contains_any(user.traits["location"], set("Seattle"))
+  notification:
+    name: slack
+    recipients: ["#dev-cloud"]
+  automatic_approval:
+    name: teleport
 ```
 
-The Access Monitoring Rules overview page will be modified to display both
+The `Access Monitoring Rules` overview page will be modified to display both
 notification rules, as well as automatic approval rules. This page will allow
 user to see a quick overview of the automatic approvals currently enabled. The
 overview simply displays the access monitoring rule name, plugin/integration
@@ -144,151 +158,66 @@ on the **View** button to see the actual conditions for auto approval.
 ![view-amr](assets/0201-view-amr.png)
 
 ## Details
-This feature will be supported by a new `access-native` plugin. This native
-plugin will implement the same interface as already existing access plugins.
-The plugin will be running as a part of the Teleport Auth Service by default.
+This feature will be supported by a new internal Teleport service. This
+automatic approval service will function similarly to existing access plugins.
+It will be running as part of the Teleport Auth Service by default.
 
-The native plugin will rely on a similar workflow that supports access request
-notification routing with access monitoring rules. The plugin watches for Access
-Monitoring Rules (AMR) events and Access Requests (AR) events. If an incoming AR
-matches an existing AMR condition, then the plugin will attempt to automatically
-approve the request.
+The automatic approval service relies on a similar workflow that supports access
+request notification routing with access monitoring rules. The service watches
+for Access Monitoring (AMR) events and Access Request (AR) events. If an
+incoming AR matches an existing AMR condition, then the service will attempt to
+automatically approve the request.
 
-Note: I've outlined two different approaches below, describing how we could
-modify the access monitoring rules to support auto approvals. Approach (A1) is
-more user friendly for configuring auto approval rules. Approach (A2) is less
-user friendly, but it is more easily extensible to support future use cases.
-Approach (A1) is probably the better approach to complete our goals for this
-RFD, but open to exploring other ideas that could be more compatible with both
-goals.
+### Access Monitoring Rule
+The AMR now supports a configurable `automatic_approval.name` spec. This field
+specifies the plugin/service responsible for handling automatic approvals for
+matching ARs. For the initial implementation, the only acceptable value will be
+"teleport", indicating that the internal Teleport service will handle the
+request. This field will eventually accept values for all the available access
+plugins that support automatic approvals.
 
-### Access Monitoring Rule (A1)
-The access monitoring rule now supports a configurable `automatic_approval` spec.
-This spec will contain a specified plugin `name` along with optional conditions
-that are specific to each plugin. Separate conditions are required because each
-plugin relies on different conditions to determine if a user is pre-approved for
-the request. For example, the PagerDuty plugin relies on PagerDuty Services to
-determine if a user is on-call, while this native plugin might rely on the
-user's level, team, and location traits.
-
-To support automatic approvals based on specific user traits, the AMR will be
-extended to support these additional fields:
-- **automatic_approval.name**: This field specifies the plugin that this AMR
-applies for handling auto approvals.
-- **automatic_approval.teleport**: This field contains auto approval conditions
-specific to the native plugin. It maps arbitrary user traits to a list of string
-values. For example, automatic approvals can be configured based on level, team,
-and location with the following fields.
-  - **automatic_approval.teleport.level**: This field specifies the requesting
-  user's level.
-  - **automatic_approval.teleport.team**: This field specifies the requesting
-  user's team.
-  - **automatic_approval.teleport.location**: This field specifies the
-  requesting user's location.
-
-```yaml
-# This example AMR matches ARs that request the "cloud-dev" role. The plugin is
-# then responsible for sending notifications to the "#dev-cloud" Slack channel.
-# The plugin then has access to read the automatic_approval spec to check if the
-# requesting user is pre-approved for the request.
-kind: access_monitoring_rule
-version: v1
-metadata:
-  name: cloud-dev-pre-approved
-spec:
-  notification:
-    name: teleport-slack
-    recipients: ["#dev-cloud"]
-  automatic_approval:
-    name: teleport-native
-    teleport:
-       level: ["L1"]
-       team: ["Cloud"]
-       location: ["Seattle"]
-  condition: |
-    contains_any(access_request.spec.roles, set("cloud-dev"))
-  subjects:
-    - access_request
-```
-
-The auto approval flow will look like this:
-```mermaid
-sequenceDiagram
-    participant requester
-    participant teleport
-    participant access-native
-
-    requester->>teleport: tsh request create --role='cloud-dev'
-    access-native->>teleport: watch(AMR, AR)
-    access-native->>access-native: isConditionMatched(AMR, AR)
-    access-native->>teleport: requestUser(requester)
-    teleport->>access-native: responseUser(requester)
-    access-native->>access-native: isUserMatched(requester, {Level: L1, Team: Cloud, Location: Seattle})
-    access-native->>teleport: approve AR
-    requester->>teleport: tsh login --request-id=<request-id>
-```
-1. The access-native plugin is initialized and watches for ARs from Teleport.
-2. When a user creates an AR, the plugin checks to see if the AR matches any
-existing AMRs.
-3. If the AR matches the AMR, the plugin sends another request to Teleport
-requesting additional information about the user.
-4. The plugin then checks to see if the user matches the auto approval
-conditions specified in the matching AMR. In this case, the plugin checks to see
-if the user satisfies the conditions {Level: L1, Team: Cloud, Location: Seattle}.
-5. If the user satisfies the auto approval conditions, the plugin submits an
-approval request for the AR.
-
-Pros (A1):
-- AMR configuration is more intuitive and user friendly.
-- Plugin does not need to request additional user information until after a
-matching AMR is found.
-
-Cons (A1):
-- AMR is less extensible. The AMR will need to be extended with additional spec
-to support each plugin for goal [8].
-
-### Access Monitoring Rule (A2)
-AMR conditions are now aware of the plugin context/environment. The condition
-predicate language will be extended to support plugin specific variables.
-- **plugin.spec.name**: Specifies the name of the plugin the rule applies to.
-- **plugin.spec.annotations**: Specifies an arbitrary map of annotations that
-can be dynamically provided by the plugin.
-
-The `plugin.spec.name` will replace the `spec.notification.name`. This is more
-of a UX change. We can deprecate the `spec.notification.name` but continue to
-support it. With native auto approvals, we'd like to support auto approvals
-without notifications. It would be a bit confusing to have to use the
-`spec.notification.name` in this scenario.
-
-The `plugin.spec.annotations` can be used to provide arbitrary annotations, such
-as, "teleport.dev/level", "teleport.dev/team", "teleport.dev/location", etc...
-These annotations can be used to identify whether a user is on-call or
-pre-approved for the AR.
+The AMR conditions now also support a `user.traits` variable.  This variable
+maps a trait name to a set of values. This allows users to specify arbitrary
+user traits, such as, "level", "team", "location", etc...  These traits can then
+be used to identity whether a user is on-call, or if the user is pre-approved
+for the access request.
 
 Additionally, the `spec.states` field will now be utilized to support an
 `approved` state. If the AMR contains `spec.states.approved`, this indicates
 that the AR should be automatically approved.
 
 ```yaml
-# This AMR would allow users with annotations: { level: L1, team: Cloud, location: Seattle }
-# to be pre-approved for the "cloud-dev" role.
+# This AMR would allow users with traits "level"="L1" and "team"="Cloud" and
+# "location"="Seattle" to be pre-approved for the "cloud-dev" role.
 kind: access_monitoring_rule
 version: v1
 metadata:
   name: cloud-dev-pre-approved
 spec:
-  condition: >
-    plugin.spec.name == "teleport-native" &&
-    contains_any(plugin.spec.annotations["teleport.dev/level"], set("L1")) &&
-    contains_any(plugin.spec.annotations["teleport.dev/team"], set("Cloud")) &&
-    contains_any(plugin.spec.annotations["teleport.dev/location"], set("Seattle")) &&
-    contains_any(access_request.spec.roles, set("cloud-dev"))
   subjects:
     - access_request
   # states.approved indicates that matching access requests should be automatically approved.
   states:
     - approved
+  condition: >
+    contains_any(access_request.spec.roles, set("cloud-dev")) &&
+    contains_any(user.traits["level"], set("L1")) &&
+    contains_any(user.traits["team"], set("Cloud")) &&
+    contains_any(user.traits["location"], set("Seattle"))
+  notification:
+    name: slack
+    recipients: ["#dev-cloud"]
+  automatic_approval:
+    name: teleport
 ```
+
+### Internal automatic approval service
+The automatic approval service implements the same functionality as the other
+access request plugins. When a new AR is observed, the automatic approval
+service will check if the AR matches any AMR conditions and then attempt to
+automatically approve the AR. Before checking if the AR matches any AMRs, the
+automatic approval service makes a request to Teleport, requesting additional
+information about the AR user. This info should contain the user traits.
 
 The auto approval flow will look like this:
 ```mermaid
@@ -297,7 +226,7 @@ sequenceDiagram
     participant teleport
     participant access-native
 
-    requester->>teleport: tsh request create --role='cloud-dev'
+    requester->>teleport: tsh request create --roles='cloud-dev'
     access-native->>teleport: watch(AMR, AR)
     access-native->>teleport: requestUser(requester)
     teleport->>access-native: responseUser(requester)
@@ -305,84 +234,14 @@ sequenceDiagram
     access-native->>teleport: approve AR
     requester->>teleport: tsh login --request-id=<request-id>
 ```
-1. The access-native plugin is initialized and watches for ARs from Teleport.
-2. When a user creates an AR, the plugin sends a request to Teleport requesting
-additional information about the user.
-3. The plugin then checks to see if the AR matches any existing AMRs. The plugin
-provides the additional user traits received from Teleport before the AMR
-condition is evaluated.
+1. The automatic approval serivce is initialized and watches for ARs from Teleport.
+2. When a user creates an AR, and after the automatic approval service observes
+the event, the automatic approval service requests additional information about
+the user.
+3. The automatic approval service then checks to see if the AR matches any
+existing AMRs. The automatic approval service provides the additional user
+traits received from Teleport before the AMR condition is evaluated.
 4. If the AR matches the AMR, the plugin submits an approval request for the AR.
-
-Pros (A2):
-- AMR configuration is more flexible and helps support goal [8]. Other plugins
-would be supported without additional changes to the AMR spec.
-
-Cons (A2):
-- AMR configuration is less user friendly. Predicate language is not very
-intuitive. The lack of expression validation makes it easy to write impossible
-conditions.
-- The plugin must request additional user information for all AR before matching
-AMR.
-- The lack of AMR structure will make it difficult to display the set of
-enforced automatic approvals rules in the Web UI.
-
-### Native Plugin
-The previous section gives an overview of how the native plugin will operate,
-but I'll provide some more details. The native plugin implements the same
-interfaces as the other access request plugins. When a new AR is observed, the
-plugin first attempts to send out notifications to the configured recipients,
-then it attempts to auto approve the request if the auto approval conditions are
-met.
-
-Note that notifications are not supported by the native plugin. If this is a
-feature that the native plugin should support, it will be out of scope for this
-RFD. The native plugin implements a no-op handler for requests to send
-notifications.
-
-When attempting to approve the AR, the pre-approved validation process happens
-in two steps. First, 1) the plugin checks to see if the AR meets the AMR
-conditions. If the AMR conditions are met, then 2) the plugin makes a request to
-Teleport, requesting additional information about the AR user, including user
-traits. If the user traits received satisfy the AMR provided auto approval
-conditions, the plugin then submits a request to approve the AR.
-
-The supported traits for this initial implementation are `level`, `team`, and
-`location`. The set of supported traits and conditions can always be extended
-in the future.
-
-Also note that the condition matching will use AND logic across traits, and OR
-logic within a trait. The user must match at least one of the values among each
-configured trait. For example, given the following AMR, a user is pre-approved
-if they are any level "L1" or "L2" or "L3" and they are on the "Cloud" team and
-they are located in "Seattle". If the user is level "L1" and located in
-"Seattle", but they are on the "Tools" team, they would not be pre-approved.
-
-```yaml
-kind: access_monitoring_rule
-version: v1
-metadata:
-  name: cloud-dev-pre-approved
-spec:
-  notification:
-    name: teleport-slack
-    recipients: ["#dev-cloud"]
-  automatic_approval:
-    name: teleport-native
-    teleport:
-       level: ["L1", "L2", "L3"]
-       team: ["Cloud"]
-       location: ["Seattle"]
-  condition: |
-    contains_any(access_request.spec.roles, set("cloud-dev"))
-  subjects:
-    - access_request
-```
-
-### Native Plugin Deployment
-The native plugin is deployed just like all the other access request plugins. It
-will be hosted by Teleport, but will not be self-hostable. Teleport will start
-the native plugin instance during initialization. The native plugin will not
-support any user configuration options.
 
 ## Security & Auditability
 Automatic approvals is already a supported feature, although it is currently
@@ -404,7 +263,7 @@ same information as regular access request reviews.
   "id": "0193083a-77c8-73e1-9f6b-8e337215c5d1",
   "max_duration": "2025-02-08T04:04:28.653838697Z",
   "proposed_state": "APPROVED",
-  "reason": "Access request has been automatically approved by 'teleport' plugin because user 'user@goteleport.com' satisfies the 'cloud-dev-pre-approved' access monitoring rule.",
+  "reason": "Access request has been automatically approved by 'teleport' plugin because user 'user@goteleport.com' satisfies the 'cloud-dev-pre-approved' access monitoring rule condition.",
   "reviewer": "@teleport-access-approval-bot",
   "state": "APPROVED",
   "time": "2025-02-07T20:04:31.196Z",
@@ -413,7 +272,8 @@ same information as regular access request reviews.
 ```
 
 ## Observability
-Anonymized metrics will be collected for access requests.
+Anonymized metrics will be collected for access requests. These metrics will
+allow us track automatic approval usage, and with which plugin it is being used.
 - `access_request.create`: Specifies an access request create event.
   - `cluster_name`: Specifies the anonymized cluster name.
   - `requester_name`: Specifies the anonymized requesting user name.
@@ -423,12 +283,13 @@ Anonymized metrics will be collected for access requests.
   - `cluster_name`: Specifies the anonymized cluster name.
   - `reviewer_name`: Specifies the anonymized reviewer user name.
   - `is_auto_approved`: Is true if request was automatically reviewed.
-  - `plugin`: Specifies the plugin that submitted the automatic approval request.
+  - `plugin`: Specifies the plugin/service that submitted the automatic approval request.
 
 ## Implementation Plan
-1. Extend the Access Monitoring Rule to support the `automatic_approvals` field.
-2. Implement the `access-native` plugin.
-3. Deploy `access-native` plugin as part of Teleport initialization.
+1. Extend the Access Monitoring Rule to support the `automatic_approvals` field
+and the `user.traits` variable.
+2. Implement the automatic approvals service.
+3. Deploy the automatic approvals service as part of Teleport initialization.
 4. Update WebUI to allow users to create and view automatic approvals.
 5. Update the Terraform resource schema to allow configuration of automatic
 approvals with the Terraform provider.
