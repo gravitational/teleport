@@ -57,7 +57,7 @@ func (h *Handler) createPreUserEventHandle(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	return nil, nil
+	return OK(), nil
 }
 
 // createUserEventHandle sends a user event to the UserEvent service
@@ -91,5 +91,5 @@ func (h *Handler) createUserEventHandle(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.Wrap(err)
 	}
 
-	return nil, nil
+	return OK(), nil
 }

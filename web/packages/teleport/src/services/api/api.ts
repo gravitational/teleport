@@ -247,6 +247,13 @@ const api = {
     // native call
     const response = await fetch(url, options);
 
+    // Some api response does not return a body, so there is no JSON
+    // to read.
+    const contentType = response.headers?.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      return response;
+    }
+
     let json;
     try {
       json = await response.json();
