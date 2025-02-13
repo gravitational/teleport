@@ -29,7 +29,7 @@ It can optionally also configure the following AWS resources:
 
 ### Accompanying documentation
 
-- [Teleport Single-Instance Deployment on AWS](https://goteleport.com/docs/deploy-a-cluster/deployments/aws-starter-cluster-terraform/)
+- [Teleport Single-Instance Deployment on AWS](https://goteleport.com/docs/admin-guides/deploy-a-cluster/deployments/aws-starter-cluster-terraform/)
 
 ### Build Requirements
 
