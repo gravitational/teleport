@@ -102,12 +102,14 @@ const largeAccessRequest = makeAccessRequest({
 
 export function NoRequestsAvailable() {
   const appContext = new MockAppContext();
-  appContext.tshd.getAccessRequests = () =>
-    new MockedUnaryCall({
+  appContext.tshd.getAccessRequests = async () => {
+    await wait(1000);
+    return new MockedUnaryCall({
       totalCount: 0,
       startKey: '',
       requests: [],
     });
+  };
 
   return <ShowState appContext={appContext} />;
 }

@@ -178,6 +178,7 @@ export function SelectorMenu() {
     setAssumedSnapshot(assumed);
     setOpen(true);
   }
+
   function closeMenu(): void {
     setOpen(false);
   }
@@ -249,7 +250,15 @@ export function SelectorMenu() {
           >
             Available Requests
             {fetchRequestsAttempt.status === 'processing' ? (
-              <Indicator delay="none" size="small" />
+              <Indicator
+                delay="none"
+                size="small"
+                // Aligns the indicator to the button.
+                mr={2}
+                css={`
+                  display: flex;
+                `}
+              />
             ) : (
               <ButtonText
                 onClick={() => {
@@ -327,6 +336,7 @@ function RequestItem(props: {
     props.fetchRequestsAttempt.status === 'processing' ||
     assumeOrDropAttempt.status === 'processing' ||
     !canAssumeResourceRequest;
+
   return (
     <StyledMenuItemContainer
       assumed={props.isAssumed}
@@ -391,7 +401,7 @@ function RequestItem(props: {
           e.stopPropagation();
         }}
       >
-        <Icon.Info size="medium" />
+        <Icon.Info size="small" />
       </ButtonText>
     </StyledMenuItemContainer>
   );
