@@ -18,7 +18,10 @@
 
 import { useEffect, useLayoutEffect, useRef } from 'react';
 
-import { AccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
+import {
+  AccessRequest,
+  ResourceID,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 import { wait, waitForever } from 'shared/utils/wait';
 
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
@@ -41,73 +44,60 @@ export default {
 const rootCluster = makeRootCluster({
   features: { advancedAccessWorkflows: true, isUsageBasedBilling: false },
 });
-const firstAccessRequest = makeAccessRequest();
-const secondAccessRequest = makeAccessRequest({
+const resourceIds: ResourceID[] = [
+  {
+    kind: 'db',
+    name: 'postgres',
+    clusterName: 'postgres',
+    subResourceName: '',
+  },
+  {
+    kind: 'app',
+    name: 'figma',
+    clusterName: 'postgres',
+    subResourceName: '',
+  },
+  {
+    kind: 'db',
+    name: 'aurora',
+    clusterName: 'postgres',
+    subResourceName: '',
+  },
+  {
+    kind: 'kube_cluster',
+    name: 'cookie',
+    clusterName: 'postgres',
+    subResourceName: '',
+  },
+  {
+    kind: 'node',
+    name: 'ubuntu-24-04-very-long-name',
+    clusterName: 'postgres',
+    subResourceName: '',
+  },
+  {
+    kind: 'app',
+    name: 'grafana',
+    clusterName: 'postgres',
+    subResourceName: '',
+  },
+];
+const smallAccessRequest = makeAccessRequest();
+const mediumAccessRequest = makeAccessRequest({
   id: '11929070-6886-77eb-90aa-c7223dd735',
-  resourceIds: [
-    {
-      kind: 'db',
-      name: 'postgres',
-      clusterName: 'postgres',
-      subResourceName: '',
-    },
-    {
-      kind: 'db',
-      name: 'aurora',
-      clusterName: 'postgres',
-      subResourceName: '',
-    },
-    {
-      kind: 'kube_cluster',
-      name: 'cookie',
-      clusterName: 'postgres',
-      subResourceName: '',
-    },
-    {
-      kind: 'node',
-      name: 'ubuntu-24-04-very-long-name',
-      clusterName: 'postgres',
-      subResourceName: '',
-    },
-  ],
-  resources: [
-    {
-      id: {
-        kind: 'db',
-        name: 'postgres',
-        clusterName: 'postgres',
-        subResourceName: '',
-      },
-      details: { hostname: '', friendlyName: '' },
-    },
-    {
-      id: {
-        kind: 'db',
-        name: 'aurora',
-        clusterName: 'postgres',
-        subResourceName: '',
-      },
-      details: { hostname: '', friendlyName: '' },
-    },
-    {
-      id: {
-        kind: 'kube_cluster',
-        name: 'cookie',
-        clusterName: 'postgres',
-        subResourceName: '',
-      },
-      details: { hostname: '', friendlyName: '' },
-    },
-    {
-      id: {
-        kind: 'node',
-        name: 'ubuntu-24-04-very-long-name',
-        clusterName: 'postgres',
-        subResourceName: '',
-      },
-      details: { hostname: '', friendlyName: '' },
-    },
-  ],
+  resourceIds: resourceIds.slice(0, 4),
+  resources: resourceIds.slice(0, 4).map(id => ({
+    id,
+    details: { friendlyName: '', hostname: '' },
+  })),
+});
+const largeAccessRequest = makeAccessRequest({
+  id: '11929070-6886-77eb-90aa-c7223dd735',
+  resourceIds,
+  resources: resourceIds.map(id => ({
+    id,
+    details: { friendlyName: '', hostname: '' },
+  })),
 });
 
 export function NoRequestsAvailable() {
@@ -153,7 +143,7 @@ export function RequestAvailable() {
     new MockedUnaryCall({
       totalCount: 0,
       startKey: '',
-      requests: [firstAccessRequest],
+      requests: [smallAccessRequest],
     });
 
   return <ShowState appContext={appContext} />;
@@ -165,12 +155,24 @@ export function ResourceRequestAlreadyAssumed() {
     new MockedUnaryCall({
       totalCount: 0,
       startKey: '',
-      requests: [firstAccessRequest, secondAccessRequest],
+      requests: [smallAccessRequest, mediumAccessRequest],
     });
 
   return (
-    <ShowState appContext={appContext} assumedRequests={[firstAccessRequest]} />
+    <ShowState appContext={appContext} assumedRequests={[smallAccessRequest]} />
   );
+}
+
+export function RequestWithManyResources() {
+  const appContext = new MockAppContext();
+  appContext.tshd.getAccessRequests = () =>
+    new MockedUnaryCall({
+      totalCount: 0,
+      startKey: '',
+      requests: [largeAccessRequest],
+    });
+
+  return <ShowState appContext={appContext} />;
 }
 
 function ShowState({
