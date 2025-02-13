@@ -54,6 +54,7 @@ func (u *UserLoginEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequ
 				ConnectorType:            u.ConnectorType,
 				DeviceId:                 deviceID,
 				RequiredPrivateKeyPolicy: u.RequiredPrivateKeyPolicy,
+				UserOrigin:               u.UserOrigin,
 			},
 		},
 	}
