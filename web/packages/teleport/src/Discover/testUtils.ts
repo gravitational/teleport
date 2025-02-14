@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,15 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
+import { Size } from './SelectResource/Tile';
+import { ResourceKind } from './Shared';
 
-interface DiscoverIconProps {
-  name: ResourceIconName;
-  size?: 'large' | 'small';
+export function getGuideTileId({
+  kind,
+  title,
+  size = 'regular',
+}: {
+  kind: ResourceKind;
+  title?: string;
+  size?: Size;
+}) {
+  const base = `${size}-tile-${kind}`;
+
+  return new RegExp(title ? `${base}-${title}` : base, 'i');
 }
-
-export const DiscoverIcon = ({ name, size = 'small' }: DiscoverIconProps) => {
-  const width = size === 'small' ? '24px' : '72';
-  const height = size === 'small' ? '24px' : '72';
-  return <ResourceIcon name={name} width={width} height={height} />;
-};
