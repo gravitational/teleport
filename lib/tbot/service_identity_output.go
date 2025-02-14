@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config/openssh"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -82,6 +83,108 @@ func (s *IdentityOutputService) Run(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
+func createAccessRequest(botUser string, req *config.AccessRequest) (types.AccessRequest, error) {
+	// TODO: support resource IDs
+	r, err := services.NewAccessRequestWithResources(botUser, req.Roles, []types.ResourceID{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.Reason != "" {
+		r.SetRequestReason(req.Reason)
+	}
+	if len(req.Reviewers) > 0 {
+		r.SetSuggestedReviewers(req.Reviewers)
+	}
+
+	// TODO: TTLs, max duration, AssumeStartTime, resource IDs, etc
+
+	return r, nil
+}
+
+func (s *IdentityOutputService) awaitRequestResolution(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
+	filter := types.AccessRequestFilter{
+		User: req.GetUser(),
+		ID:   req.GetName(),
+	}
+	watcher, err := s.botAuthClient.NewWatcher(ctx, types.Watch{
+		Name: "bot-await-request-approval",
+		Kinds: []types.WatchKind{{
+			Kind:   types.KindAccessRequest,
+			Filter: filter.IntoMap(),
+		}},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer watcher.Close()
+
+	// Wait for OpInit event so that returned watcher is ready.
+	select {
+	case event := <-watcher.Events():
+		if event.Type != types.OpInit {
+			return nil, trace.BadParameter("failed to watch for access requests: received an unexpected event while waiting for the initial OpInit")
+		}
+	case <-watcher.Done():
+		return nil, trace.Wrap(watcher.Error())
+	}
+
+	// get initial state of request
+	reqState, err := services.GetAccessRequest(ctx, s.botAuthClient, req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for {
+		if !reqState.GetState().IsPending() {
+			return reqState, nil
+		}
+
+		select {
+		case event := <-watcher.Events():
+			switch event.Type {
+			case types.OpPut:
+				var ok bool
+				reqState, ok = event.Resource.(*types.AccessRequestV3)
+				if !ok {
+					return nil, trace.BadParameter("unexpected resource type %T", event.Resource)
+				}
+			case types.OpDelete:
+				return nil, trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
+			default:
+				s.log.WarnContext(ctx, "Skipping unknown event type", "event_type", event.Type)
+			}
+		case <-watcher.Done():
+			return nil, trace.Wrap(watcher.Error())
+		}
+	}
+}
+
+// executeAccessRequest creates an access request and waits for resolution,
+// returning either an error or a completed ID if the request was approved.
+func (s *IdentityOutputService) executeAccessRequest(ctx context.Context) (string, error) {
+	request, err := createAccessRequest(s.getBotIdentity().TLSIdentity.Username, s.cfg.AccessRequest)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	created, err := s.botAuthClient.CreateAccessRequestV2(ctx, request)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	s.log.InfoContext(ctx, "Created access request, waiting for approval...", "request_id", created.GetName())
+
+	completed, err := s.awaitRequestResolution(ctx, created)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	s.log.InfoContext(ctx, "Access request approved, continuing", "request_id", completed.GetName(), "approval_reason", completed.GetResolveReason())
+
+	return completed.GetName(), nil
+}
+
 func (s *IdentityOutputService) generate(ctx context.Context) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -103,13 +206,27 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 	}
 
 	var err error
+
+	var accessRequests []string
 	roles := s.cfg.Roles
-	if len(roles) == 0 {
+
+	if s.cfg.AccessRequest != nil {
+		id, err := s.executeAccessRequest(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		accessRequests = append(accessRequests, id)
+	} else if len(roles) == 0 {
+		// TODO: sloppy handling of roles + access requests, which cannot be
+		// combined.
 		roles, err = fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
 		if err != nil {
 			return trace.Wrap(err, "fetching default roles")
 		}
 	}
+
+	s.log.InfoContext(ctx, "generating identity", "access_requests", accessRequests, "roles", roles)
 
 	id, err := generateIdentity(
 		ctx,
@@ -119,6 +236,12 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 		s.botCfg.CertificateTTL,
 		func(req *proto.UserCertsRequest) {
 			req.ReissuableRoleImpersonation = s.cfg.AllowReissue
+
+			if len(accessRequests) > 0 {
+				req.AccessRequests = accessRequests
+				req.RoleRequests = []string{}
+				req.UseRoleRequests = false
+			}
 		},
 	)
 	if err != nil {

@@ -68,6 +68,12 @@ var (
 	_ Initable      = &IdentityOutput{}
 )
 
+type AccessRequest struct {
+	Roles []string `yaml:"roles"`
+	Reviewers []string
+	Reason string
+}
+
 // IdentityOutput produces credentials which can be used with `tsh`, `tctl`,
 // `openssh` and most SSH compatible tooling. It can also be used with the
 // Teleport API and things which use the API client (e.g the terraform provider)
@@ -101,6 +107,10 @@ type IdentityOutput struct {
 	//
 	// Defaults to false.
 	AllowReissue bool `yaml:"allow_reissue,omitempty"`
+
+	// AccessRequest alternatively uses just-in-time access requests to fetch
+	// alternative credentials for this output. Mutually exclusive with Roles.
+	AccessRequest *AccessRequest `yaml:"access_request,omitempty"`
 }
 
 func (o *IdentityOutput) Init(ctx context.Context) error {
