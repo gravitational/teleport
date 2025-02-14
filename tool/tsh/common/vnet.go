@@ -100,6 +100,14 @@ func newVnetServiceCommand(app *kingpin.Application) vnetCLICommand {
 	return newPlatformVnetServiceCommand(app)
 }
 
+func newVnetInstallServiceCommand(app *kingpin.Application) vnetCLICommand {
+	return newPlatformVnetInstallServiceCommand(app)
+}
+
+func newVnetUninstallServiceCommand(app *kingpin.Application) vnetCLICommand {
+	return newPlatformVnetUninstallServiceCommand(app)
+}
+
 // vnetCommandNotSupported implements vnetCLICommand, it is returned when a specific
 // command is not implemented for a certain platform or environment.
 type vnetCommandNotSupported struct{}

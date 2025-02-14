@@ -18,7 +18,6 @@ package vnet
 
 import (
 	"os"
-	"os/user"
 	"path/filepath"
 	"syscall"
 	"testing"
@@ -33,10 +32,8 @@ func TestSecureCredDir(t *testing.T) {
 	creds, err := newIPCCredentials()
 	require.NoError(t, err)
 
-	u, err := user.Current()
+	_, userSID, err := currentUsernameAndSID()
 	require.NoError(t, err)
-	// Uid is documented to be the user's SID on Windows.
-	userSID := u.Uid
 
 	credPath := t.TempDir()
 	require.NoError(t, secureCredDir(credPath, userSID))
