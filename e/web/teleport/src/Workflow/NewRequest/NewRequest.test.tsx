@@ -35,6 +35,7 @@ beforeEach(() => {
     updatePreferences: () => null,
     updateClusterPinnedResources: () => null,
     getClusterPinnedResources: () => null,
+    updateDiscoverResourcePreferences: () => null,
   });
 
   jest.spyOn(ctx.resourceService, 'fetchUnifiedResources').mockResolvedValue({

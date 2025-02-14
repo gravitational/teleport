@@ -7,6 +7,7 @@ import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import { idpMetadata } from 'e-teleport/SamlApplication/fixtures';
 import cfg from 'teleport/config';
 import { ResourceKind } from 'teleport/Discover/Shared';
+import { getGuideTileId } from 'teleport/Discover/testUtils';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { getAcl } from 'teleport/mocks/contexts';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
@@ -47,7 +48,11 @@ const renderDiscover = () => {
 test('displays all resources by default', () => {
   renderDiscover();
 
-  expect(screen.getAllByTestId(ResourceKind.SamlApplication)).toHaveLength(3);
+  expect(
+    screen.getAllByTestId(
+      getGuideTileId({ kind: ResourceKind.SamlApplication })
+    )
+  ).toHaveLength(3);
 
   const samlGenericEl = screen.getByText('SAML Application (Generic)');
   expect(samlGenericEl).toBeInTheDocument();

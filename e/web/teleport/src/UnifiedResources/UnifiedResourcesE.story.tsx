@@ -68,6 +68,7 @@ const Provider = props => {
   const updatePreferences = () => Promise.resolve();
   const getClusterPinnedResources = () => Promise.resolve([]);
   const updateClusterPinnedResources = () => Promise.resolve();
+  const updateDiscoverResourcePreferences = () => Promise.resolve();
   const preferences: UserPreferences = makeDefaultUserPreferences();
 
   const ctx = createTeleportContextE({ customAcl: props.customAcl });
@@ -91,6 +92,7 @@ const Provider = props => {
             updatePreferences,
             getClusterPinnedResources,
             updateClusterPinnedResources,
+            updateDiscoverResourcePreferences,
           }}
         >
           <ContextProvider ctx={ctx}>
