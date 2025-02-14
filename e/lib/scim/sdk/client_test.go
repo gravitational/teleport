@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gorilla/mux"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -94,20 +93,20 @@ func newSCIMHTTPServer(t *testing.T) *scimHTTPServer {
 		store: NewSCIMClientMock(),
 	}
 
-	r := mux.NewRouter()
-	r.HandleFunc("/Users", mock.createUser).Methods(http.MethodPost)
-	r.HandleFunc("/Users", mock.listUsers).Methods(http.MethodGet)
-	r.HandleFunc("/Users/{id}", mock.getUser).Methods(http.MethodGet)
-	r.HandleFunc("/Users/{id}", mock.updateUser).Methods(http.MethodPut)
-	r.HandleFunc("/Users/{id}", mock.deleteUser).Methods(http.MethodDelete)
+	r := http.NewServeMux()
+	r.HandleFunc("POST /Users", mock.createUser)
+	r.HandleFunc("GET /Users", mock.listUsers)
+	r.HandleFunc("GET /Users/{id}", mock.getUser)
+	r.HandleFunc("PUT /Users/{id}", mock.updateUser)
+	r.HandleFunc("DELETE /Users/{id}", mock.deleteUser)
 
-	r.HandleFunc("/Groups", mock.createGroup).Methods(http.MethodPost)
-	r.HandleFunc("/Groups", mock.listGroups).Methods(http.MethodGet)
-	r.HandleFunc("/Groups/{id}", mock.getGroup).Methods(http.MethodGet)
-	r.HandleFunc("/Groups/{id}", mock.updateGroup).Methods(http.MethodPut)
-	r.HandleFunc("/Groups/{id}", mock.deleteGroup).Methods(http.MethodDelete)
+	r.HandleFunc("POST /Groups", mock.createGroup)
+	r.HandleFunc("GET /Groups", mock.listGroups)
+	r.HandleFunc("GET /Groups/{id}", mock.getGroup)
+	r.HandleFunc("PUT /Groups/{id}", mock.updateGroup)
+	r.HandleFunc("DELETE /Groups/{id}", mock.deleteGroup)
 
-	r.HandleFunc("/ServiceProviderConfig", mock.ping).Methods(http.MethodGet)
+	r.HandleFunc("GET /ServiceProviderConfig", mock.ping)
 
 	// Start the test server with the router
 	mock.server = httptest.NewServer(r)
@@ -141,7 +140,7 @@ func (s *scimHTTPServer) createUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *scimHTTPServer) getUser(w http.ResponseWriter, r *http.Request) {
-	id := mux.Vars(r)["id"]
+	id := r.PathValue("id")
 	resp, err := s.store.GetUser(context.Background(), id)
 	if err != nil {
 		http.Error(w, err.Error(), trace.ErrorToCode(err))
@@ -171,7 +170,7 @@ func (s *scimHTTPServer) updateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *scimHTTPServer) deleteUser(w http.ResponseWriter, r *http.Request) {
-	id := mux.Vars(r)["id"]
+	id := r.PathValue("id")
 	err := s.store.DeleteUser(context.Background(), id)
 	if err != nil {
 		http.Error(w, err.Error(), trace.ErrorToCode(err))
@@ -213,8 +212,7 @@ func (s *scimHTTPServer) createGroup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *scimHTTPServer) getGroup(w http.ResponseWriter, r *http.Request) {
-	id := mux.Vars(r)["id"]
-
+	id := r.PathValue("id")
 	resp, err := s.store.GetGroup(context.Background(), id)
 	if err != nil {
 		http.Error(w, err.Error(), trace.ErrorToCode(err))
@@ -244,7 +242,7 @@ func (s *scimHTTPServer) updateGroup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *scimHTTPServer) deleteGroup(w http.ResponseWriter, r *http.Request) {
-	id := mux.Vars(r)["id"]
+	id := r.PathValue("id")
 	if err := s.store.DeleteGroup(context.Background(), id); err != nil {
 		http.Error(w, err.Error(), trace.ErrorToCode(err))
 		return
