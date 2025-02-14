@@ -91,7 +91,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 				UserName: e.Reviewer,
 			}
 		default:
-			// ignoring Access Request update event
+			// Ignore Access Request update event.
 			return nil
 		}
 	case *apievents.SessionStart:
