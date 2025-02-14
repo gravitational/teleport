@@ -1,3 +1,21 @@
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package web
 
 import (
@@ -16,12 +34,16 @@ import (
 	"github.com/gravitational/teleport/lib/web/scripts"
 )
 
+// installScriptHandle handles calls for "/script/install.sh" and responds with a bash script installing Teleport
+// by downloading and running `teleport-update`. This installation script does not start the agent, join it,
+// or configure its services. This is handled by the "/scripts/:token/install-*.sh" scripts.
 func (h *Handler) installScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
+	// TODO(hugoShaka): cache function
 	opts, err := h.installScriptOptions(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to build install script options")
 	}
-	// TODO: cache function
+
 	script, err := scripts.GetInstallScript(r.Context(), opts)
 	if err != nil {
 		h.logger.WarnContext(r.Context(), "Failed to get install script", "error", err)
@@ -36,6 +58,12 @@ func (h *Handler) installScriptHandle(w http.ResponseWriter, r *http.Request, pa
 	return nil, nil
 }
 
+// installScriptOptions computes the agent installation options based on the proxy configuration and the cluster status.
+// This includes:
+// - the type of automatic updates
+// - the desired version
+// - the proxy address (used for updates).
+// - the Teleport artifact name and CDN
 func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScriptOptions, error) {
 	const group, uuid = "", ""
 
@@ -46,7 +74,6 @@ func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScri
 	}
 
 	// if there's a rollout, we do new autoupdates
-
 	_, rolloutErr := h.cfg.AccessPoint.GetAutoUpdateAgentRollout(ctx)
 	if rolloutErr != nil && !trace.IsNotFound(rolloutErr) {
 		h.logger.WarnContext(ctx, "Failed to get rollout", "error", rolloutErr)
