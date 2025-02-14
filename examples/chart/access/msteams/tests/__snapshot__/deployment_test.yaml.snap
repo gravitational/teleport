@@ -7,8 +7,8 @@ should match the snapshot:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-msteams
-        app.kubernetes.io/version: 15.4.28
-        helm.sh/chart: teleport-plugin-msteams-15.4.28
+        app.kubernetes.io/version: 15.0.0-dev.camh.fbb.1
+        helm.sh/chart: teleport-plugin-msteams-15.0.0-dev.camh.fbb.1
       name: RELEASE-NAME-teleport-plugin-msteams
     spec:
       replicas: 1
@@ -22,8 +22,8 @@ should match the snapshot:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-plugin-msteams
-            app.kubernetes.io/version: 15.4.28
-            helm.sh/chart: teleport-plugin-msteams-15.4.28
+            app.kubernetes.io/version: 15.0.0-dev.camh.fbb.1
+            helm.sh/chart: teleport-plugin-msteams-15.0.0-dev.camh.fbb.1
         spec:
           containers:
           - command:
