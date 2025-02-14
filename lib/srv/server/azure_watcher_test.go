@@ -76,7 +76,7 @@ func TestAzureWatcher(t *testing.T) {
 					},
 				},
 			},
-		}),
+		}, nil /* scaleSetAPI */),
 	}
 
 	tests := []struct {
