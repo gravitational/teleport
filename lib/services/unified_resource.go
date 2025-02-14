@@ -196,12 +196,11 @@ func (c *UnifiedResourceCache) deleteLocked(res types.Resource) error {
 
 func (c *UnifiedResourceCache) getSortTree(sortField string) (*btree.BTreeG[*item], error) {
 	switch sortField {
-	case sortByName:
+	// if no sort field is present, default to name sortTree
+	case sortByName, "":
 		return c.nameTree, nil
 	case sortByKind:
 		return c.typeTree, nil
-	case "":
-		return nil, trace.BadParameter("sort field is required")
 	default:
 		return nil, trace.NotImplemented("sorting by %v is not supported in unified resources", sortField)
 	}
@@ -240,6 +239,10 @@ func (c *UnifiedResourceCache) iterateItems(ctx context.Context, start string, s
 		kindsMap := make(map[string]struct{})
 		for _, k := range kinds {
 			kindsMap[k] = struct{}{}
+			// obviously hacky but this is the idea
+			if k == types.KindKubeServer {
+				kindsMap[types.KindKubernetesCluster] = struct{}{}
+			}
 		}
 
 		err := c.read(ctx, func(cache *UnifiedResourceCache) error {

@@ -529,6 +529,8 @@ func MatchKinds(resource ResourceWithLabels, kinds []string) bool {
 	switch resourceKind {
 	case KindApp, KindSAMLIdPServiceProvider, KindIdentityCenterAccount:
 		return slices.Contains(kinds, KindApp)
+	case KindKubernetesCluster, KindKubeServer:
+		return slices.Contains(kinds, KindKubeServer)
 	default:
 		return slices.Contains(kinds, resourceKind)
 	}
