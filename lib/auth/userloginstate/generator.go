@@ -133,6 +133,17 @@ func NewGenerator(config GeneratorConfig) (*Generator, error) {
 
 // Generate will generate the user login state for the given user.
 func (g *Generator) Generate(ctx context.Context, user types.User, ulsService services.UserLoginStates) (*userloginstate.UserLoginState, error) {
+	return g.generate(ctx, user, ulsService, false)
+}
+
+// GeneratePureULS is a variant of user login state generation that emits no usage events and ignores any existing user login state
+// in the backend. Used for auditing/introspection purposes.
+func (g *Generator) GeneratePureULS(ctx context.Context, user types.User) (*userloginstate.UserLoginState, error) {
+	return g.generate(ctx, user, nil, true)
+}
+
+// generate is the underlying implementation for Generate and GeneratePure.
+func (g *Generator) generate(ctx context.Context, user types.User, ulsService services.UserLoginStates, pure bool) (*userloginstate.UserLoginState, error) {
 	var originalTraits map[string][]string
 	var traits map[string][]string
 	var githubIdentity *userloginstate.ExternalIdentity
@@ -176,11 +187,13 @@ func (g *Generator) Generate(ctx context.Context, user types.User, ulsService se
 		return nil, trace.Wrap(err)
 	}
 
-	// Preserve states like GitHub identities across logins.
-	// TODO(greedy52) implement a way to remove the identity or find a way to
-	// avoid keeping the identity forever.
-	if err := g.maybePreserveGitHubIdentity(ctx, uls, ulsService); err != nil {
-		return nil, trace.Wrap(err)
+	if !pure {
+		// Preserve states like GitHub identities across logins.
+		// TODO(greedy52) implement a way to remove the identity or find a way to
+		// avoid keeping the identity forever.
+		if err := g.maybePreserveGitHubIdentity(ctx, uls, ulsService); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Clean up the user login state after generating it.
@@ -188,7 +201,7 @@ func (g *Generator) Generate(ctx context.Context, user types.User, ulsService se
 		return nil, trace.Wrap(err)
 	}
 
-	if g.usageEvents != nil {
+	if g.usageEvents != nil && !pure {
 		// Emit the usage event metadata.
 		if err := g.emitUsageEvent(ctx, user, uls, inheritedRoles, inheritedTraits); err != nil {
 			g.log.DebugContext(ctx, "Error emitting usage event during user login state generation, skipping", "error", err)

@@ -26,7 +26,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
-	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -54,7 +54,7 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 
 // TryRun attempts to run subcommands.
 func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (bool, error) {
-	var run func(context.Context, decisionpb.DecisionServiceClient) error
+	var run func(context.Context, *authclient.Client) error
 	switch cmd {
 	case c.evaluateSSHCommand.FullCommand():
 		run = c.evaluateSSHCommand.Run
@@ -70,7 +70,7 @@ func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclien
 	}
 
 	defer closeFn(ctx)
-	return true, trace.Wrap(run(ctx, client.DecisionClient()))
+	return true, trace.Wrap(run(ctx, client))
 }
 
 // WriteProtoJSON outputs the the given [proto.Message] in
@@ -84,6 +84,7 @@ func WriteProtoJSON(w io.Writer, v proto.Message) error {
 		return trace.Wrap(err)
 	}
 
+	out = append(out, '\n')
 	_, err = w.Write(out)
 	return trace.Wrap(err)
 }

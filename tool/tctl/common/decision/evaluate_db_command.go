@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
 // EvaluateDatabaseCommand is a command to evaluate
@@ -53,8 +54,8 @@ func (c *EvaluateDatabaseCommand) FullCommand() string {
 }
 
 // Run executes the subcommand.
-func (c *EvaluateDatabaseCommand) Run(ctx context.Context, clt decisionpb.DecisionServiceClient) error {
-	resp, err := clt.EvaluateDatabaseAccess(ctx, &decisionpb.EvaluateDatabaseAccessRequest{
+func (c *EvaluateDatabaseCommand) Run(ctx context.Context, clt *authclient.Client) error {
+	resp, err := clt.DecisionClient().EvaluateDatabaseAccess(ctx, &decisionpb.EvaluateDatabaseAccessRequest{
 		Metadata:    &decisionpb.RequestMetadata{PepVersionHint: teleport.Version},
 		TlsIdentity: &decisionpb.TLSIdentity{},
 		Database: &decisionpb.Resource{

@@ -2,6 +2,7 @@ package decision
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -12,6 +13,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 )
@@ -45,17 +47,28 @@ type AccessPoint interface {
 	services.AuthPreferenceGetter
 	services.AuthorityGetter
 	ClusterNetworkingConfigGetter
+	services.UserGetter
+}
+
+type ULSGenerator interface {
+	// GeneratePureULS is a special variant of user login state generation that does not have side-effects
+	// and does not consider non-static configuration.
+	GeneratePureULS(context.Context, types.User) (*userloginstate.UserLoginState, error)
 }
 
 // Config configures the core decision service impl.
 type Config struct {
-	AccessPoint AccessPoint
+	AccessPoint  AccessPoint
+	ULSGenerator ULSGenerator
 }
 
 // CheckAndSetDefaults checks the config and sets default values where appropriate.
 func (c *Config) CheckAndSetDefaults() error {
 	if c.AccessPoint == nil {
 		return trace.BadParameter("decision service config missing required parameter AccessPoint")
+	}
+	if c.ULSGenerator == nil {
+		return trace.BadParameter("decision service config missing required parameter ULSGenerator")
 	}
 	return nil
 }
@@ -77,6 +90,21 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 	// check required fields & basic format
 	if err := checkEvaluateSSHAccessRequest(req); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if req.Metadata.DryRun {
+		if opts := req.Metadata.DryRunOptions; opts != nil {
+			// dry-run requests may omit a true caller identity in favor of specifying a user for which a
+			// hypothetical identity should be generated.
+			if opts.GenerateIdentity != nil {
+				generatedIdent, err := s.GenerateDryRunSSHIdentity(ctx, opts.GenerateIdentity)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				req.SshIdentity = generatedIdent
+			}
+		}
 	}
 
 	ident := SSHIdentityToSSHCA(req.SshIdentity)
@@ -122,14 +150,22 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 	}
 
 	// check if roles allow access to server
+	fmt.Printf("---> checking access identity=%+v, target=%+v\n", ident, target)
 	if err := accessChecker.CheckAccess(
 		target,
 		state,
 		services.NewLoginMatcher(req.OsUser),
 	); err != nil {
-		// XXX: rework this into an explicit denial msg
-		return nil, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
-			ident.Username, authority.GetClusterName(), req.OsUser, localClusterName, err)
+		return &decisionpb.EvaluateSSHAccessResponse{
+			Decision: &decisionpb.EvaluateSSHAccessResponse_Denial{
+				Denial: &decisionpb.SSHAccessDenial{
+					Metadata: &decisionpb.DenialMetadata{
+						UserMessage: fmt.Sprintf("user %s@%s is not authorized to login as %v@%s: %v",
+							ident.Username, authority.GetClusterName(), req.OsUser, localClusterName, err),
+					},
+				},
+			},
+		}, nil
 	}
 
 	// load net config (used during calculation of client idle timeout)
@@ -147,6 +183,8 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 		ClientIdleTimeout: durationFromGoDuration(accessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())),
 		// TODO: a *lot* more needs to go here
 	}
+
+	fmt.Printf("---> permit=%+v\n", permit)
 
 	return &decisionpb.EvaluateSSHAccessResponse{
 		Decision: &decisionpb.EvaluateSSHAccessResponse_Permit{
@@ -187,6 +225,9 @@ func buildAccessInfo(ident *sshca.Identity, ca types.CertAuthority, localCluster
 }
 
 func checkEvaluateSSHAccessRequest(req *decisionpb.EvaluateSSHAccessRequest) error {
+	if err := checkSSHIdentityBasedRequest(req); err != nil {
+		return trace.Wrap(err)
+	}
 	if req.SshAuthority == nil {
 		return trace.BadParameter("missing required parameter SshAuthority")
 	}
@@ -199,14 +240,6 @@ func checkEvaluateSSHAccessRequest(req *decisionpb.EvaluateSSHAccessRequest) err
 	if types.CertAuthType(req.SshAuthority.AuthorityType) != types.UserCA {
 		return trace.BadParameter("unsupported cert authority type %q, expected type %q", req.SshAuthority.AuthorityType, types.UserCA)
 	}
-
-	if req.SshIdentity == nil {
-		return trace.BadParameter("missing required parameter SshIdentity")
-	}
-	if req.SshIdentity.CertType != ssh.UserCert {
-		return trace.BadParameter("unsupported cert type for ssh access eval (%d), expected type 'user' (%d)", req.SshIdentity.CertType, ssh.UserCert)
-	}
-
 	if req.Node == nil {
 		return trace.BadParameter("missing required parameter Node")
 	}
@@ -220,6 +253,62 @@ func checkEvaluateSSHAccessRequest(req *decisionpb.EvaluateSSHAccessRequest) err
 	if req.OsUser == "" {
 		// XXX: remove this requirement once we have login enumeration support
 		return trace.BadParameter("missing required parameter OsUser")
+	}
+
+	return nil
+}
+
+type sshIdentityBasedRequest interface {
+	GetMetadata() *decisionpb.RequestMetadata
+	GetSshIdentity() *decisionpb.SSHIdentity
+}
+
+func checkSSHIdentityBasedRequest(req sshIdentityBasedRequest) error {
+	meta := req.GetMetadata()
+	if meta == nil {
+		return trace.BadParameter("missing required parameter Metadata")
+	}
+
+	if meta.DryRun {
+		// ensure that the dry run either specifies identity generation or an explicit identity but not both
+		if opts := meta.DryRunOptions; opts != nil && opts.GenerateIdentity != nil {
+			if req.GetSshIdentity() != nil {
+				return trace.BadParameter("cannot specify both SshIdentity and Metadata.DryRunOptions.GenerateIdentity")
+			}
+
+			if opts.GenerateIdentity.Username == "" {
+				return trace.BadParameter("missing required parameter Username in Metadata.DryRunOptions.GenerateIdentity")
+			}
+		} else {
+			if req.GetSshIdentity() == nil {
+				return trace.BadParameter("missing required parameter SshIdentity")
+			}
+
+			if err := checkSSHIdentity(req.GetSshIdentity()); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	} else {
+		// ensure that standard request specifies an identity and *not* any dry run options
+		if req.GetSshIdentity() == nil {
+			return trace.BadParameter("missing required parameter SshIdentity")
+		}
+
+		if err := checkSSHIdentity(req.GetSshIdentity()); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if meta.DryRunOptions != nil {
+			return trace.BadParameter("unexpected parameter Metadata.DryRunOptions in non-dry-run request")
+		}
+	}
+
+	return nil
+}
+
+func checkSSHIdentity(ident *decisionpb.SSHIdentity) error {
+	if ident.CertType != ssh.UserCert {
+		return trace.BadParameter("unsupported cert type for ssh identity (%d), expected type 'user' (%d)", ident.CertType, ssh.UserCert)
 	}
 
 	return nil

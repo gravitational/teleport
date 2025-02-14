@@ -562,13 +562,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}),
 	)
 
-	as.pdp, err = decision.NewService(decision.Config{
-		AccessPoint: as,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	for _, o := range opts {
 		if err := o(&as); err != nil {
 			return nil, trace.Wrap(err)
@@ -684,6 +677,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	as.RegisterLoginHook(as.ulsGenerator.LoginHook(services.UserLoginStates))
+
+	as.pdp, err = decision.NewService(decision.Config{
+		AccessPoint:  as,
+		ULSGenerator: as.ulsGenerator,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	if _, ok := as.getCache(); !ok {
 		as.logger.WarnContext(closeCtx, "Auth server starting without cache (may have negative performance implications)")
