@@ -17,22 +17,35 @@
 package stsutils
 
 import (
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/client"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 
 	"github.com/gravitational/teleport/lib/utils/aws/awsfips"
 )
 
-// NewFromConfig wraps [sts.NewFromConfig] and applies FIPS settings
+// NewCredentialsV1 wraps [stscreds.NewCredentials] and applies FIPS settings
 // according to environment variables.
 //
 // See [awsfips.IsFIPSDisabledByEnv].
-func NewFromConfig(cfg aws.Config, optFns ...func(*sts.Options)) *sts.Client {
+func NewCredentialsV1(
+	c client.ConfigProvider,
+	roleARN string,
+	options ...func(*stscreds.AssumeRoleProvider),
+) *credentials.Credentials {
 	if awsfips.IsFIPSDisabledByEnv() {
-		// append so it overrides any preceding settings.
-		optFns = append(optFns, func(opts *sts.Options) {
-			opts.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateDisabled
-		})
+		c = fipsDisabledProvider{provider: c}
 	}
-	return sts.NewFromConfig(cfg, optFns...)
+	return stscreds.NewCredentials(c, roleARN, options...)
+}
+
+type fipsDisabledProvider struct {
+	provider client.ConfigProvider
+}
+
+func (p fipsDisabledProvider) ClientConfig(serviceName string, cfgs ...*aws.Config) client.Config {
+	cfgs = append(cfgs, aws.NewConfig().WithUseFIPSEndpoint(false))
+	cfg := p.provider.ClientConfig(serviceName, cfgs...)
+	return cfg
 }
