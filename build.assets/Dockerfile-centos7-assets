@@ -87,14 +87,11 @@ RUN git clone --depth=1 https://github.com/ninja-build/ninja.git -b v1.11.1 && \
     cmake --build build-cmake --target  install"
 
 # Use just created devtool image with newer GCC and Cmake
-FROM --platform=$BUILDPLATFORM centos-devtoolset as clang14
+FROM --platform=$BUILDPLATFORM centos-devtoolset as clang12
 
 ARG DEVTOOLSET
 
-# Bring in our custom ninja build, needed for building clang.
-COPY --from=ninja-build /usr/local/bin/ninja /usr/local/bin/ninja
-
-# Compile Clang 14.0.6 from source. It is needed to create BoringSSL and BPF files.
+# Compile Clang 12.0.0 from source. It is needed to create BoringSSL and BPF files.
 # CentOS 7 doesn't provide it as a package unfortunately.
 # This version of Clang is explicitly required for FIPS compliance when building BoringSSL.
 # For more information please refer to the section 12. Guidance and Secure Operation of:
@@ -103,18 +100,17 @@ COPY --from=ninja-build /usr/local/bin/ninja /usr/local/bin/ninja
 # CLANG_BUILD_TOOLS must be on, it builds clang binary,
 # LLVM_BUILD_TOOLS must be on, it builds llvm-strip binary.
 # the rest is disabled to speedup the compilation.
-RUN git clone --branch llvmorg-14.0.6 --depth=1 https://github.com/llvm/llvm-project.git && \
+RUN git clone --branch llvmorg-12.0.0 --depth=1 https://github.com/llvm/llvm-project.git && \
     cd llvm-project/ && \
-    [ "$(git rev-parse HEAD)" = 'f28c006a5895fc0e329fe15fead81e37457cb1d1' ] && \
+    [ "$(git rev-parse HEAD)" = 'd28af7c654d8db0b68c175db5ce212d74fb5e9bc' ] && \
     mkdir build && cd build/ && \
     scl enable ${DEVTOOLSET} 'bash -c "cmake3 \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=/opt/llvm \
-    -DLLVM_ENABLE_PROJECTS=\"clang;libcxx;libcxxabi\" \
-    -DLLVM_ENABLE_LIBCXX=ON \
-    -G \"Ninja\" ../llvm && \
-    cmake3 --build . && \
-    cmake3 -DCMAKE_INSTALL_PREFIX=/opt/llvm -P cmake_install.cmake"' && \
+    -DLLVM_ENABLE_PROJECTS=clang \
+    -DLLVM_BUILD_TOOLS=ON \
+    -G \"Unix Makefiles\" ../llvm && \
+    make -j$(grep -c processor /proc/cpuinfo) install-llvm-strip install-clang-format install-clang install-clang-resource-headers install-libclang"' && \
     cd ../.. && \
     rm -rf llvm-project
 
@@ -147,7 +143,7 @@ RUN mkdir -p /opt/custom-packages && cd /opt && \
 FROM scratch AS buildbox-centos7-assets
 
 # Copy Clang into the final image.
-COPY --from=clang14 /opt/llvm /opt/llvm/
+COPY --from=clang12 /opt/llvm /opt/llvm/
 
 # Copy ninja into the final image.
 COPY --from=ninja-build /usr/local/bin/ninja /usr/local/bin/ninja

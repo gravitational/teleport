@@ -23,8 +23,8 @@ ifneq ("$(wildcard /usr/libbpf-${LIBBPF_VER}/include/bpf/bpf.h)","")
 with_bpf := yes
 BPF_TAG := bpf
 BPF_MESSAGE := with-BPF-support
-CLANG ?= $(shell which clang || which clang-14)
-LLVM_STRIP ?= $(shell which llvm-strip || which llvm-strip-14)
+CLANG ?= $(shell which clang || which clang-12)
+LLVM_STRIP ?= $(shell which llvm-strip || which llvm-strip-12)
 KERNEL_ARCH := $(shell uname -m | sed 's/x86_64/x86/g; s/aarch64/arm64/g')
 INCLUDES :=
 ER_BPF_BUILDDIR := lib/bpf/bytecode
