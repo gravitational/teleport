@@ -104,7 +104,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/web/app"
-	"github.com/gravitational/teleport/lib/web/scripts"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/terminal"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -2251,7 +2250,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	// https://updates.releases.teleport.dev/v1/stable/cloud/version
 	installUpdater := automaticUpgrades(*ping.ServerFeatures)
 	if installUpdater {
-		repoChannel = scripts.StableCloudChannelRepo
+		repoChannel = automaticupgrades.DefaultCloudChannelName
 	}
 	azureClientID := r.URL.Query().Get("azure-client-id")
 

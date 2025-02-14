@@ -36,11 +36,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/utils"
-)
-
-const (
-	StableCloudChannelRepo = "stable/cloud"
 )
 
 // appURIPattern is a regexp excluding invalid characters from application URIs.
@@ -62,6 +59,7 @@ var installNodeBashScriptRaw string
 
 var installNodeBashScript = template.Must(template.New("nodejoin").Parse(installNodeBashScriptRaw))
 
+// InstallNodeScriptOptions contains the options configuring the install-node script.
 type InstallNodeScriptOptions struct {
 	// Required for installation
 	InstallOptions InstallScriptOptions
@@ -84,6 +82,11 @@ type InstallNodeScriptOptions struct {
 	DiscoveryGroup          string
 }
 
+// GetNodeInstallScript generates an agent installation script which will:
+// - install Teleport
+// - configure the Teleport agent joining
+// - configure the Teleport agent services (currently support ssh, app, database, and discovery)
+// - start the agent
 func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (string, error) {
 	// Computing installation-related values
 
@@ -99,7 +102,7 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 		// repo in non-cloud case, but the script has never support enabling autoupdates
 		// in a non-cloud cluster.
 		// We will prefer using the new updater binary for autoupdates in self-hosted setups.
-		repoChannel = StableCloudChannelRepo
+		repoChannel = automaticupgrades.DefaultCloudChannelName
 		installPackageUpdater = true
 	case UpdaterBinaryAutoupdate:
 		// TODO(hugoShaka): add new autoupdate binary support in the node-install script
@@ -124,7 +127,7 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 
 	var dbServiceResourceLabels []string
 	if opts.DatabaseServiceEnabled {
-		dbServiceResourceLabels, err = MarshalLabelsYAML(opts.LabelMatchers, 6)
+		dbServiceResourceLabels, err = marshalLabelsYAML(opts.LabelMatchers, 6)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -140,7 +143,7 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 			return "", trace.BadParameter("appURI %q contains invalid characters", opts.AppURI)
 		}
 
-		appServerResourceLabels, err = MarshalLabelsYAML(opts.Labels, 4)
+		appServerResourceLabels, err = marshalLabelsYAML(opts.Labels, 4)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -198,7 +201,7 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 // TODO(hugoShaka): burn the indentation thing, this is too fragile and show be handled
 // by the template itself.
 
-// MarshalLabelsYAML returns a list of strings, each one containing a
+// marshalLabelsYAML returns a list of strings, each one containing a
 // label key and list of value's pair.
 // This is used to create yaml sections within the join scripts.
 //
@@ -206,7 +209,7 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 // top of the default space already used, for the default yaml listing
 // format (the listing values with the dashes). If `extraListIndent`
 // is zero, it's equivalent to using default space only (which is 4 spaces).
-func MarshalLabelsYAML(resourceMatcherLabels types.Labels, extraListIndent int) ([]string, error) {
+func marshalLabelsYAML(resourceMatcherLabels types.Labels, extraListIndent int) ([]string, error) {
 	if len(resourceMatcherLabels) == 0 {
 		return []string{"{}"}, nil
 	}
