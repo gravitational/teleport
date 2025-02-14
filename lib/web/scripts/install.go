@@ -21,8 +21,10 @@ package scripts
 import (
 	"context"
 	_ "embed"
+	"strconv"
 	"strings"
 
+	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
@@ -65,12 +67,28 @@ type InstallScriptOptions struct {
 
 // Check validates that the minimal options are set.
 func (o *InstallScriptOptions) Check() error {
+	switch o.AutoupdateStyle {
+	case NoAutoupdate, PackageManagerAutoupdate:
+		return nil
+	case UpdaterBinaryAutoupdate:
+		// We'll do the checks later.
+	default:
+		return trace.BadParameter("unsupported autoupdate style: %v", o.AutoupdateStyle)
+	}
 	if o.ProxyAddr == "" {
 		return trace.BadParameter("Proxy address is required")
 	}
 
 	if o.TeleportVersion == "" {
 		return trace.BadParameter("Teleport version is required")
+	}
+
+	if o.TeleportFlavor == "" {
+		return trace.BadParameter("Teleport flavor is required")
+	}
+
+	if o.CDNBaseURL != "" && !strings.HasPrefix(o.CDNBaseURL, "https://") {
+		return trace.BadParameter("CDNBaseURL must start with 'https://'")
 	}
 	return nil
 }
@@ -84,9 +102,9 @@ func (o *InstallScriptOptions) oneOffParams() (params oneoff.OneOffScriptParams)
 		version = "v" + o.TeleportVersion
 	}
 
-	args := []string{"enable", "--proxy", o.ProxyAddr}
+	args := []string{"enable", "--proxy", strconv.Quote(shsprintf.EscapeDefaultContext(o.ProxyAddr))}
 	if o.CDNBaseURL != "" {
-		args = append(args, "--base-url", o.CDNBaseURL)
+		args = append(args, "--base-url", strconv.Quote(shsprintf.EscapeDefaultContext(o.CDNBaseURL)))
 	}
 
 	return oneoff.OneOffScriptParams{
