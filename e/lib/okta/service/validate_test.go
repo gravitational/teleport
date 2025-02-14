@@ -10,6 +10,70 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+func Test_validateCreateIntegrationRequest(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name        string
+		req         *oktapb.CreateIntegrationRequest
+		expectedErr string
+	}{
+		{
+			name: "invalid SSO metadata URL",
+			req: &oktapb.CreateIntegrationRequest{
+				SsoMetadataUrl: "/path",
+			},
+			expectedErr: "hostname missing",
+		},
+		{
+			name: "Okta org URL with invalid scheme",
+			req: &oktapb.CreateIntegrationRequest{
+				OktaOrganizationUrl: "http://example.com",
+			},
+			expectedErr: "required https scheme",
+		},
+		{
+			name: "it is ok to provide URL with no scheme",
+			req: &oktapb.CreateIntegrationRequest{
+				OktaOrganizationUrl: "example.com",
+			},
+			expectedErr: "",
+		},
+		{
+			name:        "SSO metadata URL and Okta org URL empty",
+			req:         &oktapb.CreateIntegrationRequest{},
+			expectedErr: "", // this is no error, org URL may be extracted from an existing connector
+		},
+		{
+			name: "SSO metadata URL and Okta org URL have different hostnames",
+			req: &oktapb.CreateIntegrationRequest{
+				SsoMetadataUrl:      "example.com/sso",
+				OktaOrganizationUrl: "https://subdomain.example.com",
+			},
+			expectedErr: "SSO metadata URL and Okta org URL have different hostnames",
+		},
+		{
+			name: "API credentials are required when sync is enabled",
+			req: &oktapb.CreateIntegrationRequest{
+				SsoMetadataUrl: "example.com/sso", // to bypass URL validation
+				EnableUserSync: true,
+			},
+			expectedErr: "Okta API credentials are required for user sync",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateCreateIntegrationRequest(tc.req)
+			if tc.expectedErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err), "trace.IsBadParameter(%+v)", err)
+				require.ErrorContains(t, err, tc.expectedErr)
+			}
+		})
+	}
+}
+
 func Test_validateUpdateIntegrationRequest(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {

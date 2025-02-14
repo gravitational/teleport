@@ -3,7 +3,6 @@ package oktaservice
 import (
 	"context"
 	"log/slog"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -86,47 +85,6 @@ func (s *Service) GetApps(ctx context.Context, req *oktapb.GetAppsRequest) (*okt
 	return &oktapb.GetAppsResponse{
 		Apps: toApps(filtered),
 	}, nil
-}
-
-func validateCreateIntegrationRequest(req *oktapb.CreateIntegrationRequest) error {
-	var err error
-	if req.GetOktaOrganizationUrl() != "" {
-		req.OktaOrganizationUrl, err = validateAndSanitizeUrl(req.GetOktaOrganizationUrl())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	if req.GetSsoMetadataUrl() != "" {
-		req.SsoMetadataUrl, err = validateAndSanitizeUrl(req.GetSsoMetadataUrl())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if req.GetOktaOrganizationUrl() == "" {
-			req.OktaOrganizationUrl, err = sso.ExtractOktaOrganizationFromURL(req.GetSsoMetadataUrl())
-			if err != nil {
-				return trace.Wrap(err, "extracting Okta org URL from SSO meatadata URL")
-			}
-		}
-	}
-	if req.GetOktaOrganizationUrl() != "" && req.GetSsoMetadataUrl() != "" {
-		if !strings.HasPrefix(req.GetSsoMetadataUrl(), req.GetOktaOrganizationUrl()) {
-			return trace.BadParameter("SSO metadata URL must have the same hostname as Okta ")
-		}
-	}
-	if req.GetApiCredentials() == nil {
-		// Credentials are required for access list sync, user sync, and group sync.
-		// Otherwise, the plugin will not be able to fetch and sync required data.
-		if req.GetEnableUserSync() {
-			return trace.BadParameter("Okta API credentials are required for access list sync")
-		}
-		if req.GetEnableUserSync() {
-			return trace.BadParameter("Okta API credentials are required for user sync")
-		}
-		if req.GetEnableAppGroupSync() {
-			return trace.BadParameter("Okta API credentials are required for group sync")
-		}
-	}
-	return nil
 }
 
 // CreateIntegration creates a new Okta integration.

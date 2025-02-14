@@ -110,27 +110,29 @@ func (s *Service) getOrCreateSAMLConnector(ctx context.Context, req *oktapb.Crea
 	if connectorName == "" {
 		connectorName = common.OktaSSOConnectorName
 	}
+
 	// Remove the MFA resp from the context before getting the connector.
 	// Otherwise, it will be consumed before the Create which actually
 	// requires the MFA.
 	// TODO(Joerger): Explicitly provide MFA response only where it is
 	// needed instead of removing it like this.
-	ctxMFA := mfa.ContextWithMFAResponse(ctx, nil)
-	pingInfo, err := s.authService.Ping(ctxMFA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	ctxNoMFA := mfa.ContextWithMFAResponse(ctx, nil)
 
-	publicURL, err := lib.AddrToURL(pingInfo.ProxyPublicAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	samlConnector, err := s.authService.GetSAMLConnector(ctxMFA, connectorName, false)
+	samlConnector, err := s.authService.GetSAMLConnector(ctxNoMFA, connectorName, false)
 	switch {
 	case err != nil && !trace.IsNotFound(err):
 		return nil, trace.Wrap(err, "fetching SAML connector %s", connectorName)
 	case trace.IsNotFound(err):
+		pingInfo, err := s.authService.Ping(ctxNoMFA)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		publicURL, err := lib.AddrToURL(pingInfo.ProxyPublicAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		connInfo, createErr := s.pluginInstallCreateSAMLConnector(ctx, req, connectorName, pingInfo.ClusterName, publicURL)
 		if createErr != nil {
 			if trace.IsAccessDenied(err) {
