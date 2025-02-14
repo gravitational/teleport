@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/user"
 	"syscall"
 	"time"
 	"unsafe"
@@ -47,8 +48,8 @@ type windowsAdminProcessConfig struct {
 	// serviceCredentialPath is the path where credentials for IPC with the
 	// client application are found.
 	serviceCredentialPath string
-	// userSID is the SID of the user running the client application.
-	userSID string
+	// username is the name of the user running the client application.
+	username string
 }
 
 func (c *windowsAdminProcessConfig) check() error {
@@ -58,8 +59,8 @@ func (c *windowsAdminProcessConfig) check() error {
 	if c.serviceCredentialPath == "" {
 		return trace.BadParameter("serviceCredentialPath is required")
 	}
-	if c.userSID == "" {
-		return trace.BadParameter("userSID is required")
+	if c.username == "" {
+		return trace.BadParameter("username is required")
 	}
 	return nil
 }
@@ -84,7 +85,7 @@ func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig)
 	}
 	defer clt.close()
 
-	if err := authenticateUserProcess(ctx, clt, cfg.userSID); err != nil {
+	if err := authenticateUserProcess(ctx, clt, cfg.username); err != nil {
 		return trace.Wrap(err, "authenticating user process")
 	}
 
@@ -164,7 +165,13 @@ func newWindowsNetworkStackConfig(tun tunDevice, clt *clientApplicationServiceCl
 	}, nil
 }
 
-func authenticateUserProcess(ctx context.Context, clt *clientApplicationServiceClient, userSID string) error {
+func authenticateUserProcess(ctx context.Context, clt *clientApplicationServiceClient, username string) error {
+	u, err := user.Lookup(username)
+	if err != nil {
+		return trace.Wrap(err, "looking up user %s", username)
+	}
+	// Uid is documented to be the user's SID on Windows.
+	userSID := u.Uid
 	pipe, err := createNamedPipe(ctx, userSID)
 	if err != nil {
 		return trace.Wrap(err, "creating named pipe")
