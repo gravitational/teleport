@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 const (
@@ -164,7 +165,7 @@ func (defaultAWSClients) getRedshiftServerlessClient(cfg aws.Config, optFns ...f
 }
 
 func (defaultAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient {
-	return sts.NewFromConfig(cfg, optFns...)
+	return stsutils.NewFromConfig(cfg, optFns...)
 }
 
 // AuthConfig is the database access authenticator configuration.

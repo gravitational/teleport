@@ -18,6 +18,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
@@ -44,6 +45,10 @@ func TestWorkloadIdentityAPIService_YAML(t *testing.T) {
 				},
 				Selector: WorkloadIdentitySelector{
 					Name: "my-workload-identity",
+				},
+				CredentialLifetime: CredentialLifetime{
+					TTL:             1 * time.Minute,
+					RenewalInterval: 30 * time.Second,
 				},
 			},
 		},

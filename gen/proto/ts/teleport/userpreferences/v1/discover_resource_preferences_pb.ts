@@ -28,28 +28,87 @@ import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
 /**
+ * DiscoverGuide defines preferences related to discover guides.
+ *
+ * @generated from protobuf message teleport.userpreferences.v1.DiscoverGuide
+ */
+export interface DiscoverGuide {
+    /**
+     * pinned is a list of ids of pinned guides.
+     *
+     * @generated from protobuf field: repeated string pinned = 1;
+     */
+    pinned: string[];
+}
+/**
  * DiscoverResourcePreferences holds preferences related to discovering resource.
  *
  * @generated from protobuf message teleport.userpreferences.v1.DiscoverResourcePreferences
  */
 export interface DiscoverResourcePreferences {
     /**
-     * pinned_guides is a list of ids of pinned guides.
+     * discover_guide defines preferences related to discover guides.
      *
-     * @generated from protobuf field: repeated string pinned_guides = 1;
+     * @generated from protobuf field: teleport.userpreferences.v1.DiscoverGuide discover_guide = 2;
      */
-    pinnedGuides: string[];
+    discoverGuide?: DiscoverGuide;
 }
+// @generated message type with reflection information, may provide speed optimized methods
+class DiscoverGuide$Type extends MessageType<DiscoverGuide> {
+    constructor() {
+        super("teleport.userpreferences.v1.DiscoverGuide", [
+            { no: 1, name: "pinned", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<DiscoverGuide>): DiscoverGuide {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.pinned = [];
+        if (value !== undefined)
+            reflectionMergePartial<DiscoverGuide>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DiscoverGuide): DiscoverGuide {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated string pinned */ 1:
+                    message.pinned.push(reader.string());
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: DiscoverGuide, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated string pinned = 1; */
+        for (let i = 0; i < message.pinned.length; i++)
+            writer.tag(1, WireType.LengthDelimited).string(message.pinned[i]);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.userpreferences.v1.DiscoverGuide
+ */
+export const DiscoverGuide = new DiscoverGuide$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class DiscoverResourcePreferences$Type extends MessageType<DiscoverResourcePreferences> {
     constructor() {
         super("teleport.userpreferences.v1.DiscoverResourcePreferences", [
-            { no: 1, name: "pinned_guides", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+            { no: 2, name: "discover_guide", kind: "message", T: () => DiscoverGuide }
         ]);
     }
     create(value?: PartialMessage<DiscoverResourcePreferences>): DiscoverResourcePreferences {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.pinnedGuides = [];
         if (value !== undefined)
             reflectionMergePartial<DiscoverResourcePreferences>(this, message, value);
         return message;
@@ -59,8 +118,8 @@ class DiscoverResourcePreferences$Type extends MessageType<DiscoverResourcePrefe
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* repeated string pinned_guides */ 1:
-                    message.pinnedGuides.push(reader.string());
+                case /* teleport.userpreferences.v1.DiscoverGuide discover_guide */ 2:
+                    message.discoverGuide = DiscoverGuide.internalBinaryRead(reader, reader.uint32(), options, message.discoverGuide);
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -74,9 +133,9 @@ class DiscoverResourcePreferences$Type extends MessageType<DiscoverResourcePrefe
         return message;
     }
     internalBinaryWrite(message: DiscoverResourcePreferences, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* repeated string pinned_guides = 1; */
-        for (let i = 0; i < message.pinnedGuides.length; i++)
-            writer.tag(1, WireType.LengthDelimited).string(message.pinnedGuides[i]);
+        /* teleport.userpreferences.v1.DiscoverGuide discover_guide = 2; */
+        if (message.discoverGuide)
+            DiscoverGuide.internalBinaryWrite(message.discoverGuide, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
