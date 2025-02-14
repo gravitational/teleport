@@ -146,7 +146,9 @@ func TryRun(commands []CLICommand, args []string) error {
 	if isSet {
 		ccf.ConfigFile = configFileEnvar
 	} else {
-		if utils.FileExists(defaults.ConfigFilePath) {
+		// Skip the default config path on windows since the C:\etc\ directory
+		// does not exist by default and low-privileged users can create the folder.
+		if runtime.GOOS != constants.WindowsOS && utils.FileExists(defaults.ConfigFilePath) {
 			ccf.ConfigFile = defaults.ConfigFilePath
 		}
 	}
