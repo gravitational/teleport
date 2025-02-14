@@ -212,6 +212,12 @@ spec:
       contains(user.spec.traits["teams"], labels["team"])
 ```
 
+<Admonition type="note">
+Usage of label expressions must be the only label logic in roles
+assigned to an identity. For example you cannot have `node_labels`
+and `node_labels_expressions` in the same role or from separate roles.
+</Admonition>
+
 The `<kind>_labels_expression` fields have the same purpose of the
 matching `<kind>_labels` fields, but support predicate expressions instead
 of label matchers.
