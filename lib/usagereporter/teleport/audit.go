@@ -80,6 +80,20 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			RequiredPrivateKeyPolicy: e.RequiredPrivateKeyPolicy,
 		}
 
+	case *apievents.AccessRequestCreate:
+		switch e.GetType() {
+		case events.AccessRequestCreateEvent:
+			return &AccessRequestCreateEvent{
+				UserName: e.User,
+			}
+		case events.AccessRequestReviewEvent:
+			return &AccessRequestReviewEvent{
+				UserName: e.Reviewer,
+			}
+		default:
+			// ignoring Access Request update event
+			return nil
+		}
 	case *apievents.SessionStart:
 		// Note: session.start is only SSH and Kubernetes.
 		sessionType := types.SSHSessionKind
