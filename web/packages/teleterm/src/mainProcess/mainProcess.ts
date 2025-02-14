@@ -45,6 +45,10 @@ import {
 import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
 import { RootClusterUri } from 'teleterm/ui/uri';
 import Logger from 'teleterm/logger';
+import {
+  TSH_AUTOUPDATE_ENV_VAR,
+  TSH_AUTOUPDATE_OFF,
+} from 'teleterm/node/tshAutoupdate';
 
 import {
   ConfigService,
@@ -164,6 +168,7 @@ export default class MainProcess {
       env: {
         ...process.env,
         TELEPORT_HOME: homeDir,
+        [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
       },
     });
 
