@@ -44,7 +44,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
-	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
@@ -81,6 +80,7 @@ import (
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
@@ -589,7 +589,7 @@ func (c *cloudClients) GetAWSIAMClient(ctx context.Context, region string, opts 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return iam.New(session), nil
+	return iamutils.NewV1(session), nil
 }
 
 // GetAWSS3Client returns AWS S3 client.

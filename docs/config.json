@@ -105,6 +105,10 @@
         {
           "title": "Database GUI Clients",
           "slug": "/connect-your-client/gui-clients/"
+        },
+        {
+          "title": "Notifications",
+          "slug": "/connect-your-client/notifications/"
         }
       ]
     },
