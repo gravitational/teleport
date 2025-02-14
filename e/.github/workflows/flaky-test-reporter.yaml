@@ -126,7 +126,7 @@ jobs:
                 {
                   "color": "danger",
                   "title": "Flaky tests detected",
-                  "title_link": "${{steps.fetch.outputs.logurl}}"
+                  "title_link": "${{ steps.fetch.outputs.logurl }}"
                 },
                 {
                   "color": "danger",

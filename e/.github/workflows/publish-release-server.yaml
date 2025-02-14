@@ -10,7 +10,7 @@ on:
       environment:
         description: GitHub environment to publish to.
         type: string
-        default: publish-stage
+        default: stage/publish
 
   # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
   workflow_dispatch:
@@ -20,7 +20,7 @@ on:
         required: true
       environment:
         type: string
-        default: publish-stage
+        default: stage/publish
 
 jobs:
   publish:
@@ -28,17 +28,28 @@ jobs:
     environment: ${{ inputs.environment }}
     permissions:
       id-token: write
+      contents: read
     env:
-      RELCLI_IMAGE: ${{ vars.RELCLI_IMAGE }}
       ARTIFACT_DIRECTORY: /tmp/artifacts
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .environments
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@tools/env-loader/v0.0.5
+        with:
+          environment-name: ${{ inputs.environment }}
+          value-sets: release-server
+
       # Setup
       - name: Assume AWS ECR pull role
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           role-skip-session-tagging: true
-          aws-region: ${{ vars.ECR_PRIVATE_REPOS_REGION }}
-          role-to-assume: ${{ vars.ECR_PROD_PULL_ROLE_ARN }}
+          aws-region: ${{ env.RELCLI_IMAGE_REGION }}
+          role-to-assume: ${{ env.RELCLI_IMAGE_PULL_ROLE_ARN }}
           role-session-name: "publish-release-server-${{ github.run_attempt }}"
           role-duration-seconds: 900
 
@@ -55,13 +66,13 @@ jobs:
         with:
           role-skip-session-tagging: true
           aws-region: us-west-2
-          role-to-assume: ${{ vars.ARTIFACT_DOWNLOAD_AWS_ROLE }}
+          role-to-assume: ${{ env.ARTIFACT_DOWNLOAD_AWS_ROLE }}
           role-session-name: "publish-release-server-${{ github.run_attempt }}"
           role-duration-seconds: 900
       
       - name: Download the artifacts (with manifests)
         env:
-          PENDING_BUCKET_NAME: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
+          PENDING_BUCKET_NAME: ${{ env.ARTIFACT_SOURCE_BUCKET }}
           RELEASE_VERSION: ${{ inputs.version }}
         working-directory: ${{ env.ARTIFACT_DIRECTORY }}
         run: |
@@ -80,14 +91,14 @@ jobs:
         uses: teleport-actions/auth-application@f79fa517ce6609c9b94462f8b3e28346a6a2436a # v2
         with:
           proxy: platform.teleport.sh:443
-          token: ${{ vars.RELCLI_TBOT_TOKEN }}
-          app: ${{ vars.RELCLI_TBOT_APP_NAME }}
+          token: ${{ env.RELCLI_TBOT_TOKEN }}
+          app: ${{ env.RELCLI_TBOT_APP_NAME }}
       
       - name: Upload artifacts and publish release
         env:
           DRONE_TAG: ${{ inputs.version }}  # I swear we'll get rid of this some day
           VERSION: ${{ inputs.version }}
-          RELCLI_BASE_URL: ${{ vars.RELEASES_HOST }}
+          RELCLI_BASE_URL: ${{ env.RELEASES_HOST }}
           RELCLI_CERT: ${{ steps.relsrv-auth.outputs.certificate-file }}
           RELCLI_KEY: ${{ steps.relsrv-auth.outputs.key-file }}
         working-directory: ${{ env.ARTIFACT_DIRECTORY }}

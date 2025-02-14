@@ -26,7 +26,7 @@ on:
       environment:
         description: GitHub environment to publish to.
         type: string
-        default: publish-stage
+        default: stage/publish
 
 run-name: "Publish OCI image ${{ inputs.repository }}:${{ inputs.pending-tag }}"
 
@@ -35,10 +35,27 @@ jobs:
     name: "Publish ${{ inputs.repository }} image"
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
-    env:
-      DST_REPO: '${{ vars.OCI_PUBLIC_REPO_BASE }}/${{ inputs.repository }}'
-      SRC_REPO: "${{ vars.ECR_PENDING_REPO_BASE }}/${{ inputs.repository }}"
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .environments
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@tools/env-loader/v0.0.5
+        with:
+          environment-name: ${{ inputs.environment }}
+          value-sets: oci
+      
+      - name: Set source and destination repos
+        env:
+          REPOSITORY_NAME: ${{ inputs.repository }}
+        run: |
+          {
+            echo "SRC_REPO=${ECR_PENDING_REPO_BASE}/${REPOSITORY_NAME}"
+            echo "DST_REPO=${OCI_PUBLIC_REPO_BASE}/${REPOSITORY_NAME}"
+          } >> "${GITHUB_ENV}"
+
       - name: Install cosign
         uses: sigstore/cosign-installer@dc72c7d5c4d10cd6bcb8cf6e3fd625a9e5e537da # v3.7.0
 
@@ -51,7 +68,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: us-west-2
-          role-to-assume: ${{ vars.ECR_OCI_PENDING_PULL_ROLE_ARN }}
+          role-to-assume: ${{ env.ECR_OCI_PENDING_PULL_ROLE_ARN }}
           role-session-name: "gha-oci-image-publish-download-${{ github.run_number }}"
           role-duration-seconds: 900
 
@@ -60,13 +77,13 @@ jobs:
       - name: Login to Pending ECR Registry
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
-          registry: ${{ vars.ECR_PENDING_REPO_BASE }}
+          registry: ${{ env.ECR_PENDING_REPO_BASE }}
 
       - name: Validate pending image signature using signing key and GitHub OIDC Token
         env:
           CERT_IDENTITY_REGEXP: 'https://github\.com/gravitational/teleport\.e/\.github/workflows/oci-image-build\.yml@refs/tags/.+'
           CERT_OIDC_ISSUER: "https://token.actions.githubusercontent.com/teleport"
-          SIGNING_KEY_ARN: "${{ vars.OCI_PENDING_SIGNING_KEY_ARN }}"
+          SIGNING_KEY_ARN: "${{ env.OCI_PENDING_SIGNING_KEY_ARN }}"
           SRC_IMAGE_TAG: "${{ env.SRC_REPO }}:${{ inputs.pending-tag }}"
         run: |
           cosign verify --key "awskms:///${SIGNING_KEY_ARN}" "${SRC_IMAGE_TAG}" > validated-image.json
@@ -79,16 +96,16 @@ jobs:
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: us-west-2
-          role-to-assume: ${{ vars.ECR_OCI_PUSH_ROLE_ARN }}
+          role-to-assume: ${{ env.ECR_OCI_PUSH_ROLE_ARN }}
           role-session-name: "gha-oci-image-publish-upload-${{ github.run_number }}"
           role-duration-seconds: 900
 
       - name: Login to Production ECR Registry
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
-          # Don't use `vars.OCI_PUBLIC_REPO_BASE` here due to a bug with the login action.
+          # Don't use `env.OCI_PUBLIC_REPO_BASE` here due to a bug with the login action.
           # The login action checks to see if the registry is exactly equal to `public.ecr.aws`,
-          # and defaults to prvite if `registry` contains the registry name (despite being still
+          # and defaults to private if `registry` contains the registry name (despite being still
           # being a valid value). For details, see:
           # https://github.com/docker/login-action/blob/e92390c5fb421da1463c202d546fed0ec5c39f20/src/aws.ts#L15
           registry: public.ecr.aws
@@ -108,7 +125,7 @@ jobs:
 
       - name: Sign production images using signing key and GitHub OIDC Token
         env:
-          SIGNING_KEY_ARN: ${{ vars.OCI_PUBLIC_SIGNING_KEY_ARN }}
+          SIGNING_KEY_ARN: ${{ env.OCI_PUBLIC_SIGNING_KEY_ARN }}
         run: |
           DST_IMAGE_HASH="${DST_REPO}@${TELEPORT_IMAGE_LIST_HASH}"
           cosign sign --yes --key "awskms:///${SIGNING_KEY_ARN}" --recursive "${DST_IMAGE_HASH}"

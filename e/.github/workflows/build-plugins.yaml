@@ -22,9 +22,9 @@ on:
       environment:
         description: |
           GitHub Actions environment in which to run the build. Can be either
-          `build-stage` or `build-prod`.
+          `stage/build` or `prod/build`.
         type: string
-        default: build-stage
+        default: stage/build
 
 jobs:
   build-plugins:
@@ -43,7 +43,6 @@ jobs:
     env:
       ARTIFACT_DIRECTORY: /tmp/build
       OS: ${{ matrix.target.os }}
-      ENVIRONMENT_NAME: ${{ vars.ENVIRONMENT_NAME }}
     steps:
       # Setup
       - name: Checkout Teleport
@@ -51,10 +50,26 @@ jobs:
         with:
           oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
           oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-          edition: oss  # We don't need teleport.e even when building enterprise AMI
+          edition: enterprise
           repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
           repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
           oss-fetch-depth: 0  # This is required by some of the commands in the makefiles
+
+      - name: Assume env-loader secrets decryption AWS role
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.BUILD_PLUGINS_ENV_LOADER_AWS_ROLE_ARN }}
+          role-session-name: "gha-build-plugins-env-loader-${{ github.run_number }}"
+          role-duration-seconds: 900
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@tools/env-loader/v0.0.5
+        with:
+          environment-name: ${{ inputs.environment }}
+          # Mac signing secrets are needed for signing the macOS plugins
+          value-sets: mac-signing
+          environments-directory: e/.environments
           
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -99,17 +114,17 @@ jobs:
       - name: Setup keychain
         if: ${{ matrix.target.os == 'darwin' }}
         env:
-          APP_KEY: ${{ secrets.APPLE_APPLICATION_PRIVATE_KEY }}
-          APP_KEY_PASSWORD: ${{ secrets.APPLE_APPLICATION_PRIVATE_KEY_PASSWORD }}
-          INST_KEY: ${{ secrets.APPLE_INSTALLER_PRIVATE_KEY }}
-          INST_KEY_PASSWORD: ${{ secrets.APPLE_INSTALLER_PRIVATE_KEY_PASSWORD }}
+          APP_KEY: ${{ env.APPLE_APPLICATION_PRIVATE_KEY }}
+          APP_KEY_PASSWORD: ${{ env.APPLE_APPLICATION_PRIVATE_KEY_PASSWORD }}
+          INST_KEY: ${{ env.APPLE_INSTALLER_PRIVATE_KEY }}
+          INST_KEY_PASSWORD: ${{ env.APPLE_INSTALLER_PRIVATE_KEY_PASSWORD }}
         run: |
           ./build.assets/keychain-setup.sh -a APP_KEY -A APP_KEY_PASSWORD -i INST_KEY -I INST_KEY_PASSWORD -v
 
       - name: Build the terraform provider release tarballs
         env:
-          APPLE_USERNAME: ${{ env.OS == 'darwin' && vars.APPLE_USERNAME }}
-          APPLE_PASSWORD: ${{ env.OS == 'darwin' && secrets.APPLE_APPLICATION_PASSWORD }}
+          APPLE_USERNAME: ${{ env.OS == 'darwin' && env.APPLE_USERNAME }}
+          APPLE_PASSWORD: ${{ env.OS == 'darwin' && env.APPLE_APPLICATION_PASSWORD }}
         run: |
           make -C integrations/terraform release ARCH=amd64
           make -C integrations/terraform release ARCH=arm64
@@ -119,8 +134,8 @@ jobs:
 
       - name: Build the event handler release tarballs
         env:
-          APPLE_USERNAME: ${{ env.OS == 'darwin' && vars.APPLE_USERNAME }}
-          APPLE_PASSWORD: ${{ env.OS == 'darwin' && secrets.APPLE_APPLICATION_PASSWORD }}
+          APPLE_USERNAME: ${{ env.OS == 'darwin' && env.APPLE_USERNAME }}
+          APPLE_PASSWORD: ${{ env.OS == 'darwin' && env.APPLE_APPLICATION_PASSWORD }}
         run: |
           make -C integrations/event-handler release ARCH=amd64
           make -C integrations/event-handler release ARCH=arm64
@@ -134,8 +149,8 @@ jobs:
         env:
           # Important: This path must not include any spaces, or it will break the downstream invocation.
           RELCLI_PATH: /tmp/relcli
-          RELCLI_VERSION: ${{ vars.RELCLI_VERSION }}
-          OS: ${{ env.OS == 'darwin' && 'macos' || 'linux'}} # relcli uses macos instead of darwin
+          RELCLI_VERSION: ${{ env.RELCLI_VERSION }}
+          OS: ${{ env.OS == 'darwin' && 'macos' || 'linux' }} # relcli uses macos instead of darwin
         working-directory: ${{ env.ARTIFACT_DIRECTORY }}
         run: |
           # Download the release server CLI tool
@@ -194,14 +209,14 @@ jobs:
         with:
           role-skip-session-tagging: true
           aws-region: us-west-2
-          role-to-assume: ${{ vars.ARTIFACT_UPLOAD_AWS_ROLE }}
+          role-to-assume: ${{ env.ARTIFACT_UPLOAD_AWS_ROLE }}
           role-session-name: "tag-build-artifact-upload-${{ github.run_attempt }}"
           role-duration-seconds: 900
 
       - name: Upload artifacts to S3
         working-directory: ${{ env.ARTIFACT_DIRECTORY }}
         env:
-          PENDING_BUCKET: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
+          PENDING_BUCKET: ${{ env.ARTIFACT_SOURCE_BUCKET }}
         run: |
           aws s3 sync . "s3://$PENDING_BUCKET/teleport-plugins/tag/$VERSION/" --no-progress
 
@@ -298,6 +313,16 @@ jobs:
       contents: read
       id-token: write
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .environments
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@tools/env-loader/v0.0.5
+        with:
+          environment-name: ${{ inputs.environment }}
+
       # generic-arm64 may need a bit of setup before using
       - name: Ensure required packages are installed
         if: ${{ matrix.runs-on == 'generic-arm64-runner' }}
@@ -307,8 +332,8 @@ jobs:
         with:
           target: linux-${{ matrix.arch }}
           version: ${{ inputs.teleport-version }}
-          s3-bucket: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
-          aws-role-to-assume: ${{ vars.ARTIFACT_DOWNLOAD_AWS_ROLE }}
+          s3-bucket: ${{ env.ARTIFACT_SOURCE_BUCKET }}
+          aws-role-to-assume: ${{ env.ARTIFACT_DOWNLOAD_AWS_ROLE }}
           access-plugins: >-
             teleport-access-discord
             teleport-access-email
@@ -326,8 +351,8 @@ jobs:
         with:
           target: linux-${{ matrix.arch }}
           version: ${{ inputs.teleport-version }}
-          ecr-registry: ${{ vars.ECR_PENDING_REPO_BASE }}
-          aws-role-to-assume: ${{ vars.OCI_ECR_AWS_ROLE }}
+          ecr-registry: ${{ env.ECR_PENDING_REPO_BASE }}
+          aws-role-to-assume: ${{ env.OCI_ECR_AWS_ROLE }}
           container-images: >-
             teleport-plugin-discord
             teleport-plugin-email
@@ -357,18 +382,28 @@ jobs:
       id-token: write
     runs-on: ${{ matrix.runs-on }}
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .environments
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@tools/env-loader/v0.0.5
+        with:
+          environment-name: ${{ inputs.environment }}
+          
       - uses: gravitational/teleport.e/.github/actions/smoke-test-plugin-tarballs@master
         with:
           target: darwin-${{ matrix.arch }}
           version: ${{ inputs.teleport-version }}
-          s3-bucket: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
-          aws-role-to-assume: ${{ vars.ARTIFACT_DOWNLOAD_AWS_ROLE }}
+          s3-bucket: ${{ env.ARTIFACT_SOURCE_BUCKET }}
+          aws-role-to-assume: ${{ env.ARTIFACT_DOWNLOAD_AWS_ROLE }}
           access-plugins: >-
             teleport-event-handler
 
       - uses: gravitational/teleport.e/.github/actions/smoke-test-plugin-tarballs@master
         with:
           target: darwin-universal
-          s3-bucket: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
-          aws-role-to-assume: ${{ vars.ARTIFACT_DOWNLOAD_AWS_ROLE }}
+          s3-bucket: ${{ env.ARTIFACT_SOURCE_BUCKET }}
+          aws-role-to-assume: ${{ env.ARTIFACT_DOWNLOAD_AWS_ROLE }}
           version: ${{ inputs.teleport-version }}

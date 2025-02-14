@@ -28,9 +28,9 @@ on:
       environment:
         description: |
           GitHub Actions environment in which to run the build. Can be either
-          `build-stage` or `build-prod`.
+          `stage/build` or `prod/build`.
         type: string
-        default: build-stage
+        default: stage/build
 
   # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
   workflow_dispatch:
@@ -48,7 +48,7 @@ on:
         default: eu-north-1,ap-south-1,eu-west-3,eu-west-2,eu-west-1,ap-northeast-3,ap-northeast-2,ap-northeast-1,sa-east-1,ca-central-1,ap-southeast-1,ap-southeast-2,eu-central-1,us-east-1,us-east-2,us-west-1,us-west-2
       environment:
         type: string
-        default: build-stage
+        default: stage/build
 
 run-name: Build Hardened AMIs for Teleport ${{ inputs.source-tag != '' && inputs.source-tag || inputs.oss-teleport-ref }}
 jobs:
@@ -90,15 +90,22 @@ jobs:
         with:
           oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
           oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-          edition: oss  # We don't need teleport.e even when building enterprise AMI
+          edition: enterprise
           repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
           repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@tools/env-loader/v0.0.5
+        with:
+          environment-name: ${{ inputs.environment }}
+          value-sets: amis
+          environments-directory: e/.environments
 
       - name: Assume Legacy Drone storage AWS role
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: us-west-2
-          role-to-assume: ${{ vars.ARTIFACT_DOWNLOAD_AWS_ROLE }}
+          role-to-assume: ${{ env.ARTIFACT_DOWNLOAD_AWS_ROLE }}
           role-session-name: "gha-ami-build-${{ github.run_number }}-${{ inputs.source-tag }}"
           role-duration-seconds: 3600
 
@@ -109,7 +116,7 @@ jobs:
           TELEPORT_VERSION: ${{ steps.version.outputs.teleport }}
           TAR_EDITION_INFIX: ${{ matrix.edition-infix }}
           TAR_FIPS_INFIX: ${{ matrix.fips-infix }}
-          SRC_BUCKET: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
+          SRC_BUCKET: ${{ env.ARTIFACT_SOURCE_BUCKET }}
         run: |
           TARBALL_NAME="teleport${TAR_EDITION_INFIX}-v${TELEPORT_VERSION}-linux-${ARCHITECTURE}${TAR_FIPS_INFIX}-bin.tar.gz"
           aws s3 cp "s3://${SRC_BUCKET}/teleport/tag/${TELEPORT_VERSION}/${TARBALL_NAME}" "./${TARBALL_NAME}"
@@ -119,7 +126,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: us-west-2
-          role-to-assume: ${{ vars.AMI_UPLOAD_AWS_ROLE }}
+          role-to-assume: ${{ env.AMI_UPLOAD_AWS_ROLE }}
           role-session-name: "gha-${{ matrix.teleport-edition }}-ami-build-${{ github.run_number }}"
           role-duration-seconds: 3600
 
@@ -131,7 +138,7 @@ jobs:
 
       - name: Build AMI
         env:
-          AWS_VPC_ID: ${{ vars.AMI_VPC_ID }}
+          AWS_VPC_ID: ${{ env.AMI_VPC_ID }}
           TELEPORT_VERSION: ${{ steps.version.outputs.teleport }}
           TELEPORT_TYPE: ${{ matrix.teleport-edition }}
           TELEPORT_FIPS: ${{ matrix.fips }}

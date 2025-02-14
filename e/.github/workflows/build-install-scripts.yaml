@@ -21,7 +21,7 @@ on:
       environment:
         description: GitHub environment to build in.
         type: string
-        default: build-stage
+        default: stage/build
 
   # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
   workflow_dispatch:
@@ -36,7 +36,7 @@ on:
         type: string
       environment:
         type: string
-        default: build-stage
+        default: stage/build
     
 jobs:
   build:
@@ -52,11 +52,14 @@ jobs:
         with:
           oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
           oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-          edition: oss
-          # This is still needed to so that teleport-private
-          # can be checked out
+          edition: enterprise
           repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
           repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@tools/env-loader/v0.0.5
+        with:
+          environment-name: ${{ inputs.environment }}
+          environments-directory: e/.environments
 
       - name: Copy the scripts to the release directory
         env:
@@ -72,8 +75,8 @@ jobs:
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           role-skip-session-tagging: true
-          aws-region: ${{ vars.ECR_PRIVATE_REPOS_REGION }}
-          role-to-assume: ${{ vars.ECR_PROD_PULL_ROLE_ARN }}
+          aws-region: ${{ env.RELCLI_IMAGE_REGION }}
+          role-to-assume: ${{ env.RELCLI_IMAGE_PULL_ROLE_ARN }}
           role-session-name: "pull-relcli-build-install-scripts-${{ github.run_attempt }}"
           role-duration-seconds: 900
   
@@ -83,7 +86,7 @@ jobs:
       - name: Generate release server manifests
         working-directory: build/artifacts
         env:
-          RELCLI_IMAGE: ${{ vars.RELCLI_IMAGE }}
+          RELCLI_IMAGE: ${{ env.RELCLI_IMAGE }}
           RELEASE_VERSION: ${{ inputs.teleport-version }}
         run: |
           docker pull "${RELCLI_IMAGE}"
@@ -114,14 +117,14 @@ jobs:
         with:
           role-skip-session-tagging: true
           aws-region: us-west-2
-          role-to-assume: ${{ vars.ARTIFACT_UPLOAD_AWS_ROLE }}
+          role-to-assume: ${{ env.ARTIFACT_UPLOAD_AWS_ROLE }}
           role-session-name: upload-artifacts-${{ github.run_number }}
           role-duration-seconds: 3600
           
       - name: Copy artifacts to S3 bucket
         working-directory: build/artifacts
         env:
-          PENDING_BUCKET_NAME: ${{ vars.ARTIFACT_SOURCE_BUCKET}}
+          PENDING_BUCKET_NAME: ${{ env.ARTIFACT_SOURCE_BUCKET }}
           RELEASE_VERSION: ${{ inputs.teleport-version }}
         run: |
           aws s3 cp . "s3://$PENDING_BUCKET_NAME/teleport/tag/${RELEASE_VERSION}/" --recursive

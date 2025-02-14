@@ -39,7 +39,7 @@ func main() {
 
 	files, err := getArtifactFiles(args.artifactDirectoryPath)
 	if err != nil {
-		slog.ErrorContext(ctx, "Failed to list artifactes directory", "path", args.artifactDirectoryPath, "error", err)
+		slog.ErrorContext(ctx, "Failed to list artifacts directory", "path", args.artifactDirectoryPath, "error", err)
 		os.Exit(1)
 	}
 

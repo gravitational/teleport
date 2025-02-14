@@ -31,9 +31,9 @@ on:
       environment:
         description: |
           GitHub Actions environment in which to run the build. Can be either
-          `build-stage` or `build-prod`.
+          `stage/build` or `prod/build`.
         type: string
-        default: build-stage
+        default: stage/build
 
 jobs:
   build-image:
@@ -46,9 +46,16 @@ jobs:
         with:
           oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
           oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-          edition: oss
+          edition: enterprise
           repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
           repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@tools/env-loader/v0.0.5
+        with:
+          environment-name: ${{ inputs.environment }}
+          value-sets: operator
+          environments-directory: e/.environments
 
       - name: Parameterize build
         id: params
@@ -76,7 +83,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: us-west-2
-          role-to-assume: ${{ vars.BUILD_OPERATOR_OCI_AWS_ROLE }}
+          role-to-assume: ${{ env.BUILD_OPERATOR_OCI_AWS_ROLE }}
           role-session-name: "gha-build-operator-oci-${{ github.run_attempt }}"
           role-duration-seconds: 3600
 
@@ -89,7 +96,7 @@ jobs:
       - name: Check if Image Exists
         id: check
         env:
-          IMAGE: ${{ vars.OPERATOR_PENDING_ECR_REPO }}:${{ steps.params.outputs.teleport-version }}
+          IMAGE: ${{ env.OPERATOR_PENDING_ECR_REPO }}:${{ steps.params.outputs.teleport-version }}
         run: |
           if docker manifest inspect "${IMAGE}" >/dev/null 2>&1; then
             echo "Skipping build/push as image already exists: ${IMAGE}" >> "$GITHUB_STEP_SUMMARY"
@@ -106,4 +113,4 @@ jobs:
           context: .
           file: ./integrations/operator/Dockerfile.gha
           platforms: ${{ steps.params.outputs.platforms }}
-          tags: ${{ vars.OPERATOR_PENDING_ECR_REPO }}:${{ steps.params.outputs.teleport-version }}
+          tags: ${{ env.OPERATOR_PENDING_ECR_REPO }}:${{ steps.params.outputs.teleport-version }}

@@ -155,7 +155,7 @@ jobs:
         id: fetch
         if: needs.run.result != 'success'
         env:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Fetch link to logs on CI
           URL="https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}"
@@ -184,7 +184,7 @@ jobs:
                 {
                   "color": "danger",
                   "title": "Go vulnerabilities detected - click here to investigate",
-                  "title_link": "${{steps.fetch.outputs.logurl}}"
+                  "title_link": "${{ steps.fetch.outputs.logurl }}"
                 }
               ]
             }

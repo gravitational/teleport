@@ -89,7 +89,7 @@ jobs:
       dest-image-registry-region: us-east-1
       dest-image-repo: gravitational/teleport${{ matrix.repo-enterprise-infix }}-distroless${{ matrix.repo-debug-suffix }}
       dest-image-tags: ${{ needs.configure.outputs.image_tags }}
-      environment: build-prod
+      environment: prod/build
       image-build-args: |
         TELEPORT_VERSION=${{ needs.configure.outputs.teleport_version }}
       image-build-dockerfile: Dockerfile-distroless${{ matrix.dockerfile-suffix }}

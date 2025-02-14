@@ -22,7 +22,7 @@ on:
       environment:
         description: GitHub environment to publish to.
         type: string
-        default: publish-stage
+        default: stage/publish
 
 jobs:
   publish:
@@ -48,6 +48,21 @@ jobs:
           repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
           repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
 
+      - name: Assume env-loader secrets decryption AWS role
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.PUBLISH_PLUGINS_ENV_LOADER_AWS_ROLE_ARN }}
+          role-session-name: "gha-publish-plugins-env-loader-${{ github.run_number }}"
+          role-duration-seconds: 900
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@tools/env-loader/v0.0.5
+        with:
+          environment-name: ${{ inputs.environment }}
+          value-sets: terraform
+          environments-directory: e/.environments
+
       - name: Setup tooling Go
         uses: actions/setup-go@v5
         with:
@@ -61,13 +76,13 @@ jobs:
         with:
           role-skip-session-tagging: true
           aws-region: us-west-2
-          role-to-assume: ${{ vars.ARTIFACT_DOWNLOAD_AWS_ROLE }}
+          role-to-assume: ${{ env.ARTIFACT_DOWNLOAD_AWS_ROLE }}
           role-session-name: "tag-publish-plugins-artifact-download-${{ github.run_attempt }}"
           role-duration-seconds: 900
 
       - name: Download artifacts from S3
         env:
-          PENDING_BUCKET: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
+          PENDING_BUCKET: ${{ env.ARTIFACT_SOURCE_BUCKET }}
         run: |
           aws s3 cp "s3://$PENDING_BUCKET/teleport-plugins/tag/$ARTIFACT_TAG/" "$LOCAL_ARTIFACTS_PATH" --recursive
 
@@ -77,20 +92,20 @@ jobs:
         with:
           role-skip-session-tagging: true
           aws-region: us-west-2
-          role-to-assume: ${{ vars.TERRAFORM_PUBLISHING_SYNC_AWS_ROLE }}
+          role-to-assume: ${{ env.TERRAFORM_PUBLISHING_SYNC_AWS_ROLE }}
           role-session-name: "tag-publish-plugins-terraform-publishing-sync-${{ github.run_attempt }}"
           role-duration-seconds: 900
 
       - name: Download the Terraform repo from S3
         env:
-          TERRAFORM_REGISTRY_BUCKET: ${{ vars.TERRAFORM_REGISTRY_BUCKET }}
+          TERRAFORM_REGISTRY_BUCKET: ${{ env.TERRAFORM_REGISTRY_BUCKET }}
         run: |
           aws s3 cp "s3://$TERRAFORM_REGISTRY_BUCKET/" "$LOCAL_TERRAFORM_REGISTRY_PATH" --recursive
 
       - name: Run the terraform-publish tool
         env:
-          TERRAFORM_REGISTRY_URL: ${{ vars.TERRAFORM_REGISTRY_URL }}
-          SIGNING_KEY: ${{ secrets.TERRAFORM_SIGNING_KEY }}
+          TERRAFORM_REGISTRY_URL: ${{ env.TERRAFORM_REGISTRY_URL }}
+          SIGNING_KEY: ${{ env.TERRAFORM_SIGNING_KEY }}
         run: |
           go run -C e/tooling/plugins ./cmd/promote-terraform \
             --tag "$ARTIFACT_TAG" \
@@ -103,7 +118,7 @@ jobs:
 
       - name: Upload the Terraform repo to S3
         env:
-          TERRAFORM_REGISTRY_BUCKET: ${{ vars.TERRAFORM_REGISTRY_BUCKET }}
+          TERRAFORM_REGISTRY_BUCKET: ${{ env.TERRAFORM_REGISTRY_BUCKET }}
         run: |
           aws s3 sync "$LOCAL_TERRAFORM_REGISTRY_PATH" "s3://$TERRAFORM_REGISTRY_BUCKET/"
 

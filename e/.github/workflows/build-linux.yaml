@@ -54,9 +54,9 @@ on:
       environment:
         description: |
           GitHub Actions environment in which to run the build. Can be either
-          `build-stage` or `build-prod`.
+          `stage/build` or `prod/build`.
         type: string
-        default: build-stage
+        default: stage/build
 
   # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
   workflow_dispatch:
@@ -86,7 +86,7 @@ on:
         default: false
       environment:
         type: string
-        default: build-stage
+        default: stage/build
 
 run-name: "Linux build ${{ inputs.release-target }} of ${{ inputs.oss-teleport-repo }} branch ${{ inputs.oss-teleport-ref }}"
 
@@ -146,6 +146,30 @@ jobs:
       - name: Ensure required packages are installed
         uses: gravitational/teleport.e/.github/actions/setup-self-hosted-runner@master
 
+      - name: Checkout Teleport
+        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
+        with:
+          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+          edition: ${{ inputs.release }}
+          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+
+      - name: Assume env-loader secrets decryption AWS role
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.BUILD_LINUX_ENV_LOADER_AWS_ROLE_ARN }}
+          role-session-name: "gha-build-linux-env-loader-${{ github.run_number }}"
+          role-duration-seconds: 900
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@tools/env-loader/v0.0.5
+        with:
+          environment-name: ${{ inputs.environment }}
+          value-sets: gpg-signing
+          environments-directory: e/.environments
+
       - name: Determine FIPS
         id: determine-fips
         env:
@@ -173,7 +197,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: us-west-2
-          role-to-assume: ${{ vars.ECR_READ_ONLY_ROLE }}
+          role-to-assume: ${{ env.ECR_READ_ONLY_ROLE }}
           role-session-name: "gha-build-linux-${{ github.run_number }}"
           role-duration-seconds: 3600
 
@@ -194,15 +218,6 @@ jobs:
         run: |
           sudo mkdir -p "$GOCACHE" "$GOMODCACHE"
           sudo chown -Rf "$(id -u):$(id -g)" "$GOCACHE" "$GOMODCACHE"
-
-      - name: Checkout Teleport
-        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
-        with:
-          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
-          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-          edition: ${{ inputs.release }}
-          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
-          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -273,7 +288,6 @@ jobs:
       - name: Extract RPM Signing Archive
         if: inputs.build-rpm
         env:
-          GPG_SIGNING_ARCHIVE: ${{ secrets.GPG_SIGNING_ARCHIVE }}
           GNUPG_DIR: /tmp/gnupg
         run: |
           if [ -z "$GPG_SIGNING_ARCHIVE" ]; then
@@ -318,8 +332,8 @@ jobs:
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           role-skip-session-tagging: true
-          aws-region: ${{ vars.ECR_PRIVATE_REPOS_REGION }}
-          role-to-assume: ${{ vars.ECR_PROD_PULL_ROLE_ARN }}
+          aws-region: ${{ env.RELCLI_IMAGE_REGION }}
+          role-to-assume: ${{ env.RELCLI_IMAGE_PULL_ROLE_ARN }}
           role-session-name: "pull-relcli-build-linux-${{ github.run_attempt }}"
           role-duration-seconds: 900
   
@@ -329,7 +343,7 @@ jobs:
       - name: Generate release server manifests
         working-directory: build/artifacts
         env:
-          RELCLI_IMAGE: ${{ vars.RELCLI_IMAGE }}
+          RELCLI_IMAGE: ${{ env.RELCLI_IMAGE }}
         run: |
           docker pull "${RELCLI_IMAGE}"
 
@@ -421,13 +435,13 @@ jobs:
         with:
           role-skip-session-tagging: true
           aws-region: us-west-2
-          role-to-assume: ${{ vars.ARTIFACT_UPLOAD_AWS_ROLE }}
+          role-to-assume: ${{ env.ARTIFACT_UPLOAD_AWS_ROLE }}
           role-session-name: upload-artifacts-${{ github.run_number }}
           role-duration-seconds: 3600
   
       - name: Copy artifacts to S3 bucket
         working-directory: build/artifacts
         env:
-          PENDING_BUCKET_NAME: ${{ vars.ARTIFACT_SOURCE_BUCKET}}
+          PENDING_BUCKET_NAME: ${{ env.ARTIFACT_SOURCE_BUCKET }}
         run: |
           aws s3 sync . "s3://$PENDING_BUCKET_NAME/teleport/tag/${VERSION#v}/"

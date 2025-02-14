@@ -13,7 +13,7 @@ on:
           - apt
           - yum
       environment:
-        description: "Environment to deploy the package to. Either publish-stage, or publish-prod."
+        description: "Environment to deploy the package to. Either stage/publish, or prod/publish."
         type: environment
         required: true
       package-name-filter:
@@ -73,10 +73,10 @@ jobs:
         run: |
           # TODO(fheinecke) clean up the old environments listed here
           case "$ENVIRONMENT" in
-            "promote" | "build-prod" | "publish-prod")
+            "promote" | "build-prod" | "publish-prod" | "prod/publish")
               RUNNER_LABEL_ENVIRONMENT="prod"
             ;;
-            "build" | "build-stage" | "publish-stage")
+            "build" | "build-stage" | "publish-stage" | "stage/publish")
               RUNNER_LABEL_ENVIRONMENT="dev"
             ;;
             *)
@@ -133,12 +133,30 @@ jobs:
       VERSION_CHANNEL: ${{ inputs.version-channel }}
       RELEASE_CHANNEL: ${{ inputs.release-channel }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .environments
+      - name: Assume env-loader secrets decryption AWS role
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.DEPLOY_PACKAGES_ENV_LOADER_AWS_ROLE_ARN }}
+          role-session-name: "gha-publish-deploy-packages-env-loader-${{ github.run_number }}"
+          role-duration-seconds: 900
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@tools/env-loader/v0.0.5
+        with:
+          environment-name: ${{ inputs.environment }}
+          value-sets: |
+            gpg-signing
+            os-package-repos
       - name: Derive and set repo type-specific variables for APT
         if: inputs.repo-type == 'apt'
         env:
-          APT_S3_BUCKET: ${{ vars.APT_S3_BUCKET }}
-          APT_DEPLOYMENT_AWS_ROLE: ${{ vars.APT_DEPLOYMENT_AWS_ROLE }}
-          APT_CLOUDFRONT_DISTRIBUTION: ${{ vars.APT_CLOUDFRONT_DISTRIBUTION }}
+          APT_S3_BUCKET: ${{ env.APT_S3_BUCKET }}
+          APT_DEPLOYMENT_AWS_ROLE: ${{ env.APT_DEPLOYMENT_AWS_ROLE }}
+          APT_CLOUDFRONT_DISTRIBUTION: ${{ env.APT_CLOUDFRONT_DISTRIBUTION }}
         run: |
           {
             echo "PACKAGE_TYPE=deb"
@@ -150,10 +168,10 @@ jobs:
       - name: Derive and set repo type-specific variables for YUM
         if: inputs.repo-type == 'yum'
         env:
-          YUM_S3_BUCKET: ${{ vars.YUM_S3_BUCKET }}
-          YUM_REPO_BASE_DOMAIN_NAME: ${{ vars.YUM_REPO_BASE_DOMAIN_NAME }}
-          YUM_DEPLOYMENT_AWS_ROLE: ${{ vars.YUM_DEPLOYMENT_AWS_ROLE }}
-          YUM_CLOUDFRONT_DISTRIBUTION: ${{ vars.YUM_CLOUDFRONT_DISTRIBUTION }}
+          YUM_S3_BUCKET: ${{ env.YUM_S3_BUCKET }}
+          YUM_REPO_BASE_DOMAIN_NAME: ${{ env.YUM_REPO_BASE_DOMAIN_NAME }}
+          YUM_DEPLOYMENT_AWS_ROLE: ${{ env.YUM_DEPLOYMENT_AWS_ROLE }}
+          YUM_CLOUDFRONT_DISTRIBUTION: ${{ env.YUM_CLOUDFRONT_DISTRIBUTION }}
         run: |
           {
             echo "PACKAGE_TYPE=rpm"
@@ -246,7 +264,7 @@ jobs:
         with:
           role-skip-session-tagging: true
           aws-region: us-west-2
-          role-to-assume: ${{ vars.ARTIFACT_DOWNLOAD_AWS_ROLE }}
+          role-to-assume: ${{ env.ARTIFACT_DOWNLOAD_AWS_ROLE }}
           role-session-name: "gha-oprt-artifact-download-${{ github.run_number }}"
           role-duration-seconds: 900
       - name: Define the version number used in the artifact download key
@@ -259,7 +277,7 @@ jobs:
       - name: Download artifacts to the download directory
         env:
           PACKAGE_NAME_FILTER: ${{ inputs.package-name-filter }}
-          ARTIFACT_SOURCE_BUCKET: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
+          ARTIFACT_SOURCE_BUCKET: ${{ env.ARTIFACT_SOURCE_BUCKET }}
         run: |
           echo "Creating download directory..."
           mkdir -pv "$DOWNLOAD_DIRECTORY"
@@ -301,7 +319,7 @@ jobs:
       - name: Setup GPG signing key
         uses: ./.github/actions/load-gpg-key
         with:
-          gpg-signing-archive: ${{ secrets.GPG_SIGNING_ARCHIVE }}
+          gpg-signing-archive: ${{ env.GPG_SIGNING_ARCHIVE }}
           gnupghome: ${{ env.GNUPGHOME }}
       - name: Ensure the environment cache path exists
         env:
@@ -418,14 +436,31 @@ jobs:
       version-channel: ${{ steps.set-version-channel.outputs.version-channel }}
       auto-updates-domain-name: ${{ steps.set-auto-updates-domain-name.outputs.domain-name }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .environments
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@tools/env-loader/v0.0.5
+        with:
+          environment-name: ${{ inputs.environment }}
+          value-sets: auto-updates
       # Note: These values are intentionally hard-coded here to prevent false positives or negatives due
       #       to a value in one of our code/IaC repos changing without the change propegating everywhere.
       - name: Derive and set Github environment-specific variables for production
-        if: contains(fromJSON('["promote", "build-prod", "publish-prod"]'), inputs.environment)
+        if: contains(fromJSON('["promote", "build-prod", "publish-prod", "prod/publish"]'), inputs.environment)
         run: echo "TEST_ENVIRONMENT=test-prod" >> "$GITHUB_ENV"
       - name: Derive and set Github environment-specific variables for development
-        if: contains(fromJSON('["build", "build-stage", "publish-stage"]'), inputs.environment)
+        if: contains(fromJSON('["build", "build-stage", "publish-stage", "stage/publish"]'), inputs.environment)
         run: echo "TEST_ENVIRONMENT=test-stage" >> "$GITHUB_ENV"
+      - name: Fail when test environment is not set
+        env:
+          INPUT_ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          if [ -z "${TEST_ENVIRONMENT}" ]; then
+            echo "Test environment is unset for input environment '${INPUT_ENVIRONMENT}'" >&2
+            exit 1
+          fi
       - name: Set test environment
         id: set-test-environment
         run: echo "test-environment=${TEST_ENVIRONMENT}" >> "$GITHUB_OUTPUT"
@@ -451,7 +486,7 @@ jobs:
       - name: Set auto updates domain name
         id: set-auto-updates-domain-name
         env:
-          AUTO_UPDATES_DOMAIN_NAME: ${{ vars.AUTO_UPDATES_DOMAIN_NAME }}
+          AUTO_UPDATES_DOMAIN_NAME: ${{ env.AUTO_UPDATES_DOMAIN_NAME }}
         run: echo "domain-name=${AUTO_UPDATES_DOMAIN_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Log set variables

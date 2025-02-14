@@ -34,6 +34,20 @@ jobs:
       ARTIFACT_DIRECTORY: 'C:\artifacts'
       RELCLI_DIR: 'C:\relcli'
     steps:
+      - name: Checkout Teleport
+        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
+        with:
+          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+          edition: enterprise
+          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@tools/env-loader/v0.0.5
+        with:
+          environment-name: ${{ inputs.environment }}
+          value-sets: windows-signing
+          environments-directory: e/.environments
       # TODO move this to an action in the share-workflows repo
       - name: Install Ubuntu WSL
         run: |
@@ -140,14 +154,14 @@ jobs:
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: us-west-2
-          role-to-assume: ${{ vars.WINDOWS_SIGNING_ROLE_ARN }}
+          role-to-assume: ${{ env.WINDOWS_SIGNING_ROLE_ARN }}
           role-session-name: "build-windows-${{ github.run_number }}"
           role-duration-seconds: 1800 # 30 minutes
       - name: Download and test the signing tools
         shell: wsl-ubuntu {0}
         env:
-          WINDOWS_SIGNING_CERT_SSM_PARAMETER_PATH: ${{ vars.WINDOWS_SIGNING_CERT_SSM_PARAMETER_PATH }}
-          WINDOWS_SIGNING_CERT_KMS_KEY_ARN: ${{ vars.WINDOWS_SIGNING_KEY_ARN }}
+          WINDOWS_SIGNING_CERT_SSM_PARAMETER_PATH: ${{ env.WINDOWS_SIGNING_CERT_SSM_PARAMETER_PATH }}
+          WINDOWS_SIGNING_CERT_KMS_KEY_ARN: ${{ env.WINDOWS_SIGNING_KEY_ARN }}
         run: |
           # Install required utilities
           # Install the 20.04 security repo for libssl1.1 and libjson-c4, which are required by aws-kms-pkcs11.
@@ -267,14 +281,6 @@ jobs:
 
           rm -f "$SIGNED_FILE_PATH"
           echo "::endgroup::"
-      - name: Checkout Teleport
-        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
-        with:
-          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
-          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-          edition: "enterprise"
-          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
-          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
       - name: Build the artifacts
         env:
           ARTIFACT_TAG: ${{ inputs.artifact-version }}
@@ -287,7 +293,7 @@ jobs:
           Build-Artifacts -TeleportSourceDirectory "$(Get-Location)" -TeleportVersion "$env:ARTIFACT_TAG" -ArtifactDirectory "$env:ARTIFACT_DIRECTORY"
       - name: Get the release server CLI
         env:
-          RELCLI_URL: 'https://cdn.teleport.dev/relcli-${{ vars.RELCLI_VERSION }}-windows.exe'
+          RELCLI_URL: 'https://cdn.teleport.dev/relcli-${{ env.RELCLI_VERSION }}-windows.exe'
         run: |
           $ErrorActionPreference = 'Stop'
           $ProgressPreference = 'SilentlyContinue'
@@ -307,12 +313,12 @@ jobs:
         with:
           role-skip-session-tagging: true
           aws-region: us-west-2
-          role-to-assume: ${{ vars.ARTIFACT_UPLOAD_AWS_ROLE }}
+          role-to-assume: ${{ env.ARTIFACT_UPLOAD_AWS_ROLE }}
           role-session-name: "release-windows-${{ github.run_number }}"
           role-duration-seconds: 900
       - name: Upload the artifacts to the artifact storage bucket
         env:
-          ARTIFACT_BUCKET: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
+          ARTIFACT_BUCKET: ${{ env.ARTIFACT_SOURCE_BUCKET }}
           ARTIFACT_TAG: ${{ inputs.artifact-version }}
         run: |
           aws s3 cp "$env:ARTIFACT_DIRECTORY" "s3://$env:ARTIFACT_BUCKET/teleport/tag/$env:ARTIFACT_TAG/" --recursive --no-progress

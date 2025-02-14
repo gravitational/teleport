@@ -41,9 +41,9 @@ on:
       environment:
         description: |
           GitHub Actions environment in which to run the build. Can be either
-          `build-stage` or `build-prod`.
+          `stage/build` or `prod/build`.
         type: string
-        default: build-stage
+        default: stage/build
 
       teleport-release:
         description: |
@@ -162,6 +162,22 @@ jobs:
     env:
       BASE_IMAGE: ${{ inputs.base-image }}
     steps:
+      - name: Checkout Teleport
+        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
+        with:
+          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+          edition: enterprise
+          path: ./teleport
+          repo-access-app-id: ${{ secrets.deploy-access-app-id }}
+          repo-access-app-key: ${{ secrets.deploy-access-app-key }}
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@tools/env-loader/v0.0.5
+        with:
+          environment-name: ${{ inputs.environment }}
+          environments-directory: ./teleport/e/.environments
+
       - name: Configure environment
         env:
           TELEPORT_RELEASE: ${{ inputs.teleport-release }}
@@ -204,7 +220,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: us-west-2
-          role-to-assume: ${{ vars.ECR_READ_ONLY_ROLE }}
+          role-to-assume: ${{ env.ECR_READ_ONLY_ROLE }}
           role-session-name: "gha-oci-image-build-ecr-${{ github.run_attempt }}"
           role-duration-seconds: 3600
 
@@ -217,16 +233,6 @@ jobs:
           # GetAuthorizationToken command is only supported in us-east-1.
           AWS_REGION: us-east-1
 
-      - name: Checkout Teleport
-        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
-        with:
-          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
-          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-          edition: oss
-          path: ./teleport
-          repo-access-app-id: ${{ secrets.deploy-access-app-id }}
-          repo-access-app-key: ${{ secrets.deploy-access-app-key }}
-
       - name: Copy Docker Image context
         run: |
           mkdir ./build
@@ -238,7 +244,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: us-west-2
-          role-to-assume: ${{ vars.ARTIFACT_DOWNLOAD_AWS_ROLE }}
+          role-to-assume: ${{ env.ARTIFACT_DOWNLOAD_AWS_ROLE }}
           role-session-name: "gha-oci-image-build-${{ github.run_number }}-${{ inputs.source-tag }}"
           role-duration-seconds: 3600
 
@@ -247,7 +253,7 @@ jobs:
         env:
           ARCHITECTURES: ${{ inputs.architectures }}
           TELEPORT_VERSION: ${{ inputs.teleport-version }}
-          PENDING_BUCKET_NAME: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
+          PENDING_BUCKET_NAME: ${{ env.ARTIFACT_SOURCE_BUCKET }}
           S3_FILE_NAME_OVERRIDE: ${{ inputs.s3-file-name-override }}
         run: |
           for arch in $ARCHITECTURES; do
@@ -289,7 +295,7 @@ jobs:
         id: expand
         env:
           DST_IMAGE_TAGS: ${{ inputs.dest-image-tags }}
-          DST_IMAGE_REPO: "${{ vars.ECR_PENDING_REPO_BASE }}/${{ inputs.dest-image-repo }}"
+          DST_IMAGE_REPO: "${{ env.ECR_PENDING_REPO_BASE }}/${{ inputs.dest-image-repo }}"
         run: |
           EOF=END_OF_TAGS
           echo "tags<<$EOF" >> "$GITHUB_OUTPUT"
@@ -302,14 +308,14 @@ jobs:
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: us-west-2
-          role-to-assume: ${{ vars.OCI_ECR_AWS_ROLE }}
+          role-to-assume: ${{ env.OCI_ECR_AWS_ROLE }}
           role-session-name: "gha-oci-image-build-${{ github.run_number }}"
           role-duration-seconds: 3600
 
       - name: Login to Destination ECR Registry
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
-          registry: ${{ vars.ECR_PENDING_REPO_BASE }}
+          registry: ${{ env.ECR_PENDING_REPO_BASE }}
           ecr: true
         env:
           AWS_REGION: ${{ inputs.dest-image-registry-region }}
@@ -353,8 +359,8 @@ jobs:
       - name: Sign image using signing key and GitHub OIDC Token
         if: steps.check.outputs.build_image == 'true'
         env:
-          SIGNING_KEY_ARN: ${{ vars.OCI_PENDING_SIGNING_KEY_ARN }}
-          DST_IMAGE: "${{ vars.ECR_PENDING_REPO_BASE }}/${{ inputs.dest-image-repo }}@${{ steps.build.outputs.digest }}"
+          SIGNING_KEY_ARN: ${{ env.OCI_PENDING_SIGNING_KEY_ARN }}
+          DST_IMAGE: "${{ env.ECR_PENDING_REPO_BASE }}/${{ inputs.dest-image-repo }}@${{ steps.build.outputs.digest }}"
         run: |
           cosign sign --yes --key "awskms:///${SIGNING_KEY_ARN}" --recursive "${DST_IMAGE}"
           cosign sign --yes --upload=false --recursive "${DST_IMAGE}"
@@ -366,18 +372,28 @@ jobs:
     needs: build-docker-image
     environment: ${{ inputs.environment }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .environments
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@tools/env-loader/v0.0.5
+        with:
+          environment-name: ${{ inputs.environment }}
+
       - name: Assume tag build AWS role
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: us-west-2
-          role-to-assume: ${{ vars.OCI_ECR_AWS_ROLE }}
+          role-to-assume: ${{ env.OCI_ECR_AWS_ROLE }}
           role-session-name: "gha-oci-image-build-${{ github.run_number }}-trivy"
           role-duration-seconds: 3600
 
       - name: Login to ECR
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
-          registry: ${{ vars.ECR_PENDING_REPO_BASE }}
+          registry: ${{ env.ECR_PENDING_REPO_BASE }}
         env:
           AWS_REGION: ${{ inputs.dest-image-registry-region }}
 
@@ -387,7 +403,7 @@ jobs:
           TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db,public.ecr.aws/aquasecurity/trivy-db
           TRIVY_JAVA_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-java-db,public.ecr.aws/aquasecurity/trivy-java-db
         with:
-          image-ref: "${{ vars.ECR_PENDING_REPO_BASE }}/${{ inputs.dest-image-repo }}@${{ needs.build-docker-image.outputs.image-digest }}"
+          image-ref: "${{ env.ECR_PENDING_REPO_BASE }}/${{ inputs.dest-image-repo }}@${{ needs.build-docker-image.outputs.image-digest }}"
           ignore-unfixed: true
           format: "sarif"
           output: "trivy-results.sarif"

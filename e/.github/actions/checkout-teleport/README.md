@@ -70,7 +70,7 @@ submodule in the teleport repo at `master` will be used.
         oss-teleport-ref: master
         edition: enterprise
         repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
-        repo-access-app-key: ${{ secrets.DEPLOY_APP_KEY }}
+        repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
 
 This requires that a GitHub App be installed in the `gravitational/teleport.e`
 repo with the App ID and App private key specified in the secrets

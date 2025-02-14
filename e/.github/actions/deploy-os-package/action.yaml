@@ -70,23 +70,23 @@ runs:
 
             // Legacy compatibility to avoid breaking existing workflows
             if (workflowEnvironment == "development") {
-              return "publish-stage"
+              return "stage/publish";
             }
 
             if (workflowEnvironment == "production") {
-              return "publish-prod"
+              return "prod/publish";
             }
 
-            if (workflowEnvironment == "stage/publish") {
-              return "publish-stage";
+            if (workflowEnvironment == "publish-stage") {
+              return "stage/publish";
             }
 
-            if (workflowEnvironment == "prod/publish") {
-              return "publish-prod";
+            if (workflowEnvironment == "publish-prod") {
+              return "prod/publish";
             }
 
             // Input logic for actual environments
-            const validWorkflowEnvironments = ["publish-stage", "publish-prod"];
+            const validWorkflowEnvironments = ["stage/publish", "prod/publish"];
             if (!validWorkflowEnvironments.includes(workflowEnvironment)) {
               throw new Error(`Provided environment ${workflowEnvironment} is invalid. Valid values are: ${JSON.stringify(validWorkflowEnvironments)}`);
             }

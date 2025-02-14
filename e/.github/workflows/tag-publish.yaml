@@ -28,7 +28,7 @@ on:
       environment:
         description: GitHub environment to publish to.
         type: environment
-        default: publish-stage
+        default: stage/publish
 
   # The workflow_call event duplicates the workflow_description input parameters, without descriptions.
   workflow_call:
@@ -45,7 +45,7 @@ on:
         default: false
       environment:
         type: string
-        default: publish-stage
+        default: stage/publish
 
 jobs:
   setup:
@@ -223,6 +223,7 @@ jobs:
     secrets: inherit
     permissions:
       id-token: write
+      contents: read
     uses: ./.github/workflows/publish-release-server.yaml
     with:
       version: "v${{ needs.setup.outputs.version }}"

@@ -31,8 +31,9 @@ jobs:
       - name: Run the action ${{ matrix.test.name }}
         uses: ./.github/actions/get-gha-environment-vars
         with:
-          environment: build-stage  # Environment doesn't really matter, as long as it contains at least one var
+          environment: stage/build  # Environment doesn't really matter, as long as it contains at least one var
           prefix: ${{ env.VAR_PREFIX }}
+          # TODO migrate these to env-loader when/if we set a standard for non-release environments
           github-app-id: ${{ vars.CROSS_ENV_VAR_READING_APP_ID }} # This is a repo-level variable
           github-app-private-key: ${{ secrets.CROSS_ENV_VAR_READING_APP_PRIVATE_KEY }} # This is a repo-level secret
           variables: ${{ matrix.test.variables }}
@@ -45,6 +46,7 @@ jobs:
         run: |
           VAR_COUNT=$(env | grep -c "^$VAR_PREFIX.*=")
           echo "Loaded $VAR_COUNT vars"
+          # shellcheck disable=SC1105
           if ! (( VAR_COUNT ${{ matrix.test.count-test }} )); then
             echo "Expected ${{ matrix.test.count-test }} variables to be loaded into the environment, found $VAR_COUNT" >&2
             exit 1

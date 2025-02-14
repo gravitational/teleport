@@ -38,7 +38,7 @@ jobs:
       id-token: write
     secrets: inherit
     with:
-      environment: "build-stage"  # If a QA environment is ever deployed then this should probably to it
+      environment: "stage/build"  # If a QA environment is ever deployed then this should probably to it
       updater-version: ${{ needs.setup.outputs.artifact-version }}
   # The updater is tightly coupled with OS package repos, so the package must be published to OS package repos to test
   publish:
@@ -82,7 +82,7 @@ jobs:
       - name: Deploy package to `stable/${{ env.VERSION_CHANNEL }}` ${{ matrix.repo-type }} repos
         uses: ./.github/actions/deploy-os-package
         with:
-          environment: "publish-stage"
+          environment: "stage/publish"
           repo-type: ${{ matrix.repo-type }}
           artifact-tag: ${{ needs.setup.outputs.artifact-version }}
           version-channel: ${{ env.VERSION_CHANNEL }}

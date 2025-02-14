@@ -13,9 +13,9 @@ on:
       environment:
         description: |
           GitHub Actions environment in which to run the build. Can be either
-          `build-stage` or `build-prod`.
+          `stage/build` or `prod/build`.
         type: string
-        default: build-stage
+        default: stage/build
 env:
   DEBIAN_FRONTEND: noninteractive
   VERSION_CHANNEL: cloud
@@ -54,6 +54,18 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+      - name: Assume env-loader secrets decryption AWS role
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.BUILD_TELEPORT_UPDATER_ENV_LOADER_AWS_ROLE_ARN }}
+          role-session-name: "gha-build-teleport-updater-env-loader-${{ github.run_number }}"
+          role-duration-seconds: 900
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@tools/env-loader/v0.0.5
+        with:
+          environment-name: ${{ inputs.environment }}
+          value-sets: gpg-signing
       - name: Install fpm and dependencies
         run: |
           sudo apt update
@@ -66,7 +78,7 @@ jobs:
           SCRIPT_PATH: "usr/sbin/teleport-upgrade"
         run: |
           INSTALLER_CONFIG_PATH="$CONFIG_FOLDER_PATH/installer"
-          mkdir -pv -m755 "$CONFIG_FOLDER_PATH"
+          mkdir -pv "$CONFIG_FOLDER_PATH"
           echo "$PACKAGE_MANAGER" > "$INSTALLER_CONFIG_PATH"
           chmod -R 755 "$CONFIG_FOLDER_PATH"
           sudo chown -R "root:root" "$CONFIG_FOLDER_PATH"
@@ -115,7 +127,7 @@ jobs:
           echo "PACKAGE_NAME=$PACKAGE_NAME" >> "$GITHUB_ENV"
       - name: Update package file ownership
         working-directory: ./assets/systemd-unit-upgrader/
-        run: sudo chown -Rv "$(id -un):$(id -gn)" *.$PACKAGE_FILE_EXTENSION
+        run: sudo chown -Rv "$(id -un):$(id -gn)" ./*."${PACKAGE_FILE_EXTENSION}"
       - name: Log created file info
         working-directory: ./assets/systemd-unit-upgrader/
         run: ls -laht "$PACKAGE_NAME"
@@ -124,7 +136,7 @@ jobs:
         if: matrix.package.file-extension == 'rpm'
         uses: ./.github/actions/load-gpg-key
         with:
-          gpg-signing-archive: ${{ secrets.GPG_SIGNING_ARCHIVE }}
+          gpg-signing-archive: ${{ env.GPG_SIGNING_ARCHIVE }}
           gnupghome: ${{ env.GNUPGHOME }}
       - name: Configure RPM signing
         if: matrix.package.file-extension == 'rpm'
@@ -160,7 +172,8 @@ jobs:
         if: matrix.package.file-extension == 'rpm'
         working-directory: ./assets/systemd-unit-upgrader/
         run: |
-          export GPG_TTY=$(tty)
+          # shellcheck disable=SC2155
+          export GPG_TTY="$(tty || true)"
           echo "Signing $PACKAGE_NAME"
           rpm --addsign "$PACKAGE_NAME"
           echo "Validating signature:"
@@ -185,7 +198,7 @@ jobs:
       # Upload the artifact
       - name: Set artifact bucket paths
         env:
-          ARTIFACT_SOURCE_BUCKET: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
+          ARTIFACT_SOURCE_BUCKET: ${{ env.ARTIFACT_SOURCE_BUCKET }}
         run: |
           ARTIFACT_BUCKET_PATH="s3://$ARTIFACT_SOURCE_BUCKET/teleport/tag/${ARTIFACT_VERSION#v}/$PACKAGE_NAME"
           ARTIFACT_CHECKSUM_BUCKET_PATH="$ARTIFACT_BUCKET_PATH.sha256"
@@ -197,7 +210,7 @@ jobs:
         with:
           role-skip-session-tagging: true
           aws-region: us-west-2
-          role-to-assume: ${{ vars.ARTIFACT_UPLOAD_AWS_ROLE }}
+          role-to-assume: ${{ env.ARTIFACT_UPLOAD_AWS_ROLE }}
           role-session-name: "gha-package-auto-updater-upload-${{ matrix.architecture }}-${{ matrix.package.file-extension }}-${{ github.run_number }}"
           role-duration-seconds: 900
       - name: Upload the artifact to S3

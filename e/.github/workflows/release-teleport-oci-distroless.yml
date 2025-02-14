@@ -22,9 +22,9 @@ on:
       environment:
         description: |
           GitHub Actions environment in which to run the build. Can be either
-          `build-stage` or `build-prod`.
+          `stage/build` or `prod/build`.
         type: string
-        default: build-stage
+        default: stage/build
 
   # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
   workflow_dispatch:
@@ -39,7 +39,7 @@ on:
         type: string
       environment:
         type: string
-        default: build-stage
+        default: stage/build
 
 run-name: Build Distroless Images for Teleport ${{ inputs.source-tag }}
 
@@ -150,10 +150,16 @@ jobs:
         with:
           oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
           oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-          edition: oss
+          edition: enterprise
           path: ./teleport
           repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
           repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@tools/env-loader/v0.0.5
+        with:
+          environment-name: ${{ inputs.environment }}
+          environments-directory: ./teleport/e/.environments
 
       - name: Set up Docker QEMU integration
         uses: docker/setup-qemu-action@53851d14592bedcffcf25ea515637cff71ef929a # v3.3.0
@@ -162,14 +168,14 @@ jobs:
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: us-west-2
-          role-to-assume: ${{ vars.ECR_READ_ONLY_ROLE }}
+          role-to-assume: ${{ env.ECR_READ_ONLY_ROLE }}
           role-session-name: "gha-oci-image-build-${{ github.run_number }}-test"
           role-duration-seconds: 3600
 
       - name: Login to ECR
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
-          registry: ${{ vars.ECR_PENDING_REPO_BASE }}
+          registry: ${{ env.ECR_PENDING_REPO_BASE }}
 
       # NOTE: We're referring to the image by tag here, as there is no nice way
       #       to (de-)mux the outputs from a matrix job. The "pending" registry
@@ -178,7 +184,7 @@ jobs:
       #       correct one
       - name: Smoke tests
         env:
-          DESTINATION_REPO_PREFIX: ${{ vars.ECR_PENDING_REPO_BASE }}
+          DESTINATION_REPO_PREFIX: ${{ env.ECR_PENDING_REPO_BASE }}
         run: |
           IMAGE_UNDER_TEST=${DESTINATION_REPO_PREFIX}/teleport${{ matrix.repo-enterprise-infix }}-distroless${{ matrix.repo-debug-suffix }}:${{ needs.configure.outputs.teleport_version }}
           ./run linux/${{ matrix.arch }} "$IMAGE_UNDER_TEST" ${{ matrix.release }}

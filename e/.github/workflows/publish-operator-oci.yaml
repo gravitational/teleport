@@ -11,7 +11,7 @@ on:
       environment:
         description: GitHub environment to publish to.
         type: string
-        default: publish-stage
+        default: stage/publish
 
   workflow_dispatch:
     inputs:
@@ -21,7 +21,7 @@ on:
 
       environment:
         type: string
-        default: publish-stage
+        default: stage/publish
 
 jobs:
   publish:
@@ -31,6 +31,17 @@ jobs:
       contents: read
       id-token: write
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .environments
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@tools/env-loader/v0.0.5
+        with:
+          environment-name: ${{ inputs.environment }}
+          value-sets: operator
+
       - name: Parse version
         id: version
         uses: gravitational/teleport.e/.github/actions/parse-version@master
@@ -44,7 +55,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region:  us-west-2
-          role-to-assume: ${{ vars.PUBLISH_OPERATOR_OCI_AWS_ROLE }}
+          role-to-assume: ${{ env.PUBLISH_OPERATOR_OCI_AWS_ROLE }}
           role-session-name: "gha-publish-operator-oci-${{ github.run_attempt }}"
           # Publishing should take roughly a minute, so 15 mins gives us plenty
           # of leeway (and is the miminum value we can ask for).
@@ -63,9 +74,9 @@ jobs:
 
       - name: Publish Multi-arch Images
         env:
-          SRC_REPO: ${{ vars.OPERATOR_PENDING_ECR_REPO }}
+          SRC_REPO: ${{ env.OPERATOR_PENDING_ECR_REPO }}
           SRC_LABEL: ${{ steps.version.outputs.full }}
-          DST_REPO: ${{ vars.OPERATOR_PUBLISH_ECR_REPO }}
+          DST_REPO: ${{ env.OPERATOR_PUBLISH_ECR_REPO }}
           DST_LABELS: ${{ steps.version.outputs.labels }}
         run: |
           read -ra labels <<< "${DST_LABELS}" # split on whitespace into array

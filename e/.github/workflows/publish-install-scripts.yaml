@@ -7,7 +7,7 @@ on:
       environment:
         description: Environment to use for publishing.
         type: environment
-        default: publish-stage
+        default: stage/publish
       oss-teleport-ref:
         description: "Git SHA, tag or branch of the revision of OSS teleport to use. Ignored for production releases."
         default: master
@@ -27,23 +27,30 @@ jobs:
         uses: actions/checkout@v4
         with:
           # Only master branch can publish to production
-          ref: ${{ inputs.environment == 'publish-prod' && 'master' || inputs.oss-teleport-ref }}
+          ref: ${{ inputs.environment == 'prod/publish' && 'master' || inputs.oss-teleport-ref }}
           repository: gravitational/teleport
           sparse-checkout-cone-mode: false
           sparse-checkout: |
+            /.environments
             /${{ env.ASSETS_PATH }}/*.sh
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@tools/env-loader/v0.0.5
+        with:
+          environment-name: ${{ inputs.environment }}
+          value-sets: install-scripts
+          environments-directory: e/.environments
       - name: List files to upload
         run: ls -lah "${ASSETS_PATH}"
       - name: Authenticate with AWS
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: us-west-2
-          role-to-assume: ${{ vars.PUBLISH_INSTALL_SCRIPTS_ROLE_ARN }}
+          role-to-assume: ${{ env.PUBLISH_INSTALL_SCRIPTS_ROLE_ARN }}
           role-session-name: "publish-install-scripts-${{ github.run_number }}"
           role-duration-seconds: 3600
       - name: Upload to S3
         env:
-          CDN_BUCKET: ${{ vars.CDN_BUCKET }}
+          CDN_BUCKET: ${{ env.CDN_BUCKET }}
         run: >-
           aws s3 cp 
           "${ASSETS_PATH}" "s3://${CDN_BUCKET}/public/"

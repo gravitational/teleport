@@ -11,7 +11,7 @@ on:
       environment:
         description: GitHub environment to publish to.
         type: string
-        default: publish-stage
+        default: stage/publish
 
   # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
   workflow_dispatch:
@@ -21,7 +21,7 @@ on:
         required: true
       environment:
         type: environment
-        default: publish-stage
+        default: stage/publish
 
 run-name: 'Publish OCI images for Teleport ${{ inputs.release-source-tag }}'
 

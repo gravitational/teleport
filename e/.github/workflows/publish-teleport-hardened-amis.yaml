@@ -28,7 +28,7 @@ on:
       environment:
         description: GitHub environment to publish to.
         type: string
-        default: publish-stage
+        default: stage/publish
 
   # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
   workflow_dispatch:
@@ -46,7 +46,7 @@ on:
         default: eu-north-1,ap-south-1,eu-west-3,eu-west-2,eu-west-1,ap-northeast-3,ap-northeast-2,ap-northeast-1,sa-east-1,ca-central-1,ap-southeast-1,ap-southeast-2,eu-central-1,us-east-1,us-east-2,us-west-1,us-west-2
       environment:
         type: environment
-        default: publish-stage
+        default: stage/publish
 
 run-name: 'Publish Hardened AMIs for Teleport ${{ inputs.release-source-tag }}'
 
@@ -73,9 +73,16 @@ jobs:
         with:
           oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
           oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-          edition: oss # We don't need teleport.e even when building enterprise AMI
+          edition: enterprise
           repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
           repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@tools/env-loader/v0.0.5
+        with:
+          environment-name: ${{ inputs.environment }}
+          value-sets: amis
+          environments-directory: e/.environments
 
       - name: Determine Toolchain Versions and cache paths
         run: |
@@ -91,7 +98,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: us-west-2
-          role-to-assume: ${{ vars.AMI_PUBLISHING_ROLE_ARN }}
+          role-to-assume: ${{ env.AMI_PUBLISHING_ROLE_ARN }}
           role-session-name: 'gha-ami-publishing-${{ github.run_number }}'
           role-duration-seconds: 3600
 

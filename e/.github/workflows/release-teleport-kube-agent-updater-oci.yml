@@ -22,9 +22,9 @@ on:
       environment:
         description: |
           GitHub Actions environment in which to run the build. Can be either
-          `build-stage` or `build-prod`.
+          `stage/build` or `prod/build`.
         type: string
-        default: build-stage
+        default: stage/build
 
   # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
   workflow_dispatch:
@@ -39,7 +39,7 @@ on:
         type: string
       environment:
         type: string
-        default: build-stage
+        default: stage/build
 
 run-name: Build Kube Agent Updater Images for Teleport ${{ inputs.source-tag }}
 

@@ -21,7 +21,7 @@ on:
       environment:
         description: GitHub environment to build in.
         type: string
-        default: build-stage
+        default: stage/build
 
   # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
   workflow_dispatch:
@@ -36,7 +36,7 @@ on:
         type: string
       environment:
         type: string
-        default: build-stage
+        default: stage/build
 
 jobs:
   build:
@@ -67,10 +67,16 @@ jobs:
         with:
           oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
           oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-          edition: oss
+          edition: enterprise
           path: teleport
           repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
           repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+        
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@tools/env-loader/v0.0.5
+        with:
+          environment-name: ${{ inputs.environment }}
+          environments-directory: ./teleport/e/.environments
 
       - name: Create charts directory
         run: |
@@ -79,7 +85,7 @@ jobs:
       - name: Package chart repository
         working-directory: charts
         env:
-          REGISTRY: ${{ vars.OCI_PUBLIC_REPO_BASE }}
+          REGISTRY: ${{ env.OCI_PUBLIC_REPO_BASE }}
         run: |
           read -ra charts <<<"${CHART_SUBDIRECTORIES}"
           for chart in "${charts[@]}"; do
@@ -96,14 +102,14 @@ jobs:
         with:
           role-skip-session-tagging: true
           aws-region: us-west-2
-          role-to-assume: ${{ vars.ARTIFACT_UPLOAD_AWS_ROLE }}
+          role-to-assume: ${{ env.ARTIFACT_UPLOAD_AWS_ROLE }}
           role-session-name: "gha-helm-chart-upload-${{ github.run_number }}"
           role-duration-seconds: 900
 
       - name: Upload the artifact to S3
         working-directory: charts
         env:
-          PENDING_BUCKET_NAME: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
+          PENDING_BUCKET_NAME: ${{ env.ARTIFACT_SOURCE_BUCKET }}
           TELEPORT_VERSION: ${{ inputs.teleport-version || inputs.oss-teleport-ref }}
         run: |
           aws s3 sync . "s3://$PENDING_BUCKET_NAME/teleport/tag/${TELEPORT_VERSION#v}/"
