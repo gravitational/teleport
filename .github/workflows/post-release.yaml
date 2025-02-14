@@ -91,8 +91,8 @@ jobs:
           REVIEWER: ${{ github.event.release.author.login }}
         run: |
           BRANCH_NAME="release-auto-branch-$(date +%s)"
-          git config --global user.email "noreply@github.com"
-          git config --global user.name "GitHub"
+          git config --global user.email "128860004+teleport-post-release-automation[bot]@users.noreply.github.com"
+          git config --global user.name "teleport-post-release-automation[bot]"
 
           # get Go version from go.mod (preferring the toolchain directive if it's present)
           GO_VERSION=$(go mod edit -json | jq -r 'if has("Toolchain") then .Toolchain | sub("go"; "") else .Go end')
