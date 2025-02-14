@@ -273,14 +273,13 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 	if err != nil {
 		return nil, nil, "", nil, trace.Wrap(err)
 	}
-	proxyAddr, err := proxyPing.proxyWebAddr()
+	proxyHost, proxyPort, err := proxyPing.Proxy.SSHProxyHostPort()
 	if err != nil {
 		return nil, nil, "", nil, trace.Wrap(err, "determining proxy web addr")
 	}
-	proxyHost, _, err = net.SplitHostPort(proxyAddr)
-	if err != nil {
-		return nil, nil, "", nil, trace.Wrap(err)
-	}
+	// SSHProxyHostPort returns the web port when TLS routing is enabled, or,
+	// the ssh port when it is not.
+	proxyAddr := net.JoinHostPort(proxyHost, proxyPort)
 
 	connUpgradeRequired := false
 	if proxyPing.Proxy.TLSRoutingEnabled {
