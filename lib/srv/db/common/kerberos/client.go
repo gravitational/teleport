@@ -28,8 +28,8 @@ import (
 	"github.com/jcmturner/gokrb5/v8/config"
 	"github.com/jcmturner/gokrb5/v8/keytab"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/windows"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/kerberos/kinit"
 )
 
@@ -43,7 +43,7 @@ type clientProvider struct {
 // ClientProvider can create Kerberos client appropriate for given database session.
 type ClientProvider interface {
 	// GetKerberosClient returns Kerberos client for given user and active directory configuration.
-	GetKerberosClient(ctx context.Context, sessionCtx *common.Session) (*client.Client, error)
+	GetKerberosClient(ctx context.Context, ad types.AD, username string) (*client.Client, error)
 }
 
 func NewClientProvider(authClient windows.AuthInterface, dataDir string) ClientProvider {
@@ -60,16 +60,16 @@ func newClientProvider(authClient windows.AuthInterface, dataDir string) *client
 var errBadCertificate = errors.New("invalid certificate was provided via AD configuration")
 var errBadKerberosConfig = errors.New("configuration must have either keytab_file or kdc_host_name and ldap_cert")
 
-func (c *clientProvider) GetKerberosClient(ctx context.Context, sessionCtx *common.Session) (*client.Client, error) {
+func (c *clientProvider) GetKerberosClient(ctx context.Context, ad types.AD, username string) (*client.Client, error) {
 	switch {
-	case sessionCtx.Database.GetAD().KeytabFile != "":
-		kt, err := c.keytabClient(sessionCtx)
+	case ad.KeytabFile != "":
+		kt, err := c.keytabClient(ad, username)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return kt, nil
-	case sessionCtx.Database.GetAD().KDCHostName != "" && sessionCtx.Database.GetAD().LDAPCert != "":
-		kt, err := c.kinitClient(ctx, sessionCtx, c.AuthClient, c.DataDir)
+	case ad.KDCHostName != "" && ad.LDAPCert != "":
+		kt, err := c.kinitClient(ctx, ad, username, c.AuthClient, c.DataDir)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -80,23 +80,23 @@ func (c *clientProvider) GetKerberosClient(ctx context.Context, sessionCtx *comm
 }
 
 // keytabClient returns a kerberos client using a keytab file
-func (c *clientProvider) keytabClient(session *common.Session) (*client.Client, error) {
+func (c *clientProvider) keytabClient(ad types.AD, username string) (*client.Client, error) {
 	// Load keytab.
-	kt, err := keytab.Load(session.Database.GetAD().KeytabFile)
+	kt, err := keytab.Load(ad.KeytabFile)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Load krb5.conf.
-	conf, err := config.Load(session.Database.GetAD().Krb5File)
+	conf, err := config.Load(ad.Krb5File)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Create Kerberos client.
 	kbClient := client.NewWithKeytab(
-		session.DatabaseUser,
-		session.Database.GetAD().Domain,
+		username,
+		ad.Domain,
 		kt,
 		conf,
 		// Active Directory does not commonly support FAST negotiation.
@@ -108,8 +108,8 @@ func (c *clientProvider) keytabClient(session *common.Session) (*client.Client, 
 }
 
 // kinitClient returns a kerberos client using a kinit ccache
-func (c *clientProvider) kinitClient(ctx context.Context, session *common.Session, auth windows.AuthInterface, dataDir string) (*client.Client, error) {
-	ldapPem, _ := pem.Decode([]byte(session.Database.GetAD().LDAPCert))
+func (c *clientProvider) kinitClient(ctx context.Context, ad types.AD, username string, auth windows.AuthInterface, dataDir string) (*client.Client, error) {
+	ldapPem, _ := pem.Decode([]byte(ad.LDAPCert))
 
 	if ldapPem == nil {
 		return nil, trace.Wrap(errBadCertificate)
@@ -122,24 +122,24 @@ func (c *clientProvider) kinitClient(ctx context.Context, session *common.Sessio
 
 	certGetter := &kinit.DBCertGetter{
 		Auth:            auth,
-		KDCHostName:     strings.ToUpper(session.Database.GetAD().KDCHostName),
-		RealmName:       session.Database.GetAD().Domain,
-		AdminServerName: session.Database.GetAD().KDCHostName,
-		UserName:        session.DatabaseUser,
+		KDCHostName:     strings.ToUpper(ad.KDCHostName),
+		RealmName:       ad.Domain,
+		AdminServerName: ad.KDCHostName,
+		UserName:        username,
 		LDAPCA:          cert,
 	}
 
-	realmName := strings.ToUpper(session.Database.GetAD().Domain)
+	realmName := strings.ToUpper(ad.Domain)
 	k := kinit.New(kinit.NewCommandLineInitializer(
 		kinit.CommandConfig{
 			AuthClient:  auth,
-			User:        session.DatabaseUser,
+			User:        username,
 			Realm:       realmName,
-			KDCHost:     session.Database.GetAD().KDCHostName,
-			AdminServer: session.Database.GetAD().Domain,
+			KDCHost:     ad.KDCHostName,
+			AdminServer: ad.Domain,
 			DataDir:     dataDir,
 			LDAPCA:      cert,
-			LDAPCAPEM:   session.Database.GetAD().LDAPCert,
+			LDAPCAPEM:   ad.LDAPCert,
 			Command:     c.kinitCommandGenerator,
 			CertGetter:  certGetter,
 		}))

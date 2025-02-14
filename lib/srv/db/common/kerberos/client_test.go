@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
 //go:embed kinit/testdata/kinit.cache
@@ -206,13 +205,7 @@ func TestConnectorKInitClient(t *testing.T) {
 
 			databaseUser := "alice"
 
-			session := &common.Session{
-				Database:     database,
-				DatabaseUser: databaseUser,
-				DatabaseName: database.GetName(),
-			}
-
-			client, err := provider.GetKerberosClient(ctx, session)
+			client, err := provider.GetKerberosClient(ctx, database.GetAD(), databaseUser)
 			if client == nil {
 				tt.errAssertion(t, err)
 			} else {
