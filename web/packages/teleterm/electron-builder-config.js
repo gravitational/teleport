@@ -31,7 +31,7 @@ if (!isMac && env.CONNECT_TSH_BIN_PATH === undefined) {
 }
 
 if (isWindows && env.CONNECT_WINTUN_DLL_PATH == undefined) {
-  throw new Error('You must provider CONNECT_WINTUN_DLL_PATH');
+  throw new Error('You must provide CONNECT_WINTUN_DLL_PATH');
 }
 
 // Holds tsh.app Info.plist during build. Used in afterPack.
