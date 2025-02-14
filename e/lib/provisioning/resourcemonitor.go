@@ -166,6 +166,12 @@ func (rm *resourceMonitor) processEvent(ctx context.Context, resource types.Reso
 			}
 			acl, err := rm.svc.accessListsSvcCache.GetAccessList(ctx, aclName)
 			if err != nil {
+				if trace.IsNotFound(err) {
+					// This is a legitimate state to be in: this ACL Member delete
+					// might be part of the parent ACL being deleted. No further
+					// action.
+					return nil
+				}
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(rm.handleAccessListUpdate(ctx, acl))

@@ -93,19 +93,17 @@ func TestAccessListPredicate(t *testing.T) {
 		withAccessListPredicate(predicate),
 		withOnProvisionedCallback(recordACL))
 
-	const (
-		aliceUser = "alice"
-
-		aclIncludedID    = "test-access-list-included"
-		aclIncludedTitle = "Test Included Access List"
-
-		aclExcludedID    = "test-access-list-excluded"
-		aclExcludedTitle = "Test Excluded Access List Title"
-	)
-
+	const aliceUser = "alice"
 	pack.mustCreateTeleportUser(t, aliceUser)
 
 	t.Run("only matching access lists are provisioned", func(t *testing.T) {
+		const (
+			aclIncludedID    = "provisioning-access-list-included"
+			aclIncludedTitle = "Provisioning Included Access List"
+
+			aclExcludedID    = "provisioning-access-list-excluded"
+			aclExcludedTitle = "Provisioning Test Excluded Access List Title"
+		)
 		t.Cleanup(provisionedAccessLists.Clear)
 
 		// Given an Access List that matches the ACL predicate
@@ -134,6 +132,10 @@ func TestAccessListPredicate(t *testing.T) {
 	})
 
 	t.Run("matching access lists are deprovisioned when the no longer match", func(t *testing.T) {
+		const (
+			aclIncludedID    = "deprovisioning-access-list-included"
+			aclIncludedTitle = "De-provisioning Test Included Access List"
+		)
 		t.Cleanup(provisionedAccessLists.Clear)
 
 		// Given an Access List that matches the ACL predicate
