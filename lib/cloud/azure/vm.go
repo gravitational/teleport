@@ -173,17 +173,19 @@ func parseVirtualMachine[T vmTypes](vm T) (*VirtualMachine, error) {
 
 // Get returns the virtual machine (including scale set VMs) for the given
 // resource ID.
+//
+// The virtual machine scale set (VMSS) supports two types of orchestration
+// modes: uniform and flexible. Both have different resource ID format from the
+// instance metadata API. A VM from a uniform VMSS has a different resource ID
+// and requires a different API to retrieve its information. Flexible VMSS VMs
+// use the same resource ID format as regular VMs and don't require special
+// handling.
 func (c *vmClient) Get(ctx context.Context, resourceID string) (*VirtualMachine, error) {
 	parsedResourceID, err := arm.ParseResourceID(resourceID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// The virtual machine scale set (VMSS) supports two types of orchestration
-	// modes: uniform and flexible. A VM from a uniform VMSS has a different
-	// resource ID and requires a different API to retrieve its information.
-	// Flexible VMSS VMs use the same resource ID format as regular VMs and
-	// don't require special handling.
 	if parsedResourceID.ResourceType.Type == virtualScaleSetUniformVMResourceType {
 		return c.getScaleSetVM(ctx, parsedResourceID)
 	}
