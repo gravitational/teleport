@@ -40,6 +40,11 @@ import (
 // the service executable. So that regular users are not able to overwrite the
 // executable at that path, we use a path under C:\Program Files\, which is not
 // writable by regular users by default.
+//
+// The username and logFile arguments are expected to be empty when this is
+// called by the regular user. The function will find the current username
+// and create a log file, then re-execute tsh with extra arguments setting
+// username and logFile.
 func InstallService(ctx context.Context, username, logFile string) (err error) {
 	// If not already running with elevated permissions, exec a child process of
 	// the current executable with the current args with `runas`.
@@ -141,6 +146,11 @@ func InstallService(ctx context.Context, username, logFile string) (err error) {
 }
 
 // UninstallService uninstalls the VNet windows service.
+//
+// The username and logFile arguments are expected to be empty when this is
+// called by the regular user. The function will find the current username
+// and create a log file, then re-execute tsh with extra arguments setting
+// username and logFile.
 func UninstallService(ctx context.Context, username, logFile string) (err error) {
 	// If not already running with elevated permissions, exec a child process of
 	// the current executable with the current args with `runas`.
@@ -263,6 +273,9 @@ func copyFile(dstPath, srcPath string) error {
 	defer dstFile.Close()
 	if _, err := io.Copy(dstFile, srcFile); err != nil {
 		return trace.Wrap(err, "copying %s to %s", srcPath, dstPath)
+	}
+	if err := dstFile.Close(); err != nil {
+		return trace.Wrap(err, "closing %s", dstPath)
 	}
 	return nil
 }
