@@ -56,7 +56,7 @@ func InstallService(ctx context.Context, username, logFile string) (err error) {
 		if err != nil {
 			// Not really any point checking the error from WriteFile since
 			// noone will be able to read it.
-			os.WriteFile(logFile, []byte(err.Error()), 0)
+			os.WriteFile(logFile, []byte(err.Error()), 0644)
 		}
 	}()
 
@@ -85,10 +85,8 @@ func InstallService(ctx context.Context, username, logFile string) (err error) {
 	serviceName, serviceInstallDir := serviceNameAndInstallDir(username)
 	targetTshPath := filepath.Join(serviceInstallDir, "tsh.exe")
 	targetWintunPath := filepath.Join(serviceInstallDir, "wintun.dll")
-	if err := os.Mkdir(serviceInstallDir, 0600); err != nil {
-		if !errors.Is(err, fs.ErrExist) {
-			return trace.Wrap(err, "creating service installation directory %s", serviceInstallDir)
-		}
+	if err := os.Mkdir(serviceInstallDir, 0600); err != nil && !errors.Is(err, fs.ErrExist) {
+		return trace.Wrap(err, "creating service installation directory %s", serviceInstallDir)
 	}
 	if err := copyFile(targetTshPath, currentTshPath); err != nil {
 		return trace.Wrap(err, "copying tsh.exe to service installation directory")
@@ -103,19 +101,25 @@ func InstallService(ctx context.Context, username, logFile string) (err error) {
 		if err := existingSvc.Delete(); err != nil {
 			return trace.Wrap(err, "deleting existing service %s", serviceName)
 		}
-		existingSvc.Close()
+		_ = existingSvc.Close()
 		// The above marks the service for deletion asynchronously,
 		// wait for it to actually be deleted.
-		existingSvc, err = svcMgr.OpenService(serviceName)
-		for err == nil {
-			existingSvc.Close()
+		timeout := time.After(10 * time.Second)
+		ticker := time.Tick(time.Second)
+		for {
+			existingSvc, err = svcMgr.OpenService(serviceName)
+			if err != nil {
+				break // Service deleted.
+			}
+			_ = existingSvc.Close()
 			log.InfoContext(ctx, "Waiting for existing service to be deleted...")
 			select {
 			case <-ctx.Done():
-				return trace.Wrap(ctx.Err(), "context canceled while waiting for existing service to be uninstalled")
-			case <-time.After(time.Second):
+				return trace.Wrap(ctx.Err(), "context canceled while waiting for existing service to be deleted")
+			case <-timeout:
+				return trace.Errorf("timed out waiting for existing service to be deleted")
+			case <-ticker:
 			}
-			existingSvc, err = svcMgr.OpenService(serviceName)
 		}
 	}
 	svc, err := svcMgr.CreateService(
@@ -129,7 +133,7 @@ func InstallService(ctx context.Context, username, logFile string) (err error) {
 	if err != nil {
 		return trace.Wrap(err, "creating VNet Windows service")
 	}
-	svc.Close()
+	_ = svc.Close()
 	if err := grantServiceRights(serviceName, u.Username); err != nil {
 		return trace.Wrap(err, "granting %s permissions to control the VNet Windows service", username)
 	}
@@ -153,7 +157,7 @@ func UninstallService(ctx context.Context, username, logFile string) (err error)
 		if err != nil {
 			// Not really any point checking the error from WriteFile since
 			// noone will be able to read it.
-			os.WriteFile(logFile, []byte(err.Error()), 0)
+			os.WriteFile(logFile, []byte(err.Error()), 0644)
 		}
 	}()
 
@@ -162,28 +166,30 @@ func UninstallService(ctx context.Context, username, logFile string) (err error)
 	}
 	serviceName, serviceInstallDir := serviceNameAndInstallDir(username)
 
-	if err := os.RemoveAll(serviceInstallDir); err != nil {
-		return trace.Wrap(err, "removing VNet service installation directory %s", serviceInstallDir)
-	}
+	deleteServiceErr := trace.Wrap(deleteService(serviceName),
+		"deleting Windows service %s", serviceName)
+	removeFilesErr := trace.Wrap(os.RemoveAll(serviceInstallDir),
+		"removing VNet service installation directory %s", serviceInstallDir)
+	return trace.NewAggregate(removeFilesErr, deleteServiceErr)
+}
 
+func deleteService(serviceName string) error {
 	svcMgr, err := mgr.Connect()
 	if err != nil {
 		return trace.Wrap(err, "connecting to Windows service manager")
 	}
 	svc, err := svcMgr.OpenService(serviceName)
 	if err != nil {
-		return trace.Wrap(err, "opening Windows service %s", serviceName)
+		return trace.Wrap(err, "opening Windows service")
 	}
-	defer svc.Close()
-	if err := svc.Delete(); err != nil {
-		return trace.Wrap(err, "deleting Windows service %s", serviceName)
-	}
-	return nil
+	err = trace.Wrap(svc.Delete(), "deleting Windows service")
+	_ = svc.Close()
+	return err
 }
 
 func serviceNameAndInstallDir(username string) (string, string) {
 	serviceName := userServiceName(username)
-	serviceInstallDir := filepath.Join(`C:\`, "Program Files", serviceName)
+	serviceInstallDir := filepath.Join(`C:\Program Files`, serviceName)
 	return serviceName, serviceInstallDir
 }
 
@@ -235,12 +241,11 @@ func grantServiceRights(serviceName, username string) error {
 func wintunPath(tshPath string) (string, error) {
 	dir := filepath.Dir(tshPath)
 	wintunPath := filepath.Join(dir, "wintun.dll")
-	if _, err := os.Stat(wintunPath); err != nil {
-		if os.IsNotExist(err) {
-			return "", trace.Wrap(err, "wintun.dll not found")
-		} else {
-			return "", trace.Wrap(err, "checking for existence of wintun.dll")
-		}
+	switch _, err := os.Stat(wintunPath); {
+	case os.IsNotExist(err):
+		return "", trace.Wrap(err, "wintun.dll not found")
+	case err != nil:
+		return "", trace.Wrap(err, "checking for existence of wintun.dll")
 	}
 	return wintunPath, nil
 }
@@ -278,7 +283,7 @@ func elevateChildProcess(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "determining current working directory")
 	}
-	f, err := os.CreateTemp("", "vnet-install-log")
+	f, err := os.CreateTemp("", "vnet-install-*.log")
 	if err != nil {
 		return trace.Wrap(err, "creating log file for elevated child process")
 	}
