@@ -121,12 +121,21 @@ ifeq ($(RDPCLIENT_SKIP_BUILD),0)
 ifneq ($(CHECK_RUST),)
 ifneq ($(CHECK_CARGO),)
 
-# Do not build RDP client on ARM or 386.
+is_fips_on_arm64 := no
+ifneq ("$(FIPS)","")
+ifeq ("$(ARCH)","arm64")
+is_fips_on_arm64 := yes
+endif
+endif
+
+# Do not build RDP client on 32-bit ARM or 386, or for FIPS builds on arm64.
 ifneq ("$(ARCH)","arm")
 ifneq ("$(ARCH)","386")
+ifneq ("$(is_fips_on_arm64)","yes")
 with_rdpclient := yes
 RDPCLIENT_MESSAGE := with-Windows-RDP-client
 RDPCLIENT_TAG := desktop_access_rdp
+endif
 endif
 endif
 

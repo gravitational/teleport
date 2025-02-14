@@ -46,6 +46,7 @@ pub(crate) async fn upgrade(
         use tokio::io::AsyncWriteExt;
         let mut builder = SslConnector::builder(SslMethod::tls_client())?;
         builder.set_verify(SslVerifyMode::NONE);
+        builder.set_fips_compliance_policy()?;
         let configuration = builder.build().configure()?;
         let mut tls_stream =
             tokio_boring::connect(configuration, server_name, initial_stream).await?;
