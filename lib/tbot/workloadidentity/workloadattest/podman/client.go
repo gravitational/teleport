@@ -34,21 +34,13 @@ import (
 	"github.com/gravitational/trace"
 )
 
-const (
-	// DefaultRootAddr is the default address on which the Podman API service
-	// can be reached for "rootful" deployments. Rootless deployments must start
-	// a separate service for each user which, when using the default systemd
-	// unit, will bind to a socket at `$XDG_RUNTIME_DIR/podman/podman.sock`.
-	DefaultRootAddr = "unix:///run/podman/podman.sock"
-
-	// APIVersion is the version of the Podman REST API we support.
-	//
-	// Note: Podman doesn't really seem to check or enforce the version segment
-	// of the URL path, so setting it doesn't have much of an effect.
-	//
-	// https://github.com/containers/podman/blob/62cde17193e1469de15995ba78bd909fd07dffc6/pkg/api/server/handler_api.go#L69-L74
-	APIVersion = "v4.0.0"
-)
+// APIVersion is the version of the Podman REST API we support.
+//
+// Note: Podman doesn't really seem to check or enforce the version segment
+// of the URL path, so setting it doesn't have much of an effect.
+//
+// https://github.com/containers/podman/blob/62cde17193e1469de15995ba78bd909fd07dffc6/pkg/api/server/handler_api.go#L69-L74
+const APIVersion = "v4.0.0"
 
 // Client for Podman's HTTP REST API.
 type Client struct{ httpClient *http.Client }
