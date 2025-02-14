@@ -16,15 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
+export const baseServerKeywords = ['server', 'node', 'ssh'];
+export const awsKeywords = ['aws', 'amazon', 'amazon web services'];
+export const kubeKeywords = ['kubernetes', 'k8s', 'kubes', 'cluster'];
+export const selfHostedKeywords = ['self hosted', 'self-hosted'];
 
-interface DiscoverIconProps {
-  name: ResourceIconName;
-  size?: 'large' | 'small';
-}
-
-export const DiscoverIcon = ({ name, size = 'small' }: DiscoverIconProps) => {
-  const width = size === 'small' ? '24px' : '72';
-  const height = size === 'small' ? '24px' : '72';
-  return <ResourceIcon name={name} width={width} height={height} />;
-};
+export const baseDatabaseKeywords = ['db', 'database', 'databases'];
+export const awsDatabaseKeywords = [...baseDatabaseKeywords, ...awsKeywords];
+export const gcpKeywords = [
+  ...baseDatabaseKeywords,
+  'gcp',
+  'google cloud platform',
+];
+export const selfHostedDatabaseKeywords = [
+  ...baseDatabaseKeywords,
+  ...selfHostedKeywords,
+];
+export const azureKeywords = [...baseDatabaseKeywords, 'microsoft azure'];
