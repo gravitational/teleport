@@ -72,7 +72,7 @@ use crate::rdpdr::scard::SCARD_DEVICE_ID;
 use crate::rdpdr::TeleportRdpdrBackend;
 use crate::ssl::TlsStream;
 #[cfg(feature = "fips")]
-use tokio_boring::{HandshakeError, SslStream};
+use tokio_boring::HandshakeError;
 
 const RDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
