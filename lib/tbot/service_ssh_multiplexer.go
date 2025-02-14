@@ -21,6 +21,7 @@ package tbot
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -345,7 +346,7 @@ func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.credentialLifetime().TTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		nil,
 	)
 	if err != nil {
@@ -396,7 +397,7 @@ func (s *SSHMultiplexerService) identityRenewalLoop(
 			s.identity.Set(id)
 			return s.writeArtifacts(ctx, proxyHost, authClient)
 		},
-		interval:   s.credentialLifetime().RenewalInterval,
+		interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
 		reloadCh:   reloadCh,
@@ -865,11 +866,4 @@ func (s *cyclingHostDialClient) DialHost(ctx context.Context, target string, clu
 	}
 	wrappedConn.parent.Store(currentClt)
 	return wrappedConn, details, nil
-}
-
-func (s *SSHMultiplexerService) credentialLifetime() config.CredentialLifetime {
-	if !s.cfg.CredentialLifetime.IsEmpty() {
-		return s.cfg.CredentialLifetime
-	}
-	return s.botCfg.CredentialLifetime
 }

@@ -19,6 +19,7 @@
 package tbot
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -62,7 +63,7 @@ func (s *ApplicationOutputService) Run(ctx context.Context) error {
 	err := runOnInterval(ctx, runOnIntervalConfig{
 		name:       "output-renewal",
 		f:          s.generate,
-		interval:   s.credentialLifetime().RenewalInterval,
+		interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
 		reloadCh:   reloadCh,
@@ -104,7 +105,7 @@ func (s *ApplicationOutputService) generate(ctx context.Context) error {
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.credentialLifetime().TTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		nil,
 	)
 	if err != nil {
@@ -134,7 +135,7 @@ func (s *ApplicationOutputService) generate(ctx context.Context) error {
 		s.botAuthClient,
 		id,
 		roles,
-		s.credentialLifetime().TTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		func(req *proto.UserCertsRequest) {
 			req.RouteToApp = routeToApp
 		},
@@ -253,11 +254,4 @@ func getApp(ctx context.Context, clt *authclient.Client, appName string) (types.
 	}
 
 	return apps[0], nil
-}
-
-func (s *ApplicationOutputService) credentialLifetime() config.CredentialLifetime {
-	if !s.cfg.CredentialLifetime.IsEmpty() {
-		return s.cfg.CredentialLifetime
-	}
-	return s.botCfg.CredentialLifetime
 }

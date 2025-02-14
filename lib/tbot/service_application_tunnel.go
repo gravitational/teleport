@@ -19,6 +19,7 @@
 package tbot
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -201,7 +202,7 @@ func (s *ApplicationTunnelService) issueCert(
 		s.botClient,
 		s.getBotIdentity(),
 		roles,
-		s.credentialLifetime().TTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		nil,
 	)
 	if err != nil {
@@ -233,7 +234,7 @@ func (s *ApplicationTunnelService) issueCert(
 		s.botClient,
 		s.getBotIdentity(),
 		roles,
-		s.credentialLifetime().TTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		func(req *proto.UserCertsRequest) {
 			req.RouteToApp = route
 		})
@@ -249,11 +250,4 @@ func (s *ApplicationTunnelService) issueCert(
 // service.
 func (s *ApplicationTunnelService) String() string {
 	return fmt.Sprintf("%s:%s:%s", config.ApplicationTunnelServiceType, s.cfg.Listen, s.cfg.AppName)
-}
-
-func (s *ApplicationTunnelService) credentialLifetime() config.CredentialLifetime {
-	if !s.cfg.CredentialLifetime.IsEmpty() {
-		return s.cfg.CredentialLifetime
-	}
-	return s.botCfg.CredentialLifetime
 }

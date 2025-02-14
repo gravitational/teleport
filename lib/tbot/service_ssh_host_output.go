@@ -19,6 +19,7 @@
 package tbot
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -65,7 +66,7 @@ func (s *SSHHostOutputService) Run(ctx context.Context) error {
 	err := runOnInterval(ctx, runOnIntervalConfig{
 		name:       "output-renewal",
 		f:          s.generate,
-		interval:   s.credentialLifetime().RenewalInterval,
+		interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
 		reloadCh:   reloadCh,
@@ -107,7 +108,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.credentialLifetime().TTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		nil,
 	)
 	if err != nil {
@@ -143,7 +144,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 		Principals:  s.cfg.Principals,
 		ClusterName: clusterName,
 		Role:        string(types.RoleNode),
-		Ttl:         durationpb.New(s.credentialLifetime().TTL),
+		Ttl:         durationpb.New(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL),
 	},
 	)
 	if err != nil {
@@ -225,11 +226,4 @@ func exportSSHUserCAs(cas []types.CertAuthority, localAuthName string) (string, 
 	}
 
 	return exported, nil
-}
-
-func (s *SSHHostOutputService) credentialLifetime() config.CredentialLifetime {
-	if !s.cfg.CredentialLifetime.IsEmpty() {
-		return s.cfg.CredentialLifetime
-	}
-	return s.botCfg.CredentialLifetime
 }

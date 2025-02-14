@@ -17,6 +17,7 @@
 package tbot
 
 import (
+	"cmp"
 	"context"
 	"crypto"
 	"crypto/x509"
@@ -126,7 +127,7 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 				privateKey = nil
 			}
 			bundleSet = newBundleSet
-		case <-time.After(s.credentialLifetime().RenewalInterval):
+		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval):
 			s.log.InfoContext(ctx, "Renewal interval reached, renewing SVIDs")
 			x509Cred = nil
 			privateKey = nil
@@ -174,7 +175,7 @@ func (s *WorkloadIdentityX509Service) requestSVID(
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.credentialLifetime().TTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		nil,
 	)
 	if err != nil {
@@ -194,7 +195,7 @@ func (s *WorkloadIdentityX509Service) requestSVID(
 		s.log,
 		impersonatedClient,
 		s.cfg.Selector,
-		s.credentialLifetime().TTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		nil,
 	)
 	if err != nil {
@@ -302,11 +303,4 @@ func (s *WorkloadIdentityX509Service) render(
 		"destination", s.cfg.Destination.String(),
 	)
 	return nil
-}
-
-func (s *WorkloadIdentityX509Service) credentialLifetime() config.CredentialLifetime {
-	if !s.cfg.CredentialLifetime.IsEmpty() {
-		return s.cfg.CredentialLifetime
-	}
-	return s.botCfg.CredentialLifetime
 }
