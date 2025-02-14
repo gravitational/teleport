@@ -57,7 +57,7 @@ func (s *ClientCredentialOutputService) Run(ctx context.Context) error {
 	err := runOnInterval(ctx, runOnIntervalConfig{
 		name:       "output-renewal",
 		f:          s.generate,
-		interval:   s.botCfg.RenewalInterval,
+		interval:   s.botCfg.CredentialLifetime.RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
 		reloadCh:   reloadCh,
@@ -83,7 +83,7 @@ func (s *ClientCredentialOutputService) generate(ctx context.Context) error {
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateTTL,
+		s.botCfg.CredentialLifetime.TTL,
 		nil,
 	)
 	if err != nil {

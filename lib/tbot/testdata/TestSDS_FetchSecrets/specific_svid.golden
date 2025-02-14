@@ -1,17 +1,17 @@
 {
-  "resources": [
+  "resources":  [
     {
-      "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret",
-      "name": "spiffe://example.com/second",
-      "tlsCertificate": {
-        "certificateChain": {
-          "inlineBytes": "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tClEwVlNWQzF6Y0dsbVptVTZMeTlsZUdGdGNHeGxMbU52YlM5elpXTnZibVE9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"
+      "@type":  "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret",
+      "name":  "spiffe://example.com/second",
+      "tlsCertificate":  {
+        "certificateChain":  {
+          "inlineBytes":  "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tClEwVlNWQzF6Y0dsbVptVTZMeTlsZUdGdGNHeGxMbU52YlM5elpXTnZibVE9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"
         },
-        "privateKey": {
-          "inlineBytes": "LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tClMwVlpMWE53YVdabVpUb3ZMMlY0WVcxd2JHVXVZMjl0TDNObFkyOXVaQT09Ci0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS0K"
+        "privateKey":  {
+          "inlineBytes":  "LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tClMwVlpMWE53YVdabVpUb3ZMMlY0WVcxd2JHVXVZMjl0TDNObFkyOXVaQT09Ci0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS0K"
         }
       }
     }
   ],
-  "typeUrl": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret"
+  "typeUrl":  "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret"
 }
