@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
 )
 
 const (
@@ -87,7 +88,7 @@ func NewEKSIAMConfigureClient(ctx context.Context, region string) (EKSIAMConfigu
 	}
 
 	return &defaultEKSEIAMConfigureClient{
-		Client: iam.NewFromConfig(cfg),
+		Client: iamutils.NewFromConfig(cfg),
 	}, nil
 }
 

@@ -29,6 +29,7 @@ import (
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
 )
 
 const (
@@ -89,7 +90,7 @@ func NewAWSAppAccessConfigureClient(ctx context.Context) (AWSAppAccessConfigureC
 		cfg.Region = " "
 	}
 
-	return iam.NewFromConfig(cfg), nil
+	return iamutils.NewFromConfig(cfg), nil
 }
 
 // ConfigureAWSAppAccess set ups the roles required for AWS App Access.

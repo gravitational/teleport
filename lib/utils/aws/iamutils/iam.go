@@ -14,25 +14,25 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package stsutils
+package iamutils
 
 import (
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 
 	"github.com/gravitational/teleport/lib/utils/aws/awsfips"
 )
 
-// NewFromConfig wraps [sts.NewFromConfig] and applies FIPS settings
+// NewFromConfig wraps [iam.NewFromConfig] and applies FIPS settings
 // according to environment variables.
 //
 // See [awsfips.IsFIPSDisabledByEnv].
-func NewFromConfig(cfg aws.Config, optFns ...func(*sts.Options)) *sts.Client {
+func NewFromConfig(cfg aws.Config, optFns ...func(*iam.Options)) *iam.Client {
 	if awsfips.IsFIPSDisabledByEnv() {
 		// append so it overrides any preceding settings.
-		optFns = append(optFns, func(opts *sts.Options) {
+		optFns = append(optFns, func(opts *iam.Options) {
 			opts.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateDisabled
 		})
 	}
-	return sts.NewFromConfig(cfg, optFns...)
+	return iam.NewFromConfig(cfg, optFns...)
 }
