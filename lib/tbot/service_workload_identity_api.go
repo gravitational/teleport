@@ -17,6 +17,7 @@
 package tbot
 
 import (
+	"cmp"
 	"context"
 	"crypto/x509"
 	"fmt"
@@ -350,7 +351,7 @@ func (s *WorkloadIdentityAPIService) FetchX509SVID(
 			}
 			bundleSet = newBundleSet
 			continue
-		case <-time.After(s.botCfg.RenewalInterval):
+		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval):
 			log.DebugContext(ctx, "Renewal interval reached, renewing SVIDs")
 			svids = nil
 			continue
@@ -408,7 +409,7 @@ func (s *WorkloadIdentityAPIService) fetchX509SVIDs(
 		log,
 		s.client,
 		s.cfg.Selector,
-		s.botCfg.CertificateTTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		attest,
 	)
 	if err != nil {
@@ -490,7 +491,7 @@ func (s *WorkloadIdentityAPIService) FetchJWTSVID(
 		s.client,
 		s.cfg.Selector,
 		req.Audience,
-		s.botCfg.CertificateTTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		attr,
 	)
 	if err != nil {

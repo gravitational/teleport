@@ -7,3 +7,5 @@ format: tls
 service: my-database-service
 database: my-database
 username: my-username
+credential_ttl: 1m0s
+renewal_interval: 30s
