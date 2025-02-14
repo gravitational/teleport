@@ -92,6 +92,15 @@ type IdentityOutput struct {
 	// SSHConfigMode controls whether to write an ssh_config file to the
 	// destination directory. Defaults to SSHConfigModeOn.
 	SSHConfigMode SSHConfigMode `yaml:"ssh_config,omitempty"`
+
+	// AllowReissue controls whether the generated credentials can be used to
+	// reissue further credentials (e.g to produce a certificate for application
+	// access). It is recommended to leave this disabled to prevent the scope of
+	// issued credentials from being increased, however, it can be useful in
+	// scenarios where credentials are desired to be reissued in a dynamic way.
+	//
+	// Defaults to false.
+	AllowReissue bool `yaml:"allow_reissue,omitempty"`
 }
 
 func (o *IdentityOutput) Init(ctx context.Context) error {
