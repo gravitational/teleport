@@ -316,6 +316,13 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			UserName:    e.User,
 			Format:      e.Format,
 		}
+	case *apievents.AccessListReview:
+		if e.UpdatedBy == "" {
+			return nil
+		}
+		return &AccessListReviewEvent{
+			UserName: e.UpdatedBy,
+		}
 	}
 
 	return nil

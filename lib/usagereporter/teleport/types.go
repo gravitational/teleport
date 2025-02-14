@@ -1330,6 +1330,19 @@ func (s *SessionRecordingAccessEvent) Anonymize(a utils.Anonymizer) prehogv1a.Su
 	}
 }
 
+// AccessListReviewEvent is emitted when Access List is reviewed.
+type AccessListReviewEvent prehogv1a.AccessListReviewEvent
+
+func (e *AccessListReviewEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessListReviewCreate{
+			AccessListReviewCreate: &prehogv1a.AccessListReviewCreateEvent{
+				UserName: a.AnonymizeString(e.UserName),
+			},
+		},
+	}
+}
+
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.

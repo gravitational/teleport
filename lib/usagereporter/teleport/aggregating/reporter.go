@@ -186,7 +186,8 @@ func (r *Reporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
 			*usagereporter.ResourceHeartbeatEvent,
 			*usagereporter.UserCertificateIssuedEvent,
 			*usagereporter.BotJoinEvent,
-			*usagereporter.SPIFFESVIDIssuedEvent:
+			*usagereporter.SPIFFESVIDIssuedEvent,
+			*usagereporter.AccessListReviewEvent:
 			filtered = append(filtered, event)
 		}
 	}
@@ -438,6 +439,8 @@ Ingest:
 			if te.BotInstanceId != "" {
 				botInstanceRecord(te.UserName, te.BotInstanceId).CertificatesIssued++
 			}
+		case *usagereporter.AccessListReviewEvent:
+			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessListsReviewed++
 		}
 
 		if ae != nil && r.ingested != nil {

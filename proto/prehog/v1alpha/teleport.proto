@@ -1543,6 +1543,14 @@ message UserTaskStateEvent {
   int32 instances_count = 4;
 }
 
+// AccessRequestEvent emitted for Access Request audit events.
+message AccessListReviewEvent {
+  // anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64;
+  //
+  // Teleport user name. Anonymized.
+  string user_name = 1;
+}
+
 message SubmitEventRequest {
   // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
   //

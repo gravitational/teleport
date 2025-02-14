@@ -124,6 +124,10 @@ message UserActivityRecord {
   uint64 certificates_issued = 17;
   // counter of SVIDs issued for each SPIFFE ID.
   repeated SPIFFEIDRecord spiffe_ids_issued = 18;
+
+  // 19,20,21 reserved for user_origin, access_request_created, access_request_reviewed
+  // counter of Access List review.
+  uint64 access_lists_reviewed = 22;
 }
 
 // the kind of a "resource" (e.g. a node, a database, a desktop, etc.)
