@@ -173,7 +173,7 @@ function Install-Wintun {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [string] $InstallDir,
+        [string] $InstallDir
     )
     begin {
         Write-Host "::group::Installing wintun.dll to $InstallDir..."
