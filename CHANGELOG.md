@@ -1123,7 +1123,7 @@ follow the manual setup guide.
 All Teleport Assist functionality and OpenAI integration has been removed from
 Teleport.
 
-## 15.4.28 (02/13/25)
+## 15.4.29 (02/14/25)
 
 ### Security Fixes
 
@@ -1132,6 +1132,9 @@ Teleport.
 
 ### Other fixes and improvements
 
+* Removed the ability of `tctl` to load the default configuration file on Windows. [#52190](https://github.com/gravitational/teleport/pull/52190)
+* Moved PostgreSQL auto provisioning users procedures to `pg_temp` schema. [#52150](https://github.com/gravitational/teleport/pull/52150)
+* Applied `TELEPORT_UNSTABLE_DISABLE_AWS_FIPS` to IAM and STS credentials. [#52134](https://github.com/gravitational/teleport/pull/52134)
 * Fixed graceful closing of networking subprocesses when the Teleport parent process is gracefully closed (SIGQUIT). [#52117](https://github.com/gravitational/teleport/pull/52117)
 * Updated Go to 1.23.6. [#52087](https://github.com/gravitational/teleport/pull/52087)
 * Updated OpenSSL to 3.0.16. [#52039](https://github.com/gravitational/teleport/pull/52039)
@@ -1156,6 +1159,9 @@ Teleport.
 * Fixed a bug in GKE auto-discovery where the process failed to discover any clusters if the identity lacked permissions for one or more detected GCP project IDs. [#51401](https://github.com/gravitational/teleport/pull/51401)
 * Added support for multiple active CAs in tctl auth export. [#51377](https://github.com/gravitational/teleport/pull/51377)
 * Added more granular audit logging surrounding SSH port forwarding. [#51327](https://github.com/gravitational/teleport/pull/51327)
+
+Enterprise:
+* Removed Desktop Access support in arm64 FIPS builds.
 
 ## 15.4.26 (01/21/2025)
 
