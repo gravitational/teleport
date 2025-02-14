@@ -113,14 +113,29 @@ func (h *Handler) userTaskListByIntegration(w http.ResponseWriter, r *http.Reque
 		return nil, trace.BadParameter("integration query param is required")
 	}
 
-	userTasks, nextKey, err := clt.UserTasksServiceClient().ListUserTasksByIntegration(r.Context(), int64(limit), startKey, integrationName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	taskStateFilter := values.Get("state")
 
-	items := make([]ui.UserTask, 0, len(userTasks))
-	for _, userTask := range userTasks {
-		items = append(items, ui.MakeUserTask(userTask))
+	var nextKey string
+	items := make([]ui.UserTask, 0, limit)
+	pageLimit := limit
+	for {
+		userTasks, nextKey, err := clt.UserTasksServiceClient().ListUserTasksByIntegration(r.Context(), int64(pageLimit), startKey, integrationName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, userTask := range userTasks {
+			if taskStateFilter != "" && userTask.Spec.State != taskStateFilter {
+				continue
+			}
+			items = append(items, ui.MakeUserTask(userTask))
+		}
+
+		startKey = nextKey
+		pageLimit = limit - int32(len(items))
+		if startKey == "" || len(items) >= int(limit) {
+			break
+		}
 	}
 
 	return ui.UserTasksListResponse{
