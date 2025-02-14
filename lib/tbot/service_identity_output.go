@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"path/filepath"
 	"strings"
 
@@ -36,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // IdentityOutputService produces credentials which can be used to connect to
@@ -255,18 +255,12 @@ func renderSSHConfig(
 	)
 	defer span.End()
 
-	proxyAddr, err := proxyPing.proxyWebAddr()
+	proxyHost, proxyPort, err := proxyPing.Proxy.SSHProxyHostPort()
 	if err != nil {
 		return trace.Wrap(err, "determining proxy web addr")
 	}
-
-	proxyHost, proxyPort, err := utils.SplitHostPort(proxyAddr)
-	if err != nil {
-		return trace.BadParameter(
-			"proxy %+v has no usable public address: %v",
-			proxyAddr, err,
-		)
-	}
+	// SSHProxyHostPort returns the web port when TLS routing is enabled, or,
+	// the ssh port when it is not.
 
 	// We'll write known_hosts regardless of Destination type, it's still
 	// useful alongside a manually-written ssh_config.
@@ -317,7 +311,7 @@ func renderSSHConfig(
 	connUpgradeRequired := false
 	if proxyPing.Proxy.TLSRoutingEnabled {
 		connUpgradeRequired, err = alpnTester.isUpgradeRequired(
-			ctx, proxyAddr, botCfg.Insecure,
+			ctx, net.JoinHostPort(proxyHost, proxyPort), botCfg.Insecure,
 		)
 		if err != nil {
 			return trace.Wrap(err, "determining if ALPN upgrade is required")
