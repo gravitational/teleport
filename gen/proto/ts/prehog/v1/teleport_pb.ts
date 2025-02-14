@@ -211,6 +211,13 @@ export interface UserActivityRecord {
      * @generated from protobuf field: uint64 access_lists_reviewed = 22;
      */
     accessListsReviewed: bigint;
+    /**
+     * counter of roles or traits grant event based on Access List mermbership.
+     * The event is emitted during user login state calculation.
+     *
+     * @generated from protobuf field: uint64 access_list_grants = 23;
+     */
+    accessListGrants: bigint;
 }
 /**
  * @generated from protobuf message prehog.v1.ResourcePresenceReport
@@ -613,7 +620,8 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
             { no: 16, name: "bot_joins", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 17, name: "certificates_issued", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 18, name: "spiffe_ids_issued", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SPIFFEIDRecord },
-            { no: 22, name: "access_lists_reviewed", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+            { no: 22, name: "access_lists_reviewed", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 23, name: "access_list_grants", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
         ]);
     }
     create(value?: PartialMessage<UserActivityRecord>): UserActivityRecord {
@@ -637,6 +645,7 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         message.certificatesIssued = 0n;
         message.spiffeIdsIssued = [];
         message.accessListsReviewed = 0n;
+        message.accessListGrants = 0n;
         if (value !== undefined)
             reflectionMergePartial<UserActivityRecord>(this, message, value);
         return message;
@@ -702,6 +711,9 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
                     break;
                 case /* uint64 access_lists_reviewed */ 22:
                     message.accessListsReviewed = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 access_list_grants */ 23:
+                    message.accessListGrants = reader.uint64().toBigInt();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -772,6 +784,9 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         /* uint64 access_lists_reviewed = 22; */
         if (message.accessListsReviewed !== 0n)
             writer.tag(22, WireType.Varint).uint64(message.accessListsReviewed);
+        /* uint64 access_list_grants = 23; */
+        if (message.accessListGrants !== 0n)
+            writer.tag(23, WireType.Varint).uint64(message.accessListGrants);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

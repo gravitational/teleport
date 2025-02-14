@@ -128,6 +128,9 @@ message UserActivityRecord {
   // 19,20,21 reserved for user_origin, access_request_created, access_request_reviewed
   // counter of Access List review.
   uint64 access_lists_reviewed = 22;
+  // counter of roles or traits grant event based on Access List mermbership.
+  // The event is emitted during user login state calculation.
+  uint64 access_list_grants = 23;
 }
 
 // the kind of a "resource" (e.g. a node, a database, a desktop, etc.)

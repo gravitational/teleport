@@ -1790,7 +1790,7 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_AccessListGrantsToUser:
 		ret := &AccessListGrantsToUserEvent{
-			UserName:                    userMD.Username,
+			UserName:                    e.AccessListGrantsToUser.GetUserName(),
 			CountRolesGranted:           e.AccessListGrantsToUser.CountRolesGranted,
 			CountTraitsGranted:          e.AccessListGrantsToUser.CountTraitsGranted,
 			CountInheritedRolesGranted:  e.AccessListGrantsToUser.CountInheritedRolesGranted,
