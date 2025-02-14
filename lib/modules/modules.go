@@ -254,7 +254,7 @@ type AccessResourcesGetter interface {
 type AccessListSuggestionClient interface {
 	GetUser(ctx context.Context, userName string, withSecrets bool) (types.User, error)
 	RoleGetter
-
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 	GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
 }

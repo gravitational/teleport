@@ -393,6 +393,22 @@ func (a *AccessListService) GetSuggestedAccessLists(ctx context.Context, accessR
 	return nil, trace.NotImplemented("GetSuggestedAccessLists should not be called")
 }
 
+// GetSuggestedAccessListsForResources returns a list of access lists that are suggested for a set of resources.
+func (a *AccessListService) GetSuggestedAccessListsForResources(ctx context.Context, resourceIDs []string) (*accesslistv1.GetSuggestedAccessListsResponse, error) {
+	// Get all access lists
+	_, err := a.GetAccessLists(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Return empty response with properly initialized fields
+	return &accesslistv1.GetSuggestedAccessListsResponse{
+		AccessLists:               []*accesslistv1.AccessList{},
+		ResourcesNotInAccessList:  resourceIDs, // All resources are considered "not in list" in OSS
+		ResourcesInDifferentLists: []string{},
+	}, nil
+}
+
 // CountAccessListMembers will count all access list members.
 func (a *AccessListService) CountAccessListMembers(ctx context.Context, accessListName string) (users uint32, lists uint32, err error) {
 	count := uint(0)

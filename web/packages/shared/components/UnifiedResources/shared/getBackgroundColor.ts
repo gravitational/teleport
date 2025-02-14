@@ -23,9 +23,20 @@ export interface BackgroundColorProps {
   selected?: boolean;
   pinned?: boolean;
   theme: Theme;
+  isIneligible?: boolean;
+  isSeparateRequest?: boolean;
 }
 
 export const getBackgroundColor = (props: BackgroundColorProps) => {
+  // Handle warning states first with solid colors
+  if (props.isIneligible) {
+    return props.theme.colors.error.main; // Solid red
+  }
+  if (props.isSeparateRequest) {
+    return props.theme.colors.warning.main; // Solid yellow
+  }
+
+  // Then handle UI states
   if (props.requiresRequest && props.pinned) {
     return props.theme.colors.interactive.tonal.primary[0];
   }

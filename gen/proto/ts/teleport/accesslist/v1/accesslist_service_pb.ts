@@ -660,31 +660,65 @@ export interface AccessRequestPromoteResponse {
 }
 /**
  * GetSuggestedAccessListsRequest is the request for suggested access lists for
- * an access request.
+ * an access request or set of resources.
  *
  * @generated from protobuf message teleport.accesslist.v1.GetSuggestedAccessListsRequest
  */
 export interface GetSuggestedAccessListsRequest {
     /**
-     * access_request_id is the unique ID of the request.
-     *
-     * @generated from protobuf field: string access_request_id = 1;
+     * @generated from protobuf oneof: identifier
      */
-    accessRequestId: string;
+    identifier: {
+        oneofKind: "accessRequestId";
+        /**
+         * access_request_id is the unique ID of the request
+         *
+         * @generated from protobuf field: string access_request_id = 1;
+         */
+        accessRequestId: string;
+    } | {
+        oneofKind: "resourceIds";
+        /**
+         * resource_ids is a list of resource IDs to get suggestions for
+         *
+         * @generated from protobuf field: teleport.accesslist.v1.ResourceIdentifiers resource_ids = 2;
+         */
+        resourceIds: ResourceIdentifiers;
+    } | {
+        oneofKind: undefined;
+    };
 }
 /**
- * GetSuggestedAccessListsResponse is the response for suggested access lists
- * for an access request.
+ * @generated from protobuf message teleport.accesslist.v1.ResourceIdentifiers
+ */
+export interface ResourceIdentifiers {
+    /**
+     * @generated from protobuf field: repeated string resource_ids = 1;
+     */
+    resourceIds: string[];
+}
+/**
+ * GetSuggestedAccessListsResponse is the response for suggested access lists.
  *
  * @generated from protobuf message teleport.accesslist.v1.GetSuggestedAccessListsResponse
  */
 export interface GetSuggestedAccessListsResponse {
     /**
-     * access_lists is the list of suggested lists.
+     * access_lists is the list of suggested lists
      *
      * @generated from protobuf field: repeated teleport.accesslist.v1.AccessList access_lists = 1;
      */
     accessLists: AccessList[];
+    /**
+     * Only populated when using resource_ids
+     *
+     * @generated from protobuf field: repeated string resources_not_in_access_list = 2;
+     */
+    resourcesNotInAccessList: string[];
+    /**
+     * @generated from protobuf field: repeated string resources_in_different_lists = 3;
+     */
+    resourcesInDifferentLists: string[];
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class GetAccessListsRequest$Type extends MessageType<GetAccessListsRequest> {
@@ -2546,12 +2580,13 @@ export const AccessRequestPromoteResponse = new AccessRequestPromoteResponse$Typ
 class GetSuggestedAccessListsRequest$Type extends MessageType<GetSuggestedAccessListsRequest> {
     constructor() {
         super("teleport.accesslist.v1.GetSuggestedAccessListsRequest", [
-            { no: 1, name: "access_request_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 1, name: "access_request_id", kind: "scalar", oneof: "identifier", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "resource_ids", kind: "message", oneof: "identifier", T: () => ResourceIdentifiers }
         ]);
     }
     create(value?: PartialMessage<GetSuggestedAccessListsRequest>): GetSuggestedAccessListsRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.accessRequestId = "";
+        message.identifier = { oneofKind: undefined };
         if (value !== undefined)
             reflectionMergePartial<GetSuggestedAccessListsRequest>(this, message, value);
         return message;
@@ -2562,7 +2597,16 @@ class GetSuggestedAccessListsRequest$Type extends MessageType<GetSuggestedAccess
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
                 case /* string access_request_id */ 1:
-                    message.accessRequestId = reader.string();
+                    message.identifier = {
+                        oneofKind: "accessRequestId",
+                        accessRequestId: reader.string()
+                    };
+                    break;
+                case /* teleport.accesslist.v1.ResourceIdentifiers resource_ids */ 2:
+                    message.identifier = {
+                        oneofKind: "resourceIds",
+                        resourceIds: ResourceIdentifiers.internalBinaryRead(reader, reader.uint32(), options, (message.identifier as any).resourceIds)
+                    };
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -2577,8 +2621,11 @@ class GetSuggestedAccessListsRequest$Type extends MessageType<GetSuggestedAccess
     }
     internalBinaryWrite(message: GetSuggestedAccessListsRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         /* string access_request_id = 1; */
-        if (message.accessRequestId !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.accessRequestId);
+        if (message.identifier.oneofKind === "accessRequestId")
+            writer.tag(1, WireType.LengthDelimited).string(message.identifier.accessRequestId);
+        /* teleport.accesslist.v1.ResourceIdentifiers resource_ids = 2; */
+        if (message.identifier.oneofKind === "resourceIds")
+            ResourceIdentifiers.internalBinaryWrite(message.identifier.resourceIds, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -2590,15 +2637,66 @@ class GetSuggestedAccessListsRequest$Type extends MessageType<GetSuggestedAccess
  */
 export const GetSuggestedAccessListsRequest = new GetSuggestedAccessListsRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class ResourceIdentifiers$Type extends MessageType<ResourceIdentifiers> {
+    constructor() {
+        super("teleport.accesslist.v1.ResourceIdentifiers", [
+            { no: 1, name: "resource_ids", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ResourceIdentifiers>): ResourceIdentifiers {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.resourceIds = [];
+        if (value !== undefined)
+            reflectionMergePartial<ResourceIdentifiers>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ResourceIdentifiers): ResourceIdentifiers {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated string resource_ids */ 1:
+                    message.resourceIds.push(reader.string());
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ResourceIdentifiers, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated string resource_ids = 1; */
+        for (let i = 0; i < message.resourceIds.length; i++)
+            writer.tag(1, WireType.LengthDelimited).string(message.resourceIds[i]);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.accesslist.v1.ResourceIdentifiers
+ */
+export const ResourceIdentifiers = new ResourceIdentifiers$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class GetSuggestedAccessListsResponse$Type extends MessageType<GetSuggestedAccessListsResponse> {
     constructor() {
         super("teleport.accesslist.v1.GetSuggestedAccessListsResponse", [
-            { no: 1, name: "access_lists", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => AccessList }
+            { no: 1, name: "access_lists", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => AccessList },
+            { no: 2, name: "resources_not_in_access_list", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "resources_in_different_lists", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<GetSuggestedAccessListsResponse>): GetSuggestedAccessListsResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.accessLists = [];
+        message.resourcesNotInAccessList = [];
+        message.resourcesInDifferentLists = [];
         if (value !== undefined)
             reflectionMergePartial<GetSuggestedAccessListsResponse>(this, message, value);
         return message;
@@ -2610,6 +2708,12 @@ class GetSuggestedAccessListsResponse$Type extends MessageType<GetSuggestedAcces
             switch (fieldNo) {
                 case /* repeated teleport.accesslist.v1.AccessList access_lists */ 1:
                     message.accessLists.push(AccessList.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* repeated string resources_not_in_access_list */ 2:
+                    message.resourcesNotInAccessList.push(reader.string());
+                    break;
+                case /* repeated string resources_in_different_lists */ 3:
+                    message.resourcesInDifferentLists.push(reader.string());
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -2626,6 +2730,12 @@ class GetSuggestedAccessListsResponse$Type extends MessageType<GetSuggestedAcces
         /* repeated teleport.accesslist.v1.AccessList access_lists = 1; */
         for (let i = 0; i < message.accessLists.length; i++)
             AccessList.internalBinaryWrite(message.accessLists[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* repeated string resources_not_in_access_list = 2; */
+        for (let i = 0; i < message.resourcesNotInAccessList.length; i++)
+            writer.tag(2, WireType.LengthDelimited).string(message.resourcesNotInAccessList[i]);
+        /* repeated string resources_in_different_lists = 3; */
+        for (let i = 0; i < message.resourcesInDifferentLists.length; i++)
+            writer.tag(3, WireType.LengthDelimited).string(message.resourcesInDifferentLists[i]);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

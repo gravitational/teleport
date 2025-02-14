@@ -413,7 +413,9 @@ func (c *Client) DeleteAllAccessListReviews(ctx context.Context) error {
 // GetSuggestedAccessLists returns a list of access lists that are suggested for a given request.
 func (c *Client) GetSuggestedAccessLists(ctx context.Context, accessRequestID string) ([]*accesslist.AccessList, error) {
 	resp, err := c.grpcClient.GetSuggestedAccessLists(ctx, &accesslistv1.GetSuggestedAccessListsRequest{
-		AccessRequestId: accessRequestID,
+		Identifier: &accesslistv1.GetSuggestedAccessListsRequest_AccessRequestId{
+			AccessRequestId: accessRequestID,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -429,4 +431,15 @@ func (c *Client) GetSuggestedAccessLists(ctx context.Context, accessRequestID st
 	}
 
 	return accessLists, nil
+}
+
+// GetSuggestedAccessListsForResources returns a list of access lists that are suggested for a set of resources.
+func (c *Client) GetSuggestedAccessListsForResources(ctx context.Context, resourceIDs []string) (*accesslistv1.GetSuggestedAccessListsResponse, error) {
+	return c.grpcClient.GetSuggestedAccessLists(ctx, &accesslistv1.GetSuggestedAccessListsRequest{
+		Identifier: &accesslistv1.GetSuggestedAccessListsRequest_ResourceIds{
+			ResourceIds: &accesslistv1.ResourceIdentifiers{
+				ResourceIds: resourceIDs,
+			},
+		},
+	})
 }

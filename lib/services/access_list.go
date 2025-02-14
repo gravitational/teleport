@@ -52,6 +52,8 @@ type AccessListsGetter interface {
 type AccessListsSuggestionsGetter interface {
 	// GetSuggestedAccessLists returns a list of access lists that are suggested for a given request.
 	GetSuggestedAccessLists(ctx context.Context, accessRequestID string) ([]*accesslist.AccessList, error)
+	// GetSuggestedAccessListsForResources returns a list of access lists that are suggested for a set of resources.
+	GetSuggestedAccessListsForResources(ctx context.Context, resourceIDs []string) (*accesslistv1.GetSuggestedAccessListsResponse, error)
 }
 
 // AccessLists defines an interface for managing AccessLists.

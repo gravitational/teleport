@@ -128,7 +128,7 @@ type AccessListServiceClient interface {
 	// AccessRequestPromote promotes an access request to an access list.
 	AccessRequestPromote(ctx context.Context, in *AccessRequestPromoteRequest, opts ...grpc.CallOption) (*AccessRequestPromoteResponse, error)
 	// GetSuggestedAccessLists returns suggested access lists for an access
-	// request.
+	// request or set of resources.
 	GetSuggestedAccessLists(ctx context.Context, in *GetSuggestedAccessListsRequest, opts ...grpc.CallOption) (*GetSuggestedAccessListsResponse, error)
 	// GetInheritedGrants returns the inherited grants for an access list.
 	GetInheritedGrants(ctx context.Context, in *GetInheritedGrantsRequest, opts ...grpc.CallOption) (*GetInheritedGrantsResponse, error)
@@ -468,7 +468,7 @@ type AccessListServiceServer interface {
 	// AccessRequestPromote promotes an access request to an access list.
 	AccessRequestPromote(context.Context, *AccessRequestPromoteRequest) (*AccessRequestPromoteResponse, error)
 	// GetSuggestedAccessLists returns suggested access lists for an access
-	// request.
+	// request or set of resources.
 	GetSuggestedAccessLists(context.Context, *GetSuggestedAccessListsRequest) (*GetSuggestedAccessListsResponse, error)
 	// GetInheritedGrants returns the inherited grants for an access list.
 	GetInheritedGrants(context.Context, *GetInheritedGrantsRequest) (*GetInheritedGrantsResponse, error)

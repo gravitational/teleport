@@ -90,7 +90,7 @@ service AccessListService {
   rpc AccessRequestPromote(AccessRequestPromoteRequest) returns (AccessRequestPromoteResponse);
 
   // GetSuggestedAccessLists returns suggested access lists for an access
-  // request.
+  // request or set of resources.
   rpc GetSuggestedAccessLists(GetSuggestedAccessListsRequest) returns (GetSuggestedAccessListsResponse);
 
   // GetInheritedGrants returns the inherited grants for an access list.
@@ -404,15 +404,27 @@ message AccessRequestPromoteResponse {
 }
 
 // GetSuggestedAccessListsRequest is the request for suggested access lists for
-// an access request.
+// an access request or set of resources.
 message GetSuggestedAccessListsRequest {
-  // access_request_id is the unique ID of the request.
-  string access_request_id = 1;
+    // identifier specifies either an access request ID or a set of resource IDs
+    oneof identifier {
+        // access_request_id is the unique ID of the request
+        string access_request_id = 1;
+        // resource_ids is a list of resource IDs to get suggestions for
+        ResourceIdentifiers resource_ids = 2;
+    }
 }
 
-// GetSuggestedAccessListsResponse is the response for suggested access lists
-// for an access request.
+message ResourceIdentifiers {
+    repeated string resource_ids = 1;
+}
+
+// GetSuggestedAccessListsResponse is the response for suggested access lists.
 message GetSuggestedAccessListsResponse {
-  // access_lists is the list of suggested lists.
-  repeated AccessList access_lists = 1;
+    // access_lists is the list of suggested lists
+    repeated AccessList access_lists = 1;
+    
+    // Only populated when using resource_ids
+    repeated string resources_not_in_access_list = 2;
+    repeated string resources_in_different_lists = 3;
 }
