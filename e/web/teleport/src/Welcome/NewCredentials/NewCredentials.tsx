@@ -3,7 +3,6 @@ import { useState } from 'react';
 import cfg from 'e-teleport/config';
 import { RecoveryCodes } from 'e-teleport/RecoveryCodes';
 import { InviteCollaboratorsCard } from 'e-teleport/Welcome/InviteCollaborators/InviteCollaboratorsCard';
-import { Questionnaire } from 'e-teleport/Welcome/Questionnaire/Questionnaire';
 import { useLocation } from 'teleport/components/Router';
 import { CLOUD_INVITE_URL_PARAM } from 'teleport/Welcome/const';
 import { NewCredentialsContainerProps } from 'teleport/Welcome/NewCredentials';
@@ -23,8 +22,6 @@ export function Container({
   resetMode = false,
 }: NewCredentialsContainerProps) {
   const state = useToken(tokenId);
-  const [displayOnboardingQuestionnaire, setDisplayOnboardingQuestionnaire] =
-    useState(cfg.oss.hasQuestionnaire && cfg.oss.isCloud);
 
   const { search } = useLocation();
   const hasInitialUserFlag = new URLSearchParams(search).has(
@@ -44,9 +41,6 @@ export function Container({
       {...state}
       resetMode={resetMode}
       isDashboard={cfg.oss.isDashboard}
-      displayOnboardingQuestionnaire={displayOnboardingQuestionnaire}
-      setDisplayOnboardingQuestionnaire={setDisplayOnboardingQuestionnaire}
-      Questionnaire={Questionnaire}
       displayInviteCollaborators={displayInviteCollaborators}
       setDisplayInviteCollaborators={setDisplayInviteCollaborators}
       InviteCollaborators={InviteCollaboratorsCard}

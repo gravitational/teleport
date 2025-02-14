@@ -131,8 +131,6 @@ func TestPlugin_surveyCompanyResponsesHandler(t *testing.T) {
 	p := httprouter.Params{}
 
 	pass := &cloudapi.SurveyCompanyResponse{
-		CompanyName:   "TeleCompany",
-		EmployeeCount: "50",
 		MarketingParams: &cloudapi.MarketingParamData{
 			Campaign: "some-camp",
 			Source:   "some-source",

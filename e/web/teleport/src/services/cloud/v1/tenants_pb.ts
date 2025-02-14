@@ -1224,18 +1224,6 @@ export interface MarketingParamData {
  */
 export interface SurveyCompanyResponse {
     /**
-     * companyName represents the company name field in the onboarding survey
-     *
-     * @generated from protobuf field: string company_name = 1;
-     */
-    companyName: string;
-    /**
-     * employeeCount represents the employee range field in the onboarding survey; ex: "20-199"
-     *
-     * @generated from protobuf field: string employee_count = 2;
-     */
-    employeeCount: string;
-    /**
      * marketing_params are the parameters associated with a user via marketing campaign at the time of sign up.
      * This is used to personalize the user experience.
      *
@@ -4076,15 +4064,11 @@ export const MarketingParamData = new MarketingParamData$Type();
 class SurveyCompanyResponse$Type extends MessageType<SurveyCompanyResponse> {
     constructor() {
         super("gravitational.cloud.tenants.v1.SurveyCompanyResponse", [
-            { no: 1, name: "company_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "employee_count", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "marketing_params", kind: "message", T: () => MarketingParamData }
         ]);
     }
     create(value?: PartialMessage<SurveyCompanyResponse>): SurveyCompanyResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.companyName = "";
-        message.employeeCount = "";
         if (value !== undefined)
             reflectionMergePartial<SurveyCompanyResponse>(this, message, value);
         return message;
@@ -4094,12 +4078,6 @@ class SurveyCompanyResponse$Type extends MessageType<SurveyCompanyResponse> {
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* string company_name */ 1:
-                    message.companyName = reader.string();
-                    break;
-                case /* string employee_count */ 2:
-                    message.employeeCount = reader.string();
-                    break;
                 case /* gravitational.cloud.tenants.v1.MarketingParamData marketing_params */ 3:
                     message.marketingParams = MarketingParamData.internalBinaryRead(reader, reader.uint32(), options, message.marketingParams);
                     break;
@@ -4115,12 +4093,6 @@ class SurveyCompanyResponse$Type extends MessageType<SurveyCompanyResponse> {
         return message;
     }
     internalBinaryWrite(message: SurveyCompanyResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string company_name = 1; */
-        if (message.companyName !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.companyName);
-        /* string employee_count = 2; */
-        if (message.employeeCount !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.employeeCount);
         /* gravitational.cloud.tenants.v1.MarketingParamData marketing_params = 3; */
         if (message.marketingParams)
             MarketingParamData.internalBinaryWrite(message.marketingParams, writer.tag(3, WireType.LengthDelimited).fork(), options).join();

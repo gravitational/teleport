@@ -15,7 +15,6 @@ import {
 } from 'e-teleport/InviteCollaborators/Notifications';
 import TeleportEContext from 'e-teleport/teleportContextE';
 import useTeleport from 'e-teleport/useTeleportE';
-import { Questionnaire } from 'e-teleport/Welcome/Questionnaire/Questionnaire';
 import { Main } from 'teleport/Main/Main';
 import { storageService } from 'teleport/services/storageService';
 
@@ -53,12 +52,6 @@ export function MainE() {
     );
   }
 
-  const isStripeManaged = cfg.oss.isStripeManaged;
-  const requiresOnboardingSurvey = surveyUnanswered();
-  // todo (michellescripts) rather than using isStripeManaged; surface Mode:Questionnaire
-  const questionnaire =
-    (isStripeManaged && requiresOnboardingSurvey && Questionnaire) || null;
-
   const CustomLogos = {
     bblp: BblpLogo,
   };
@@ -81,7 +74,6 @@ export function MainE() {
       features={getEnterpriseFeatures()}
       initialAlerts={initialAlerts}
       customBanners={customBanners}
-      Questionnaire={questionnaire}
       inviteCollaboratorsFeedback={inviteCollaboratorsFeedback}
       topBarProps={
         cfg.oss.customTheme && {
@@ -141,25 +133,3 @@ function InviteCollaboratorsFeedback({
 
   return <Notifications items={notifications} dismiss={dismissNotification} />;
 }
-
-// SurveyUnanswered checks both the user preferences and the survey
-// since survey data is moved into preferences on login, this means a user may have just filled
-// out the survey but the results are not yet in preferences.
-const surveyUnanswered = (): boolean => {
-  const onboardPreferences = storageService.getOnboardUserPreference();
-
-  if (
-    onboardPreferences &&
-    onboardPreferences.preferredResources &&
-    onboardPreferences.preferredResources.length > 0
-  ) {
-    return false;
-  }
-
-  const survey = storageService.getOnboardSurvey();
-  return !(
-    survey &&
-    survey.clusterResources &&
-    survey.clusterResources.length > 0
-  );
-};
