@@ -523,7 +523,7 @@ function makeIntegration(json: any): Integration {
     return {
       ...commonFields,
       resourceType: 'integration',
-      details: `GitHub Organization "${github.organization}"`,
+      details: `GitHub repository access for organization "${github.organization}"`,
       spec: {
         organization: github.organization,
       },

@@ -47,6 +47,10 @@ class ResourceService {
     return api.delete(cfg.getGitServerUrl({ clusterId, name }, 'delete'));
   }
 
+  getGitServer(clusterId: string, name: string): Promise<GitServer> {
+    return api.get(cfg.getGitServerUrl({ clusterId, name }, 'get'));
+  }
+
   fetchTrustedClusters() {
     return api
       .get(cfg.getTrustedClustersUrl())

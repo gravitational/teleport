@@ -114,7 +114,7 @@ test('fetch integration list: fetchIntegrations()', async () => {
         kind: 'github',
         name: 'github-my-org',
         resourceType: 'integration',
-        details: 'GitHub Organization "my-org"',
+        details: 'GitHub repository access for organization "my-org"',
         spec: { organization: 'my-org' },
         statusCode: IntegrationStatusCode.Running,
       },

@@ -268,6 +268,7 @@ const cfg = {
     gitServer: {
       createOrOverwrite: '/v1/webapi/sites/:clusterId/gitservers',
       delete: '/v1/webapi/sites/:clusterId/gitservers/:name',
+      get: '/v1/webapi/sites/:clusterId/gitservers/:name',
     },
 
     databaseServicesPath: `/v1/webapi/sites/:clusterId/databaseservices`,
@@ -867,14 +868,14 @@ const cfg = {
 
   getGitServerUrl(
     params: { clusterId: string; name?: string },
-    action: 'createOrOverwrite' | 'delete'
+    action: 'createOrOverwrite' | 'delete' | 'get'
   ) {
     if (action === 'createOrOverwrite') {
       return generatePath(cfg.api.gitServer.createOrOverwrite, {
         clusterId: params.clusterId,
       });
     }
-    if (action === 'delete') {
+    if (action === 'delete' || action === 'get') {
       return generatePath(cfg.api.gitServer.delete, params);
     }
   },
