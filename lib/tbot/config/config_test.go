@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
@@ -42,7 +43,7 @@ func TestConfigFile(t *testing.T) {
 	require.NoError(t, cfg.CheckAndSetDefaults())
 
 	require.Equal(t, "auth.example.com", cfg.AuthServer)
-	require.Equal(t, time.Minute*5, cfg.RenewalInterval)
+	require.Equal(t, time.Minute*5, cfg.CredentialLifetime.RenewalInterval)
 
 	require.NotNil(t, cfg.Onboarding)
 
@@ -197,13 +198,15 @@ func TestBotConfig_YAML(t *testing.T) {
 						Symlinks: botfs.SymlinksSecure,
 					},
 				},
-				FIPS:            true,
-				Debug:           true,
-				Oneshot:         true,
-				AuthServer:      "example.teleport.sh:443",
-				DiagAddr:        "127.0.0.1:1337",
-				CertificateTTL:  time.Minute,
-				RenewalInterval: time.Second * 30,
+				FIPS:       true,
+				Debug:      true,
+				Oneshot:    true,
+				AuthServer: "example.teleport.sh:443",
+				DiagAddr:   "127.0.0.1:1337",
+				CredentialLifetime: CredentialLifetime{
+					TTL:             time.Minute,
+					RenewalInterval: time.Second * 30,
+				},
 				Outputs: ServiceConfigs{
 					&IdentityOutput{
 						Destination: &DestinationDirectory{
@@ -218,6 +221,10 @@ func TestBotConfig_YAML(t *testing.T) {
 					&IdentityOutput{
 						Destination: &DestinationKubernetesSecret{
 							Name: "my-secret",
+						},
+						CredentialLifetime: CredentialLifetime{
+							TTL:             30 * time.Second,
+							RenewalInterval: 15 * time.Second,
 						},
 					},
 				},
@@ -250,6 +257,10 @@ func TestBotConfig_YAML(t *testing.T) {
 								},
 							},
 						},
+						CredentialLifetime: CredentialLifetime{
+							TTL:             30 * time.Second,
+							RenewalInterval: 15 * time.Second,
+						},
 					},
 					&ExampleService{
 						Message: "llama",
@@ -258,11 +269,19 @@ func TestBotConfig_YAML(t *testing.T) {
 						Destination: &DestinationDirectory{
 							Path: "/bot/output",
 						},
+						CredentialLifetime: CredentialLifetime{
+							TTL:             30 * time.Second,
+							RenewalInterval: 15 * time.Second,
+						},
 					},
 					&ApplicationTunnelService{
 						Listen:  "tcp://127.0.0.1:123",
 						Roles:   []string{"access"},
 						AppName: "my-app",
+						CredentialLifetime: CredentialLifetime{
+							TTL:             30 * time.Second,
+							RenewalInterval: 15 * time.Second,
+						},
 					},
 					&WorkloadIdentityX509Service{
 						Destination: &DestinationDirectory{
@@ -271,11 +290,19 @@ func TestBotConfig_YAML(t *testing.T) {
 						Selector: WorkloadIdentitySelector{
 							Name: "my-workload-identity",
 						},
+						CredentialLifetime: CredentialLifetime{
+							TTL:             30 * time.Second,
+							RenewalInterval: 15 * time.Second,
+						},
 					},
 					&WorkloadIdentityAPIService{
 						Listen: "tcp://127.0.0.1:123",
 						Selector: WorkloadIdentitySelector{
 							Name: "my-workload-identity",
+						},
+						CredentialLifetime: CredentialLifetime{
+							TTL:             30 * time.Second,
+							RenewalInterval: 15 * time.Second,
 						},
 					},
 					&WorkloadIdentityJWTService{
@@ -293,10 +320,12 @@ func TestBotConfig_YAML(t *testing.T) {
 		{
 			name: "minimal config",
 			in: BotConfig{
-				Version:         V2,
-				AuthServer:      "example.teleport.sh:443",
-				CertificateTTL:  time.Minute,
-				RenewalInterval: time.Second * 30,
+				Version:    V2,
+				AuthServer: "example.teleport.sh:443",
+				CredentialLifetime: CredentialLifetime{
+					TTL:             time.Minute,
+					RenewalInterval: time.Second * 30,
+				},
 				Outputs: ServiceConfigs{
 					&IdentityOutput{
 						Destination: &DestinationMemory{},
@@ -307,10 +336,12 @@ func TestBotConfig_YAML(t *testing.T) {
 		{
 			name: "minimal config using proxy addr",
 			in: BotConfig{
-				Version:         V2,
-				ProxyServer:     "example.teleport.sh:443",
-				CertificateTTL:  time.Minute,
-				RenewalInterval: time.Second * 30,
+				Version:     V2,
+				ProxyServer: "example.teleport.sh:443",
+				CredentialLifetime: CredentialLifetime{
+					TTL:             time.Minute,
+					RenewalInterval: time.Second * 30,
+				},
 				Outputs: ServiceConfigs{
 					&IdentityOutput{
 						Destination: &DestinationMemory{},
@@ -387,4 +418,102 @@ func TestBotConfig_WithCAPathAndCAPins(t *testing.T) {
 	}
 
 	require.ErrorContains(t, cfg.CheckAndSetDefaults(), "mutually exclusive")
+}
+
+func TestBotConfig_ServicePartialCredentialLifetime(t *testing.T) {
+	cfg := &BotConfig{
+		Version:    V2,
+		AuthServer: "example.teleport.sh:443",
+		Services: []ServiceConfig{
+			&IdentityOutput{
+				CredentialLifetime: CredentialLifetime{TTL: 5 * time.Minute},
+				Destination:        &DestinationMemory{},
+			},
+		},
+	}
+	require.ErrorContains(t, cfg.CheckAndSetDefaults(), "credential_ttl and renewal_interval")
+}
+
+func TestBotConfig_ServiceInvalidCredentialLifetime(t *testing.T) {
+	cfg := &BotConfig{
+		Version:    V2,
+		AuthServer: "example.teleport.sh:443",
+		Services: []ServiceConfig{
+			&IdentityOutput{
+				CredentialLifetime: CredentialLifetime{TTL: 5 * time.Minute},
+				Destination:        &DestinationMemory{},
+			},
+		},
+	}
+	require.ErrorContains(t, cfg.CheckAndSetDefaults(), "credential_ttl and renewal_interval")
+}
+
+func TestBotConfig_DeprecatedCertificateTTL(t *testing.T) {
+	t.Run("just deprecated option", func(t *testing.T) {
+		const config = `
+version: v2
+certificate_ttl: 5m
+`
+
+		cfg, err := ReadConfig(strings.NewReader(config), false)
+		require.NoError(t, err)
+		require.Equal(t, 5*time.Minute, cfg.CredentialLifetime.TTL)
+	})
+
+	t.Run("both options", func(t *testing.T) {
+		const config = `
+version: v2
+certificate_ttl: 5m
+credential_ttl: 10m
+`
+
+		cfg, err := ReadConfig(strings.NewReader(config), false)
+		require.NoError(t, err)
+		require.Equal(t, 10*time.Minute, cfg.CredentialLifetime.TTL)
+	})
+}
+
+func TestCredentialLifetimeValidate(t *testing.T) {
+	testCases := map[string]struct {
+		cfg     CredentialLifetime
+		oneShot bool
+		error   string
+	}{
+		"partial config": {
+			cfg:   CredentialLifetime{TTL: 1 * time.Minute},
+			error: "credential_ttl and renewal_interval must both be specified if either is",
+		},
+		"negative TTL": {
+			cfg:   CredentialLifetime{TTL: -time.Minute, RenewalInterval: time.Minute},
+			error: "credential_ttl must be positive",
+		},
+		"negative renewal interval": {
+			cfg:   CredentialLifetime{TTL: time.Minute, RenewalInterval: -time.Minute},
+			error: "renewal_interval must be positive",
+		},
+		"TTL less than renewal interval": {
+			cfg:   CredentialLifetime{TTL: time.Minute, RenewalInterval: 2 * time.Minute},
+			error: "TTL is shorter than the renewal interval",
+		},
+		"TTL less than renewal interval (one-shot)": {
+			cfg:     CredentialLifetime{TTL: time.Minute, RenewalInterval: 2 * time.Minute},
+			oneShot: true,
+			error:   "",
+		},
+		"TTL too long": {
+			cfg:   CredentialLifetime{TTL: defaults.MaxRenewableCertTTL * 2, RenewalInterval: time.Minute},
+			error: "TTL exceeds the maximum TTL allowed",
+		},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			err := tc.cfg.Validate(tc.oneShot)
+
+			if tc.error == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tc.error)
+			}
+		})
+	}
 }

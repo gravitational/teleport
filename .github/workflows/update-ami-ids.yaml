@@ -53,7 +53,7 @@ jobs:
           VERSION: ${{ inputs.version }}
           PR_REVIEWER: ${{ github.event.release.author.login }}
         run: |
-          git config --global user.email "noreply@github.com"
-          git config --global user.name "GitHub"
+          git config --global user.email "128860004+teleport-post-release-automation[bot]@users.noreply.github.com"
+          git config --global user.name "teleport-post-release-automation[bot]"
           make -C assets/aws create-update-pr "TELEPORT_VERSION=${VERSION}" "AMI_PR_REVIEWER=${PR_REVIEWER}"
           echo "AMI PR: $(gh pr view --json url --jq .url)" >> "$GITHUB_STEP_SUMMARY"

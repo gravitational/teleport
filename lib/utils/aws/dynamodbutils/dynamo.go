@@ -18,13 +18,13 @@ package dynamodbutils
 
 import (
 	"github.com/gravitational/teleport/lib/modules"
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/awsfips"
 )
 
 // IsFIPSEnabled returns true if FIPS should be enabled for DynamoDB.
 // FIPS is enabled is the binary is boring ([modules.Modules.IsBoringBinary])
 // and if FIPS is not disabled by the environment
-// ([awsutils.IsFIPSDisabledByEnv]).
+// ([awsfips.IsFIPSDisabledByEnv]).
 func IsFIPSEnabled() bool {
-	return !awsutils.IsFIPSDisabledByEnv() && modules.GetModules().IsBoringBinary()
+	return !awsfips.IsFIPSDisabledByEnv() && modules.GetModules().IsBoringBinary()
 }
