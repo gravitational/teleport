@@ -29,6 +29,7 @@ import (
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
 	"github.com/gravitational/teleport/lib/cloud/provisioning/awsactions"
+	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
@@ -101,7 +102,7 @@ func NewEICEIAMConfigureClient(ctx context.Context, region string) (EICEIAMConfi
 
 	return &defaultEICEIAMConfigureClient{
 		CallerIdentityGetter: stsutils.NewFromConfig(cfg),
-		Client:               iam.NewFromConfig(cfg),
+		Client:               iamutils.NewFromConfig(cfg),
 	}, nil
 }
 
