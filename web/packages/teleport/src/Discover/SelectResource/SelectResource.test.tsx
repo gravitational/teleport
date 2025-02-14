@@ -1025,6 +1025,7 @@ test('displays an info banner if lacking "all" permissions to add resources', as
     updatePreferences: () => null,
     updateClusterPinnedResources: () => null,
     getClusterPinnedResources: () => null,
+    updateDiscoverResourcePreferences: () => null,
   });
 
   const ctx = createTeleportContext();
@@ -1097,6 +1098,7 @@ test('does not display erorr banner if user has "some" permissions to add', asyn
     updatePreferences: () => null,
     updateClusterPinnedResources: () => null,
     getClusterPinnedResources: () => null,
+    updateDiscoverResourcePreferences: () => null,
   });
 
   const ctx = createTeleportContext();
