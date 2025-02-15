@@ -180,8 +180,14 @@ function Install-Wintun {
         New-Item -Path "$InstallDir" -ItemType Directory -Force | Out-Null
         $WintunZipfile = "$InstallDir/wintun.zip"
         Invoke-WebRequest -Uri https://www.wintun.net/builds/wintun-0.14.1.zip -OutFile $WintunZipfile
-        Expand-Archive -Path $WintunZipfile -DestinationPath $InstallDir
-        Rename-Item -Path "$InstallDir/wintun/bin/x86/wintun.dll" -NewName "$InstallDir/wintun.dll"
+        $ExpectedHash = "07C256185D6EE3652E09FA55C0B673E2624B565E02C4B9091C79CA7D2F24EF51"
+        $ZipFileHash = Get-FileHash -Path $WintunZipFile -Algorithm SHA256
+        if ($ZipFileHash.Hash -ne $ExpectedHash) {
+            Write-Host "checksum: $ZipFileHash"
+            throw "Checksum verification for wintun.zip failed! Expected $ExpectedHash but got $($ZipFileHash.Hash)"
+        }
+        Expand-Archive -Force -Path $WintunZipfile -DestinationPath $InstallDir
+        Move-Item -Force -Path "$InstallDir/wintun/bin/x86/wintun.dll" -Destination "$InstallDir/wintun.dll"
         Write-Host "::endgroup::"
     }
 }
