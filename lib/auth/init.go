@@ -51,10 +51,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/autoupdate/autoupdatev1"
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
+	igcredentials "github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/migration"
@@ -575,6 +577,12 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	}
 	span.AddEvent("completed migration legacy resources")
 
+	span.AddEvent("checking certificate authority cluster names")
+	if err := checkAuthorityClusterNames(ctx, asrv); err != nil {
+		return trace.Wrap(err)
+	}
+	span.AddEvent("completed checking certificate authority cluster names")
+
 	// Create presets - convenience and example resources.
 	if !services.IsDashboard(*modules.GetModules().Features().ToProto()) {
 		span.AddEvent("creating preset roles")
@@ -643,6 +651,24 @@ func initializeAuthorities(ctx context.Context, asrv *Server, cfg *InitConfig) e
 		return trace.Wrap(err)
 	}
 
+	// Collect CAs from integrations to avoid deleting them.
+	err := clientutils.IterateResources(ctx, asrv.Services.ListIntegrations, func(ig types.Integration) error {
+		caKeySet, err := igcredentials.GetIntegrationCertAuthorities(ctx, ig, asrv.Services)
+		switch {
+		case trace.IsNotImplemented(err):
+		case err != nil:
+			// This should not happen by design. In case integration is in a
+			// bad state, log a warning instead of failing this initialization.
+			asrv.logger.WarnContext(ctx, "Failed to fetch integration CAs", "ig", ig.GetName(), "error", err)
+		default:
+			allKeysInUse = append(allKeysInUse, collectKeysInUse(*caKeySet)...)
+		}
+		return nil
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Delete any unused keys from the keyStore. This is to avoid exhausting
 	// (or wasting) HSM resources.
 	if err := asrv.keyStore.DeleteUnusedKeys(ctx, allKeysInUse); err != nil {
@@ -654,7 +680,7 @@ func initializeAuthorities(ctx context.Context, asrv *Server, cfg *InitConfig) e
 	return nil
 }
 
-func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthID) (usableKeysResult *keystore.UsableKeysResult, keysInUse [][]byte, err error) {
+func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthID) (*keystore.UsableKeysResult, [][]byte, error) {
 	ca, err := asrv.Services.GetCertAuthority(ctx, caID, true)
 	if err != nil {
 		if !trace.IsNotFound(err) {
@@ -674,7 +700,7 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 	// Make sure the keystore has usable keys. This is a bit redundant if the CA
 	// was just generated above, but cheap relative to generating the CA, and
 	// it's nice to get the usableKeysResult.
-	usableKeysResult, err = asrv.keyStore.HasUsableActiveKeys(ctx, ca)
+	usableKeysResult, err := asrv.keyStore.HasUsableActiveKeys(ctx, ca)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -734,7 +760,12 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 		)
 	}
 
-	for _, keySet := range []types.CAKeySet{ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys()} {
+	keysInUse := collectKeysInUse(ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys())
+	return usableKeysResult, keysInUse, nil
+}
+
+func collectKeysInUse(cas ...types.CAKeySet) (keysInUse [][]byte) {
+	for _, keySet := range cas {
 		for _, sshKeyPair := range keySet.SSH {
 			keysInUse = append(keysInUse, sshKeyPair.PrivateKey)
 		}
@@ -745,7 +776,7 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 			keysInUse = append(keysInUse, jwtKeyPair.PrivateKey)
 		}
 	}
-	return usableKeysResult, keysInUse, nil
+	return keysInUse
 }
 
 // generateAuthority creates a new self-signed authority of the provided type
@@ -766,6 +797,35 @@ func generateAuthority(ctx context.Context, asrv *Server, caID types.CertAuthID)
 	}
 
 	return ca, nil
+}
+
+func checkAuthorityClusterNames(ctx context.Context, asrv *Server) error {
+	for _, caType := range types.CertAuthTypes {
+		authorities, err := asrv.Services.GetCertAuthorities(ctx, caType, false)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, ca := range authorities {
+			caClusterName := ca.GetClusterName()
+			// sanity check that the cluster name in the CA certificates
+			// matches the authority resource's cluster name
+			for _, keyPair := range ca.GetTrustedTLSKeyPairs() {
+				cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				clusterName, err := tlsca.ClusterName(cert.Subject)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if clusterName != caClusterName {
+					return trace.BadParameter("CA certificate of type %s has cluster name %q that does not match the cluster name %q found in the subject", ca.GetType(), caClusterName, clusterName)
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 var secondFactorUpgradeInstructions = `
@@ -1226,7 +1286,8 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 		case types.CertAuthority:
 			// check that signing CAs have expected cluster name and that
 			// all CAs for this cluster do having signing keys.
-			seemsLocal := r.GetClusterName() == clusterName
+			caClusterName := r.GetClusterName()
+			seemsLocal := caClusterName == clusterName
 
 			var hasKeys bool
 			var signerErr error
@@ -1254,6 +1315,9 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			}
 			if !seemsLocal && hasKeys {
 				return trace.BadParameter("unexpected cluster name %q for signing ca (expected %q)", r.GetClusterName(), clusterName)
+			}
+			if !seemsLocal {
+				continue
 			}
 		case types.TrustedCluster:
 			if r.GetName() == clusterName {

@@ -126,7 +126,7 @@ func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, log
 // getKerberosConnector generates a Kerberos connector using proper Kerberos
 // client.
 func (c *connector) getKerberosConnector(ctx context.Context, sessionCtx *common.Session, dsnConfig msdsn.Config) (*mssql.Connector, error) {
-	kc, err := c.kerberos.GetKerberosClient(ctx, sessionCtx)
+	kc, err := c.kerberos.GetKerberosClient(ctx, sessionCtx.Database.GetAD(), sessionCtx.DatabaseUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

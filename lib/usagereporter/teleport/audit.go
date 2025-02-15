@@ -316,6 +316,21 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			UserName:    e.User,
 			Format:      e.Format,
 		}
+	case *apievents.GitCommand:
+		// Only count when a command is executed on remote Git server and ignore
+		// errors that happen before that.
+		if e.ExitCode == "" {
+			return nil
+		}
+		return &SessionStartEvent{
+			UserName:    e.User,
+			SessionType: string(types.GitSessionKind),
+			UserKind:    prehogUserKindFromEventKind(e.UserKind),
+			Git: &prehogv1a.SessionStartGitMetadata{
+				GitType:    e.ServerSubKind,
+				GitService: e.Service,
+			},
+		}
 	case *apievents.AccessListReview:
 		if e.UpdatedBy == "" {
 			return nil

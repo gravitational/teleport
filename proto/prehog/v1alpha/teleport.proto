@@ -222,6 +222,10 @@ message SessionStartEvent {
   //
   // PostHog property: tp.app
   SessionStartAppMetadata app = 6;
+
+  // if session_type == "git" the git struct contains additional information
+  // about git session.
+  SessionStartGitMetadata git = 7;
 }
 
 // SessionStartDatabaseMetadata contains additional information about database session.
@@ -265,6 +269,15 @@ message SessionStartDesktopMetadata {
 message SessionStartAppMetadata {
   // is_multi_port is true for multi-port TCP apps.
   bool is_multi_port = 1;
+}
+
+// SessionStartGitMetadata contains additional information about a git session.
+message SessionStartGitMetadata {
+  // git session type (equivalent to git_server.sub_kind).
+  string git_type = 1;
+  // git_service is the type of the git request like git-upload-pack or
+  // git-receive-pack.
+  string git_service = 2;
 }
 
 // the issuance of a user certificate from the user CA
