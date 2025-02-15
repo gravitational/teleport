@@ -124,6 +124,10 @@ message UserActivityRecord {
   uint64 certificates_issued = 17;
   // counter of SVIDs issued for each SPIFFE ID.
   repeated SPIFFEIDRecord spiffe_ids_issued = 18;
+  // TODO(sshah): remove reserve comment below before merging to master.
+  // 19,20,21 reserved for user_origin, access_request_created, access_request_reviewed, access_list_grants
+  // counter of saml.idp.auth events
+  uint64 saml_idp_sessions = 24;
 }
 
 // the kind of a "resource" (e.g. a node, a database, a desktop, etc.)

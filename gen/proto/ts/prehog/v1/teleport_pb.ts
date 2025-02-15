@@ -204,6 +204,14 @@ export interface UserActivityRecord {
      * @generated from protobuf field: repeated prehog.v1.SPIFFEIDRecord spiffe_ids_issued = 18;
      */
     spiffeIdsIssued: SPIFFEIDRecord[];
+    /**
+     * TODO(sshah): remove reserve comment below before merging to master.
+     * 19,20,21 reserved for user_origin, access_request_created, access_request_reviewed, access_list_grants
+     * counter of saml.idp.auth events
+     *
+     * @generated from protobuf field: uint64 saml_idp_sessions = 24;
+     */
+    samlIdpSessions: bigint;
 }
 /**
  * @generated from protobuf message prehog.v1.ResourcePresenceReport
@@ -605,7 +613,8 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
             { no: 15, name: "spiffe_svids_issued", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 16, name: "bot_joins", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 17, name: "certificates_issued", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
-            { no: 18, name: "spiffe_ids_issued", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SPIFFEIDRecord }
+            { no: 18, name: "spiffe_ids_issued", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SPIFFEIDRecord },
+            { no: 24, name: "saml_idp_sessions", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
         ]);
     }
     create(value?: PartialMessage<UserActivityRecord>): UserActivityRecord {
@@ -628,6 +637,7 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         message.botJoins = 0n;
         message.certificatesIssued = 0n;
         message.spiffeIdsIssued = [];
+        message.samlIdpSessions = 0n;
         if (value !== undefined)
             reflectionMergePartial<UserActivityRecord>(this, message, value);
         return message;
@@ -690,6 +700,9 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
                     break;
                 case /* repeated prehog.v1.SPIFFEIDRecord spiffe_ids_issued */ 18:
                     message.spiffeIdsIssued.push(SPIFFEIDRecord.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* uint64 saml_idp_sessions */ 24:
+                    message.samlIdpSessions = reader.uint64().toBigInt();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -757,6 +770,9 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         /* repeated prehog.v1.SPIFFEIDRecord spiffe_ids_issued = 18; */
         for (let i = 0; i < message.spiffeIdsIssued.length; i++)
             SPIFFEIDRecord.internalBinaryWrite(message.spiffeIdsIssued[i], writer.tag(18, WireType.LengthDelimited).fork(), options).join();
+        /* uint64 saml_idp_sessions = 24; */
+        if (message.samlIdpSessions !== 0n)
+            writer.tag(24, WireType.Varint).uint64(message.samlIdpSessions);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
