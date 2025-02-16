@@ -117,7 +117,7 @@ func (g *genericCollection[T, R, _]) watchKind() types.WatchKind {
 	return g.watch
 }
 
-var _ collection = (*genericCollection[types.Resource, any, executor[types.Resource, any]])(nil)
+var _ legacyCollection = (*genericCollection[types.Resource, any, executor[types.Resource, any]])(nil)
 
 // genericCollection obtains the reader object from the executor based on the provided health status of the cache.
 // Note that cacheOK set to true means that cache is overall healthy and the collection was confirmed as supported.
