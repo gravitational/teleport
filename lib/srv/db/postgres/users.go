@@ -124,13 +124,13 @@ type Permissions struct {
 }
 
 var pgTablePerms = map[string]struct{}{
-	"SELECT":     {},
-	"INSERT":     {},
-	"UPDATE":     {},
 	"DELETE":     {},
-	"TRUNCATE":   {},
+	"INSERT":     {},
 	"REFERENCES": {},
+	"SELECT":     {},
 	"TRIGGER":    {},
+	"TRUNCATE":   {},
+	"UPDATE":     {},
 }
 
 func checkPgPermission(objKind, perm string) error {
@@ -237,18 +237,29 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
-	if err := e.createProcedures(ctx, sessionCtx, conn, []string{removePermissionsProcName, updatePermissionsProcName}); err != nil {
+	// teleport_remove_permissions and teleport_update_permissions are created in pg_temp table of the session database.
+	// teleport_remove_permissions gets called by teleport_update_permissions as needed.
+	logger := e.Log.WithField("user", sessionCtx.DatabaseUser)
+	err = withRetry(ctx, logger, func() error {
+		err := e.createProcedures(ctx, sessionCtx, conn, []string{removePermissionsProcName, updatePermissionsProcName})
+		return trace.Wrap(err)
+	})
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := e.callProcedure(ctx, sessionCtx, conn, updatePermissionsProcName, sessionCtx.DatabaseUser, perms); err != nil {
+	err = withRetry(ctx, logger, func() error {
+		err := e.callProcedure(ctx, sessionCtx, conn, updatePermissionsProcName, sessionCtx.DatabaseUser, perms)
+		return trace.Wrap(err)
+	})
+	if err != nil {
 		var pgErr *pq.Error
 		if errors.As(err, &pgErr) {
 			if pgErr.Code == common.SQLStatePermissionsChanged {
-				e.Log.WithError(err).WithField("user", sessionCtx.DatabaseUser).Error("Permissions have changed, rejecting connection.")
+				logger.WithError(err).Error("Permissions have changed, rejecting connection.")
 			}
 		} else {
-			e.Log.WithError(err).WithField("user", sessionCtx.DatabaseUser).Error("Failed to update permissions.")
+			logger.WithError(err).Error("Failed to update permissions.")
 		}
 		return trace.Wrap(err)
 	}
@@ -270,12 +281,20 @@ func (e *Engine) removePermissions(ctx context.Context, sessionCtx *common.Sessi
 	defer conn.Close(ctx)
 
 	// teleport_remove_permissions is created in pg_temp table of the session database.
-	if err := e.createProcedures(ctx, sessionCtx, conn, []string{removePermissionsProcName}); err != nil {
+	err = withRetry(ctx, logger, func() error {
+		err := e.createProcedures(ctx, sessionCtx, conn, []string{removePermissionsProcName})
+		return trace.Wrap(err)
+	})
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := e.callProcedure(ctx, sessionCtx, conn, removePermissionsProcName, sessionCtx.DatabaseUser); err != nil {
-		logger.WithError(err).Error("Removing permissions from user failed.")
+	err = withRetry(ctx, logger, func() error {
+		err := e.callProcedure(ctx, sessionCtx, conn, removePermissionsProcName, sessionCtx.DatabaseUser)
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		logger.WithError(err).Error(ctx, "Removing permissions from user failed")
 		return trace.Wrap(err)
 	}
 	return nil
@@ -329,12 +348,15 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 	}
 	defer conn.Close(ctx)
 
-	if err := e.createProcedures(ctx, sessionCtx, conn, []string{deleteProcName, deactivateProcName}); err != nil {
-		return trace.Wrap(err)
-	}
-
 	logger := e.Log.WithField("user", sessionCtx.DatabaseUser)
 	logger.Info("Deleting PostgreSQL user.")
+	err = withRetry(ctx, logger, func() error {
+		err := e.createProcedures(ctx, sessionCtx, conn, []string{deleteProcName, deactivateProcName})
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	var state string
 	err = withRetry(ctx, logger, func() error {
@@ -687,13 +709,29 @@ func isRetryable(err error) bool {
 		case pgerrcode.DeadlockDetected, pgerrcode.SerializationFailure,
 			pgerrcode.UniqueViolation, pgerrcode.ExclusionViolation:
 			return true
+		case pgerrcode.InternalError:
+			if isInternalErrorRetryable(pgErr) {
+				return true
+			}
 		}
 	}
+	return pgconn.SafeToRetry(err)
+}
+
+// isInternalErrorRetryable returns true if an internal error (code XX000)
+// should be retried.
+func isInternalErrorRetryable(err error) bool {
+	errMsg := err.Error()
 	// Redshift reports this with a vague SQLSTATE XX000, which is the internal
 	// error code, but this is a serialization error that rolls back the
 	// transaction, so it should be retried.
-	if strings.Contains(err.Error(), "conflict with concurrent transaction") {
+	if strings.Contains(errMsg, "conflict with concurrent transaction") {
 		return true
 	}
-	return pgconn.SafeToRetry(err)
+	// Postgres this can happen if transaction A tries to revoke or grant privileges
+	// concurrent with transaction B.
+	if strings.Contains(errMsg, "tuple concurrently updated") {
+		return true
+	}
+	return false
 }
