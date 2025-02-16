@@ -51,9 +51,9 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// collection is responsible for managing collection
+// legacyCollection is responsible for managing collection
 // of resources updates
-type collection interface {
+type legacyCollection interface {
 	// fetch fetches resources and returns a function which will apply said resources to the cache.
 	// fetch *must* not mutate cache state outside of the apply function.
 	// The provided cacheOK flag indicates whether this collection will be included in the cache generation that is
@@ -106,10 +106,10 @@ type userTasksGetter interface {
 	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
 }
 
-// cacheCollections is a registry of resource collections used by Cache.
-type cacheCollections struct {
+// legacyCollections is a registry of resource collections used by Cache.
+type legacyCollections struct {
 	// byKind is a map of registered collections by resource Kind/SubKind
-	byKind map[resourceKind]collection
+	byKind map[resourceKind]legacyCollection
 
 	auditQueries                       collectionReader[services.SecurityAuditQueryGetter]
 	secReports                         collectionReader[services.SecurityReportGetter]
@@ -180,10 +180,10 @@ type cacheCollections struct {
 	workloadIdentity                   collectionReader[WorkloadIdentityReader]
 }
 
-// setupCollections returns a registry of collections.
-func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, error) {
-	collections := &cacheCollections{
-		byKind: make(map[resourceKind]collection, len(watches)),
+// setupLegacyCollections returns a registry of legacyCollections.
+func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollections, error) {
+	collections := &legacyCollections{
+		byKind: make(map[resourceKind]legacyCollection, len(watches)),
 	}
 	for _, watch := range watches {
 		resourceKind := resourceKindFromWatchKind(watch)
@@ -2832,7 +2832,7 @@ var _ executor[types.OktaAssignment, oktaAssignmentGetter] = oktaAssignmentsExec
 
 // collectionReader extends the collection interface, adding routing capabilities.
 type collectionReader[R any] interface {
-	collection
+	legacyCollection
 
 	// getReader returns the appropriate reader type T based on the health status of the cache.
 	// Reader type R provides getter methods related to the collection, e.g. GetNodes(), GetRoles().
