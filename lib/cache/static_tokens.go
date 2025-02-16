@@ -62,14 +62,14 @@ func (c *Cache) GetStaticTokens() (types.StaticTokens, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetStaticTokens")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.staticTokens.watch)
+	rg, err := acquireReadGuard(c, c.collections.staticTokens)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if rg.ReadCache() {
-		st, err := c.collections.staticTokens.store.get("name", types.MetaNameStaticTokens)
+		st, err := rg.store.get("name", types.MetaNameStaticTokens)
 		return st.Clone(), trace.Wrap(err)
 	}
 

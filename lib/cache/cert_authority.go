@@ -98,15 +98,14 @@ func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadS
 	ctx, span := c.Tracer.Start(ctx, "cache/GetCertAuthority")
 	defer span.End()
 
-	collection := c.collections.certAuthorities
-	rg, err := acquireReadGuard(c, collection.watch)
+	rg, err := acquireReadGuard(c, c.collections.certAuthorities)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if rg.ReadCache() {
-		ca, err := collection.store.get("id", string(id.Type)+"/"+id.DomainName)
+		ca, err := rg.store.get("id", string(id.Type)+"/"+id.DomainName)
 		if err != nil {
 			// release read lock early
 			rg.Release()
@@ -156,7 +155,7 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 	ctx, span := c.Tracer.Start(ctx, "cache/GetCertAuthorities")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.certAuthorities.watch)
+	rg, err := acquireReadGuard(c, c.collections.certAuthorities)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
