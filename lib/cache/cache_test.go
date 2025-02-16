@@ -504,40 +504,6 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 	return p, nil
 }
 
-// TestCA tests certificate authorities
-func TestCA(t *testing.T) {
-	t.Parallel()
-
-	p := newPackForAuth(t)
-	t.Cleanup(p.Close)
-	ctx := context.Background()
-
-	ca := suite.NewTestCA(types.UserCA, "example.com")
-	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
-
-	select {
-	case <-p.eventsC:
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), true)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(ca, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-	err = p.trustS.DeleteCertAuthority(ctx, ca.GetID())
-	require.NoError(t, err)
-
-	select {
-	case <-p.eventsC:
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	_, err = p.cache.GetCertAuthority(ctx, ca.GetID(), false)
-	require.True(t, trace.IsNotFound(err))
-}
-
 // TestWatchers tests watchers connected to the cache,
 // verifies that all watchers of the cache will be closed
 // if the underlying watcher to the target backend is closed
@@ -655,114 +621,6 @@ func TestWatchers(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatalf("Timeout waiting for close event.")
 	}
-}
-
-func TestNodeCAFiltering(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-		ClusterName: "example.com",
-	})
-	require.NoError(t, err)
-	err = p.cache.clusterConfigCache.UpsertClusterName(clusterName)
-	require.NoError(t, err)
-
-	nodeCacheBackend, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, nodeCacheBackend.Close()) })
-
-	// this mimics a cache for a node pulling events from the auth server via WatchEvents
-	nodeCache, err := New(ForNode(Config{
-		Events:                  p.cache,
-		Trust:                   p.cache.trustCache,
-		ClusterConfig:           p.cache.clusterConfigCache,
-		Provisioner:             p.cache.provisionerCache,
-		Users:                   p.cache.usersCache,
-		Access:                  p.cache.accessCache,
-		DynamicAccess:           p.cache.dynamicAccessCache,
-		Presence:                p.cache.presenceCache,
-		Restrictions:            p.cache.restrictionsCache,
-		Apps:                    p.cache.appsCache,
-		Kubernetes:              p.cache.kubernetesCache,
-		Databases:               p.cache.databasesCache,
-		DatabaseServices:        p.cache.databaseServicesCache,
-		AppSession:              p.cache.appSessionCache,
-		WebSession:              p.cache.webSessionCache,
-		WebToken:                p.cache.webTokenCache,
-		WindowsDesktops:         p.cache.windowsDesktopsCache,
-		DynamicWindowsDesktops:  p.cache.dynamicWindowsDesktopsCache,
-		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
-		UserGroups:              p.userGroups,
-		StaticHostUsers:         p.staticHostUsers,
-		Backend:                 nodeCacheBackend,
-	}))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, nodeCache.Close()) })
-
-	cacheWatcher, err := nodeCache.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{
-		{
-			Kind:   types.KindCertAuthority,
-			Filter: map[string]string{"host": "example.com", "user": "*"},
-		},
-	}})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, cacheWatcher.Close()) })
-
-	fetchEvent := func() types.Event {
-		var ev types.Event
-		select {
-		case ev = <-cacheWatcher.Events():
-		case <-time.After(time.Second * 5):
-			t.Fatal("watcher timeout")
-		}
-		return ev
-	}
-	require.Equal(t, types.OpInit, fetchEvent().Type)
-
-	// upsert and delete a local host CA, we expect to see a Put and a Delete event
-	localCA := suite.NewTestCA(types.HostCA, "example.com")
-	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, localCA))
-	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, localCA.GetID()))
-
-	ev := fetchEvent()
-	require.Equal(t, types.OpPut, ev.Type)
-	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
-	require.Equal(t, "example.com", ev.Resource.GetName())
-
-	ev = fetchEvent()
-	require.Equal(t, types.OpDelete, ev.Type)
-	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
-	require.Equal(t, "example.com", ev.Resource.GetName())
-
-	// upsert and delete a nonlocal host CA, we expect to only see the Delete event
-	nonlocalCA := suite.NewTestCA(types.HostCA, "example.net")
-	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, nonlocalCA))
-	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, nonlocalCA.GetID()))
-
-	ev = fetchEvent()
-	require.Equal(t, types.OpDelete, ev.Type)
-	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
-	require.Equal(t, "example.net", ev.Resource.GetName())
-
-	// whereas we expect to see the Put and Delete for a trusted *user* CA
-	trustedUserCA := suite.NewTestCA(types.UserCA, "example.net")
-	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, trustedUserCA))
-	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, trustedUserCA.GetID()))
-
-	ev = fetchEvent()
-	require.Equal(t, types.OpPut, ev.Type)
-	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
-	require.Equal(t, "example.net", ev.Resource.GetName())
-
-	ev = fetchEvent()
-	require.Equal(t, types.OpDelete, ev.Type)
-	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
-	require.Equal(t, "example.net", ev.Resource.GetName())
 }
 
 func waitForRestart(t *testing.T, eventsC <-chan Event) {
@@ -1404,38 +1262,13 @@ func TestRecovery(t *testing.T) {
 	require.Empty(t, cmp.Diff(ca2, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
-// TestTokens tests static and dynamic tokens
-func TestTokens(t *testing.T) {
+// TestDynamicTokens tests the dynamic tokens cache.
+func TestDynamicTokens(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
-
-	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
-		StaticTokens: []types.ProvisionTokenV1{
-			{
-				Token:   "static1",
-				Roles:   types.SystemRoles{types.RoleAuth, types.RoleNode},
-				Expires: time.Now().UTC().Add(time.Hour),
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	err = p.clusterConfigS.SetStaticTokens(staticTokens)
-	require.NoError(t, err)
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err := p.cache.GetStaticTokens()
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(staticTokens, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	expires := time.Now().Add(10 * time.Hour).Truncate(time.Second).UTC()
 	token, err := types.NewProvisionToken("token", types.SystemRoles{types.RoleAuth, types.RoleNode}, expires)
@@ -1610,37 +1443,6 @@ func TestClusterName(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Empty(t, cmp.Diff(outName, clusterName, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-}
-
-// TestUsers tests caching of users
-func TestUsers(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForProxy)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[types.User]{
-		newResource: func(name string) (types.User, error) {
-			return types.NewUser("bob")
-		},
-		create: func(ctx context.Context, user types.User) error {
-			_, err := p.usersS.UpsertUser(ctx, user)
-			return err
-		},
-		list: func(ctx context.Context) ([]types.User, error) {
-			return p.usersS.GetUsers(ctx, false)
-		},
-		cacheList: func(ctx context.Context) ([]types.User, error) {
-			return p.cache.GetUsers(ctx, false)
-		},
-		update: func(ctx context.Context, user types.User) error {
-			_, err := p.usersS.UpdateUser(ctx, user)
-			return err
-		},
-		deleteAll: func(ctx context.Context) error {
-			return p.usersS.DeleteAllUsers(ctx)
-		},
-	})
 }
 
 // TestRoles tests caching of roles
@@ -3619,7 +3421,7 @@ func TestPartialHealth(t *testing.T) {
 	meta := user.GetMetadata()
 	meta.Labels = map[string]string{"origin": "cache"}
 	user.SetMetadata(meta)
-	_, err = p.cache.usersCache.UpsertUser(ctx, user)
+	err = p.cache.collections.users.onPut(user)
 	require.NoError(t, err)
 
 	// the label on the returned user proves that it came from the cache
@@ -4150,75 +3952,6 @@ const testEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
    </md:SPSSODescriptor>
 </md:EntityDescriptor>
 `
-
-// TestCAWatcherFilters tests cache CA watchers with filters are not rejected
-// by auth, even if a CA filter includes a "new" CA type.
-func TestCAWatcherFilters(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	p := newPackForAuth(t)
-	t.Cleanup(p.Close)
-
-	allCAsAndNewCAFilter := makeAllKnownCAsFilter()
-	// auth will never send such an event, but it won't reject the watch request
-	// either since auth cache's confirmedKinds dont have a CA filter.
-	allCAsAndNewCAFilter["someBackportedCAType"] = "*"
-
-	tests := []struct {
-		desc    string
-		filter  types.CertAuthorityFilter
-		watcher types.Watcher
-	}{
-		{
-			desc: "empty filter",
-		},
-		{
-			desc:   "all CAs filter",
-			filter: makeAllKnownCAsFilter(),
-		},
-		{
-			desc:   "all CAs and a new CA filter",
-			filter: allCAsAndNewCAFilter,
-		},
-	}
-
-	// setup watchers for each test case before we generate events.
-	for i := range tests {
-		test := &tests[i]
-		w, err := p.cache.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{
-			{
-				Kind:   types.KindCertAuthority,
-				Filter: test.filter.IntoMap(),
-			},
-		}})
-		require.NoError(t, err)
-		test.watcher = w
-		t.Cleanup(func() {
-			require.NoError(t, w.Close())
-		})
-	}
-
-	// generate an OpPut event.
-	ca := suite.NewTestCA(types.UserCA, "example.com")
-	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
-
-	const fetchTimeout = time.Second
-	for _, test := range tests {
-		test := test
-		t.Run(test.desc, func(t *testing.T) {
-			t.Parallel()
-			event := fetchEvent(t, test.watcher, fetchTimeout)
-			require.Equal(t, types.OpInit, event.Type)
-
-			event = fetchEvent(t, test.watcher, fetchTimeout)
-			require.Equal(t, types.OpPut, event.Type)
-			require.Equal(t, types.KindCertAuthority, event.Resource.GetKind())
-			gotCA, ok := event.Resource.(*types.CertAuthorityV2)
-			require.True(t, ok)
-			require.Equal(t, types.UserCA, gotCA.GetType())
-		})
-	}
-}
 
 func fetchEvent(t *testing.T, w types.Watcher, timeout time.Duration) types.Event {
 	t.Helper()

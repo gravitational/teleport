@@ -563,7 +563,8 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 
 		item.Revision = currentWithoutSecrets.GetRevision()
 
-		if _, err = s.Backend.ConditionalUpdate(ctx, item); err != nil {
+		_, err = s.Backend.ConditionalUpdate(ctx, item)
+		if err != nil {
 			if trace.IsCompareFailed(err) {
 				continue
 			}
