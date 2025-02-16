@@ -83,6 +83,9 @@ func testRDS(t *testing.T) {
 	autoUserFineGrain := "auto_fine_grain_" + randASCII(t)
 	autoUserKeep := "auto_keep_" + randASCII(t)
 	autoUserDrop := "auto_drop_" + randASCII(t)
+	autoUserFineGrain2 := "auto_fine_grain2_" + randASCII(t)
+	autoUserKeep2 := "auto_keep2_" + randASCII(t)
+	autoUserDrop2 := "auto_drop2_" + randASCII(t)
 	autoRole1 := "auto_granted_role1_" + randASCII(t)
 	autoRole2 := "auto_granted_role2_" + randASCII(t)
 
@@ -90,26 +93,30 @@ func testRDS(t *testing.T) {
 
 	accessRole := mustGetEnv(t, rdsAccessRoleARNEnv)
 	discoveryRole := mustGetEnv(t, rdsDiscoveryRoleARNEnv)
+	dbAutoUserFineGrainRole := makeAutoUserDBPermissions(
+		types.DatabasePermission{
+			Permissions: []string{"SELECT"},
+			Match: types.Labels{
+				"object_kind": {"table"},
+				"schema":      {"public", testSchema, "information_schema"},
+			},
+		},
+		types.DatabasePermission{
+			Permissions: []string{"SELECT"},
+			Match: types.Labels{
+				"object_kind": {"table"},
+				"schema":      {"pg_catalog"},
+				"name":        {"pg_range", "pg_proc"},
+			},
+		},
+	)
 	opts := []testOptionsFunc{
-		withUserRole(t, autoUserFineGrain, "db-auto-user-fine-grain", makeAutoUserDBPermissions(
-			types.DatabasePermission{
-				Permissions: []string{"SELECT"},
-				Match: types.Labels{
-					"object_kind": {"table"},
-					"schema":      {"public", testSchema, "information_schema"},
-				},
-			},
-			types.DatabasePermission{
-				Permissions: []string{"SELECT"},
-				Match: types.Labels{
-					"object_kind": {"table"},
-					"schema":      {"pg_catalog"},
-					"name":        {"pg_range", "pg_proc"},
-				},
-			},
-		)),
+		withUserRole(t, autoUserFineGrain, "db-auto-user-fine-grain", dbAutoUserFineGrainRole),
 		withUserRole(t, autoUserKeep, "db-auto-user-keeper", makeAutoUserKeepRoleSpec(autoRole1, autoRole2)),
 		withUserRole(t, autoUserDrop, "db-auto-user-dropper", makeAutoUserDropRoleSpec(autoRole1, autoRole2)),
+		withUserRole(t, autoUserFineGrain2, "db-auto-user-fine-grain", dbAutoUserFineGrainRole),
+		withUserRole(t, autoUserKeep2, "db-auto-user-keeper", makeAutoUserKeepRoleSpec(autoRole1, autoRole2)),
+		withUserRole(t, autoUserDrop2, "db-auto-user-dropper", makeAutoUserDropRoleSpec(autoRole1, autoRole2)),
 	}
 	cluster := makeDBTestCluster(t, accessRole, discoveryRole, types.AWSMatcherRDS, opts...)
 
@@ -148,6 +155,9 @@ func testRDS(t *testing.T) {
 		cleanupDB(t, ctx, conn, fmt.Sprintf("DROP ROLE IF EXISTS %q", autoUserKeep))
 		cleanupDB(t, ctx, conn, fmt.Sprintf("DROP ROLE IF EXISTS %q", autoUserDrop))
 		cleanupDB(t, ctx, conn, fmt.Sprintf("DROP ROLE IF EXISTS %q", autoUserFineGrain))
+		cleanupDB(t, ctx, conn, fmt.Sprintf("DROP ROLE IF EXISTS %q", autoUserKeep2))
+		cleanupDB(t, ctx, conn, fmt.Sprintf("DROP ROLE IF EXISTS %q", autoUserDrop2))
+		cleanupDB(t, ctx, conn, fmt.Sprintf("DROP ROLE IF EXISTS %q", autoUserFineGrain2))
 
 		// create the roles that Teleport will auto assign.
 		for _, r := range [...]string{autoRole1, autoRole2} {
@@ -184,20 +194,33 @@ func testRDS(t *testing.T) {
 		autoRolesQuery := fmt.Sprintf("select 1 from %q.%q", testSchema, testTable)
 		var pgxConnMu sync.Mutex
 		for _, test := range []struct {
-			name string
-			db   types.Database
+			name              string
+			db                types.Database
+			autoUserKeep      string
+			autoUserDrop      string
+			autoUserFineGrain string
 		}{
 			{
-				name: "non superuser db admin",
-				db:   db1,
+				name:              "non superuser db admin",
+				db:                db1,
+				autoUserKeep:      autoUserKeep,
+				autoUserDrop:      autoUserDrop,
+				autoUserFineGrain: autoUserFineGrain,
 			},
 			{
-				name: "superuser db admin",
-				db:   db2,
+				name:              "superuser db admin",
+				db:                db2,
+				autoUserKeep:      autoUserKeep2,
+				autoUserDrop:      autoUserDrop2,
+				autoUserFineGrain: autoUserFineGrain2,
 			},
 		} {
+			autoUserKeep := test.autoUserKeep
+			autoUserDrop := test.autoUserDrop
+			autoUserFineGrain := test.autoUserFineGrain
+			db := test.db
 			t.Run(test.name, func(t *testing.T) {
-				db := test.db
+				t.Parallel()
 				for name, test := range map[string]struct {
 					user            string
 					dbUser          string
