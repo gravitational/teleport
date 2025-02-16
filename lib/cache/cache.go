@@ -491,6 +491,9 @@ type Cache struct {
 	// legacyCacheCollections is a registry of resource legacyCollections
 	legacyCacheCollections *legacyCollections
 
+	// collections is a registry of resource collections.
+	collections *collections
+
 	// confirmedKinds is a map of kinds confirmed by the server to be included in the current generation
 	// by resource Kind/SubKind
 	confirmedKinds map[resourceKind]types.WatchKind
@@ -1041,6 +1044,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	collections, err := setupCollections(config, config.Watches)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	cs := &Cache{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -1091,6 +1100,7 @@ func New(config Config) (*Cache, error) {
 		pluginStaticCredentialsCache: pluginStaticCredentialsCache,
 		gitServersCache:              gitServersCache,
 		workloadIdentityCache:        workloadIdentityCache,
+		collections:                  collections,
 		Logger: slog.With(
 			teleport.ComponentKey, config.Component,
 			"target", config.target,
@@ -1639,9 +1649,12 @@ func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
 }
 
 func (c *Cache) watchKinds() []types.WatchKind {
-	out := make([]types.WatchKind, 0, len(c.legacyCacheCollections.byKind))
+	out := make([]types.WatchKind, 0, len(c.legacyCacheCollections.byKind)+len(c.collections.byKind))
 	for _, collection := range c.legacyCacheCollections.byKind {
 		out = append(out, collection.watchKind())
+	}
+	for _, handler := range c.collections.byKind {
+		out = append(out, handler.watchKind())
 	}
 	return out
 }
@@ -1724,7 +1737,7 @@ func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(fetchLimit(c.target))
-	applyfns := make([]applyFn, len(c.legacyCacheCollections.byKind))
+	applyfns := make([]applyFn, len(c.legacyCacheCollections.byKind)+len(c.collections.byKind))
 	i := 0
 	for kind, collection := range c.legacyCacheCollections.byKind {
 		kind, collection := kind, collection
@@ -1743,6 +1756,31 @@ func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types
 
 			_, cacheOK := confirmedKinds[resourceKind{kind: kind.kind, subkind: kind.subkind}]
 			applyfn, err := collection.fetch(ctx, cacheOK)
+			if err != nil {
+				return trace.Wrap(err, "failed to fetch resource: %q", kind)
+			}
+
+			applyfns[ii] = tracedApplyFn(fetchSpan, c.Tracer, kind, applyfn)
+			return nil
+		})
+	}
+
+	for kind, handler := range c.collections.byKind {
+		ii := i
+		i++
+
+		g.Go(func() (err error) {
+			ctx, span := c.Tracer.Start(
+				ctx,
+				fmt.Sprintf("cache/fetch/%s", kind.String()),
+				oteltrace.WithAttributes(
+					attribute.String("target", c.target),
+				),
+			)
+			defer func() { apitracing.EndSpan(span, err) }()
+
+			_, cacheOK := confirmedKinds[resourceKind{kind: kind.kind, subkind: kind.subkind}]
+			applyfn, err := handler.fetch(ctx, cacheOK)
 			if err != nil {
 				return trace.Wrap(err, "failed to fetch resource: %q", kind)
 			}
@@ -1771,16 +1809,37 @@ func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types
 // the event will be emitted via the fanout.
 func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	resourceKind := resourceKindFromResource(event.Resource)
-	collection, ok := c.legacyCacheCollections.byKind[resourceKind]
-	if !ok {
+
+	legacyCollection, legacyFound := c.legacyCacheCollections.byKind[resourceKind]
+	handler, handlerFound := c.collections.byKind[resourceKind]
+
+	switch {
+	case !legacyFound && !handlerFound:
 		c.Logger.WarnContext(ctx, "Skipping unsupported event",
 			"event_kind", event.Resource.GetKind(),
 			"event_sub_kind", event.Resource.GetSubKind(),
 		)
 		return nil
-	}
-	if err := collection.processEvent(ctx, event); err != nil {
-		return trace.Wrap(err)
+	case legacyFound:
+		if err := legacyCollection.processEvent(ctx, event); err != nil {
+			return trace.Wrap(err)
+		}
+	case handlerFound:
+		switch event.Type {
+		case types.OpDelete:
+			if err := handler.onDelete(event.Resource); err != nil {
+				if !trace.IsNotFound(err) {
+					c.Logger.WarnContext(ctx, "Failed to delete resource", "error", err)
+					return trace.Wrap(err)
+				}
+			}
+		case types.OpPut:
+			if err := handler.onUpdate(event.Resource); err != nil {
+				return trace.Wrap(err)
+			}
+		default:
+			c.Logger.WarnContext(ctx, "Skipping unsupported event type", "event", event.Type)
+		}
 	}
 
 	c.eventsFanout.Emit(event)
@@ -1869,17 +1928,9 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 	return rg.reader.GetCertAuthorities(ctx, caType, loadSigningKeys)
 }
 
-// GetStaticTokens gets the list of static tokens used to provision nodes.
-func (c *Cache) GetStaticTokens() (types.StaticTokens, error) {
-	_, span := c.Tracer.Start(context.TODO(), "cache/GetStaticTokens")
-	defer span.End()
-
-	rg, err := readCollectionCache(c, c.legacyCacheCollections.staticTokens)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetStaticTokens()
+func (c *Cache) isConfirmedUndlerLock(wk types.WatchKind) bool {
+	_, ok := c.confirmedKinds[resourceKind{kind: wk.Kind, subkind: wk.SubKind}]
+	return ok
 }
 
 // GetTokens returns all active (non-expired) provisioning tokens
