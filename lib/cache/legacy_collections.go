@@ -152,7 +152,6 @@ type legacyCollections struct {
 	samlIdPSessions                    collectionReader[samlIdPSessionGetter]
 	sessionRecordingConfigs            collectionReader[sessionRecordingConfigGetter]
 	snowflakeSessions                  collectionReader[snowflakeSessionGetter]
-	staticTokens                       collectionReader[staticTokensGetter]
 	tokens                             collectionReader[tokenGetter]
 	uiConfigs                          collectionReader[uiConfigGetter]
 	users                              collectionReader[userGetter]
@@ -201,15 +200,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.certAuthorities
-		case types.KindStaticTokens:
-			if c.ClusterConfig == nil {
-				return nil, trace.BadParameter("missing parameter ClusterConfig")
-			}
-			collections.staticTokens = &genericCollection[types.StaticTokens, staticTokensGetter, staticTokensExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.staticTokens
 		case types.KindToken:
 			if c.Provisioner == nil {
 				return nil, trace.BadParameter("missing parameter Provisioner")
@@ -814,7 +804,9 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 			}
 			collections.byKind[resourceKind] = collections.gitServers
 		default:
-			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
+			if _, ok := c.collections.byKind[resourceKind]; !ok {
+				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
+			}
 		}
 	}
 	return collections, nil
