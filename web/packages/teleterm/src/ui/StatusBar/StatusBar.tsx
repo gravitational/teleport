@@ -19,8 +19,8 @@
 import { Fragment, useCallback } from 'react';
 import { useTheme } from 'styled-components';
 
-import { ChevronRight } from 'design/Icon';
 import { ButtonPrimary, Flex, Text } from 'design';
+import { ChevronRight } from 'design/Icon';
 
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 import { getAssumedRequests } from 'teleterm/ui/services/clusters';
