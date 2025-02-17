@@ -21,6 +21,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/big"
 	"os"
 	"strings"
@@ -413,9 +414,12 @@ func (c *WorkloadIdentityCommand) StreamCRL(
 	}
 	if c.revocationsCRLOut != "" {
 		write = func(data []byte) error {
-			return trace.Wrap(
-				os.WriteFile(c.revocationsCRLOut, data, 0644),
-			)
+			err := os.WriteFile(c.revocationsCRLOut, data, 0644)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			slog.InfoContext(ctx, "Successfully wrote updated CRL", "path", c.revocationsCRLOut)
+			return nil
 		}
 	}
 
@@ -424,6 +428,7 @@ func (c *WorkloadIdentityCommand) StreamCRL(
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		slog.InfoContext(ctx, "Received CRL from server")
 		pemData := pem.EncodeToMemory(&pem.Block{
 			Type:  "X509 CRL",
 			Bytes: res.Crl,
