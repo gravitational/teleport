@@ -242,11 +242,16 @@ function setupTests(): {
     .spyOn(ctx.tshd, 'getApp')
     .mockResolvedValue(new MockedUnaryCall({ app }));
 
-  const ref = createRef<HTMLDivElement>();
+  const topBarConnectMyComputerRef = createRef<HTMLDivElement>();
+  const topBarAccessRequestRef = createRef<HTMLDivElement>();
   const Component = () => (
     <MockAppContextProvider appContext={ctx}>
       <ResourcesContextProvider>
-        <TabHost ctx={ctx} topBarContainerRef={ref} />
+        <TabHost
+          ctx={ctx}
+          topBarConnectMyComputerRef={topBarConnectMyComputerRef}
+          topBarAccessRequestRef={topBarAccessRequestRef}
+        />
       </ResourcesContextProvider>
     </MockAppContextProvider>
   );
