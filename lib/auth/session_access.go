@@ -187,7 +187,7 @@ func (e *SessionAccessEvaluator) matchesKind(allow []string) bool {
 func RoleSupportsModeratedSessions(roles []types.Role) bool {
 	for _, role := range roles {
 		switch role.GetVersion() {
-		case types.V5, types.V6, types.V7:
+		case types.V5, types.V6, types.V7, types.V8:
 			return true
 		}
 	}

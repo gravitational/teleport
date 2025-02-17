@@ -726,7 +726,7 @@ describe('roleToRoleEditorModel', () => {
             {
               type: ConversionErrorType.UnsupportedValueWithReplacement,
               path: 'version',
-              replacement: '"v7"',
+              replacement: '"v8"',
             },
           ],
         },
