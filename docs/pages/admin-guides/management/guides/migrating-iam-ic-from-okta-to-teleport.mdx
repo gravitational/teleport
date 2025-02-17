@@ -10,7 +10,7 @@ The goal of this guide is to alow you to transition from Okta managing
 Identity Center users and groups to Teleport management, including having
 Teleport control individual user and group Account Assignments.
 
-By default, Teleport wants to control all user and group provisioning into 
+By default, Teleport controls all user and group provisioning into 
 Identity Center, which is fine for a new deployment, but can cause issues in an
 existing deployment. In this guide we will describe how to transition control
 from Okta to Teleport in a staged fashion, so that you can move across
@@ -106,10 +106,9 @@ To make sure everything is working, wait until the first Okta to Teleport user
 sync has occurred. You can verify this by either
  - refreshing the user page and finding your Okta users,
  - checking the Okta integration status page, or
- - watching the Teleport logs
 
 Once your Okta users are imported into Teleport, you can progress to the next
-step:
+step.
 
 ## Step 4: Install the Teleport Identity Center Integration.
 
