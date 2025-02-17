@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/roundtrip"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -175,6 +176,50 @@ func TestCreatePluginHandle(t *testing.T) {
 				_, err := webPack.clt.Delete(s.ctx, endpoint)
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestPluginUpdate(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+	})
+	s := newWebSuite(t)
+	webPack := s.newAuthWebPack(t, "foo")
+	endpoint := webPack.clt.Endpoint("enterprise", "plugin")
+	cases := []struct {
+		name    string
+		payload ui.PluginUpdateRequest
+		assert  func(t *testing.T, r *roundtrip.Response, err error)
+	}{
+		{
+			name: "when no existing plugin",
+			payload: ui.PluginUpdateRequest{
+				Plugin: "okta",
+				Okta: &ui.OktaPluginUpdate{
+					SCIMToken: "abcdefghijklmnop",
+				},
+			},
+			assert: func(t *testing.T, r *roundtrip.Response, err error) {
+				require.Equal(t, http.StatusNotFound, r.Code())
+				require.ErrorContains(t, err, "plugin \"okta\" doesn't exist")
+			},
+		},
+		{
+			name: "when updates not supported",
+			payload: ui.PluginUpdateRequest{
+				Plugin: "slack",
+			},
+			assert: func(t *testing.T, r *roundtrip.Response, err error) {
+				require.Equal(t, http.StatusBadRequest, r.Code())
+				require.ErrorContains(t, err, "plugin type \"slack\" does not support updates")
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp, err := webPack.clt.PutJSON(s.ctx, endpoint, tc.payload)
+			tc.assert(t, resp, err)
 		})
 	}
 }

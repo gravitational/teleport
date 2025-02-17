@@ -17,13 +17,17 @@ import (
 
 func validateOrganization(req *oktapb.CreateIntegrationRequest, connector *sso.SAMLConnectorInfo) error {
 	reqOrgURL := req.GetOktaOrganizationUrl()
-	if reqOrgURL == "" && req.GetSsoMetadataUrl() != "" {
+	if reqOrgURL == "" {
 		// If the organization is not provided, we can't validate it.
 		// This is fine, as the organization is not required for the flow with metadata URL where the organization
 		// extracted from the connector metadata.
-		return nil
-	}
-	if reqOrgURL == "" {
+		if req.GetSsoMetadataUrl() != "" {
+			return nil
+		}
+		// If no OrgURL is provided, but the connector has an OktaOrg, we can use that.
+		if connector.OktaOrg != "" {
+			return nil
+		}
 		return trace.BadParameter("Okta organization URL is required")
 	}
 	if reqOrgURL != connector.OktaOrg {

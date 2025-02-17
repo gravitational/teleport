@@ -307,6 +307,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	// 		OAuth provider with pluginCallbackHandle.
 	//  -	For non-OAuth plugins: it creates plugin and responds with plugin status.
 	h.POST("/enterprise/plugin", h.WithAuth(p.createPluginHandle))
+	h.PUT("/enterprise/plugin", h.WithAuth(p.updatePluginHandler))
 	// pluginCallbackHandle handles OAuth callback and creates plugin.
 	h.GET("/enterprise/plugins/callback/:type", h.WithSession(p.pluginCallbackHandle))
 	h.DELETE("/enterprise/plugin/:name", h.WithAuth(p.deletePluginHandle))

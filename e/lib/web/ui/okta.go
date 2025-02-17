@@ -35,10 +35,33 @@ type OktaPluginSpec struct {
 	// owners to any Access Lists that it creates
 	DefaultOwners []string `json:"defaultOwners,omitempty"`
 
+	// EnableUserSync is a flag indicating whether User Sync is enabled for
+	// the plugin, regardless of whether it is currently running.
+	EnableUserSync bool `json:"enableUserSync,omitempty"`
+	// EnableAccessListSync indicates whether Access List Sync is enabled for
+	// the plugin, regardless of whether it is currently running.
+	EnableAccessListSync bool `json:"enableAccessListSync,omitempty"`
+	// EnableAppGroupSync indicates whether App Group Sync is enabled for the
+	// plugin, regardless of whether it is currently running.
+	EnableAppGroupSync bool `json:"enableAppGroupSync,omitempty"`
+
+	// CredentialInfo holds information about configured credentials in the plugin.
+	CredentialInfo *OktaCredentialInfo `json:"credentialsInfo,omitempty"`
+
 	// Error contains a description of any failures during plugin installation
 	// that were deemed not serious enough to fail the plugin installation, but
 	// may effect the operation of advanced features like User Sync or SCIM.
 	Error string `json:"error,omitempty"`
+}
+
+// OktaCredentialInfo holds information about configured credentials in the Okta plugin.
+type OktaCredentialInfo struct {
+	// HasConfiguredSSMSToken represents whether the plugin has a saved SSM bearer token.
+	HasConfiguredSSMSToken bool `json:"hasConfiguredSSMSToken,omitempty"`
+	// HasConfiguredOauthCredentials represents whether the plugin has saved OAuth credentials.
+	HasConfiguredOauthCredentials bool `json:"hasConfiguredOauthCredentials,omitempty"`
+	// HasConfiguredSCIMToken represents whether the plugin has a saved SCIM bearer token.
+	HasConfiguredSCIMToken bool `json:"hasConfiguredSCIMToken,omitempty"`
 }
 
 // PluginSpecType implements PluginSpec for OktaPluginSpec

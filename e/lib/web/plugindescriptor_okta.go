@@ -17,6 +17,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/web"
 )
@@ -28,6 +29,7 @@ type oktaPluginDescriptor struct{}
 // Static assertion that oktaPluginDescriptor implements the pluginDescriptor
 // interface
 var _ pluginDescriptor = oktaPluginDescriptor{}
+var _ pluginUpdateHandler = oktaPluginDescriptor{}
 
 // HandleValidateConfigRequest tests the Okta client configuration supplied in
 // the form.
@@ -54,6 +56,69 @@ func (oktaPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx *w
 		sessCtx: sessCtx,
 		plugin:  p,
 	})
+}
+
+// HandleUpdateRequest updates the Okta plugin
+func (oktaPluginDescriptor) HandleUpdateRequest(ctx context.Context, sessCtx *web.SessionContext, req *ui.PluginUpdateRequest) (*ui.Plugin, error) {
+	return updateOktaPlugin(ctx, sessCtx, req)
+}
+
+func updateOktaPlugin(ctx context.Context, sessCtx *web.SessionContext, req *ui.PluginUpdateRequest) (*ui.Plugin, error) {
+	if req.Okta == nil {
+		return nil, trace.BadParameter("missing Okta plugin configuration")
+	}
+
+	updateReq, err := validateOktaPluginUpdateInputs(req.Okta)
+	if err != nil {
+		return nil, trace.Wrap(err, "validating Okta plugin update parameters")
+	}
+
+	authOktaClient := oktav1.NewOktaServiceClient(sessCtx.GetClientConnection())
+	resp, err := authOktaClient.UpdateIntegration(ctx, updateReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.NewPlugin(resp.Plugin)
+}
+
+// validateOktaPluginUpdateInputs validates the Okta plugin update request
+func validateOktaPluginUpdateInputs(params *ui.OktaPluginUpdate) (*oktav1.UpdateIntegrationRequest, error) {
+	if params == nil {
+		return nil, trace.BadParameter("missing okta update parameters")
+	}
+
+	// Only expected to be set if updating UserSync settings, otherwise, will be nil, and we'll use saved credentials
+	var oktaAPICreds *oktav1.OktaAPICredentials
+	if params.ClientID != "" {
+		oktaAPICreds = &oktav1.OktaAPICredentials{
+			Auth: &oktav1.OktaAPICredentials_OauthId{
+				OauthId: params.ClientID,
+			},
+		}
+	}
+
+	var accessListSettings *oktav1.AccessListSettings
+	if len(params.DefaultOwners) == 0 && params.EnableAccessListSync {
+		return nil, trace.BadParameter("Default Owners are required for Access List Sync")
+	}
+
+	if params.EnableAccessListSync {
+		accessListSettings = &oktav1.AccessListSettings{
+			DefaultOwner: params.DefaultOwners,
+			AppFilters:   params.AppFilters,
+			GroupFilters: params.GroupFilters,
+		}
+	}
+
+	return &oktav1.UpdateIntegrationRequest{
+		ApiCredentials:       oktaAPICreds,
+		EnableAccessListSync: params.EnableAccessListSync,
+		EnableAppGroupSync:   params.EnableAppGroupSync,
+		EnableUserSync:       params.EnableUserSync,
+		AccessListSettings:   accessListSettings,
+		ScimToken:            params.SCIMToken,
+	}, nil
 }
 
 // TranslateCallbackCookie implements PluginDescriptor for oktaPluginDescriptor,
@@ -93,29 +158,31 @@ func (args *installOktaPluginArgs) CheckAndSetDefaults() error {
 }
 
 func installOktaPlugin(ctx context.Context, args installOktaPluginArgs) (*ui.Plugin, error) {
-	params, err := validateOktaPluginInputs(ctx, args.validateOktaPluginInputsArgs, args.sessCtx)
+	var params *oktaPluginInputs
+	var err error
+
+	params, err = validateOktaPluginInputs(ctx, args.validateOktaPluginInputsArgs, args.sessCtx)
 	if err != nil {
 		return nil, trace.Wrap(err, "validating okta parameters")
 	}
 
-	oktaAPICreds, err := getOktaCredsFromParams(params)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	oktaAPICreds := getOktaCredsFromParams(params)
 	authOktaClient := oktav1.NewOktaServiceClient(args.sessCtx.GetClientConnection())
 	resp, err := authOktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
 		OktaOrganizationUrl:  params.oktaOrgURL,
 		ApiCredentials:       oktaAPICreds,
 		ScimToken:            params.scimBearerToken,
 		EnableAccessListSync: params.enableAccessListSync,
-		EnableUserSync:       true,
-		EnableAppGroupSync:   true,
+		EnableUserSync:       params.enableUserSync,
+		EnableAppGroupSync:   params.enableAppGroupsSync,
 		AccessListSettings: &oktav1.AccessListSettings{
 			GroupFilters: params.groupFilters,
 			AppFilters:   params.appFilters,
 			DefaultOwner: params.defaultOwners,
 		},
+		ReuseConnector:          params.reuseConnector,
+		SsoMetadataUrl:          params.metadataURL,
+		EnableBidirectionalSync: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -124,17 +191,23 @@ func installOktaPlugin(ctx context.Context, args installOktaPluginArgs) (*ui.Plu
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	uiPlugin.Spec = &ui.OktaPluginSpec{
-		SCIMBearerToken:      params.scimBearerToken,
-		OktaAppID:            resp.GetConnectorInfo().GetOktaAppId(),
-		OktaAppName:          resp.GetConnectorInfo().GetOktaAppName(),
-		OktaAppLabel:         resp.GetConnectorInfo().GetOktaAppLabels(),
-		TeleportSSOConnector: resp.GetConnectorInfo().GetTeleportConnectorName(),
+	spec, ok := uiPlugin.Spec.(*ui.OktaPluginSpec)
+	if !ok {
+		return nil, trace.BadParameter("unexpected plugin type")
 	}
+	if resp.GetConnectorInfo() == nil {
+		return nil, trace.BadParameter("missing connector info")
+	}
+	spec.SCIMBearerToken = params.scimBearerToken
+	spec.OktaAppID = resp.GetConnectorInfo().GetOktaAppId()
+	spec.OktaAppName = resp.GetConnectorInfo().GetOktaAppName()
+	spec.OktaAppLabel = resp.GetConnectorInfo().GetOktaAppLabels()
+	spec.TeleportSSOConnector = resp.GetConnectorInfo().GetTeleportConnectorName()
+	uiPlugin.Spec = spec
 	return uiPlugin, nil
 }
 
-func getOktaCredsFromParams(params *oktaPluginInputs) (*oktav1.OktaAPICredentials, error) {
+func getOktaCredsFromParams(params *oktaPluginInputs) *oktav1.OktaAPICredentials {
 	var apiCreds *oktav1.OktaAPICredentials
 	switch {
 	case params.oauthClientID != "":
@@ -149,10 +222,10 @@ func getOktaCredsFromParams(params *oktaPluginInputs) (*oktav1.OktaAPICredential
 				SswsBearerToken: params.oktaAPIToken,
 			},
 		}
-	default:
-		return nil, trace.BadParameter("missing Okta API token or OAuth client ID")
 	}
-	return apiCreds, nil
+	// If neither API token nor OAuth client ID is set in req, we return nil
+	// and let the Okta client check for saved credentials.
+	return apiCreds
 }
 
 type oktaPluginInputs struct {
@@ -165,6 +238,10 @@ type oktaPluginInputs struct {
 	defaultOwners        []string
 	enableAccessListSync bool
 	oauthClientID        string
+	enableUserSync       bool
+	enableAppGroupsSync  bool
+	metadataURL          string
+	reuseConnector       string
 }
 
 type validateOktaPluginInputsArgs struct {
@@ -197,24 +274,42 @@ func (args *validateOktaPluginInputsArgs) CheckAndSetDefaults() error {
 	return nil
 }
 
-func getOktaAuth(apiToken, clientID string) (*oktav1.OktaAPICredentials, error) {
-	switch {
-	case clientID != "":
-		return &oktav1.OktaAPICredentials{
-			Auth: &oktav1.OktaAPICredentials_OauthId{
-				OauthId: clientID,
-			},
-		}, nil
-
-	case apiToken != "":
-		return &oktav1.OktaAPICredentials{
-			Auth: &oktav1.OktaAPICredentials_SswsBearerToken{
-				SswsBearerToken: apiToken,
-			},
-		}, nil
-	default:
-		return nil, trace.BadParameter("missing Okta API token or OAuth client ID")
+func (args *validateOktaPluginInputsArgs) setURLs(inputs *oktaPluginInputs) error {
+	oktaOrgURLText := args.form.Get("orgURL")
+	metadataURLText := args.form.Get("metadataURL")
+	if oktaOrgURLText == "" {
+		if metadataURLText == "" {
+			// If APIToken is also omitted, we should just return empty
+			// as we may be updating an existing plugin.
+			if args.form.Get("apiToken") == "" {
+				return nil
+			}
+			return trace.BadParameter("missing Okta organization URL")
+		}
 	}
+
+	// If the user supplies an invalid URL or bare hostname, then the
+	// integration will appear to install but fail to start with obscure
+	// errors only visible in the Teleport log file.
+	//
+	// To avoid this, we helpfully supply a sensible-default `https`
+	// scheme if necessary
+	if oktaOrgURLText != "" {
+		orgURL, err := lib.AddrToURL(oktaOrgURLText)
+		if err != nil {
+			return trace.BadParameter("malformed Okta url")
+		}
+		inputs.oktaOrgURL = orgURL.String()
+	}
+	if metadataURLText != "" {
+		metadataURL, err := lib.AddrToURL(metadataURLText)
+		if err != nil {
+			return trace.BadParameter("malformed metadata url")
+		}
+		inputs.metadataURL = metadataURL.String()
+	}
+
+	return nil
 }
 
 // validateOktaConfig extracts the Okta configuration inputs to the Okta plugin
@@ -225,45 +320,72 @@ func (args *validateOktaPluginInputsArgs) validateOktaConfig(ctx context.Context
 		return nil, trace.Wrap(err)
 	}
 
-	args.logger.Log(ctx, logutils.TraceLevel, "Extracting Okta client config")
+	args.logger.Log(ctx, logutils.TraceLevel, "Validating Okta client config")
 
-	oktaOrgURLText := args.form.Get("orgURL")
-	if oktaOrgURLText == "" {
-		return nil, trace.BadParameter("missing Okta organization URL")
-	}
+	out := &oktaPluginInputs{}
 
-	// If the user supplies an invalid URL or bare hostname, then the
-	// integration will appear to install but fail to start with obscure
-	// errors only visible in the Teleport log file.
-	//
-	// To avoid this, we helpfully supply a sensible-default `https`
-	// scheme if necessary
-	orgURL, err := lib.AddrToURL(oktaOrgURLText)
-	if err != nil {
-		return nil, trace.BadParameter("malformed Okta url")
-	}
-
-	oktaAPIToken := args.form.Get("apiToken")
-	clientID := args.form.Get("clientID")
-	creds, err := getOktaAuth(oktaAPIToken, clientID)
-	if err != nil {
+	if err := args.setURLs(out); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	authOktaClient := oktav1.NewOktaServiceClient(sessCtx.GetClientConnection())
-	if _, err = authOktaClient.ValidateClientCredentials(ctx, &oktav1.ValidateClientCredentialsRequest{
-		OktaOrganizationUrl: orgURL.String(),
-		ApiCredentials:      creds,
-	}); err != nil {
-		return nil, trace.Wrap(err)
+	out.oktaAPIToken = args.form.Get("apiToken")
+	out.oauthClientID = args.form.Get("clientID")
+	out.scimBearerToken = args.form.Get("scimToken")
+	out.enableAccessListSync = utils.AsBool(args.form.Get("enableAccessListSync"))
+	// For compat, if unspecified, enable user sync + app/group sync
+	out.enableUserSync = valueOrTrueIfNotSet(args.form, "enableUserSync")
+	out.enableAppGroupsSync = valueOrTrueIfNotSet(args.form, "enableAppGroupsSync")
+	out.reuseConnector = args.form.Get("reuseConnector")
+
+	// We only want to validate the config via live req to the Okta org
+	// if providing credentials or toggling sync options.
+	shouldValidateAuth := out.oktaAPIToken != "" || out.oauthClientID != "" || out.enableAccessListSync || out.enableUserSync || out.enableAppGroupsSync
+
+	req := &oktav1.ValidateClientCredentialsRequest{
+		OktaOrganizationUrl: out.oktaOrgURL,
 	}
 
-	return &oktaPluginInputs{
-		oktaOrgURL:   orgURL.String(),
-		oktaAPIToken: oktaAPIToken,
-	}, nil
+	// Missing credentials are not an immediate error, as
+	// we could be updating a plugin with existing saved credentials.
+	if out.oauthClientID != "" {
+		req.ApiCredentials = &oktav1.OktaAPICredentials{
+			Auth: &oktav1.OktaAPICredentials_OauthId{
+				OauthId: out.oauthClientID,
+			},
+		}
+	} else if out.oktaAPIToken != "" {
+		req.ApiCredentials = &oktav1.OktaAPICredentials{
+			Auth: &oktav1.OktaAPICredentials_SswsBearerToken{
+				SswsBearerToken: out.oktaAPIToken,
+			},
+		}
+	}
+
+	if shouldValidateAuth {
+		authOktaClient := oktav1.NewOktaServiceClient(sessCtx.GetClientConnection())
+		if _, err := authOktaClient.ValidateClientCredentials(ctx, req); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return out, nil
 }
 
+// valueOrTrueIfNotSet returns the value of the key in the form, or true if the
+// key is not set.
+// This is needed for backward compatibility with the previous version of the
+// Okta plugin where all feature by default where enabled.
+func valueOrTrueIfNotSet(form url.Values, key string) bool {
+	v := form.Get(key)
+	if v == "" {
+		return true
+	}
+	return utils.AsBool(v)
+}
+
+// validateOktaPluginInputs extracts the Okta configuration inputs to the Okta
+// plugin installer from the supplied form and validates them.
+// TODO(kiosion): Remove legacy handling for APIToken in v19.
 func validateOktaPluginInputs(ctx context.Context, args validateOktaPluginInputsArgs, sessCtx *web.SessionContext) (*oktaPluginInputs, error) {
 	const (
 		// minTokenLength is the minimum length an SCIM token should be.
@@ -276,57 +398,68 @@ func validateOktaPluginInputs(ctx context.Context, args validateOktaPluginInputs
 		return nil, trace.Wrap(err)
 	}
 
-	params, err := args.validateOktaConfig(ctx, sessCtx)
+	args.logger.Log(ctx, logutils.TraceLevel, "Extracting Okta client config")
+
+	out, err := args.validateOktaConfig(ctx, sessCtx)
 	if err != nil {
 		return nil, trace.Wrap(err, "invalid Okta config")
 	}
 
-	if modules.GetProtoEntitlement(args.clusterFeatures, entitlements.OktaSCIM).Enabled {
-		params.enableAccessListSync = true
+	isLegacySetup := out.oktaAPIToken != ""
+	hasOktaSCIM := modules.GetProtoEntitlement(args.clusterFeatures, entitlements.OktaSCIM).Enabled
 
-		params.scimBearerToken = args.form.Get("scimToken")
-		if params.scimBearerToken == "" {
-			return nil, trace.BadParameter("missing SCIM bearer token")
-		}
-		if len(params.scimBearerToken) < minTokenLength {
-			return nil, trace.BadParameter("SCIM bearer token must be at least %d characters", minTokenLength)
-		}
-		if len(params.scimBearerToken) > maxTokenLength {
-			return nil, trace.BadParameter("SCIM bearer token must be no longer than %d characters", maxTokenLength)
-		}
-
-		scimTokenHash, err := bcrypt.GenerateFromPassword([]byte(params.scimBearerToken), args.bcryptCost)
-		if err != nil {
-			return nil, trace.BadParameter("hashing SCIM bearer token")
-		}
-		params.scimBearerTokenHash = string(scimTokenHash)
-
-		var defaultOwners []string
-		defaultOwnersString := args.form.Get("defaultOwners")
-		if defaultOwnersString != "" {
-			defaultOwners = []string{}
-			if err := json.Unmarshal([]byte(defaultOwnersString), &defaultOwners); err != nil {
-				return nil, trace.Wrap(err)
+	if isLegacySetup {
+		if hasOktaSCIM {
+			// If using legacy setup, Access List sync should always be enabled
+			out.enableAccessListSync = true
+			if out.scimBearerToken == "" {
+				return nil, trace.BadParameter("missing SCIM bearer token")
 			}
-		}
-		params.defaultOwners = defaultOwners
-		if defaultOwners == nil {
-			params.enableAccessListSync = false
-			return params, nil
-		}
-
-		params.appFilters, err = getOktaAppFilters(args.form)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		params.groupFilters, err = getOktaGroupFilters(args.form)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		} else {
+			out.enableAccessListSync = false
+			out.scimBearerToken = ""
+			return out, nil
 		}
 	}
 
-	return params, nil
+	if out.scimBearerToken != "" {
+		if len(out.scimBearerToken) < minTokenLength {
+			return nil, trace.BadParameter("SCIM bearer token must be at least %d characters", minTokenLength)
+		}
+		if len(out.scimBearerToken) > maxTokenLength {
+			return nil, trace.BadParameter("SCIM bearer token must be no longer than %d characters", maxTokenLength)
+		}
+		scimTokenHash, err := bcrypt.GenerateFromPassword([]byte(out.scimBearerToken), args.bcryptCost)
+		if err != nil {
+			return nil, trace.BadParameter("hashing SCIM bearer token")
+		}
+		out.scimBearerTokenHash = string(scimTokenHash)
+	}
+
+	var defaultOwners []string
+	defaultOwnersString := args.form.Get("defaultOwners")
+	if defaultOwnersString != "" {
+		defaultOwners = []string{}
+		if err := json.Unmarshal([]byte(defaultOwnersString), &defaultOwners); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	out.defaultOwners = defaultOwners
+	if defaultOwners == nil {
+		out.enableAccessListSync = false
+		return out, nil
+	}
+
+	out.appFilters, err = getOktaFilters(args.form.Get("appFilters"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out.groupFilters, err = getOktaFilters(args.form.Get("groupFilters"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return out, nil
 }
 
 func getOktaFilters(filterString string) ([]string, error) {

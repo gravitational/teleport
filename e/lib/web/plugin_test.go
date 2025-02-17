@@ -380,6 +380,9 @@ func TestPluginOktaStatusDetails(t *testing.T) {
 			OktaAppName:          oktaAppName,
 			DefaultOwners:        []string{"^admin"},
 			TeleportSSOConnector: common.OktaSSOConnectorName,
+			EnableAccessListSync: true,
+			EnableUserSync:       true,
+			EnableAppGroupSync:   true,
 		},
 		StatusCode: types.PluginStatusCode_RUNNING,
 		Status: &ui.PluginStatusV1{

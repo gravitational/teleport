@@ -71,6 +71,10 @@ type pluginOnboardingCookieNonSensitiveData struct {
 	Slack *pluginOnboardingParamsSlack `json:"slack"`
 }
 
+type pluginUpdateHandler interface {
+	HandleUpdateRequest(ctx context.Context, sessCtx *web.SessionContext, req *ui.PluginUpdateRequest) (*ui.Plugin, error)
+}
+
 func (c *pluginOnboardingCookie) CheckAndSetDefaults() error {
 	if c.State == "" {
 		randBytes := make([]byte, 16)
@@ -185,6 +189,24 @@ func (p *Plugin) createPluginHandle(w http.ResponseWriter, r *http.Request, para
 	}
 
 	return pd.HandleInstallRequest(r.Context(), sessCtx, w, r, p)
+}
+
+func (p *Plugin) updatePluginHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
+	var req ui.PluginUpdateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pd, ok := p.pluginDescriptors[types.PluginType(req.Plugin)]
+	if !ok {
+		return nil, trace.BadParameter("unknown plugin type: %q", req.Plugin)
+	}
+
+	handler, ok := pd.(pluginUpdateHandler)
+	if !ok {
+		return nil, trace.BadParameter("plugin type %q does not support updates", req.Plugin)
+	}
+
+	return handler.HandleUpdateRequest(r.Context(), sessCtx, &req)
 }
 
 func (p *Plugin) getPluginsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
@@ -350,13 +372,10 @@ func (p *Plugin) getPluginStatus(w http.ResponseWriter, r *http.Request, params 
 
 func (p *Plugin) getOktaGroups(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
 	orgURL := r.FormValue("orgURL")
-	oktaAPICreds, err := getOktaCredsFromParams(&oktaPluginInputs{
+	oktaAPICreds := getOktaCredsFromParams(&oktaPluginInputs{
 		oktaAPIToken:  r.FormValue("apiToken"),
-		oauthClientID: r.FormValue("oauthClientID"),
+		oauthClientID: r.FormValue("clientID"),
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	filters, err := getOktaGroupFilters(r.Form)
 	if err != nil {
@@ -385,13 +404,10 @@ func (p *Plugin) getOktaGroups(w http.ResponseWriter, r *http.Request, params ht
 
 func (p *Plugin) getOktaApps(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
 	orgURL := r.FormValue("orgURL")
-	oktaAPICreds, err := getOktaCredsFromParams(&oktaPluginInputs{
+	oktaAPICreds := getOktaCredsFromParams(&oktaPluginInputs{
 		oktaAPIToken:  r.FormValue("apiToken"),
-		oauthClientID: r.FormValue("oauthClientID"),
+		oauthClientID: r.FormValue("clientID"),
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	filters, err := getOktaAppFilters(r.Form)
 	if err != nil {

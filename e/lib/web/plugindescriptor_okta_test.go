@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
@@ -106,9 +107,15 @@ func (d testOktaDescriptor) HandleValidateConfigRequest(ctx context.Context, ses
 	return err
 }
 
+// HandleUpdateRequest implements pluginUpdateHandler for the testOktaDescriptor type.
+func (d testOktaDescriptor) HandleUpdateRequest(ctx context.Context, sessCtx *web.SessionContext, req *ui.PluginUpdateRequest) (*ui.Plugin, error) {
+	return updateOktaPlugin(ctx, sessCtx, req)
+}
+
 // Static assertion that testOktaDescriptor implements the pluginDescriptor
 // interface
 var _ pluginDescriptor = testOktaDescriptor{}
+var _ pluginUpdateHandler = testOktaDescriptor{}
 
 // newTestOktaPluginFixture creates a set of related
 func newTestOktaPluginFixture(t *testing.T, opts ...webSuiteOption) (*webSuite, *authWebPack, *mockRoundTripper) {
@@ -138,6 +145,193 @@ func newTestOktaPluginFixture(t *testing.T, opts ...webSuiteOption) (*webSuite, 
 		testOktaDescriptor{&http.Client{Transport: mockta}}
 
 	return s, webPack, mockta
+}
+
+//nolint:bodyclose // The http.Requests created in this function are cleaned up by the request consumers
+func TestOktaPluginUpdate(t *testing.T) {
+	const (
+		mockOauthToken = "FAKE_OAUTH_TOKEN"
+		mockClientID   = "SOME_CLIENT_ID"
+	)
+
+	mockta := &mockRoundTripper{}
+	s, webPack, _ := newTestOktaPluginFixture(t, withRoundTripper(mockta))
+
+	pluginsSvc := s.authPlugin.PluginsService()
+	pluginCredsSvc := s.authPlugin.PluginStaticCredentialsService()
+	authSvc := s.testAuthServer.AuthServer.AuthServer.Services
+
+	t.Cleanup(func() {
+		pluginsSvc.DeleteAllPlugins(s.ctx)
+		pluginCredsSvc.DeletePluginStaticCredentials(s.ctx, common.OktaSCIMTokenName)
+		pluginCredsSvc.DeletePluginStaticCredentials(s.ctx, types.PluginTypeOkta)
+		authSvc.DeleteSAMLConnector(s.ctx, common.OktaSSOConnectorName)
+	})
+
+	// Set entitlements
+	features := s.webPlugin.h.GetClusterFeatures()
+	features.Entitlements = map[string]*proto.EntitlementInfo{
+		string(entitlements.OktaSCIM): {Enabled: true},
+		string(entitlements.Identity): {Enabled: true},
+	}
+	s.webPlugin.h.SetClusterFeatures(features)
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.OktaSCIM: {Enabled: true},
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+	})
+
+	// Set up okta-requester role
+	_, err := authSvc.UpsertRole(s.ctx, services.NewSystemOktaAccessRole())
+	require.NoError(t, err)
+	_, err = authSvc.UpsertRole(s.ctx, services.NewSystemOktaRequesterRole())
+	require.NoError(t, err)
+
+	// Expect the Okta MetadataURL request for the SAML entity descriptor
+	mockta.
+		On("RoundTrip", requestForPath(
+			"GET", fmt.Sprintf("/app/%s/sso/saml/metadata", oktaAppID))).
+		Return(func(*http.Request) (*http.Response, error) {
+			metadata := response(t, http.StatusOK, "application/xml", []byte(testEntityDescriptor))
+			return metadata, nil
+		})
+
+	// Expect the OAuth token request
+	mockta.
+		On("RoundTrip", requestForPath("POST", "/oauth2/v1/token")).
+		Return(func(r *http.Request) (*http.Response, error) {
+			scopes := r.URL.Query().Get("scope")
+			resp := okta.RequestAccessToken{
+				AccessToken: mockOauthToken,
+				Scope:       scopes,
+				TokenType:   "Bearer",
+				ExpiresIn:   3600,
+			}
+			return jsonResponse(t, http.StatusOK, resp), nil
+		})
+
+	// Set up an existing Okta plugin
+	pluginEndpoint := webPack.clt.Endpoint("enterprise", "plugin")
+	form := url.Values{
+		"type":                 {"okta"},
+		"name":                 {"okta"},
+		"metadataURL":          {fmt.Sprintf("%s/app/%s/sso/saml/metadata", oktaTestOrg, oktaAppID)},
+		"enableUserSync":       {"false"},
+		"enableAppGroupsSync":  {"false"},
+		"enableAccessListSync": {"false"},
+	}
+
+	// Minimal install – no SCIM token, filters, etc.
+	installResp, err := webPack.clt.PostForm(s.ctx, pluginEndpoint, form)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, installResp.Code())
+
+	var installed ui.Plugin
+	require.NoError(t, json.Unmarshal(installResp.Bytes(), &installed))
+	require.IsType(t, &ui.OktaPluginSpec{}, installed.Spec)
+
+	expectedOktaSpec := &ui.OktaPluginSpec{
+		OktaOrgURL:           oktaTestOrg,
+		TeleportSSOConnector: common.OktaSSOConnectorName,
+		EnableUserSync:       false,
+		EnableAppGroupSync:   false,
+		EnableAccessListSync: false,
+		CredentialInfo: &ui.OktaCredentialInfo{
+			HasConfiguredOauthCredentials: false,
+			HasConfiguredSCIMToken:        false,
+			HasConfiguredSSMSToken:        false,
+		},
+	}
+	require.Equal(t, expectedOktaSpec, installed.Spec.(*ui.OktaPluginSpec))
+
+	// Confirm the plugin was created in the backend
+	_, err = pluginsSvc.GetPlugin(s.ctx, types.PluginTypeOkta, false)
+	require.NoError(t, err)
+
+	// Expect the Okta credentials test request (list users)
+	mockta.
+		On("RoundTrip", requestForPath(
+			"GET", "/api/v1/users")).
+		Run(func(args mock.Arguments) {
+			req, ok := args.Get(0).(*http.Request)
+			require.True(t, ok, "Unexpected request type: %T", args.Get(0))
+			require.Equal(t, "Bearer "+mockOauthToken, req.Header.Get("Authorization"))
+		}).
+		Return(jsonResponse(t, http.StatusOK, []map[string]any{
+			{
+				"id":     "00ub0c5ls7iixvj6j5d7",
+				"status": "ACTIVE",
+				"profile": map[string]any{
+					"firstName": "Norville",
+					"lastName":  "Rogers",
+					"nickName":  "Shaggy",
+					"login":     "shaggy@mystery-machine.org",
+					"email":     "shaggy@mystery-machine.org",
+				},
+			},
+		}), nil)
+
+	// Update req to set ClientID and enable User Sync
+	updateReq := ui.PluginUpdateRequest{
+		Plugin: types.PluginTypeOkta,
+		Okta: &ui.OktaPluginUpdate{
+			ClientID:             mockClientID,
+			EnableUserSync:       true,
+			EnableAppGroupSync:   false,
+			EnableAccessListSync: false,
+		},
+	}
+	updateResp, err := webPack.clt.PutJSON(s.ctx, pluginEndpoint, updateReq)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, updateResp.Code())
+
+	var updated ui.Plugin
+	require.NoError(t, json.Unmarshal(updateResp.Bytes(), &updated))
+	require.IsType(t, &ui.OktaPluginSpec{}, updated.Spec)
+	require.Equal(t, "okta", updated.Name)
+
+	expectedOktaSpec = &ui.OktaPluginSpec{
+		OktaOrgURL:           oktaTestOrg,
+		TeleportSSOConnector: common.OktaSSOConnectorName,
+		EnableUserSync:       true,
+		EnableAppGroupSync:   false,
+		EnableAccessListSync: false,
+		CredentialInfo: &ui.OktaCredentialInfo{
+			HasConfiguredOauthCredentials: true,
+		},
+	}
+	require.Equal(t, expectedOktaSpec, updated.Spec.(*ui.OktaPluginSpec))
+
+	// Verify the backend plugin resource has the same values
+	plg, err := pluginsSvc.GetPlugin(s.ctx, types.PluginTypeOkta, true /* with secrets */)
+	require.NoError(t, err)
+	oktaPlugin, ok := plg.(*types.PluginV1)
+	require.True(t, ok, "Expected *types.PluginV1 after update")
+
+	expectedSettings := &types.PluginOktaSettings{
+		OrgUrl: oktaTestOrg,
+		SyncSettings: &types.PluginOktaSyncSettings{
+			SyncUsers:                true,
+			SyncAccessLists:          false,
+			DisableSyncAppGroups:     true,
+			DisableBidirectionalSync: false,
+			SsoConnectorId:           common.OktaSSOConnectorName,
+			UserSyncSource:           string(types.OktaUserSyncSourceUnknown),
+		},
+		CredentialsInfo: &types.PluginOktaCredentialsInfo{
+			HasOauthCredentials: true,
+		},
+	}
+	require.Equal(t, expectedSettings, oktaPlugin.Spec.GetOkta())
+
+	pluginCreds, err := pluginCredsSvc.GetPluginStaticCredentialsByLabels(s.ctx, oktaPlugin.GetCredentials().GetStaticCredentialsRef().Labels)
+	require.NoError(t, err)
+	storedClientId, _ := pluginCreds[0].GetOAuthClientSecret()
+	require.Equal(t, mockClientID, storedClientId)
 }
 
 //nolint:bodyclose // The http.Requests created in this function are cleaned up by the request consumers
@@ -676,7 +870,7 @@ func TestOktaPluginInstallFailsWithInvalidFormValues(t *testing.T) {
 				"orgURL":    {oktaTestOrg},
 				"scimToken": {oktaSCIMToken},
 			},
-			expectedPattern: "missing Okta API token",
+			expectedPattern: "no Okta credentials found",
 		}, {
 			name: "missing-scim-token",
 			form: url.Values{

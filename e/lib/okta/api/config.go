@@ -19,6 +19,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 type StatusCodeUpdater func(context.Context, types.PluginStatusCode)
@@ -268,8 +269,17 @@ func fetchAndSetClientScopes(client *okta.Client) error {
 		client.GetConfig().Okta.Client.Scopes = oktaAPIScopes
 		return nil
 	}
+	// Instead of always wrapping DefaultTransport, use the clients' if set.
+	rt := client.GetConfig().HttpClient.Transport
+	if rt == nil {
+		var err error
+		rt, err = defaults.Transport()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	tr := &wrappedTransport{
-		RoundTripper: http.DefaultTransport,
+		RoundTripper: rt,
 	}
 	auth := okta.NewPrivateKeyAuth(okta.PrivateKeyAuthConfig{
 		Req: &http.Request{

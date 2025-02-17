@@ -68,7 +68,7 @@ func (fn pluginInstallerFn) HandleInstallRequest(ctx context.Context, sessCtx *w
 	return fn(ctx, sessCtx, w, r, p)
 }
 
-// HandleTestConfigRequest implements PluginDescriptor for pluginInstallerFn, always
+// HandleValidateConfigRequest implements PluginDescriptor for pluginInstallerFn, always
 // returning "Not Implemented".
 func (fn pluginInstallerFn) HandleValidateConfigRequest(ctx context.Context, sessCtx *web.SessionContext, form url.Values, p *Plugin) error {
 	return trace.NotImplemented("HandleTestConfigRequest")

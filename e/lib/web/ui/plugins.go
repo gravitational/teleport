@@ -309,6 +309,10 @@ func pluginSpec(p types.Plugin) PluginSpec {
 			OktaAppName:          settings.Okta.SyncSettings.AppName,
 			TeleportSSOConnector: settings.Okta.SyncSettings.SsoConnectorId,
 			DefaultOwners:        settings.Okta.SyncSettings.DefaultOwners,
+			EnableUserSync:       settings.Okta.SyncSettings.SyncUsers,
+			EnableAppGroupSync:   !settings.Okta.SyncSettings.DisableSyncAppGroups,
+			EnableAccessListSync: settings.Okta.SyncSettings.SyncAccessLists,
+			CredentialInfo:       toCredentialInfo(settings.Okta.CredentialsInfo),
 		}
 	case *types.PluginSpecV1_Msteams:
 		return &MsTeamsPluginSpec{
@@ -341,4 +345,43 @@ func pluginSpec(p types.Plugin) PluginSpec {
 type PluginNeedsCleanup struct {
 	// NeedsCleanup is whether or not the plugin needs cleanup.
 	NeedsCleanup bool `json:"needsCleanup"`
+}
+
+func toCredentialInfo(info *types.PluginOktaCredentialsInfo) *OktaCredentialInfo {
+	if info == nil {
+		return nil
+	}
+
+	return &OktaCredentialInfo{
+		HasConfiguredSSMSToken:        info.HasSsmToken,
+		HasConfiguredOauthCredentials: info.HasOauthCredentials,
+		HasConfiguredSCIMToken:        info.HasSsmToken,
+	}
+}
+
+// PluginUpdateRequest is the request to update a plugin's configuration.
+type PluginUpdateRequest struct {
+	// Plugin is the name of the plugin to update
+	Plugin string            `json:"plugin,omitempty"`
+	Okta   *OktaPluginUpdate `json:"okta,omitempty"`
+}
+
+// OktaPluginUpdate contains the fields that can be updated in the Okta plugin.
+type OktaPluginUpdate struct {
+	// EnableUserSync indicates whether User Sync should be enabled/disabled.
+	EnableUserSync bool `json:"enableUserSync,omitempty"`
+	// EnableAccessListSync indicates whether Access List Sync should be enabled/disabled.
+	EnableAccessListSync bool `json:"enableAccessListSync,omitempty"`
+	// EnableAppGroupSync indicates whether App/Group Sync should be enabled/disabled.
+	EnableAppGroupSync bool `json:"enableAppGroupSync,omitempty"`
+	// ClientID is the Client ID used for OAuth with Okta.
+	ClientID string `json:"clientID"`
+	// DefaultOwners is the list of default owners for synced Access Lists.
+	DefaultOwners []string `json:"defaultOwners,omitempty"`
+	// SCIMToken is the SCIM bearer token used for SCIM operations.
+	SCIMToken string `json:"scimToken,omitempty"`
+	// AppFilters is the list of filters for applications to sync.
+	AppFilters []string `json:"appFilters,omitempty"`
+	// GroupFilters is the list of filters for groups to sync.
+	GroupFilters []string `json:"groupFilters,omitempty"`
 }
