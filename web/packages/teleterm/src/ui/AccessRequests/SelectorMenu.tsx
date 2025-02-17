@@ -347,10 +347,11 @@ function RequestItem(props: {
       onClick={() => !isDisabled && void runAssumeOrDrop()}
       title={title}
     >
-      <Flex gap={3} alignItems="center">
+      <Flex alignItems="center">
         <ConnectionStatusIndicator
+          // Aligns margins of the indicator to match spacing of the regular item with an icon.
           ml={2}
-          mr="3px"
+          mr="20px"
           status={getAccessRequestIconStatus(
             assumeOrDropAttempt,
             props.isAssumed
