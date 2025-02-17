@@ -7,7 +7,8 @@ teleportFlavor='{{.TeleportFlavor}}' # teleport or teleport-ent
 successMessage='{{.SuccessMessage}}'
 entrypointArgs='{{.EntrypointArgs}}'
 entrypoint='{{.Entrypoint}}'
-packageSuffix='{{ if .TeleportFIPS }}fips-{{ end}}bin.tar.gz'
+packageSuffix='{{ if .TeleportFIPS }}fips-{{ end }}bin.tar.gz'
+fips='{{ if .TeleportFIPS }}true{{ end }}'
 
 # shellcheck disable=all
 # Use $HOME or / as base dir
@@ -19,12 +20,16 @@ ARCH=$({{.BinUname}} -m)
 trap 'rm -rf -- "$tempDir"' EXIT
 
 teleportTarballName() {
-    if [ ${OS} = "Darwin" ]; then
+    if [ "${OS}" = "Darwin" ]; then
+        if [ "$fips" = "true"]; then
+            echo "FIPS install is not supported on MacOS"
+            return 1
+        fi
         echo "${teleportFlavor}-${teleportVersion}-darwin-universal-${packageSuffix}"
         return 0
     fi;
 
-    if [ ${OS} != "Linux" ]; then
+    if [ "${OS}" != "Linux" ]; then
         echo "Only MacOS and Linux are supported." >&2
         return 1
     fi;
