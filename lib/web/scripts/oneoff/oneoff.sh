@@ -5,8 +5,8 @@ cdnBaseURL='{{.CDNBaseURL}}'
 teleportVersion='{{.TeleportVersion}}'
 teleportFlavor='{{.TeleportFlavor}}' # teleport or teleport-ent
 successMessage='{{.SuccessMessage}}'
-entrypointArgs='{{.TeleportArgs}}'
-entrypoint='{{.TeleportBin}}'
+entrypointArgs='{{.EntrypointArgs}}'
+entrypoint='{{.Entrypoint}}'
 packageSuffix='{{ if .TeleportFIPS }}fips-{{ end}}bin.tar.gz'
 
 # shellcheck disable=all
