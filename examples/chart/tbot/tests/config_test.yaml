@@ -29,3 +29,18 @@ tests:
               path: /buzz
     asserts:
       - matchSnapshot: {}
+  - it: it should match the snapshot with tbotConfig as a string template (custom)
+    set:
+      token: foo
+      tbotConfig: |
+        xyzzy: foo
+        yxzyy: 17
+        outputs:
+          {{- range $path := list "/fuzz" "/buzz" }}
+          - type: bar
+            destination:
+              type: magic
+              path: {{ $path }}
+          {{- end }}
+    asserts:
+      - matchSnapshot: {}
