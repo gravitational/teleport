@@ -20,27 +20,42 @@ import { useEffect, useMemo, useState } from 'react';
 import { useHistory, useLocation } from 'react-router';
 import styled from 'styled-components';
 
-import { Alert, Box, Flex, Link, P3, Text } from 'design';
-import * as Icons from 'design/Icon';
+import { Alert, Box, Flex, H3, Link, P3, Text } from 'design';
+import { Danger } from 'design/Alert';
+import InputSearch from 'design/DataTable/InputSearch';
+import { Magnifier } from 'design/Icon';
 import { getPlatform } from 'design/platform';
+import { MultiselectMenu } from 'shared/components/Controls/MultiselectMenu';
+import { PinningSupport } from 'shared/components/UnifiedResources';
+import { useAsync } from 'shared/hooks/useAsync';
 
 import AddApp from 'teleport/Apps/AddApp';
-import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
+import { FeatureHeaderTitle } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
-import {
-  BASE_RESOURCES,
-  SelectResourceSpec,
-} from 'teleport/Discover/SelectResource/resources';
-import { HeaderSubtitle } from 'teleport/Discover/Shared';
+import { BASE_RESOURCES } from 'teleport/Discover/SelectResource/resources/resources';
 import { storageService } from 'teleport/services/storageService';
+import { DiscoverGuideId } from 'teleport/services/userPreferences/discoverPreference';
 import { useUser } from 'teleport/User/UserContext';
 import useTeleport from 'teleport/useTeleport';
 
-import { SAML_APPLICATIONS } from './resources';
+import { TextIcon } from '../Shared';
+import { SelectResourceSpec } from './resources';
+import { SAML_APPLICATIONS } from './resources/resourcesE';
 import { Tile } from './Tile';
 import { SearchResource } from './types';
 import { addHasAccessField } from './utils/checkAccess';
-import { filterBySupportedPlatformsAndAuthTypes } from './utils/filters';
+import {
+  filterBySupportedPlatformsAndAuthTypes,
+  filterResources,
+  Filters,
+  hostingPlatformOptions,
+  resourceTypeOptions,
+} from './utils/filters';
+import {
+  DiscoverResourcePreference,
+  getDefaultPins,
+  getPins,
+} from './utils/pins';
 import { sortResourcesByKind, sortResourcesByPreferences } from './utils/sort';
 
 interface SelectResourceProps {
@@ -65,29 +80,57 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
   const ctx = useTeleport();
   const location = useLocation<UrlLocationState>();
   const history = useHistory();
-  const { preferences } = useUser();
+  const { preferences, updateDiscoverResourcePreferences } = useUser();
+
+  const [filters, setFilters] = useState<Filters>({
+    resourceTypes: [],
+    hostingPlatforms: [],
+  });
+  const [updateDiscoverPreferenceAttempt, updateDiscoverPreference] = useAsync(
+    async (newPref: DiscoverResourcePreference) => {
+      await updateDiscoverResourcePreferences(newPref);
+    }
+  );
 
   const [search, setSearch] = useState('');
   const { acl, authType } = ctx.storeUser.state;
   const platform = getPlatform();
-  const defaultResources: SelectResourceSpec[] = useMemo(
-    () =>
-      sortResourcesByPreferences(
-        // Apply access check to each resource.
-        addHasAccessField(
-          acl,
-          filterBySupportedPlatformsAndAuthTypes(
-            platform,
-            authType,
-            getDefaultResources(cfg.isEnterprise)
-          )
-        ),
-        preferences,
-        storageService.getOnboardDiscover()
-      ),
-    [acl, authType, platform, preferences]
-  );
+
+  /**
+   * defaultResources does initial processing of all resource guides that will
+   * be used as base for dynamic filtering and determining default pins:
+   *   - sets the "hasAccess" field (checks user perms)
+   *   - sets the "pinned" field (checks user discover resource preference)
+   *   - filters out guides that are not supported by users
+   *     platform and auth settings (eg: "Connect My Computer" guide
+   *     has limited support for platforms and auth settings)
+   *   - sorts resources where preferred resources are at top of the list
+   *     (certain cloud editions renders a questionaire for new users asking
+   *     for their interest in resources)
+   */
+  const defaultResources: SelectResourceSpec[] = useMemo(() => {
+    const withHasAccessFieldResources = addHasAccessField(
+      acl,
+      filterBySupportedPlatformsAndAuthTypes(
+        platform,
+        authType,
+        getDefaultResources(cfg.isEnterprise)
+      )
+    );
+
+    return sortResourcesByPreferences(
+      withHasAccessFieldResources,
+      preferences,
+      storageService.getOnboardDiscover()
+    );
+  }, [acl, authType, platform, preferences]);
+
   const [resources, setResources] = useState(defaultResources);
+
+  const filteredResources = useMemo(
+    () => filterResources(resources, filters),
+    [filters, resources]
+  );
 
   // a user must be able to create tokens AND have access to create at least one
   // type of resource in order to be considered eligible to "add resources"
@@ -98,6 +141,12 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
 
   function onSearch(s: string, customList?: SelectResourceSpec[]) {
     const list = customList || defaultResources;
+    if (s == '') {
+      history.replace({ state: {} }); // Clear any loc state.
+      setResources(list);
+      setSearch(s);
+      return;
+    }
     const search = s.split(' ').map(s => s.toLowerCase());
     const found = list.filter(r =>
       search.every(s => r.keywords.some(k => k.toLowerCase().includes(s)))
@@ -105,11 +154,6 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
 
     setResources(found);
     setSearch(s);
-  }
-
-  function onClearSearch() {
-    history.replace({ state: {} }); // Clear any loc state.
-    onSearch('');
   }
 
   useEffect(() => {
@@ -146,6 +190,47 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  async function updatePinnedGuides(guideId: DiscoverGuideId) {
+    const { discoverResourcePreferences } = preferences;
+
+    let previousPins = discoverResourcePreferences?.discoverGuide?.pinned || [];
+
+    if (!discoverResourcePreferences?.discoverGuide) {
+      previousPins = getDefaultPins(defaultResources);
+    }
+
+    // Toggles pins.
+    let latestPins: string[];
+    if (previousPins.includes(guideId)) {
+      latestPins = previousPins.filter(p => p !== guideId);
+    } else {
+      latestPins = [...previousPins, guideId];
+    }
+
+    const newPreferences: DiscoverResourcePreference = {
+      discoverResourcePreferences: {
+        discoverGuide: { pinned: latestPins },
+      },
+    };
+
+    updateDiscoverPreference(newPreferences);
+  }
+
+  // TODO(kimlisa): DELETE IN 19.0 - only remove the check for "NotSupported".
+  let pinningSupport = preferences.discoverResourcePreferences
+    ? PinningSupport.Supported
+    : PinningSupport.NotSupported;
+
+  if (updateDiscoverPreferenceAttempt.status === 'processing') {
+    pinningSupport = PinningSupport.Disabled;
+  }
+
+  const pins = getPins(preferences);
+  let pinnedGuides: SelectResourceSpec[] = [];
+  if (pins.length > 0) {
+    pinnedGuides = filteredResources.filter(r => pins.includes(r.id));
+  }
+
   return (
     <Box>
       {!canAddResources && (
@@ -154,39 +239,88 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
           for additional permissions.
         </Alert>
       )}
-      <FeatureHeader>
-        <FeatureHeaderTitle>Select Resource To Add</FeatureHeaderTitle>
-      </FeatureHeader>
-      <HeaderSubtitle>
-        Teleport can integrate into most, if not all, of your infrastructure.
-        Search for what resource you want to add.
-      </HeaderSubtitle>
-      <Box height="90px" width="600px">
-        <InputWrapper>
-          <StyledInput
+      {updateDiscoverPreferenceAttempt.status === 'error' && (
+        <Danger mt={5} details={updateDiscoverPreferenceAttempt.statusText}>
+          Could not update pinned resources
+        </Danger>
+      )}
+      <Box my={3}>
+        <FeatureHeaderTitle>Enroll a New Resource</FeatureHeaderTitle>
+        <Text>
+          Teleport can integrate with most, if not all, of your infrastructure.
+          Search below for resources you want to add.
+        </Text>
+      </Box>
+      <Flex gap={3} justifyContent="space-between">
+        <Box mb={3} width="600px">
+          <InputSearch
+            searchValue={search}
+            setSearchValue={onSearch}
             placeholder="Search for a resource"
             autoFocus
-            value={search}
-            onChange={e => onSearch(e.target.value)}
-            max={100}
           />
-        </InputWrapper>
-        {search && <ClearSearch onClick={onClearSearch} />}
-      </Box>
-      {resources && resources.length > 0 && (
-        <>
-          <Grid role="grid">
-            {resources.map((r, index) => (
+        </Box>
+      </Flex>
+      <Flex gap={3} mb={3}>
+        <MultiselectMenu
+          options={resourceTypeOptions}
+          onChange={resourceTypes => setFilters({ ...filters, resourceTypes })}
+          selected={filters.resourceTypes || []}
+          label="Resource Type"
+          tooltip="Filter by resource type"
+        />
+        <MultiselectMenu
+          options={hostingPlatformOptions}
+          onChange={hostingPlatforms =>
+            setFilters({ ...filters, hostingPlatforms })
+          }
+          selected={filters.hostingPlatforms || []}
+          label="Hosting Platform"
+          tooltip="Filter by hosting platform"
+        />
+      </Flex>
+      {!filteredResources.length && (
+        <TextIcon>
+          <Magnifier size="small" />
+          No results found
+        </TextIcon>
+      )}
+      {pinnedGuides.length > 0 && (
+        <Box mb={4}>
+          <H3 mb={3}>Pinned</H3>
+          <Grid role="grid" pinnedSection={true}>
+            {pinnedGuides.map(r => (
               <Tile
-                // TODO(kimlisa): replace with r.id in upcoming PR
-                key={`${index}${r.name}${r.kind}`}
+                key={r.id}
                 resourceSpec={r}
+                size="large"
                 onChangeShowApp={setShowApp}
                 onSelectResource={onSelect}
+                pinningSupport={pinningSupport}
+                onChangePin={updatePinnedGuides}
+                isPinned={true}
               />
             ))}
           </Grid>
-          <P3 mt={6}>
+        </Box>
+      )}
+      {filteredResources.length > 0 && (
+        <>
+          {pinnedGuides.length > 0 && <H3 mb={3}>All Resources</H3>}
+          <Grid role="grid">
+            {filteredResources.map(r => (
+              <Tile
+                key={r.id}
+                resourceSpec={r}
+                onChangeShowApp={setShowApp}
+                onSelectResource={onSelect}
+                pinningSupport={pinningSupport}
+                onChangePin={updatePinnedGuides}
+                isPinned={pins.includes(r.id)}
+              />
+            ))}
+          </Grid>
+          <P3 my={6}>
             Looking for something else?{' '}
             <Link
               href="https://github.com/gravitational/teleport/issues/new?assignees=&labels=feature-request&template=feature_request.md"
@@ -203,71 +337,12 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
   );
 }
 
-const ClearSearch = ({ onClick }: { onClick(): void }) => {
-  return (
-    <Flex
-      width="120px"
-      onClick={onClick}
-      alignItems="center"
-      mt={1}
-      css={`
-        font-size: 12px;
-        opacity: 0.7;
-
-        &:hover {
-          cursor: pointer;
-          opacity: 1;
-        }
-      `}
-    >
-      <Box
-        mr={1}
-        ml={1}
-        width="18px"
-        height="18px"
-        borderRadius="4px"
-        textAlign="center"
-        css={`
-          background: ${props => props.theme.colors.error.main};
-        `}
-      >
-        <Icons.Cross size="small" />
-      </Box>
-      <Text>Clear search</Text>
-    </Flex>
-  );
-};
-
-const Grid = styled.div`
+const Grid = styled.div<{ pinnedSection?: boolean }>`
   display: grid;
-  grid-template-columns: repeat(auto-fill, 320px);
+  grid-template-columns: repeat(
+    auto-fill,
+    ${p => (p.pinnedSection ? '250px' : '320px')}
+  );
   column-gap: 10px;
   row-gap: 15px;
-`;
-
-const InputWrapper = styled.div`
-  border-radius: 200px;
-  height: 40px;
-  border: 1px solid ${props => props.theme.colors.spotBackground[2]};
-  transition: all 0.1s;
-
-  &:hover,
-  &:focus-within,
-  &:active {
-    background: ${props => props.theme.colors.spotBackground[0]};
-  }
-`;
-
-const StyledInput = styled.input`
-  border: none;
-  outline: none;
-  box-sizing: border-box;
-  height: 100%;
-  width: 100%;
-  transition: all 0.2s;
-  color: ${props => props.theme.colors.text.main};
-  background: transparent;
-  margin-right: ${props => props.theme.space[3]}px;
-  margin-bottom: ${props => props.theme.space[2]}px;
-  padding: ${props => props.theme.space[3]}px;
 `;

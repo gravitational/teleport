@@ -1055,7 +1055,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/scripts/integrations/configure/gcp-workforce-saml.sh", h.WithLimiter(h.gcpWorkforceConfigScript))
 
 	// Okta integration endpoints.
-	h.GET("/.well-known/jwks-okta", h.WithLimiter(h.jwksOkta))
+	h.GET(OktaJWKSWellknownURI, h.WithLimiter(h.jwksOkta))
 
 	// Azure OIDC integration endpoints
 	h.GET("/webapi/scripts/integrations/configure/azureoidc.sh", h.WithLimiter(h.azureOIDCConfigure))

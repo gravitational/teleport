@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 func TestMain(m *testing.M) {
@@ -147,7 +148,7 @@ func lambdaRequestWithPayload(url string, provider client.ConfigProvider, payloa
 
 func assumeRoleRequest(requestDuration time.Duration) makeRequest {
 	return func(url string, provider client.ConfigProvider, awsHost string) error {
-		stsClient := sts.New(provider, &aws.Config{
+		stsClient := stsutils.NewV1(provider, &aws.Config{
 			Endpoint:   &url,
 			MaxRetries: aws.Int(0),
 			HTTPClient: &http.Client{

@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 const defaultRegion = "us-east-1"
@@ -136,9 +137,10 @@ func (o *options) checkAndSetDefaults() error {
 
 	if o.stsClientProvider == nil {
 		o.stsClientProvider = func(cfg aws.Config) STSClient {
-			return sts.NewFromConfig(cfg, func(o *sts.Options) {
+			return stsutils.NewFromConfig(cfg, func(o *sts.Options) {
 				o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
 			})
+
 		}
 	}
 	return nil

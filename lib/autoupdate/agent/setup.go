@@ -212,6 +212,11 @@ func (ns *Namespace) Init() (lockFile string, err error) {
 // Setup installs service and timer files for the teleport-update binary.
 // Afterwords, Setup reloads systemd and enables the timer with --now.
 func (ns *Namespace) Setup(ctx context.Context) error {
+	if ok, err := hasSystemD(); err == nil && !ok {
+		ns.log.WarnContext(ctx, "Systemd is not running, skipping updater installation.")
+		return nil
+	}
+
 	err := ns.writeConfigFiles(ctx)
 	if err != nil {
 		return trace.Wrap(err, "failed to write teleport-update systemd config files")
@@ -250,6 +255,14 @@ func (ns *Namespace) Setup(ctx context.Context) error {
 
 // Teardown removes all traces of the auto-updater, including its configuration.
 func (ns *Namespace) Teardown(ctx context.Context) error {
+	if ok, err := hasSystemD(); err == nil && !ok {
+		ns.log.WarnContext(ctx, "Systemd is not running, skipping updater removal.")
+		if err := os.RemoveAll(namespaceDir(ns.name)); err != nil {
+			return trace.Wrap(err, "failed to remove versions directory")
+		}
+		return nil
+	}
+
 	svc := &SystemdService{
 		ServiceName: filepath.Base(ns.updaterTimerFile),
 		Log:         ns.log,

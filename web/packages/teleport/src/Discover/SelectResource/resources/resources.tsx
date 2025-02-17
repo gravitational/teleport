@@ -38,18 +38,12 @@ import {
   DATABASES_UNGUIDED,
   DATABASES_UNGUIDED_DOC,
 } from './databases';
-
-export type SelectResourceSpec = ResourceSpec & {
-  id: DiscoverGuideId;
-  /**
-   * true if user pinned this guide
-   */
-  pinned?: boolean;
-};
-
-const baseServerKeywords = ['server', 'node', 'ssh'];
-const awsKeywords = ['aws', 'amazon', 'amazon web services'];
-const kubeKeywords = ['kubernetes', 'k8s', 'kubes', 'cluster'];
+import {
+  awsKeywords,
+  baseServerKeywords,
+  kubeKeywords,
+  selfHostedKeywords,
+} from './keywords';
 
 export const SERVERS: SelectResourceSpec[] = [
   {
@@ -192,7 +186,7 @@ export const KUBERNETES: SelectResourceSpec[] = [
     id: DiscoverGuideId.Kubernetes,
     name: 'Kubernetes',
     kind: ResourceKind.Kubernetes,
-    keywords: [...kubeKeywords],
+    keywords: [...kubeKeywords, ...selfHostedKeywords],
     icon: 'kube',
     event: DiscoverEventResource.Kubernetes,
     kubeMeta: { location: KubeLocation.SelfHosted },
@@ -293,3 +287,7 @@ export function getResourcePretitle(r: SelectResourceSpec) {
 
   return '';
 }
+
+export type SelectResourceSpec = ResourceSpec & {
+  id: DiscoverGuideId;
+};

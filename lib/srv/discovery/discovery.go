@@ -64,6 +64,7 @@ import (
 	azure_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/azuresync"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/srv/server"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/lib/utils/spreadwork"
@@ -214,11 +215,11 @@ func (f *awsFetchersClientsGetter) GetAWSEKSClient(cfg aws.Config) fetchers.EKSC
 }
 
 func (f *awsFetchersClientsGetter) GetAWSSTSClient(cfg aws.Config) fetchers.STSClient {
-	return sts.NewFromConfig(cfg)
+	return stsutils.NewFromConfig(cfg)
 }
 
 func (f *awsFetchersClientsGetter) GetAWSSTSPresignClient(cfg aws.Config) fetchers.STSPresignClient {
-	stsClient := sts.NewFromConfig(cfg)
+	stsClient := stsutils.NewFromConfig(cfg)
 	return sts.NewPresignClient(stsClient)
 }
 
@@ -1959,6 +1960,17 @@ func (s *Server) resolveCreateErr(createErr error, discoveryOrigin string, gette
 
 	old, err := getter()
 	if err != nil {
+		if trace.IsNotFound(err) {
+			// if we get an AlreadyExists error while creating the resource and
+			// a NotFound error when retrieving it, then it's a resource that
+			// already exists and we are not allowed to read it, so we can't
+			// update it either. NotFound comes from the discovery service's
+			// cache which only contains resources that this process is allowed
+			// to access.
+			return trace.Wrap(createErr,
+				"not updating because the existing resource is not managed by auto-discovery",
+			)
+		}
 		return trace.NewAggregate(createErr, err)
 	}
 
