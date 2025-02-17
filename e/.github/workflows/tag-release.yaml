@@ -47,7 +47,7 @@ jobs:
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       teleport-version: ${{ inputs.teleport-version }}
       cloud-only: ${{ inputs.cloud-only }}
-      environment: build-${{ inputs.environment }}
+      environment: ${{ inputs.environment }}/build
   tag-publish:
     name: Publish
     needs:
@@ -63,7 +63,7 @@ jobs:
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       teleport-version: ${{ inputs.teleport-version }}
       cloud-only: ${{ inputs.cloud-only }}
-      environment: publish-${{ inputs.environment }}
+      environment: ${{ inputs.environment }}/publish
   post-workflow:
     name: Post Workflow Steps
     runs-on: ubuntu-latest
