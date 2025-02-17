@@ -22,6 +22,7 @@ import {
   PropsWithChildren,
   useCallback,
   useContext,
+  useMemo,
 } from 'react';
 
 import { AccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
@@ -29,6 +30,7 @@ import { Attempt, useAsync } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import { getAssumedRequests } from 'teleterm/ui/services/clusters';
 import { RootClusterUri } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
@@ -51,13 +53,22 @@ export const AccessRequestsContextProvider: FC<
   }>
 > = ({ rootClusterUri, children }) => {
   const appContext = useAppContext();
-  const { tshd, clustersService } = appContext;
+  const { tshd } = appContext;
   const rootCluster = useStoreSelector(
     'clustersService',
     useCallback(state => state.clusters.get(rootClusterUri), [rootClusterUri])
   );
-  const assumed = new Map(
-    Object.entries(clustersService.getAssumedRequests(rootClusterUri))
+
+  const assumedObject = useStoreSelector(
+    'clustersService',
+    useCallback(
+      state => getAssumedRequests(state, rootClusterUri),
+      [rootClusterUri]
+    )
+  );
+  const assumed = useMemo(
+    () => new Map(Object.entries(assumedObject)),
+    [assumedObject]
   );
 
   const canUse = !!rootCluster?.features?.advancedAccessWorkflows;

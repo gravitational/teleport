@@ -415,6 +415,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return response.clusters;
   }
 
+  /** @deprecated Use getAssumedRequests function instead of the method on ClustersService. */
   getAssumedRequests(
     rootClusterUri: uri.RootClusterUri
   ): Record<string, AccessRequest> {
