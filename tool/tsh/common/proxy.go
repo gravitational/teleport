@@ -553,7 +553,6 @@ func onProxyCommandAWS(cf *CLIConf) error {
 type awsAppInfo interface {
 	GetAppName() string
 	GetEnvVars() (map[string]string, error)
-	GetEndpointURL() string
 	GetForwardProxyAddr() string
 }
 
@@ -564,14 +563,13 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 	}
 
 	templateData := map[string]interface{}{
-		"envVars":     envVars,
-		"endpointURL": awsApp.GetEndpointURL(),
-		"format":      cf.Format,
-		"randomPort":  cf.LocalProxyPort == "",
-		"appName":     awsApp.GetAppName(),
-		"region":      getEnvOrDefault(awsRegionEnvVar, "<region>"),
-		"keystore":    getEnvOrDefault(awsKeystoreEnvVar, "<keystore>"),
-		"workgroup":   getEnvOrDefault(awsWorkgroupEnvVar, "<workgroup>"),
+		"envVars":    envVars,
+		"format":     cf.Format,
+		"randomPort": cf.LocalProxyPort == "",
+		"appName":    awsApp.GetAppName(),
+		"region":     getEnvOrDefault(awsRegionEnvVar, "<region>"),
+		"keystore":   getEnvOrDefault(awsKeystoreEnvVar, "<keystore>"),
+		"workgroup":  getEnvOrDefault(awsWorkgroupEnvVar, "<workgroup>"),
 	}
 
 	if proxyAddr := awsApp.GetForwardProxyAddr(); proxyAddr != "" {
@@ -902,11 +900,7 @@ var cloudTemplateFuncs = template.FuncMap{
 // awsProxyHeaderTemplate contains common header used for AWS proxy.
 const awsProxyHeaderTemplate = `
 {{define "header"}}
-{{- if .envVars.HTTPS_PROXY -}}
 Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
-{{- else -}}
-Started AWS proxy which serves as an AWS endpoint URL at {{.endpointURL}}.
-{{- end }}
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
 {{end}}
 {{end}}
