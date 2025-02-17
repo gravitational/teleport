@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
@@ -498,8 +499,9 @@ func (s *RevocationService) watchAndSign(ctx context.Context) error {
 	//  multiple successive revocations.
 	// - Avoid spamming the clients with a rapid succession of CRL updates.
 	var debounceCh <-chan time.Time
+	// TODO(Noah): Should we re-issue the CRL every X minutes, regardless of
+	// whether there are new revocations?
 	for {
-
 		select {
 		case e := <-w.Events():
 			triggerSign, err := handleEvent(e)
@@ -520,7 +522,10 @@ func (s *RevocationService) watchAndSign(ctx context.Context) error {
 			}
 			return nil
 		case <-debounceCh:
+			// Set debounce channel to nil to indicate that the requested
+			// signature has been handled.
 			debounceCh = nil
+
 			crl, err := s.signCRL(ctx, revocationsMap)
 			if err != nil {
 				return trace.Wrap(err, "signing CRL")
@@ -549,10 +554,17 @@ func (s *RevocationService) fetchAllRevocations(ctx context.Context) ([]*workloa
 	return revocations, nil
 }
 
+// signCRL signs a new revocation list for the given set of revocations, and
+// returns this as a PKCS.1 DER encoded CRL.
 func (s *RevocationService) signCRL(
 	ctx context.Context,
 	revocations map[string]*workloadidentityv1pb.WorkloadIdentityX509Revocation,
-) ([]byte, error) {
+) (_ []byte, err error) {
+	ctx, span := tracer.Start(ctx, "RevocationService/signCRL")
+	defer func() {
+		tracing.EndSpan(span, err)
+	}()
+
 	s.logger.InfoContext(ctx, "Starting to generate new CRL")
 	ca, err := s.certAuthorityGetter.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.SPIFFECA,
@@ -575,8 +587,6 @@ func (s *RevocationService) signCRL(
 	tmpl := &x509.RevocationList{
 		// Ref: https://www.rfc-editor.org/rfc/rfc5280.html#section-5.1.2.6
 		RevokedCertificateEntries: make([]x509.RevocationListEntry, 0, len(revocations)),
-		// Ref: https://www.rfc-editor.org/rfc/rfc5280.html#section-5.1.2.4
-		// 	ThisUpdate: time.Now(),
 		// Ref: https://www.rfc-editor.org/rfc/rfc5280.html#section-5.2.3
 		// This is an optional extension we will be omitting for now, at a
 		// future date, we may insert a monotonically increasing identifier.
