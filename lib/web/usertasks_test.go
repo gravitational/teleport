@@ -170,6 +170,7 @@ func TestUserTask(t *testing.T) {
 					"startKey":    []string{startKey},
 					"integration": []string{"my-integration"},
 					"state":       []string{"OPEN"},
+					"limit":       []string{"2"},
 				})
 				require.NoError(t, err)
 				require.Equal(t, http.StatusOK, resp.Code())
@@ -198,6 +199,7 @@ func TestUserTask(t *testing.T) {
 					"startKey":    []string{startKey},
 					"integration": []string{"my-integration"},
 					"state":       []string{"RESOLVED"},
+					"limit":       []string{"2"},
 				})
 				require.NoError(t, err)
 				require.Equal(t, http.StatusOK, resp.Code())

@@ -115,7 +115,6 @@ func (h *Handler) userTaskListByIntegration(w http.ResponseWriter, r *http.Reque
 
 	taskStateFilter := values.Get("state")
 
-	var nextKey string
 	items := make([]ui.UserTask, 0, limit)
 	pageLimit := limit
 	for {
@@ -140,6 +139,6 @@ func (h *Handler) userTaskListByIntegration(w http.ResponseWriter, r *http.Reque
 
 	return ui.UserTasksListResponse{
 		Items:   items,
-		NextKey: nextKey,
+		NextKey: startKey,
 	}, nil
 }
