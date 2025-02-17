@@ -23,21 +23,26 @@ import { Cross, FingerprintSimple } from 'design/Icon';
 import { guessProviderType } from 'shared/components/ButtonSso';
 import { SSOIcon } from 'shared/components/ButtonSso/ButtonSso';
 
-import { MfaState } from 'teleport/lib/useMfa';
+import { MfaCanceledError, MfaState } from 'teleport/lib/useMfa';
 import { MFA_OPTION_TOTP } from 'teleport/services/mfa';
 
 export type Props = {
   mfaState: MfaState;
   replaceErrorText?: string;
+  // onClose is an optional function to perform additional operations
+  // upon closing the dialog. e.g. close a shell session
   onClose?: () => void;
 };
 
 export default function AuthnDialog({
-  mfaState: { options, challenge, submit, attempt, resetAttempt },
+  mfaState: { options, challenge, submit, attempt, cancelAttempt },
   replaceErrorText,
-  onClose,
+  onClose = () => {},
 }: Props) {
-  if (!challenge && attempt.status !== 'error') return;
+  const showError =
+    attempt.status === 'error' && !(attempt.error instanceof MfaCanceledError);
+
+  if (!challenge && !showError) return;
 
   // TODO(Joerger): TOTP should be pretty easy to support here with a small button -> form flow.
   const onlyTotpAvailable =
@@ -50,7 +55,7 @@ export default function AuthnDialog({
         <ButtonIcon
           data-testid="close-dialog"
           onClick={() => {
-            resetAttempt();
+            cancelAttempt();
             onClose();
           }}
         >

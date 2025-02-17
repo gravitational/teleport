@@ -150,45 +150,12 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 
 	// Processing fields in this manner allows users to
 	// configure the level and component position in the output.
-	// This matches the behavior of the original logrus. All other
+	// This matches the behavior of the original logrus formatter. All other
 	// fields location in the output message are static.
 	for _, field := range s.cfg.ConfiguredFields {
 		switch field {
 		case LevelField:
-			var color int
-			var level string
-			switch r.Level {
-			case TraceLevel:
-				level = "TRACE"
-				color = gray
-			case slog.LevelDebug:
-				level = "DEBUG"
-				color = gray
-			case slog.LevelInfo:
-				level = "INFO"
-				color = blue
-			case slog.LevelWarn:
-				level = "WARN"
-				color = yellow
-			case slog.LevelError:
-				level = "ERROR"
-				color = red
-			case slog.LevelError + 1:
-				level = "FATAL"
-				color = red
-			default:
-				color = blue
-				level = r.Level.String()
-			}
-
-			if !s.cfg.EnableColors {
-				color = noColor
-			}
-
-			level = padMax(level, defaultLevelPadding)
-			if color != noColor {
-				level = fmt.Sprintf("\u001B[%dm%s\u001B[0m", color, level)
-			}
+			level := formatLevel(r.Level, s.cfg.EnableColors)
 
 			if rep == nil {
 				state.appendKey(slog.LevelKey)
@@ -211,12 +178,8 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 				if attr.Key != teleport.ComponentKey {
 					return true
 				}
-				component = fmt.Sprintf("[%v]", attr.Value)
-				component = strings.ToUpper(padMax(component, s.cfg.Padding))
-				if component[len(component)-1] != ' ' {
-					component = component[:len(component)-1] + "]"
-				}
 
+				component = formatComponent(attr.Value, s.cfg.Padding)
 				return false
 			})
 
@@ -269,6 +232,55 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 	defer s.mu.Unlock()
 	_, err := s.out.Write(*state.buf)
 	return err
+}
+
+func formatLevel(value slog.Level, enableColors bool) string {
+	var color int
+	var level string
+	switch value {
+	case TraceLevel:
+		level = "TRACE"
+		color = gray
+	case slog.LevelDebug:
+		level = "DEBUG"
+		color = gray
+	case slog.LevelInfo:
+		level = "INFO"
+		color = blue
+	case slog.LevelWarn:
+		level = "WARN"
+		color = yellow
+	case slog.LevelError:
+		level = "ERROR"
+		color = red
+	case slog.LevelError + 1:
+		level = "FATAL"
+		color = red
+	default:
+		color = blue
+		level = value.String()
+	}
+
+	if !enableColors {
+		color = noColor
+	}
+
+	level = padMax(level, defaultLevelPadding)
+	if color != noColor {
+		level = fmt.Sprintf("\u001B[%dm%s\u001B[0m", color, level)
+	}
+
+	return level
+}
+
+func formatComponent(value slog.Value, padding int) string {
+	component := fmt.Sprintf("[%v]", value)
+	component = strings.ToUpper(padMax(component, padding))
+	if component[len(component)-1] != ' ' {
+		component = component[:len(component)-1] + "]"
+	}
+
+	return component
 }
 
 func (s *SlogTextHandler) clone() *SlogTextHandler {

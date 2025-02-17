@@ -23,7 +23,7 @@ import {
   MenuItemSectionLabel,
   MenuItemSectionSeparator,
 } from 'design/Menu/MenuItem';
-import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
+import { App, PortRange } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
 import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
@@ -125,8 +125,15 @@ export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
     connectToAppWithVnet(appContext, launchVnet, props.app, targetPort);
   }
 
-  function setUpGateway(): void {
-    setUpAppGateway(appContext, props.app, { origin: 'resource_table' });
+  function setUpGateway(targetPort?: number): void {
+    if (!targetPort && props.app.tcpPorts.length > 0) {
+      targetPort = props.app.tcpPorts[0].port;
+    }
+
+    setUpAppGateway(appContext, props.app.uri, {
+      telemetry: { origin: 'resource_table' },
+      targetPort,
+    });
   }
 
   const rootCluster = appContext.clustersService.findCluster(
@@ -229,7 +236,7 @@ function AppButton(props: {
   cluster: Cluster;
   rootCluster: Cluster;
   connectWithVnet(targetPort?: number): void;
-  setUpGateway(): void;
+  setUpGateway(targetPort?: number): void;
   onLaunchUrl(): void;
   isVnetSupported: boolean;
 }) {
@@ -285,37 +292,15 @@ function AppButton(props: {
         target="_blank"
         title="Launch the app in the browser"
       >
-        <MenuItem onClick={props.setUpGateway}>Set up connection</MenuItem>
+        <MenuItem onClick={() => props.setUpGateway()}>
+          Set up connection
+        </MenuItem>
       </ButtonWithMenu>
     );
   }
 
   // TCP app with VNet.
   if (props.isVnetSupported) {
-    let $targetPorts: JSX.Element;
-    if (props.app.tcpPorts.length) {
-      $targetPorts = (
-        <>
-          <MenuItemSectionSeparator />
-          <MenuItemSectionLabel>Available target ports</MenuItemSectionLabel>
-          {props.app.tcpPorts.map((portRange, index) => (
-            <MenuItem
-              // This list can't be dynamically reordered, so index as key is fine. Port ranges are
-              // not guaranteed to be unique, the user might add the same range twice.
-              key={index}
-              title="Start VNet and copy address to clipboard"
-              // In case that portRange represents a range and not a single port, passing the first
-              // port is fine. Otherwise we'd need to somehow offer an input for the user to choose
-              // any port within the range.
-              onClick={() => props.connectWithVnet(portRange.port)}
-            >
-              {formatPortRange(portRange)}
-            </MenuItem>
-          ))}
-        </>
-      );
-    }
-
     return (
       <ButtonWithMenu
         text="Connect"
@@ -323,23 +308,73 @@ function AppButton(props: {
         size="small"
         onClick={() => props.connectWithVnet()}
       >
-        <MenuItem onClick={props.setUpGateway}>Connect without VNet</MenuItem>
-        {$targetPorts}
+        <MenuItem onClick={() => props.setUpGateway()}>
+          Connect without VNet
+        </MenuItem>
+        {!!props.app.tcpPorts.length && (
+          <>
+            <MenuItemSectionSeparator />
+            <AvailableTargetPorts
+              tcpPorts={props.app.tcpPorts}
+              onItemClick={port => props.connectWithVnet(port)}
+            />
+          </>
+        )}
       </ButtonWithMenu>
     );
   }
 
-  // TCP app without VNet.
+  // Multi-port TCP app without VNet.
+  if (props.app.tcpPorts.length) {
+    return (
+      <ButtonWithMenu
+        text="Connect"
+        textTransform="none"
+        size="small"
+        onClick={() => props.setUpGateway()}
+      >
+        <AvailableTargetPorts
+          tcpPorts={props.app.tcpPorts}
+          onItemClick={port => props.setUpGateway(port)}
+        />
+      </ButtonWithMenu>
+    );
+  }
+
+  // Single-port TCP app without VNet.
   return (
     <ButtonBorder
       size="small"
-      onClick={props.setUpGateway}
+      onClick={() => props.setUpGateway()}
       textTransform="none"
     >
       Connect
     </ButtonBorder>
   );
 }
+
+const AvailableTargetPorts = (props: {
+  tcpPorts: PortRange[];
+  onItemClick: (portRangePort: number) => void;
+}) => (
+  <>
+    <MenuItemSectionLabel>Available target ports</MenuItemSectionLabel>
+    {props.tcpPorts.map((portRange, index) => (
+      <MenuItem
+        // This list can't be dynamically reordered, so index as key is fine. Port ranges are
+        // not guaranteed to be unique, the user might add the same range twice.
+        key={index}
+        title="Start VNet and copy address to clipboard"
+        // In case that portRange represents a range and not a single port, passing the first
+        // port is fine. Otherwise we'd need to somehow offer an input for the user to choose
+        // any port within the range.
+        onClick={() => props.onItemClick(portRange.port)}
+      >
+        {formatPortRange(portRange)}
+      </MenuItem>
+    ))}
+  </>
+);
 
 export function AccessRequestButton(props: {
   isResourceAdded: boolean;

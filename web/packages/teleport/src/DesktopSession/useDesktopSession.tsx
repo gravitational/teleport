@@ -24,7 +24,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 
 import type { UrlDesktopParams } from 'teleport/config';
 import { ButtonState } from 'teleport/lib/tdp';
-import { useMfaTty } from 'teleport/lib/useMfa';
+import { useMfaEmitter } from 'teleport/lib/useMfa';
 import desktopService from 'teleport/services/desktops';
 import userService from 'teleport/services/user';
 
@@ -129,7 +129,7 @@ export default function useDesktopSession() {
   });
   const tdpClient = clientCanvasProps.tdpClient;
 
-  const mfa = useMfaTty(tdpClient);
+  const mfa = useMfaEmitter(tdpClient);
 
   const onShareDirectory = () => {
     try {

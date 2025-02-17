@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	"github.com/stretchr/testify/require"
 
@@ -31,11 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-func newFakeRedshiftClientProvider(c RedshiftClient) RedshiftClientProviderFunc {
-	return func(cfg aws.Config, optFns ...func(*redshift.Options)) RedshiftClient {
-		return c
-	}
-}
 func TestRedshiftFetcher(t *testing.T) {
 	t.Parallel()
 
@@ -48,9 +42,11 @@ func TestRedshiftFetcher(t *testing.T) {
 		{
 			name: "fetch all",
 			fetcherCfg: AWSFetcherFactoryConfig{
-				RedshiftClientProviderFn: newFakeRedshiftClientProvider(&mocks.RedshiftClient{
-					Clusters: []redshifttypes.Cluster{*redshiftUse1Prod, *redshiftUse1Dev},
-				}),
+				AWSClients: fakeAWSClients{
+					redshiftClient: &mocks.RedshiftClient{
+						Clusters: []redshifttypes.Cluster{*redshiftUse1Prod, *redshiftUse1Dev},
+					},
+				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherRedshift, "us-east-1", wildcardLabels),
 			wantDatabases: types.Databases{redshiftDatabaseUse1Prod, redshiftDatabaseUse1Dev},
@@ -58,9 +54,11 @@ func TestRedshiftFetcher(t *testing.T) {
 		{
 			name: "fetch prod",
 			fetcherCfg: AWSFetcherFactoryConfig{
-				RedshiftClientProviderFn: newFakeRedshiftClientProvider(&mocks.RedshiftClient{
-					Clusters: []redshifttypes.Cluster{*redshiftUse1Prod, *redshiftUse1Dev},
-				}),
+				AWSClients: fakeAWSClients{
+					redshiftClient: &mocks.RedshiftClient{
+						Clusters: []redshifttypes.Cluster{*redshiftUse1Prod, *redshiftUse1Dev},
+					},
+				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherRedshift, "us-east-1", envProdLabels),
 			wantDatabases: types.Databases{redshiftDatabaseUse1Prod},
@@ -68,9 +66,11 @@ func TestRedshiftFetcher(t *testing.T) {
 		{
 			name: "skip unavailable",
 			fetcherCfg: AWSFetcherFactoryConfig{
-				RedshiftClientProviderFn: newFakeRedshiftClientProvider(&mocks.RedshiftClient{
-					Clusters: []redshifttypes.Cluster{*redshiftUse1Prod, *redshiftUse1Unavailable, *redshiftUse1UnknownStatus},
-				}),
+				AWSClients: fakeAWSClients{
+					redshiftClient: &mocks.RedshiftClient{
+						Clusters: []redshifttypes.Cluster{*redshiftUse1Prod, *redshiftUse1Unavailable, *redshiftUse1UnknownStatus},
+					},
+				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherRedshift, "us-east-1", wildcardLabels),
 			wantDatabases: types.Databases{redshiftDatabaseUse1Prod, redshiftDatabaseUnknownStatus},

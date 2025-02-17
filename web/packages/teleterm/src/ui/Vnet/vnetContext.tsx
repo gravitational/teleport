@@ -53,6 +53,7 @@ export type VnetContext = {
   stopAttempt: Attempt<void>;
   listDNSZones: () => Promise<[string[], Error]>;
   listDNSZonesAttempt: Attempt<string[]>;
+  runDiagnostics: () => Promise<[void, Error]>;
 };
 
 export type VnetStatus =
@@ -99,6 +100,12 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
       setStatus({ value: 'running' });
       setAppState({ autoStart: true });
     }, [vnet, setAppState, appCtx])
+  );
+
+  const [, runDiagnostics] = useAsync(
+    useCallback(async () => {
+      await vnet.runDiagnostics({});
+    }, [vnet])
   );
 
   const [stopAttempt, stop] = useAsync(
@@ -176,6 +183,7 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
         stopAttempt,
         listDNSZones,
         listDNSZonesAttempt,
+        runDiagnostics,
       }}
     >
       {props.children}

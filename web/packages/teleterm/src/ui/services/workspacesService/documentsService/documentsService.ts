@@ -29,6 +29,7 @@ import {
 } from 'teleterm/ui/uri';
 import { unique } from 'teleterm/ui/utils/uid';
 
+import { getDocumentGatewayTitle } from './documentsUtils';
 import {
   CreateAccessRequestDocumentOpts,
   CreateGatewayDocumentOpts,
@@ -74,11 +75,23 @@ export class DocumentsService {
     opts: CreateAccessRequestDocumentOpts
   ): DocumentAccessRequests {
     const uri = routing.getDocUri({ docId: unique() });
+    let title: string;
+    switch (opts.state) {
+      case 'creating':
+        title = 'New Role Request';
+        break;
+      case 'reviewing':
+        title = `Access Request: ${opts.requestId.slice(-5)}`;
+        break;
+      case 'browsing':
+      default:
+        title = 'Access Requests';
+    }
     return {
       uri,
       clusterUri: opts.clusterUri,
       requestId: opts.requestId,
-      title: opts.title || 'Access Requests',
+      title,
       kind: 'doc.access_requests',
       state: opts.state,
     };
@@ -155,9 +168,8 @@ export class DocumentsService {
       origin,
     } = opts;
     const uri = routing.getDocUri({ docId: unique() });
-    const title = targetUser ? `${targetUser}@${targetName}` : targetName;
 
-    return {
+    const doc: DocumentGateway = {
       uri,
       kind: 'doc.gateway',
       targetUri,
@@ -165,11 +177,13 @@ export class DocumentsService {
       targetName,
       targetSubresourceName,
       gatewayUri,
-      title,
+      title: undefined,
       port,
       origin,
       status: '',
     };
+    doc.title = getDocumentGatewayTitle(doc);
+    return doc;
   }
 
   createGatewayCliDocument({

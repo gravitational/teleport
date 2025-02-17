@@ -13,11 +13,7 @@ This functionality gives you insights into the following areas:
 - Which users have SSH private keys that grant access to SSH servers?
 - Which laptops have unprotected SSH private keys?
 
-Access Graph is a feature of the [Teleport Policy](https://goteleport.com/platform/policy/) product
-available to Teleport Enterprise edition customers.
-
-After logging in to the Teleport UI, navigate to the Management tab. If enabled, Access Graph options can be found
-under the Permission Management section.
+(!docs/pages/includes/policy/access-graph.mdx!)
 
 ## How it works
 
@@ -167,7 +163,7 @@ Below are a few example queries demonstrating how the `ssh_keys` view can be use
   ```
 - View insecure access paths and SSH authorized keys for a specific node:
   ```sql
-  SELECT * FROM ssh_keys WHERE resource='<Var name="resource name" />';
+  SELECT * FROM ssh_keys WHERE resource='RESOURCE_NAME';
   ```
 - View insecure access paths and SSH authorized keys for a subset of nodes using labels:
   ```sql

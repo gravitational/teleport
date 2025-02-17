@@ -21,11 +21,17 @@ package db
 import (
 	"context"
 	"log/slog"
+	"maps"
+	"slices"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/elasticache"
+	"github.com/aws/aws-sdk-go-v2/service/memorydb"
+	opensearch "github.com/aws/aws-sdk-go-v2/service/opensearch"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
+	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -67,27 +73,62 @@ func IsAzureMatcherType(matcherType string) bool {
 	return len(makeAzureFetcherFuncs[matcherType]) > 0
 }
 
+// AWSClientProvider provides AWS service API clients.
+type AWSClientProvider interface {
+	// GetElastiCacheClient provides an [ElastiCacheClient].
+	GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) ElastiCacheClient
+	// GetMemoryDBClient provides an [MemoryDBClient].
+	GetMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) MemoryDBClient
+	// GetOpenSearchClient provides an [OpenSearchClient].
+	GetOpenSearchClient(cfg aws.Config, optFns ...func(*opensearch.Options)) OpenSearchClient
+	// GetRDSClient provides an [RDSClient].
+	GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) RDSClient
+	// GetRedshiftClient provides an [RedshiftClient].
+	GetRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) RedshiftClient
+	// GetRedshiftServerlessClient provides an [RSSClient].
+	GetRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) RSSClient
+}
+
+type defaultAWSClients struct{}
+
+func (defaultAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) ElastiCacheClient {
+	return elasticache.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) GetMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) MemoryDBClient {
+	return memorydb.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) GetOpenSearchClient(cfg aws.Config, optFns ...func(*opensearch.Options)) OpenSearchClient {
+	return opensearch.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) RDSClient {
+	return rds.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) GetRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) RedshiftClient {
+	return redshift.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) GetRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) RSSClient {
+	return rss.NewFromConfig(cfg, optFns...)
+}
+
 // AWSFetcherFactoryConfig is the configuration for an [AWSFetcherFactory].
 type AWSFetcherFactoryConfig struct {
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
-	// CloudClients is an interface for retrieving AWS SDK v1 cloud clients.
-	CloudClients cloud.AWSClients
-	// RedshiftClientProviderFn is an optional function that provides
-	RedshiftClientProviderFn RedshiftClientProviderFunc
+	// AWSClients provides AWS SDK clients.
+	AWSClients AWSClientProvider
 }
 
 func (c *AWSFetcherFactoryConfig) checkAndSetDefaults() error {
-	if c.CloudClients == nil {
-		return trace.BadParameter("missing CloudClients")
-	}
 	if c.AWSConfigProvider == nil {
 		return trace.BadParameter("missing AWSConfigProvider")
 	}
-	if c.RedshiftClientProviderFn == nil {
-		c.RedshiftClientProviderFn = func(cfg aws.Config, optFns ...func(*redshift.Options)) RedshiftClient {
-			return redshift.NewFromConfig(cfg, optFns...)
-		}
+	if c.AWSClients == nil {
+		c.AWSClients = defaultAWSClients{}
 	}
 	return nil
 }
@@ -119,21 +160,22 @@ func (f *AWSFetcherFactory) MakeFetchers(ctx context.Context, matchers []types.A
 		for _, matcherType := range matcher.Types {
 			makeFetchers, found := makeAWSFetcherFuncs[matcherType]
 			if !found {
-				return nil, trace.BadParameter("unknown matcher type %q. Supported AWS matcher types are %v", matcherType, maps.Keys(makeAWSFetcherFuncs))
+				return nil, trace.BadParameter("unknown matcher type %q. Supported AWS matcher types are %v",
+					matcherType,
+					slices.Collect(maps.Keys(makeAWSFetcherFuncs)))
 			}
 
 			for _, makeFetcher := range makeFetchers {
 				for _, region := range matcher.Regions {
 					fetcher, err := makeFetcher(awsFetcherConfig{
-						AWSClients:               f.cfg.CloudClients,
-						Type:                     matcherType,
-						AssumeRole:               assumeRole,
-						Labels:                   matcher.Tags,
-						Region:                   region,
-						Integration:              matcher.Integration,
-						DiscoveryConfigName:      discoveryConfigName,
-						AWSConfigProvider:        f.cfg.AWSConfigProvider,
-						redshiftClientProviderFn: f.cfg.RedshiftClientProviderFn,
+						Type:                matcherType,
+						AssumeRole:          assumeRole,
+						Labels:              matcher.Tags,
+						Region:              region,
+						Integration:         matcher.Integration,
+						DiscoveryConfigName: discoveryConfigName,
+						AWSConfigProvider:   f.cfg.AWSConfigProvider,
+						awsClients:          f.cfg.AWSClients,
 					})
 					if err != nil {
 						return nil, trace.Wrap(err)
@@ -152,7 +194,9 @@ func MakeAzureFetchers(clients cloud.AzureClients, matchers []types.AzureMatcher
 		for _, matcherType := range matcher.Types {
 			makeFetchers, found := makeAzureFetcherFuncs[matcherType]
 			if !found {
-				return nil, trace.BadParameter("unknown matcher type %q. Supported Azure database matcher types are %v", matcherType, maps.Keys(makeAzureFetcherFuncs))
+				return nil, trace.BadParameter("unknown matcher type %q. Supported Azure database matcher types are %v",
+					matcherType,
+					slices.Collect(maps.Keys(makeAzureFetcherFuncs)))
 			}
 
 			for _, makeFetcher := range makeFetchers {
@@ -193,12 +237,4 @@ func filterDatabasesByLabels(ctx context.Context, databases types.Databases, lab
 		}
 	}
 	return matchedDatabases
-}
-
-// flatten flattens a nested slice [][]T to []T.
-func flatten[T any](s [][]T) (result []T) {
-	for i := range s {
-		result = append(result, s[i]...)
-	}
-	return
 }

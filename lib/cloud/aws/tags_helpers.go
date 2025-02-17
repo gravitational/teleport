@@ -21,20 +21,16 @@ package aws
 import (
 	"context"
 	"log/slog"
-	"slices"
 
-	ec2TypesV2 "github.com/aws/aws-sdk-go-v2/service/ec2/types"
-	rdsTypesV2 "github.com/aws/aws-sdk-go-v2/service/rds/types"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
+	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
+	opensearchtypes "github.com/aws/aws-sdk-go-v2/service/opensearch/types"
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/elasticache"
-	"github.com/aws/aws-sdk-go/service/memorydb"
-	"github.com/aws/aws-sdk-go/service/opensearchservice"
-	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/redshiftserverless"
-	"github.com/aws/aws-sdk-go/service/secretsmanager"
-	"golang.org/x/exp/maps"
+	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
+	smtypes "github.com/aws/aws-sdk-go-v2/service/secretsmanager/types"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -43,16 +39,14 @@ import (
 type ResourceTag interface {
 	// TODO Go generic does not allow access common fields yet. List all types
 	//  here and use a type switch for now.
-	rdsTypesV2.Tag |
-		ec2TypesV2.Tag |
+	rdstypes.Tag |
+		ec2types.Tag |
 		redshifttypes.Tag |
-		*ec2.Tag |
-		*rds.Tag |
-		*elasticache.Tag |
-		*memorydb.Tag |
-		*redshiftserverless.Tag |
-		*opensearchservice.Tag |
-		*secretsmanager.Tag
+		ectypes.Tag |
+		memorydbtypes.Tag |
+		rsstypes.Tag |
+		opensearchtypes.Tag |
+		smtypes.Tag
 }
 
 // TagsToLabels converts a list of AWS resource tags to a label map.
@@ -76,69 +70,23 @@ func TagsToLabels[Tag ResourceTag](tags []Tag) map[string]string {
 
 func resourceTagToKeyValue[Tag ResourceTag](tag Tag) (string, string) {
 	switch v := any(tag).(type) {
-	case *rds.Tag:
-		return aws.StringValue(v.Key), aws.StringValue(v.Value)
-	case *ec2.Tag:
-		return aws.StringValue(v.Key), aws.StringValue(v.Value)
-	case *elasticache.Tag:
-		return aws.StringValue(v.Key), aws.StringValue(v.Value)
-	case *memorydb.Tag:
-		return aws.StringValue(v.Key), aws.StringValue(v.Value)
-	case *redshiftserverless.Tag:
-		return aws.StringValue(v.Key), aws.StringValue(v.Value)
-	case rdsTypesV2.Tag:
-		return aws.StringValue(v.Key), aws.StringValue(v.Value)
-	case ec2TypesV2.Tag:
-		return aws.StringValue(v.Key), aws.StringValue(v.Value)
+	case ectypes.Tag:
+		return aws.ToString(v.Key), aws.ToString(v.Value)
+	case memorydbtypes.Tag:
+		return aws.ToString(v.Key), aws.ToString(v.Value)
+	case rsstypes.Tag:
+		return aws.ToString(v.Key), aws.ToString(v.Value)
+	case rdstypes.Tag:
+		return aws.ToString(v.Key), aws.ToString(v.Value)
+	case ec2types.Tag:
+		return aws.ToString(v.Key), aws.ToString(v.Value)
 	case redshifttypes.Tag:
-		return aws.StringValue(v.Key), aws.StringValue(v.Value)
-	case *opensearchservice.Tag:
-		return aws.StringValue(v.Key), aws.StringValue(v.Value)
-	case *secretsmanager.Tag:
-		return aws.StringValue(v.Key), aws.StringValue(v.Value)
+		return aws.ToString(v.Key), aws.ToString(v.Value)
+	case opensearchtypes.Tag:
+		return aws.ToString(v.Key), aws.ToString(v.Value)
+	case smtypes.Tag:
+		return aws.ToString(v.Key), aws.ToString(v.Value)
 	default:
 		return "", ""
 	}
-}
-
-// SettableTag is a generic interface that represents an AWS resource tag with
-// SetKey and SetValue functions.
-type SettableTag[T any] interface {
-	SetKey(key string) *T
-	SetValue(Value string) *T
-	*T
-}
-
-// LabelsToTags converts a label map to a list of AWS resource tags.
-func LabelsToTags[T any, PT SettableTag[T]](labels map[string]string) (tags []*T) {
-	keys := maps.Keys(labels)
-	slices.Sort(keys)
-
-	for _, key := range keys {
-		tag := PT(new(T))
-		tag.SetKey(key)
-		tag.SetValue(labels[key])
-
-		tags = append(tags, (*T)(tag))
-	}
-	return
-}
-
-// LabelsToRDSV2Tags converts labels into [rdsTypesV2.Tag] list.
-func LabelsToRDSV2Tags(labels map[string]string) []rdsTypesV2.Tag {
-	keys := maps.Keys(labels)
-	slices.Sort(keys)
-
-	ret := make([]rdsTypesV2.Tag, 0, len(keys))
-	for _, key := range keys {
-		key := key
-		value := labels[key]
-
-		ret = append(ret, rdsTypesV2.Tag{
-			Key:   &key,
-			Value: &value,
-		})
-	}
-
-	return ret
 }

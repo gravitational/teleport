@@ -17,27 +17,21 @@
  */
 
 import { within } from '@testing-library/react';
-import { useState } from 'react';
+import selectEvent from 'react-select-event';
 
 import { render, screen, userEvent } from 'design/utils/testing';
 import Validation from 'shared/components/Validation';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
+import { Role } from 'teleport/services/resources';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 import { StandardEditor, StandardEditorProps } from './StandardEditor';
-import {
-  newRole,
-  roleToRoleEditorModel,
-  StandardEditorModel,
-} from './standardmodel';
+import { useStandardModel } from './useStandardModel';
 
 const TestStandardEditor = (props: Partial<StandardEditorProps>) => {
   const ctx = createTeleportContext();
-  const [model, setModel] = useState<StandardEditorModel>({
-    roleModel: roleToRoleEditorModel(newRole()),
-    isDirty: true,
-  });
+  const [model, dispatch] = useStandardModel();
   return (
     <TeleportContextProvider ctx={ctx}>
       <Validation>
@@ -45,7 +39,7 @@ const TestStandardEditor = (props: Partial<StandardEditorProps>) => {
           originalRole={null}
           standardEditorModel={model}
           isProcessing={false}
-          onChange={setModel}
+          dispatch={dispatch}
           {...props}
         />
       </Validation>
@@ -69,6 +63,7 @@ test('adding and removing sections', async () => {
     'Applications',
     'Databases',
     'Windows Desktops',
+    'GitHub Organizations',
   ]);
 
   await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
@@ -82,6 +77,7 @@ test('adding and removing sections', async () => {
     'Applications',
     'Databases',
     'Windows Desktops',
+    'GitHub Organizations',
   ]);
 
   await user.click(screen.getByRole('menuitem', { name: 'Kubernetes' }));
@@ -134,6 +130,70 @@ test('invisible tabs still apply validation', async () => {
   // Switch back, make it valid.
   await user.click(screen.getByRole('tab', { name: 'Invalid data Overview' }));
   await user.type(screen.getByLabelText('Role Name'), 'foo');
+  await user.click(screen.getByRole('button', { name: 'Create Role' }));
+  expect(onSave).toHaveBeenCalled();
+});
+
+test('edits metadata', async () => {
+  const user = userEvent.setup();
+  let role: Role | undefined;
+  const onSave = (r: Role) => (role = r);
+  render(<TestStandardEditor onSave={onSave} />);
+  await user.type(screen.getByLabelText('Description'), 'foo');
+  await selectEvent.select(screen.getByLabelText('Version'), 'v6');
+  await user.click(screen.getByRole('button', { name: 'Create Role' }));
+  expect(role.metadata.description).toBe('foo');
+  expect(role.version).toBe('v6');
+});
+
+test('edits resource access', async () => {
+  const user = userEvent.setup();
+  let role: Role | undefined;
+  const onSave = (r: Role) => (role = r);
+  render(<TestStandardEditor onSave={onSave} />);
+  await user.click(screen.getByRole('tab', { name: 'Resources' }));
+  await user.click(
+    screen.getByRole('button', { name: 'Add New Resource Access' })
+  );
+  await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
+  await selectEvent.create(screen.getByLabelText('Logins'), 'ec2-user', {
+    createOptionText: 'Login: ec2-user',
+  });
+  await user.click(screen.getByRole('button', { name: 'Create Role' }));
+  expect(role.spec.allow.logins).toEqual(['{{internal.logins}}', 'ec2-user']);
+});
+
+test('triggers v6 validation for Kubernetes resources', async () => {
+  const user = userEvent.setup();
+  const onSave = jest.fn();
+  render(<TestStandardEditor onSave={onSave} />);
+  await selectEvent.select(screen.getByLabelText('Version'), 'v6');
+  await user.click(screen.getByRole('tab', { name: 'Resources' }));
+  await user.click(
+    screen.getByRole('button', { name: 'Add New Resource Access' })
+  );
+  await user.click(screen.getByRole('menuitem', { name: 'Kubernetes' }));
+  await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
+  await selectEvent.select(screen.getByLabelText('Kind'), 'Job');
+
+  // Adding a second resource to make sure that we don't run into attempting to
+  // modify an immer-frozen object. This might happen if the reducer tried to
+  // modify resources that were already there.
+  await user.click(
+    screen.getByRole('button', { name: 'Add Another Resource' })
+  );
+  await selectEvent.select(screen.getAllByLabelText('Kind')[1], 'Pod');
+  await user.click(screen.getByRole('button', { name: 'Create Role' }));
+
+  // Validation should have failed on a Job resource and role v6.
+  expect(
+    screen.getByText('Only pods are allowed for role version v6')
+  ).toBeVisible();
+  expect(onSave).not.toHaveBeenCalled();
+
+  // Back to v7, try again
+  await user.click(screen.getByRole('tab', { name: 'Overview' }));
+  await selectEvent.select(screen.getByLabelText('Version'), 'v7');
   await user.click(screen.getByRole('button', { name: 'Create Role' }));
   expect(onSave).toHaveBeenCalled();
 });

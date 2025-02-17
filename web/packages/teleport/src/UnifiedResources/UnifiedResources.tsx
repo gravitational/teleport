@@ -93,6 +93,10 @@ const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
       kind: 'windows_desktop',
       disabled: !flags.desktops,
     },
+    {
+      kind: 'git_server',
+      disabled: !flags.gitServers,
+    },
   ];
 };
 

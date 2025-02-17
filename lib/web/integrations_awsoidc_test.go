@@ -20,8 +20,9 @@ package web
 
 import (
 	"context"
-	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -157,110 +158,6 @@ func TestBuildDeployServiceConfigureIAMScript(t *testing.T) {
 				"role":            []string{"role"},
 				"taskRole":        []string{"taskRole"},
 				"integrationName": []string{"myintegration"},
-			},
-			errCheck: isBadParamErrFn,
-		},
-	}
-
-	for _, tc := range tests {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			resp, err := publicClt.Get(ctx, endpoint, tc.reqQuery)
-			tc.errCheck(t, err)
-			if err != nil {
-				return
-			}
-
-			require.Contains(t, string(resp.Bytes()),
-				fmt.Sprintf("teleportArgs='%s'\n", tc.expectedTeleportArgs),
-			)
-		})
-	}
-}
-
-func TestBuildEICEConfigureIAMScript(t *testing.T) {
-	t.Parallel()
-	isBadParamErrFn := func(tt require.TestingT, err error, i ...any) {
-		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
-	}
-
-	ctx := context.Background()
-	env := newWebPack(t, 1)
-
-	// Unauthenticated client for script downloading.
-	publicClt := env.proxies[0].newClient(t)
-	pathVars := []string{
-		"webapi",
-		"scripts",
-		"integrations",
-		"configure",
-		"eice-iam.sh",
-	}
-	endpoint := publicClt.Endpoint(pathVars...)
-
-	tests := []struct {
-		name                 string
-		reqRelativeURL       string
-		reqQuery             url.Values
-		errCheck             require.ErrorAssertionFunc
-		expectedTeleportArgs string
-	}{
-		{
-			name: "valid",
-			reqQuery: url.Values{
-				"awsRegion":    []string{"us-east-1"},
-				"role":         []string{"myRole"},
-				"awsAccountID": []string{"123456789012"},
-			},
-			errCheck: require.NoError,
-			expectedTeleportArgs: "integration configure eice-iam " +
-				"--aws-region=us-east-1 " +
-				"--role=myRole " +
-				"--aws-account-id=123456789012",
-		},
-		{
-			name: "valid with symbols in role",
-			reqQuery: url.Values{
-				"awsRegion":    []string{"us-east-1"},
-				"role":         []string{"Test+1=2,3.4@5-6_7"},
-				"awsAccountID": []string{"123456789012"},
-			},
-			errCheck: require.NoError,
-			expectedTeleportArgs: "integration configure eice-iam " +
-				"--aws-region=us-east-1 " +
-				"--role=Test\\+1=2,3.4\\@5-6_7 " +
-				"--aws-account-id=123456789012",
-		},
-		{
-			name: "missing aws-region",
-			reqQuery: url.Values{
-				"role":         []string{"myRole"},
-				"awsAccountID": []string{"123456789012"},
-			},
-			errCheck: isBadParamErrFn,
-		},
-		{
-			name: "missing account id",
-			reqQuery: url.Values{
-				"awsRegion": []string{"us-east-1"},
-				"role":      []string{"myRole"},
-			},
-			errCheck: isBadParamErrFn,
-		},
-		{
-			name: "missing role",
-			reqQuery: url.Values{
-				"awsRegion":    []string{"us-east-1"},
-				"awsAccountID": []string{"123456789012"},
-			},
-			errCheck: isBadParamErrFn,
-		},
-		{
-			name: "trying to inject escape sequence into query params",
-			reqQuery: url.Values{
-				"awsRegion":    []string{"'; rm -rf /tmp/dir; echo '"},
-				"role":         []string{"role"},
-				"awsAccountID": []string{"123456789012"},
 			},
 			errCheck: isBadParamErrFn,
 		},
@@ -612,11 +509,6 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 	}
 	scriptEndpoint := publicClt.Endpoint(pathVars...)
 
-	jwksEndpoint := publicClt.Endpoint(".well-known", "jwks-oidc")
-	resp, err := publicClt.Get(ctx, jwksEndpoint, nil)
-	require.NoError(t, err)
-	jwksBase64 := base64.StdEncoding.EncodeToString(resp.Bytes())
-
 	tests := []struct {
 		name                 string
 		reqRelativeURL       string
@@ -630,8 +522,6 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 				"awsRegion":       []string{"us-east-1"},
 				"role":            []string{"myRole"},
 				"integrationName": []string{"myintegration"},
-				"s3Bucket":        []string{"my-bucket"},
-				"s3Prefix":        []string{"prefix"},
 				"policyPreset":    []string{""},
 			},
 			errCheck: require.NoError,
@@ -639,8 +529,7 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 				"--cluster=localhost " +
 				"--name=myintegration " +
 				"--role=myRole " +
-				`--s3-bucket-uri=s3://my-bucket/prefix ` +
-				"--s3-jwks-base64=" + jwksBase64,
+				"--proxy-public-url=" + proxyPublicURL.String(),
 		},
 		{
 			name: "valid with proxy endpoint",
@@ -662,16 +551,13 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 				"awsRegion":       []string{"us-east-1"},
 				"role":            []string{"Test+1=2,3.4@5-6_7"},
 				"integrationName": []string{"myintegration"},
-				"s3Bucket":        []string{"my-bucket"},
-				"s3Prefix":        []string{"prefix"},
 			},
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure awsoidc-idp " +
 				"--cluster=localhost " +
 				"--name=myintegration " +
 				"--role=Test\\+1=2,3.4\\@5-6_7 " +
-				`--s3-bucket-uri=s3://my-bucket/prefix ` +
-				"--s3-jwks-base64=" + jwksBase64,
+				"--proxy-public-url=" + proxyPublicURL.String(),
 		},
 		{
 			name: "valid with supported policy preset",
@@ -686,42 +572,20 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 				"--cluster=localhost " +
 				"--name=myintegration " +
 				"--role=myRole " +
-				"--policy-preset=aws-identity-center " +
-				"--proxy-public-url=" + proxyPublicURL.String(),
+				"--proxy-public-url=" + proxyPublicURL.String() + " " +
+				"--policy-preset=aws-identity-center",
 		},
 		{
 			name: "missing role",
 			reqQuery: url.Values{
 				"integrationName": []string{"myintegration"},
-				"s3Bucket":        []string{"my-bucket"},
-				"s3Prefix":        []string{"prefix"},
 			},
 			errCheck: isBadParamErrFn,
 		},
 		{
 			name: "missing integration name",
 			reqQuery: url.Values{
-				"role":     []string{"role"},
-				"s3Bucket": []string{"my-bucket"},
-				"s3Prefix": []string{"prefix"},
-			},
-			errCheck: isBadParamErrFn,
-		},
-		{
-			name: "missing s3 bucket",
-			reqQuery: url.Values{
-				"integrationName": []string{"myintegration"},
-				"role":            []string{"role"},
-				"s3Prefix":        []string{"prefix"},
-			},
-			errCheck: isBadParamErrFn,
-		},
-		{
-			name: "missing s3 prefix",
-			reqQuery: url.Values{
-				"integrationName": []string{"myintegration"},
-				"role":            []string{"role"},
-				"s3Bucket":        []string{"my-bucket"},
+				"role": []string{"role"},
 			},
 			errCheck: isBadParamErrFn,
 		},
@@ -730,9 +594,13 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 			reqQuery: url.Values{
 				"integrationName": []string{"myintegration"},
 				"role":            []string{"role"},
-				"s3Bucket":        []string{"my-bucket"},
 			},
-			errCheck: isBadParamErrFn,
+			expectedTeleportArgs: "integration configure awsoidc-idp " +
+				"--cluster=localhost " +
+				"--name=myintegration " +
+				"--role=role " +
+				"--proxy-public-url=" + proxyPublicURL.String(),
+			errCheck: require.NoError,
 		},
 	}
 
@@ -858,8 +726,6 @@ func TestBuildListDatabasesConfigureIAMScript(t *testing.T) {
 func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	env := newWebPack(t, 1)
-	clt := env.proxies[0].client
 
 	matchRegion := "us-east-1"
 	matchAccountId := "123456789012"
@@ -868,7 +734,7 @@ func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
 		AccountID: matchAccountId,
 	}
 
-	upsertDbSvcFn := func(vpcId string, matcher []*types.DatabaseResourceMatcher) {
+	dbServiceFor := func(vpcId string, matcher []*types.DatabaseResourceMatcher) *types.DatabaseServiceV1 {
 		if matcher == nil {
 			matcher = []*types.DatabaseResourceMatcher{
 				{
@@ -887,8 +753,7 @@ func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
 			ResourceMatchers: matcher,
 		})
 		require.NoError(t, err)
-		_, err = env.server.Auth().UpsertDatabaseService(ctx, svc)
-		require.NoError(t, err)
+		return svc
 	}
 
 	extractKeysFn := func(resp *ui.AWSOIDCRequiredVPCSResponse) []string {
@@ -910,11 +775,9 @@ func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
 	}
 
 	// Double check we start with 0 db svcs.
-	s, err := env.server.Auth().ListResources(ctx, proto.ListResourcesRequest{
-		ResourceType: types.KindDatabaseService,
-	})
-	require.NoError(t, err)
-	require.Empty(t, s.Resources)
+	clt := &mockGetResources{
+		databaseServices: &proto.ListResourcesResponse{},
+	}
 
 	// All vpc's required.
 	resp, err := awsOIDCRequiredVPCSHelper(ctx, clt, req, rdss)
@@ -922,12 +785,13 @@ func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
 	require.Len(t, resp.VPCMapOfSubnets, 5)
 	require.ElementsMatch(t, vpcs, extractKeysFn(resp))
 
-	// Insert two valid database services.
-	upsertDbSvcFn("vpc-1", nil)
-	upsertDbSvcFn("vpc-5", nil)
+	// Add some database services.
+	// Two valid database services.
+	validDBServiceVPC1 := dbServiceFor("vpc-1", nil)
+	validDBServiceVPC5 := dbServiceFor("vpc-5", nil)
 
-	// Insert two invalid database services.
-	upsertDbSvcFn("vpc-2", []*types.DatabaseResourceMatcher{
+	// Two invalid database services.
+	invalidDBServiceVPC2 := dbServiceFor("vpc-2", []*types.DatabaseResourceMatcher{
 		{
 			Labels: &types.Labels{
 				types.DiscoveryLabelAccountID: []string{matchAccountId},
@@ -936,7 +800,7 @@ func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
 			},
 		},
 	})
-	upsertDbSvcFn("vpc-2a", []*types.DatabaseResourceMatcher{
+	invalidDBServiceVPC2a := dbServiceFor("vpc-2a", []*types.DatabaseResourceMatcher{
 		{
 			Labels: &types.Labels{
 				types.DiscoveryLabelAccountID: []string{matchAccountId},
@@ -947,12 +811,12 @@ func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
 		},
 	})
 
-	// Double check services were created.
-	s, err = env.server.Auth().ListResources(ctx, proto.ListResourcesRequest{
-		ResourceType: types.KindDatabaseService,
-	})
-	require.NoError(t, err)
-	require.Len(t, s.Resources, 4)
+	clt.databaseServices.Resources = append(clt.databaseServices.Resources,
+		&proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseService{DatabaseService: validDBServiceVPC1}},
+		&proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseService{DatabaseService: validDBServiceVPC5}},
+		&proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseService{DatabaseService: invalidDBServiceVPC2}},
+		&proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseService{DatabaseService: invalidDBServiceVPC2a}},
+	)
 
 	// Test that only 3 vpcs are required.
 	resp, err = awsOIDCRequiredVPCSHelper(ctx, clt, req, rdss)
@@ -960,9 +824,14 @@ func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
 	require.ElementsMatch(t, []string{"vpc-2", "vpc-3", "vpc-4"}, extractKeysFn(resp))
 
 	// Insert the rest of db services
-	upsertDbSvcFn("vpc-2", nil)
-	upsertDbSvcFn("vpc-3", nil)
-	upsertDbSvcFn("vpc-4", nil)
+	validDBServiceVPC2 := dbServiceFor("vpc-2", nil)
+	validDBServiceVPC3 := dbServiceFor("vpc-3", nil)
+	validDBServiceVPC4 := dbServiceFor("vpc-4", nil)
+	clt.databaseServices.Resources = append(clt.databaseServices.Resources,
+		&proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseService{DatabaseService: validDBServiceVPC2}},
+		&proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseService{DatabaseService: validDBServiceVPC3}},
+		&proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseService{DatabaseService: validDBServiceVPC4}},
+	)
 
 	// Test no required vpcs.
 	resp, err = awsOIDCRequiredVPCSHelper(ctx, clt, req, rdss)
@@ -999,9 +868,16 @@ func TestAWSOIDCRequiredVPCSHelper_CombinedSubnetsForAVpcID(t *testing.T) {
 }
 
 type mockGetResources struct {
+	databaseServices *proto.ListResourcesResponse
 }
 
 func (m *mockGetResources) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
+	switch req.ResourceType {
+	case types.KindDatabaseService:
+		if m.databaseServices != nil {
+			return m.databaseServices, nil
+		}
+	}
 	return &proto.ListResourcesResponse{}, nil
 }
 
@@ -1156,14 +1032,90 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 		_, err = pack.clt.PostJSON(ctx, endpoint, nil)
 		require.NoError(t, err)
 	})
+
+	t.Run("using a period in the name fails when running in cloud", func(t *testing.T) {
+		enableCloudFeatureProxy(t, proxy)
+
+		// Creating an Integration using the account id as name should not return an error if the proxy is listening at the default HTTPS port
+		myIntegrationWithAccountID, err := types.NewIntegrationAWSOIDC(types.Metadata{
+			Name: "env.prod",
+		}, &types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "arn:aws:iam::123456789012:role/teleport",
+		})
+		require.NoError(t, err)
+
+		_, err = env.server.Auth().CreateIntegration(ctx, myIntegrationWithAccountID)
+		require.NoError(t, err)
+		endpoint = pack.clt.Endpoint("webapi", "sites", "localhost", "integrations", "aws-oidc", "env.prod", "aws-app-access")
+		_, err = pack.clt.PostJSON(ctx, endpoint, nil)
+		require.Error(t, err)
+		require.ErrorContains(t, err, `Invalid integration name ("env.prod") for enabling AWS Access.`)
+	})
+}
+
+func enableCloudFeatureProxy(t *testing.T, proxy *testProxy) {
+	t.Helper()
+
+	existingFeatures := proxy.handler.handler.clusterFeatures
+	existingFeatures.Cloud = true
+	proxy.handler.handler.clusterFeatures = existingFeatures
+	t.Cleanup(func() {
+		existingFeatures.Cloud = false
+		proxy.handler.handler.clusterFeatures = existingFeatures
+	})
+}
+
+func TestAWSOIDCAppAccessAppServerCreationWithUserProvidedLabels(t *testing.T) {
+	env := newWebPack(t, 1)
+	ctx := context.Background()
+
+	roleTokenCRD, err := types.NewRole(services.RoleNameForUser("my-user"), types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{"*": []string{"*"}},
+			Rules: []types.Rule{
+				types.NewRule(types.KindIntegration, []string{types.VerbRead}),
+				types.NewRule(types.KindAppServer, []string{types.VerbCreate, types.VerbUpdate, types.VerbList, types.VerbDelete}),
+				types.NewRule(types.KindUserGroup, []string{types.VerbList, types.VerbRead}),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	proxy := env.proxies[0]
+	proxy.handler.handler.cfg.PublicProxyAddr = strings.TrimPrefix(proxy.handler.handler.cfg.PublicProxyAddr, "https://")
+	pack := proxy.authPack(t, "foo@example.com", []types.Role{roleTokenCRD})
+
+	myIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
+		Name: "my-integration",
+	}, &types.AWSOIDCIntegrationSpecV1{
+		RoleARN: "arn:aws:iam::123456789012:role/teleport",
+	})
+	require.NoError(t, err)
+
+	_, err = env.server.Auth().CreateIntegration(ctx, myIntegration)
+	require.NoError(t, err)
+
+	// Create the AWS App Access for the current integration.
+	endpoint := pack.clt.Endpoint("webapi", "sites", "localhost", "integrations", "aws-oidc", "my-integration", "aws-app-access")
+	re, err := pack.clt.PostJSON(ctx, endpoint, ui.AWSOIDCCreateAWSAppAccessRequest{Labels: map[string]string{"env": "testing"}})
+	require.NoError(t, err)
+
+	var app ui.App
+	require.NoError(t, json.Unmarshal(re.Bytes(), &app))
+
+	require.ElementsMatch(t, app.Labels, []libui.Label{{Name: "env", Value: "testing"}, {Name: "aws_account_id", Value: "123456789012"}})
 }
 
 type mockDeployedDatabaseServices struct {
+	listErr           error
 	integration       string
 	servicesPerRegion map[string][]*integrationv1.DeployedDatabaseService
 }
 
 func (m *mockDeployedDatabaseServices) ListDeployedDatabaseServices(ctx context.Context, in *integrationv1.ListDeployedDatabaseServicesRequest, opts ...grpc.CallOption) (*integrationv1.ListDeployedDatabaseServicesResponse, error) {
+	if m.listErr != nil {
+		return nil, m.listErr
+	}
 	const pageSize = 10
 	ret := &integrationv1.ListDeployedDatabaseServicesResponse{}
 	if in.Integration != m.integration {
@@ -1404,6 +1356,76 @@ func dummyDeployedDatabaseServices(count int, command []string) []*integrationv1
 		})
 	}
 	return ret
+}
+
+func TestRegionsForListingDeployedDatabaseService(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("regions query param, returns nil if no internal resources match", func(t *testing.T) {
+		clt := &mockRelevantAWSRegionsClient{
+			databaseServices: &proto.ListResourcesResponse{
+				Resources: []*proto.PaginatedResource{{Resource: &proto.PaginatedResource_DatabaseService{
+					DatabaseService: &types.DatabaseServiceV1{Spec: types.DatabaseServiceSpecV1{
+						ResourceMatchers: []*types.DatabaseResourceMatcher{
+							{Labels: &types.Labels{"region": []string{"af-south-1"}}},
+						},
+					}},
+				}}},
+			},
+			databases:        make([]types.Database, 0),
+			discoveryConfigs: make([]*discoveryconfig.DiscoveryConfig, 0),
+		}
+		r := http.Request{
+			URL: &url.URL{RawQuery: "regions=us-east-1&regions=us-east-2"},
+		}
+		gotRegions, err := regionsForListingDeployedDatabaseService(ctx, &r, clt, clt)
+		require.NoError(t, err)
+		require.ElementsMatch(t, nil, gotRegions)
+	})
+
+	t.Run("regions query param, returns matches in internal resources", func(t *testing.T) {
+		clt := &mockRelevantAWSRegionsClient{
+			databaseServices: &proto.ListResourcesResponse{
+				Resources: []*proto.PaginatedResource{{Resource: &proto.PaginatedResource_DatabaseService{
+					DatabaseService: &types.DatabaseServiceV1{Spec: types.DatabaseServiceSpecV1{
+						ResourceMatchers: []*types.DatabaseResourceMatcher{
+							{Labels: &types.Labels{"region": []string{"af-south-1"}}}},
+					}},
+				}}},
+			},
+			databases:        make([]types.Database, 0),
+			discoveryConfigs: make([]*discoveryconfig.DiscoveryConfig, 0),
+		}
+		r := http.Request{
+			URL: &url.URL{RawQuery: "regions=af-south-1&regions=us-east-2"},
+		}
+		gotRegions, err := regionsForListingDeployedDatabaseService(ctx, &r, clt, clt)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"af-south-1"}, gotRegions)
+	})
+
+	t.Run("fallbacks to internal resources when query param is not present", func(t *testing.T) {
+		clt := &mockRelevantAWSRegionsClient{
+			databaseServices: &proto.ListResourcesResponse{
+				Resources: []*proto.PaginatedResource{{Resource: &proto.PaginatedResource_DatabaseService{
+					DatabaseService: &types.DatabaseServiceV1{Spec: types.DatabaseServiceSpecV1{
+						ResourceMatchers: []*types.DatabaseResourceMatcher{
+							{Labels: &types.Labels{"region": []string{"us-east-1"}}},
+							{Labels: &types.Labels{"region": []string{"us-east-2"}}},
+						},
+					}},
+				}}},
+			},
+			databases:        make([]types.Database, 0),
+			discoveryConfigs: make([]*discoveryconfig.DiscoveryConfig, 0),
+		}
+		r := http.Request{
+			URL: &url.URL{RawQuery: "regions="},
+		}
+		gotRegions, err := regionsForListingDeployedDatabaseService(ctx, &r, clt, clt)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"us-east-1", "us-east-2"}, gotRegions)
+	})
 }
 
 func TestFetchRelevantAWSRegions(t *testing.T) {

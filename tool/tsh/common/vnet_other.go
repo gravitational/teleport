@@ -1,6 +1,3 @@
-//go:build !darwin && !windows
-// +build !darwin,!windows
-
 // Teleport
 // Copyright (C) 2024 Gravitational, Inc.
 //
@@ -17,34 +14,32 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+//go:build !darwin && !windows
+// +build !darwin,!windows
+
 package common
 
 import (
+	"context"
+
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/vnet"
 )
 
-func newVnetCommand(app *kingpin.Application) vnetNotSupported {
-	return vnetNotSupported{}
+// Satisfy unused linter.
+var _ = newVnetClientApplication
+
+func newPlatformVnetAdminSetupCommand(app *kingpin.Application) vnetCLICommand {
+	return vnetCommandNotSupported{}
 }
 
-func newVnetAdminSetupCommand(app *kingpin.Application) vnetNotSupported {
-	return vnetNotSupported{}
+func newPlatformVnetServiceCommand(app *kingpin.Application) vnetCLICommand {
+	return vnetCommandNotSupported{}
 }
 
-type vnetNotSupported struct{}
-
-func (vnetNotSupported) FullCommand() string {
-	return ""
+//nolint:staticcheck // SA4023. runVnetDiagnostics on unsupported platforms always returns err.
+func runVnetDiagnostics(ctx context.Context, nsi vnet.NetworkStackInfo) error {
+	return trace.NotImplemented("diagnostics are not implemented yet on this platform")
 }
-func (vnetNotSupported) run(*CLIConf) error {
-	return trace.Wrap(vnet.ErrVnetNotImplemented)
-}
-
-var (
-	// Satisfy unused linter.
-	_ = (*vnetAppProvider)(nil)
-	_ = newVnetAppProvider
-)

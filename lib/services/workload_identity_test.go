@@ -92,7 +92,11 @@ func TestValidateWorkloadIdentity(t *testing.T) {
 								Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
 									{
 										Attribute: "example",
-										Equals:    "foo",
+										Operator: &workloadidentityv1pb.WorkloadIdentityCondition_Eq{
+											Eq: &workloadidentityv1pb.WorkloadIdentityConditionEq{
+												Value: "foo",
+											},
+										},
 									},
 								},
 							},
@@ -180,7 +184,11 @@ func TestValidateWorkloadIdentity(t *testing.T) {
 								Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
 									{
 										Attribute: "",
-										Equals:    "foo",
+										Operator: &workloadidentityv1pb.WorkloadIdentityCondition_Eq{
+											Eq: &workloadidentityv1pb.WorkloadIdentityConditionEq{
+												Value: "foo",
+											},
+										},
 									},
 								},
 							},
@@ -218,7 +226,7 @@ func TestValidateWorkloadIdentity(t *testing.T) {
 					},
 				},
 			},
-			requireErr: errContains("spec.rules.allow[0].conditions[0]: exactly one operator must be specified, found 0"),
+			requireErr: errContains("spec.rules.allow[0].conditions[0]: operator must be specified"),
 		},
 	}
 

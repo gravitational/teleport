@@ -49,6 +49,9 @@ type AuthPreference interface {
 	GetDefaultSessionTTL() types.Duration
 	GetHardwareKeySerialNumberValidation() (*types.HardwareKeySerialNumberValidation, error)
 	GetAllowPasswordless() bool
+	GetStableUNIXUserConfig() *types.StableUNIXUserConfig
+
+	GetRevision() string
 	Clone() types.AuthPreference
 }
 
@@ -432,6 +435,9 @@ type Server interface {
 	GetAWSInstanceID() string
 	// GetAWSAccountID returns the AWS Account ID if this node comes from an EC2 instance.
 	GetAWSAccountID() string
+
+	// GetGitHub returns the GitHub server spec.
+	GetGitHub() *types.GitHubServerMetadata
 }
 
 // DynamicWindowsDesktop represents a Windows desktop host that is automatically discovered by Windows Desktop Service.

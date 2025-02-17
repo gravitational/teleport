@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestHandleAWSAccessSigVerification tests if LocalProxy verifies the AWS SigV4 signature of incoming request.
@@ -124,6 +125,7 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 				Path:   "/",
 			}
 
+			//nolint:forbidigo // OK to not use "stsutils" on tests.
 			clt := sts.New(sts.Options{
 				APIOptions:       tc.apiOpts,
 				Region:           awsRegion,
@@ -471,7 +473,7 @@ func TestKubeMiddleware(t *testing.T) {
 
 	now := time.Now()
 	clock := clockwork.NewFakeClockAt(now)
-	var certReissuer KubeCertReissuer
+	teleportCluster := "localhost"
 
 	ca := mustGenSelfSignedCert(t)
 	kube1Cert := mustGenCertSignedWithCA(t, ca,
@@ -499,7 +501,7 @@ func TestKubeMiddleware(t *testing.T) {
 		withClock(clock),
 	)
 
-	certReissuer = func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
+	certReissuer := func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
 		select {
 		case <-ctx.Done():
 			return tls.Certificate{}, ctx.Err()
@@ -511,7 +513,7 @@ func TestKubeMiddleware(t *testing.T) {
 	t.Run("expired certificate is still reissued if request context expires", func(t *testing.T) {
 		req := &http.Request{
 			TLS: &tls.ConnectionState{
-				ServerName: "kube1",
+				ServerName: common.KubeLocalProxySNI(teleportCluster, "kube1"),
 			},
 		}
 		// we set request context to a context that is already canceled, so handler function will start reissuing
@@ -520,8 +522,10 @@ func TestKubeMiddleware(t *testing.T) {
 		cancel()
 		req = req.WithContext(reqCtx)
 
+		startCerts := KubeClientCerts{}
+		startCerts.Add(teleportCluster, "kube1", kube1Cert)
 		km := NewKubeMiddleware(KubeMiddlewareConfig{
-			Certs:        KubeClientCerts{"kube1": kube1Cert},
+			Certs:        startCerts,
 			CertReissuer: certReissuer,
 			Clock:        clockwork.NewFakeClockAt(now.Add(time.Hour * 2)),
 			CloseContext: context.Background(),
@@ -553,6 +557,12 @@ func TestKubeMiddleware(t *testing.T) {
 		require.Equal(t, newCert, certs[0], "certificate was not reissued")
 	})
 
+	getStartCerts := func() KubeClientCerts {
+		certs := KubeClientCerts{}
+		certs.Add(teleportCluster, "kube1", kube1Cert)
+		certs.Add(teleportCluster, "kube2", kube2Cert)
+		return certs
+	}
 	testCases := []struct {
 		name            string
 		reqClusterName  string
@@ -562,32 +572,33 @@ func TestKubeMiddleware(t *testing.T) {
 		wantErr         string
 	}{
 		{
-			name:           "kube cluster not found",
-			reqClusterName: "kube3",
-			startCerts:     KubeClientCerts{"kube1": kube1Cert, "kube2": kube2Cert},
-			clock:          clockwork.NewFakeClockAt(now),
-			wantErr:        "no client cert found for kube3",
+			name:            "reissue cert when not found",
+			reqClusterName:  "kube3",
+			startCerts:      getStartCerts(),
+			clock:           clockwork.NewFakeClockAt(now),
+			overwrittenCert: newCert,
+			wantErr:         "",
 		},
 		{
-			name:            "expired cert reissued",
+			name:            "expired cert is reissued",
 			reqClusterName:  "kube1",
-			startCerts:      KubeClientCerts{"kube1": kube1Cert, "kube2": kube2Cert},
+			startCerts:      getStartCerts(),
 			clock:           clockwork.NewFakeClockAt(now.Add(time.Hour * 2)),
 			overwrittenCert: newCert,
 			wantErr:         "",
 		},
 		{
-			name:            "success kube1",
+			name:            "valid cert for kube1 is returned",
 			reqClusterName:  "kube1",
-			startCerts:      KubeClientCerts{"kube1": kube1Cert, "kube2": kube2Cert},
+			startCerts:      getStartCerts(),
 			clock:           clockwork.NewFakeClockAt(now),
 			overwrittenCert: kube1Cert,
 			wantErr:         "",
 		},
 		{
-			name:            "success kube2",
+			name:            "valid cert for kube2 is returned",
 			reqClusterName:  "kube2",
-			startCerts:      KubeClientCerts{"kube1": kube1Cert, "kube2": kube2Cert},
+			startCerts:      getStartCerts(),
 			clock:           clockwork.NewFakeClockAt(now),
 			overwrittenCert: kube2Cert,
 			wantErr:         "",
@@ -598,12 +609,13 @@ func TestKubeMiddleware(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			req := http.Request{
 				TLS: &tls.ConnectionState{
-					ServerName: tt.reqClusterName,
+					ServerName: common.KubeLocalProxySNI(teleportCluster, tt.reqClusterName),
 				},
 			}
 			km := NewKubeMiddleware(KubeMiddlewareConfig{
 				Certs:        tt.startCerts,
 				CertReissuer: certReissuer,
+				Logger:       utils.NewSlogLoggerForTests(),
 				Clock:        tt.clock,
 				CloseContext: context.Background(),
 			})

@@ -17,7 +17,7 @@
  */
 
 import { renderHook, waitFor } from '@testing-library/react';
-import { useState } from 'react';
+import { act } from 'react';
 
 import { CreateAuthenticateChallengeRequest } from 'teleport/services/auth';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
@@ -27,7 +27,7 @@ import {
   MfaChallengeResponse,
 } from 'teleport/services/mfa';
 
-import { useMfa } from './useMfa';
+import { MfaCanceledError, useMfa } from './useMfa';
 
 const mockChallenge: MfaAuthenticateChallenge = {
   webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
@@ -61,10 +61,6 @@ const mockChallengeReq: CreateAuthenticateChallengeRequest = {
 };
 
 describe('useMfa', () => {
-  beforeEach(() => {
-    jest.spyOn(console, 'error').mockImplementation();
-  });
-
   afterEach(() => {
     jest.clearAllMocks();
   });
@@ -80,27 +76,25 @@ describe('useMfa', () => {
       })
     );
 
-    const respPromise = mfa.current.getChallengeResponse();
-    await waitFor(() => {
-      expect(auth.getMfaChallenge).toHaveBeenCalledWith(mockChallengeReq);
+    let resp;
+    await act(async () => {
+      resp = mfa.current.getChallengeResponse();
     });
 
+    expect(auth.getMfaChallenge).toHaveBeenCalledWith(mockChallengeReq);
     expect(mfa.current.options).toEqual([MFA_OPTION_WEBAUTHN]);
-    expect(mfa.current.required).toEqual(true);
+    expect(mfa.current.mfaRequired).toEqual(true);
     expect(mfa.current.challenge).toEqual(mockChallenge);
     expect(mfa.current.attempt.status).toEqual('processing');
 
-    await mfa.current.submit('webauthn');
-    await waitFor(() => {
-      expect(auth.getMfaChallengeResponse).toHaveBeenCalledWith(
-        mockChallenge,
-        'webauthn',
-        undefined
-      );
-    });
+    await act(async () => mfa.current.submit('webauthn'));
+    expect(auth.getMfaChallengeResponse).toHaveBeenCalledWith(
+      mockChallenge,
+      'webauthn',
+      undefined
+    );
 
-    const resp = await respPromise;
-    expect(resp).toEqual(mockResponse);
+    expect(await resp).toEqual(mockResponse);
     expect(mfa.current.challenge).toEqual(null);
     expect(mfa.current.attempt.status).toEqual('success');
   });
@@ -116,51 +110,63 @@ describe('useMfa', () => {
 
     // If a challenge is not returned, an empty mfa response should be returned
     // early and the requirement changed to false for future calls.
-    const resp = await mfa.current.getChallengeResponse();
+    const resp = await act(async () => {
+      return mfa.current.getChallengeResponse();
+    });
     expect(auth.getMfaChallenge).toHaveBeenCalledWith(mockChallengeReq);
     expect(resp).toEqual(undefined);
-    await waitFor(() => expect(mfa.current.required).toEqual(false));
+    await waitFor(() => expect(mfa.current.mfaRequired).toEqual(false));
   });
 
-  test('adaptable mfa requirement state', async () => {
-    jest.spyOn(auth, 'getMfaChallenge').mockResolvedValue(null);
+  test('adaptable mfa requirement', async () => {
+    jest.spyOn(auth, 'getMfaChallenge').mockResolvedValueOnce(mockChallenge);
+    jest
+      .spyOn(auth, 'getMfaChallengeResponse')
+      .mockResolvedValueOnce(mockResponse);
 
-    let isMfaRequired: boolean;
-    let setMfaRequired: (b: boolean) => void;
+    const { result: mfa } = renderHook(() =>
+      useMfa({
+        isMfaRequired: false,
+        req: mockChallengeReq,
+      })
+    );
 
-    let req: CreateAuthenticateChallengeRequest;
-    let setReq: (r: CreateAuthenticateChallengeRequest) => void;
+    // The mfa requirement can be initialized to a non-undefined value to skip
+    // the mfa check when it isn't needed, e.g. the requirement was predetermined.
+    expect(mfa.current.mfaRequired).toEqual(false);
 
-    const { result: mfa } = renderHook(() => {
-      [isMfaRequired, setMfaRequired] = useState<boolean>(null);
-      [req, setReq] =
-        useState<CreateAuthenticateChallengeRequest>(mockChallengeReq);
-
-      return useMfa({
-        req: req,
-        isMfaRequired: isMfaRequired,
-      });
+    // The mfa required state can be changed directly, in case the requirement
+    // need to be updated by the caller.
+    await act(async () => {
+      mfa.current.setMfaRequired(true);
+    });
+    await waitFor(() => {
+      expect(mfa.current.mfaRequired).toEqual(true);
     });
 
-    // mfaRequired should change when the isMfaRequired arg changes, allowing
-    // callers to propagate mfa required late (e.g. per-session MFA for file transfers)
-    setMfaRequired(false);
-    await waitFor(() => expect(mfa.current.required).toEqual(false));
-
-    setMfaRequired(true);
-    await waitFor(() => expect(mfa.current.required).toEqual(true));
-
-    setMfaRequired(null);
-    await waitFor(() => expect(mfa.current.required).toEqual(null));
-
-    // If isMfaRequiredRequest changes, the mfaRequired value should be reset.
-    setReq({
-      ...mockChallengeReq,
-      isMfaRequiredRequest: {
-        admin_action: {},
-      },
+    // The mfa required state can be changed back to undefined (default) or null to force
+    // the next mfa attempt to re-check mfa required / attempt to get a challenge.
+    await act(async () => {
+      mfa.current.setMfaRequired(null);
     });
-    await waitFor(() => expect(mfa.current.required).toEqual(null));
+    await waitFor(() => {
+      expect(mfa.current.mfaRequired).toEqual(null);
+    });
+
+    // mfa required will be updated to true as usual once the server returns an mfa challenge.
+    await act(async () => {
+      mfa.current.getChallengeResponse();
+    });
+    await waitFor(() => {
+      expect(mfa.current.challenge).toBeDefined();
+    });
+    await act(async () => {
+      return mfa.current.submit();
+    });
+
+    await waitFor(() => {
+      expect(mfa.current.mfaRequired).toEqual(true);
+    });
   });
 
   test('mfa challenge error', async () => {
@@ -171,14 +177,15 @@ describe('useMfa', () => {
 
     const { result: mfa } = renderHook(() => useMfa({}));
 
-    await expect(mfa.current.getChallengeResponse).rejects.toThrow(err);
-    await waitFor(() => {
-      expect(mfa.current.attempt).toEqual({
-        status: 'error',
-        statusText: err.message,
-        error: err,
-        data: null,
-      });
+    await act(async () => {
+      await expect(mfa.current.getChallengeResponse()).rejects.toThrow(err);
+    });
+
+    expect(mfa.current.attempt).toEqual({
+      status: 'error',
+      statusText: err.message,
+      error: err,
+      data: null,
     });
   });
 
@@ -195,19 +202,19 @@ describe('useMfa', () => {
       })
     );
 
-    const respPromise = mfa.current.getChallengeResponse();
-    await waitFor(() => {
-      expect(auth.getMfaChallenge).toHaveBeenCalledWith(mockChallengeReq);
+    let resp;
+    await act(async () => {
+      resp = mfa.current.getChallengeResponse();
     });
-    await mfa.current.submit('webauthn');
 
-    await waitFor(() => {
-      expect(mfa.current.attempt).toEqual({
-        status: 'error',
-        statusText: err.message,
-        error: err,
-        data: null,
-      });
+    expect(auth.getMfaChallenge).toHaveBeenCalledWith(mockChallengeReq);
+
+    await act(async () => mfa.current.submit('webauthn'));
+    expect(mfa.current.attempt).toEqual({
+      status: 'error',
+      statusText: err.message,
+      error: err,
+      data: null,
     });
 
     // After an error, the mfa response promise remains in an unresolved state,
@@ -215,8 +222,9 @@ describe('useMfa', () => {
     jest
       .spyOn(auth, 'getMfaChallengeResponse')
       .mockResolvedValueOnce(mockResponse);
-    await mfa.current.submit('webauthn');
-    expect(await respPromise).toEqual(mockResponse);
+
+    await act(async () => mfa.current.submit('webauthn'));
+    expect(await resp).toEqual(mockResponse);
   });
 
   test('reset mfa attempt', async () => {
@@ -227,19 +235,24 @@ describe('useMfa', () => {
       })
     );
 
-    const respPromise = mfa.current.getChallengeResponse();
-    await waitFor(() => {
-      expect(auth.getMfaChallenge).toHaveBeenCalled();
+    let resp: Promise<MfaChallengeResponse>;
+    await act(async () => {
+      resp = mfa.current.getChallengeResponse();
     });
 
-    mfa.current.resetAttempt();
-
-    await expect(respPromise).rejects.toThrow(
-      new Error('MFA attempt cancelled by user')
+    // Before calling mfa.current.cancelAttempt(), we need to write code that handles rejection of
+    // resp. Otherwise the test is going to fail because of unhandled promise rejection.
+    // eslint-disable-next-line jest/valid-expect
+    const expectedRespRejection = expect(resp).rejects.toEqual(
+      new MfaCanceledError()
     );
 
-    await waitFor(() => {
-      expect(mfa.current.attempt.status).toEqual('error');
-    });
+    await act(async () => mfa.current.cancelAttempt());
+
+    await expectedRespRejection;
+    expect(mfa.current.attempt.status).toEqual('error');
+    expect(
+      mfa.current.attempt.status === 'error' && mfa.current.attempt.error
+    ).toEqual(new MfaCanceledError());
   });
 });

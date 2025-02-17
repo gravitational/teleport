@@ -183,12 +183,14 @@ spec:
 - Developers also do not have any "allow rules" i.e. they will not be able to
   see/replay past sessions or re-configure the Teleport cluster.
 
-Create both roles on the auth server:
+Create both roles on the Auth Service:
 
 ```code
 $ tctl create -f admin.yaml
 $ tctl create -f dev.yaml
 ```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
 
 ## Enable default OIDC authentication
 

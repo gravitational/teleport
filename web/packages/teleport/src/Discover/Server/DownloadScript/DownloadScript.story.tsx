@@ -72,7 +72,7 @@ export const Polling: StoryObj = {
   render() {
     return (
       <Provider>
-        <DownloadScript />
+        <DownloadScript prevStep={() => null} />
       </Provider>
     );
   },
@@ -95,7 +95,7 @@ export const PollingSuccess: StoryObj = {
   render() {
     return (
       <Provider interval={5}>
-        <DownloadScript />
+        <DownloadScript prevStep={() => null} />
       </Provider>
     );
   },
@@ -120,7 +120,7 @@ export const PollingError: StoryObj = {
   render() {
     return (
       <Provider interval={50}>
-        <DownloadScript />
+        <DownloadScript prevStep={() => null} />
       </Provider>
     );
   },
@@ -139,7 +139,7 @@ export const Processing: StoryObj = {
   render() {
     return (
       <Provider interval={5}>
-        <DownloadScript />
+        <DownloadScript prevStep={() => null} />
       </Provider>
     );
   },
@@ -163,7 +163,7 @@ export const Failed: StoryObj = {
   render() {
     return (
       <Provider>
-        <DownloadScript />
+        <DownloadScript prevStep={() => null} />
       </Provider>
     );
   },

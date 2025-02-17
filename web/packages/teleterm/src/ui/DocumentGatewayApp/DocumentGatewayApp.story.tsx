@@ -19,10 +19,14 @@
 import { Meta } from '@storybook/react';
 
 import { Flex } from 'design';
-import { wait } from 'shared/utils/wait';
+import { usePromiseRejectedOnUnmount, wait } from 'shared/utils/wait';
 
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
-import { makeAppGateway } from 'teleterm/services/tshd/testHelpers';
+import {
+  makeApp,
+  makeAppGateway,
+  makeRootCluster,
+} from 'teleterm/services/tshd/testHelpers';
 import { DocumentGatewayApp } from 'teleterm/ui/DocumentGatewayApp/DocumentGatewayApp';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -30,10 +34,12 @@ import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspace
 import * as types from 'teleterm/ui/services/workspacesService';
 
 type StoryProps = {
-  appType: 'web' | 'tcp';
+  appType: 'web' | 'tcp' | 'tcp-multi-port';
   online: boolean;
-  changePort: 'succeed' | 'throw-error';
+  changeLocalPort: 'succeed' | 'throw-error';
+  changeTargetPort: 'succeed' | 'throw-error';
   disconnect: 'succeed' | 'throw-error';
+  getTcpPorts: 'succeed' | 'throw-error' | 'processing' | 'many-ports';
 };
 
 const meta: Meta<StoryProps> = {
@@ -42,9 +48,14 @@ const meta: Meta<StoryProps> = {
   argTypes: {
     appType: {
       control: { type: 'radio' },
-      options: ['web', 'tcp'],
+      options: ['web', 'tcp', 'tcp-multi-port'],
     },
-    changePort: {
+    changeLocalPort: {
+      if: { arg: 'online' },
+      control: { type: 'radio' },
+      options: ['succeed', 'throw-error'],
+    },
+    changeTargetPort: {
       if: { arg: 'online' },
       control: { type: 'radio' },
       options: ['succeed', 'throw-error'],
@@ -54,21 +65,33 @@ const meta: Meta<StoryProps> = {
       control: { type: 'radio' },
       options: ['succeed', 'throw-error'],
     },
+    getTcpPorts: {
+      if: { arg: 'online' },
+      control: { type: 'radio' },
+      options: ['succeed', 'throw-error', 'processing', 'many-ports'],
+      description: 'Used only for multi-port TCP apps.',
+    },
   },
   args: {
     appType: 'web',
     online: true,
-    changePort: 'succeed',
+    changeLocalPort: 'succeed',
+    changeTargetPort: 'succeed',
     disconnect: 'succeed',
+    getTcpPorts: 'succeed',
   },
 };
 export default meta;
 
 export function Story(props: StoryProps) {
-  const rootClusterUri = '/clusters/bar';
+  const rootCluster = makeRootCluster({ uri: '/clusters/bar' });
   const gateway = makeAppGateway();
   if (props.appType === 'tcp') {
     gateway.protocol = 'TCP';
+  }
+  if (props.appType === 'tcp-multi-port') {
+    gateway.protocol = 'TCP';
+    gateway.targetSubresourceName = '4242';
   }
   const documentGateway: types.DocumentGateway = {
     kind: 'doc.gateway',
@@ -80,21 +103,19 @@ export function Story(props: StoryProps) {
     targetUser: '',
     status: '',
     targetName: 'quux',
+    targetSubresourceName: undefined,
   };
   if (!props.online) {
     documentGateway.gatewayUri = undefined;
   }
+  if (props.appType === 'tcp-multi-port') {
+    documentGateway.targetSubresourceName = '4242';
+  }
+
+  const infinitePromise = usePromiseRejectedOnUnmount();
 
   const appContext = new MockAppContext();
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = rootClusterUri;
-    draftState.workspaces[rootClusterUri] = {
-      localClusterUri: rootClusterUri,
-      documents: [documentGateway],
-      location: documentGateway.uri,
-      accessRequests: undefined,
-    };
-  });
+  appContext.addRootClusterWithDoc(rootCluster, documentGateway);
   if (props.online) {
     appContext.clustersService.createGateway = () => Promise.resolve(gateway);
     appContext.clustersService.setState(draftState => {
@@ -105,8 +126,26 @@ export function Story(props: StoryProps) {
       wait(1000).then(
         () =>
           new MockedUnaryCall(
-            { ...gateway, localPort },
-            props.changePort === 'throw-error'
+            {
+              ...appContext.clustersService.findGateway(gateway.uri),
+              localPort,
+            },
+            props.changeLocalPort === 'throw-error'
+              ? new Error('something went wrong')
+              : undefined
+          )
+      );
+    appContext.tshd.setGatewayTargetSubresourceName = ({
+      targetSubresourceName,
+    }) =>
+      wait(1000).then(
+        () =>
+          new MockedUnaryCall(
+            {
+              ...appContext.clustersService.findGateway(gateway.uri),
+              targetSubresourceName,
+            },
+            props.changeTargetPort === 'throw-error'
               ? new Error('something went wrong')
               : undefined
           )
@@ -121,6 +160,35 @@ export function Story(props: StoryProps) {
               : undefined
           )
       );
+
+    if (props.getTcpPorts === 'processing') {
+      appContext.tshd.getApp = () => infinitePromise;
+    } else {
+      let tcpPorts = [
+        { port: 1337, endPort: 4242 },
+        { port: 4242, endPort: 0 },
+        { port: 17231, endPort: 0 },
+        { port: 27381, endPort: 28400 },
+      ];
+      if (props.getTcpPorts === 'many-ports') {
+        tcpPorts = new Array(9).fill(tcpPorts).flat();
+      }
+
+      appContext.tshd.getApp = () =>
+        wait(500).then(
+          () =>
+            new MockedUnaryCall(
+              {
+                app: makeApp({
+                  tcpPorts,
+                }),
+              },
+              props.getTcpPorts === 'throw-error'
+                ? new Error('something went wrong')
+                : undefined
+            )
+        );
+    }
   } else {
     appContext.clustersService.createGateway = () =>
       Promise.reject(new Error('failed to create gateway'));

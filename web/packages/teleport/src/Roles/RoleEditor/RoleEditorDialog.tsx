@@ -25,6 +25,7 @@ import Dialog from 'design/Dialog';
 import { State as ResourcesState } from 'teleport/components/useResources';
 import { RoleWithYaml } from 'teleport/services/resources';
 
+import { RolesProps } from '../Roles';
 import { RoleEditorAdapter } from './RoleEditorAdapter';
 
 /**
@@ -38,12 +39,13 @@ export function RoleEditorDialog({
   onClose,
   resources,
   onSave,
+  roleDiffProps,
 }: {
   open: boolean;
   onClose(): void;
   resources: ResourcesState;
   onSave(role: Partial<RoleWithYaml>): Promise<void>;
-}) {
+} & RolesProps) {
   const transitionRef = useRef<HTMLDivElement>();
   return (
     <Transition
@@ -60,6 +62,7 @@ export function RoleEditorDialog({
           transitionState={transitionState}
           resources={resources}
           onSave={onSave}
+          roleDiffProps={roleDiffProps}
         />
       )}
     </Transition>
@@ -73,8 +76,8 @@ const DialogInternal = forwardRef<
     transitionState: TransitionStatus;
     resources: ResourcesState;
     onSave(role: Partial<RoleWithYaml>): Promise<void>;
-  }
->(({ onClose, transitionState, resources, onSave }, ref) => {
+  } & RolesProps
+>(({ onClose, transitionState, resources, onSave, roleDiffProps }, ref) => {
   return (
     <Dialog
       dialogCss={() => fullScreenDialogCss()}
@@ -87,6 +90,7 @@ const DialogInternal = forwardRef<
         resources={resources}
         onSave={onSave}
         onCancel={onClose}
+        roleDiffProps={roleDiffProps}
       />
     </Dialog>
   );

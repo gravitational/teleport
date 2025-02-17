@@ -104,16 +104,8 @@ func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
 			if condition.Attribute == "" {
 				return trace.BadParameter("spec.rules.allow[%d].conditions[%d].attribute: must be non-empty", i, j)
 			}
-			// Ensure exactly one operator is set.
-			operatorsSet := 0
-			if condition.Equals != "" {
-				operatorsSet++
-			}
-			if operatorsSet == 0 || operatorsSet > 1 {
-				return trace.BadParameter(
-					"spec.rules.allow[%d].conditions[%d]: exactly one operator must be specified, found %d",
-					i, j, operatorsSet,
-				)
+			if condition.Operator == nil {
+				return trace.BadParameter("spec.rules.allow[%d].conditions[%d]: operator must be specified", i, j)
 			}
 		}
 	}

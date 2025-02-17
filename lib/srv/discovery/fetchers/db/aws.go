@@ -23,13 +23,10 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
@@ -51,8 +48,6 @@ type awsFetcherPlugin interface {
 
 // awsFetcherConfig is the AWS database fetcher configuration.
 type awsFetcherConfig struct {
-	// AWSClients are the AWS API clients.
-	AWSClients cloud.AWSClients
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
 	// Type is the type of DB matcher, for example "rds", "redshift", etc.
@@ -74,15 +69,12 @@ type awsFetcherConfig struct {
 	// ie teleport.yaml/discovery_service.<cloud>.<matcher>
 	DiscoveryConfigName string
 
-	// redshiftClientProviderFn provides an AWS Redshift client.
-	redshiftClientProviderFn RedshiftClientProviderFunc
+	// awsClients provides AWS SDK v2 clients.
+	awsClients AWSClientProvider
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
 func (cfg *awsFetcherConfig) CheckAndSetDefaults(component string) error {
-	if cfg.AWSClients == nil {
-		return trace.BadParameter("missing parameter AWSClients")
-	}
 	if cfg.AWSConfigProvider == nil {
 		return trace.BadParameter("missing AWSConfigProvider")
 	}
@@ -109,10 +101,8 @@ func (cfg *awsFetcherConfig) CheckAndSetDefaults(component string) error {
 		)
 	}
 
-	if cfg.redshiftClientProviderFn == nil {
-		cfg.redshiftClientProviderFn = func(cfg aws.Config, optFns ...func(*redshift.Options)) RedshiftClient {
-			return redshift.NewFromConfig(cfg, optFns...)
-		}
+	if cfg.awsClients == nil {
+		cfg.awsClients = defaultAWSClients{}
 	}
 	return nil
 }

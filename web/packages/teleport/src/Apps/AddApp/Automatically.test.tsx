@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { act } from '@testing-library/react';
-
 import { fireEvent, render, screen } from 'design/utils/testing';
 
 import { Automatically, createAppBashCommand } from './Automatically';
@@ -33,12 +31,14 @@ test('render command only after form submit', async () => {
     roles: [],
     content: '',
   };
-  render(
+  const { rerender } = render(
     <Automatically
-      token={token}
       attempt={{ status: 'success' }}
       onClose={() => {}}
       onCreate={() => Promise.resolve(true)}
+      labels={[]}
+      setLabels={() => null}
+      token={null}
     />
   );
 
@@ -56,8 +56,21 @@ test('render command only after form submit', async () => {
     target: { value: 'https://gravitational.com' },
   });
 
+  rerender(
+    <Automatically
+      attempt={{ status: 'success' }}
+      onClose={() => {}}
+      onCreate={() => Promise.resolve(true)}
+      labels={[]}
+      setLabels={() => null}
+      token={token}
+    />
+  );
+
   // click button
-  act(() => screen.getByRole('button', { name: /Generate Script/i }).click());
+  fireEvent.click(screen.getByRole('button', { name: /Generate Script/i }));
+
+  await screen.findByText(/Regenerate Script/i);
 
   // after form submission should show the command
   cmd = createAppBashCommand(token.id, 'app-name', 'https://gravitational.com');

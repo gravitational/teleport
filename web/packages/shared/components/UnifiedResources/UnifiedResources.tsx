@@ -473,7 +473,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
             bg="levels.sunken"
             details={updatePinnedResourcesAttempt.statusText}
           >
-            Could not update pinned resources:
+            Could not update pinned resources
           </Danger>
         )}
         {unifiedResourcePreferencesAttempt?.status === 'error' && (
@@ -659,8 +659,8 @@ function getResourcePinningSupport(
 function generateUnifiedResourceKey(
   resource: SharedUnifiedResource['resource']
 ): string {
-  if (resource.kind === 'node') {
-    return `${resource.hostname}/${resource.id}/node`.toLowerCase();
+  if (resource.kind === 'node' || resource.kind == 'git_server') {
+    return `${resource.hostname}/${resource.id}/${resource.kind}`.toLowerCase();
   }
   return `${resource.name}/${resource.kind}`.toLowerCase();
 }

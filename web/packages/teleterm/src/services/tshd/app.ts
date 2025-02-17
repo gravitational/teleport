@@ -114,10 +114,12 @@ export function getAppAddrWithProtocol(source: App): string {
   return addrWithProtocol;
 }
 
+export const portRangeSeparator = '-';
+
 export const formatPortRange = (portRange: PortRange): string =>
   portRange.endPort === 0
     ? portRange.port.toString()
-    : `${portRange.port}-${portRange.endPort}`;
+    : `${portRange.port}${portRangeSeparator}${portRange.endPort}`;
 
 export const publicAddrWithTargetPort = (routeToApp: RouteToApp): string =>
   routeToApp.targetPort

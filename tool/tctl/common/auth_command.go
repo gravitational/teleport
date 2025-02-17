@@ -48,7 +48,6 @@ import (
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
-	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -123,6 +122,9 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 		fmt.Sprintf("export certificate type (%v)", strings.Join(allowedCertificateTypes, ", "))).
 		EnumVar(&a.authType, allowedCertificateTypes...)
 	a.authExport.Flag("integration", "Name of the integration. Only applies to \"github\" CAs.").StringVar(&a.integration)
+	a.authExport.
+		Flag("out", "If set writes exported authorities to files with the given path prefix").
+		StringVar(&a.output)
 
 	a.authGenerate = auth.Command("gen", "Generate a new SSH keypair.").Hidden()
 	a.authGenerate.Flag("pub-key", "path to the public key").Required().StringVar(&a.genPubPath)
@@ -229,31 +231,65 @@ var allowedCRLCertificateTypes = []string{
 	string(types.UserCA),
 }
 
+func (a *AuthCommand) exportAuthorities(ctx context.Context, clt authCommandClient) ([]*client.ExportedAuthority, error) {
+	switch {
+	case client.IsIntegrationAuthorityType(a.authType):
+		if a.exportPrivateKeys {
+			return nil, trace.BadParameter("exporting private keys is not supported for integration authorities")
+		}
+		return client.ExportIntegrationAuthorities(ctx, clt, client.ExportIntegrationAuthoritiesRequest{
+			AuthType:         a.authType,
+			MatchFingerprint: a.exportAuthorityFingerprint,
+			Integration:      a.integration,
+		})
+
+	case a.exportPrivateKeys:
+		return client.ExportAllAuthoritiesSecrets(ctx, clt, client.ExportAuthoritiesRequest{
+			AuthType:                   a.authType,
+			ExportAuthorityFingerprint: a.exportAuthorityFingerprint,
+			UseCompatVersion:           a.compatVersion == "1.0",
+		})
+	default:
+		return client.ExportAllAuthorities(ctx, clt, client.ExportAuthoritiesRequest{
+			AuthType:                   a.authType,
+			ExportAuthorityFingerprint: a.exportAuthorityFingerprint,
+			UseCompatVersion:           a.compatVersion == "1.0",
+		})
+	}
+}
+
 // ExportAuthorities outputs the list of authorities in OpenSSH compatible formats
 // If --type flag is given, only prints keys for CAs of this type, otherwise
 // prints all keys
 func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt authCommandClient) error {
-	exportFunc := client.ExportAuthorities
-	if a.exportPrivateKeys {
-		exportFunc = client.ExportAuthoritiesSecrets
-	}
-
-	authorities, err := exportFunc(
-		ctx,
-		clt,
-		client.ExportAuthoritiesRequest{
-			AuthType:                   a.authType,
-			ExportAuthorityFingerprint: a.exportAuthorityFingerprint,
-			UseCompatVersion:           a.compatVersion == "1.0",
-			Integration:                a.integration,
-		},
-	)
+	authorities, err := a.exportAuthorities(ctx, clt)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	fmt.Println(authorities)
+	if l := len(authorities); l > 1 && a.output == "" {
+		return trace.BadParameter("found %d authorities to export, use --out to export all", l)
+	}
 
+	if a.output != "" {
+		perms := os.FileMode(0644)
+		if a.exportPrivateKeys {
+			perms = 0600
+		}
+
+		fmt.Fprintf(os.Stderr, "Writing %d files with prefix %q\n", len(authorities), a.output)
+		for i, authority := range authorities {
+			name := fmt.Sprintf("%s%d.cer", a.output, i)
+			if err := os.WriteFile(name, authority.Data, perms); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Println(name)
+		}
+		return nil
+	}
+
+	// Only a single CA is exported if we got this far.
+	fmt.Printf("%s\n", authorities[0].Data)
 	return nil
 }
 
@@ -293,7 +329,6 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context, clusterAPI authCommandCl
 // certificateSigner is an interface for the methods used by GenerateAndSignKeys
 // to sign certificates using the Auth Server.
 type certificateSigner interface {
-	kubeutils.KubeServicesPresence
 	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 	GenerateWindowsDesktopCert(context.Context, *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error)
@@ -907,7 +942,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 	}
 	keyRing.ClusterName = a.leafCluster
 
-	if err := a.checkKubeCluster(ctx, clusterAPI); err != nil {
+	if err := a.checkKubeCluster(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1068,7 +1103,7 @@ func (a *AuthCommand) checkLeafCluster(clusterAPI certificateSigner) error {
 	return trace.BadParameter("couldn't find leaf cluster named %q", a.leafCluster)
 }
 
-func (a *AuthCommand) checkKubeCluster(ctx context.Context, clusterAPI certificateSigner) error {
+func (a *AuthCommand) checkKubeCluster() error {
 	if a.kubeCluster == "" {
 		return nil
 	}
@@ -1079,20 +1114,6 @@ func (a *AuthCommand) checkKubeCluster(ctx context.Context, clusterAPI certifica
 	}
 	if a.outputFormat != identityfile.FormatKubernetes {
 		return nil
-	}
-
-	localCluster, err := clusterAPI.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if localCluster.GetClusterName() != a.leafCluster {
-		// Skip validation on remote clusters, since we don't know their
-		// registered kube clusters.
-		return nil
-	}
-
-	if err := kubeutils.CheckKubeCluster(ctx, clusterAPI, a.kubeCluster); err != nil {
-		return trace.Wrap(err)
 	}
 
 	return nil

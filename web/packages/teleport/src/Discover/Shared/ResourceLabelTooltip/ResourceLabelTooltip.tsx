@@ -37,12 +37,36 @@ export function ResourceLabelTooltip({
   resourceKind,
   toolTipPosition,
 }: {
-  resourceKind: 'server' | 'eks' | 'rds' | 'kube' | 'db';
+  resourceKind: 'server' | 'eks' | 'rds' | 'kube' | 'db' | 'app';
   toolTipPosition?: Position;
 }) {
   let tip;
 
   switch (resourceKind) {
+    case 'app': {
+      tip = (
+        <>
+          Labels allow you to do the following:
+          <Ul>
+            <li>
+              Filter applications by labels when using tsh, tctl, or the web UI.
+            </li>
+            <li>
+              Restrict access to this application with{' '}
+              <Link
+                target="_blank"
+                href="https://goteleport.com/docs/enroll-resources/application-access/controls/"
+              >
+                Teleport RBAC
+              </Link>
+              . Only roles with <MarkInverse>app_labels</MarkInverse> that match
+              these labels will be allowed to access this application.
+            </li>
+          </Ul>
+        </>
+      );
+      break;
+    }
     case 'server': {
       tip = (
         <>

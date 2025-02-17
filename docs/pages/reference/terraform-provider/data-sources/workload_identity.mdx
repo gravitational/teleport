@@ -55,7 +55,38 @@ Optional:
 Optional:
 
 - `attribute` (String) The name of the attribute to evaluate the condition against.
-- `equals` (String) An exact string that the attribute must match.
+- `eq` (Attributes) The attribute casted to a string must be equal to the value. (see [below for nested schema](#nested-schema-for-specrulesallowconditionseq))
+- `in` (Attributes) The attribute casted to a string must be in the list of values. (see [below for nested schema](#nested-schema-for-specrulesallowconditionsin))
+- `not_eq` (Attributes) The attribute casted to a string must not be equal to the value. (see [below for nested schema](#nested-schema-for-specrulesallowconditionsnot_eq))
+- `not_in` (Attributes) The attribute casted to a string must not be in the list of values. (see [below for nested schema](#nested-schema-for-specrulesallowconditionsnot_in))
+
+### Nested Schema for `spec.rules.allow.conditions.eq`
+
+Optional:
+
+- `value` (String) The value to compare the attribute against.
+
+
+### Nested Schema for `spec.rules.allow.conditions.in`
+
+Optional:
+
+- `values` (List of String) The list of values to compare the attribute against.
+
+
+### Nested Schema for `spec.rules.allow.conditions.not_eq`
+
+Optional:
+
+- `value` (String) The value to compare the attribute against.
+
+
+### Nested Schema for `spec.rules.allow.conditions.not_in`
+
+Optional:
+
+- `values` (List of String) The list of values to compare the attribute against.
+
 
 
 
@@ -73,4 +104,13 @@ Optional:
 Optional:
 
 - `dns_sans` (List of String) The DNS Subject Alternative Names (SANs) that should be included in an X509-SVID issued using this WorkloadIdentity.  Each entry in this list supports templating using attributes.
+- `subject_template` (Attributes) Used to configure the Subject Distinguished Name (DN) of the X509-SVID.  In most circumstances, it is recommended to prefer relying on the SPIFFE ID encoded in the URI SAN. However, the Subject DN may be needed to support legacy systems designed for X509 and not SPIFFE/WIMSE.  If not provided, the X509-SVID will be issued with an empty Subject DN. (see [below for nested schema](#nested-schema-for-specspiffex509subject_template))
+
+### Nested Schema for `spec.spiffe.x509.subject_template`
+
+Optional:
+
+- `common_name` (String) Common Name (CN) - 2.5.4.3 If empty, the RDN will be omitted from the DN.
+- `organization` (String) Organization (O) - 2.5.4.10 If empty, the RDN will be omitted from the DN.
+- `organizational_unit` (String) Organizational Unit (OU) - 2.5.4.11 If empty, the RDN will be omitted from the DN.
 

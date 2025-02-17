@@ -20,11 +20,12 @@ package proxy
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
@@ -174,6 +175,7 @@ func (m *monitoredKubeClusters) get() map[string]types.KubeCluster {
 func (s *TLSServer) buildClusterDetailsConfigForCluster(cluster types.KubeCluster) clusterDetailsConfig {
 	return clusterDetailsConfig{
 		cloudClients:     s.CloudClients,
+		awsCloudClients:  s.awsClients,
 		cluster:          cluster,
 		log:              s.log,
 		checker:          s.CheckImpersonationPermissions,
@@ -237,7 +239,8 @@ func (s *TLSServer) unregisterKubeCluster(ctx context.Context, name string) erro
 
 	// close active sessions before returning.
 	s.fwd.mu.Lock()
-	sessions := maps.Values(s.fwd.sessions)
+	// collect all sessions to avoid holding the lock while closing them
+	sessions := slices.Collect(maps.Values(s.fwd.sessions))
 	s.fwd.mu.Unlock()
 	// close active sessions
 	for _, sess := range sessions {

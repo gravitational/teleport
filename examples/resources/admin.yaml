@@ -1,6 +1,6 @@
 #
 # Example: Legacy Default Admin Role
-# Tip: For 6.0+ clusters, please use 'editor' for configuring Teleport
+# Tip: Use 'editor' for configuring Teleport
 #
 kind: role
 metadata:

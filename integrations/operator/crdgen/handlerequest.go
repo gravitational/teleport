@@ -213,6 +213,7 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 				withAdditionalColumns(serverColumns),
 			},
 		},
+		{name: "TrustedClusterV2", opts: []resourceSchemaOption{withVersionInKindOverride()}},
 	}
 
 	for _, resource := range resources {

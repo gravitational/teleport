@@ -31,14 +31,14 @@ import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/docu
 import { ClustersService } from '../clusters';
 import { ModalsService } from '../modals';
 import { NotificationsService } from '../notifications';
-import { StatePersistenceService } from '../statePersistence';
+import {
+  PersistedWorkspace,
+  StatePersistenceService,
+  WorkspacesPersistedState,
+} from '../statePersistence';
 import { getEmptyPendingAccessRequest } from './accessRequestsService';
 import { DocumentCluster, DocumentsService } from './documentsService';
-import {
-  Workspace,
-  WorkspacesService,
-  WorkspacesState,
-} from './workspacesService';
+import { WorkspacesService, WorkspacesState } from './workspacesService';
 
 beforeAll(() => {
   Logger.init(new NullService());
@@ -51,11 +51,7 @@ beforeEach(() => {
 describe('restoring workspace', () => {
   it('restores the workspace if there is a persisted state for given clusterUri', () => {
     const cluster = makeRootCluster();
-    const testWorkspace: Workspace = {
-      accessRequests: {
-        isBarCollapsed: true,
-        pending: getEmptyPendingAccessRequest(),
-      },
+    const testWorkspace: PersistedWorkspace = {
       localClusterUri: cluster.uri,
       documents: [
         {
@@ -85,6 +81,7 @@ describe('restoring workspace', () => {
           },
           isBarCollapsed: false,
         },
+        color: 'purple',
         localClusterUri: testWorkspace.localClusterUri,
         documents: [expect.objectContaining({ kind: 'doc.cluster' })],
         location: expect.any(String),
@@ -121,6 +118,7 @@ describe('restoring workspace', () => {
             resources: new Map(),
           },
         },
+        color: 'purple',
         localClusterUri: cluster.uri,
         documents: [expect.objectContaining({ kind: 'doc.cluster' })],
         location: expect.any(String),
@@ -136,6 +134,96 @@ describe('restoring workspace', () => {
     });
     expect(workspacesService.getRestoredState().workspaces).toStrictEqual({});
   });
+
+  it('restores workspace color from state or assigns if empty', async () => {
+    const clusterFoo = makeRootCluster({ uri: '/clusters/foo' });
+    const workspaceFoo: PersistedWorkspace = {
+      color: 'blue',
+      localClusterUri: clusterFoo.uri,
+      documents: [],
+      location: undefined,
+    };
+    const clusterBar = makeRootCluster({ uri: '/clusters/bar' });
+    const workspaceBar: PersistedWorkspace = {
+      localClusterUri: clusterBar.uri,
+      documents: [],
+      location: undefined,
+    };
+    const clusterBaz = makeRootCluster({ uri: '/clusters/baz' });
+    const workspaceBaz: PersistedWorkspace = {
+      localClusterUri: clusterBaz.uri,
+      documents: [],
+      location: undefined,
+    };
+    const clusterQux = makeRootCluster({ uri: '/clusters/qux' });
+    const workspaceQux: PersistedWorkspace = {
+      localClusterUri: clusterQux.uri,
+      documents: [],
+      location: undefined,
+    };
+    const clusterWaldo = makeRootCluster({ uri: '/clusters/waldo' });
+    const workspaceWaldo: PersistedWorkspace = {
+      localClusterUri: clusterWaldo.uri,
+      documents: [],
+      location: undefined,
+    };
+    const clusterFred = makeRootCluster({ uri: '/clusters/fred' });
+    const workspaceFred: PersistedWorkspace = {
+      localClusterUri: clusterFred.uri,
+      documents: [],
+      location: undefined,
+    };
+    const clusterGrault = makeRootCluster({ uri: '/clusters/grault' });
+    const workspaceGrault: PersistedWorkspace = {
+      localClusterUri: clusterGrault.uri,
+      documents: [],
+      location: undefined,
+    };
+    const clusterPlugh = makeRootCluster({ uri: '/clusters/plugh' });
+    const workspacePlugh: PersistedWorkspace = {
+      localClusterUri: clusterPlugh.uri,
+      documents: [],
+      location: undefined,
+    };
+
+    const { workspacesService } = getTestSetup({
+      cluster: [
+        clusterFoo,
+        clusterBar,
+        clusterBaz,
+        clusterQux,
+        clusterWaldo,
+        clusterFred,
+        clusterGrault,
+        clusterPlugh,
+      ],
+      persistedWorkspaces: {
+        [clusterFoo.uri]: workspaceFoo,
+        [clusterBar.uri]: workspaceBar,
+        [clusterBaz.uri]: workspaceBaz,
+        [clusterQux.uri]: workspaceQux,
+        [clusterWaldo.uri]: workspaceWaldo,
+        [clusterFred.uri]: workspaceFred,
+        [clusterGrault.uri]: workspaceGrault,
+        [clusterPlugh.uri]: workspacePlugh,
+      },
+    });
+
+    workspacesService.restorePersistedState();
+
+    expect(workspacesService.getWorkspace(clusterFoo.uri).color).toBe('blue'); // read from disk
+    expect(workspacesService.getWorkspace(clusterBar.uri).color).toBe('purple'); // the first unused color
+    expect(workspacesService.getWorkspace(clusterBaz.uri).color).toBe('green');
+    expect(workspacesService.getWorkspace(clusterQux.uri).color).toBe('yellow');
+    expect(workspacesService.getWorkspace(clusterWaldo.uri).color).toBe('red');
+    expect(workspacesService.getWorkspace(clusterFred.uri).color).toBe('cyan');
+    expect(workspacesService.getWorkspace(clusterGrault.uri).color).toBe(
+      'pink'
+    );
+    expect(workspacesService.getWorkspace(clusterPlugh.uri).color).toBe(
+      'purple'
+    ); // we have run out of colors, assign the default purple color
+  });
 });
 
 describe('state persistence', () => {
@@ -150,6 +238,7 @@ describe('state persistence', () => {
             isBarCollapsed: true,
             pending: getEmptyPendingAccessRequest(),
           },
+          color: 'purple',
           localClusterUri: cluster.uri,
           documents: [
             {
@@ -309,11 +398,7 @@ describe('setActiveWorkspace', () => {
 
   it('sets location to first document if location points to non-existing document when reopening documents', async () => {
     const cluster = makeRootCluster();
-    const testWorkspace: Workspace = {
-      accessRequests: {
-        isBarCollapsed: true,
-        pending: getEmptyPendingAccessRequest(),
-      },
+    const testWorkspace: PersistedWorkspace = {
       localClusterUri: cluster.uri,
       documents: [
         {
@@ -374,11 +459,7 @@ describe('setActiveWorkspace', () => {
   it('ongoing setActive call is canceled when the method is called again', async () => {
     const clusterFoo = makeRootCluster({ uri: '/clusters/foo' });
     const clusterBar = makeRootCluster({ uri: '/clusters/bar' });
-    const workspace1: Workspace = {
-      accessRequests: {
-        isBarCollapsed: true,
-        pending: getEmptyPendingAccessRequest(),
-      },
+    const workspace1: PersistedWorkspace = {
       localClusterUri: clusterFoo.uri,
       documents: [
         {
@@ -410,7 +491,7 @@ describe('setActiveWorkspace', () => {
 
 function getTestSetup(options: {
   cluster: tshd.Cluster | tshd.Cluster[] | undefined;
-  persistedWorkspaces: Record<string, Workspace>;
+  persistedWorkspaces: WorkspacesPersistedState['workspaces'];
 }) {
   const { cluster } = options;
 

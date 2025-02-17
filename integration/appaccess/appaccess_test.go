@@ -831,6 +831,7 @@ func TestTCP(t *testing.T) {
 
 			conn, err := net.Dial("tcp", localProxyAddress)
 			require.NoError(t, err)
+			defer conn.Close()
 
 			buf := make([]byte, 1024)
 			n, err := conn.Read(buf)

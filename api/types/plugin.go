@@ -134,6 +134,7 @@ type PluginStatus interface {
 	GetEntraId() *PluginEntraIDStatusV1
 	GetOkta() *PluginOktaStatusV1
 	GetAwsIc() *PluginAWSICStatusV1
+	GetNetIq() *PluginNetIQStatusV1
 }
 
 // NewPluginV1 creates a new PluginV1 resource.
@@ -564,6 +565,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeEmail
 	case *PluginSpecV1_Msteams:
 		return PluginTypeMSTeams
+	case *PluginSpecV1_NetIq:
+		return PluginTypeNetIQ
 	default:
 		return PluginTypeUnknown
 	}
@@ -600,6 +603,10 @@ func (s *PluginOktaSettings) CheckAndSetDefaults() error {
 
 	if s.SyncSettings.SyncAccessLists && len(s.SyncSettings.DefaultOwners) == 0 {
 		return trace.BadParameter("default owners must be set when access list import is enabled")
+	}
+
+	if s.SyncSettings.UserSyncSource == "" {
+		s.SyncSettings.UserSyncSource = string(OktaUserSyncSourceUnknown)
 	}
 
 	return nil
@@ -751,7 +758,13 @@ func (c *PluginDatadogAccessSettings) CheckAndSetDefaults() error {
 }
 
 func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
-	if c.IntegrationName == "" {
+	// Promote "unknown" credential source values to OIDC for backwards
+	// compatibility with old plugin records
+	if c.CredentialsSource == AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_UNKNOWN {
+		c.CredentialsSource = AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_OIDC
+	}
+
+	if c.CredentialsSource == AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_OIDC && c.IntegrationName == "" {
 		return trace.BadParameter("AWS OIDC integration name must be set")
 	}
 

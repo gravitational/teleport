@@ -200,6 +200,8 @@ func (s *AWSOIDCService) awsClientReq(ctx context.Context, integrationName, regi
 }
 
 // ListEICE returns a paginated list of EC2 Instance Connect Endpoints.
+//
+// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
 func (s *AWSOIDCService) ListEICE(ctx context.Context, req *integrationpb.ListEICERequest) (*integrationpb.ListEICEResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -249,6 +251,8 @@ func (s *AWSOIDCService) ListEICE(ctx context.Context, req *integrationpb.ListEI
 }
 
 // CreateEICE creates multiple EC2 Instance Connect Endpoint using the provided Subnets and Security Group IDs.
+//
+// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
 func (s *AWSOIDCService) CreateEICE(ctx context.Context, req *integrationpb.CreateEICERequest) (*integrationpb.CreateEICEResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -661,6 +665,8 @@ func (s *AWSOIDCService) DeployService(ctx context.Context, req *integrationpb.D
 }
 
 // ListEC2 returns a paginated list of AWS EC2 instances.
+//
+// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
 func (s *AWSOIDCService) ListEC2(ctx context.Context, req *integrationpb.ListEC2Request) (*integrationpb.ListEC2Response, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {

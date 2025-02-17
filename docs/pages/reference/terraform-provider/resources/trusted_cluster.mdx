@@ -15,6 +15,7 @@ description: This page describes the supported values of the teleport_trusted_cl
 # Teleport trusted cluster
 
 resource "teleport_trusted_cluster" "cluster" {
+  version = "v2"
   metadata = {
     name = "primary"
     labels = {

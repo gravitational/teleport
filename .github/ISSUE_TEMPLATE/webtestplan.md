@@ -823,7 +823,7 @@ Add the following to enable read access to trusted clusters
     - [Authentication connectors](https://goteleport.com/docs/setup/reference/authentication/#authentication-connectors):
       - For those you might want to use clusters that are deployed on the web, specified in
         parens. Or set up the connectors on a local enterprise cluster following [the guide from
-        our wiki](https://gravitational.slab.com/posts/quick-git-hub-saml-oidc-setup-6dfp292a).
+        our wiki](https://www.notion.so/goteleport/Quick-SSO-setup-fb1a64504115414ca50a965390105bee).
       - [ ] GitHub (asteroid)
       - [ ] SAML (platform cluster)
       - [ ] OIDC (e-demo)

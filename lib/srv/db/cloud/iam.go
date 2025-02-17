@@ -20,12 +20,11 @@ package cloud
 
 import (
 	"context"
-	"errors"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -33,8 +32,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common/iam"
 )
@@ -45,13 +44,15 @@ type IAMConfig struct {
 	Clock clockwork.Clock
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint authclient.DatabaseAccessPoint
-	// Clients is an interface for retrieving cloud clients.
-	Clients cloud.Clients
+	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
+	AWSConfigProvider awsconfig.Provider
 	// HostID is the host identified where this agent is running.
 	// DELETE IN 11.0.
 	HostID string
 	// onProcessedTask is called after a task is processed.
 	onProcessedTask func(processedTask iamTask, processError error)
+	// awsClients is an SDK client provider.
+	awsClients awsClientProvider
 }
 
 // Check validates the IAM configurator config.
@@ -62,15 +63,14 @@ func (c *IAMConfig) Check() error {
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing AccessPoint")
 	}
-	if c.Clients == nil {
-		cloudClients, err := cloud.NewClients()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		c.Clients = cloudClients
+	if c.AWSConfigProvider == nil {
+		return trace.BadParameter("missing AWSConfigProvider")
 	}
 	if c.HostID == "" {
 		return trace.BadParameter("missing HostID")
+	}
+	if c.awsClients == nil {
+		c.awsClients = defaultAWSClients{}
 	}
 	return nil
 }
@@ -233,10 +233,11 @@ func (c *IAM) getAWSConfigurator(ctx context.Context, database types.Database) (
 		return nil, trace.Wrap(err)
 	}
 	return newAWS(ctx, awsConfig{
-		clients:    c.cfg.Clients,
-		policyName: policyName,
-		identity:   identity,
-		database:   database,
+		awsConfigProvider: c.cfg.AWSConfigProvider,
+		database:          database,
+		identity:          identity,
+		policyName:        policyName,
+		awsClients:        c.cfg.awsClients,
 	})
 }
 
@@ -256,11 +257,17 @@ func (c *IAM) getAWSIdentity(ctx context.Context, database types.Database) (awsl
 		return c.agentIdentity, nil
 	}
 	c.mu.RUnlock()
-	sts, err := c.cfg.Clients.GetAWSSTSClient(ctx, meta.Region, cloud.WithAmbientCredentials())
+
+	awsCfg, err := c.cfg.AWSConfigProvider.GetConfig(ctx, meta.Region, awsconfig.WithAmbientCredentials())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	awsIdentity, err := awslib.GetIdentityWithClient(ctx, sts)
+	clt := c.cfg.awsClients.getSTSClient(awsCfg)
+	_, err = awsCfg.Credentials.Retrieve(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to retrieve credentials")
+	}
+	awsIdentity, err := awslib.GetIdentityWithClient(ctx, clt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -294,9 +301,10 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 	configurator, err := c.getAWSConfigurator(ctx, task.database)
 	if err != nil {
 		c.iamPolicyStatus.Store(task.database.GetName(), types.IAMPolicyStatus_IAM_POLICY_STATUS_FAILED)
-		if errors.Is(trace.Unwrap(err), credentials.ErrNoValidProvidersFoundInChain) {
-			c.logger.WarnContext(ctx, "No AWS credentials provider, Skipping IAM task for database",
+		if strings.Contains(err.Error(), "failed to retrieve credentials") {
+			c.logger.WarnContext(ctx, "Failed to load AWS IAM configurator, skipping IAM task for database",
 				"database", task.database.GetName(),
+				"error", err,
 			)
 			return nil
 		}

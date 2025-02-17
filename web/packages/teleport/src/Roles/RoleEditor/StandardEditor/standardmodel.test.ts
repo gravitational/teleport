@@ -20,58 +20,108 @@ import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
 import {
   CreateDBUserMode,
   CreateHostUserMode,
+  GitHubPermission,
   KubernetesResource,
   Labels,
   RequireMFAType,
   ResourceKind,
   Role,
+  RoleOptions,
+  RoleVersion,
   Rule,
   SessionRecordingMode,
+  SSHPortForwarding,
 } from 'teleport/services/resources';
 
+import presetRoles from '../../../../../../../gen/preset-roles.json';
 import {
+  ConversionErrorType,
+  simpleConversionErrors,
+  unsupportedValueWithReplacement,
+} from './errors';
+import {
+  createDBUserModeOptionsMap,
+  createHostUserModeOptionsMap,
+  defaultRoleVersion,
   KubernetesAccess,
+  kubernetesResourceKindOptionsMap,
+  kubernetesVerbOptionsMap,
   labelsModelToLabels,
   labelsToModel,
+  portForwardingOptionsToModel,
+  requireMFATypeOptionsMap,
+  resourceKindOptionsMap,
   RoleEditorModel,
   roleEditorModelToRole,
   roleToRoleEditorModel,
+  roleVersionOptionsMap,
+  sessionRecordingModeOptionsMap,
+  sshPortForwardingModeOptionsMap,
+  verbOptionsMap,
 } from './standardmodel';
-import { optionsWithDefaults, withDefaults } from './withDefaults';
+import { withDefaults } from './withDefaults';
 
 const minimalRole = () =>
-  withDefaults({ metadata: { name: 'foobar' }, version: 'v7' });
+  withDefaults({ metadata: { name: 'foobar' }, version: defaultRoleVersion });
 
 const minimalRoleModel = (): RoleEditorModel => ({
-  metadata: { name: 'foobar', labels: [] },
+  metadata: {
+    name: 'foobar',
+    labels: [],
+    version: roleVersionOptionsMap.get(defaultRoleVersion),
+  },
   resources: [],
   rules: [],
   requiresReset: false,
+  conversionErrors: [],
   options: {
     maxSessionTTL: '30h0m0s',
     clientIdleTimeout: '',
     disconnectExpiredCert: false,
-    requireMFAType: {
-      value: false,
-      label: 'No',
-    },
-    createHostUserMode: {
-      value: '',
-      label: 'Unspecified',
-    },
+    requireMFAType: requireMFATypeOptionsMap.get(false),
+    createHostUserMode: createHostUserModeOptionsMap.get(''),
     createDBUser: false,
-    createDBUserMode: {
-      value: '',
-      label: 'Unspecified',
-    },
+    createDBUserMode: createDBUserModeOptionsMap.get(''),
     desktopClipboard: true,
     createDesktopUser: false,
     desktopDirectorySharing: true,
-    defaultSessionRecordingMode: { value: 'best_effort', label: 'Best Effort' },
-    sshSessionRecordingMode: { value: '', label: 'Unspecified' },
+    defaultSessionRecordingMode:
+      sessionRecordingModeOptionsMap.get('best_effort'),
+    sshSessionRecordingMode: sessionRecordingModeOptionsMap.get(''),
     recordDesktopSessions: true,
     forwardAgent: false,
+    sshPortForwardingMode: sshPortForwardingModeOptionsMap.get(''),
   },
+});
+
+test('conversion error utilities', () => {
+  expect(
+    simpleConversionErrors(ConversionErrorType.UnsupportedField, ['foo', 'bar'])
+  ).toEqual([
+    {
+      type: ConversionErrorType.UnsupportedField,
+      path: 'foo',
+    },
+    {
+      type: ConversionErrorType.UnsupportedField,
+      path: 'bar',
+    },
+  ]);
+
+  expect(
+    simpleConversionErrors(ConversionErrorType.UnsupportedValue, ['foo'])
+  ).toEqual([
+    {
+      type: ConversionErrorType.UnsupportedValue,
+      path: 'foo',
+    },
+  ]);
+
+  expect(unsupportedValueWithReplacement('foo', { bar: 123 })).toEqual({
+    type: ConversionErrorType.UnsupportedValueWithReplacement,
+    path: 'foo',
+    replacement: '{"bar":123}',
+  });
 });
 
 // These tests make sure that role to model and model to role conversions are
@@ -88,6 +138,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
         description: 'role-description',
         labels: { foo: 'bar' },
       },
+      version: RoleVersion.V6,
     },
     model: {
       ...minimalRoleModel(),
@@ -95,6 +146,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
         name: 'role-name',
         description: 'role-description',
         labels: [{ name: 'foo', value: 'bar' }],
+        version: roleVersionOptionsMap.get(RoleVersion.V6),
       },
     },
   },
@@ -184,6 +236,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
           db_names: ['stuff', 'knickknacks'],
           db_users: ['joe', 'mary'],
           db_roles: ['admin', 'auditor'],
+          db_service_labels: { foo: 'bar' },
         },
       },
     },
@@ -205,6 +258,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
             { label: 'admin', value: 'admin' },
             { label: 'auditor', value: 'auditor' },
           ],
+          dbServiceLabels: [{ name: 'foo', value: 'bar' }],
         },
       ],
     },
@@ -238,6 +292,31 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
   },
 
   {
+    name: 'GitHub organization',
+    role: {
+      ...minimalRole(),
+      spec: {
+        ...minimalRole().spec,
+        allow: {
+          github_permissions: [{ orgs: ['illuminati', 'reptilians'] }],
+        },
+      },
+    },
+    model: {
+      ...minimalRoleModel(),
+      resources: [
+        {
+          kind: 'git_server',
+          organizations: [
+            { label: 'illuminati', value: 'illuminati' },
+            { label: 'reptilians', value: 'reptilians' },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
     name: 'Options object',
     role: {
       ...minimalRole(),
@@ -261,6 +340,14 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
             ssh: 'best_effort',
           },
           forward_agent: true,
+          ssh_port_forwarding: {
+            local: {
+              enabled: true,
+            },
+            remote: {
+              enabled: false,
+            },
+          },
         },
       },
     },
@@ -270,20 +357,43 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
         maxSessionTTL: '1h15m30s',
         clientIdleTimeout: '2h30m45s',
         disconnectExpiredCert: true,
-        requireMFAType: { value: 'hardware_key', label: 'Hardware Key' },
-        createHostUserMode: { value: 'keep', label: 'Keep' },
+        requireMFAType: requireMFATypeOptionsMap.get('hardware_key'),
+        createHostUserMode: createHostUserModeOptionsMap.get('keep'),
         createDBUser: true,
-        createDBUserMode: {
-          value: 'best_effort_drop',
-          label: 'Drop (best effort)',
-        },
+        createDBUserMode: createDBUserModeOptionsMap.get('best_effort_drop'),
         desktopClipboard: false,
         createDesktopUser: true,
         desktopDirectorySharing: false,
-        defaultSessionRecordingMode: { value: 'strict', label: 'Strict' },
-        sshSessionRecordingMode: { value: 'best_effort', label: 'Best Effort' },
+        defaultSessionRecordingMode:
+          sessionRecordingModeOptionsMap.get('strict'),
+        sshSessionRecordingMode:
+          sessionRecordingModeOptionsMap.get('best_effort'),
         recordDesktopSessions: false,
         forwardAgent: true,
+        sshPortForwardingMode:
+          sshPortForwardingModeOptionsMap.get('local-only'),
+      },
+    },
+  },
+
+  {
+    name: 'Options object with legacy port forwarding',
+    role: {
+      ...minimalRole(),
+      spec: {
+        ...minimalRole().spec,
+        options: {
+          ...minimalRole().spec.options,
+          port_forwarding: true,
+        },
+      },
+    },
+    model: {
+      ...minimalRoleModel(),
+      options: {
+        ...minimalRoleModel().options,
+        sshPortForwardingMode:
+          sshPortForwardingModeOptionsMap.get('deprecated-on'),
       },
     },
   },
@@ -297,8 +407,145 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
   });
 });
 
+test.each<
+  {
+    name: string;
+    expected: ReturnType<typeof portForwardingOptionsToModel>;
+  } & Pick<RoleOptions, 'ssh_port_forwarding' | 'port_forwarding'>
+>([
+  {
+    name: 'unspecified',
+    expected: { model: '', conversionErrors: [] },
+  },
+  {
+    name: 'none',
+    ssh_port_forwarding: {
+      local: { enabled: false },
+      remote: { enabled: false },
+    },
+    expected: { model: 'none', conversionErrors: [] },
+  },
+  {
+    name: 'local-only',
+    ssh_port_forwarding: {
+      local: { enabled: true },
+      remote: { enabled: false },
+    },
+    expected: {
+      model: 'local-only',
+      conversionErrors: [],
+    },
+  },
+  {
+    name: 'remote-only',
+    ssh_port_forwarding: {
+      local: { enabled: false },
+      remote: { enabled: true },
+    },
+    expected: {
+      model: 'remote-only',
+      conversionErrors: [],
+    },
+  },
+  {
+    name: ' local-and-remote',
+    ssh_port_forwarding: {
+      local: { enabled: true },
+      remote: { enabled: true },
+    },
+    expected: {
+      model: 'local-and-remote',
+      conversionErrors: [],
+    },
+  },
+  {
+    name: 'deprecated-on',
+    port_forwarding: true,
+    expected: {
+      model: 'deprecated-on',
+      conversionErrors: [],
+    },
+  },
+  {
+    name: 'deprecated-off',
+    port_forwarding: false,
+    expected: {
+      model: 'deprecated-off',
+      conversionErrors: [],
+    },
+  },
+  {
+    name: 'local-and-remote (overriding deprecated even if specified)',
+    ssh_port_forwarding: {
+      local: { enabled: true },
+      remote: { enabled: true },
+    },
+    port_forwarding: false,
+    expected: {
+      model: 'local-and-remote',
+      conversionErrors: [],
+    },
+  },
+  {
+    name: 'an empty port forwarding object',
+    ssh_port_forwarding: {},
+    expected: {
+      model: '',
+      conversionErrors: [
+        {
+          type: ConversionErrorType.UnsupportedValue,
+          path: 'spec.options.ssh_port_forwarding',
+        },
+      ],
+    },
+  },
+  {
+    name: 'empty local and remote objects',
+    ssh_port_forwarding: { local: {}, remote: {} },
+    expected: {
+      model: '',
+      conversionErrors: [
+        {
+          type: ConversionErrorType.UnsupportedValue,
+          path: 'spec.options.ssh_port_forwarding',
+        },
+      ],
+    },
+  },
+  {
+    name: 'unknown fields',
+    ssh_port_forwarding: {
+      local: { enabled: true, localFoo: 'bar' },
+      remote: { enabled: true, remoteFoo: 'bar' },
+      foo: 'bar',
+    } as SSHPortForwarding,
+    expected: {
+      model: 'local-and-remote',
+      conversionErrors: simpleConversionErrors(
+        ConversionErrorType.UnsupportedField,
+        [
+          'spec.options.ssh_port_forwarding.foo',
+          'spec.options.ssh_port_forwarding.local.localFoo',
+          'spec.options.ssh_port_forwarding.remote.remoteFoo',
+        ]
+      ),
+    },
+  },
+])(
+  'portForwardingOptionsToModel(): $name',
+  ({ ssh_port_forwarding, port_forwarding, expected }) => {
+    expect(
+      portForwardingOptionsToModel(
+        { ssh_port_forwarding, port_forwarding },
+        'spec.options'
+      )
+    ).toEqual(expected);
+  }
+);
+
 describe('roleToRoleEditorModel', () => {
   const minRole = minimalRole();
+  const minRoleModel = minimalRoleModel();
   const roleModelWithReset: RoleEditorModel = {
     ...minimalRoleModel(),
     requiresReset: true,
@@ -309,336 +556,185 @@ describe('roleToRoleEditorModel', () => {
     groups: [],
     labels: [],
     resources: [],
+    users: [],
+    roleVersion: defaultRoleVersion,
   });
 
-  test.each<{ name: string; role: Role; model?: RoleEditorModel }>([
-    {
-      name: 'unknown fields in Role',
-      role: { ...minRole, unknownField: 123 } as Role,
-    },
-
-    {
-      name: 'unknown fields in metadata',
-      role: {
-        ...minRole,
-        metadata: { name: 'foobar', unknownField: 123 },
-      } as Role,
-    },
-
-    {
-      name: 'unknown fields in spec',
-      role: {
-        ...minRole,
-        spec: { ...minRole.spec, unknownField: 123 },
-      } as Role,
-    },
-
-    {
-      name: 'unknown fields in spec.allow',
-      role: {
-        ...minRole,
-        spec: {
-          ...minRole.spec,
-          allow: { ...minRole.spec.allow, unknownField: 123 },
+  test('unknown and invalid fields are reported as conversion errors', () => {
+    const role = {
+      ...minRole,
+      unknown1: 123,
+      unknown2: 234,
+      metadata: { name: 'foobar', metadataUnknown: 123 },
+      spec: {
+        ...minRole.spec,
+        specUnknown: 123,
+        allow: {
+          ...minRole.spec.allow,
+          allowUnknown: 123,
+          kubernetes_resources: [
+            { kind: 'job', resUnknown: 123 } as KubernetesResource,
+            { kind: 'illegal' } as unknown as KubernetesResource,
+            {
+              kind: '*',
+              verbs: ['illegal', 'get'],
+            } as unknown as KubernetesResource,
+          ],
+          github_permissions: [
+            { orgs: ['foo'], gitHubUnknown: 123 } as GitHubPermission,
+          ],
+          rules: [
+            { ruleUnknown: 123 } as Rule,
+            { verbs: ['create', 'illegal'] } as Rule,
+          ],
         },
-      } as Role,
-    },
-
-    {
-      name: 'unknown fields in KubernetesResource',
-      role: {
-        ...minRole,
-        spec: {
-          ...minRole.spec,
-          allow: {
-            ...minRole.spec.allow,
-            kubernetes_resources: [
-              { kind: 'job', unknownField: 123 } as KubernetesResource,
-            ],
-          },
-        },
-      } as Role,
-      model: {
-        ...roleModelWithReset,
-        resources: [
-          {
-            ...newKubeClusterResourceAccess(),
-            resources: [expect.any(Object)],
-          },
-        ],
-      },
-    },
-
-    {
-      name: 'unsupported resource kind in KubernetesResource',
-      role: {
-        ...minRole,
-        spec: {
-          ...minRole.spec,
-          allow: {
-            ...minRole.spec.allow,
-            kubernetes_resources: [
-              { kind: 'illegal' } as unknown as KubernetesResource,
-              { kind: 'job' },
-            ],
-          },
-        },
-      } as Role,
-      model: {
-        ...roleModelWithReset,
-        resources: [
-          {
-            ...newKubeClusterResourceAccess(),
-            resources: [
-              expect.objectContaining({ kind: { value: 'job', label: 'Job' } }),
-            ],
-          },
-        ],
-      },
-    },
-
-    {
-      name: 'unsupported verb in KubernetesResource',
-      role: {
-        ...minRole,
-        spec: {
-          ...minRole.spec,
-          allow: {
-            ...minRole.spec.allow,
-            kubernetes_resources: [
-              {
-                kind: '*',
-                verbs: ['illegal', 'get'],
-              } as unknown as KubernetesResource,
-            ],
-          },
-        },
-      } as Role,
-      model: {
-        ...roleModelWithReset,
-        resources: [
-          {
-            ...newKubeClusterResourceAccess(),
-            resources: [
-              expect.objectContaining({
-                verbs: [{ value: 'get', label: 'get' }],
-              }),
-            ],
-          },
-        ],
-      },
-    },
-
-    {
-      name: 'unknown fields in Rule',
-      role: {
-        ...minRole,
-        spec: {
-          ...minRole.spec,
-          allow: {
-            ...minRole.spec.allow,
-            rules: [{ unknownField: 123 } as Rule],
-          },
-        },
-      } as Role,
-      model: {
-        ...roleModelWithReset,
-        rules: [expect.any(Object)],
-      },
-    },
-
-    {
-      name: 'unsupported verb in Rule',
-      role: {
-        ...minRole,
-        spec: {
-          ...minRole.spec,
-          allow: {
-            ...minRole.spec.allow,
-            rules: [{ verbs: ['illegal', 'create'] } as unknown as Rule],
-          },
-        },
-      } as Role,
-      model: {
-        ...roleModelWithReset,
-        rules: [
-          expect.objectContaining({
-            verbs: [{ value: 'create', label: 'create' }],
-          }),
-        ],
-      },
-    },
-
-    {
-      name: 'unknown fields in spec.deny',
-      role: {
-        ...minRole,
-        spec: {
-          ...minRole.spec,
-          deny: { ...minRole.spec.deny, unknownField: 123 },
-        },
-      } as Role,
-    },
-
-    {
-      name: 'unknown fields in spec.options',
-      role: {
-        ...minRole,
-        spec: {
-          ...minRole.spec,
-          options: { ...minRole.spec.options, unknownField: 123 },
-        },
-      } as Role,
-    },
-
-    {
-      name: 'unknown fields in spec.options.idp.saml',
-      role: {
-        ...minRole,
-        spec: {
-          ...minRole.spec,
-          options: {
-            ...minRole.spec.options,
-            idp: { saml: { enabled: true, unknownField: 123 } },
-          },
-        },
-      } as Role,
-    },
-
-    {
-      name: 'unknown fields in spec.options.record_session',
-      role: {
-        ...minRole,
-        spec: {
-          ...minRole.spec,
-          options: {
-            ...minRole.spec.options,
-            record_session: {
-              ...minRole.spec.options.record_session,
-              unknownField: 123,
-            },
-          },
-        },
-      } as Role,
-    },
-
-    {
-      name: 'unsupported value in spec.options.require_session_mfa',
-      role: {
-        ...minRole,
-        spec: {
-          ...minRole.spec,
-          options: {
-            ...minRole.spec.options,
-            require_session_mfa: 'bogus' as RequireMFAType,
-          },
-        },
-      },
-      model: {
-        ...roleModelWithReset,
+        deny: { ...minRole.spec.deny, denyUnknown: 123 },
         options: {
-          ...roleModelWithReset.options,
-          requireMFAType: { value: false, label: 'No' },
-        },
-      },
-    },
-
-    {
-      name: 'unsupported value in spec.options.create_host_user_mode',
-      role: {
-        ...minRole,
-        spec: {
-          ...minRole.spec,
-          options: {
-            ...minRole.spec.options,
-            create_host_user_mode: 'bogus' as CreateHostUserMode,
+          ...minRole.spec.options,
+          optionsUnknown: 123,
+          idp: { saml: { enabled: true, unknownField: 123 } },
+          record_session: {
+            ...minRole.spec.options.record_session,
+            recordSessionUnknown: 123,
+            default: 'bogus' as SessionRecordingMode,
+            ssh: 'bogus' as SessionRecordingMode,
           },
+          require_session_mfa: 'bogus' as RequireMFAType,
+          create_host_user_mode: 'bogus' as CreateHostUserMode,
+          create_db_user_mode: 'bogus' as CreateDBUserMode,
+          ssh_port_forwarding: {},
+          cert_format: 'unsupported-format',
+          enhanced_recording: [],
+          pin_source_ip: true,
+          ssh_file_copy: false,
         },
       },
-      model: {
-        ...roleModelWithReset,
-        options: {
-          ...roleModelWithReset.options,
-          createHostUserMode: { value: '', label: 'Unspecified' },
+    } as Role;
+    const model: RoleEditorModel = {
+      ...minRoleModel,
+      conversionErrors: [
+        {
+          type: ConversionErrorType.UnsupportedField,
+          errors: simpleConversionErrors(ConversionErrorType.UnsupportedField, [
+            'metadata.metadataUnknown',
+            'spec.allow.allowUnknown',
+            'spec.allow.github_permissions[0].gitHubUnknown',
+            'spec.allow.kubernetes_resources[0].resUnknown',
+            'spec.allow.rules[0].ruleUnknown',
+            'spec.deny.denyUnknown',
+            'spec.options.optionsUnknown',
+            'spec.options.record_session.recordSessionUnknown',
+            'spec.specUnknown',
+            'unknown1',
+            'unknown2',
+          ]),
         },
+        {
+          type: ConversionErrorType.UnsupportedValue,
+          errors: simpleConversionErrors(ConversionErrorType.UnsupportedValue, [
+            'spec.allow.kubernetes_resources[1]',
+            'spec.allow.kubernetes_resources[2].verbs[0]',
+            'spec.allow.rules[1].verbs[1]',
+            'spec.options.ssh_port_forwarding',
+          ]),
+        },
+        {
+          type: ConversionErrorType.UnsupportedValueWithReplacement,
+          errors: [
+            unsupportedValueWithReplacement(
+              'spec.options.cert_format',
+              'standard'
+            ),
+            unsupportedValueWithReplacement(
+              'spec.options.create_db_user_mode',
+              ''
+            ),
+            unsupportedValueWithReplacement(
+              'spec.options.create_host_user_mode',
+              ''
+            ),
+            unsupportedValueWithReplacement('spec.options.enhanced_recording', [
+              'command',
+              'network',
+            ]),
+            unsupportedValueWithReplacement('spec.options.idp', {
+              saml: { enabled: true },
+            }),
+            unsupportedValueWithReplacement(
+              'spec.options.pin_source_ip',
+              false
+            ),
+            unsupportedValueWithReplacement(
+              'spec.options.record_session.default',
+              ''
+            ),
+            unsupportedValueWithReplacement(
+              'spec.options.record_session.ssh',
+              ''
+            ),
+            unsupportedValueWithReplacement(
+              'spec.options.require_session_mfa',
+              false
+            ),
+            unsupportedValueWithReplacement('spec.options.ssh_file_copy', true),
+          ],
+        },
+      ],
+      requiresReset: true,
+      resources: [
+        {
+          ...newKubeClusterResourceAccess(),
+          resources: [
+            expect.objectContaining({
+              kind: kubernetesResourceKindOptionsMap.get('job'),
+            }),
+            expect.objectContaining({
+              verbs: [kubernetesVerbOptionsMap.get('get')],
+            }),
+          ],
+        },
+        {
+          kind: 'git_server',
+          organizations: [{ label: 'foo', value: 'foo' }],
+        },
+      ],
+      rules: [
+        expect.any(Object),
+        expect.objectContaining({
+          verbs: [{ value: 'create', label: 'create' }],
+        }),
+      ],
+      options: {
+        ...roleModelWithReset.options,
+        defaultSessionRecordingMode: sessionRecordingModeOptionsMap.get(''),
       },
-    },
+    };
 
-    {
-      name: 'unsupported value in spec.options.create_db_user_mode',
-      role: {
-        ...minRole,
-        spec: {
-          ...minRole.spec,
-          options: {
-            ...minRole.spec.options,
-            create_db_user_mode: 'bogus' as CreateDBUserMode,
-          },
-        },
-      },
-      model: {
-        ...roleModelWithReset,
-        options: {
-          ...roleModelWithReset.options,
-          createDBUserMode: { value: '', label: 'Unspecified' },
-        },
-      },
-    },
+    expect(roleToRoleEditorModel(role)).toEqual(model);
+  });
 
-    {
-      name: 'unsupported value in spec.options.record_session.default',
-      role: {
-        ...minRole,
-        spec: {
-          ...minRole.spec,
-          options: optionsWithDefaults({
-            record_session: { default: 'bogus' as SessionRecordingMode },
-          }),
-        },
-      },
-      model: {
-        ...roleModelWithReset,
-        options: {
-          ...roleModelWithReset.options,
-          defaultSessionRecordingMode: { value: '', label: 'Unspecified' },
-        },
-      },
-    },
-
-    {
-      name: 'unsupported value in spec.options.record_session.ssh',
-      role: {
-        ...minRole,
-        spec: {
-          ...minRole.spec,
-          options: optionsWithDefaults({
-            record_session: { ssh: 'bogus' as SessionRecordingMode },
-          }),
-        },
-      },
-      model: {
-        ...roleModelWithReset,
-        options: {
-          ...roleModelWithReset.options,
-          sshSessionRecordingMode: { value: '', label: 'Unspecified' },
-        },
-      },
-    },
-  ])(
-    'requires reset because of $name',
-    ({ role, model = roleModelWithReset }) => {
-      expect(roleToRoleEditorModel(role)).toEqual(model);
-    }
-  );
-
-  test('version change requires reset', () => {
-    expect(roleToRoleEditorModel({ ...minimalRole(), version: 'v1' })).toEqual({
+  test('unsupported version requires reset', () => {
+    expect(
+      roleToRoleEditorModel({ ...minimalRole(), version: 'v1' as RoleVersion })
+    ).toEqual({
       ...minimalRoleModel(),
       requiresReset: true,
+      conversionErrors: [
+        {
+          type: ConversionErrorType.UnsupportedValueWithReplacement,
+          errors: [
+            {
+              type: ConversionErrorType.UnsupportedValueWithReplacement,
+              path: 'version',
+              replacement: '"v7"',
+            },
+          ],
+        },
+      ],
     } as RoleEditorModel);
   });
 
-  it('preserves original revision', () => {
+  it('revision change requires reset', () => {
     const rev = '5d7e724b-a52c-4c12-9372-60a8d1af5d33';
     const originalRev = '9c2d5732-c514-46c3-b18d-2009b65af7b8';
     const exampleRole = (revision: string) => ({
@@ -657,39 +753,23 @@ describe('roleToRoleEditorModel', () => {
       ...minimalRoleModel(),
       metadata: {
         name: 'role-name',
+        // We need to preserve the original revision.
         revision: originalRev,
         labels: [],
+        version: roleVersionOptionsMap.get(defaultRoleVersion),
       },
       requiresReset: true,
-    } as RoleEditorModel);
-  });
-
-  test('revision change requires reset', () => {
-    expect(
-      roleToRoleEditorModel(
+      conversionErrors: [
         {
-          ...minimalRole(),
-          metadata: {
-            name: 'role-name',
-            revision: '5d7e724b-a52c-4c12-9372-60a8d1af5d33',
-          },
+          type: ConversionErrorType.UnsupportedChange,
+          errors: [
+            {
+              type: ConversionErrorType.UnsupportedChange,
+              path: 'metadata.revision',
+            },
+          ],
         },
-        {
-          ...minimalRole(),
-          metadata: {
-            name: 'role-name',
-            revision: 'e39ea9f1-79b7-4d28-8f0c-af6848f9e655',
-          },
-        }
-      )
-    ).toEqual({
-      ...minimalRoleModel(),
-      metadata: {
-        name: 'role-name',
-        revision: 'e39ea9f1-79b7-4d28-8f0c-af6848f9e655',
-        labels: [],
-      },
-      requiresReset: true,
+      ],
     } as RoleEditorModel);
   });
 
@@ -718,6 +798,7 @@ describe('roleToRoleEditorModel', () => {
                 name: 'some-node',
               },
             ],
+            kubernetes_users: ['alice', 'bob'],
           },
         },
       })
@@ -734,22 +815,29 @@ describe('roleToRoleEditorModel', () => {
           resources: [
             {
               id: expect.any(String),
-              kind: { value: 'pod', label: 'Pod' },
+              kind: kubernetesResourceKindOptionsMap.get('pod'),
               name: 'some-pod',
               namespace: '*',
               verbs: [
-                { label: 'get', value: 'get' },
-                { label: 'update', value: 'update' },
+                kubernetesVerbOptionsMap.get('get'),
+                kubernetesVerbOptionsMap.get('update'),
               ],
+              roleVersion: defaultRoleVersion,
             },
             {
               id: expect.any(String),
-              kind: { value: 'kube_node', label: 'Node' },
+              kind: kubernetesResourceKindOptionsMap.get('kube_node'),
               name: 'some-node',
               namespace: '',
               verbs: [],
+              roleVersion: defaultRoleVersion,
             },
           ],
+          users: [
+            { label: 'alice', value: 'alice' },
+            { label: 'bob', value: 'bob' },
+          ],
+          roleVersion: defaultRoleVersion,
         },
       ],
     } as RoleEditorModel);
@@ -781,46 +869,90 @@ describe('roleToRoleEditorModel', () => {
       ],
     } as RoleEditorModel);
   });
-});
 
-it('creates a rule model', () => {
-  expect(
-    roleToRoleEditorModel({
-      ...minimalRole(),
-      spec: {
-        ...minimalRole().spec,
-        allow: {
-          rules: [
-            {
-              resources: [ResourceKind.User, ResourceKind.DatabaseService],
-              verbs: ['read', 'list'],
-            },
-            { resources: [ResourceKind.Lock], verbs: ['create'] },
+  it('creates a rule model', () => {
+    expect(
+      roleToRoleEditorModel({
+        ...minimalRole(),
+        spec: {
+          ...minimalRole().spec,
+          allow: {
+            rules: [
+              {
+                resources: [ResourceKind.User, ResourceKind.DatabaseService],
+                verbs: ['read', 'list'],
+              },
+              { resources: [ResourceKind.Lock], verbs: ['create'] },
+              {
+                resources: [ResourceKind.Session],
+                verbs: ['read', 'list'],
+                where: 'contains(session.participants, user.metadata.name)',
+              },
+            ],
+          },
+        },
+      })
+    ).toEqual({
+      ...minimalRoleModel(),
+      rules: [
+        {
+          id: expect.any(String),
+          resources: [
+            resourceKindOptionsMap.get(ResourceKind.User),
+            resourceKindOptionsMap.get(ResourceKind.DatabaseService),
+          ],
+          verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+          where: '',
+        },
+        {
+          id: expect.any(String),
+          resources: [resourceKindOptionsMap.get(ResourceKind.Lock)],
+          verbs: [verbOptionsMap.get('create')],
+          where: '',
+        },
+        {
+          id: expect.any(String),
+          resources: [resourceKindOptionsMap.get(ResourceKind.Session)],
+          verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+          where: 'contains(session.participants, user.metadata.name)',
+        },
+      ],
+    } as RoleEditorModel);
+  });
+
+  test('multiple github_permissions', () => {
+    expect(
+      roleToRoleEditorModel({
+        ...minimalRole(),
+        spec: {
+          ...minimalRole().spec,
+          allow: {
+            ...minimalRole().spec.allow,
+            github_permissions: [{ orgs: ['foo'] }, { orgs: ['bar'] }],
+          },
+        },
+      })
+    ).toEqual({
+      ...minimalRoleModel(),
+      resources: [
+        {
+          kind: 'git_server',
+          organizations: [
+            { label: 'foo', value: 'foo' },
+            { label: 'bar', value: 'bar' },
           ],
         },
-      },
-    })
-  ).toEqual({
-    ...minimalRoleModel(),
-    rules: [
-      {
-        id: expect.any(String),
-        resources: [
-          { label: 'user', value: 'user' },
-          { label: 'db_service', value: 'db_service' },
-        ],
-        verbs: [
-          { label: 'read', value: 'read' },
-          { label: 'list', value: 'list' },
-        ],
-      },
-      {
-        id: expect.any(String),
-        resources: [{ label: 'lock', value: 'lock' }],
-        verbs: [{ label: 'create', value: 'create' }],
-      },
-    ],
-  } as RoleEditorModel);
+      ],
+    } as RoleEditorModel);
+  });
+
+  it.each(['access', 'editor', 'auditor'])(
+    'supports the preset "%s" role',
+    roleName => {
+      const { requiresReset } = roleToRoleEditorModel(presetRoles[roleName]);
+      expect(requiresReset).toBe(false);
+    }
+  );
 });
 
 test('labelsToModel', () => {
@@ -841,6 +973,7 @@ describe('roleEditorModelToRole', () => {
           description: 'walks dogs',
           revision: 'e2a3ccf8-09b9-4d97-8e47-6dbe3d53c0e5',
           labels: [{ name: 'kind', value: 'occupation' }],
+          version: roleVersionOptionsMap.get(RoleVersion.V5),
         },
       })
     ).toEqual({
@@ -851,6 +984,7 @@ describe('roleEditorModelToRole', () => {
         revision: 'e2a3ccf8-09b9-4d97-8e47-6dbe3d53c0e5',
         labels: { kind: 'occupation' },
       },
+      version: 'v5',
     } as Role);
   });
 
@@ -872,22 +1006,29 @@ describe('roleEditorModelToRole', () => {
             resources: [
               {
                 id: 'dummy-id-1',
-                kind: { value: 'pod', label: 'Pod' },
+                kind: kubernetesResourceKindOptionsMap.get('pod'),
                 name: 'some-pod',
                 namespace: '*',
                 verbs: [
-                  { label: 'get', value: 'get' },
-                  { label: 'update', value: 'update' },
+                  kubernetesVerbOptionsMap.get('get'),
+                  kubernetesVerbOptionsMap.get('update'),
                 ],
+                roleVersion: defaultRoleVersion,
               },
               {
                 id: 'dummy-id-2',
-                kind: { value: 'kube_node', label: 'Node' },
+                kind: kubernetesResourceKindOptionsMap.get('kube_node'),
                 name: 'some-node',
                 namespace: '',
                 verbs: [],
+                roleVersion: defaultRoleVersion,
               },
             ],
+            users: [
+              { label: 'alice', value: 'alice' },
+              { label: 'bob', value: 'bob' },
+            ],
+            roleVersion: defaultRoleVersion,
           },
         ],
       })
@@ -912,6 +1053,7 @@ describe('roleEditorModelToRole', () => {
               verbs: [],
             },
           ],
+          kubernetes_users: ['alice', 'bob'],
         },
       },
     } as Role);
@@ -925,18 +1067,23 @@ describe('roleEditorModelToRole', () => {
           {
             id: 'dummy-id-1',
             resources: [
-              { label: 'user', value: ResourceKind.User },
-              { label: 'db_service', value: ResourceKind.DatabaseService },
+              resourceKindOptionsMap.get(ResourceKind.User),
+              resourceKindOptionsMap.get(ResourceKind.DatabaseService),
             ],
-            verbs: [
-              { label: 'read', value: 'read' },
-              { label: 'list', value: 'list' },
-            ],
+            verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+            where: '',
           },
           {
             id: 'dummy-id-2',
-            resources: [{ label: 'lock', value: ResourceKind.Lock }],
-            verbs: [{ label: 'create', value: 'create' }],
+            resources: [resourceKindOptionsMap.get(ResourceKind.Lock)],
+            verbs: [verbOptionsMap.get('create')],
+            where: '',
+          },
+          {
+            id: expect.any(String),
+            resources: [resourceKindOptionsMap.get(ResourceKind.Session)],
+            verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+            where: 'contains(session.participants, user.metadata.name)',
           },
         ],
       })
@@ -948,6 +1095,11 @@ describe('roleEditorModelToRole', () => {
           rules: [
             { resources: ['user', 'db_service'], verbs: ['read', 'list'] },
             { resources: ['lock'], verbs: ['create'] },
+            {
+              resources: ['session'],
+              verbs: ['read', 'list'],
+              where: 'contains(session.participants, user.metadata.name)',
+            },
           ],
         },
       },

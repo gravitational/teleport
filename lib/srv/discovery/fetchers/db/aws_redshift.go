@@ -32,9 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-// RedshiftClientProviderFunc provides a [RedshiftClient].
-type RedshiftClientProviderFunc func(cfg aws.Config, optFns ...func(*redshift.Options)) RedshiftClient
-
 // RedshiftClient is a subset of the AWS Redshift API.
 type RedshiftClient interface {
 	redshift.DescribeClustersAPIClient
@@ -57,7 +54,7 @@ func (f *redshiftPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusters, err := getRedshiftClusters(ctx, cfg.redshiftClientProviderFn(awsCfg))
+	clusters, err := getRedshiftClusters(ctx, cfg.awsClients.GetRedshiftClient(awsCfg))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -92,7 +89,7 @@ func (f *redshiftPlugin) ComponentShortName() string {
 
 // getRedshiftClusters fetches all Reshift clusters using the provided client,
 // up to the specified max number of pages
-func getRedshiftClusters(ctx context.Context, clt redshift.DescribeClustersAPIClient) ([]redshifttypes.Cluster, error) {
+func getRedshiftClusters(ctx context.Context, clt RedshiftClient) ([]redshifttypes.Cluster, error) {
 	pager := redshift.NewDescribeClustersPaginator(clt,
 		&redshift.DescribeClustersInput{},
 		func(dcpo *redshift.DescribeClustersPaginatorOptions) {
@@ -103,7 +100,7 @@ func getRedshiftClusters(ctx context.Context, clt redshift.DescribeClustersAPICl
 	for pageNum := 0; pageNum < maxAWSPages && pager.HasMorePages(); pageNum++ {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, libcloudaws.ConvertRequestFailureErrorV2(err)
+			return nil, libcloudaws.ConvertRequestFailureError(err)
 		}
 		clusters = append(clusters, page.Clusters...)
 	}

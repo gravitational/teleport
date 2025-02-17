@@ -30,8 +30,7 @@ import type { Database } from 'teleport/services/databases';
 import { DiscoveryConfig } from 'teleport/services/discovery';
 import type {
   AwsRdsDatabase,
-  Ec2InstanceConnectEndpoint,
-  Integration,
+  IntegrationAwsOidc,
   Regions,
 } from 'teleport/services/integrations';
 import type { Kube } from 'teleport/services/kube';
@@ -123,7 +122,7 @@ export type DiscoverUrlLocationState = {
     currentStep: number;
   };
   // integration is the created aws-oidc integration
-  integration: Integration;
+  integration: IntegrationAwsOidc;
 };
 
 const discoverContext = React.createContext<DiscoverContextState>(null);
@@ -512,7 +511,7 @@ type BaseMeta = {
    * awsIntegration is set to the selected AWS integration.
    * This field is set when a user wants to enroll AWS resources.
    */
-  awsIntegration?: Integration;
+  awsIntegration?: IntegrationAwsOidc;
   /**
    * awsRegion is set to the selected AWS region.
    * This field is set when a user wants to enroll AWS resources.
@@ -544,7 +543,6 @@ export type AutoDiscovery = {
 // that needs to be preserved throughout the flow.
 export type NodeMeta = BaseMeta & {
   node: Node;
-  ec2Ices?: Ec2InstanceConnectEndpoint[];
 };
 
 // DbMeta describes the fields for a db resource

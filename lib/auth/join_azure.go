@@ -245,7 +245,7 @@ func parseAndVerifyAttestedData(ctx context.Context, adBytes []byte, challenge s
 }
 
 // verifyVMIdentity verifies that the provided access token came from the
-// correct Azure VM. Returns the Aure join attributes
+// correct Azure VM. Returns the Azure join attributes
 func verifyVMIdentity(
 	ctx context.Context,
 	cfg *azureRegisterConfig,
@@ -291,6 +291,9 @@ func verifyVMIdentity(
 	// from the VM resource.
 	vmSubscription, vmResourceGroup, err := claimsToIdentifiers(tokenClaims)
 	if err == nil {
+		if subscriptionID != vmSubscription {
+			return nil, trace.AccessDenied("subscription ID mismatch between attested data and access token")
+		}
 		return azureJoinToAttrs(vmSubscription, vmResourceGroup), nil
 	}
 	logger.WarnContext(ctx, "Failed to parse VM identifiers from claims. Retrying with Azure VM API.",
@@ -314,6 +317,8 @@ func verifyVMIdentity(
 
 	// If the token is from the system-assigned managed identity, the resource ID
 	// is for the VM itself and we can use it to look up the VM.
+	// This will also match scale set VMs (VMSS), the vmClient is responsible
+	// for properly retrieving their information.
 	if slices.Contains(resourceID.ResourceType.Types, azureVirtualMachine) {
 		vm, err = vmClient.Get(ctx, tokenClaims.ManangedIdentityResourceID)
 		if err != nil {

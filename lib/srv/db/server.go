@@ -165,6 +165,9 @@ type Config struct {
 	// discoveryResourceChecker performs some pre-checks when creating databases
 	// discovered by the discovery service.
 	discoveryResourceChecker cloud.DiscoveryResourceChecker
+	// getEngineFn returns a [common.Engine]. It can be overridden in tests to
+	// customize the returned engine.
+	getEngineFn func(types.Database, common.EngineConfig) (common.Engine, error)
 }
 
 // NewAuditFn defines a function that creates an audit logger.
@@ -207,7 +210,6 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.AWSDatabaseFetcherFactory == nil {
 		factory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{
-			CloudClients:      c.CloudClients,
 			AWSConfigProvider: c.AWSConfigProvider,
 		})
 		if err != nil {
@@ -250,7 +252,6 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.CloudMeta == nil {
 		c.CloudMeta, err = cloud.NewMetadata(cloud.MetadataConfig{
-			Clients:           c.CloudClients,
 			AWSConfigProvider: c.AWSConfigProvider,
 		})
 		if err != nil {
@@ -259,9 +260,9 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.CloudIAM == nil {
 		c.CloudIAM, err = cloud.NewIAM(ctx, cloud.IAMConfig{
-			AccessPoint: c.AccessPoint,
-			Clients:     c.CloudClients,
-			HostID:      c.HostID,
+			AccessPoint:       c.AccessPoint,
+			AWSConfigProvider: c.AWSConfigProvider,
+			HostID:            c.HostID,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -284,9 +285,9 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 			return trace.Wrap(err)
 		}
 		c.CloudUsers, err = users.NewUsers(users.Config{
-			Clients:     c.CloudClients,
-			UpdateMeta:  c.CloudMeta.Update,
-			ClusterName: clusterName.GetClusterName(),
+			AWSConfigProvider: c.AWSConfigProvider,
+			UpdateMeta:        c.CloudMeta.Update,
+			ClusterName:       clusterName.GetClusterName(),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -298,7 +299,7 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 			DatabaseObjectClient: c.AuthClient.DatabaseObjectsClient(),
 			ImportRules:          c.AuthClient,
 			Auth:                 c.Auth,
-			CloudClients:         c.CloudClients,
+			GCPClients:           c.CloudClients,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -308,13 +309,17 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	if c.discoveryResourceChecker == nil {
 		c.discoveryResourceChecker, err = cloud.NewDiscoveryResourceChecker(cloud.DiscoveryResourceCheckerConfig{
 			ResourceMatchers:  c.ResourceMatchers,
-			Clients:           c.CloudClients,
+			AzureClients:      c.CloudClients,
 			AWSConfigProvider: c.AWSConfigProvider,
 			Context:           ctx,
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	if c.getEngineFn == nil {
+		c.getEngineFn = common.GetEngine
 	}
 
 	if c.ShutdownPollPeriod == 0 {
@@ -390,9 +395,10 @@ func (m *monitoredDatabases) setCloud(databases types.Databases) {
 	m.cloud = databases
 }
 
-func (m *monitoredDatabases) isCloud(database types.Database) bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+// isCloud_Locked returns whether a database was discovered by the cloud
+// watchers, aka legacy database discovery done by the db service.
+// The lock must be held when calling this function.
+func (m *monitoredDatabases) isCloud_Locked(database types.Database) bool {
 	for i := range m.cloud {
 		if m.cloud[i] == database {
 			return true
@@ -401,13 +407,17 @@ func (m *monitoredDatabases) isCloud(database types.Database) bool {
 	return false
 }
 
-func (m *monitoredDatabases) isDiscoveryResource(database types.Database) bool {
-	return database.Origin() == types.OriginCloud && m.isResource(database)
+// isDiscoveryResource_Locked returns whether a database was discovered by the
+// discovery service.
+// The lock must be held when calling this function.
+func (m *monitoredDatabases) isDiscoveryResource_Locked(database types.Database) bool {
+	return database.Origin() == types.OriginCloud && m.isResource_Locked(database)
 }
 
-func (m *monitoredDatabases) isResource(database types.Database) bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+// isResource_Locked returns whether a database is a dynamic database, aka a db
+// object.
+// The lock must be held when calling this function.
+func (m *monitoredDatabases) isResource_Locked(database types.Database) bool {
 	for i := range m.resources {
 		if m.resources[i] == database {
 			return true
@@ -416,9 +426,9 @@ func (m *monitoredDatabases) isResource(database types.Database) bool {
 	return false
 }
 
-func (m *monitoredDatabases) get() map[string]types.Database {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+// getLocked returns a slice containing all of the monitored databases.
+// The lock must be held when calling this function.
+func (m *monitoredDatabases) getLocked() map[string]types.Database {
 	return utils.FromSlice(append(append(m.static, m.resources...), m.cloud...), types.Database.GetName)
 }
 
@@ -1185,16 +1195,17 @@ func (s *Server) dispatch(sessionCtx *common.Session, rec events.SessionPreparer
 // createEngine creates a new database engine based on the database protocol.
 // An error is returned when a protocol is not supported.
 func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (common.Engine, error) {
-	return common.GetEngine(sessionCtx.Database, common.EngineConfig{
-		Auth:         common.NewAuthForSession(s.cfg.Auth, sessionCtx),
-		Audit:        audit,
-		AuthClient:   s.cfg.AuthClient,
-		CloudClients: s.cfg.CloudClients,
-		Context:      s.connContext,
-		Clock:        s.cfg.Clock,
-		Log:          sessionCtx.Log,
-		Users:        s.cfg.CloudUsers,
-		DataDir:      s.cfg.DataDir,
+	return s.cfg.getEngineFn(sessionCtx.Database, common.EngineConfig{
+		Auth:              common.NewAuthForSession(s.cfg.Auth, sessionCtx),
+		Audit:             audit,
+		AuthClient:        s.cfg.AuthClient,
+		AWSConfigProvider: s.cfg.AWSConfigProvider,
+		GCPClients:        s.cfg.CloudClients,
+		Context:           s.connContext,
+		Clock:             s.cfg.Clock,
+		Log:               sessionCtx.Log,
+		Users:             s.cfg.CloudUsers,
+		DataDir:           s.cfg.DataDir,
 		GetUserProvisioner: func(aub common.AutoUsers) *common.UserProvisioner {
 			return &common.UserProvisioner{
 				AuthClient: s.cfg.AuthClient,

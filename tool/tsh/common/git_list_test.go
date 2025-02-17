@@ -98,8 +98,8 @@ func TestGitListCommand(t *testing.T) {
 			},
 			containsOutput: []string{
 				`"kind": "git_server"`,
-				`"hostname": "org1.github-org"`,
-				`"hostname": "org2.github-org"`,
+				`"hostname": "org1.teleport-github-org"`,
+				`"hostname": "org2.teleport-github-org"`,
 			},
 		},
 		{
@@ -110,8 +110,8 @@ func TestGitListCommand(t *testing.T) {
 			},
 			containsOutput: []string{
 				"- kind: git_server",
-				"hostname: org1.github-org",
-				"hostname: org2.github-org",
+				"hostname: org1.teleport-github-org",
+				"hostname: org2.teleport-github-org",
 			},
 		},
 	}

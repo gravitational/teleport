@@ -14,7 +14,6 @@ limitations under the License.
 package keys
 
 import (
-	"fmt"
 	"regexp"
 
 	"github.com/gravitational/trace"
@@ -164,7 +163,7 @@ var privateKeyPolicyErrRegex = regexp.MustCompile(`private key policy not (met|s
 
 func NewPrivateKeyPolicyError(p PrivateKeyPolicy) error {
 	// TODO(Joerger): Replace with "private key policy not satisfied" in 16.0.0
-	return trace.BadParameter(fmt.Sprintf("private key policy not met: %s", p))
+	return trace.BadParameter("private key policy not met: %s", p)
 }
 
 // ParsePrivateKeyPolicyError checks if the given error is a private key policy

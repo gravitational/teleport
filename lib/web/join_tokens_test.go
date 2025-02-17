@@ -761,6 +761,17 @@ func TestGetNodeJoinScript(t *testing.T) {
 				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
 			},
 		},
+		{
+			desc:      "app server labels",
+			settings:  scriptSettings{token: validToken, appInstallMode: true, appName: "app-name", appURI: "app-uri"},
+			errAssert: require.NoError,
+			extraAssertions: func(script string) {
+				require.Contains(t, script, `APP_NAME='app-name'`)
+				require.Contains(t, script, `APP_URI='app-uri'`)
+				require.Contains(t, script, `public_addr`)
+				require.Contains(t, script, fmt.Sprintf("    labels:\n      %s: %s", types.InternalResourceIDLabel, internalResourceID))
+			},
+		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			script, err := getJoinScript(context.Background(), test.settings, m)

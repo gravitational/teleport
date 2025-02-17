@@ -39,6 +39,7 @@ import {
   cloneAbortSignal,
   TshdClient,
 } from 'teleterm/services/tshd';
+import { getGatewayTargetUriKind } from 'teleterm/services/tshd/gateway';
 import { AssumedRequest } from 'teleterm/services/tshd/types';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { UsageService } from 'teleterm/ui/services/usage';
@@ -561,7 +562,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   // since we will no longer have to support old kube connections.
   // See call in `trackedConnectionOperationsFactory.ts` for more details.
   async removeKubeGateway(kubeUri: uri.KubeUri) {
-    const gateway = this.findGatewayByConnectionParams(kubeUri, '');
+    const gateway = this.findGatewayByConnectionParams({ targetUri: kubeUri });
     if (gateway) {
       await this.removeGateway(gateway.uri);
     }
@@ -613,23 +614,44 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return this.state.gateways.get(gatewayUri);
   }
 
-  findGatewayByConnectionParams(
-    targetUri: uri.GatewayTargetUri,
-    targetUser: string
-  ) {
-    let found: Gateway;
+  findGatewayByConnectionParams({
+    targetUri,
+    targetUser,
+    targetSubresourceName,
+  }: {
+    targetUri: uri.GatewayTargetUri;
+    targetUser?: string;
+    targetSubresourceName?: string;
+  }): Gateway | undefined {
+    const targetKind = getGatewayTargetUriKind(targetUri);
 
-    for (const [, gateway] of this.state.gateways) {
-      if (
-        gateway.targetUri === targetUri &&
-        gateway.targetUser === targetUser
-      ) {
-        found = gateway;
-        break;
+    for (const gateway of this.state.gateways.values()) {
+      if (gateway.targetUri !== targetUri) {
+        continue;
+      }
+
+      switch (targetKind) {
+        case 'db': {
+          if (gateway.targetUser === targetUser) {
+            return gateway;
+          }
+          break;
+        }
+        case 'kube': {
+          // Kube gateways match only on targetUri.
+          return gateway;
+        }
+        case 'app': {
+          if (gateway.targetSubresourceName === targetSubresourceName) {
+            return gateway;
+          }
+          break;
+        }
+        default: {
+          targetKind satisfies never;
+        }
       }
     }
-
-    return found;
   }
 
   /**

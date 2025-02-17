@@ -19,6 +19,7 @@
 package usertasks
 
 import (
+	"fmt"
 	"net/url"
 	"path"
 
@@ -125,7 +126,7 @@ func EKSClustersWithURLs(ut *usertasksv1.UserTask) *UserTaskDiscoverEKSWithURLs 
 type UserTaskDiscoverEC2WithURLs struct {
 	*usertasksv1.DiscoverEC2
 	// Instances maps the instance ID name to the result of enrolling that instance into teleport.
-	Instances map[string]*DiscoverEC2InstanceWithURLs `json:"clusters,omitempty"`
+	Instances map[string]*DiscoverEC2InstanceWithURLs `json:"instances,omitempty"`
 }
 
 // DiscoverEC2InstanceWithURLs contains the result of enrolling an AWS EC2 Instance.
@@ -170,5 +171,73 @@ func EC2InstancesWithURLs(ut *usertasksv1.UserTask) *UserTaskDiscoverEC2WithURLs
 	return &UserTaskDiscoverEC2WithURLs{
 		DiscoverEC2: ut.Spec.GetDiscoverEc2(),
 		Instances:   instancesWithURLs,
+	}
+}
+
+// UserTaskDiscoverRDSWithURLs contains the databases that failed to auto-enroll into the cluster.
+type UserTaskDiscoverRDSWithURLs struct {
+	*usertasksv1.DiscoverRDS
+	// Databases maps a database resource id to the result of enrolling that database into teleport.
+	// For RDS Aurora Clusters, this is the DBClusterIdentifier.
+	// For other RDS databases, this is the DBInstanceIdentifier.
+	Databases map[string]*DiscoverRDSDatabaseWithURLs `json:"databases,omitempty"`
+}
+
+// DiscoverRDSDatabaseWithURLs contains the result of enrolling an AWS RDS Database.
+type DiscoverRDSDatabaseWithURLs struct {
+	*usertasksv1.DiscoverRDSDatabase
+
+	// ResourceURL is the Amazon Web Console URL to access this RDS Database.
+	// Always present.
+	// Format for instances: https://console.aws.amazon.com/rds/home?region=<region>#database:id=<name>;is-cluster=false
+	// Format for clusters:  https://console.aws.amazon.com/rds/home?region=<region>#database:id=<name>;is-cluster=true
+	ResourceURL string `json:"resourceUrl,omitempty"`
+
+	// ConfigurationURL is the Amazon Web Console URL that shows the configuration of the database.
+	// Format https://console.aws.amazon.com/rds/home?region=<region>#database:id=<name>;is-cluster=<is-cluster>;tab=configuration
+	ConfigurationURL string `json:"configurationUrl,omitempty"`
+}
+
+func withRDSDatabaseIssueURL(metadata *usertasksv1.UserTask, database *usertasksv1.DiscoverRDSDatabase) *DiscoverRDSDatabaseWithURLs {
+	ret := &DiscoverRDSDatabaseWithURLs{
+		DiscoverRDSDatabase: database,
+	}
+
+	fragment := fmt.Sprintf("database:id=%s;is-cluster=%t", database.GetName(), database.GetIsCluster())
+	databaseBaseURL := url.URL{
+		Scheme:   "https",
+		Host:     "console.aws.amazon.com",
+		Path:     "/rds/home",
+		Fragment: fragment,
+		RawQuery: url.Values{
+			"region": []string{metadata.GetSpec().GetDiscoverRds().GetRegion()},
+		}.Encode(),
+	}
+	ret.ResourceURL = databaseBaseURL.String()
+
+	switch metadata.GetSpec().GetIssueType() {
+	case usertasksapi.AutoDiscoverRDSIssueIAMAuthenticationDisabled:
+		databaseBaseURL.Fragment += ";tab=configuration"
+		ret.ConfigurationURL = databaseBaseURL.String()
+	}
+
+	return ret
+}
+
+// RDSDatabasesWithURLs takes a UserTask and enriches the database list with URLs.
+// Currently, the following URLs will be added:
+// - ResourceURL: a link to open the database in Amazon Web Console.
+// - ConfigurationURL: a link to open the database in Amazon Web Console in the configuration tab.
+func RDSDatabasesWithURLs(ut *usertasksv1.UserTask) *UserTaskDiscoverRDSWithURLs {
+	databases := ut.GetSpec().GetDiscoverRds().GetDatabases()
+	databasesWithURLs := make(map[string]*DiscoverRDSDatabaseWithURLs, len(databases))
+
+	for databaseID, database := range databases {
+		databasesWithURLs[databaseID] = withRDSDatabaseIssueURL(ut, database)
+	}
+
+	return &UserTaskDiscoverRDSWithURLs{
+		DiscoverRDS: ut.GetSpec().GetDiscoverRds(),
+		Databases:   databasesWithURLs,
 	}
 }

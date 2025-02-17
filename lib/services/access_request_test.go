@@ -2673,6 +2673,14 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 				},
 			},
 		},
+		"shortMaxDurationReqRole3": {
+			condition: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:       []string{"requestedRole"},
+					MaxDuration: types.Duration(day),
+				},
+			},
+		},
 	}
 
 	// describes a collection of users with various roles
@@ -2681,6 +2689,7 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 		"bob":   {"defaultRole"},
 		"carol": {"shortMaxDurationReqRole", "shortMaxDurationReqRole2"},
 		"david": {"maxDurationReqRole"},
+		"erin":  {"shortMaxDurationReqRole", "shortMaxDurationReqRole3", "maxDurationReqRole"},
 	}
 
 	defaultSessionTTL := 8 * time.Hour
@@ -2723,14 +2732,6 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 			expectedPendingTTL:     3 * day,
 			expectedSessionTTL:     8 * time.Hour,
 			dryRun:                 true,
-		},
-		{
-			desc:                   "role max_duration is ignored when requestedMaxDuration is not set",
-			requestor:              "alice",
-			roles:                  []string{"requestedRole"}, // role max_duration capped to 3 days
-			expectedAccessDuration: 8 * time.Hour,             // caps to defaultSessionTTL since requestedMaxDuration was not set
-			expectedPendingTTL:     8 * time.Hour,
-			expectedSessionTTL:     8 * time.Hour,
 		},
 		{
 			desc:                   "when role max_duration is not set: default to defaultSessionTTL when requestedMaxDuration is not set",
@@ -2812,6 +2813,25 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 			expectedPendingTTL:     day,
 			expectedSessionTTL:     8 * time.Hour,
 		},
+		{
+			desc:                   "role max_duration is respected when requestedMaxDuration is not set",
+			requestor:              "alice",                   // has shortMaxDurationReqRole role assigned
+			roles:                  []string{"requestedRole"}, // caps max_duration to 3 days
+			expectedAccessDuration: 3 * day,
+			expectedPendingTTL:     3 * day,
+			expectedSessionTTL:     8 * time.Hour,
+		},
+		{
+			desc: "multiple roles with different max durations assigned",
+			// erin has the maxDurationReqRole (7 days) role assigned
+			// along with 2 other roles with shorter durations
+			// shortMaxDurationReqRole (3 days) and shortMaxDurationReqRole3 (1 day)
+			requestor:              "erin",
+			roles:                  []string{"requestedRole"}, // caps max_duration to 7 days
+			expectedAccessDuration: 7 * day,
+			expectedPendingTTL:     7 * day,
+			expectedSessionTTL:     8 * time.Hour,
+		},
 	}
 
 	for _, tt := range tts {
@@ -2832,7 +2852,9 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 			require.NoError(t, err)
 
 			req.SetCreationTime(now)
-			req.SetMaxDuration(now.Add(tt.requestedMaxDuration))
+			if tt.requestedMaxDuration != 0 {
+				req.SetMaxDuration(now.Add(tt.requestedMaxDuration))
+			}
 			req.SetDryRun(tt.dryRun)
 
 			require.NoError(t, validator.Validate(context.Background(), req, identity))

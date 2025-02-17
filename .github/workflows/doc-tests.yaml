@@ -134,7 +134,7 @@ jobs:
       - name: Run the linter
         uses: errata-ai/vale-action@d89dee975228ae261d22c15adcd03578634d429c # v2.1.1
         with:
-          version: 2.30.0
+          version: 3.9.4
           # Take the comma-separated list of files returned by the "Check for
           # relevant changes" job.
           separator: ","

@@ -49,7 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -365,17 +365,19 @@ func TestHostCertVerification(t *testing.T) {
 	// Generate a host certificate for node with role "node".
 	_, rootHostPub, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
-	rootHostCertBytes, err := keygen.GenerateHostCert(services.HostCertParams{
+	rootHostCertBytes, err := keygen.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      root.signer,
 		PublicHostKey: rootHostPub,
 		HostID:        "5ff40d80-9007-4f28-8f49-7d4fda2f574d",
 		NodeName:      "server01",
-		Principals: []string{
-			"127.0.0.1",
+		TTL:           1 * time.Hour,
+		Identity: sshca.Identity{
+			Principals: []string{
+				"127.0.0.1",
+			},
+			ClusterName: "example.com",
+			SystemRole:  types.RoleNode,
 		},
-		ClusterName: "example.com",
-		Role:        types.RoleNode,
-		TTL:         1 * time.Hour,
 	})
 	require.NoError(t, err)
 	rootHostPublicKey, _, _, _, err := ssh.ParseAuthorizedKey(rootHostCertBytes)
@@ -383,14 +385,16 @@ func TestHostCertVerification(t *testing.T) {
 
 	_, leafHostPub, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
-	leafHostCertBytes, err := keygen.GenerateHostCert(services.HostCertParams{
+	leafHostCertBytes, err := keygen.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      leaf.signer,
 		PublicHostKey: leafHostPub,
 		HostID:        "620bb71c-c9eb-4f6d-9823-f7d9125ebb1d",
 		NodeName:      "server02",
-		ClusterName:   "leaf.example.com",
-		Role:          types.RoleNode,
 		TTL:           1 * time.Hour,
+		Identity: sshca.Identity{
+			ClusterName: "leaf.example.com",
+			SystemRole:  types.RoleNode,
+		},
 	})
 	require.NoError(t, err)
 	leafHostPublicKey, _, _, _, err := ssh.ParseAuthorizedKey(leafHostCertBytes)
@@ -619,14 +623,16 @@ func TestHostCertVerificationLoadAllCasProxyAddrEqClusterName(t *testing.T) {
 func mustGenerateHostPublicCert(t *testing.T, keygen *testauthority.Keygen, signer ssh.Signer, nodeName, clusterName string) ssh.PublicKey {
 	_, leafHostPub, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
-	leafHostCertBytes, err := keygen.GenerateHostCert(services.HostCertParams{
+	leafHostCertBytes, err := keygen.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      signer,
 		PublicHostKey: leafHostPub,
 		HostID:        uuid.NewString(),
 		NodeName:      nodeName,
-		ClusterName:   clusterName,
-		Role:          types.RoleNode,
 		TTL:           1 * time.Hour,
+		Identity: sshca.Identity{
+			ClusterName: clusterName,
+			SystemRole:  types.RoleNode,
+		},
 	})
 	require.NoError(t, err)
 	leafCerts, err := sshutils.ParseAuthorizedKeys([][]byte{leafHostCertBytes})
@@ -751,16 +757,18 @@ func (s *KeyAgentTestSuite) makeKeyRing(t *testing.T, username, proxyHost string
 
 	sshPub, err := ssh.NewPublicKey(sshKey.Public())
 	require.NoError(t, err)
-	certificate, err := testauthority.New().GenerateUserCert(services.UserCertParams{
-		CertificateFormat:     constants.CertificateFormatStandard,
-		CASigner:              caSigner,
-		PublicUserKey:         ssh.MarshalAuthorizedKey(sshPub),
-		Username:              username,
-		AllowedLogins:         []string{username},
-		TTL:                   ttl,
-		PermitAgentForwarding: true,
-		PermitPortForwarding:  true,
-		RouteToCluster:        s.clusterName,
+	certificate, err := testauthority.New().GenerateUserCert(sshca.UserCertificateRequest{
+		CertificateFormat: constants.CertificateFormatStandard,
+		CASigner:          caSigner,
+		PublicUserKey:     ssh.MarshalAuthorizedKey(sshPub),
+		TTL:               ttl,
+		Identity: sshca.Identity{
+			Username:              username,
+			Principals:            []string{username},
+			PermitAgentForwarding: true,
+			PermitPortForwarding:  true,
+			RouteToCluster:        s.clusterName,
+		},
 	})
 	require.NoError(t, err)
 

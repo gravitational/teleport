@@ -62,6 +62,9 @@ message UserTaskSpec {
   // DiscoverEKS contains the AWS EKS clusters that failed to auto enroll into the cluster.
   // Present when TaskType is discover-eks.
   DiscoverEKS discover_eks = 6;
+  // DiscoverRDS contains the AWS RDS databases that failed to auto enroll into the cluster.
+  // Present when TaskType is discover-rds.
+  DiscoverRDS discover_rds = 7;
 }
 
 // UserTaskStatus contains the current status for the UserTask.
@@ -130,4 +133,35 @@ message DiscoverEKSCluster {
   string discovery_group = 3;
   // SyncTime is the timestamp when the error was produced.
   google.protobuf.Timestamp sync_time = 4;
+}
+
+// DiscoverRDS contains the databases that failed to auto-enroll into teleport.
+message DiscoverRDS {
+  // Databases maps a database resource id to the result of enrolling that database into teleport.
+  // For RDS Aurora Clusters, this is the DBClusterIdentifier.
+  // For other RDS databases, this is the DBInstanceIdentifier.
+  map<string, DiscoverRDSDatabase> databases = 1;
+  // AccountID is the AWS Account ID for the database.
+  string account_id = 2;
+  // Region is the AWS Region where Teleport failed to enroll RDS databases.
+  string region = 3;
+}
+
+// DiscoverRDSDatabase contains the result of enrolling an AWS RDS database.
+message DiscoverRDSDatabase {
+  // Name is the database identifier.
+  // For RDS Aurora Clusters, this is the DBClusterIdentifier.
+  // For other RDS databases, this is the DBInstanceIdentifier.
+  string name = 1;
+  // IsCluster indicates whether this database is a cluster or a single instance.
+  bool is_cluster = 2;
+  // Engine indicates the engine name for this RDS.
+  // Eg, aurora-postgresql, postgresql
+  string engine = 3;
+  // DiscoveryConfig is the discovery config name that originated this database enrollment.
+  string discovery_config = 4;
+  // DiscoveryGroup is the DiscoveryGroup name that originated this task.
+  string discovery_group = 5;
+  // SyncTime is the timestamp when the error was produced.
+  google.protobuf.Timestamp sync_time = 6;
 }

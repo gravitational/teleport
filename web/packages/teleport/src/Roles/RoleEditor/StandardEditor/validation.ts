@@ -26,10 +26,14 @@ import {
 } from 'shared/components/Validation/rules';
 
 import { nonEmptyLabels } from 'teleport/components/LabelsInput/LabelsInput';
-import { KubernetesResourceKind } from 'teleport/services/resources';
+import {
+  KubernetesResourceKind,
+  RoleVersion,
+} from 'teleport/services/resources';
 
 import {
   KubernetesResourceModel,
+  KubernetesVerbOption,
   MetadataModel,
   ResourceAccess,
   RoleEditorModel,
@@ -45,19 +49,74 @@ const kubernetesClusterWideResourceKinds: KubernetesResourceKind[] = [
   'certificatesigningrequest',
 ];
 
-export function validateRoleEditorModel({
-  metadata,
-  resources,
-  rules,
-}: RoleEditorModel) {
+export type RoleEditorModelValidationResult = {
+  metadata: MetadataValidationResult;
+  resources: ResourceAccessValidationResult[];
+  rules: AccessRuleValidationResult[];
+  /**
+   * isValid is true if all the fields in the validation result are valid.
+   */
+  isValid: boolean;
+};
+
+/**
+ * Validates the role editor model. In addition to the model itself, this
+ * function also takes the previous model and previous validation result. The
+ * intention here is to only return a newly created result if the previous
+ * model is indeed different. This pattern is then repeated in other validation
+ * functions.
+ *
+ * The purpose of this is less about the performance of the validation process
+ * itself, and more about enabling memoization-based rendering optimizations:
+ * UI components that take either entire or partial validation results can be
+ * cached if the validation results don't change.
+ *
+ * Note that we can't use `useMemo` here, because `validateRoleEditorModel` is
+ * called from the state reducer. Also `highbar.memoize` was not applicable, as
+ * it caches an arbitrary amount of previous results.
+ */
+export function validateRoleEditorModel(
+  model: RoleEditorModel,
+  previousModel: RoleEditorModel | undefined,
+  previousResult: RoleEditorModelValidationResult | undefined
+): RoleEditorModelValidationResult {
+  const metadataResult = validateMetadata(
+    model.metadata,
+    previousModel?.metadata,
+    previousResult?.metadata
+  );
+
+  const resourcesResult = validateResourceAccessList(
+    model.resources,
+    previousModel?.resources,
+    previousResult?.resources
+  );
+
+  const rulesResult = validateAccessRuleList(
+    model.rules,
+    previousModel?.rules,
+    previousResult?.rules
+  );
+
   return {
-    metadata: validateMetadata(metadata),
-    resources: resources.map(validateResourceAccess),
-    rules: rules.map(validateAccessRule),
+    isValid:
+      metadataResult.valid &&
+      resourcesResult.every(r => r.valid) &&
+      rulesResult.every(r => r.valid),
+    metadata: metadataResult,
+    resources: resourcesResult,
+    rules: rulesResult,
   };
 }
 
-function validateMetadata(model: MetadataModel): MetadataValidationResult {
+function validateMetadata(
+  model: MetadataModel,
+  previousModel: MetadataModel,
+  previousResult: MetadataValidationResult
+): MetadataValidationResult {
+  if (previousModel === model) {
+    return previousResult;
+  }
   return runRules(model, metadataRules);
 }
 
@@ -69,21 +128,42 @@ export type MetadataValidationResult = RuleSetValidationResult<
   typeof metadataRules
 >;
 
+function validateResourceAccessList(
+  resources: ResourceAccess[],
+  previousResources: ResourceAccess[],
+  previousResults: ResourceAccessValidationResult[]
+): ResourceAccessValidationResult[] {
+  if (previousResources === resources) {
+    return previousResults;
+  }
+  return resources.map((res, i) =>
+    validateResourceAccess(res, previousResources?.[i], previousResults?.[i])
+  );
+}
+
 export function validateResourceAccess(
-  res: ResourceAccess
+  resource: ResourceAccess,
+  previousResource: ResourceAccess,
+  previousResult: ResourceAccessValidationResult
 ): ResourceAccessValidationResult {
-  const { kind } = res;
+  if (resource === previousResource) {
+    return previousResult;
+  }
+
+  const { kind } = resource;
   switch (kind) {
     case 'kube_cluster':
-      return runRules(res, kubernetesAccessValidationRules);
+      return runRules(resource, kubernetesAccessValidationRules);
     case 'node':
-      return runRules(res, serverAccessValidationRules);
+      return runRules(resource, serverAccessValidationRules);
     case 'app':
-      return runRules(res, appAccessValidationRules);
+      return runRules(resource, appAccessValidationRules);
     case 'db':
-      return runRules(res, databaseAccessValidationRules);
+      return runRules(resource, databaseAccessValidationRules);
     case 'windows_desktop':
-      return runRules(res, windowsDesktopAccessValidationRules);
+      return runRules(resource, windowsDesktopAccessValidationRules);
+    case 'git_server':
+      return { valid: true };
     default:
       kind satisfies never;
   }
@@ -94,9 +174,11 @@ export type ResourceAccessValidationResult =
   | KubernetesAccessValidationResult
   | AppAccessValidationResult
   | DatabaseAccessValidationResult
-  | WindowsDesktopAccessValidationResult;
+  | WindowsDesktopAccessValidationResult
+  | GitHubOrganizationAccessValidationResult;
 
 const validKubernetesResource = (res: KubernetesResourceModel) => () => {
+  const kind = validKubernetesKind(res.kind.value, res.roleVersion);
   const name = requiredField(
     'Resource name is required, use "*" for any resource'
   )(res.name)();
@@ -105,15 +187,64 @@ const validKubernetesResource = (res: KubernetesResourceModel) => () => {
     : requiredField('Namespace is required for resources of this kind')(
         res.namespace
       )();
+  const verbs = validKubernetesVerbs(res.verbs);
   return {
-    valid: name.valid && namespace.valid,
+    valid: kind.valid && name.valid && namespace.valid && verbs.valid,
+    kind,
     name,
     namespace,
+    verbs,
   };
 };
 export type KubernetesResourceValidationResult = {
+  kind: ValidationResult;
   name: ValidationResult;
   namespace: ValidationResult;
+  verbs: ValidationResult;
+};
+
+/**
+ * Validates a `kind` field of a `KubernetesResourceModel`. In roles with
+ * version v6, the auth server allows only specifying access for `pod`
+ * Kubernetes resources.
+ */
+const validKubernetesKind = (
+  kind: KubernetesResourceKind,
+  ver: RoleVersion
+): ValidationResult => {
+  switch (ver) {
+    case RoleVersion.V3:
+    case RoleVersion.V4:
+    case RoleVersion.V5:
+    case RoleVersion.V6:
+      const valid = kind === 'pod';
+      return {
+        valid,
+        message: valid
+          ? undefined
+          : `Only pods are allowed for role version ${ver}`,
+      };
+
+    case RoleVersion.V7:
+      return { valid: true };
+
+    default:
+      ver satisfies never;
+      return { valid: true };
+  }
+};
+
+const validKubernetesVerbs = (
+  verbs: readonly KubernetesVerbOption[]
+): ValidationResult => {
+  // Don't allow mixing '*' and other resource types.
+  const valid = verbs.length < 2 || verbs.every(v => v.value !== '*');
+  return {
+    valid,
+    message: valid
+      ? undefined
+      : 'Mixing "All verbs" with other options is not allowed',
+  };
 };
 
 const kubernetesAccessValidationRules = {
@@ -159,6 +290,7 @@ export type AppAccessValidationResult = RuleSetValidationResult<
 const databaseAccessValidationRules = {
   labels: nonEmptyLabels,
   roles: noWildcardOptions('Wildcard is not allowed in database roles'),
+  dbServiceLabels: nonEmptyLabels,
 };
 export type DatabaseAccessValidationResult = RuleSetValidationResult<
   typeof databaseAccessValidationRules
@@ -171,8 +303,31 @@ export type WindowsDesktopAccessValidationResult = RuleSetValidationResult<
   typeof windowsDesktopAccessValidationRules
 >;
 
-export const validateAccessRule = (accessRule: RuleModel) =>
-  runRules(accessRule, accessRuleValidationRules);
+export type GitHubOrganizationAccessValidationResult = ValidationResult;
+
+export function validateAccessRuleList(
+  rules: RuleModel[],
+  previousRules: RuleModel[],
+  previousResults: AccessRuleValidationResult[]
+): AccessRuleValidationResult[] {
+  if (previousRules === rules) {
+    return previousResults;
+  }
+  return rules.map((rule, i) =>
+    validateAccessRule(rule, previousRules?.[i], previousResults?.[i])
+  );
+}
+
+export const validateAccessRule = (
+  rule: RuleModel,
+  previousRule: RuleModel,
+  previousResult: AccessRuleValidationResult
+): AccessRuleValidationResult => {
+  if (previousRule === rule) {
+    return previousResult;
+  }
+  return runRules(rule, accessRuleValidationRules);
+};
 
 const accessRuleValidationRules = {
   resources: requiredField('At least one resource kind is required'),

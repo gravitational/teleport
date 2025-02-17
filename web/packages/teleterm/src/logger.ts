@@ -69,3 +69,19 @@ export class NullService implements LoggerService {
   }
   /* eslint-enable @typescript-eslint/no-unused-vars */
 }
+
+export class ConsoleService implements LoggerService {
+  createLogger(loggerName: string): types.Logger {
+    return {
+      warn(...args: any[]) {
+        console.warn(loggerName, ...args);
+      },
+      info(...args: any[]) {
+        console.info(loggerName, ...args);
+      },
+      error(...args: any[]) {
+        console.error(loggerName, ...args);
+      },
+    };
+  }
+}

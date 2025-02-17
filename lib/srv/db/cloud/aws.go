@@ -23,36 +23,35 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/iam"
-	"github.com/aws/aws-sdk-go/service/iam/iamiface"
-	"github.com/aws/aws-sdk-go/service/rds"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 )
 
 // awsConfig is the config for the client that configures IAM for AWS databases.
 type awsConfig struct {
-	// clients is an interface for creating AWS clients.
-	clients cloud.Clients
+	// awsConfigProvider provides [aws.Config] for AWS SDK service clients.
+	awsConfigProvider awsconfig.Provider
 	// identity is AWS identity this database agent is running as.
 	identity awslib.Identity
 	// database is the database instance to configure.
 	database types.Database
 	// policyName is the name of the inline policy for the identity.
 	policyName string
+	// awsClients is an internal-only AWS SDK client provider that is
+	// only set in tests.
+	awsClients awsClientProvider
 }
 
 // Check validates the config.
 func (c *awsConfig) Check() error {
-	if c.clients == nil {
-		return trace.BadParameter("missing parameter clients")
-	}
 	if c.identity == nil {
 		return trace.BadParameter("missing parameter identity")
 	}
@@ -61,6 +60,12 @@ func (c *awsConfig) Check() error {
 	}
 	if c.policyName == "" {
 		return trace.BadParameter("missing parameter policy name")
+	}
+	if c.awsConfigProvider == nil {
+		return trace.BadParameter("missing parameter awsConfigProvider")
+	}
+	if c.awsClients == nil {
+		return trace.BadParameter("missing parameter awsClients")
 	}
 	return nil
 }
@@ -75,23 +80,24 @@ func newAWS(ctx context.Context, config awsConfig) (*awsClient, error) {
 		teleport.ComponentKey, "aws",
 		"db", config.database.GetName(),
 	)
-	dbConfigurator, err := getDBConfigurator(logger, config.clients, config.database)
+	dbConfigurator, err := getDBConfigurator(logger, config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	meta := config.database.GetAWS()
-	iam, err := config.clients.GetAWSIAMClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := config.awsConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	iamClt := config.awsClients.getIAMClient(awsCfg)
 	return &awsClient{
 		cfg:            config,
 		dbConfigurator: dbConfigurator,
-		iam:            iam,
+		iam:            iamClt,
 		logger:         logger,
 	}, nil
 }
@@ -102,10 +108,14 @@ type dbIAMAuthConfigurator interface {
 }
 
 // getDBConfigurator returns a database IAM Auth configurator.
-func getDBConfigurator(logger *slog.Logger, clients cloud.Clients, db types.Database) (dbIAMAuthConfigurator, error) {
-	if db.IsRDS() {
+func getDBConfigurator(logger *slog.Logger, cfg awsConfig) (dbIAMAuthConfigurator, error) {
+	if cfg.database.IsRDS() {
 		// Only setting for RDS instances and Aurora clusters.
-		return &rdsDBConfigurator{clients: clients, logger: logger}, nil
+		return &rdsDBConfigurator{
+			awsConfigProvider: cfg.awsConfigProvider,
+			logger:            logger,
+			awsClients:        cfg.awsClients,
+		}, nil
 	}
 	// IAM Auth for Redshift, ElastiCache, and RDS Proxy is always enabled.
 	return &nopDBConfigurator{}, nil
@@ -114,7 +124,7 @@ func getDBConfigurator(logger *slog.Logger, clients cloud.Clients, db types.Data
 type awsClient struct {
 	cfg            awsConfig
 	dbConfigurator dbIAMAuthConfigurator
-	iam            iamiface.IAMAPI
+	iam            iamClient
 	logger         *slog.Logger
 }
 
@@ -226,7 +236,7 @@ func (r *awsClient) getIAMPolicy(ctx context.Context) (*awslib.PolicyDocument, e
 	var policyDocument string
 	switch r.cfg.identity.(type) {
 	case awslib.Role:
-		out, err := r.iam.GetRolePolicyWithContext(ctx, &iam.GetRolePolicyInput{
+		out, err := r.iam.GetRolePolicy(ctx, &iam.GetRolePolicyInput{
 			PolicyName: aws.String(r.cfg.policyName),
 			RoleName:   aws.String(r.cfg.identity.GetName()),
 		})
@@ -236,9 +246,9 @@ func (r *awsClient) getIAMPolicy(ctx context.Context) (*awslib.PolicyDocument, e
 			}
 			return nil, awslib.ConvertIAMError(err)
 		}
-		policyDocument = aws.StringValue(out.PolicyDocument)
+		policyDocument = aws.ToString(out.PolicyDocument)
 	case awslib.User:
-		out, err := r.iam.GetUserPolicyWithContext(ctx, &iam.GetUserPolicyInput{
+		out, err := r.iam.GetUserPolicy(ctx, &iam.GetUserPolicyInput{
 			PolicyName: aws.String(r.cfg.policyName),
 			UserName:   aws.String(r.cfg.identity.GetName()),
 		})
@@ -248,7 +258,7 @@ func (r *awsClient) getIAMPolicy(ctx context.Context) (*awslib.PolicyDocument, e
 			}
 			return nil, awslib.ConvertIAMError(err)
 		}
-		policyDocument = aws.StringValue(out.PolicyDocument)
+		policyDocument = aws.ToString(out.PolicyDocument)
 	default:
 		return nil, trace.BadParameter("can only fetch policies for roles or users, got %v", r.cfg.identity)
 	}
@@ -264,13 +274,13 @@ func (r *awsClient) updateIAMPolicy(ctx context.Context, policy *awslib.PolicyDo
 	}
 	switch r.cfg.identity.(type) {
 	case awslib.Role:
-		_, err = r.iam.PutRolePolicyWithContext(ctx, &iam.PutRolePolicyInput{
+		_, err = r.iam.PutRolePolicy(ctx, &iam.PutRolePolicyInput{
 			PolicyName:     aws.String(r.cfg.policyName),
 			PolicyDocument: aws.String(string(document)),
 			RoleName:       aws.String(r.cfg.identity.GetName()),
 		})
 	case awslib.User:
-		_, err = r.iam.PutUserPolicyWithContext(ctx, &iam.PutUserPolicyInput{
+		_, err = r.iam.PutUserPolicy(ctx, &iam.PutUserPolicyInput{
 			PolicyName:     aws.String(r.cfg.policyName),
 			PolicyDocument: aws.String(string(document)),
 			UserName:       aws.String(r.cfg.identity.GetName()),
@@ -287,12 +297,12 @@ func (r *awsClient) detachIAMPolicy(ctx context.Context) error {
 	var err error
 	switch r.cfg.identity.(type) {
 	case awslib.Role:
-		_, err = r.iam.DeleteRolePolicyWithContext(ctx, &iam.DeleteRolePolicyInput{
+		_, err = r.iam.DeleteRolePolicy(ctx, &iam.DeleteRolePolicyInput{
 			PolicyName: aws.String(r.cfg.policyName),
 			RoleName:   aws.String(r.cfg.identity.GetName()),
 		})
 	case awslib.User:
-		_, err = r.iam.DeleteUserPolicyWithContext(ctx, &iam.DeleteUserPolicyInput{
+		_, err = r.iam.DeleteUserPolicy(ctx, &iam.DeleteUserPolicyInput{
 			PolicyName: aws.String(r.cfg.policyName),
 			UserName:   aws.String(r.cfg.identity.GetName()),
 		})
@@ -303,8 +313,9 @@ func (r *awsClient) detachIAMPolicy(ctx context.Context) error {
 }
 
 type rdsDBConfigurator struct {
-	clients cloud.Clients
-	logger  *slog.Logger
+	awsConfigProvider awsconfig.Provider
+	logger            *slog.Logger
+	awsClients        awsClientProvider
 }
 
 // ensureIAMAuth enables RDS instance IAM auth if it isn't already enabled.
@@ -323,30 +334,34 @@ func (r *rdsDBConfigurator) ensureIAMAuth(ctx context.Context, db types.Database
 func (r *rdsDBConfigurator) enableIAMAuth(ctx context.Context, db types.Database) error {
 	r.logger.DebugContext(ctx, "Enabling IAM auth for RDS")
 	meta := db.GetAWS()
-	rdsClt, err := r.clients.GetAWSRDSClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	if meta.RDS.ClusterID == "" && meta.RDS.InstanceID == "" {
+		return trace.BadParameter("no RDS cluster ID or instance ID for %v", db)
+	}
+	awsCfg, err := r.awsConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	clt := r.awsClients.getRDSClient(awsCfg)
 	if meta.RDS.ClusterID != "" {
-		_, err = rdsClt.ModifyDBClusterWithContext(ctx, &rds.ModifyDBClusterInput{
+		_, err = clt.ModifyDBCluster(ctx, &rds.ModifyDBClusterInput{
 			DBClusterIdentifier:             aws.String(meta.RDS.ClusterID),
 			EnableIAMDatabaseAuthentication: aws.Bool(true),
 			ApplyImmediately:                aws.Bool(true),
 		})
-		return awslib.ConvertIAMError(err)
+		return awslib.ConvertRequestFailureError(err)
 	}
 	if meta.RDS.InstanceID != "" {
-		_, err = rdsClt.ModifyDBInstanceWithContext(ctx, &rds.ModifyDBInstanceInput{
+		_, err = clt.ModifyDBInstance(ctx, &rds.ModifyDBInstanceInput{
 			DBInstanceIdentifier:            aws.String(meta.RDS.InstanceID),
 			EnableIAMDatabaseAuthentication: aws.Bool(true),
 			ApplyImmediately:                aws.Bool(true),
 		})
-		return awslib.ConvertIAMError(err)
+		return awslib.ConvertRequestFailureError(err)
 	}
-	return trace.BadParameter("no RDS cluster ID or instance ID for %v", db)
+	return nil
 }
 
 type nopDBConfigurator struct{}

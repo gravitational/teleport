@@ -17,6 +17,7 @@
  */
 
 import {
+  makeApp,
   makeAppGateway,
   makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
@@ -109,6 +110,7 @@ export class MockTshClient implements TshdClient {
       },
     });
   startHeadlessWatcher = () => new MockedUnaryCall({});
+  getApp = () => new MockedUnaryCall({ app: makeApp() });
 }
 
 export class MockVnetClient implements VnetClient {
@@ -116,4 +118,5 @@ export class MockVnetClient implements VnetClient {
   stop = () => new MockedUnaryCall({});
   listDNSZones = () => new MockedUnaryCall({ dnsZones: [] });
   getBackgroundItemStatus = () => new MockedUnaryCall({ status: 0 });
+  runDiagnostics = () => new MockedUnaryCall({});
 }

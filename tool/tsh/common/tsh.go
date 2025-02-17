@@ -260,8 +260,6 @@ type CLIConf struct {
 	ShowVersion bool
 	// Quiet mode, -q command (disables progress printing)
 	Quiet bool
-	// Namespace is used to select cluster namespace
-	Namespace string
 	// NoCache is used to turn off client cache for nodes discovery
 	NoCache bool
 	// BenchDuration is a duration for the benchmark
@@ -727,7 +725,7 @@ func initLogger(cf *CLIConf) {
 //
 // DO NOT RUN TESTS that call Run() in parallel (unless you taken precautions).
 func Run(ctx context.Context, args []string, opts ...CliOption) error {
-	if err := tools.CheckAndUpdateLocal(ctx, teleport.Version); err != nil {
+	if err := tools.CheckAndUpdateLocal(ctx, args); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -774,7 +772,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}
 
 	app.Flag("auth", "Specify the name of authentication connector to use.").Envar(authEnvVar).StringVar(&cf.AuthConnector)
-	app.Flag("namespace", "Namespace of the cluster").Default(apidefaults.Namespace).Hidden().StringVar(&cf.Namespace)
 	app.Flag("skip-version-check", "Skip version checking between server and client.").BoolVar(&cf.SkipVersionCheck)
 	// we don't want to add `.Envar(debugEnvVar)` here:
 	// - we already process TELEPORT_DEBUG with initLogger(), so we don't need to do it second time
@@ -1135,7 +1132,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	var benchKubeOpts benchKubeOptions
 	benchKube := bench.Command("kube", "Run Kube benchmark tests").Hidden()
-	benchKube.Flag("kube-namespace", "Selects the ").Default("default").StringVar(&benchKubeOpts.namespace)
+	// kube-namespace exists for backwards compatibility.
+	benchKube.Flag("kube-namespace", "Selects the ").Default("default").Hidden().StringVar(&benchKubeOpts.namespace)
+	benchKube.Flag("namespace", "Selects the ").Default("default").StringVar(&benchKubeOpts.namespace)
 	benchListKube := benchKube.Command("ls", "Run a benchmark test to list Pods").Hidden()
 	benchListKube.Arg("kube_cluster", "Kubernetes cluster to use").Required().StringVar(&cf.KubernetesCluster)
 	benchExecKube := benchKube.Command("exec", "Run a benchmark test to exec into the specified Pod").Hidden()
@@ -1214,7 +1213,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqSearch.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	reqSearch.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	reqSearch.Flag("kube-cluster", "Kubernetes Cluster to search for Pods").StringVar(&cf.KubernetesCluster)
-	reqSearch.Flag("kube-namespace", "Kubernetes Namespace to search for Pods").Default(corev1.NamespaceDefault).StringVar(&cf.kubeNamespace)
+	// kube-namespace exists for backwards compatibility.
+	reqSearch.Flag("kube-namespace", "Kubernetes Namespace to search for Pods").Hidden().Default(corev1.NamespaceDefault).StringVar(&cf.kubeNamespace)
+	reqSearch.Flag("namespace", "Kubernetes Namespace to search for Pods").Default(corev1.NamespaceDefault).StringVar(&cf.kubeNamespace)
 	reqSearch.Flag("all-kube-namespaces", "Search Pods in every namespace").BoolVar(&cf.kubeAllNamespaces)
 	reqSearch.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&cf.Verbose)
 
@@ -1256,11 +1257,13 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// Device Trust commands.
 	deviceCmd := newDeviceCommand(app)
 
-	workloadIdentityCmd := newSVIDCommands(app)
+	svidCmd := newSVIDCommands(app)
+	workloadIdentityCmd := newWorkloadIdentityCommands(app)
 
-	vnetCmd := newVnetCommand(app)
-	vnetAdminSetupCmd := newVnetAdminSetupCommand(app)
-	vnetDaemonCmd := newVnetDaemonCommand(app)
+	vnetCommand := newVnetCommand(app)
+	vnetAdminSetupCommand := newVnetAdminSetupCommand(app)
+	vnetDaemonCommand := newVnetDaemonCommand(app)
+	vnetServiceCommand := newVnetServiceCommand(app)
 
 	gitCmd := newGitCommands(app)
 
@@ -1508,7 +1511,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	case sessionsList.FullCommand():
 		err = onListSessions(&cf)
 	case login.FullCommand():
-		err = onLogin(&cf)
+		err = onLogin(&cf, args...)
 	case logout.FullCommand():
 		err = onLogout(&cf)
 	case show.FullCommand():
@@ -1636,14 +1639,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onKubectlCommand(&cf, args, args[idx:])
 	case headlessApprove.FullCommand():
 		err = onHeadlessApprove(&cf)
-	case workloadIdentityCmd.issue.FullCommand():
-		err = workloadIdentityCmd.issue.run(&cf)
-	case vnetCmd.FullCommand():
-		err = vnetCmd.run(&cf)
-	case vnetAdminSetupCmd.FullCommand():
-		err = vnetAdminSetupCmd.run(&cf)
-	case vnetDaemonCmd.FullCommand():
-		err = vnetDaemonCmd.run(&cf)
+	case svidCmd.issue.FullCommand():
+		err = svidCmd.issue.run(&cf)
+	case workloadIdentityCmd.issueX509.FullCommand():
+		err = workloadIdentityCmd.issueX509.run(&cf)
+	case vnetCommand.FullCommand():
+		err = vnetCommand.run(&cf)
+	case vnetAdminSetupCommand.FullCommand():
+		err = vnetAdminSetupCommand.run(&cf)
+	case vnetDaemonCommand.FullCommand():
+		err = vnetDaemonCommand.run(&cf)
+	case vnetServiceCommand.FullCommand():
+		err = vnetServiceCommand.run(&cf)
 	case gitCmd.list.FullCommand():
 		err = gitCmd.list.run(&cf)
 	case gitCmd.login.FullCommand():
@@ -1872,7 +1879,7 @@ func serializeVersion(format string, proxyVersion string, proxyPublicAddress str
 }
 
 // onLogin logs in with remote proxy and gets signed certificates
-func onLogin(cf *CLIConf) error {
+func onLogin(cf *CLIConf, reExecArgs ...string) error {
 	autoRequest := true
 	// special case: --request-roles=no disables auto-request behavior.
 	if cf.DesiredRoles == "no" {
@@ -1913,7 +1920,7 @@ func onLogin(cf *CLIConf) error {
 	// The user is not logged in and has typed in `tsh --proxy=... login`, if
 	// the running binary needs to be updated, update and re-exec.
 	if profile == nil {
-		if err := tools.CheckAndUpdateRemote(cf.Context, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+		if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1931,7 +1938,7 @@ func onLogin(cf *CLIConf) error {
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
-			if err := tools.CheckAndUpdateRemote(cf.Context, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+			if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -1951,7 +1958,7 @@ func onLogin(cf *CLIConf) error {
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
-			if err := tools.CheckAndUpdateRemote(cf.Context, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+			if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -1986,7 +1993,7 @@ func onLogin(cf *CLIConf) error {
 			}
 			// trigger reissue, preserving any active requests.
 			err = tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, client.ReissueParams{
-				AccessRequests: profile.ActiveRequests.AccessRequests,
+				AccessRequests: profile.ActiveRequests,
 				RouteToCluster: cf.SiteName,
 			})
 			if err != nil {
@@ -2027,7 +2034,7 @@ func onLogin(cf *CLIConf) error {
 		default:
 			// The user is logged in and has typed in `tsh --proxy=... login`, if
 			// the running binary needs to be updated, update and re-exec.
-			if err := tools.CheckAndUpdateRemote(cf.Context, teleport.Version, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+			if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -2144,7 +2151,7 @@ func onLogin(cf *CLIConf) error {
 			if capabilities.RequestPrompt != "" {
 				msg = msg + ", prompt=" + capabilities.RequestPrompt
 			}
-			err := trace.BadParameter(msg)
+			err := trace.BadParameter("%s", msg)
 			logoutErr := tc.Logout()
 			return trace.NewAggregate(err, logoutErr)
 		}
@@ -2737,8 +2744,7 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 			return trace.Wrap(err)
 		}); err != nil {
 			if strings.Contains(err.Error(), services.InvalidKubernetesKindAccessRequest) {
-				friendlyMsg := fmt.Sprintf("%s\nTry searching for specific kinds with:\n> tsh request search --kube-cluster=KUBE_CLUSTER_NAME --kind=KIND", err.Error())
-				return trace.BadParameter(friendlyMsg)
+				return trace.BadParameter("%s\nTry searching for specific kinds with:\n> tsh request search --kube-cluster=KUBE_CLUSTER_NAME --kind=KIND", err.Error())
 			}
 			return trace.Wrap(err)
 		}
@@ -3772,7 +3778,7 @@ func onSSHLatency(cf *CLIConf) error {
 	nodeClient, err := tc.ConnectToNode(
 		cf.Context,
 		clt,
-		client.NodeDetails{Addr: target.Addr, Namespace: tc.Namespace, Cluster: tc.SiteName},
+		client.NodeDetails{Addr: target.Addr, Cluster: tc.SiteName},
 		tc.Config.HostLogin,
 	)
 	if err != nil {
@@ -4072,7 +4078,7 @@ func onJoin(cf *CLIConf) error {
 		return trace.BadParameter("'%v' is not a valid session ID (must be GUID)", cf.SessionID)
 	}
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.Join(cf.Context, types.SessionParticipantMode(cf.JoinMode), cf.Namespace, *sid, nil)
+		return tc.Join(cf.Context, types.SessionParticipantMode(cf.JoinMode), *sid, nil)
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -4384,10 +4390,6 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		fmt.Printf("WARNING: Failed to load tsh profile for %q: %v\n", proxy, profileErr)
 	}
 
-	// 3: override with the CLI flags
-	if cf.Namespace != "" {
-		c.Namespace = cf.Namespace
-	}
 	if cf.Username != "" {
 		c.Username = cf.Username
 	}
@@ -5117,7 +5119,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 	out := &profileInfo{
 		ProxyURL:           p.ProxyURL.String(),
 		Username:           p.Username,
-		ActiveRequests:     p.ActiveRequests.AccessRequests,
+		ActiveRequests:     p.ActiveRequests,
 		Cluster:            p.Cluster,
 		Roles:              p.Roles,
 		Traits:             p.Traits,
@@ -5296,9 +5298,9 @@ func onRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.Acces
 			msg = fmt.Sprintf("%s, reason=%q", msg, reason)
 		}
 		if req.GetState().IsDenied() {
-			return trace.AccessDenied(msg)
+			return trace.AccessDenied("%s", msg)
 		}
-		return trace.Errorf(msg)
+		return trace.Errorf("%s", msg)
 	}
 
 	msg := "\nApproval received, getting updated certificates...\n\n"
@@ -5324,7 +5326,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, newRequests []s
 		RouteToCluster:     cf.SiteName,
 	}
 	// If the certificate already had active requests, add them to our inputs parameters.
-	for _, reqID := range profile.ActiveRequests.AccessRequests {
+	for _, reqID := range profile.ActiveRequests {
 		if !slices.Contains(dropRequests, reqID) {
 			params.AccessRequests = append(params.AccessRequests, reqID)
 		}

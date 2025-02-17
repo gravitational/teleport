@@ -44,6 +44,8 @@ export function AddApp({
   setAutomatic,
   isAuthTypeLocal,
   token,
+  labels,
+  setLabels,
 }: State & Props) {
   return (
     <Dialog
@@ -82,6 +84,8 @@ export function AddApp({
             onCreate={createToken}
             attempt={attempt}
             token={token}
+            labels={labels}
+            setLabels={setLabels}
           />
         )}
         {!automatic && (

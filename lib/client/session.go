@@ -56,9 +56,6 @@ const (
 )
 
 type NodeSession struct {
-	// namespace is a session this namespace belongs to
-	namespace string
-
 	// id is the Teleport session ID
 	id session.ID
 
@@ -129,7 +126,6 @@ func newSession(ctx context.Context,
 	ns := &NodeSession{
 		env:                   env,
 		nodeClient:            client,
-		namespace:             client.Namespace,
 		closer:                utils.NewCloseBroadcaster(),
 		closeWait:             &sync.WaitGroup{},
 		enableEscapeSequences: enableEscapeSequences,
@@ -146,7 +142,6 @@ func newSession(ctx context.Context,
 		}
 
 		ns.id = session.ID(sessionID)
-		ns.namespace = joinSession.GetMetadata().Namespace
 
 		if ns.terminal.IsAttached() {
 			err = ns.terminal.Resize(int16(terminalSize.Width), int16(terminalSize.Height))

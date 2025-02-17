@@ -27,7 +27,9 @@ package storage
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
@@ -94,7 +96,7 @@ func (p *ProcessStorage) GetState(ctx context.Context, role types.SystemRole) (*
 	}
 	var res state.StateV2
 	if err := utils.FastUnmarshal(item.Value, &res); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 
 	// an empty InitialLocalVersion is treated as an error by CheckAndSetDefaults, but if the field
@@ -162,7 +164,7 @@ func (p *ProcessStorage) ReadIdentity(name string, role types.SystemRole) (*stat
 	}
 	var res state.IdentityV2
 	if err := utils.FastUnmarshal(item.Value, &res); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	if err := res.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -231,6 +233,42 @@ func (p *ProcessStorage) WriteTeleportVersion(ctx context.Context, version *semv
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func rdpLicenseKey(key *types.RDPLicenseKey) backend.Key {
+	return backend.NewKey("rdplicense", key.Issuer, strconv.Itoa(int(key.Version)), key.Company, key.ProductID)
+}
+
+type rdpLicense struct {
+	Data []byte `json:"data"`
+}
+
+// WriteRDPLicense writes an RDP license to local storage.
+func (p *ProcessStorage) WriteRDPLicense(ctx context.Context, key *types.RDPLicenseKey, license []byte) error {
+	value, err := json.Marshal(rdpLicense{Data: license})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     rdpLicenseKey(key),
+		Value:   value,
+		Expires: p.BackendStorage.Clock().Now().Add(28 * 24 * time.Hour),
+	}
+	_, err = p.stateStorage.Put(ctx, item)
+	return trace.Wrap(err)
+}
+
+// ReadRDPLicense reads a previously obtained license from storage.
+func (p *ProcessStorage) ReadRDPLicense(ctx context.Context, key *types.RDPLicenseKey) ([]byte, error) {
+	item, err := p.stateStorage.Get(ctx, rdpLicenseKey(key))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	license := rdpLicense{}
+	if err := json.Unmarshal(item.Value, &license); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return license.Data, nil
 }
 
 // ReadLocalIdentity reads, parses and returns the given pub/pri key + cert from the

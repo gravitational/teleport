@@ -27,8 +27,8 @@ import { Cross } from 'design/Icon';
 import { useFeatures } from 'teleport/FeaturesContext';
 import { TeleportFeature } from 'teleport/types';
 
-import { SidenavCategory } from './SideNavigation/categories';
-import { getSubsectionStyles } from './SideNavigation/Section';
+import { SidenavCategory } from './categories';
+import { getSubsectionStyles } from './Section';
 
 export type RecentHistoryItem = {
   category?: SidenavCategory;

@@ -110,6 +110,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 				DbType:     e.DatabaseType,
 				DbProtocol: e.DatabaseProtocol,
 				DbOrigin:   e.DatabaseOrigin,
+				UserAgent:  e.UserAgent,
 			},
 			UserKind: prehogUserKindFromEventKind(e.UserKind),
 		}
@@ -194,6 +195,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			JoinMethod:    e.Method,
 			JoinTokenName: e.TokenName,
 			UserName:      e.UserName,
+			BotInstanceId: e.BotInstanceID,
 		}
 
 	case *apievents.DeviceEvent2:
@@ -269,12 +271,13 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		}
 	case *apievents.SPIFFESVIDIssued:
 		return &SPIFFESVIDIssuedEvent{
-			UserName:     e.User,
-			UserKind:     prehogUserKindFromEventKind(e.UserKind),
-			SpiffeId:     e.SPIFFEID,
-			IpSansCount:  int32(len(e.IPSANs)),
-			DnsSansCount: int32(len(e.DNSSANs)),
-			SvidType:     e.SVIDType,
+			UserName:      e.User,
+			UserKind:      prehogUserKindFromEventKind(e.UserKind),
+			SpiffeId:      e.SPIFFEID,
+			IpSansCount:   int32(len(e.IPSANs)),
+			DnsSansCount:  int32(len(e.DNSSANs)),
+			SvidType:      e.SVIDType,
+			BotInstanceId: e.BotInstanceID,
 		}
 	case *apievents.DatabaseUserCreate:
 		return &DatabaseUserCreatedEvent{
@@ -312,6 +315,22 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			SessionType: e.SessionType,
 			UserName:    e.User,
 			Format:      e.Format,
+		}
+
+	case *apievents.GitCommand:
+		// Only count when a command is executed on remote Git server and ignore
+		// errors that happen before that.
+		if e.ExitCode == "" {
+			return nil
+		}
+		return &SessionStartEvent{
+			UserName:    e.User,
+			SessionType: string(types.GitSessionKind),
+			UserKind:    prehogUserKindFromEventKind(e.UserKind),
+			Git: &prehogv1a.SessionStartGitMetadata{
+				GitType:    e.ServerSubKind,
+				GitService: e.Service,
+			},
 		}
 	}
 

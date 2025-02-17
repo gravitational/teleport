@@ -48,7 +48,7 @@ type AppTestOptions struct {
 	ExtraLeafApps        []servicecfg.App
 	RootClusterListeners helpers.InstanceListenerSetupFunc
 	LeafClusterListeners helpers.InstanceListenerSetupFunc
-	Clock                clockwork.FakeClock
+	Clock                clockwork.Clock
 	MonitorCloseChannel  chan struct{}
 
 	RootConfig func(config *servicecfg.Config)
@@ -346,7 +346,6 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	p.leafCluster = helpers.NewInstance(t, leafCfg)
 
 	rcConf := servicecfg.MakeDefaultConfig()
-	rcConf.Console = nil
 	rcConf.Logger = log
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
@@ -364,7 +363,6 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	rcConf.Clock = opts.Clock
 
 	lcConf := servicecfg.MakeDefaultConfig()
-	lcConf.Console = nil
 	lcConf.Logger = log
 	lcConf.DataDir = t.TempDir()
 	lcConf.Auth.Enabled = true

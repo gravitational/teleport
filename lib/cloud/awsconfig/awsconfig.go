@@ -18,18 +18,23 @@ package awsconfig
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
+	"fmt"
 	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
 	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 const defaultRegion = "us-east-1"
@@ -69,7 +74,12 @@ type AssumeRole struct {
 	// RoleARN is the ARN of the role to assume.
 	RoleARN string `json:"role_arn"`
 	// ExternalID is an optional ID to include when assuming the role.
-	ExternalID string `json:"external_id"`
+	ExternalID string `json:"external_id,omitempty"`
+	// SessionName is an optional session name to use when assuming the role.
+	SessionName string `json:"session_name,omitempty"`
+	// Tags is a list of STS session tags to pass when assuming the role.
+	// https://docs.aws.amazon.com/IAM/latest/UserGuide/id_session-tags.html
+	Tags map[string]string `json:"tags,omitempty"`
 }
 
 // options is a struct of additional options for assuming an AWS role
@@ -127,9 +137,10 @@ func (o *options) checkAndSetDefaults() error {
 
 	if o.stsClientProvider == nil {
 		o.stsClientProvider = func(cfg aws.Config) STSClient {
-			return sts.NewFromConfig(cfg, func(o *sts.Options) {
+			return stsutils.NewFromConfig(cfg, func(o *sts.Options) {
 				o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
 			})
+
 		}
 	}
 	return nil
@@ -150,6 +161,18 @@ func WithAssumeRole(roleARN, externalID string) OptionsFn {
 			RoleARN:    roleARN,
 			ExternalID: externalID,
 		})
+	}
+}
+
+// WithDetailedAssumeRole configures options needed for assuming an AWS role,
+// including optional details like session name, duration, and tags.
+func WithDetailedAssumeRole(ar AssumeRole) OptionsFn {
+	return func(options *options) {
+		if ar.RoleARN == "" {
+			// ignore empty role ARN for caller convenience.
+			return
+		}
+		options.assumeRoles = append(options.assumeRoles, ar)
 	}
 }
 
@@ -280,11 +303,11 @@ func getBaseConfig(ctx context.Context, region string, opts *options) (aws.Confi
 }
 
 func getConfigForRoleChain(ctx context.Context, cfg aws.Config, roles []AssumeRole, newCltFn STSClientProviderFunc) (aws.Config, error) {
-	for _, r := range roles {
-		cfg.Credentials = getAssumeRoleProvider(ctx, newCltFn(cfg), r)
-	}
 	if len(roles) > 0 {
-		// no point caching every assumed role in the chain, we can just cache
+		for _, r := range roles {
+			cfg.Credentials = getAssumeRoleProvider(ctx, newCltFn(cfg), r)
+		}
+		// No point caching every assumed role in the chain, we can just cache
 		// the last one.
 		cfg.Credentials = aws.NewCredentialsCache(cfg.Credentials, awsCredentialsCacheOptions)
 		if _, err := cfg.Credentials.Retrieve(ctx); err != nil {
@@ -301,6 +324,13 @@ func getAssumeRoleProvider(ctx context.Context, clt stscreds.AssumeRoleAPIClient
 	return stscreds.NewAssumeRoleProvider(clt, role.RoleARN, func(aro *stscreds.AssumeRoleOptions) {
 		if role.ExternalID != "" {
 			aro.ExternalID = aws.String(role.ExternalID)
+		}
+		aro.RoleSessionName = maybeHashRoleSessionName(role.SessionName)
+		for k, v := range role.Tags {
+			aro.Tags = append(aro.Tags, ststypes.Tag{
+				Key:   aws.String(k),
+				Value: aws.String(v),
+			})
 		}
 	})
 }
@@ -341,4 +371,39 @@ func (p *integrationCredentialsProvider) Retrieve(ctx context.Context) (aws.Cred
 		staticIdentityToken(token),
 	).Retrieve(ctx)
 	return cred, trace.Wrap(err)
+}
+
+// maybeHashRoleSessionName truncates the role session name and adds a hash
+// when the original role session name is greater than AWS character limit
+// (64).
+func maybeHashRoleSessionName(roleSessionName string) (ret string) {
+	// maxRoleSessionNameLength is the maximum length of the role session name
+	// used by the AssumeRole call.
+	// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html
+	const maxRoleSessionNameLength = 64
+	if len(roleSessionName) <= maxRoleSessionNameLength {
+		return roleSessionName
+	}
+
+	const hashLen = 16
+	hash := sha1.New()
+	hash.Write([]byte(roleSessionName))
+	hex := hex.EncodeToString(hash.Sum(nil))[:hashLen]
+
+	// "1" for the delimiter.
+	keepPrefixIndex := maxRoleSessionNameLength - len(hex) - 1
+
+	// Sanity check. This should never happen since hash length and
+	// MaxRoleSessionNameLength are both constant.
+	if keepPrefixIndex < 0 {
+		keepPrefixIndex = 0
+	}
+
+	ret = fmt.Sprintf("%s-%s", roleSessionName[:keepPrefixIndex], hex)
+	slog.DebugContext(context.Background(),
+		"AWS role session name is too long. Using a hash instead.",
+		"hashed", ret,
+		"original", roleSessionName,
+	)
+	return ret
 }

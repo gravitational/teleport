@@ -237,7 +237,7 @@ You must repeat these steps if you rotate the Teleport user certificate authorit
 
 To export the Teleport user CA certificate:
 
-1. Log on to a Windows domain controller where you can access **Group Policy Management**.
+1. Log on to a Windows host where you can access **Group Policy Management**.
 
 1. Open PowerShell and download the Teleport user certificate authority by running the following
    command and replacing `teleport.example.com` with the address of your Teleport cluster:
@@ -246,7 +246,11 @@ To export the Teleport user CA certificate:
    $ curl.exe -fo user-ca.cer https://<Var name="teleport.example.com"/>/webapi/auth/export?type=windows
    ```
 
-1. Take note of the path to the `user-ca.cer` file for use in a later step.
+   If you are using Teleport's support for HSM-backed keys, then your Teleport
+   cluster has multiple user CAs (one for each Auth Service instance). You can
+   download a bundle containing all CAs by appending `&format=zip` to the URL.
+
+1. Take note of the path to file you just downloaded for use in a later step.
 
 #### Create the GPO for the Teleport certificate
 
@@ -289,6 +293,8 @@ To configure the group policy object:
    ![Import Teleport CA](../../../img/desktop-access/ca.png)
    </Figure>
 
+   If you are using HSM-backed keys, you should repeat this step for each CA certificate.
+
 1. To ensure your GPO update takes effect immediately on this host,
    open PowerShell and run the following command (optional):
 
@@ -314,6 +320,9 @@ To publish the Teleport certificate in the Active Directory domain:
    This command enables the domain controllers to trust the Teleport CA so that
    certificate-based smart card authentication through Teleport can succeed.
 
+   If you are using HSM-backed keys, you should repeat this step for each CA certificate
+   in the zip file you exported earlier in this guide.
+
 #### Publish the Teleport CA to the NTAuth Store
 
 For authentication with Teleport-issued certificates to succeed, the
@@ -321,6 +330,9 @@ Teleport CA also must be published to the enterprise NTAuth store.
 Teleport periodically publishes its CA after it is able to authenticate, but
 this step must be performed manually the first time for Teleport to have LDAP
 access.
+
+If you are using HSM-backed keys, you should repeat these steps for each CA certificate
+in the bundle.
 
 To publish the Teleport CA to LDAP:
 
@@ -602,7 +614,7 @@ To configure Teleport to protect access to Windows desktops:
    ```yaml
    version: v3
    teleport:
-     auth_token: <Var name="path-to-token"/>
+     auth_token: "path/to/token"
      proxy_server: <Var name="teleport.example.com"/> # replace with your proxy address
    windows_desktop_service:
      enabled: yes
@@ -614,7 +626,7 @@ To configure Teleport to protect access to Windows desktops:
        username: "$LDAP_USERNAME"
        sid: "$LDAP_USER_SID"
        # Path to the certificate you exported.
-       der_ca_file: <Var name="path-to-exported-cert"/>
+       der_ca_file: "path/to/exported/cert"
      discovery:
        base_dn: "*"
    auth_service:
@@ -688,6 +700,61 @@ To connect to a Windows desktop:
 
    To view the recording, select **Management** in the Teleport Web UI, then click **Session Recordings**
    in the Activity section.
+
+## LDAP Discovery
+
+In Active Directory environments, Teleport can be configured to discover hosts
+via LDAP. LDAP discovery is enabled by setting the `discovery.base_dn` field in
+the Teleport Windows Desktop Service configuration. You can set `base_dn` to a
+wildcard `'*` to search from the root of the domain, or you can specify an alternate
+base distinguished name to search from.
+
+```yaml
+windows_desktop_service:
+  enabled: yes
+  discovery:
+    base_dn: '*'
+```
+
+### Filters
+
+Teleport optionally accepts a set of filters that can be used to narrow the
+search results for discovery. The filters are specified with [LDAP
+Filter](https://ldap.com/ldap-filters/) syntax. Teleport will automatically
+compute a logical AND of all filters specified.
+
+```yaml
+windows_desktop_service:
+  enabled: yes
+  discovery:
+    base_dn: '*'
+    filters:
+    - '(location=Oakland)'
+    - '(!(primaryGroupID=516))'
+```
+
+### Labeling
+
+It is often necessary to apply labels to discovered hosts to control access. You
+can configure Teleport to convert LDAP attributes to Teleport labels by setting
+the `discovery.label_attributes` field in the Teleport Windows Desktop Service
+configuration.
+
+```yaml
+windows_desktop_service:
+  enabled: yes
+  discovery:
+    base_dn: '*'
+    label_attributes:
+      - 'location'
+      - 'department'
+```
+
+Each of the specified attributes will be placed in a Teleport label prefixed with `ldap/`.
+
+For example, if an AD computer object had a location attribute with a value of Oakland,
+and a department attribute with a value of Engineering, the Teleport resource for this
+host would have both `ldap/location=Oakland` and `ldap/department=Engineering` labels.
 
 ## Security hardening
 

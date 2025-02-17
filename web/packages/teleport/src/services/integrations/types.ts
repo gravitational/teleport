@@ -19,7 +19,21 @@
 import { Label } from 'teleport/types';
 
 import { ResourceLabel } from '../agents';
-import { Node } from '../nodes';
+
+export type IntegrationCreateResult<T extends IntegrationCreateRequest> =
+  T['subKind'] extends IntegrationKind.GitHub
+    ? IntegrationGitHub
+    : IntegrationAwsOidc;
+
+export type IntegrationUpdateResult<T extends IntegrationUpdateRequest> =
+  T['kind'] extends IntegrationKind.GitHub
+    ? IntegrationGitHub
+    : IntegrationAwsOidc;
+
+export type Integration =
+  | IntegrationGitHub
+  | IntegrationAwsOidc
+  | IntegrationAzureOidc;
 
 /**
  * type Integration v. type Plugin:
@@ -42,10 +56,10 @@ import { Node } from '../nodes';
  *  SD is the provider-specific status containing status details
  *   - currently only defined for plugin resource
  */
-export type Integration<
-  T extends string = 'integration',
-  K extends string = IntegrationKind,
-  SP extends Record<string, any> = IntegrationSpecAwsOidc,
+export type IntegrationTemplate<
+  T extends string,
+  K extends string,
+  SP extends Record<string, any> = null,
   SD extends Record<string, any> = null,
 > = {
   resourceType: T;
@@ -66,6 +80,24 @@ export enum IntegrationKind {
   GitHub = 'github',
 }
 
+export type IntegrationSpecGitHub = {
+  /**
+   * name of github organization
+   */
+  organization: string;
+};
+
+export type IntegrationGitHub = IntegrationTemplate<
+  'integration',
+  IntegrationKind.GitHub,
+  IntegrationSpecGitHub
+>;
+
+export type IntegrationAzureOidc = IntegrationTemplate<
+  'integration',
+  IntegrationKind.AzureOidc
+>;
+
 /**
  * IntegrationAudience defines supported audience value for IntegrationSpecAwsOidc
  * audience field.
@@ -84,6 +116,12 @@ export type IntegrationSpecAwsOidc = {
    */
   audience?: IntegrationAudience;
 };
+
+export type IntegrationAwsOidc = IntegrationTemplate<
+  'integration',
+  IntegrationKind.AwsOidc,
+  IntegrationSpecAwsOidc
+>;
 
 export type AwsOidcPingRequest = {
   // Define roleArn if the ping request should
@@ -154,13 +192,13 @@ export type ExternalAuditStorage = {
   athenaResultsURI: string;
 };
 
-export type ExternalAuditStorageIntegration = Integration<
+export type ExternalAuditStorageIntegration = IntegrationTemplate<
   'external-audit-storage',
   IntegrationKind.ExternalAuditStorage,
   ExternalAuditStorage
 >;
 
-export type Plugin<SP = any, D = any> = Integration<
+export type Plugin<SP = any, D = any> = IntegrationTemplate<
   'plugin',
   PluginKind,
   SP,
@@ -275,11 +313,27 @@ export type PluginEmailSpec = {
   fallbackRecipient: string;
 };
 
-export type IntegrationCreateRequest = {
-  name: string;
-  subKind: IntegrationKind;
-  awsoidc?: IntegrationSpecAwsOidc;
+export type IntegrationOAuthCredentials = {
+  id: string;
+  secret: string;
 };
+
+type IntegrationCreateGitHubRequest = {
+  name: string;
+  subKind: IntegrationKind.GitHub;
+  oauth: IntegrationOAuthCredentials;
+  github: { organization: string };
+};
+
+type IntegrationCreateAwsOidcRequest = {
+  name: string;
+  subKind: IntegrationKind.AwsOidc;
+  awsoidc: IntegrationSpecAwsOidc;
+};
+
+export type IntegrationCreateRequest =
+  | IntegrationCreateAwsOidcRequest
+  | IntegrationCreateGitHubRequest;
 
 export type IntegrationListResponse = {
   items: Integration[];
@@ -297,6 +351,31 @@ export type IntegrationWithSummary = {
   awsrds: ResourceTypeSummary;
   // AWSEKS contains the summary for the AWS EKS resources for this integration.
   awseks: ResourceTypeSummary;
+};
+
+// IntegrationDiscoveryRules contains the list of discovery rules for a given Integration.
+export type IntegrationDiscoveryRules = {
+  // rules is the list of integration rules.
+  rules: IntegrationDiscoveryRule[];
+  // nextKey is the position to resume listing rules.
+  nextKey: string;
+};
+
+// IntegrationDiscoveryRule describes a discovery rule associated with an integration.
+export type IntegrationDiscoveryRule = {
+  // resourceType indicates the type of resource that this rule targets.
+  // This is the same value that is set in DiscoveryConfig.AWS.<Matcher>.Types
+  // Example: ec2, rds, eks
+  resourceType: string;
+  // region where this rule applies to.
+  region: string;
+  // labelMatcher is the set of labels that are used to filter the resources before trying to auto-enroll them.
+  labelMatcher: Label[];
+  // discoveryConfig is the name of the DiscoveryConfig that created this rule.
+  discoveryConfig: string;
+  // lastSync contains the time when this rule was used.
+  // If empty, it indicates that the rule is not being used.
+  lastSync: number;
 };
 
 // ResourceTypeSummary contains the summary of the enrollment rules and found resources by the integration.
@@ -319,6 +398,26 @@ export type ResourceTypeSummary = {
   // ecsDatabaseServiceCount is the total number of DatabaseServices that were deployed into Amazon ECS.
   // Only applicable for AWS RDS resource summary.
   ecsDatabaseServiceCount: number;
+};
+
+// AWSOIDCListDeployedDatabaseServiceResponse is a list of Teleport Database Services that are deployed as ECS Services.
+export type AWSOIDCListDeployedDatabaseServiceResponse = {
+  // services are the ECS Services.
+  services: AWSOIDCDeployedDatabaseService[];
+};
+
+// AWSOIDCDeployedDatabaseService represents a Teleport Database Service that is deployed in Amazon ECS.
+export type AWSOIDCDeployedDatabaseService = {
+  // name is the ECS Service name.
+  name: string;
+  // dashboardUrl is the link to the ECS Service in Amazon Web Console.
+  dashboardUrl: string;
+  // validTeleportConfig returns whether this ECS Service has a valid Teleport Configuration for a deployed Database Service.
+  // ECS Services with non-valid configuration require the user to take action on them.
+  // No MatchingLabels are returned with an invalid configuration.
+  validTeleportConfig: boolean;
+  // matchingLabels are the labels that are used by the Teleport Database Service to know which databases it should proxy.
+  matchingLabels: Label[];
 };
 
 // awsRegionMap maps the AWS regions to it's region name
@@ -445,11 +544,22 @@ export type ListAwsRdsFromAllEnginesResponse = {
   oneOfError?: string;
 };
 
-export type IntegrationUpdateRequest = {
+export type UpdateIntegrationAwsOidc = {
+  kind: IntegrationKind.AwsOidc;
   awsoidc: {
     roleArn: string;
   };
 };
+
+export type UpdateIntegrationGithub = {
+  kind: IntegrationKind.GitHub;
+  oauth: IntegrationOAuthCredentials;
+  github: { organization: string };
+};
+
+export type IntegrationUpdateRequest =
+  | UpdateIntegrationAwsOidc
+  | UpdateIntegrationGithub;
 
 export type AwsOidcDeployServiceRequest = {
   deploymentMode: 'database-service';
@@ -568,81 +678,6 @@ export type ListEksClustersResponse = {
   nextToken?: string;
 };
 
-export type ListEc2InstancesRequest = {
-  region: Regions;
-  nextToken?: string;
-};
-
-export type ListEc2InstancesResponse = {
-  // instances is the list of EC2 Instances.
-  instances: Node[];
-  nextToken?: string;
-};
-
-export type ListEc2InstanceConnectEndpointsRequest = {
-  region: Regions;
-  // VPCIDs is a list of VPCs to filter EC2 Instance Connect Endpoints.
-  vpcIds: string[];
-  nextToken?: string;
-};
-
-export type ListEc2InstanceConnectEndpointsResponse = {
-  // endpoints is the list of EC2 Instance Connect Endpoints.
-  endpoints: Ec2InstanceConnectEndpoint[];
-  nextToken?: string;
-  // DashboardLink is the URL for AWS Web Console that
-  // lists all the Endpoints for the queries VPCs.
-  dashboardLink: string;
-};
-
-export type Ec2InstanceConnectEndpoint = {
-  name: string;
-  // state is the current state of the EC2 Instance Connect Endpoint.
-  state: Ec2InstanceConnectEndpointState;
-  // stateMessage is an optional message describing the state of the EICE, such as an error message.
-  stateMessage?: string;
-  // dashboardLink is a URL to AWS Console where the user can see the EC2 Instance Connect Endpoint.
-  dashboardLink: string;
-  // subnetID is the subnet used by the Endpoint. Please note that the Endpoint should be able to reach any subnet within the VPC.
-  subnetId: string;
-  // VPCID is the VPC ID where the Endpoint is created.
-  vpcId: string;
-};
-
-export type Ec2InstanceConnectEndpointState =
-  | 'create-in-progress'
-  | 'create-complete'
-  | 'create-failed'
-  | 'delete-in-progress'
-  | 'delete-complete'
-  | 'delete-failed';
-
-export type AwsOidcDeployEc2InstanceConnectEndpointRequest = {
-  // SubnetID is the subnet id for the EC2 Instance Connect Endpoint.
-  subnetId: string;
-  // SecurityGroupIDs is the list of SecurityGroups to apply to the Endpoint.
-  // If not specified, the Endpoint will receive the default SG for the Subnet's VPC.
-  securityGroupIds?: string[];
-};
-
-export type DeployEc2InstanceConnectEndpointRequest = {
-  region: Regions;
-  // Endpoints is a list of endpoinst to create.
-  endpoints: AwsOidcDeployEc2InstanceConnectEndpointRequest[];
-};
-
-export type AwsEc2InstanceConnectEndpoint = {
-  // Name is the EC2 Instance Connect Endpoint name.
-  name: string;
-  // SubnetID is the subnet where this endpoint was created.
-  subnetId: string;
-};
-
-export type DeployEc2InstanceConnectEndpointResponse = {
-  // Endpoints is a list of created endpoints
-  endpoints: AwsEc2InstanceConnectEndpoint[];
-};
-
 export type Subnet = {
   /**
    * Subnet name.
@@ -758,4 +793,36 @@ export type Vpc = {
 export type AwsDatabaseVpcsResponse = {
   vpcs: Vpc[];
   nextToken: string;
+};
+
+/**
+ * Object that contains request fields for
+ * when requesting to create an AWS console app.
+ *
+ * This request object is only supported with v2 endpoint.
+ */
+export type CreateAwsAppAccessRequest = {
+  /**
+   * resource labels that will be set as app_server's labels
+   */
+  labels?: Record<string, string>;
+};
+
+export type SshKey = {
+  publicKey: string;
+  fingerprint: string;
+};
+
+export type TlsKey = {
+  cert: string;
+};
+
+export type JwtKey = {
+  publicKey: string;
+};
+
+export type ExportedIntegrationCaResponse = {
+  ssh: SshKey[];
+  tls: TlsKey[];
+  jwt: JwtKey[];
 };

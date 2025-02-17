@@ -16,23 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { forwardRef } from 'react';
+import styled from 'styled-components';
 
-import FieldInput, { FieldInputProps } from 'shared/components/FieldInput';
+import FieldInput from 'shared/components/FieldInput';
 
-export const ConfigFieldInput = forwardRef<HTMLInputElement, FieldInputProps>(
-  (props, ref) => <FieldInput size="small" ref={ref} {...props} />
-);
+export const ConfigFieldInput = styled(FieldInput).attrs({ size: 'small' })`
+  input {
+    &:invalid,
+    &:invalid:hover {
+      border-color: ${props =>
+        props.theme.colors.interactive.solid.danger.default};
+    }
+  }
+`;
 
-export const PortFieldInput = forwardRef<HTMLInputElement, FieldInputProps>(
-  (props, ref) => (
-    <ConfigFieldInput
-      type="number"
-      min={1}
-      max={65535}
-      ref={ref}
-      {...props}
-      width="110px"
-    />
-  )
-);
+export const PortFieldInput = styled(ConfigFieldInput).attrs({
+  type: 'number',
+  min: 1,
+  max: 65535,
+  // Without a min width, the stepper controls end up being to close to a long port number such
+  // as 65535. minWidth instead of width allows the field to grow with the label, so that e.g.
+  // a custom label of "Local Port (optional)" is displayed on a single line.
+  minWidth: '110px',
+})``;

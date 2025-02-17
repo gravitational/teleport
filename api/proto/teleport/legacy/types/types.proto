@@ -1407,6 +1407,8 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2TerraformCloud TerraformCloud = 16 [(gogoproto.jsontag) = "terraform_cloud,omitempty"];
   // Bitbucket allows the configuration of options specific to the "bitbucket" join method.
   ProvisionTokenSpecV2Bitbucket Bitbucket = 17 [(gogoproto.jsontag) = "bitbucket,omitempty"];
+  // Oracle allows the configuration of options specific to the "oracle" join method.
+  ProvisionTokenSpecV2Oracle Oracle = 18 [(gogoproto.jsontag) = "oracle,omitempty"];
 }
 
 // ProvisionTokenSpecV2TPM contains the TPM-specific part of the
@@ -1793,6 +1795,28 @@ message ProvisionTokenSpecV2Bitbucket {
   // value as written in the Pipelines -> OpenID Connect section of the
   // repository settings.
   string IdentityProviderURL = 3 [(gogoproto.jsontag) = "identity_provider_url,omitempty"];
+}
+
+// ProvisionTokenSpecV2Oracle contains Oracle-specific parts of the
+// ProvisionTokenSpecV2.
+message ProvisionTokenSpecV2Oracle {
+  // Rule is a set of properties the Oracle instance might have to be allowed
+  // to use this ProvisionToken.
+  message Rule {
+    // Tenancy is the OCID of the instance's tenancy. Required.
+    string Tenancy = 1 [(gogoproto.jsontag) = "tenancy"];
+    // ParentCompartments is a list of the OCIDs of compartments an instance is
+    // allowed to join from. Only direct parents are allowed, i.e. no nested
+    // compartments. If empty, any compartment is allowed.
+    repeated string ParentCompartments = 2 [(gogoproto.jsontag) = "parent_compartments,omitempty"];
+    // Regions is a list of regions an instance is allowed to join from. Both
+    // full region names ("us-phoenix-1") and abbreviations ("phx") are allowed.
+    // If empty, any region is allowed.
+    repeated string Regions = 3 [(gogoproto.jsontag) = "regions,omitempty"];
+  }
+  // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -2239,6 +2263,25 @@ message AuthPreferenceSpecV2 {
   // 1 is "otp", 2 is "webauthn", 3 is "sso",
   // If unspecified, the current default value is [1], or ["otp"].
   repeated SecondFactorType SecondFactors = 21 [(gogoproto.jsontag) = "second_factors,omitempty"];
+
+  // StableUnixUserConfig contains the cluster-wide configuration for stable
+  // UNIX users.
+  StableUNIXUserConfig stable_unix_user_config = 22;
+}
+
+// StableUNIXUserConfig contains the cluster-wide configuration for stable UNIX
+// users.
+message StableUNIXUserConfig {
+  // Enabled signifies that (UNIX) Teleport SSH hosts should obtain a UID from
+  // the control plane if they're about to provision a host user with no other
+  // configured UID.
+  bool enabled = 1;
+  // FirstUid is the start of the range of UIDs for autoprovisioned host users.
+  // The range is inclusive on both ends, so the specified UID can be assigned.
+  int32 first_uid = 2;
+  // LastUid is the end of the range of UIDs for autoprovisioned host users. The
+  // range is inclusive on both ends, so the specified UID can be assigned.
+  int32 last_uid = 3;
 }
 
 // SecondFactorType is a type of second factor.
@@ -6629,7 +6672,8 @@ message PluginOktaCredentialsInfo {
 message PluginOktaSyncSettings {
   option (gogoproto.equal) = true;
 
-  // SyncUsers controls the user sync in the Okta integration service.
+  // SyncUsers controls the user sync in the Okta integration service. The source of truth for the
+  // users is defined by UserSyncSource.
   bool sync_users = 1;
 
   // SSOConnectorID is the name of the Teleport SSO connector created and used by the Okta plugin
@@ -6644,8 +6688,7 @@ message PluginOktaSyncSettings {
   // AppID is the Okta-assigned ID of the Okta App that Teleport uses as a
   // gateway to interact with Okta for SAML login, SCIM provisioning and user
   // sync. When set, user sync will pull users from the assignment list for this
-  // app. When empty the plugin will fall back to the legacy behaviour of syncing
-  // users from the entre organization.
+  // app.
   string app_id = 5;
 
   // GroupFilters are filters for which Okta groups to synchronize as access lists.
@@ -6668,13 +6711,26 @@ message PluginOktaSyncSettings {
 
   // AppName is the Okta-assigned unique name of the Okta App that Teleport uses
   // as a gateway to interact with Okta for SAML login, SCIM provisioning and user
-  // sync. May be missing for old Okta integration installs.
+  // sync.
   string app_name = 8;
 
   // DisableSyncAppGroups disables syncing of app groups from Okta.
   // This is useful when the app groups are not needed in Teleport.
   // and integration with Okta is only used for user sync.
   bool disable_sync_app_groups = 9;
+
+  // DisableBidirectionalSync prevents syncing anything from Teleport to Okta. I.e. prevents
+  // creating Okta assignments.
+  bool disable_bidirectional_sync = 10;
+
+  // UserSyncSource defines the source of truth for Okta users. It can be one of "" (empty string),
+  // "saml_app" or "org". "saml_app" is set for all newly created plugins and indicates that source
+  // of truth for the sync are users assigned to the connector Okta SAML application. "org" is the
+  // legacy setting indicating that the source of truth for users are all the users from the Okta
+  // organization. If it's an empty string and UserSync is true, that means it's a legacy plugin
+  // that has not been yet updated and during the next update the value will be set to "org" if
+  // AppID is empty or "saml_app" if not.
+  string user_sync_source = 11;
 }
 
 // Defines a set of discord channel IDs
@@ -6788,12 +6844,27 @@ message PluginDatadogAccessSettings {
   string fallback_recipient = 2;
 }
 
+// AWSICCredentialsSource indicates where the AWS Identity Center plugin will
+// draw its AWS credentials from
+enum AWSICCredentialsSource {
+  // AWSIC_CREDENTIALS_SOURCE_UNKNOWN is used when the credentials source is not
+  // specified. For backwards compatability, UNKNOWN is handled as OIDC.
+  AWSIC_CREDENTIALS_SOURCE_UNKNOWN = 0;
+  // AWSIC_CREDENTIALS_SOURCE_OIDC indicates that the Identity Center plugin will
+  // draw its credentials from a configured Teleport OIDC integration and
+  // authenticate  woth OIDC
+  AWSIC_CREDENTIALS_SOURCE_OIDC = 1;
+  // AWSIC_CREDENTIALS_SOURCE_SYSTEM indicates that the Identity Center plugin
+  // will rely on system-provided credentials
+  AWSIC_CREDENTIALS_SOURCE_SYSTEM = 2;
+}
+
 // PluginAWSICSettings holds the settings for an AWS Identity Center integration.
 message PluginAWSICSettings {
   option (gogoproto.equal) = true;
 
   // IntegrationName is the Teleport OIDC integration used to gain access to the
-  // AWS account
+  // AWS account. May be empty if [CredentialsSource] is `SYSTEM`.
   string integration_name = 1;
 
   // Region is the AWS region the target Identity Center instance is configured in
@@ -6802,7 +6873,7 @@ message PluginAWSICSettings {
   // InstanceARN is the arn of the Identity Center instance to manage
   string arn = 3;
 
-  // Provisioning holds settings for provisioing users and groups into AWS
+  // Provisioning holds settings for provisioning users and groups into AWS
   AWSICProvisioningSpec provisioning_spec = 4;
 
   // AccessListDefaultOwners is a list of default owners for Access List created for
@@ -6812,6 +6883,60 @@ message PluginAWSICSettings {
   // SAMLIdPServiceProviderName is the name of a SAML service provider created
   // for the Identity Center.
   string saml_idp_service_provider_name = 6;
+
+  // CredentialsSource indicates how the Identity Center plugin should source
+  // its AWS login credentials
+  AWSICCredentialsSource credentials_source = 7;
+
+  // UserSyncLabelsFilter specifies a map of key-value pairs used to filter users
+  // based on their metadata labels. These filtered users will be provisioned
+  // from Teleport to AWS IC via SCIM provisioning.
+  // If multiple user_sync_filters are provided the match is combined with OR operator.
+  //
+  // Example:
+  // If Okta is used as the Identity Source and only users originating from Okta
+  // should be synced, set the filter to:
+  // [{
+  //   "okta/org": "https://trial-123456.okta.com",
+  //   "teleport.dev/origin": "okta"
+  // }]
+  //
+  // If AWS IC uses Teleport as the Identity Provider, the filter should remain empty.
+  //
+  // NOTE: System users are always filtered out by default and will not be provisioned to AWS IC.
+  repeated AWSICUserSyncFilter user_sync_filters = 8 [(gogoproto.jsontag) = "user_sync_filters,omitempty"];
+
+  // AwsAccountFilters is an optional allow-list of AWS accounts to import and
+  // manage. An empty list implies that all accounts managed by the Identity Center
+  // instance will be imported and managed.
+  repeated AWSICResourceFilter aws_accounts_filters = 9;
+
+  // GroupSyncLabelsFilter is used to specify filters that determine which AWS groups
+  // should be included during synchronization.
+  repeated AWSICResourceFilter group_sync_filters = 10 [(gogoproto.jsontag) = "group_sync_filters,omitempty"];
+}
+
+// AWSICResourceFilter is an entry in the AWS IC plugin settings' allow-list of
+// resources to import. The filter can specify inclusion either by account ID or
+// regex on the resource name.
+message AWSICResourceFilter {
+  option (gogoproto.equal) = true;
+
+  // Include describes the AWS Resource filter to apply
+  oneof include {
+    // Id indicates that the resource should be filtered by ID
+    string id = 1 [(gogoproto.jsontag) = "id,omitempty"];
+
+    // NameRegex indicates that the resource should be included its name matches
+    // the supplied regex.
+    string name_regex = 2 [(gogoproto.jsontag) = "name_regex,omitempty"];
+  }
+}
+
+// UserSyncFilter is a map of key-value pairs used to filter users based on their metadata labels.
+message AWSICUserSyncFilter {
+  option (gogoproto.equal) = true;
+  map<string, string> labels = 8 [(gogoproto.jsontag) = "labels,omitempty"];
 }
 
 // AWSICProvisioningSpec holds provisioning-specific Identity Center settings
@@ -7064,7 +7189,9 @@ message PluginOktaStatusDetailsSSO {
   // SSO login.
   string app_id = 2;
 
-  // AppName is the human-readable name of the Okta Applicaion used for SSO.
+  // AppName is the Okta-assigned unique name of the Okta App that Teleport uses
+  // as a gateway to interact with Okta for SAML login, SCIM provisioning and user
+  // sync.
   string app_name = 3;
 }
 

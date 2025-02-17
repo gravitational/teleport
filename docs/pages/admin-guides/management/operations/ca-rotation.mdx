@@ -84,7 +84,8 @@ to reflect data held by the Auth Service. This internal data includes the status
 of the `host` CA rotation if one is in progress.
 
 To check the rotation status of an agent or Proxy Service instance, run a
-variation of the following command:
+variation of the following command, assigning <Var name="resource" /> to the
+name of an agent or Proxy Service instance:
 
 ```code
 $ tctl get <Var name="resource" /> --format=json | jq '.[] | {hostname: .spec.hostname, rotation: .spec.rotation.state, phase: .spec.rotation.phase}'

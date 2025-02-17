@@ -71,6 +71,8 @@ func (r *IntegrationAWSOIDCSpec) CheckAndSetDefaults() error {
 // IntegrationWithSummary describes Integration fields and the fields required to return the summary.
 type IntegrationWithSummary struct {
 	*Integration
+	// UnresolvedUserTasks contains the count of unresolved user tasks related to this integration.
+	UnresolvedUserTasks int `json:"unresolvedUserTasks,omitempty"`
 	// AWSEC2 contains the summary for the AWS EC2 resources for this integration.
 	AWSEC2 ResourceTypeSummary `json:"awsec2,omitempty"`
 	// AWSRDS contains the summary for the AWS RDS resources and agents for this integration.
@@ -168,10 +170,41 @@ func (r *Integration) CheckAndSetDefaults() error {
 	return nil
 }
 
+type IntegrationOAuthCredentials struct {
+	ID     string `json:"id"`
+	Secret string `json:"secret"`
+}
+
+type CreateIntegrationRequest struct {
+	Integration
+
+	OAuth *IntegrationOAuthCredentials `json:"oauth,omitempty"`
+}
+
+func (r *CreateIntegrationRequest) CheckAndSetDefaults() error {
+	if err := r.Integration.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if r.SubKind == types.IntegrationSubKindGitHub {
+		if r.OAuth == nil {
+			return trace.BadParameter("missing OAuth settings for GitHub integrations")
+		}
+		if r.OAuth.ID == "" {
+			return trace.BadParameter("missing OAuth ID for GitHub integration")
+		}
+		if r.OAuth.Secret == "" {
+			return trace.BadParameter("missing OAuth secret for GitHub integration")
+		}
+	}
+	return nil
+}
+
 // UpdateIntegrationRequest is a request to update an Integration
 type UpdateIntegrationRequest struct {
 	// AWSOIDC contains the fields for `aws-oidc` subkind integration.
 	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc,omitempty"`
+	// OAuth contains OAuth settings.
+	OAuth *IntegrationOAuthCredentials `json:"oauth,omitempty"`
 }
 
 // CheckAndSetDefaults checks if the provided values are valid.
@@ -179,6 +212,13 @@ func (r *UpdateIntegrationRequest) CheckAndSetDefaults() error {
 	if r.AWSOIDC != nil {
 		if err := r.AWSOIDC.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
+		}
+	}
+	if r.OAuth != nil {
+		// Update allows reuse of the existing ID but secret must always be
+		// provided.
+		if r.OAuth.Secret == "" {
+			return trace.BadParameter("missing OAuth secret for GitHub integration")
 		}
 	}
 
@@ -439,25 +479,6 @@ type AWSOIDCListEKSClustersResponse struct {
 	NextToken string `json:"nextToken,omitempty"`
 }
 
-// AWSOIDCListEC2Request is a request to ListEC2s using the AWS OIDC Integration.
-type AWSOIDCListEC2Request struct {
-	// Region is the AWS Region.
-	Region string `json:"region"`
-	// NextToken is the token to be used to fetch the next page.
-	// If empty, the first page is fetched.
-	NextToken string `json:"nextToken"`
-}
-
-// AWSOIDCListEC2Response contains a list of Servers and a next token if more pages are available.
-type AWSOIDCListEC2Response struct {
-	// Servers contains the page of Servers
-	Servers []Server `json:"servers"`
-
-	// NextToken is used for pagination.
-	// If non-empty, it can be used to request the next page.
-	NextToken string `json:"nextToken,omitempty"`
-}
-
 // AWSOIDCListSecurityGroupsRequest is a request to ListSecurityGroups using the AWS OIDC Integration.
 type AWSOIDCListSecurityGroupsRequest struct {
 	// Region is the AWS Region.
@@ -549,78 +570,6 @@ type AWSOIDCRequiredVPCSResponse struct {
 	VPCMapOfSubnets map[string][]string `json:"vpcMapOfSubnets"`
 }
 
-// AWSOIDCListEC2ICERequest is a request to ListEC2ICEs using the AWS OIDC Integration.
-type AWSOIDCListEC2ICERequest struct {
-	// Region is the AWS Region.
-	Region string `json:"region"`
-	// VPCID is the VPC to filter EC2 Instance Connect Endpoints.
-	// Deprecated: use VPCIDs instead.
-	VPCID string `json:"vpcId"`
-	// VPCIDs is a list of VPCs to filter EC2 Instance Connect Endpoints.
-	VPCIDs []string `json:"vpcIds"`
-	// NextToken is the token to be used to fetch the next page.
-	// If empty, the first page is fetched.
-	NextToken string `json:"nextToken"`
-}
-
-// AWSOIDCListEC2ICEResponse contains a list of AWS Instance Connect Endpoints and a next token if more pages are available.
-type AWSOIDCListEC2ICEResponse struct {
-	// EC2ICEs contains the page of Endpoints
-	EC2ICEs []awsoidc.EC2InstanceConnectEndpoint `json:"ec2Ices"`
-
-	// DashboardLink is the URL for AWS Web Console that lists all the Endpoints for the queries VPCs.
-	DashboardLink string `json:"dashboardLink,omitempty"`
-
-	// NextToken is used for pagination.
-	// If non-empty, it can be used to request the next page.
-	NextToken string `json:"nextToken,omitempty"`
-}
-
-// AWSOIDCDeployEC2ICERequest is a request to create an AWS EC2 Instance Connect Endpoint.
-type AWSOIDCDeployEC2ICERequest struct {
-	// Region is the AWS Region.
-	Region string `json:"region"`
-	// Endpoints is a list of endpoinst to create.
-	Endpoints []AWSOIDCDeployEC2ICERequestEndpoint `json:"endpoints"`
-
-	// SubnetID is the subnet id for the EC2 Instance Connect Endpoint.
-	// Deprecated: use Endpoints instead.
-	SubnetID string `json:"subnetId"`
-	// SecurityGroupIDs is the list of SecurityGroups to apply to the Endpoint.
-	// If not specified, the Endpoint will receive the default SG for the Subnet's VPC.
-	// Deprecated: use Endpoints instead.
-	SecurityGroupIDs []string `json:"securityGroupIds"`
-}
-
-// AWSOIDCDeployEC2ICERequestEndpoint is a single Endpoint that should be created.
-type AWSOIDCDeployEC2ICERequestEndpoint struct {
-	// SubnetID is the subnet id for the EC2 Instance Connect Endpoint.
-	SubnetID string `json:"subnetId"`
-	// SecurityGroupIDs is the list of SecurityGroups to apply to the Endpoint.
-	// If not specified, the Endpoint will receive the default SG for the Subnet's VPC.
-	SecurityGroupIDs []string `json:"securityGroupIds"`
-}
-
-// AWSOIDCDeployEC2ICEResponse is the response after creating an AWS EC2 Instance Connect Endpoint.
-type AWSOIDCDeployEC2ICEResponse struct {
-	// Name is the name of the endpoint that was created.
-	// If multiple endpoints were created, this will contain all of them joined by a `,`.
-	// Eg, eice-1,eice-2
-	// Deprecated: use Endpoints instead.
-	Name string `json:"name"`
-
-	// Endpoints is a list of created endpoints
-	Endpoints []AWSOIDCDeployEC2ICEResponseEndpoint `json:"endpoints"`
-}
-
-// AWSOIDCDeployEC2ICEResponseEndpoint describes a single endpoint that was created.
-type AWSOIDCDeployEC2ICEResponseEndpoint struct {
-	// Name is the EC2 Instance Connect Endpoint name.
-	Name string `json:"name"`
-	// SubnetID is the subnet where this endpoint was created.
-	SubnetID string `json:"subnetId"`
-}
-
 // AWSOIDCPingResponse contains the result of the Ping request.
 // This response contains meta information about the current state of the Integration.
 type AWSOIDCPingResponse struct {
@@ -638,4 +587,10 @@ type AWSOIDCPingRequest struct {
 	// pinging to check validity before upserting an
 	// AWS OIDC integration.
 	RoleARN string `json:"roleArn,omitempty"`
+}
+
+// AWSOIDCDeployEC2ICERequest contains request fields for creating an app server.
+type AWSOIDCCreateAWSAppAccessRequest struct {
+	// Labels added to the app server resource that will be created.
+	Labels map[string]string `json:"labels"`
 }

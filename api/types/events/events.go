@@ -295,6 +295,7 @@ func (m *SessionStart) TrimToMaxSize(maxSize int) AuditEvent {
 
 	out := utils.CloneProtoMsg(m)
 	out.InitialCommand = nil
+	out.Invited = nil
 
 	maxSize = adjustedMaxSize(out, maxSize)
 
@@ -302,6 +303,10 @@ func (m *SessionStart) TrimToMaxSize(maxSize int) AuditEvent {
 	maxFieldSize := maxSizePerField(maxSize, customFieldsCount)
 
 	out.InitialCommand = trimStrSlice(m.InitialCommand, maxFieldSize)
+
+	customFieldsCount = nonEmptyStrsInSlice(m.Invited)
+	maxFieldSize = maxSizePerField(maxSize, customFieldsCount)
+	out.Invited = trimStrSlice(m.Invited, maxFieldSize)
 
 	return out
 }
@@ -2426,6 +2431,53 @@ func (m *WorkloadIdentityDelete) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
 
+func (m *WorkloadIdentityX509RevocationCreate) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.Reason = ""
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := nonEmptyStrs(m.Reason)
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.Reason = trimStr(m.Reason, maxFieldsSize)
+
+	return m
+}
+
+func (m *WorkloadIdentityX509RevocationUpdate) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.Reason = ""
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := nonEmptyStrs(m.Reason)
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.Reason = trimStr(m.Reason, maxFieldsSize)
+
+	return m
+}
+
+func (m *WorkloadIdentityX509RevocationDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
 func (m *GitCommand) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+// TrimToMaxSize implements [AuditEvent].
+func (m *StableUNIXUserCreate) TrimToMaxSize(int) AuditEvent {
 	return m
 }

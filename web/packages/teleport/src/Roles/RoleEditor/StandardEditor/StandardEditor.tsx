@@ -16,13 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useId, useState } from 'react';
+import { useCallback, useId, useState } from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex } from 'design';
-import * as Icon from 'design/Icon';
 import { SlideTabs } from 'design/SlideTabs';
-import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { useValidation } from 'shared/components/Validation';
 
 import { Role, RoleWithYaml } from 'teleport/services/resources';
@@ -32,19 +30,13 @@ import { AccessRules } from './AccessRules';
 import { MetadataSection } from './MetadataSection';
 import { Options } from './Options';
 import { RequiresResetToStandard } from './RequiresResetToStandard';
-import { ResourceAccessSection, resourceAccessSections } from './Resources';
+import { ResourcesTab } from './Resources';
 import {
-  hasModifiedFields,
-  newResourceAccess,
   OptionsModel,
-  ResourceAccess,
-  ResourceAccessKind,
-  RoleEditorModel,
   roleEditorModelToRole,
-  RuleModel,
   StandardEditorModel,
 } from './standardmodel';
-import { validateRoleEditorModel } from './validation';
+import { StandardModelDispatcher } from './useStandardModel';
 
 export type StandardEditorProps = {
   originalRole: RoleWithYaml;
@@ -52,7 +44,7 @@ export type StandardEditorProps = {
   isProcessing?: boolean;
   onSave?(r: Role): void;
   onCancel?(): void;
-  onChange?(s: StandardEditorModel): void;
+  dispatch: StandardModelDispatcher;
 };
 
 /**
@@ -65,16 +57,10 @@ export const StandardEditor = ({
   isProcessing,
   onSave,
   onCancel,
-  onChange,
+  dispatch,
 }: StandardEditorProps) => {
   const isEditing = !!originalRole;
-  const { roleModel } = standardEditorModel;
-  const validation = validateRoleEditorModel(roleModel);
-
-  /** All resource access kinds except those that are already in the role. */
-  const allowedResourceAccessKinds = allResourceAccessKinds.filter(k =>
-    roleModel.resources.every(as => as.kind !== k)
-  );
+  const { roleModel, validationResult } = standardEditorModel;
 
   enum StandardEditorTab {
     Overview,
@@ -92,6 +78,10 @@ export const StandardEditor = ({
 
   const validator = useValidation();
 
+  function handleResetToStandard() {
+    dispatch({ type: 'reset-to-standard' });
+  }
+
   function handleSave() {
     if (!validator.validate()) {
       return;
@@ -99,66 +89,20 @@ export const StandardEditor = ({
     onSave?.(roleEditorModelToRole(standardEditorModel.roleModel));
   }
 
-  function handleChange(modified: Partial<RoleEditorModel>) {
-    const updatedResourceModel: RoleEditorModel = {
-      ...roleModel,
-      ...modified,
-    };
-
-    onChange?.({
-      ...standardEditorModel,
-      roleModel: updatedResourceModel,
-      isDirty: hasModifiedFields(updatedResourceModel, originalRole?.object),
-    });
-  }
-
-  function addResourceAccess(kind: ResourceAccessKind) {
-    handleChange({
-      ...standardEditorModel.roleModel,
-      resources: [
-        ...standardEditorModel.roleModel.resources,
-        newResourceAccess(kind),
-      ],
-    });
-  }
-
-  function removeResourceAccess(kind: ResourceAccessKind) {
-    handleChange({
-      ...standardEditorModel.roleModel,
-      resources: standardEditorModel.roleModel.resources.filter(
-        s => s.kind !== kind
-      ),
-    });
-  }
-
-  function setResourceAccess(value: ResourceAccess) {
-    handleChange({
-      ...standardEditorModel.roleModel,
-      resources: standardEditorModel.roleModel.resources.map(original =>
-        original.kind === value.kind ? value : original
-      ),
-    });
-  }
-
-  function setRules(rules: RuleModel[]) {
-    handleChange({
-      ...standardEditorModel.roleModel,
-      rules,
-    });
-  }
-
-  function setOptions(options: OptionsModel) {
-    handleChange({
-      ...standardEditorModel,
-      options,
-    });
-  }
+  const setOptions = useCallback(
+    (options: OptionsModel) =>
+      dispatch({ type: 'set-options', payload: options }),
+    [dispatch]
+  );
 
   return (
     <>
-      {roleModel.requiresReset && (
+      {roleModel.conversionErrors.length > 0 && (
         <Box mx={3}>
-          <RequiresResetToStandard />
+          <RequiresResetToStandard
+            conversionErrors={roleModel.conversionErrors}
+            onReset={handleResetToStandard}
+          />
         </Box>
       )}
       <EditorWrapper
@@ -175,7 +119,7 @@ export const StandardEditor = ({
                 title: 'Overview',
                 controls: overviewTabId,
                 status:
-                  validator.state.validating && !validation.metadata.valid
+                  validator.state.validating && !validationResult.metadata.valid
                     ? validationErrorTabStatus
                     : undefined,
               },
@@ -185,7 +129,7 @@ export const StandardEditor = ({
                 controls: resourcesTabId,
                 status:
                   validator.state.validating &&
-                  validation.resources.some(s => !s.valid)
+                  validationResult.resources.some(s => !s.valid)
                     ? validationErrorTabStatus
                     : undefined,
               },
@@ -195,7 +139,7 @@ export const StandardEditor = ({
                 controls: accessRulesTabId,
                 status:
                   validator.state.validating &&
-                  validation.rules.some(s => !s.valid)
+                  validationResult.rules.some(s => !s.valid)
                     ? validationErrorTabStatus
                     : undefined,
               },
@@ -227,8 +171,10 @@ export const StandardEditor = ({
             <MetadataSection
               value={roleModel.metadata}
               isProcessing={isProcessing}
-              validation={validation.metadata}
-              onChange={metadata => handleChange({ ...roleModel, metadata })}
+              validation={validationResult.metadata}
+              onChange={metadata =>
+                dispatch({ type: 'set-metadata', payload: metadata })
+              }
             />
           </Box>
           <Box
@@ -237,56 +183,12 @@ export const StandardEditor = ({
               display: currentTab === StandardEditorTab.Resources ? '' : 'none',
             }}
           >
-            <Flex flexDirection="column" gap={3} my={2}>
-              {roleModel.resources.map((res, i) => {
-                const validationResult = validation.resources[i];
-                return (
-                  <ResourceAccessSection
-                    key={res.kind}
-                    value={res}
-                    isProcessing={isProcessing}
-                    validation={validationResult}
-                    onChange={value => setResourceAccess(value)}
-                    onRemove={() => removeResourceAccess(res.kind)}
-                  />
-                );
-              })}
-              <Box>
-                <MenuButton
-                  menuProps={{
-                    transformOrigin: {
-                      vertical: 'bottom',
-                      horizontal: 'right',
-                    },
-                    anchorOrigin: {
-                      vertical: 'top',
-                      horizontal: 'right',
-                    },
-                  }}
-                  buttonText={
-                    <>
-                      <Icon.Plus size="small" mr={2} />
-                      Add New Resource Access
-                    </>
-                  }
-                  buttonProps={{
-                    size: 'medium',
-                    fill: 'filled',
-                    disabled:
-                      isProcessing || allowedResourceAccessKinds.length === 0,
-                  }}
-                >
-                  {allowedResourceAccessKinds.map(kind => (
-                    <MenuItem
-                      key={kind}
-                      onClick={() => addResourceAccess(kind)}
-                    >
-                      {resourceAccessSections[kind].title}
-                    </MenuItem>
-                  ))}
-                </MenuButton>
-              </Box>
-            </Flex>
+            <ResourcesTab
+              value={roleModel.resources}
+              isProcessing={isProcessing}
+              validation={validationResult.resources}
+              dispatch={dispatch}
+            />
           </Box>
           <Box
             id={accessRulesTabId}
@@ -298,8 +200,8 @@ export const StandardEditor = ({
             <AccessRules
               isProcessing={isProcessing}
               value={roleModel.rules}
-              onChange={setRules}
-              validation={validation.rules}
+              dispatch={dispatch}
+              validation={validationResult.rules}
             />
           </Box>
           <Box
@@ -319,7 +221,7 @@ export const StandardEditor = ({
       <EditorSaveCancelButton
         onSave={() => handleSave()}
         onCancel={onCancel}
-        disabled={
+        saveDisabled={
           isProcessing ||
           standardEditorModel.roleModel.requiresReset ||
           !standardEditorModel.isDirty
@@ -334,18 +236,6 @@ const validationErrorTabStatus = {
   kind: 'danger',
   ariaLabel: 'Invalid data',
 } as const;
-
-/**
- * All resource access kinds, in order of appearance in the resource kind
- * dropdown.
- */
-const allResourceAccessKinds: ResourceAccessKind[] = [
-  'kube_cluster',
-  'node',
-  'app',
-  'db',
-  'windows_desktop',
-];
 
 export const EditorWrapper = styled(Flex)<{ mute?: boolean }>`
   flex-direction: column;

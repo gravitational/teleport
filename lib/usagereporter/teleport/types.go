@@ -71,6 +71,7 @@ func (u *BotJoinEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventReques
 				JoinTokenName: a.AnonymizeString(u.JoinTokenName),
 				JoinMethod:    u.JoinMethod,
 				UserName:      a.AnonymizeString(u.UserName),
+				BotInstanceId: a.AnonymizeString(u.BotInstanceId),
 			},
 		},
 	}
@@ -104,6 +105,7 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 			DbType:     u.Database.DbType,
 			DbProtocol: u.Database.DbProtocol,
 			DbOrigin:   u.Database.DbOrigin,
+			UserAgent:  u.Database.UserAgent,
 		}
 	}
 	if u.Desktop != nil {
@@ -118,6 +120,12 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 	if u.App != nil {
 		sessionStart.App = &prehogv1a.SessionStartAppMetadata{
 			IsMultiPort: u.App.IsMultiPort,
+		}
+	}
+	if u.Git != nil {
+		sessionStart.Git = &prehogv1a.SessionStartGitMetadata{
+			GitType:    u.Git.GitType,
+			GitService: u.Git.GitService,
 		}
 	}
 	return prehogv1a.SubmitEventRequest{
@@ -236,6 +244,33 @@ func (u *UIIntegrationEnrollCompleteEvent) Anonymize(a utils.Anonymizer) prehogv
 					Id:       u.Metadata.Id,
 					Kind:     u.Metadata.Kind,
 					UserName: a.AnonymizeString(u.Metadata.UserName),
+				},
+			},
+		},
+	}
+}
+
+// UIIntegrationEnrollStepEvent is a UI event sent for the specified configuration step in a
+// given integration enrollment flow.
+type UIIntegrationEnrollStepEvent prehogv1a.UIIntegrationEnrollStepEvent
+
+func (u *UIIntegrationEnrollStepEvent) CheckAndSetDefaults() error {
+	return trace.Wrap(validateIntegrationEnrollMetadata(u.Metadata))
+}
+
+func (u *UIIntegrationEnrollStepEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiIntegrationEnrollStepEvent{
+			UiIntegrationEnrollStepEvent: &prehogv1a.UIIntegrationEnrollStepEvent{
+				Metadata: &prehogv1a.IntegrationEnrollMetadata{
+					Id:       u.Metadata.Id,
+					Kind:     u.Metadata.Kind,
+					UserName: a.AnonymizeString(u.Metadata.UserName),
+				},
+				Step: u.Step,
+				Status: &prehogv1a.IntegrationEnrollStepStatus{
+					Code:  u.Status.GetCode(),
+					Error: u.Status.GetError(),
 				},
 			},
 		},
@@ -489,18 +524,22 @@ func (u *UICallToActionClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.Submi
 type UserCertificateIssuedEvent prehogv1a.UserCertificateIssuedEvent
 
 func (u *UserCertificateIssuedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	e := &prehogv1a.UserCertificateIssuedEvent{
+		UserName:         a.AnonymizeString(u.UserName),
+		Ttl:              u.Ttl,
+		IsBot:            u.IsBot,
+		UsageDatabase:    u.UsageDatabase,
+		UsageApp:         u.UsageApp,
+		UsageKubernetes:  u.UsageKubernetes,
+		UsageDesktop:     u.UsageDesktop,
+		PrivateKeyPolicy: u.PrivateKeyPolicy,
+	}
+	if u.BotInstanceId != "" {
+		e.BotInstanceId = a.AnonymizeString(u.BotInstanceId)
+	}
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UserCertificateIssuedEvent{
-			UserCertificateIssuedEvent: &prehogv1a.UserCertificateIssuedEvent{
-				UserName:         a.AnonymizeString(u.UserName),
-				Ttl:              u.Ttl,
-				IsBot:            u.IsBot,
-				UsageDatabase:    u.UsageDatabase,
-				UsageApp:         u.UsageApp,
-				UsageKubernetes:  u.UsageKubernetes,
-				UsageDesktop:     u.UsageDesktop,
-				PrivateKeyPolicy: u.PrivateKeyPolicy,
-			},
+			UserCertificateIssuedEvent: e,
 		},
 	}
 }
@@ -1247,16 +1286,20 @@ func (u *DatabaseUserPermissionsUpdateEvent) Anonymize(a utils.Anonymizer) preho
 type SPIFFESVIDIssuedEvent prehogv1a.SPIFFESVIDIssuedEvent
 
 func (u *SPIFFESVIDIssuedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	e := &prehogv1a.SPIFFESVIDIssuedEvent{
+		UserName:     a.AnonymizeString(u.UserName),
+		UserKind:     u.UserKind,
+		SpiffeId:     a.AnonymizeString(u.SpiffeId),
+		IpSansCount:  u.IpSansCount,
+		DnsSansCount: u.DnsSansCount,
+		SvidType:     u.SvidType,
+	}
+	if u.BotInstanceId != "" {
+		e.BotInstanceId = a.AnonymizeString(u.BotInstanceId)
+	}
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_SpiffeSvidIssued{
-			SpiffeSvidIssued: &prehogv1a.SPIFFESVIDIssuedEvent{
-				UserName:     a.AnonymizeString(u.UserName),
-				UserKind:     u.UserKind,
-				SpiffeId:     a.AnonymizeString(u.SpiffeId),
-				IpSansCount:  u.IpSansCount,
-				DnsSansCount: u.DnsSansCount,
-				SvidType:     u.SvidType,
-			},
+			SpiffeSvidIssued: e,
 		},
 	}
 }
@@ -1374,6 +1417,20 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 	case *usageeventsv1.UsageEventOneOf_UiIntegrationEnrollCompleteEvent:
 		ret := &UIIntegrationEnrollCompleteEvent{
 			Metadata: integrationEnrollMetadataToPrehog(e.UiIntegrationEnrollCompleteEvent.Metadata, userMD),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiIntegrationEnrollStepEvent:
+		ret := &UIIntegrationEnrollStepEvent{
+			Metadata: integrationEnrollMetadataToPrehog(e.UiIntegrationEnrollStepEvent.Metadata, userMD),
+			Step:     prehogv1a.IntegrationEnrollStep(e.UiIntegrationEnrollStepEvent.Step),
+			Status: &prehogv1a.IntegrationEnrollStepStatus{
+				Code:  prehogv1a.IntegrationEnrollStatusCode(e.UiIntegrationEnrollStepEvent.GetStatus().GetCode()),
+				Error: e.UiIntegrationEnrollStepEvent.GetStatus().GetError(),
+			},
 		}
 		if err := ret.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)

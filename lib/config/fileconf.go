@@ -1050,6 +1050,9 @@ type AuthenticationConfig struct {
 
 	// SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster.
 	SignatureAlgorithmSuite types.SignatureAlgorithmSuite `yaml:"signature_algorithm_suite"`
+
+	// StableUNIXUserConfig is [types.AuthPreferenceSpecV2.StableUnixUserConfig].
+	StableUNIXUserConfig *StableUNIXUserConfig `yaml:"stable_unix_user_config,omitempty"`
 }
 
 // Parse returns valid types.AuthPreference instance.
@@ -1107,7 +1110,12 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		slog.WarnContext(context.Background(), msg)
 	}
 
-	return types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
+	stableUNIXUserConfig, err := a.StableUNIXUserConfig.Parse()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse stable_unix_user_config")
+	}
+
+	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:                    a.Type,
 		SecondFactor:            a.SecondFactor,
 		SecondFactors:           a.SecondFactors,
@@ -1123,7 +1131,17 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		DefaultSessionTTL:       a.DefaultSessionTTL,
 		HardwareKey:             h,
 		SignatureAlgorithmSuite: a.SignatureAlgorithmSuite,
+		StableUnixUserConfig:    stableUNIXUserConfig,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := services.ValidateAuthPreference(ap); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ap, nil
 }
 
 type UniversalSecondFactor struct {
@@ -1166,7 +1184,7 @@ func (w *Webauthn) Parse() (*types.Webauthn, error) {
 	if w.Disabled {
 		const msg = `The "webauthn.disabled" setting is marked for removal and currently has no effect. ` +
 			`Please update your configuration to use WebAuthn. ` +
-			`Refer to https://goteleport.com/docs/access-controls/guides/webauthn/`
+			`Refer to https://goteleport.com/docs/admin-guides/access-controls/guides/webauthn/`
 		slog.WarnContext(context.Background(), msg)
 	}
 	return &types.Webauthn{
@@ -1305,6 +1323,33 @@ func (h *HardwareKeySerialNumberValidation) Parse() (*types.HardwareKeySerialNum
 		Enabled:               enabled,
 		SerialNumberTraitName: h.SerialNumberTraitName,
 	}, nil
+}
+
+// StableUNIXUserConfig is [types.StableUNIXUserConfig].
+type StableUNIXUserConfig struct {
+	// Enabled is [types.StableUNIXUserConfig.Enabled].
+	Enabled bool `yaml:"enabled"`
+	// FirstUID is [types.StableUNIXUserConfig.FirstUid].
+	FirstUID int32 `yaml:"first_uid"`
+	// LastUID is [types.StableUNIXUserConfig.LastUid].
+	LastUID int32 `yaml:"last_uid"`
+}
+
+func (s *StableUNIXUserConfig) Parse() (*types.StableUNIXUserConfig, error) {
+	if s == nil {
+		return nil, nil
+	}
+
+	c := &types.StableUNIXUserConfig{
+		Enabled:  s.Enabled,
+		FirstUid: s.FirstUID,
+		LastUid:  s.LastUID,
+	}
+
+	if err := services.ValidateStableUNIXUserConfig(c); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return c, nil
 }
 
 // HostedPlugins defines 'auth_service/plugins' Enterprise extension

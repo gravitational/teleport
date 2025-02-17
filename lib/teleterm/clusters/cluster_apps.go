@@ -25,6 +25,7 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
@@ -55,11 +56,11 @@ type SAMLIdPServiceProvider struct {
 	Provider types.SAMLIdPServiceProvider
 }
 
-func (c *Cluster) getApp(ctx context.Context, authClient authclient.ClientI, appName string) (types.Application, error) {
+func GetApp(ctx context.Context, authClient authclient.ClientI, appName string) (types.Application, error) {
 	var app types.Application
 	err := AddMetadataToRetryableError(ctx, func() error {
 		apps, err := apiclient.GetAllResources[types.AppServer](ctx, authClient, &proto.ListResourcesRequest{
-			Namespace:           c.clusterClient.Namespace,
+			Namespace:           apidefaults.Namespace,
 			ResourceType:        types.KindAppServer,
 			PredicateExpression: fmt.Sprintf(`name == "%s"`, appName),
 		})
@@ -83,7 +84,7 @@ func (c *Cluster) ReissueAppCert(ctx context.Context, clusterClient *client.Clus
 	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
 	err := clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
-		AccessRequests: c.status.ActiveRequests.AccessRequests,
+		AccessRequests: c.status.ActiveRequests,
 	})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
@@ -92,7 +93,7 @@ func (c *Cluster) ReissueAppCert(ctx context.Context, clusterClient *client.Clus
 	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
 		RouteToApp:     routeToApp,
-		AccessRequests: c.status.ActiveRequests.AccessRequests,
+		AccessRequests: c.status.ActiveRequests,
 		RequesterName:  proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
 		TTL:            c.clusterClient.KeyTTL,
 	})
@@ -142,4 +143,30 @@ func (c *Cluster) GetAWSRoles(app types.Application) aws.Roles {
 		return aws.FilterAWSRoles(c.GetAWSRolesARNs(), app.GetAWSAccountID())
 	}
 	return aws.Roles{}
+}
+
+// ValidateTargetPort parses rawTargetPort to uint32 and checks if it's included in TCP ports of app.
+// It also returns an error if app doesn't have any TCP ports defined.
+func ValidateTargetPort(app types.Application, rawTargetPort string) (uint32, error) {
+	if rawTargetPort == "" {
+		return 0, nil
+	}
+
+	targetPort, err := parseTargetPort(rawTargetPort)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	tcpPorts := app.GetTCPPorts()
+	if len(tcpPorts) == 0 {
+		return 0, trace.BadParameter("cannot specify target port %d because app %s does not provide access to multiple ports",
+			targetPort, app.GetName())
+	}
+
+	if !tcpPorts.Contains(int(targetPort)) {
+		return 0, trace.BadParameter("port %d is not included in target ports of app %s",
+			targetPort, app.GetName())
+	}
+
+	return targetPort, nil
 }

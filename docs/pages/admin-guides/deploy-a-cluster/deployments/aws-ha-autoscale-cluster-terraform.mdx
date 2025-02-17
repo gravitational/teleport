@@ -144,7 +144,7 @@ These are regions that support [DynamoDB encryption at rest](https://docs.aws.am
 ### cluster_name
 
 ```code
-$ export TF_VAR_cluster_name="<Var name="teleport-example" />"
+$ export TF_VAR_cluster_name="teleport-example"
 ```
 
 This is the internal Teleport cluster name to use. This should be unique, and not contain spaces, dots (.) or other
@@ -219,7 +219,7 @@ here. The license file isn't used in Teleport Community Edition installs.)
 $ export TF_VAR_route53_zone="example.com"
 ```
 
-Our Terraform setup requires you to have your domain provisioned in AWS Route 53 - it will automatically add
+Our Terraform setup requires you to have your domain provisioned in Amazon Route 53 - it will automatically add
 DNS records for [`route53_domain`](#route53\_domain) as set up below. You can list these with this command:
 
 ```code
@@ -367,7 +367,7 @@ $ export TF_VAR_enable_auth_asg_instance_refresh="false"
 ```
 
 This variable can be used to enable automatic instance refresh on the Teleport
-**auth server** AWS Autoscaling Group (ASG) - the refresh is triggered by
+**Auth Service** AWS Autoscaling Group (ASG) - the refresh is triggered by
 changes to the launch template or configuration.
 Enable the auth ASG instance refresh with caution - upgrading the version of
 Teleport will trigger an instance refresh and **auth servers must be scaled down

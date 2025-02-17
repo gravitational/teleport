@@ -71,17 +71,6 @@ const MenuItemBase = styled(Flex)`
   ${fromThemeBase}
 `;
 
-export const MenuItemSectionLabel = styled(MenuItemBase).attrs({
-  px: 2,
-  onClick: event => {
-    // Make sure that clicks on this element don't trigger onClick set on MenuList.
-    event.stopPropagation();
-  },
-})`
-  font-weight: bold;
-  min-height: 16px;
-`;
-
 export const MenuItemSectionSeparator = styled.hr.attrs({
   onClick: event => {
     // Make sure that clicks on this element don't trigger onClick set on MenuList.
@@ -92,16 +81,29 @@ export const MenuItemSectionSeparator = styled.hr.attrs({
   height: 1px;
   border: 0;
   font-size: 0;
+`;
 
-  // Add padding to the label for extra visual space, but only when it follows a separator.
-  // If a separator follows a MenuItem, there's already enough visual space, so no extra space is
-  // needed. The hover state of MenuItem highlights everything right from the separator start to the
-  // end of MenuItem.
+export const MenuItemSectionLabel = styled(MenuItemBase).attrs({
+  px: 2,
+  onClick: event => {
+    // Make sure that clicks on this element don't trigger onClick set on MenuList.
+    event.stopPropagation();
+  },
+})`
+  font-weight: bold;
+  min-height: 16px;
+
+  // Add padding to the label for extra visual space, but only when it follows a separator or is the
+  // first child.
+  //
+  // If a separator follows a MenuItem, there's already enough visual space between MenuItem and
+  // separator, so no extra space is needed. The hover state of MenuItem highlights everything right
+  // from the separator start to the end of MenuItem.
   //
   // Padding is used instead of margin here on purpose, so that there's no empty transparent space
   // between Separator and Label – otherwise clicking on that space would count as a click on
   // MenuList and not trigger onClick set on Separator or Label.
-  & + ${MenuItemSectionLabel} {
+  ${MenuItemSectionSeparator} + &, &:first-child {
     padding-top: ${props => props.theme.space[1]}px;
   }
 `;

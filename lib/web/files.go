@@ -28,16 +28,22 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
+	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // fileTransferRequest describes HTTP file transfer request
@@ -46,8 +52,6 @@ type fileTransferRequest struct {
 	serverID string
 	// Login is Linux username to connect as.
 	login string
-	// Namespace is node namespace.
-	namespace string
 	// Cluster is the name of the remote cluster to connect to.
 	cluster string
 	// remoteLocation is file remote location
@@ -71,7 +75,6 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		serverID:              p.ByName("server"),
 		remoteLocation:        query.Get("location"),
 		filename:              query.Get("filename"),
-		namespace:             defaults.Namespace,
 		mfaResponse:           query.Get("mfaResponse"),
 		fileTransferRequestID: query.Get("fileTransferRequestId"),
 		moderatedSessionID:    query.Get("moderatedSessionId"),
@@ -148,8 +151,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	if req.mfaResponse != "" {
-		err = ft.issueSingleUseCert(mfaResponse, r, tc)
-		if err != nil {
+		if err = ft.issueSingleUseCert(mfaResponse, r, tc); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -159,17 +161,90 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		ctx = context.WithValue(ctx, sftp.ModeratedSessionID, req.moderatedSessionID)
 	}
 
-	cl, err := tc.ConnectToCluster(ctx)
+	accessPoint, err := site.CachingAccessPoint()
+	if err != nil {
+		h.logger.DebugContext(r.Context(), "Unable to get auth access point", "error", err)
+		return nil, trace.Wrap(err)
+	}
+
+	accessChecker, err := sctx.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer cl.Close()
 
-	err = tc.TransferFiles(ctx, cl, req.login, req.serverID+":0", cfg)
+	getAgent := func() (teleagent.Agent, error) {
+		return teleagent.NopCloser(tc.LocalAgent()), nil
+	}
+	cert, err := sctx.GetSSHCertificate()
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ident, err := sshca.DecodeIdentity(cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	signer := agentless.SignerFromSSHIdentity(ident, h.auth.accessPoint, tc.SiteName, tc.Username)
+
+	conn, err := h.cfg.Router.DialHost(
+		ctx,
+		&utils.NetAddr{Addr: r.RemoteAddr},
+		&h.cfg.ProxyWebAddr,
+		req.serverID,
+		"0",
+		tc.SiteName,
+		accessChecker,
+		getAgent,
+		signer,
+	)
+	if err != nil {
+		if errors.Is(err, teleport.ErrNodeIsAmbiguous) {
+			const message = "error: ambiguous host could match multiple nodes\n\nHint: try addressing the node by unique id (ex: user@node-id)\n"
+			return nil, trace.NotFound("%s", message)
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	dialTimeout := apidefaults.DefaultIOTimeout
+	if netConfig, err := accessPoint.GetClusterNetworkingConfig(ctx); err != nil {
+		h.logger.DebugContext(r.Context(), "Unable to fetch cluster networking config", "error", err)
+	} else {
+		dialTimeout = netConfig.GetSSHDialTimeout()
+	}
+
+	sshConfig := &ssh.ClientConfig{
+		User:            tc.HostLogin,
+		Auth:            tc.AuthMethods,
+		HostKeyCallback: tc.HostKeyCallback,
+		Timeout:         dialTimeout,
+	}
+
+	nodeClient, err := client.NewNodeClient(
+		ctx,
+		sshConfig,
+		conn,
+		req.serverID+":0",
+		req.serverID,
+		tc,
+		modules.GetModules().IsBoringBinary(),
+	)
+	if err != nil {
+		// The close error is ignored instead of using [trace.NewAggregate] because
+		// aggregate errors do not allow error inspection with things like [trace.IsAccessDenied].
+		_ = conn.Close()
+
+		return nil, trace.Wrap(err)
+	}
+
+	defer nodeClient.Close()
+
+	if err := nodeClient.TransferFiles(ctx, cfg); err != nil {
 		if errors.As(err, new(*sftp.NonRecursiveDirectoryTransferError)) {
 			return nil, trace.Errorf("transferring directories through the Web UI is not supported at the moment, please use tsh scp -r")
 		}
+
 		return nil, trace.Wrap(err)
 	}
 
@@ -186,15 +261,11 @@ type fileTransfer struct {
 }
 
 func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Request, proxySigner multiplexer.PROXYHeaderSigner) (*client.TeleportClient, error) {
-	if !types.IsValidNamespace(req.namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", req.namespace)
-	}
-
 	if req.login == "" {
 		return nil, trace.BadParameter("missing login")
 	}
 
-	servers, err := f.authClient.GetNodes(httpReq.Context(), req.namespace)
+	servers, err := f.authClient.GetNodes(httpReq.Context(), defaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -211,7 +282,6 @@ func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Reque
 
 	cfg.HostLogin = req.login
 	cfg.SiteName = req.cluster
-	cfg.Namespace = req.namespace
 	if err := cfg.ParseProxyHost(f.proxyHostPort); err != nil {
 		return nil, trace.BadParameter("failed to parse proxy address: %v", err)
 	}

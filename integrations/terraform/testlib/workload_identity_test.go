@@ -55,7 +55,7 @@ func (s *TerraformSuiteOSS) TestWorkloadIdentity() {
 					resource.TestCheckResourceAttr(name, "kind", "workload_identity"),
 					resource.TestCheckResourceAttr(name, "spec.spiffe.id", "/test"),
 					resource.TestCheckResourceAttr(name, "spec.rules.allow.0.conditions.0.attribute", "user.name"),
-					resource.TestCheckResourceAttr(name, "spec.rules.allow.0.conditions.0.equals", "foo"),
+					resource.TestCheckResourceAttr(name, "spec.rules.allow.0.conditions.0.eq.value", "foo"),
 				),
 			},
 			{
@@ -68,7 +68,7 @@ func (s *TerraformSuiteOSS) TestWorkloadIdentity() {
 					resource.TestCheckResourceAttr(name, "kind", "workload_identity"),
 					resource.TestCheckResourceAttr(name, "spec.spiffe.id", "/test/updated"),
 					resource.TestCheckResourceAttr(name, "spec.rules.allow.0.conditions.0.attribute", "user.name"),
-					resource.TestCheckResourceAttr(name, "spec.rules.allow.0.conditions.0.equals", "foo"),
+					resource.TestCheckResourceAttr(name, "spec.rules.allow.0.conditions.0.eq.value", "foo"),
 				),
 			},
 			{
@@ -101,7 +101,11 @@ func (s *TerraformSuiteOSS) TestImportWorkloadIdentity() {
 						Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
 							{
 								Attribute: "user.name",
-								Equals:    "foo",
+								Operator: &workloadidentityv1pb.WorkloadIdentityCondition_Eq{
+									Eq: &workloadidentityv1pb.WorkloadIdentityConditionEq{
+										Value: "foo",
+									},
+								},
 							},
 						},
 					},
@@ -133,7 +137,7 @@ func (s *TerraformSuiteOSS) TestImportWorkloadIdentity() {
 					require.Equal(t, types.KindWorkloadIdentity, state[0].Attributes["kind"])
 					require.Equal(t, "/test", state[0].Attributes["spec.spiffe.id"])
 					require.Equal(t, "user.name", state[0].Attributes["spec.rules.allow.0.conditions.0.attribute"])
-					require.Equal(t, "foo", state[0].Attributes["spec.rules.allow.0.conditions.0.equals"])
+					require.Equal(t, "foo", state[0].Attributes["spec.rules.allow.0.conditions.0.eq.value"])
 
 					return nil
 				},

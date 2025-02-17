@@ -59,10 +59,10 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	awsmetrics "github.com/gravitational/teleport/lib/observability/metrics/aws"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/dynamodbutils"
 	"github.com/gravitational/teleport/lib/utils/aws/endpoint"
 )
 
@@ -330,7 +330,8 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	// FIPS settings are applied on the individual service instead of the aws config,
 	// as DynamoDB Streams and Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
 	// See also: https://aws.amazon.com/compliance/fips/#FIPS_Endpoints_by_Service
-	if modules.GetModules().IsBoringBinary() && cfg.UseFIPSEndpoint == types.ClusterAuditConfigSpecV2_FIPS_ENABLED {
+	if dynamodbutils.IsFIPSEnabled() &&
+		cfg.UseFIPSEndpoint == types.ClusterAuditConfigSpecV2_FIPS_ENABLED {
 		dynamoOpts = append(dynamoOpts, func(o *dynamodb.Options) {
 			o.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateEnabled
 		})
@@ -437,14 +438,14 @@ func (l *Log) configureTable(ctx context.Context, svc *applicationautoscaling.Cl
 				readDimension:  autoscalingtypes.ScalableDimensionDynamoDBTableReadCapacityUnits,
 				writeDimension: autoscalingtypes.ScalableDimensionDynamoDBTableWriteCapacityUnits,
 				resourceID:     fmt.Sprintf("table/%s", l.Tablename),
-				readPolicy:     fmt.Sprintf("%s-write-target-tracking-scaling-policy", l.Tablename),
+				readPolicy:     fmt.Sprintf("%s-read-target-tracking-scaling-policy", l.Tablename),
 				writePolicy:    fmt.Sprintf("%s-write-target-tracking-scaling-policy", l.Tablename),
 			},
 			{
 				readDimension:  autoscalingtypes.ScalableDimensionDynamoDBIndexReadCapacityUnits,
 				writeDimension: autoscalingtypes.ScalableDimensionDynamoDBIndexWriteCapacityUnits,
 				resourceID:     fmt.Sprintf("table/%s/index/%s", l.Tablename, indexTimeSearchV2),
-				readPolicy:     fmt.Sprintf("%s/index/%s-write-target-tracking-scaling-policy", l.Tablename, indexTimeSearchV2),
+				readPolicy:     fmt.Sprintf("%s/index/%s-read-target-tracking-scaling-policy", l.Tablename, indexTimeSearchV2),
 				writePolicy:    fmt.Sprintf("%s/index/%s-write-target-tracking-scaling-policy", l.Tablename, indexTimeSearchV2),
 			},
 		}
@@ -472,20 +473,39 @@ func (l *Log) configureTable(ctx context.Context, svc *applicationautoscaling.Cl
 
 			// Define scaling policy. Defines the ratio of {read,write} consumed capacity to
 			// provisioned capacity DynamoDB will try and maintain.
-			if _, err := svc.PutScalingPolicy(ctx, &applicationautoscaling.PutScalingPolicyInput{
-				PolicyName:        aws.String(p.readPolicy),
-				PolicyType:        autoscalingtypes.PolicyTypeTargetTrackingScaling,
-				ResourceId:        aws.String(p.resourceID),
-				ScalableDimension: p.readDimension,
-				ServiceNamespace:  autoscalingtypes.ServiceNamespaceDynamodb,
-				TargetTrackingScalingPolicyConfiguration: &autoscalingtypes.TargetTrackingScalingPolicyConfiguration{
-					PredefinedMetricSpecification: &autoscalingtypes.PredefinedMetricSpecification{
-						PredefinedMetricType: autoscalingtypes.MetricTypeDynamoDBReadCapacityUtilization,
+			for i := 0; i < 2; i++ {
+				if _, err := svc.PutScalingPolicy(ctx, &applicationautoscaling.PutScalingPolicyInput{
+					PolicyName:        aws.String(p.readPolicy),
+					PolicyType:        autoscalingtypes.PolicyTypeTargetTrackingScaling,
+					ResourceId:        aws.String(p.resourceID),
+					ScalableDimension: p.readDimension,
+					ServiceNamespace:  autoscalingtypes.ServiceNamespaceDynamodb,
+					TargetTrackingScalingPolicyConfiguration: &autoscalingtypes.TargetTrackingScalingPolicyConfiguration{
+						PredefinedMetricSpecification: &autoscalingtypes.PredefinedMetricSpecification{
+							PredefinedMetricType: autoscalingtypes.MetricTypeDynamoDBReadCapacityUtilization,
+						},
+						TargetValue: aws.Float64(l.ReadTargetValue),
 					},
-					TargetValue: aws.Float64(l.ReadTargetValue),
-				},
-			}); err != nil {
-				return trace.Wrap(convertError(err))
+				}); err != nil {
+					// The read policy name was accidentally changed to match the write policy in 17.0.0-17.1.4. This
+					// prevented upgrading a cluster with autoscaling enabled from v16 to v17. To resolve in
+					// a backwards compatible way, the read policy name was restored, however, any new clusters that
+					// were created between 17.0.0 and 17.1.4 need to have the misnamed policy deleted and recreated
+					// with the correct name.
+					if i == 1 || !strings.Contains(err.Error(), "ValidationException: Only one TargetTrackingScaling policy for a given metric specification is allowed.") {
+						return trace.Wrap(convertError(err))
+					}
+
+					l.logger.DebugContext(ctx, "Fixing incorrectly named scaling policy")
+					if _, err := svc.DeleteScalingPolicy(ctx, &applicationautoscaling.DeleteScalingPolicyInput{
+						PolicyName:        aws.String(p.writePolicy),
+						ResourceId:        aws.String(p.resourceID),
+						ScalableDimension: p.readDimension,
+						ServiceNamespace:  autoscalingtypes.ServiceNamespaceDynamodb,
+					}); err != nil {
+						return trace.Wrap(convertError(err))
+					}
+				}
 			}
 
 			if _, err := svc.PutScalingPolicy(ctx, &applicationautoscaling.PutScalingPolicyInput{
@@ -523,10 +543,10 @@ func (l *Log) handleAWSValidationError(ctx context.Context, err error, sessionID
 
 	se, ok := trimEventSize(in)
 	if !ok {
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	}
 	if err := l.putAuditEvent(context.WithValue(ctx, largeEventHandledContextKey, true), sessionID, se); err != nil {
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	}
 	l.logger.InfoContext(ctx, "Uploaded trimmed event to DynamoDB backend.", "event_id", in.GetID(), "event_type", in.GetType())
 	events.MetricStoredTrimmedEvents.Inc()
@@ -819,21 +839,28 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 		return nil, "", trace.Wrap(err)
 	}
 
+	l.logger.DebugContext(ctx, "search events", "from", fromUTC, "to", toUTC, "filter", filter, "limit", limit, "start_key", startKey, "order", order, "checkpoint", checkpoint)
+
 	if startKey != "" {
-		if createdAt, err := GetCreatedAtFromStartKey(startKey); err == nil {
+		createdAt, err := GetCreatedAtFromStartKey(startKey)
+		if err == nil {
 			// we compare the cursor unix time to the from unix in order to drop the nanoseconds
 			// that are not present in the cursor.
 			if fromUTC.Unix() > createdAt.Unix() {
+				l.logger.WarnContext(ctx, "cursor is from before window start time, resetting cursor", "created_at", createdAt, "from", fromUTC)
 				// if fromUTC is after than the cursor, we changed the window and need to reset the cursor.
 				// This is a guard check when iterating over the events using sliding window
 				// and the previous cursor no longer fits the new window.
 				checkpoint = checkpointKey{}
 			}
 			if createdAt.After(toUTC) {
+				l.logger.DebugContext(ctx, "cursor is after the end of the window, skipping search", "created_at", createdAt, "to", toUTC)
 				// if the cursor is after the end of the window, we can return early since we
 				// won't find any events.
 				return nil, "", nil
 			}
+		} else {
+			l.logger.WarnContext(ctx, "failed to get creation time from start key", "start_key", startKey, "error", err)
 		}
 	}
 
@@ -1296,27 +1323,27 @@ func convertError(err error) error {
 
 	var conditionalCheckFailedError *dynamodbtypes.ConditionalCheckFailedException
 	if errors.As(err, &conditionalCheckFailedError) {
-		return trace.AlreadyExists(conditionalCheckFailedError.ErrorMessage())
+		return trace.AlreadyExists("%s", conditionalCheckFailedError.ErrorMessage())
 	}
 
 	var throughputExceededError *dynamodbtypes.ProvisionedThroughputExceededException
 	if errors.As(err, &throughputExceededError) {
-		return trace.ConnectionProblem(throughputExceededError, throughputExceededError.ErrorMessage())
+		return trace.ConnectionProblem(throughputExceededError, "%s", throughputExceededError.ErrorMessage())
 	}
 
 	var notFoundError *dynamodbtypes.ResourceNotFoundException
 	if errors.As(err, &notFoundError) {
-		return trace.NotFound(notFoundError.ErrorMessage())
+		return trace.NotFound("%s", notFoundError.ErrorMessage())
 	}
 
 	var collectionLimitExceededError *dynamodbtypes.ItemCollectionSizeLimitExceededException
 	if errors.As(err, &notFoundError) {
-		return trace.BadParameter(collectionLimitExceededError.ErrorMessage())
+		return trace.BadParameter("%s", collectionLimitExceededError.ErrorMessage())
 	}
 
 	var internalError *dynamodbtypes.InternalServerError
 	if errors.As(err, &internalError) {
-		return trace.BadParameter(internalError.ErrorMessage())
+		return trace.BadParameter("%s", internalError.ErrorMessage())
 	}
 
 	var ae smithy.APIError
@@ -1369,6 +1396,7 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 		if err != nil {
 			return nil, false, err
 		}
+		l.log.DebugContext(context.Background(), "updating iterator for events fetcher", "iterator", string(iter))
 		l.checkpoint.Iterator = string(iter)
 	}
 
@@ -1400,6 +1428,7 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 			if err != nil {
 				return nil, false, trace.Wrap(err)
 			}
+			l.log.DebugContext(context.Background(), "breaking up sub-page due to event size", "key", key)
 			l.checkpoint.EventKey = key
 
 			// We need to reset the iterator so we get the previous page again.
@@ -1422,6 +1451,7 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 			}
 			l.hasLeft = hf || l.checkpoint.Iterator != ""
 			l.checkpoint.EventKey = ""
+			l.log.DebugContext(context.Background(), "resetting checkpoint event-key due to full page", "has_left", l.hasLeft, "checkpoint", l.checkpoint)
 			return out, true, nil
 		}
 	}
@@ -1478,6 +1508,7 @@ dateLoop:
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+
 			l.log.DebugContext(ctx, "Query completed.",
 				"duration", time.Since(start),
 				"items", len(out.Items),

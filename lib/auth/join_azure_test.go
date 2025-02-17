@@ -754,6 +754,28 @@ func TestAuth_RegisterUsingAzureClaims(t *testing.T) {
 			certs:       []*x509.Certificate{tlsConfig.Certificate},
 			assertError: require.NoError,
 		},
+		{
+			name:                           "subscription mismatch between attestation and token",
+			requestTokenName:               "test-token",
+			tokenSubscription:              "attested-subscription",
+			tokenVMID:                      defaultVMID,
+			tokenManagedIdentityResourceID: vmResourceID("token-subscription", defaultResourceGroup, defaultVMName),
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Subscription:   "token-subscription",
+							ResourceGroups: []string{defaultResourceGroup},
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			assertError: isAccessDenied,
+		},
 	}
 
 	for _, tc := range tests {

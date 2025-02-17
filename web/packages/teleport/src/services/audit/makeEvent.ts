@@ -20,7 +20,14 @@ import { formatDistanceStrict } from 'date-fns';
 
 import { pluralize } from 'shared/utils/text';
 
-import { Event, eventCodes, Formatters, RawEvent, RawEvents } from './types';
+import {
+  Event,
+  EventCode,
+  eventCodes,
+  Formatters,
+  RawEvent,
+  RawEvents,
+} from './types';
 
 const formatElasticsearchEvent: (
   json:
@@ -63,6 +70,66 @@ const formatElasticsearchEvent: (
   }
 
   return message;
+};
+
+const portForwardEventTypes = [
+  'port',
+  'port.local',
+  'port.remote',
+  'port.remote_conn',
+] as const;
+type PortForwardEventType = (typeof portForwardEventTypes)[number];
+type PortForwardEvent =
+  | RawEvents[typeof eventCodes.PORTFORWARD]
+  | RawEvents[typeof eventCodes.PORTFORWARD_STOP]
+  | RawEvents[typeof eventCodes.PORTFORWARD_FAILURE];
+
+const getPortForwardEventName = (event: string): string => {
+  let ev = event as PortForwardEventType;
+  if (!portForwardEventTypes.includes(ev)) {
+    ev = 'port'; // default to generic 'port' if the event type is unknown
+  }
+
+  switch (ev) {
+    case 'port':
+      return 'Port Forwarding';
+    case 'port.local':
+      return 'Local Port Forwarding';
+    case 'port.remote':
+      return 'Remote Port Forwarding';
+    case 'port.remote_conn':
+      return 'Remote Port Forwarded Connection';
+  }
+};
+
+const formatPortForwardEvent = ({
+  user,
+  code,
+  event,
+}: PortForwardEvent): string => {
+  const eventName = getPortForwardEventName(event).toLowerCase();
+
+  switch (code) {
+    case eventCodes.PORTFORWARD:
+      return `User [${user}] started ${eventName}`;
+    case eventCodes.PORTFORWARD_STOP:
+      return `User [${user}] stopped ${eventName}`;
+    case eventCodes.PORTFORWARD_FAILURE:
+      return `User [${user}] failed ${eventName}`;
+  }
+};
+
+const describePortForwardEvent = ({ code, event }: PortForwardEvent) => {
+  const eventName = getPortForwardEventName(event);
+
+  switch (code) {
+    case eventCodes.PORTFORWARD:
+      return `${eventName} Start`;
+    case eventCodes.PORTFORWARD_STOP:
+      return `${eventName} Stop`;
+    case eventCodes.PORTFORWARD_FAILURE:
+      return `${eventName} Failure`;
+  }
 };
 
 export const formatters: Formatters = {
@@ -223,19 +290,18 @@ export const formatters: Formatters = {
   },
   [eventCodes.PORTFORWARD]: {
     type: 'port',
-    desc: 'Port Forwarding Started',
-    format: ({ user }) => `User [${user}] started port forwarding`,
+    desc: describePortForwardEvent,
+    format: formatPortForwardEvent,
   },
   [eventCodes.PORTFORWARD_FAILURE]: {
     type: 'port',
-    desc: 'Port Forwarding Failed',
-    format: ({ user, error }) =>
-      `User [${user}] port forwarding request failed: ${error}`,
+    desc: describePortForwardEvent,
+    format: formatPortForwardEvent,
   },
   [eventCodes.PORTFORWARD_STOP]: {
     type: 'port',
-    desc: 'Port Forwarding Stopped',
-    format: ({ user }) => `User [${user}] stopped port forwarding`,
+    desc: describePortForwardEvent,
+    format: formatPortForwardEvent,
   },
   [eventCodes.SAML_CONNECTOR_CREATED]: {
     type: 'saml.created',
@@ -1956,6 +2022,13 @@ export const formatters: Formatters = {
       return `User [${user}] Git Command [${service}] at [${path}] failed [${exitError}]`;
     },
   },
+  [eventCodes.STABLE_UNIX_USER_CREATE]: {
+    type: 'stable_unix_user.create',
+    desc: 'Stable UNIX user created',
+    format: ({ stable_unix_user: { username } }) => {
+      return `Stable UNIX user for username [${username}] was created`;
+    },
+  },
 };
 
 const unknownFormatter = {
@@ -1965,9 +2038,12 @@ const unknownFormatter = {
 
 export default function makeEvent(json: any): Event {
   // lookup event formatter by code
-  const formatter = formatters[json.code] || unknownFormatter;
+  const formatter = formatters[json.code as EventCode] || unknownFormatter;
   return {
-    codeDesc: formatter.desc,
+    codeDesc:
+      typeof formatter.desc === 'function'
+        ? formatter.desc(json)
+        : formatter.desc,
     message: formatter.format(json as any),
     id: getId(json),
     code: json.code,

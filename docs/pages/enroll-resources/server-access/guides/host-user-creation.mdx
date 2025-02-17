@@ -169,6 +169,8 @@ $ tctl create -f auto-users.yaml
 # role 'auto-users' has been created
 ```
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 #### Create a Teleport user
 
 1. Run the following command to create a Teleport user with the `auto-users`
@@ -215,6 +217,45 @@ spec:
 If multiple entries are specified in the `host_user_uid` or `host_user_gid` only the first entry will be used.
 
 </Admonition>
+
+For Teleport users that don't have a `host_user_uid` trait, starting from Teleport 17.3, it's possible to configure the cluster to assign the same UID for any given username for automatically created host users across all Teleport SSH instances.
+
+Edit your cluster authentication preference using the following command:
+
+```code
+$ tctl edit cluster_auth_preference
+```
+
+In your editor, ensure that your `cluster_auth_preference` includes a `stable_unix_user_config` field similar to the following:
+
+```yaml
+kind: cluster_auth_preference
+version: v2
+metadata:
+  name: cluster-auth-preference
+spec:
+  # ...
+  stable_unix_user_config:
+    enabled: true
+    first_uid: 90000
+    last_uid: 95000
+```
+
+The range of UIDs between `first_uid` and `last_uid` (inclusive) will be used by Teleport to assign UIDs for new users, and you should make sure it's not a range of UIDs already in use by other services or workloads across your fleet of servers. While UID allocations in Linux can vary, we recommend sticking to one of the available ranges listed in the [systemd documentation for "Users, Groups, UIDs and GIDs on systemd Systems"](https://github.com/systemd/systemd/blob/main/docs/UIDS-GIDS.md).
+
+Once enabled, all Teleport SSH instances (of version 17.3 and newer) will use the UID provided by the control plane when automatically creating a new host user, if no other UID is specified by the user trait.
+
+<Admonition type="note">
+
+Teleport will only use the UID defined by the control plane if the `create_host_user_mode` is `keep` (and not `insecure-drop`), and only for automatically created host users that were created after the feature was enabled. The UID will not be applied to users that already exist, and it will not take effect for static host users.
+
+</Admonition>
+
+You can inspect the list of assigned UIDs with the following command:
+
+```code
+$ tctl stable-unix-users ls
+```
 
 ### Step 3/4. Configure sudoers on your Linux servers
 

@@ -29,21 +29,26 @@ import (
 )
 
 type AWSConfigProvider struct {
+	Err                   error
 	STSClient             *STSClient
 	OIDCIntegrationClient awsconfig.OIDCIntegrationClient
 }
 
 func (f *AWSConfigProvider) GetConfig(ctx context.Context, region string, optFns ...awsconfig.OptionsFn) (aws.Config, error) {
+	if f.Err != nil {
+		return aws.Config{}, f.Err
+	}
+
 	stsClt := f.STSClient
 	if stsClt == nil {
 		stsClt = &STSClient{}
 	}
-	optFns = append(optFns,
+	optFns = append([]awsconfig.OptionsFn{
 		awsconfig.WithOIDCIntegrationClient(f.OIDCIntegrationClient),
 		awsconfig.WithSTSClientProvider(
 			newAssumeRoleClientProviderFunc(stsClt),
 		),
-	)
+	}, optFns...)
 	return awsconfig.GetConfig(ctx, region, optFns...)
 }
 
@@ -58,7 +63,10 @@ func (f *FakeOIDCIntegrationClient) GetIntegration(ctx context.Context, name str
 	if f.Unauth {
 		return nil, trace.AccessDenied("unauthorized")
 	}
-	return f.Integration, nil
+	if f.Integration.GetName() == name {
+		return f.Integration, nil
+	}
+	return nil, trace.NotFound("integration %q not found", name)
 }
 
 func (f *FakeOIDCIntegrationClient) GenerateAWSOIDCToken(ctx context.Context, integrationName string) (string, error) {

@@ -42,6 +42,8 @@ type Config struct {
 	ExtraFields []string
 	// EnableColors dictates if output should be colored.
 	EnableColors bool
+	// Padding to use for various components.
+	Padding int
 }
 
 // Initialize configures the default global logger based on the
@@ -112,6 +114,7 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, error) {
 			Level:            level,
 			EnableColors:     loggerConfig.EnableColors,
 			ConfiguredFields: configuredFields,
+			Padding:          loggerConfig.Padding,
 		}))
 		slog.SetDefault(logger)
 	case "json":

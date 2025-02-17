@@ -31,7 +31,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	libclient "github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -1315,18 +1316,29 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 	})
 
 	t.Run("teleterm app gateways cert renewal", func(t *testing.T) {
-		user, _ := pack.CreateUser(t)
-		tc := pack.MakeTeleportClient(t, user.GetName())
+		t.Run("without per-session MFA", func(t *testing.T) {
+			makeTC := func(t *testing.T) (*libclient.TeleportClient, mfa.WebauthnLoginFunc) {
+				user, _ := pack.CreateUser(t)
+				tc := pack.MakeTeleportClient(t, user.GetName())
+				return tc, nil
+			}
+			testTeletermAppGateway(t, pack, makeTC)
+			testTeletermAppGatewayTargetPortValidation(t, pack, makeTC)
+		})
 
-		// test without per session MFA.
-		testTeletermAppGateway(t, pack, tc)
-
-		t.Run("per session MFA", func(t *testing.T) {
-			// They update user's authentication to Webauthn so they must run after tests which do not use MFA.
+		t.Run("per-session MFA", func(t *testing.T) {
+			// They update clusters authentication to Webauthn so they must run after tests which do not use MFA.
 			requireSessionMFAAuthPref(ctx, t, pack.RootAuthServer(), "127.0.0.1")
 			requireSessionMFAAuthPref(ctx, t, pack.LeafAuthServer(), "127.0.0.1")
-			tc.WebauthnLogin = setupUserMFA(ctx, t, pack.RootAuthServer(), user.GetName(), "127.0.0.1")
-			testTeletermAppGateway(t, pack, tc)
+			makeTCAndWebauthnLogin := func(t *testing.T) (*libclient.TeleportClient, mfa.WebauthnLoginFunc) {
+				// Create a separate user for each tests to enable parallel tests that use per-session MFA.
+				// See the comment for webauthnLogin in setupUserMFA for more details.
+				user, _ := pack.CreateUser(t)
+				tc := pack.MakeTeleportClient(t, user.GetName())
+				webauthnLogin := setupUserMFA(ctx, t, pack.RootAuthServer(), user.GetName(), "127.0.0.1")
+				return tc, webauthnLogin
+			}
+			testTeletermAppGateway(t, pack, makeTCAndWebauthnLogin)
 		})
 	})
 }
@@ -1727,7 +1739,7 @@ func TestALPNSNIProxyGRPCInsecure(t *testing.T) {
 
 	nodeAccount := "123456789012"
 	nodeRoleARN := "arn:aws:iam::123456789012:role/test"
-	nodeCredentials := credentials.NewStaticCredentials("FAKE_ID", "FAKE_KEY", "FAKE_TOKEN")
+	nodeCredentials := credentials.NewStaticCredentialsProvider("FAKE_ID", "FAKE_KEY", "FAKE_TOKEN")
 	provisionToken := mustCreateIAMJoinProvisionToken(t, "iam-join-token", nodeAccount, nodeRoleARN)
 
 	suite := newSuite(t,
