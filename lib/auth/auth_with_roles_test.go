@@ -1246,12 +1246,12 @@ func TestRolesRequestsExplicitAllowReissue(t *testing.T) {
 	client, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
 
-	_, sshPubKey, tlsPrivKey, tlsPubKey := newSSHAndTLSKeyPairs(t)
+	priv, pub, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
 
 	// Request certs for only the `foo` role.
 	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		SSHPublicKey:                sshPubKey,
-		TLSPublicKey:                tlsPubKey,
+		PublicKey:                   pub,
 		Username:                    user.GetName(),
 		Expires:                     time.Now().Add(time.Hour),
 		RoleRequests:                []string{accessFooRole.GetName()},
@@ -1260,7 +1260,7 @@ func TestRolesRequestsExplicitAllowReissue(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make an impersonated client.
-	impersonatedTLSCert, err := tls.X509KeyPair(certs.TLS, tlsPrivKey)
+	impersonatedTLSCert, err := tls.X509KeyPair(certs.TLS, priv)
 	require.NoError(t, err)
 	impersonatedClient := srv.NewClientWithCert(impersonatedTLSCert)
 
@@ -1274,8 +1274,7 @@ func TestRolesRequestsExplicitAllowReissue(t *testing.T) {
 
 	// Attempt to switch to a different role. This should be disallowed.
 	_, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		SSHPublicKey: sshPubKey,
-		TLSPublicKey: tlsPubKey,
+		PublicKey:    pub,
 		Username:     user.GetName(),
 		Expires:      time.Now().Add(time.Hour),
 		RoleRequests: []string{accessBarRole.GetName()},
@@ -1286,10 +1285,9 @@ func TestRolesRequestsExplicitAllowReissue(t *testing.T) {
 	// Try generation without requesting roles. This should be allowed but
 	// we should ensure we still have our impersonated role,.
 	certs, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		SSHPublicKey: sshPubKey,
-		TLSPublicKey: tlsPubKey,
-		Username:     user.GetName(),
-		Expires:      time.Now().Add(time.Hour),
+		PublicKey: pub,
+		Username:  user.GetName(),
+		Expires:   time.Now().Add(time.Hour),
 	})
 	require.NoError(t, err)
 	parsedCert, err := tlsca.ParseCertificatePEM(certs.TLS)
@@ -1305,10 +1303,9 @@ func TestRolesRequestsExplicitAllowReissue(t *testing.T) {
 	// Attempt to reissue for an app access cert. This should work, we must
 	// also keep our impersonated role.
 	certs, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		SSHPublicKey: sshPubKey,
-		TLSPublicKey: tlsPubKey,
-		Username:     user.GetName(),
-		Expires:      time.Now().Add(time.Hour),
+		PublicKey: pub,
+		Username:  user.GetName(),
+		Expires:   time.Now().Add(time.Hour),
 		RouteToApp: proto.RouteToApp{
 			Name:       app.GetApp().GetName(),
 			PublicAddr: app.GetApp().GetPublicAddr(),
