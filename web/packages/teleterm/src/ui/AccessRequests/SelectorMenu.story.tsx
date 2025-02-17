@@ -100,6 +100,18 @@ const largeAccessRequest = makeAccessRequest({
   })),
 });
 
+export function RequestAvailable() {
+  const appContext = new MockAppContext();
+  appContext.tshd.getAccessRequests = () =>
+    new MockedUnaryCall({
+      totalCount: 0,
+      startKey: '',
+      requests: [smallAccessRequest],
+    });
+
+  return <ShowState appContext={appContext} />;
+}
+
 export function NoRequestsAvailable() {
   const appContext = new MockAppContext();
   appContext.tshd.getAccessRequests = async () => {
@@ -135,18 +147,6 @@ export function LoadingRequestsError() {
         'connection error: desc = "transport: Error while dialing: failed to dial: unable to establish proxy stream\\n\\trpc error: code = Unavailable desc'
       )
     );
-
-  return <ShowState appContext={appContext} />;
-}
-
-export function RequestAvailable() {
-  const appContext = new MockAppContext();
-  appContext.tshd.getAccessRequests = () =>
-    new MockedUnaryCall({
-      totalCount: 0,
-      startKey: '',
-      requests: [smallAccessRequest],
-    });
 
   return <ShowState appContext={appContext} />;
 }
