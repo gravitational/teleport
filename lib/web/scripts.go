@@ -34,10 +34,17 @@ import (
 	"github.com/gravitational/teleport/lib/web/scripts"
 )
 
-// installScriptHandle handles calls for "/script/install.sh" and responds with a bash script installing Teleport
+// installScriptHandle handles calls for "/scripts/install.sh" and responds with a bash script installing Teleport
 // by downloading and running `teleport-update`. This installation script does not start the agent, join it,
 // or configure its services. This is handled by the "/scripts/:token/install-*.sh" scripts.
 func (h *Handler) installScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
+	// This is a hack because the router is not allowing us to register "/scripts/install.sh", so we use
+	// the parameter ":token" to match the script name.
+	// Currently, only "install.sh" is supported.
+	if params.ByName("token") != "install.sh" {
+		return nil, trace.NotFound(`Route not found, query "/scripts/install.sh" for the install-only script, or "/scripts/:token/install-node.sh" for the install + join script.`)
+	}
+
 	// TODO(hugoShaka): cache function
 	opts, err := h.installScriptOptions(r.Context())
 	if err != nil {
