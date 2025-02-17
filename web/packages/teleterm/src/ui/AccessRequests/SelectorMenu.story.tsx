@@ -207,11 +207,9 @@ function ShowState({
 
   useLayoutEffect(() => {
     (
-      document.querySelector(
-        '[data-testid=access-requests-icon]'
-      ) as HTMLButtonElement
+      document.querySelector('#access-requests-menu') as HTMLButtonElement
     )?.click();
-  });
+  }, []);
 
   return (
     <MockAppContextProvider appContext={appContext}>

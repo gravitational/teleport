@@ -54,7 +54,15 @@ export function LayoutManager() {
         onAssumedRolesClick={() => {
           // This is a little hacky, but has one advantage:
           // we don't need to expose a way to open/close the popover.
-          topBarAccessRequestRef.current?.querySelector('button')?.click();
+          // This would require extra effort, since each workspace has its own
+          // AccessRequestsContext, which is located lower in the component tree
+          // (so we would have to inject a component through the portal).
+          const menu = topBarAccessRequestRef.current?.querySelector(
+            '#access-requests-menu'
+          );
+          if (menu instanceof HTMLButtonElement) {
+            menu.click();
+          }
         }}
       />
     </Flex>

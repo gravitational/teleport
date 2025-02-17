@@ -219,7 +219,7 @@ export function SelectorMenu() {
         ref={selectorRef}
         isOpened={open}
         title="Access Requests"
-        data-testid="access-requests-icon"
+        id="access-requests-menu"
         onClick={open ? closeMenu : openMenu}
       >
         <Icon.ListAddCheck size="medium" />
