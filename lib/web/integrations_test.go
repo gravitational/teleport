@@ -110,7 +110,7 @@ type mockUserTasksLister struct {
 	userTasks       []*usertasksv1.UserTask
 }
 
-func (m *mockUserTasksLister) ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertasksv1.UserTask, string, error) {
+func (m *mockUserTasksLister) ListUserTasks(ctx context.Context, pageSize int64, nextToken string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error) {
 	var ret []*usertasksv1.UserTask
 	if pageSize == 0 {
 		pageSize = m.defaultPageSize

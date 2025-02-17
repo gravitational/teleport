@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -115,30 +116,22 @@ func (h *Handler) userTaskListByIntegration(w http.ResponseWriter, r *http.Reque
 
 	taskStateFilter := values.Get("state")
 
-	items := make([]ui.UserTask, 0, limit)
-	pageLimit := limit
-	for {
-		userTasks, nextKey, err := clt.UserTasksServiceClient().ListUserTasksByIntegration(r.Context(), int64(pageLimit), startKey, integrationName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	filters := &usertasksv1.ListUserTasksFilters{
+		Integration: integrationName,
+		TaskState:   taskStateFilter,
+	}
+	userTasks, nextKey, err := clt.UserTasksServiceClient().ListUserTasks(r.Context(), int64(limit), startKey, filters)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-		for _, userTask := range userTasks {
-			if taskStateFilter != "" && userTask.Spec.State != taskStateFilter {
-				continue
-			}
-			items = append(items, ui.MakeUserTask(userTask))
-		}
-
-		startKey = nextKey
-		pageLimit = limit - int32(len(items))
-		if startKey == "" || len(items) >= int(limit) {
-			break
-		}
+	items := make([]ui.UserTask, 0, len(userTasks))
+	for _, userTask := range userTasks {
+		items = append(items, ui.MakeUserTask(userTask))
 	}
 
 	return ui.UserTasksListResponse{
 		Items:   items,
-		NextKey: startKey,
+		NextKey: nextKey,
 	}, nil
 }
