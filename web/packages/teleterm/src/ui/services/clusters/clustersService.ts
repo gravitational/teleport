@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import { AccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 import {
   Cluster,
   ShowResources,
@@ -40,7 +40,6 @@ import {
   type TshdClient,
 } from 'teleterm/services/tshd';
 import { getGatewayTargetUriKind } from 'teleterm/services/tshd/gateway';
-import { AssumedRequest } from 'teleterm/services/tshd/types';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { UsageService } from 'teleterm/ui/services/usage';
 import * as uri from 'teleterm/ui/uri';
@@ -56,10 +55,6 @@ export function createClusterServiceState(): types.ClustersServiceState {
     gateways: new Map(),
   };
 }
-
-// A workaround to always return the same object so useEffect that relies on it
-// doesn't go into an endless loop.
-const EMPTY_ASSUMED_REQUESTS = {};
 
 export class ClustersService extends ImmutableStore<types.ClustersServiceState> {
   state: types.ClustersServiceState = createClusterServiceState();
@@ -420,11 +415,11 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return response.clusters;
   }
 
+  /** @deprecated Use getAssumedRequests function instead of the method on ClustersService. */
   getAssumedRequests(
     rootClusterUri: uri.RootClusterUri
-  ): Record<string, AssumedRequest> {
-    const cluster = this.state.clusters.get(rootClusterUri);
-    return cluster?.loggedInUser?.assumedRequests || EMPTY_ASSUMED_REQUESTS;
+  ): Record<string, AccessRequest> {
+    return getAssumedRequests(this.state, rootClusterUri);
   }
 
   /** Assumes roles for the given requests. */
@@ -765,11 +760,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
         )
       )
     ).reduce((requestsMap, request) => {
-      requestsMap[request.id] = {
-        id: request.id,
-        expires: Timestamp.toDate(request.expires),
-        roles: request.roles,
-      };
+      requestsMap[request.id] = request;
       return requestsMap;
     }, {});
   }
@@ -788,4 +779,16 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       },
     };
   }
+}
+
+// A workaround to always return the same object so useEffect that relies on it
+// doesn't go into an endless loop.
+const EMPTY_ASSUMED_REQUESTS = {};
+
+export function getAssumedRequests(
+  state: types.ClustersServiceState,
+  rootClusterUri: uri.RootClusterUri
+): Record<string, AccessRequest> {
+  const cluster = state.clusters.get(rootClusterUri);
+  return cluster?.loggedInUser?.assumedRequests || EMPTY_ASSUMED_REQUESTS;
 }

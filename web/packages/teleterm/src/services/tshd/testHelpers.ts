@@ -308,3 +308,43 @@ export const makeRetryableError = (): TshdRpcError => ({
   code: 'UNKNOWN',
   message: 'ssh: handshake failed',
 });
+
+export const makeAccessRequest = (
+  props: Partial<tsh.AccessRequest> = {}
+): tsh.AccessRequest => ({
+  id: '01929070-6886-77eb-90aa-c7223dd73f67',
+  state: 'APPROVED',
+  resolveReason: '',
+  requestReason: '',
+  user: makeLoggedInUser().name,
+  roles: ['access', 'searcheable-resources'],
+  reviews: [],
+  suggestedReviewers: ['admin', 'reviewer'],
+  thresholdNames: ['default'],
+  resourceIds: [
+    {
+      kind: 'kube_cluster',
+      name: 'minikube',
+      clusterName: 'main',
+      subResourceName: '',
+    },
+  ],
+  resources: [
+    {
+      id: {
+        kind: 'kube_cluster',
+        name: 'minikube',
+        clusterName: 'main',
+        subResourceName: '',
+      },
+      details: { hostname: '', friendlyName: '' },
+    },
+  ],
+  promotedAccessListTitle: '',
+  created: { seconds: 1729000138n, nanos: 886521000 },
+  expires: { seconds: 1729026573n, nanos: 0 },
+  maxDuration: { seconds: 1729026573n, nanos: 0 },
+  requestTtl: { seconds: 1729026573n, nanos: 0 },
+  sessionTtl: { seconds: 1729026573n, nanos: 0 },
+  ...props,
+});
