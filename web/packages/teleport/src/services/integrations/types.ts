@@ -238,7 +238,7 @@ export type PluginNameToSpec = {
   datadog: PluginDatadogSpec;
   email: PluginEmailSpec;
   msteams: PluginMsTeamsSpec;
-  [key: string]: unknown;
+  [key: string]: any;
 };
 
 /**
@@ -247,7 +247,7 @@ export type PluginNameToSpec = {
  */
 export type PluginNameToDetails = {
   okta: PluginStatusOkta;
-  [key: string]: unknown;
+  [key: string]: any;
 };
 
 // PluginKind represents the type of the plugin
