@@ -21,6 +21,7 @@ package scripts
 import (
 	"context"
 	_ "embed"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -38,10 +39,12 @@ const (
 	NoAutoupdate AutoupdateStyle = iota
 	// PackageManagerAutoupdate means the installed Teleport should update via a script triggering package manager
 	// updates. The script lives in the 'teleport-ent-update' package and was our original attempt at automatic updates.
+	// See RFD-109 for more details: https://github.com/gravitational/teleport/blob/master/rfd/0109-cloud-agent-upgrades.md
 	PackageManagerAutoupdate
 	// UpdaterBinaryAutoupdate means the installed Teleport should update via the teleport-update binary.
 	// This update style does not depend on any package manager (although it has a system dependency to wake up the
 	// updater).
+	// See RFD-184 for more details: https://github.com/gravitational/teleport/blob/master/rfd/0184-agent-auto-updates.md
 	UpdaterBinaryAutoupdate
 )
 
@@ -52,6 +55,7 @@ type InstallScriptOptions struct {
 	TeleportVersion string
 	// CDNBaseURL is the URL of the CDN hosting teleport tarballs.
 	// If left empty, the 'teleport-update' installer will pick the one to use.
+	// For example: "https://cdn.example.com"
 	CDNBaseURL string
 	// ProxyAddr is the address of the Teleport Proxy service that will be used
 	// by the updater to fetch the desired version. Teleport Addrs are
@@ -87,8 +91,14 @@ func (o *InstallScriptOptions) Check() error {
 		return trace.BadParameter("Teleport flavor is required")
 	}
 
-	if o.CDNBaseURL != "" && !strings.HasPrefix(o.CDNBaseURL, "https://") {
-		return trace.BadParameter("CDNBaseURL must start with 'https://'")
+	if o.CDNBaseURL != "" {
+		url, err := url.Parse(o.CDNBaseURL)
+		if err != nil {
+			return trace.Wrap(err, "failed to parse CDN base URL")
+		}
+		if url.Scheme != "https" {
+			return trace.BadParameter("CDNBaseURL's scheme must be 'https://'")
+		}
 	}
 	return nil
 }
@@ -108,8 +118,8 @@ func (o *InstallScriptOptions) oneOffParams() (params oneoff.OneOffScriptParams)
 	}
 
 	return oneoff.OneOffScriptParams{
-		TeleportBin:     "teleport-update",
-		TeleportArgs:    strings.Join(args, " "),
+		Entrypoint:      "teleport-update",
+		EntrypointArgs:  strings.Join(args, " "),
 		CDNBaseURL:      o.CDNBaseURL,
 		TeleportVersion: version,
 		TeleportFlavor:  o.TeleportFlavor,

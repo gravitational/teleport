@@ -5,9 +5,9 @@ cdnBaseURL='{{.CDNBaseURL}}'
 teleportVersion='{{.TeleportVersion}}'
 teleportFlavor='{{.TeleportFlavor}}' # teleport or teleport-ent
 successMessage='{{.SuccessMessage}}'
-teleportArgs='{{.TeleportArgs}}'
-teleportBin='{{.TeleportBin}}'
-teleportFIPSSuffix='{{ if .TeleportFIPS }}fips-{{ end}}'
+entrypointArgs='{{.TeleportArgs}}'
+entrypoint='{{.TeleportBin}}'
+packageSuffix='{{ if .TeleportFIPS }}fips-{{ end}}bin.tar.gz'
 
 # shellcheck disable=all
 # Use $HOME or / as base dir
@@ -20,7 +20,7 @@ trap 'rm -rf -- "$tempDir"' EXIT
 
 teleportTarballName() {
     if [ ${OS} = "Darwin" ]; then
-        echo "${teleportFlavor}-${teleportVersion}-darwin-universal-bin.tar.gz"
+        echo "${teleportFlavor}-${teleportVersion}-darwin-universal-${packageSuffix}"
         return 0
     fi;
 
@@ -29,10 +29,10 @@ teleportTarballName() {
         return 1
     fi;
 
-    if [ ${ARCH} = "armv7l" ]; then echo "${teleportFlavor}-${teleportVersion}-linux-arm-${teleportFIPSSuffix}bin.tar.gz"
-    elif [ ${ARCH} = "aarch64" ]; then echo "${teleportFlavor}-${teleportVersion}-linux-arm64-${teleportFIPSSuffix}bin.tar.gz"
-    elif [ ${ARCH} = "x86_64" ]; then echo "${teleportFlavor}-${teleportVersion}-linux-amd64-${teleportFIPSSuffix}bin.tar.gz"
-    elif [ ${ARCH} = "i686" ]; then echo "${teleportFlavor}-${teleportVersion}-linux-386-${teleportFIPSSuffix}bin.tar.gz"
+    if [ ${ARCH} = "armv7l" ]; then echo "${teleportFlavor}-${teleportVersion}-linux-arm-${packageSuffix}"
+    elif [ ${ARCH} = "aarch64" ]; then echo "${teleportFlavor}-${teleportVersion}-linux-arm64-${packageSuffix}"
+    elif [ ${ARCH} = "x86_64" ]; then echo "${teleportFlavor}-${teleportVersion}-linux-amd64-${packageSuffix}"
+    elif [ ${ARCH} = "i686" ]; then echo "${teleportFlavor}-${teleportVersion}-linux-386-${packageSuffix}"
     else
         echo "Invalid Linux architecture ${ARCH}." >&2
         return 1
@@ -42,12 +42,12 @@ teleportTarballName() {
 main() {
     tarballName=$(teleportTarballName)
     echo "Downloading from ${cdnBaseURL}/${tarballName} and extracting teleport to ${tempDir} ..."
-    curl --show-error --fail --location "${cdnBaseURL}/${tarballName}" | tar xzf - -C "${tempDir}" "${teleportFlavor}/${teleportBin}"
+    curl --show-error --fail --location "${cdnBaseURL}/${tarballName}" | tar xzf - -C "${tempDir}" "${teleportFlavor}/${entrypoint}"
 
     mkdir -p "${tempDir}/bin"
-    mv "${tempDir}/${teleportFlavor}/${teleportBin}" "${tempDir}/bin/${teleportBin}"
-    echo "> ${tempDir}/bin/${teleportBin} ${teleportArgs} $@"
-    {{.TeleportCommandPrefix}} "${tempDir}/bin/${teleportBin}" ${teleportArgs} $@ && echo "$successMessage"
+    mv "${tempDir}/${teleportFlavor}/${entrypoint}" "${tempDir}/bin/${entrypoint}"
+    echo "> ${tempDir}/bin/${entrypoint} ${entrypointArgs} $@"
+    {{.TeleportCommandPrefix}} "${tempDir}/bin/${entrypoint}" ${entrypointArgs} $@ && echo "$successMessage"
 }
 
 main $@

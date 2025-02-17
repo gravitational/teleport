@@ -110,12 +110,10 @@ func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScri
 	return scripts.InstallScriptOptions{
 		AutoupdateStyle: autoupdateStyle,
 		TeleportVersion: version,
-		// Note: this override is required to configure the license on AGPL builds.
-		// We cannot install random binaries if the user doesn't
-		CDNBaseURL:     cdnBaseURL,
-		ProxyAddr:      h.PublicProxyAddr(),
-		TeleportFlavor: teleportFlavor,
-		FIPS:           modules.IsBoringBinary(),
+		CDNBaseURL:      cdnBaseURL,
+		ProxyAddr:       h.PublicProxyAddr(),
+		TeleportFlavor:  teleportFlavor,
+		FIPS:            modules.IsBoringBinary(),
 	}, nil
 
 }
@@ -140,8 +138,8 @@ func getCDNBaseURL() (string, error) {
 	// - a custom CDN where they can store their own AGPL binaries
 	if modules.GetModules().BuildType() == modules.BuildOSS {
 		return "", trace.BadParameter(
-			"This proxy licensed under AGPL but CDN binaries are licensed under the more restrictive Community license. "+
-				"You can set TELEPORT_CDN_BASE_URL to a custom CDN, or to %q if you are OK with using the Community license.",
+			"This proxy is licensed under AGPL but CDN binaries are licensed under the more restrictive Community license. "+
+				"You can set TELEPORT_CDN_BASE_URL to a custom CDN, or to %q if you are OK with using the Community Edition license.",
 			teleportassets.CDNBaseURL())
 	}
 

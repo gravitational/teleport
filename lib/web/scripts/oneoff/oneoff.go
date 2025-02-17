@@ -63,12 +63,12 @@ type OneOffScriptParams struct {
 	// Used for testing.
 	binSudo string
 
-	// TeleportBin is the name of the binary from the teleport package. Defaults to "teleport", but can be set to
+	// Entrypoint is the name of the binary from the teleport package. Defaults to "teleport", but can be set to
 	// other binaries such as "teleport-update" or "tbot".
-	TeleportBin string
-	// TeleportArgs is the arguments to pass to the teleport binary.
+	Entrypoint string
+	// EntrypointArgs is the arguments to pass to the Entrypoint binary.
 	// Eg, 'version'
-	TeleportArgs string
+	EntrypointArgs string
 
 	// BinUname is the binary used to get OS name and Architecture of the host.
 	// Defaults to `uname`.
@@ -100,12 +100,12 @@ type OneOffScriptParams struct {
 
 // CheckAndSetDefaults checks if the required params ara present.
 func (p *OneOffScriptParams) CheckAndSetDefaults() error {
-	if p.TeleportArgs == "" {
+	if p.EntrypointArgs == "" {
 		return trace.BadParameter("missing teleport args")
 	}
 
-	if p.TeleportBin == "" {
-		p.TeleportBin = "teleport"
+	if p.Entrypoint == "" {
+		p.Entrypoint = "teleport"
 	}
 
 	if p.BinUname == "" {
