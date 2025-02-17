@@ -20,10 +20,10 @@ import * as icons from 'design/Icon';
 
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 
-import { Menu, MenuItem } from './AdditionalActions';
+import { Menu, MenuListItem } from './Menu';
 
 export default {
-  title: 'Teleterm/AdditionalActions',
+  title: 'Teleterm/Menu',
 };
 
 export const MenuItems = () => {
@@ -34,53 +34,48 @@ export const MenuItems = () => {
           max-width: 300px;
         `}
       >
-        <MenuItem
+        <MenuListItem
           closeMenu={noop}
           item={{
             Icon: icons.Code,
-            isVisible: true,
             title: 'Regular item',
             onNavigate: () => {
               alert('Hello!');
             },
           }}
         />
-        <MenuItem
+        <MenuListItem
           closeMenu={noop}
           item={{
             Icon: icons.Moon,
-            isVisible: true,
             isDisabled: true,
             title: 'Disabled',
             disabledText: '…for a reason',
             onNavigate: noop,
           }}
         />
-        <MenuItem
+        <MenuListItem
           closeMenu={noop}
           item={{
             Icon: icons.Link,
-            isVisible: true,
             title: 'With a shortcut',
             onNavigate: noop,
             keyboardShortcutAction: 'newTerminalTab',
           }}
         />
-        <MenuItem
+        <MenuListItem
           closeMenu={noop}
           item={{
             Icon: icons.ListThin,
-            isVisible: true,
             title: 'With a separator',
             prependSeparator: true,
             onNavigate: noop,
           }}
         />
-        <MenuItem
+        <MenuListItem
           closeMenu={noop}
           item={{
             Icon: icons.Stars,
-            isVisible: true,
             title: 'With everything',
             isDisabled: true,
             disabledText: 'Lorem ipsum dolor sit amet',
