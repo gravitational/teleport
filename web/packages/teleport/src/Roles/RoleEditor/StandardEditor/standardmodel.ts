@@ -418,7 +418,7 @@ export const roleVersionOptions = Object.values(RoleVersion)
   .map(o => ({ value: o, label: o }));
 export const roleVersionOptionsMap = optionsToMap(roleVersionOptions);
 
-export const defaultRoleVersion = RoleVersion.V7;
+export const defaultRoleVersion = RoleVersion.V8;
 
 /**
  * Returns the role object with required fields defined with empty values.
@@ -581,7 +581,7 @@ export function roleToRoleEditorModel(
   const versionOption = getOptionOrPushError(
     version,
     roleVersionOptionsMap,
-    RoleVersion.V7,
+    RoleVersion.V8,
     'version',
     conversionErrors
   );

@@ -338,7 +338,7 @@ test('saving a new role', async () => {
         deny: {},
         options: defaultOptions(),
       },
-      version: 'v7',
+      version: 'v8',
     },
   });
   expect(userEventService.captureUserEvent).toHaveBeenCalledWith({

@@ -199,7 +199,7 @@ func TestCreateBot(t *testing.T) {
 			},
 			wantRole: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V7,
+				Version: types.V8,
 				Metadata: types.Metadata{
 					Name:      "bot-success",
 					Namespace: defaults.Namespace,
@@ -310,7 +310,7 @@ func TestCreateBot(t *testing.T) {
 			},
 			wantRole: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V7,
+				Version: types.V8,
 				Metadata: types.Metadata{
 					Name:      "bot-success-with-expiry",
 					Namespace: defaults.Namespace,
@@ -624,7 +624,7 @@ func TestUpdateBot(t *testing.T) {
 			},
 			wantRole: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V7,
+				Version: types.V8,
 				Metadata: types.Metadata{
 					Name:      preExistingBot.Status.RoleName,
 					Namespace: defaults.Namespace,
@@ -974,7 +974,7 @@ func TestUpsertBot(t *testing.T) {
 			},
 			wantRole: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V7,
+				Version: types.V8,
 				Metadata: types.Metadata{
 					Name:      "bot-new",
 					Namespace: defaults.Namespace,
@@ -1075,7 +1075,7 @@ func TestUpsertBot(t *testing.T) {
 			},
 			wantRole: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V7,
+				Version: types.V8,
 				Metadata: types.Metadata{
 					Name:      "bot-new-with-expiry",
 					Namespace: defaults.Namespace,
@@ -1132,7 +1132,7 @@ func TestUpsertBot(t *testing.T) {
 			},
 			wantRole: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V7,
+				Version: types.V8,
 				Metadata: types.Metadata{
 					Name:      "bot-pre-existing",
 					Namespace: defaults.Namespace,
