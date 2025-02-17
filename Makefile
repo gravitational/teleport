@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=17.2.7
+VERSION=17.2.7-dev.fred-evm2.2
 
 DOCKER_IMAGE ?= teleport
 
