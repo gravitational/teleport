@@ -5,3 +5,5 @@ roles:
   - access
 principals:
   - host.example.com
+credential_ttl: 1m0s
+renewal_interval: 30s

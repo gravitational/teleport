@@ -35,6 +35,8 @@ export default function InputSearch({
   setSearchValue,
   children,
   bigInputSize = false,
+  autoFocus = false,
+  placeholder = 'Search...',
 }: Props) {
   function submitSearch(e: FormEvent<HTMLFormElement>) {
     e.preventDefault(); // prevent form default
@@ -50,10 +52,11 @@ export default function InputSearch({
       <Form onSubmit={submitSearch}>
         <StyledInput
           bigInputSize={bigInputSize}
-          placeholder="Search..."
+          placeholder={placeholder}
           px={3}
           defaultValue={searchValue}
           name={searchInputName}
+          autoFocus={autoFocus}
         />
         <ChildWrapperBackground>
           <ChildWrapper>{children}</ChildWrapper>
@@ -68,6 +71,8 @@ type Props = {
   setSearchValue: (searchValue: string) => void;
   children?: JSX.Element;
   bigInputSize?: boolean;
+  autoFocus?: boolean;
+  placeholder?: string;
 };
 
 const ChildWrapper = styled.div`

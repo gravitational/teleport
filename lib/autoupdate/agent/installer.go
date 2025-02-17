@@ -370,6 +370,7 @@ func tgzExtractPaths(ent bool) []utils.ExtractPath {
 		{Src: path.Join(prefix, "README.md"), Dst: "share/README.md", DirMode: systemDirMode},
 		{Src: path.Join(prefix, "CHANGELOG.md"), Dst: "share/CHANGELOG.md", DirMode: systemDirMode},
 		{Src: path.Join(prefix, "VERSION"), Dst: "share/VERSION", DirMode: systemDirMode},
+		{Src: path.Join(prefix, "LICENSE-community"), Dst: "share/LICENSE-community", DirMode: systemDirMode},
 		{Src: prefix, Dst: "bin", DirMode: systemDirMode},
 	}
 }

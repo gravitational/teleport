@@ -426,6 +426,11 @@ func (h *Handler) integrationDiscoveryRules(w http.ResponseWriter, r *http.Reque
 	startKey := values.Get("startKey")
 	resourceType := values.Get("resourceType")
 	regionsFilter := values["regions"]
+	// the regions key is always sent as a query param but is not always populated (&regions=)
+	// this results in a slice containing a single empty string
+	if len(regionsFilter) == 1 && regionsFilter[0] == "" {
+		regionsFilter = nil
+	}
 
 	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {

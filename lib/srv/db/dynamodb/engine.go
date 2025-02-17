@@ -43,11 +43,11 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/utils"
 	libaws "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/dynamodbutils"
 )
 
 // NewEngine create new DynamoDB engine.
@@ -55,7 +55,7 @@ func NewEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig:  ec,
 		RoundTrippers: make(map[string]http.RoundTripper),
-		UseFIPS:       modules.GetModules().IsBoringBinary(),
+		UseFIPS:       dynamodbutils.IsFIPSEnabled(),
 	}
 }
 

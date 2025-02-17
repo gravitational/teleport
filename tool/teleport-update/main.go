@@ -41,11 +41,11 @@ import (
 
 const appHelp = `Teleport Updater
 
-The Teleport Updater automatically updates a Teleport agent.
+The Teleport Updater applies Managed Updates to a Teleport agent installation.
 
-The Teleport Updater supports upgrade schedules and automated rollbacks. 
+The Teleport Updater supports update scheduling and automated rollbacks.
 
-Find out more at https://goteleport.com/docs/updater`
+Find out more at https://goteleport.com/docs/upgrading/agent-managed-updates`
 
 const (
 	// proxyServerEnvVar allows the proxy server address to be specified via env var.
@@ -83,6 +83,10 @@ type cliConfig struct {
 	UpdateNow bool
 	// Reload reloads Teleport.
 	Reload bool
+	// ForceUninstall allows Teleport to be completely removed.
+	ForceUninstall bool
+	// Insecure skips TLS certificate verification.
+	Insecure bool
 }
 
 func Run(args []string) int {
@@ -105,12 +109,14 @@ func Run(args []string) int {
 		Short('i').StringVar(&ccfg.InstallSuffix)
 	app.Flag("link-dir", "Directory to link the active Teleport installation's binaries into.").
 		Default(autoupdate.DefaultLinkDir).IsSetByUser(&userLinkDir).Hidden().StringVar(&ccfg.LinkDir)
+	app.Flag("insecure", "Insecure mode disables certificate verification. Do not use in production.").
+		BoolVar(&ccfg.Insecure)
 
 	app.HelpFlag.Short('h')
 
 	versionCmd := app.Command("version", fmt.Sprintf("Print the version of your %s binary.", autoupdate.BinaryName))
 
-	enableCmd := app.Command("enable", "Enable agent auto-updates and perform initial installation or update. This creates a systemd timer that periodically runs the update subcommand.")
+	enableCmd := app.Command("enable", "Enable agent managed updates and perform initial installation or update. This creates a systemd timer that periodically runs the update subcommand.")
 	enableCmd.Flag("proxy", "Address of the Teleport Proxy.").
 		Short('p').Envar(proxyServerEnvVar).StringVar(&ccfg.Proxy)
 	enableCmd.Flag("group", "Update group for this agent installation.").
@@ -121,9 +127,11 @@ func Run(args []string) int {
 		Short('o').BoolVar(&ccfg.AllowOverwrite)
 	enableCmd.Flag("force-version", "Force the provided version instead of using the version provided by the Teleport cluster.").
 		Short('f').Envar(updateVersionEnvVar).Hidden().StringVar(&ccfg.ForceVersion)
-	enableCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for auto-updates.").
+	enableCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for managed updates.").
 		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
 	// TODO(sclevine): add force-fips and force-enterprise as hidden flags
+
+	disableCmd := app.Command("disable", "Disable agent managed updates. Does not affect the active installation of Teleport.")
 
 	pinCmd := app.Command("pin", "Install Teleport and lock the updater to the installed version.")
 	pinCmd.Flag("proxy", "Address of the Teleport Proxy.").
@@ -134,19 +142,18 @@ func Run(args []string) int {
 		Short('b').Envar(common.BaseURLEnvVar).StringVar(&ccfg.BaseURL)
 	pinCmd.Flag("force-version", "Force the provided version instead of using the version provided by the Teleport cluster.").
 		Short('f').Envar(updateVersionEnvVar).StringVar(&ccfg.ForceVersion)
-	pinCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for auto-updates.").
+	pinCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for managed updates.").
 		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
 
-	disableCmd := app.Command("disable", "Disable agent auto-updates. Does not affect the active installation of Teleport.")
 	unpinCmd := app.Command("unpin", "Unpin the current version, allowing it to be updated.")
 
 	updateCmd := app.Command("update", "Update the agent to the latest version, if a new version is available.")
 	updateCmd.Flag("now", "Force immediate update even if update window is not active.").
 		Short('n').BoolVar(&ccfg.UpdateNow)
-	updateCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for auto-updates and verify the Teleport installation.").
+	updateCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for managed updates and verify the Teleport installation.").
 		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
 
-	linkCmd := app.Command("link-package", "Link the system installation of Teleport from the Teleport package, if auto-updates is disabled.")
+	linkCmd := app.Command("link-package", "Link the system installation of Teleport from the Teleport package, if managed updates is disabled.")
 	unlinkCmd := app.Command("unlink-package", "Unlink the system installation of Teleport from the Teleport package.")
 
 	setupCmd := app.Command("setup", "Write configuration files that run the update subcommand on a timer and verify the Teleport installation.").
@@ -157,6 +164,8 @@ func Run(args []string) int {
 	statusCmd := app.Command("status", "Show Teleport agent auto-update status.")
 
 	uninstallCmd := app.Command("uninstall", "Uninstall the updater-managed installation of Teleport. If the Teleport package is installed, it is restored as the primary installation.")
+	uninstallCmd.Flag("force", "Force complete uninstallation of Teleport, even if there is no packaged version of Teleport to revert to.").
+		Short('f').BoolVar(&ccfg.ForceUninstall)
 
 	libutils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
@@ -244,10 +253,11 @@ func initConfig(ccfg *cliConfig) (updater *autoupdate.Updater, lockFile string, 
 		return nil, "", trace.Wrap(err)
 	}
 	updater, err = autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
-		SelfSetup: ccfg.SelfSetup,
-		Log:       plog,
-		LogFormat: ccfg.LogFormat,
-		Debug:     ccfg.Debug,
+		SelfSetup:          ccfg.SelfSetup,
+		Log:                plog,
+		LogFormat:          ccfg.LogFormat,
+		Debug:              ccfg.Debug,
+		InsecureSkipVerify: ccfg.Insecure,
 	}, ns)
 	return updater, lockFile, trace.Wrap(err)
 }
@@ -258,10 +268,11 @@ func statusConfig(ccfg *cliConfig) (*autoupdate.Updater, error) {
 		return nil, trace.Wrap(err)
 	}
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
-		SelfSetup: ccfg.SelfSetup,
-		Log:       plog,
-		LogFormat: ccfg.LogFormat,
-		Debug:     ccfg.Debug,
+		SelfSetup:          ccfg.SelfSetup,
+		Log:                plog,
+		LogFormat:          ccfg.LogFormat,
+		Debug:              ccfg.Debug,
+		InsecureSkipVerify: ccfg.Insecure,
 	}, ns)
 	return updater, trace.Wrap(err)
 }
@@ -361,7 +372,7 @@ func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
 	return nil
 }
 
-// cmdLinkPackage creates system package links if no version is linked and auto-updates is disabled.
+// cmdLinkPackage creates system package links if no version is linked and managed updates is disabled.
 func cmdLinkPackage(ctx context.Context, ccfg *cliConfig) error {
 	updater, lockFile, err := initConfig(ccfg)
 	if err != nil {
@@ -424,10 +435,11 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 		return trace.Wrap(err)
 	}
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
-		SelfSetup: ccfg.SelfSetup,
-		Log:       plog,
-		LogFormat: ccfg.LogFormat,
-		Debug:     ccfg.Debug,
+		SelfSetup:          ccfg.SelfSetup,
+		Log:                plog,
+		LogFormat:          ccfg.LogFormat,
+		Debug:              ccfg.Debug,
+		InsecureSkipVerify: ccfg.Insecure,
 	}, ns)
 	if err != nil {
 		return trace.Wrap(err)
@@ -470,7 +482,7 @@ func cmdUninstall(ctx context.Context, ccfg *cliConfig) error {
 		}
 	}()
 
-	if err := updater.Remove(ctx); err != nil {
+	if err := updater.Remove(ctx, ccfg.ForceUninstall); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

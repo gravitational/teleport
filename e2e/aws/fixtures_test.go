@@ -159,7 +159,7 @@ func createTeleportCluster(t *testing.T, opts ...testOptionsFunc) *helpers.TeleI
 		teleport.AddUserWithRole(name, roles...)
 	}
 
-	tconf := newTeleportConfig(t)
+	tconf := newTeleportConfig()
 	for _, optFn := range options.serviceConfigFuncs {
 		optFn(tconf)
 	}
@@ -194,7 +194,7 @@ func newInstanceConfig(t *testing.T) helpers.InstanceConfig {
 	}
 }
 
-func newTeleportConfig(t *testing.T) *servicecfg.Config {
+func newTeleportConfig() *servicecfg.Config {
 	tconf := servicecfg.MakeDefaultConfig()
 	// Replace the default auth and proxy listeners with the ones so we can
 	// run multiple tests in parallel.
@@ -207,13 +207,13 @@ func newTeleportConfig(t *testing.T) *servicecfg.Config {
 
 // withUserRole creates a new role that will be bootstraped and then granted to
 // the Teleport user under test.
-func withUserRole(t *testing.T, user, name string, spec types.RoleSpecV6) testOptionsFunc {
+func withUserRole(t *testing.T, userName, roleName string, spec types.RoleSpecV6) testOptionsFunc {
 	t.Helper()
 	// Create a new role with full access to all databases.
-	role, err := types.NewRole(name, spec)
+	role, err := types.NewRole(roleName, spec)
 	require.NoError(t, err)
 	return func(options *testOptions) {
-		options.userRoles[user] = append(options.userRoles[user], role)
+		options.userRoles[userName] = append(options.userRoles[userName], role)
 	}
 }
 
@@ -290,4 +290,17 @@ func makeAutoUserDropRoleSpec(roles ...string) types.RoleSpecV6 {
 	spec := makeAutoUserKeepRoleSpec(roles...)
 	spec.Options.CreateDatabaseUserMode = types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP
 	return spec
+}
+
+func makeAutoUserDBPermissions(dbPermissions ...types.DatabasePermission) types.RoleSpecV6 {
+	return types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			DatabaseLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseNames:       []string{types.Wildcard},
+			DatabasePermissions: dbPermissions,
+		},
+		Options: types.RoleOptions{
+			CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+		},
+	}
 }

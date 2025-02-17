@@ -449,11 +449,9 @@ func (s SystemdService) checkSystem(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	if !present {
-		s.Log.ErrorContext(ctx, "This system does not support systemd, which is required by the updater.")
 		return trace.Wrap(ErrNotSupported)
 	}
 	return nil
-
 }
 
 // hasSystemD returns true if the system uses the SystemD process manager.

@@ -4,7 +4,7 @@ This chart sets up and configures a Deployment for the Access Request Discord pl
 
 ## Installation
 
-See the [Access Requests with Discord guide](https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-discord/)
+See the [Access Requests with Discord guide](https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/ssh-approval-discord/)
 which covers how to create the Discord bot and how to deploy the access plugin.
 
 ## Settings

@@ -327,6 +327,7 @@ export default function useAccessRequestCheckout() {
 
     try {
       const { accessRequest } = await prepareAndCreateRequest({
+        reason: 'placeholder-reason',
         dryRun: true,
         maxDuration: getDryRunMaxDuration(),
       });

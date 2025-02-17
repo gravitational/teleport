@@ -19,6 +19,7 @@
 import { Fragment, useCallback } from 'react';
 import { useTheme } from 'styled-components';
 
+import { ChevronRight } from 'design/Icon';
 import { ButtonPrimary, Flex, Text } from 'design';
 
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
@@ -88,7 +89,8 @@ export function StatusBar(props: { onAssumedRolesClick(): void }) {
                 )}
                 <Text>{breadcrumb.name}</Text>
                 {index !== breadcrumbs.length - 1 && (
-                  <Text color="text.disabled">→</Text>
+                  // Size 'small' is too large here.
+                  <ChevronRight size={13} color="text.muted" />
                 )}
               </Fragment>
             ))}
