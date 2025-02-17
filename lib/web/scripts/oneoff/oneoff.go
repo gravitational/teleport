@@ -22,6 +22,7 @@ import (
 	"bytes"
 	_ "embed"
 	"slices"
+	"strings"
 	"text/template"
 
 	"github.com/gravitational/trace"
@@ -127,6 +128,7 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 	if p.CDNBaseURL == "" {
 		p.CDNBaseURL = teleportassets.CDNBaseURL()
 	}
+	p.CDNBaseURL = strings.TrimRight(p.CDNBaseURL, "/")
 
 	if p.TeleportFlavor == "" {
 		p.TeleportFlavor = types.PackageNameOSS
