@@ -20,7 +20,7 @@ import { formatDistanceToNow, isPast } from 'date-fns';
 import { ComponentType, useEffect, useMemo, useRef, useState } from 'react';
 import styled, { css, useTheme } from 'styled-components';
 
-import { ButtonText, Flex, Indicator, P3, Popover } from 'design';
+import { Box, ButtonText, Flex, Indicator, P3, Popover } from 'design';
 import * as Icon from 'design/Icon';
 import { IconProps } from 'design/Icon/Icon';
 import { MenuItemSectionLabel } from 'design/Menu/MenuItem';
@@ -244,8 +244,7 @@ export function SelectorMenu() {
               justify-content: space-between;
             `}
             color="text.muted"
-            ml="8px"
-            mr={2}
+            mx={2}
             my={1}
           >
             Available Requests
@@ -358,8 +357,7 @@ function RequestItem(props: {
           )}
           activeStatusColor={theme.colors.interactive.solid.primary.default}
         />
-        <Flex
-          flexDirection="column"
+        <Box
           css={`
             line-height: 1.3;
           `}
@@ -389,7 +387,7 @@ function RequestItem(props: {
               isAssumed: props.isAssumed,
             })}
           </P3>
-        </Flex>
+        </Box>
       </Flex>
       <ButtonText
         size="small"
