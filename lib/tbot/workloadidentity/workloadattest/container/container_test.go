@@ -23,10 +23,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/container"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/container"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestLookupPID(t *testing.T) {

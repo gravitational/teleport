@@ -24,10 +24,11 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/gravitational/trace"
+
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/container"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/podman"
-	"github.com/gravitational/trace"
 )
 
 // PodmanAttestor attests the identity of a Podman container and pod.

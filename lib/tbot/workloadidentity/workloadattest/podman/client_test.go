@@ -22,9 +22,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/podman"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/podman"
 )
 
 func TestClient(t *testing.T) {
