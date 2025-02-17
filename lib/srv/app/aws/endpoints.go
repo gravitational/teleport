@@ -30,32 +30,20 @@ import (
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
-// resolveEndpoint extracts the aws-service and aws-region from the request
-// authorization header and resolves the aws-service and aws-region to AWS
-// endpoint.
+// resolveEndpoint resolves the endpoint by creating the URL
+// from valid "X-Forwarded-Host" header and extracting aws-service and
+// aws-region from the authorization header.
 func resolveEndpoint(r *http.Request) (*common.AWSResolvedEndpoint, error) {
 	forwardedHost, headErr := libutils.GetSingleHeader(r.Header, "X-Forwarded-Host")
 	if headErr != nil || !awsapiutils.IsAWSEndpoint(forwardedHost) {
 		return nil, trace.BadParameter("proxied requests must include X-Forwarded-Host header with an AWS service endpoint")
 	}
 
-	re, err := resolveEndpointByXForwardedHost(r, awsutils.AuthorizationHeader)
-	return re, trace.Wrap(err)
-}
-
-// resolveEndpointByXForwardedHost resolves the endpoint by creating the URL
-// from valid "X-Forwarded-Host" header and extracting aws-service and
-// aws-region from the authorization header.
-func resolveEndpointByXForwardedHost(r *http.Request, headerKey string) (*common.AWSResolvedEndpoint, error) {
-	forwardedHost := r.Header.Get("X-Forwarded-Host")
-	if forwardedHost == "" {
-		return nil, trace.BadParameter("missing X-Forwarded-Host")
-	}
 	if !awsapiutils.IsAWSEndpoint(forwardedHost) {
 		return nil, trace.BadParameter("invalid AWS endpoint %v", forwardedHost)
 	}
 
-	awsAuthHeader, err := awsutils.ParseSigV4(r.Header.Get(headerKey))
+	awsAuthHeader, err := awsutils.ParseSigV4(r.Header.Get(awsutils.AuthorizationHeader))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
