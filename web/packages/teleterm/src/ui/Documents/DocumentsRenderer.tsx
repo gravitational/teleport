@@ -22,7 +22,10 @@ import styled from 'styled-components';
 
 import { Text } from 'design';
 
-import { AccessRequestsContextProvider } from 'teleterm/ui/AccessRequests';
+import {
+  AccessRequestsContextProvider,
+  AccessRequestsMenu,
+} from 'teleterm/ui/AccessRequests';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   ConnectMyComputerContextProvider,
@@ -106,8 +109,10 @@ export function DocumentsRenderer(props: {
                         props.topBarConnectMyComputerRef.current
                       )}
                     {props.topBarAccessRequestRef.current &&
-                      //TODO(gzdunek): inject access requests menu.
-                      createPortal(null, props.topBarAccessRequestRef.current)}
+                      createPortal(
+                        <AccessRequestsMenu />,
+                        props.topBarAccessRequestRef.current
+                      )}
                   </>
                 )}
               </AccessRequestsContextProvider>
