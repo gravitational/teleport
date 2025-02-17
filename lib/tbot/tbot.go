@@ -895,16 +895,15 @@ func (p *proxyPingResponse) proxyWebAddr() (string, error) {
 // proxySSHAddr returns the address to use to connect to the proxy SSH service.
 // Includes potential override via TBOT_USE_PROXY_ADDR.
 func (p *proxyPingResponse) proxySSHAddr() (string, error) {
-	if shouldUseProxyAddr() {
-		if p.configuredProxyAddr == "" {
-			return "", trace.BadParameter("TBOT_USE_PROXY_ADDR set but no explicit proxy address configured")
-		}
-		return p.configuredProxyAddr, nil
-	}
-
 	// If TLS routing, we want to connect the web port since the gRPC SSH
 	// service should be exposed here.
 	if p.Proxy.TLSRoutingEnabled {
+		if shouldUseProxyAddr() {
+			if p.configuredProxyAddr == "" {
+				return "", trace.BadParameter("TBOT_USE_PROXY_ADDR set but no explicit proxy address configured")
+			}
+			return p.configuredProxyAddr, nil
+		}
 		return p.Proxy.SSH.PublicAddr, nil
 	}
 	// If not, we want to use the SSH port. The gRPC SSH service will be exposed
