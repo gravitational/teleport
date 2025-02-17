@@ -96,7 +96,7 @@ export function SelectorMenu() {
   // It's possible that the user assumed a request that was later deleted.
   // If they refreshed the list after that, the request would be gone there, but
   // still displayed in the status bar.
-  // The same thing will happen if the entire access request fails.
+  // The same thing would happen if the API call to fetch requests failed.
   // We need to make sure that the assumed roles are always visible.
   const assumedAndAssumableRequests = useMemo(() => {
     const allRequests = [...(assumableRequests.data || [])];
