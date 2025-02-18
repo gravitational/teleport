@@ -2889,6 +2889,8 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 
 	// Obscure all other errors.
 	case err != nil:
+		// log the actual error.
+		h.logger.WarnContext(r.Context(), "Login attempt denied for user", "user", req.User, "error", err)
 		return nil, trace.AccessDenied("invalid credentials")
 	}
 
