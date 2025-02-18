@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
 import { Label } from 'teleport/types';
 
 import { ResourceLabel } from '../agents';
@@ -224,14 +225,29 @@ export type PluginStatus<D = any> = {
   details?: D;
 };
 
-export type PluginSpec =
-  | PluginOktaSpec
-  | PluginSlackSpec
-  | PluginMattermostSpec
-  | PluginOpsgenieSpec
-  | PluginDatadogSpec
-  | PluginEmailSpec
-  | PluginMsTeamsSpec;
+/**
+ * PluginNameToSpec defines a mapping of plugin names to their respective
+ * spec types.
+ */
+export type PluginNameToSpec = {
+  okta: PluginOktaSpec;
+  slack: PluginSlackSpec;
+  mattermost: PluginMattermostSpec;
+  opsgenie: PluginOpsgenieSpec;
+  datadog: PluginDatadogSpec;
+  email: PluginEmailSpec;
+  msteams: PluginMsTeamsSpec;
+  [key: string]: any;
+};
+
+/**
+ * PluginNameToDetails defines a mapping of plugin names to their respective
+ * status details types.
+ */
+export type PluginNameToDetails = {
+  okta: PluginStatusOkta;
+  [key: string]: any;
+};
 
 // PluginKind represents the type of the plugin
 // and should be the same value as defined in the backend (check master branch for the latest):
@@ -254,31 +270,46 @@ export type PluginKind =
   | 'aws-identity-center';
 
 export type PluginOktaSpec = {
-  // scimBearerToken is the plain text of the bearer token that Okta will use
-  // to authenticate SCIM requests
+  // The plaintext of the bearer token that Okta will use
+  // to authenticate SCIM requests.
   scimBearerToken: string;
-  // oktaAppID is the Okta ID of the SAML App created during the Okta plugin
+  // The Okta ID of the SAML App created during the Okta plugin
   // installation
   oktaAppId: string;
-  // oktaAppName is the human readable name of the Okta SAML app created
+  // the human-readable name of the Okta SAML app created
   // during the Okta plugin installation
   oktaAppName: string;
   // teleportSSOConnector is the name of the Teleport SAML SSO connector
   // created by the plugin during installation
   teleportSsoConnector: string;
-  // error contains a description of any failures during plugin installation
+  // Contains a description of any failures during plugin installation
   // that were deemed not serious enough to fail the plugin installation, but
-  // may effect the operation of advanced features like User Sync or SCIM.
+  // may affect the operation of advanced features like User Sync or SCIM.
   error: string;
-  /**
-   * is the set of usernames that the integration assigns as
-   * owners to any Access Lists that it creates
-   */
+  // The set of usernames that the integration assigns as
+  // owners to any Access Lists that it creates
   defaultOwners: string[];
-  /**
-   * the Okta org's base URL
-   */
+  // The Okta organization's base URL
   orgUrl: string;
+  // Whether User Sync is enabled
+  enableUserSync?: boolean;
+  // Whether Access List Sync is enabled. Should match App/Group sync.
+  enableAccessListSync?: boolean;
+  // Whether App/Group Sync is enabled. Should match Access List sync.
+  enableAppGroupSync?: boolean;
+  // Information about currently configured credentials for the plugin
+  credentialsInfo?: CredentialsInfo;
+};
+
+/**
+ * CredentialsInfo contains information about currently-configured
+ * credentials for a plugin. Can be all true, or all omitted.
+ * Omitted fields should be assumed as false.
+ */
+export type CredentialsInfo = {
+  hasSSMSToken?: boolean;
+  hasConfiguredOauthCredentials?: boolean;
+  hasSCIMToken?: boolean;
 };
 
 export type PluginSlackSpec = {
