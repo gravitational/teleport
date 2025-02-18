@@ -96,6 +96,8 @@ export type RoleConditions = {
   windows_desktop_labels?: Labels;
   windows_desktop_logins?: string[];
 
+  github_permissions?: GitHubPermission[];
+
   rules?: Rule[];
 };
 
@@ -345,6 +347,10 @@ export type Verb =
   | 'update'
   | 'use';
 
+export type GitHubPermission = {
+  orgs?: string[];
+};
+
 /**
  * Teleport role options in full format, as returned from Teleport API. Note
  * that its fields follow the snake case convention to match the wire format.
@@ -372,7 +378,7 @@ export type RoleOptions = {
   ssh_port_forwarding?: SSHPortForwarding;
   port_forwarding?: boolean;
   record_session: {
-    default: SessionRecordingMode;
+    default?: SessionRecordingMode;
     ssh?: SessionRecordingMode;
     desktop: boolean;
   };
