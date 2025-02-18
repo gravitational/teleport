@@ -367,6 +367,7 @@ func writeSystemTemplate(path, t string, values any) error {
 		// escape is a best-effort function for escaping quotes in systemd service templates.
 		// Paths that are escaped with this method should not be advertised to the user as
 		// configurable until a more robust escaping mechanism is shipped.
+		// See: https://www.freedesktop.org/software/systemd/man/latest/systemd.syntax.html
 		"escape": func(s string) string {
 			replacer := strings.NewReplacer(
 				`"`, `\"`,
