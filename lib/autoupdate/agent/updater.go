@@ -915,6 +915,11 @@ func (u *Updater) Setup(ctx context.Context, path string, restart bool) error {
 // notices displays final notices after install or update.
 func (u *Updater) notices(ctx context.Context) error {
 	enabled, err := u.Process.IsEnabled(ctx)
+	if errors.Is(err, ErrNotSupported) {
+		u.Log.WarnContext(ctx, "Teleport is installed, but systemd is not present to start it.")
+		u.Log.WarnContext(ctx, "After configuring teleport.yaml, your system must also be configured to start Teleport.")
+		return nil
+	}
 	if err != nil {
 		return trace.Wrap(err, "failed to query Teleport systemd enabled status")
 	}
