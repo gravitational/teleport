@@ -47,7 +47,7 @@ kubeClusterName: EKS1
 labels:
     teleport.internal/resource-id: resource-id
 EOF
- 
+
 helm install teleport-agent teleport/teleport-kube-agent -f prod-cluster-values.yaml --version 12.3.4 \\
 --create-namespace --namespace teleport-agent`,
     },
@@ -62,7 +62,7 @@ kubeClusterName: EKS1
 labels:
     teleport.internal/resource-id: resource-id
 EOF
- 
+
 helm install teleport-agent teleport/teleport-kube-agent -f prod-cluster-values.yaml --version 12.3.4 \\
 --create-namespace --namespace teleport-agent`,
     },
@@ -85,7 +85,7 @@ labels:
     label1: value1
     label2: value2
 EOF
- 
+
 helm install teleport-agent teleport/teleport-kube-agent -f prod-cluster-values.yaml --version 12.3.4 \\
 --create-namespace --namespace teleport-agent`,
     },
@@ -104,7 +104,7 @@ labels:
     teleport.internal/resource-id: resource-id
 enterprise: true
 EOF
- 
+
 helm install teleport-agent teleport/teleport-kube-agent -f prod-cluster-values.yaml --version 12.3.4 \\
 --create-namespace --namespace teleport-agent`,
     },
@@ -132,7 +132,7 @@ highAvailability:
         enabled: true
         minAvailable: 1
 EOF
- 
+
 helm install teleport-agent teleport/teleport-kube-agent -f prod-cluster-values.yaml --version 14.5.6 \\
 --create-namespace --namespace teleport-agent`,
     },
@@ -168,7 +168,7 @@ highAvailability:
         enabled: true
         minAvailable: 1
 EOF
- 
+
 helm install teleport-agent teleport/teleport-kube-agent -f prod-cluster-values.yaml --version 14.5.6 \\
 --create-namespace --namespace teleport-agent`,
     },

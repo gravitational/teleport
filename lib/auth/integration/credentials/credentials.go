@@ -132,3 +132,38 @@ func GetIntegrationRef(ctx context.Context, integration string, igGetter Integra
 	}
 	return ref, nil
 }
+
+// GetIntegrationCertAuthorities attempts to retrieve certificate authorities
+// for provided integration.
+func GetIntegrationCertAuthorities(ctx context.Context, ig types.Integration, getter ByLabelsGetter) (*types.CAKeySet, error) {
+	switch ig.GetSubKind() {
+	case types.IntegrationSubKindGitHub:
+		caKeySet, err := GetGitHubCertAuthorities(ctx, ig, getter)
+		return caKeySet, trace.Wrap(err)
+	default:
+		return nil, trace.NotImplemented("unsupported for integration subkind %v", ig.GetSubKind())
+	}
+}
+
+// GetGitHubCertAuthorities retrieves the SSH keys for a GitHub integration.
+func GetGitHubCertAuthorities(ctx context.Context, ig types.Integration, getter ByLabelsGetter) (*types.CAKeySet, error) {
+	if ig.GetSubKind() != types.IntegrationSubKindGitHub {
+		return nil, trace.BadParameter("integration is not a GitHub integration")
+	}
+	if ig.GetCredentials() == nil {
+		return nil, trace.BadParameter("missing credentials")
+	}
+
+	creds, err := GetByPurpose(ctx, ig.GetCredentials().GetStaticCredentialsRef(), PurposeGitHubSSHCA, getter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cas := creds.GetSSHCertAuthorities()
+	if len(cas) == 0 {
+		return nil, trace.BadParameter("missing SSH cert authorities from plugin static credentials")
+	}
+	return &types.CAKeySet{
+		SSH: cas,
+	}, nil
+}
