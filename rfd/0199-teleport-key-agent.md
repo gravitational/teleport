@@ -32,26 +32,27 @@ login state data to support additional [future use cases](#future-work).
 
 ## Glossary
 
-* "agent client" - any client running a Teleport Key Agent
-* "dependent client" - any client interfacing with a Teleport Key Agent
-* "login session" - the user's private key and certificates, the current login profile,
-and any certificate authorities needed for mTLS. Traditionally this is all stored in
-`~/.tsh`, and or in [memory for some niche use cases](#memory-key-storage).
+* "agent client" - any client running Teleport Key Agent
+* "dependent client" - any client interfacing with Teleport Key Agent
+* "login session" - a user's private key, certificates, profile (cluster) info,
+and trusted certificate authorities, indexed by proxyhost, then username, and
+finally cluster. Traditionally this is all stored on disk (`~/.tsh`), and or in
+[memory for some niche use cases](#memory-key-storage).
 
 ## Details
 
 ### Teleport Key Agent
 
-In its MVP form, Teleport Key Agent will provide two services:
+In its MVP form, Teleport Key Agent will provide two functionalities:
 
-1. Fetching the public TLS and SSH keys for a specific login session (proxyhost, username, and cluster)
-1. Signing with one the TLS or SSH key from a specific login session
+1. Fetching the public TLS or SSH key for a specific login session
+1. Signing with one of the TLS or SSH keys for a specific login session
 
 ```go
 // Pseudo-code
 
-// keyRef uniquely identifies a login session key
-type keyRef struct {
+// loginSessionKeyRef uniquely identifies a login session key
+type loginSessionKeyRef struct {
   ProxyHost   string
   Username    string
   ClusterName string
@@ -59,8 +60,8 @@ type keyRef struct {
 }
 
 type keyAgentService interface {
-  Public(ref keyRef)
-  Sign(ref keyRef, digest []byte, opts SignerOpts) (signature []byte, err error)
+  PublicKey(ref loginSessionKeyRef) crypto.PublicKey
+  Sign(ref loginSessionKeyRef, digest []byte, opts SignerOpts) (signature []byte, err error)
 }
 ```
 
@@ -72,12 +73,12 @@ the key agent like a `crypto.Signer` for both TLS and SSH handshakes:
 
 // Implements [crypto.Signer].
 type agentSigner struct {
-  keyRef   keyRef
+  keyRef   loginSessionKeyRef
   agent    keyAgentService
 }
 
 func (as *agentSigner) Public() crypto.PublicKey {
-  return as.agent.Public(as.keyRef)
+  return as.agent.PublicKey(as.keyRef)
 }
 
 func (as *agentSigner) Sign(_ io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
@@ -85,8 +86,9 @@ func (as *agentSigner) Sign(_ io.Reader, digest []byte, opts crypto.SignerOpts) 
 }
 ```
 
-On the backend, the key agent will implement the service using the client's
-key store:
+The agent client will implement `keyAgentService` using its own key store, and
+serve it as a [gRPC service](#keyagentservice) on a unix domain socket at
+`$TELEPORT_HOME/key-agent.sock`.
 
 ```go
 // Pseudo-code
@@ -156,7 +158,7 @@ page.
 Teleport Key Agent
 
 Set up a local key agent so that other Teleport clients, like `tsh`, can share
-your Teleport Connect login state.
+your Teleport Connect credentials.
 
 <<<Start Agent>>>
 ```
@@ -178,13 +180,17 @@ Teleport home directory:
 > TELEPORT_HOME=/Electron/tsh/home/path tsh 
 ```
 
+Note: the Teleport Key Agent is started and stopped through the `tshd`
+[gRPC service](#teleport-connect-terminalservice). The Teleport Key Agent
+itself is a gRPC server, served by a goroutine in the main `tshd` process.
+
 We will also introduce two new config options to change Teleport Connect's home
 directory or launch the agent automatically.
 
 | Property | Default | Description |
 |----------|---------|-------------|
 | `teleport.home` | `~/Library/Application\ Support/Teleport\ Connect/tsh` | Sets home directory for login data |
-| `teleport.agent` | `false` | Runs the Teleport Key Agent automatically after login |
+| `teleport.agent` | `false` | Starts the Teleport Key Agent automatically |
 
 Caveat: The Teleport Connect developers have tested with linking login storage
 with a [symlink](https://github.com/gravitational/teleport/issues/25806), which is
@@ -198,12 +204,11 @@ out of the box.
 
 ##### `tsh agent`
 
-`tsh agent` will be made available as a hidden command for:
+`tsh agent` will be made available as a hidden command, primarily for
+development. If in the future we get requests to fully support this command,
+we may make it a public command and make any necessary improvements.
 
-* scenarios where Teleport Connect is not an option
-* development
-
-We will not put exorbitant effort into providing a good UX with this command
+For now, we will not put exorbitant effort into providing a good UX with this command
 (e.g. stealing focus for hardware key prompts, re-login on cert expiration),
 but it should be fully functional. Therefore, the rest of this RFD will refer
 to Teleport Connect alone for features not intended for `tsh agent`.
@@ -305,22 +310,6 @@ spec:
 Teleport clients will retrieve this setting through `/webapi/ping`, which is
 cached by the client alongside other cluster settings.
 
-#### Proto
-
-```diff
-### types.proto
-message HardwareKey {
-  ...
-+  // PinCacheTimeoutNanoSeconds is the amount of time in nanoseconds that Teleport
-+  // clients will cache a user's PIV PIN when hardware key PIN policy is enabled.
-+  // This timeout can not exceed 1 hour. When empty or 0, the pin will not be cached.
-+  int64 PinCacheTimeoutNanoSeconds = 3 [
-+    (gogoproto.jsontag) = "pin_cache_timeout_nano_seconds,omitempty",
-+    (gogoproto.casttype) = "Duration"
-+  ];
-}
-```
-
 #### Problems with built-in PIV PIN caching
 
 Currently, we use the built-in PIN caching mechanism detailed in the PIV
@@ -359,12 +348,12 @@ there is not much of concern to consider:
 * The Teleport Key Agent acts as a proxy for normal file storage, and as such
 is protected through file permissions on the unix socket it's served on:
 `$TELEPORT_HOME/key-agent.sock`.
-* Even in login sync mode, the agent never exposes the underlying private key
-material, only an interface to sign with.
+* The agent never exposes the underlying private key material, only an interface
+to sign with.
 
 Additionally, the Teleport Key Agent will use TLS with a new self signed cert.
 This cert will be saved in file storage next to the agent socket at
-`$TELEPORT_HOME/key-agent-ca.pem`. Note that mTLS does not provide any benefit
+`$TELEPORT_HOME/key-agent.pem`. Note that mTLS does not provide any benefit
 over TLS here since the client key and cert would need to be stored on disk.
 
 #### Key agent forwarding
@@ -379,7 +368,9 @@ Alternative: since it is likely impossible to completely remove the possibility
 of key agent forwarding, it may be better to [support it directly](#support-teleport-key-agent-forwarding)
 with some mitigation strategies in place.
 
-### Proto specification
+### Proto
+
+#### `KeyAgentService`
 
 ```proto
 // KeyAgentService provides a Teleport key agent service, allowing multiple Teleport client
@@ -398,7 +389,7 @@ service KeyAgentService {
 
 message PublicKey {
   // PublicKey is a public key encoded in PKIX, ASN.1 DER form.
-  bytes public_key = 1;
+  bytes public_key_der = 1;
 }
 
 // SignRequest is a request to perform a signature with a specific agent key
@@ -470,11 +461,39 @@ enum HashName {
 
 enum SaltLength {
   SALT_LENGTH_UNSPECIFIED = 0;
-  // Use as large of a salt as possible when signing. It will be auto-detected
-  // by the client verifying the signature.
+  // Use the maximum length salt for a given hash function and public key.
   SALT_LENGTH_MAX = 1;
   // Use a salt equal in length to the chosen hash used.
   SALT_LENGTH_HASH_LENGTH = 2;
+}
+```
+
+#### Teleport Connect `TerminalService`
+
+```diff
+### teleterm/v1/service.proto
+service TerminalService {
+  ...
++  // StartKeyAgent starts the Teleport Key Agent.
++  rpc StartKeyAgent(google.protobuf.Empty) returns (google.protobuf.Empty);
++  // StopKeyAgent stops the Teleport Key Agent.
++  rpc StopKeyAgent(google.protobuf.Empty) returns (google.protobuf.Empty);
+}
+```
+
+#### `PinCacheTimeoutNanoseconds`
+
+```diff
+### types.proto
+message HardwareKey {
+  ...
++  // PinCacheTimeoutNanoseconds is the amount of time in nanoseconds that Teleport
++  // clients will cache a user's PIV PIN when hardware key PIN policy is enabled.
++  // This timeout can not exceed 1 hour. When empty or 0, the pin will not be cached.
++  int64 PinCacheTimeoutNanoseconds = 3 [
++    (gogoproto.jsontag) = "pin_cache_timeout_nano_seconds,omitempty",
++    (gogoproto.casttype) = "Duration"
++  ];
 }
 ```
 
