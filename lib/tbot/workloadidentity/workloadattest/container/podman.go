@@ -24,6 +24,12 @@ import (
 	"strings"
 )
 
+var (
+	podmanPodIDRegex         = regexp.MustCompile(`libpod_pod_(?P<podID>[[:xdigit:]]{64})(.+)libpod-(?P<containerID>[[:xdigit:]]{64})`)
+	podmanContainerIDRegex   = regexp.MustCompile(`libpod-(?P<containerID>[[:xdigit:]]{64})`)
+	podmanInvalidCgroupRegex = regexp.MustCompile(`podman-(\d+).scope`)
+)
+
 // PodmanParser parses the cgroup mount path for Podman pods and containers.
 func PodmanParser(mountPath string) (*Info, error) {
 	info := &Info{}
@@ -77,9 +83,3 @@ func PodmanParser(mountPath string) (*Info, error) {
 
 	return nil, errors.New("cgroup path does not include a container id")
 }
-
-var (
-	podmanPodIDRegex         = regexp.MustCompile(`libpod_pod_(?P<podID>[[:xdigit:]]{64})(.+)libpod-(?P<containerID>[[:xdigit:]]{64})`)
-	podmanContainerIDRegex   = regexp.MustCompile(`libpod-(?P<containerID>[[:xdigit:]]{64})`)
-	podmanInvalidCgroupRegex = regexp.MustCompile(`podman-(\d+).scope`)
-)

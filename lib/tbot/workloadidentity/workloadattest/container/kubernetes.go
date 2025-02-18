@@ -25,6 +25,18 @@ import (
 	"github.com/gravitational/trace"
 )
 
+var (
+	// A container ID is usually a 64 character hex string, so this regex just
+	// selects for that.
+	k8sContainerIDRegex = regexp.MustCompile(`(?P<containerID>[[:xdigit:]]{64})`)
+
+	// A pod ID is usually a UUID prefaced with "pod".
+	// There are two main cgroup drivers:
+	// - systemd , the dashes are replaced with underscores
+	// - cgroupfs, the dashes are kept.
+	k8sPodIDRegex = regexp.MustCompile(`pod(?P<podID>[[:xdigit:]]{8}[_-][[:xdigit:]]{4}[_-][[:xdigit:]]{4}[_-][[:xdigit:]]{4}[_-][[:xdigit:]]{12})`)
+)
+
 // KubernetesParser parses the cgroup mount path for Kubernetes pods.
 func KubernetesParser(source string) (*Info, error) {
 	matches := k8sContainerIDRegex.FindStringSubmatch(source)
@@ -65,15 +77,3 @@ func KubernetesParser(source string) (*Info, error) {
 		PodID: podID,
 	}, nil
 }
-
-var (
-	// A container ID is usually a 64 character hex string, so this regex just
-	// selects for that.
-	k8sContainerIDRegex = regexp.MustCompile(`(?P<containerID>[[:xdigit:]]{64})`)
-
-	// A pod ID is usually a UUID prefaced with "pod".
-	// There are two main cgroup drivers:
-	// - systemd , the dashes are replaced with underscores
-	// - cgroupfs, the dashes are kept.
-	k8sPodIDRegex = regexp.MustCompile(`pod(?P<podID>[[:xdigit:]]{8}[_-][[:xdigit:]]{4}[_-][[:xdigit:]]{4}[_-][[:xdigit:]]{4}[_-][[:xdigit:]]{12})`)
-)
