@@ -89,7 +89,7 @@ func (c *Client) InspectContainer(ctx context.Context, id string) (*Container, e
 
 	var cntr Container
 	if err := json.NewDecoder(rsp.Body).Decode(&cntr); err != nil {
-		return nil, trace.Wrap(err, "failed to decode container response")
+		return nil, trace.Wrap(err, "decoding container response")
 	}
 	return &cntr, nil
 }
@@ -106,7 +106,7 @@ func (c *Client) InspectPod(ctx context.Context, id string) (*Pod, error) {
 
 	var pod Pod
 	if err := json.NewDecoder(rsp.Body).Decode(&pod); err != nil {
-		return nil, trace.Wrap(err, "failed to decode pod response")
+		return nil, trace.Wrap(err, "decoding pod response")
 	}
 	return &pod, nil
 }
