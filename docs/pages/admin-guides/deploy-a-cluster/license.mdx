@@ -123,24 +123,18 @@ license:
    we provide [earlier in this guide](#download-your-license-file). We assume
    that the license file is called `license.pem`.
 
-1. Delete the secret that stores your existing license. We assume that the
-   secret is called `license`, but there may be a different secret name
+1. Assign <Var name="teleport-namespace" /> to the Kubernetes namespace where
+   you manage Teleport-related resources.
+
+1. Replace the Kubernetes secret that stores your existing license. We assume
+   that the secret is called `license`, but there may be a different secret name
    specified in the `licenseSecretName` field of the chart's values file.
 
-   ```code
-   $ kubectl delete secret license
-   ```
-
-1. Create a secret with the same name as the one you deleted:
+   To replace the secret, print the resource manifest to stdout using a dry run
+   of `kubectl create secret` and pipe it to `kubectl replace`:
 
    ```code
-   $ kubectl create secret generic license --from-file license.pem
-   ```
-
-1. Restart the Auth Service deployment to load your new license:
-
-   ```code
-   $ kubectl rollout restart deployment teleport-cluster-auth
+   $ kubectl create secret generic license --from-file license.pem --dry-run=client -o yaml | kubectl replace -n <Var name="teleport-namespace" /> -f -   
    ```
 
 ## When your license expires
