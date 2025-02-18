@@ -62,12 +62,12 @@ func TestGetInstallScript(t *testing.T) {
 				TeleportFlavor:  types.PackageNameOSS,
 			},
 			assertFn: func(t *testing.T, script string) {
-				require.Contains(t, script, "teleportBin='teleport-update'")
+				require.Contains(t, script, "entrypoint='teleport-update'")
 				require.Contains(t, script, fmt.Sprintf("teleportVersion='v%s'", testVersion))
 				require.Contains(t, script, fmt.Sprintf("teleportFlavor='%s'", types.PackageNameOSS))
 				require.Contains(t, script, fmt.Sprintf("cdnBaseURL='%s'", teleportassets.CDNBaseURL()))
-				require.Contains(t, script, fmt.Sprintf("entrypointArgs='enable --proxy %q'", testProxyAddr))
-				require.Contains(t, script, "teleportFIPSSuffix=''")
+				require.Contains(t, script, fmt.Sprintf("entrypointArgs='enable --proxy %s'", testProxyAddr))
+				require.Contains(t, script, "packageSuffix='bin.tar.gz'")
 			},
 		},
 		{
@@ -80,12 +80,12 @@ func TestGetInstallScript(t *testing.T) {
 				CDNBaseURL:      "https://cdn.example.com",
 			},
 			assertFn: func(t *testing.T, script string) {
-				require.Contains(t, script, "teleportBin='teleport-update'")
+				require.Contains(t, script, "entrypoint='teleport-update'")
 				require.Contains(t, script, fmt.Sprintf("teleportVersion='v%s'", testVersion))
 				require.Contains(t, script, fmt.Sprintf("teleportFlavor='%s'", types.PackageNameOSS))
 				require.Contains(t, script, "cdnBaseURL='https://cdn.example.com'")
-				require.Contains(t, script, fmt.Sprintf("entrypointArgs='enable --proxy %q --base-url %q'", testProxyAddr, "https://cdn.example.com"))
-				require.Contains(t, script, "teleportFIPSSuffix=''")
+				require.Contains(t, script, fmt.Sprintf("entrypointArgs='enable --proxy %s --base-url %s'", testProxyAddr, "https://cdn.example.com"))
+				require.Contains(t, script, "packageSuffix='bin.tar.gz'")
 			},
 		},
 		{
@@ -97,12 +97,12 @@ func TestGetInstallScript(t *testing.T) {
 				TeleportFlavor:  types.PackageNameEnt,
 			},
 			assertFn: func(t *testing.T, script string) {
-				require.Contains(t, script, "teleportBin='teleport-update'")
+				require.Contains(t, script, "entrypoint='teleport-update'")
 				require.Contains(t, script, fmt.Sprintf("teleportVersion='v%s'", testVersion))
 				require.Contains(t, script, fmt.Sprintf("teleportFlavor='%s'", types.PackageNameEnt))
 				require.Contains(t, script, fmt.Sprintf("cdnBaseURL='%s'", teleportassets.CDNBaseURL()))
-				require.Contains(t, script, fmt.Sprintf("entrypointArgs='enable --proxy %q'", testProxyAddr))
-				require.Contains(t, script, "teleportFIPSSuffix=''")
+				require.Contains(t, script, fmt.Sprintf("entrypointArgs='enable --proxy %s'", testProxyAddr))
+				require.Contains(t, script, "packageSuffix='bin.tar.gz'")
 			},
 		},
 		{
@@ -115,12 +115,12 @@ func TestGetInstallScript(t *testing.T) {
 				FIPS:            true,
 			},
 			assertFn: func(t *testing.T, script string) {
-				require.Contains(t, script, "teleportBin='teleport-update'")
+				require.Contains(t, script, "entrypoint='teleport-update'")
 				require.Contains(t, script, fmt.Sprintf("teleportVersion='v%s'", testVersion))
 				require.Contains(t, script, fmt.Sprintf("teleportFlavor='%s'", types.PackageNameEnt))
 				require.Contains(t, script, fmt.Sprintf("cdnBaseURL='%s'", teleportassets.CDNBaseURL()))
-				require.Contains(t, script, fmt.Sprintf("entrypointArgs='enable --proxy %q'", testProxyAddr))
-				require.Contains(t, script, "teleportFIPSSuffix='fips-'")
+				require.Contains(t, script, fmt.Sprintf("entrypointArgs='enable --proxy %s'", testProxyAddr))
+				require.Contains(t, script, "packageSuffix='fips-bin.tar.gz'")
 			},
 		},
 	}
