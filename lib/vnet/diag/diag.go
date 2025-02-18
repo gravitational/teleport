@@ -43,9 +43,8 @@ type DiagCheck interface {
 	// Commands returns commands accompanying the check which are supposed to help inspect the state of
 	// the OS relevant to the given check even if the check itself fails.
 	Commands(context.Context) []*exec.Cmd
-	// EmptyCheckReport is supposed to return an empty version of [diagv1.CheckReport] belonging to
-	// this DiagCheck. If Run fails, it's used to set the correct kind of [diagv1.CheckReport] on
-	// [diagv1.CheckResult].
+	// EmptyCheckReport returns an empty version of [diagv1.CheckReport] belonging to this DiagCheck.
+	// If Run fails, it's used to set the correct kind of [diagv1.CheckReport] on [diagv1.CheckAttempt].
 	EmptyCheckReport() *diagv1.CheckReport
 }
 
