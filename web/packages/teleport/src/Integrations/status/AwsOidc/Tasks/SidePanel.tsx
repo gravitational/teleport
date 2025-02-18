@@ -42,13 +42,14 @@ export const SidePanel = ({
         borderBottom={1}
         borderColor="levels.surface"
         py={1}
+        px={4}
       >
         {header}
         <ButtonIcon onClick={onClose} disabled={disabled}>
           <Cross size="medium" />
         </ButtonIcon>
       </Flex>
-      <ScrollContent>{children}</ScrollContent>
+      <ScrollContent px={4}>{children}</ScrollContent>
     </Flex>
   );
 };
