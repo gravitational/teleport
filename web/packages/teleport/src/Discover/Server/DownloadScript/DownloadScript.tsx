@@ -18,7 +18,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 
-import { Box, ButtonSecondary, Flex, Mark, Text } from 'design';
+import { Alert, Box, ButtonSecondary, Flex, Mark, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { H3, Subtitle3 } from 'design/Text/Text';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -26,11 +26,6 @@ import Validation, { Validator } from 'shared/components/Validation';
 import { CatchError } from 'teleport/components/CatchError';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
-import {
-  HintBox,
-  SuccessBox,
-  WaitingInfo,
-} from 'teleport/Discover/Shared/HintBox';
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 import { ResourceLabelTooltip } from 'teleport/Discover/Shared/ResourceLabelTooltip/ResourceLabelTooltip';
 import {
@@ -227,44 +222,51 @@ export function StepTwoWithActionBtns(
 
   let hint;
   if (showHint && !result) {
-    hint = (
-      <HintBox header="We're still looking for your server">
+    const details = (
+      <>
         <Text mb={3}>
           There are a couple of possible reasons for why we haven't been able to
           detect your server.
         </Text>
 
-        <Text mb={1}>
-          - The command was not run on the server you were trying to add.
-        </Text>
-
-        <Text mb={3}>
-          - The Teleport Service could not join this Teleport cluster. Check the
-          logs for errors by running <Mark>journalctl -fu teleport</Mark>.
-        </Text>
+        <ul>
+          <li>
+            <Text mb={1}>
+              The command was not run on the server you were trying to add.
+            </Text>
+          </li>
+          <li>
+            <Text mb={3}>
+              The Teleport Service could not join this Teleport cluster. Check
+              the logs for errors by running{' '}
+              <Mark>journalctl -fu teleport</Mark>.
+            </Text>
+          </li>
+        </ul>
 
         <Text>
-          We'll continue to look for the server whilst you diagnose the issue.
+          We&apos;ll continue to look for the server whilst you diagnose the
+          issue.
         </Text>
-      </HintBox>
+      </>
+    );
+    hint = (
+      <Alert kind="warning" alignItems="flex-start" details={details}>
+        We&apos;re still looking for your server
+      </Alert>
     );
   } else if (result) {
     hint = (
-      <SuccessBox>Successfully detected your new Teleport instance.</SuccessBox>
+      <Alert kind="success">
+        Successfully detected your new Teleport instance.
+      </Alert>
     );
   } else {
     hint = (
-      <WaitingInfo>
-        <TextIcon
-          css={`
-            white-space: pre;
-          `}
-        >
-          <Icons.Restore size="medium" mr={2} />
-        </TextIcon>
-        After running the command above, we'll automatically detect your new
-        Teleport instance.
-      </WaitingInfo>
+      <Alert kind="neutral" icon={Icons.Restore}>
+        After running the command above, we&apos;ll automatically detect your
+        new Teleport instance.
+      </Alert>
     );
   }
 

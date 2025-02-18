@@ -79,7 +79,7 @@ export function Rules() {
         tooltip="Filter by region"
       />
       <Table<IntegrationDiscoveryRule>
-        data={serverSidePagination.fetchedData.agents || undefined}
+        data={serverSidePagination?.fetchedData?.agents}
         columns={[
           {
             key: 'region',
@@ -94,6 +94,7 @@ export function Rules() {
           },
         ]}
         emptyText={`No ${resourceKind.toUpperCase()} rules`}
+        pagination={{ pageSize: serverSidePagination.pageSize }}
         fetching={{
           fetchStatus: serverSidePagination.fetchStatus,
           onFetchNext: serverSidePagination.fetchNext,
