@@ -1,4 +1,4 @@
-.version: &version "16.4.16"
+.version: &version "16.4.16-dev.fred-evm2.2"
 
 apiVersion: v2
 name: teleport-plugin-discord
