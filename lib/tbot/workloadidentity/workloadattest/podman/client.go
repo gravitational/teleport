@@ -30,6 +30,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -61,6 +62,7 @@ func NewClient(addr string) (*Client, error) {
 	}
 	return &Client{
 		httpClient: &http.Client{
+			Timeout: 1 * time.Second,
 			Transport: otelhttp.NewTransport(
 				&http.Transport{
 					DialContext: func(ctx context.Context, _ string, _ string) (net.Conn, error) {
