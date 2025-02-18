@@ -107,7 +107,7 @@ func TestReporter(t *testing.T) {
 	r.AnonymizeAndSubmit(&usagereporter.SPIFFESVIDIssuedEvent{
 		UserName: "alice",
 	})
-	r.AnonymizeAndSubmit(&usagereporter.AccessListReviewEvent{
+	r.AnonymizeAndSubmit(&usagereporter.AccessListReviewCreateEvent{
 		UserName: "alice",
 	})
 	r.AnonymizeAndSubmit(&usagereporter.AccessListGrantsToUserEvent{
@@ -134,7 +134,7 @@ func TestReporter(t *testing.T) {
 	require.Equal(t, uint64(2), record.SshSessions)
 	require.Equal(t, uint64(1), record.SpiffeSvidsIssued)
 	require.Equal(t, uint64(1), record.AccessListsReviewed)
-	require.Equal(t, uint64(1), record.AccessListGrants)
+	require.Equal(t, uint64(1), record.AccessListsGrants)
 
 	r.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
 		Name:   "srv01",

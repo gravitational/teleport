@@ -205,19 +205,21 @@ export interface UserActivityRecord {
      */
     spiffeIdsIssued: SPIFFEIDRecord[];
     /**
-     * 19,20,21 reserved for user_origin, access_request_created, access_request_reviewed
+     * TODO(sshah): remove the comment below once the sibling PRs are merged.
+     * 19,20 temporarily reserved for access_request_created, access_request_reviewed event.
+     * Final proto numbering will be adjusted based on the cloud prehog proto numbering.
      * counter of Access List review.
      *
-     * @generated from protobuf field: uint64 access_lists_reviewed = 22;
+     * @generated from protobuf field: uint64 access_lists_reviewed = 21;
      */
     accessListsReviewed: bigint;
     /**
      * counter of roles or traits grant event based on Access List mermbership.
      * The event is emitted during user login state calculation.
      *
-     * @generated from protobuf field: uint64 access_list_grants = 23;
+     * @generated from protobuf field: uint64 access_lists_grants = 22;
      */
-    accessListGrants: bigint;
+    accessListsGrants: bigint;
 }
 /**
  * @generated from protobuf message prehog.v1.ResourcePresenceReport
@@ -620,8 +622,8 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
             { no: 16, name: "bot_joins", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 17, name: "certificates_issued", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 18, name: "spiffe_ids_issued", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SPIFFEIDRecord },
-            { no: 22, name: "access_lists_reviewed", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
-            { no: 23, name: "access_list_grants", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+            { no: 21, name: "access_lists_reviewed", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 22, name: "access_lists_grants", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
         ]);
     }
     create(value?: PartialMessage<UserActivityRecord>): UserActivityRecord {
@@ -645,7 +647,7 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         message.certificatesIssued = 0n;
         message.spiffeIdsIssued = [];
         message.accessListsReviewed = 0n;
-        message.accessListGrants = 0n;
+        message.accessListsGrants = 0n;
         if (value !== undefined)
             reflectionMergePartial<UserActivityRecord>(this, message, value);
         return message;
@@ -709,11 +711,11 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
                 case /* repeated prehog.v1.SPIFFEIDRecord spiffe_ids_issued */ 18:
                     message.spiffeIdsIssued.push(SPIFFEIDRecord.internalBinaryRead(reader, reader.uint32(), options));
                     break;
-                case /* uint64 access_lists_reviewed */ 22:
+                case /* uint64 access_lists_reviewed */ 21:
                     message.accessListsReviewed = reader.uint64().toBigInt();
                     break;
-                case /* uint64 access_list_grants */ 23:
-                    message.accessListGrants = reader.uint64().toBigInt();
+                case /* uint64 access_lists_grants */ 22:
+                    message.accessListsGrants = reader.uint64().toBigInt();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -781,12 +783,12 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         /* repeated prehog.v1.SPIFFEIDRecord spiffe_ids_issued = 18; */
         for (let i = 0; i < message.spiffeIdsIssued.length; i++)
             SPIFFEIDRecord.internalBinaryWrite(message.spiffeIdsIssued[i], writer.tag(18, WireType.LengthDelimited).fork(), options).join();
-        /* uint64 access_lists_reviewed = 22; */
+        /* uint64 access_lists_reviewed = 21; */
         if (message.accessListsReviewed !== 0n)
-            writer.tag(22, WireType.Varint).uint64(message.accessListsReviewed);
-        /* uint64 access_list_grants = 23; */
-        if (message.accessListGrants !== 0n)
-            writer.tag(23, WireType.Varint).uint64(message.accessListGrants);
+            writer.tag(21, WireType.Varint).uint64(message.accessListsReviewed);
+        /* uint64 access_lists_grants = 22; */
+        if (message.accessListsGrants !== 0n)
+            writer.tag(22, WireType.Varint).uint64(message.accessListsGrants);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

@@ -331,13 +331,6 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 				GitService: e.Service,
 			},
 		}
-	case *apievents.AccessListReview:
-		if e.UpdatedBy == "" {
-			return nil
-		}
-		return &AccessListReviewEvent{
-			UserName: e.UpdatedBy,
-		}
 	}
 
 	return nil

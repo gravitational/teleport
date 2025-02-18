@@ -125,12 +125,14 @@ message UserActivityRecord {
   // counter of SVIDs issued for each SPIFFE ID.
   repeated SPIFFEIDRecord spiffe_ids_issued = 18;
 
-  // 19,20,21 reserved for user_origin, access_request_created, access_request_reviewed
+  // TODO(sshah): remove the comment below once the sibling PRs are merged.
+  // 19,20 temporarily reserved for access_request_created, access_request_reviewed event.
+  // Final proto numbering will be adjusted based on the cloud prehog proto numbering.
   // counter of Access List review.
-  uint64 access_lists_reviewed = 22;
+  uint64 access_lists_reviewed = 21;
   // counter of roles or traits grant event based on Access List mermbership.
   // The event is emitted during user login state calculation.
-  uint64 access_list_grants = 23;
+  uint64 access_lists_grants = 22;
 }
 
 // the kind of a "resource" (e.g. a node, a database, a desktop, etc.)

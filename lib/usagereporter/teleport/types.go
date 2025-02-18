@@ -1336,19 +1336,6 @@ func (s *SessionRecordingAccessEvent) Anonymize(a utils.Anonymizer) prehogv1a.Su
 	}
 }
 
-// AccessListReviewEvent is emitted when Access List is reviewed.
-type AccessListReviewEvent prehogv1a.AccessListReviewEvent
-
-func (e *AccessListReviewEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
-		Event: &prehogv1a.SubmitEventRequest_AccessListReviewCreate{
-			AccessListReviewCreate: &prehogv1a.AccessListReviewCreateEvent{
-				UserName: a.AnonymizeString(e.UserName),
-			},
-		},
-	}
-}
-
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.
@@ -1795,6 +1782,8 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_AccessListGrantsToUser:
+		// This event is emitted as an one-off event as well as in an aggregated
+		// user activity record report.
 		ret := &AccessListGrantsToUserEvent{
 			UserName:                    e.AccessListGrantsToUser.GetUserName(),
 			CountRolesGranted:           e.AccessListGrantsToUser.CountRolesGranted,
@@ -1819,6 +1808,8 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_AccessListReviewCreate:
+		// This event is emitted as an one-off event as well as in an aggregated
+		// user activity record report.
 		ret := &AccessListReviewCreateEvent{
 			UserName: userMD.Username,
 			Metadata: &prehogv1a.AccessListMetadata{
