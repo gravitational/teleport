@@ -336,6 +336,9 @@ func Test_ValidateSAMLConnector(t *testing.T) {
 					require.Equal(t, oktaapi.OktaAppID("test-okta-app-id"), appID)
 					return &okta.SamlApplication{}, nil
 				},
+				GetScopesFunc: func(t *testing.T) []string {
+					return []string{oktaapi.ScopeAppsRead}
+				},
 			},
 			expectErr: nil,
 		},
@@ -365,8 +368,27 @@ func Test_ValidateSAMLConnector(t *testing.T) {
 					require.Equal(t, oktaapi.OktaAppID("found-okta-app-id"), appID)
 					return &okta.SamlApplication{}, nil
 				},
+				GetScopesFunc: func(t *testing.T) []string {
+					return []string{oktaapi.ScopeAppsRead}
+				},
 			},
 			expectErr: nil,
+		},
+		{
+			name: "fallback to SSO URL, but Okta client not having required scopes set",
+			connectorDesc: connectorDesc{
+				name: "test-conn",
+				labels: map[string]string{
+					eteleport.OktaOrgURLLabel: "test-okta-org",
+					types.OriginLabel:         types.OriginOkta,
+				},
+			},
+			oktaClientFuncs: oktaapitest.ClientFuncs{
+				GetScopesFunc: func(t *testing.T) []string {
+					return []string{} // no scopes
+				},
+			},
+			expectErr: trace.AccessDenied(`provided Okta credentials do not contain "okta.apps.read" scope`),
 		},
 		{
 			name: "fallback to SSO URL if App ID label is missing, but fail if more than one App found",
@@ -392,6 +414,9 @@ func Test_ValidateSAMLConnector(t *testing.T) {
 					require.Error(t, err)
 					return err
 				},
+				GetScopesFunc: func(t *testing.T) []string {
+					return []string{oktaapi.ScopeAppsRead}
+				},
 			},
 			expectErr: trace.BadParameter(`this is a bug: more than one Okta App ["found-okta-app-id-222", "found-okta-app-id-111"] found for App name = "oktaDomain_oktaAppName"`),
 		},
@@ -400,8 +425,12 @@ func Test_ValidateSAMLConnector(t *testing.T) {
 			connectorDesc: connectorDesc{
 				name: "test-conn",
 			},
-			oktaClientFuncs: oktaapitest.ClientFuncs{},
-			expectErr:       trace.BadParameter(`SAML connector "test-conn" has not SSO URL set`),
+			oktaClientFuncs: oktaapitest.ClientFuncs{
+				GetScopesFunc: func(t *testing.T) []string {
+					return []string{oktaapi.ScopeAppsRead}
+				},
+			},
+			expectErr: trace.BadParameter(`SAML connector "test-conn" has not SSO URL set`),
 		},
 		{
 			name: "missing App ID label and has SSO URL with deleted App on Okta side",
@@ -416,8 +445,11 @@ func Test_ValidateSAMLConnector(t *testing.T) {
 					// This is equivalent of not found.
 					return nil
 				},
+				GetScopesFunc: func(t *testing.T) []string {
+					return []string{oktaapi.ScopeAppsRead}
+				},
 			},
-			expectErr: trace.NotFound(`no Okta App for Okta App name = "oktaDomain_oktaAppName" found`),
+			expectErr: trace.NotFound(`No Okta App for Okta App name = "oktaDomain_oktaAppName" found. This could be a problem with the app excluded from the Okta resource set.`),
 		},
 	}
 

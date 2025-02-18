@@ -122,10 +122,11 @@ func (s *Service) getOrCreateSAMLConnector(ctx context.Context, req *oktapb.Crea
 	// needed instead of removing it like this.
 	ctxNoMFA := mfa.ContextWithMFAResponse(ctx, nil)
 
+	var connInfo *sso.SAMLConnectorInfo
 	samlConnector, err := s.authService.GetSAMLConnector(ctxNoMFA, connectorName, false)
 	switch {
 	case err != nil && !trace.IsNotFound(err):
-		return nil, trace.Wrap(err, "fetching SAML connector %s", connectorName)
+		return nil, trace.Wrap(err, "fetching SAML connector %q", connectorName)
 	case trace.IsNotFound(err):
 		pingInfo, err := s.authService.Ping(ctxNoMFA)
 		if err != nil {
@@ -137,14 +138,13 @@ func (s *Service) getOrCreateSAMLConnector(ctx context.Context, req *oktapb.Crea
 			return nil, trace.Wrap(err)
 		}
 
-		connInfo, createErr := s.pluginInstallCreateSAMLConnector(ctx, req, connectorName, pingInfo.ClusterName, publicURL)
-		if createErr != nil {
+		connInfo, err = s.pluginInstallCreateSAMLConnector(ctx, req, connectorName, pingInfo.ClusterName, publicURL)
+		if err != nil {
 			if trace.IsAccessDenied(err) {
 				return nil, trace.AccessDenied("Could not create Okta SAML application. Please ensure that your API Services app or your API token has \"Manage applications\" permission and the assigned resource set grants access to all apps. These permissions are only required during this integration setup flow and can be removed afterwards.\n\n%s", err)
 			}
-			return nil, trace.Wrap(createErr, "creating SAML connector %s", connectorName)
+			return nil, trace.Wrap(err, "creating SAML connector %q", connectorName)
 		}
-		return connInfo, nil
 	default:
 		orgUrl, err := sso.ExtractOktaOrganizationFromURL(samlConnector.GetSSO())
 		if err != nil {
@@ -158,10 +158,56 @@ func (s *Service) getOrCreateSAMLConnector(ctx context.Context, req *oktapb.Crea
 		// If the connector already exists, reuse it.
 		// And try to fetch additional details about Okta setup like Okta Application Name or Okta Application ID
 		// that are usable to display Okta plugins status page.
-		connInfo, reuseErr := s.pluginInstallReuseExistingSAMLConnector(ctx, req, samlConnector)
-		if reuseErr != nil {
-			return nil, trace.Wrap(reuseErr, "reusing existing SAML connector %s", connectorName)
+		connInfo, err = s.pluginInstallReuseExistingSAMLConnector(ctx, req, samlConnector)
+		if err != nil {
+			return nil, trace.Wrap(err, "reusing existing SAML connector %q", connectorName)
 		}
-		return connInfo, nil
 	}
+
+	// If credentials are provided Okta app ID is required because users assigned to the Okta
+	// SAML app are the users that are being synchronized if user sync is enabled and user sync
+	// is the minimal level of sync.
+	if req.GetApiCredentials() != nil {
+		err := s.setAppId(ctx, connInfo, req)
+		if err != nil {
+			return nil, trace.Wrap(err, "fetching Okta SAML app ID")
+		}
+	}
+
+	return connInfo, nil
+}
+
+// setAppId fetches the Okta SAML app ID for the connector and sets it in the connector info if it
+// isn't already set.
+func (s *Service) setAppId(ctx context.Context, info *sso.SAMLConnectorInfo, req *oktapb.CreateIntegrationRequest) error {
+	if info.OktaAppID != "" {
+		// App ID already set.
+		return nil
+	}
+	if info.Connector == nil {
+		return trace.BadParameter("connector missing in the connector info")
+	}
+	if req.GetApiCredentials() == nil {
+		return trace.BadParameter("API credentials missing in create integration request")
+	}
+	if req.GetOktaOrganizationUrl() == "" {
+		return trace.BadParameter("Okta organization URL missing in the create integration request")
+	}
+
+	createOktaClientParams := &createOktaClientParams{
+		credsFromReq:     req.GetApiCredentials(),
+		oktaOrganization: req.GetOktaOrganizationUrl(),
+	}
+	oktaClient, err := s.createOktaClient(ctx, createOktaClientParams)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	appId, err := sso.FetchOktaAppIdFromConnector(ctx, oktaClient, info.Connector)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	info.OktaAppID = appId
+	return nil
 }

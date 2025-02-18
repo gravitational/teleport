@@ -289,6 +289,11 @@ func CreateSAMLConnectorFromMetadataURL(ctx context.Context, args ConnectorArgs)
 // connector. It first tries to get it from annotation but if not available it tries to extract the
 // Okta app name it from SAML connector SSO URL and then query Okta to retrieve tha app ID.
 func FetchOktaAppIdFromConnector(ctx context.Context, oktaClient api.Client, samlConnector types.SAMLConnector) (string, error) {
+	oktaClientScopes := oktaClient.GetScopes()
+	if !slices.Contains(oktaClientScopes, api.ScopeAppsRead) {
+		return "", trace.AccessDenied("provided Okta credentials do not contain %q scope", api.ScopeAppsRead)
+	}
+
 	if oktaAppId := samlConnector.GetMetadata().Labels[eteleport.OktaAppIDLabel]; oktaAppId != "" {
 		return oktaAppId, nil
 	}
@@ -318,12 +323,15 @@ func FetchOktaAppIdFromConnector(ctx context.Context, oktaClient api.Client, sam
 		},
 		query.WithQ(oktaAppName),
 	)
-	if err != nil {
+	if trace.IsAccessDenied(err) {
+		// The scopes are checked on top of this function so it's probably admin role permission.
+		return "", trace.Wrap(err, `Insufficient Okta API permissions to list Okta apps. Ensure "View application and their details" permission is set to the custom admin role assigned to the provided Okta credential.`)
+	} else if err != nil {
 		return "", trace.Wrap(err)
 	}
 
 	if oktaAppId == "" {
-		return "", trace.NotFound("no Okta App for Okta App name = %q found", oktaAppName)
+		return "", trace.NotFound("No Okta App for Okta App name = %q found. This could be a problem with the app excluded from the Okta resource set.", oktaAppName)
 	}
 	return oktaAppId, trace.Wrap(err)
 }

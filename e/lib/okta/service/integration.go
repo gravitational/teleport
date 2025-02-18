@@ -249,17 +249,17 @@ func (s *Service) updateIntegration(ctx context.Context, req *oktapb.UpdateInteg
 	}
 
 	if err := s.updatePluginOktaSpec(ctx, req, pluginV1); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "updating plugin Okta settings")
 	}
 	if err := s.updatePluginCredentials(ctx, req, pluginV1); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "updating plugin credentials")
 	}
-	updatePlugin, err := s.pluginBackend.UpdatePlugin(ctx, pluginV1)
+
+	updatedPlugin, err := s.pluginBackend.UpdatePlugin(ctx, pluginV1)
 	if err != nil {
-		s.logger.WarnContext(ctx, "Failed to updated backend plugin item")
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "updating plugin in backend")
 	}
-	updatedPluginV1, ok := updatePlugin.(*types.PluginV1)
+	updatedPluginV1, ok := updatedPlugin.(*types.PluginV1)
 	if !ok {
 		return nil, trace.BadParameter("plugin is not of type PluginV1")
 	}

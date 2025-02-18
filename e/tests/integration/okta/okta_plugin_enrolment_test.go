@@ -60,6 +60,7 @@ func TestPluginEnrolmentFullIntegration(t *testing.T) {
 		common.WithHTTPClient(httpMock),
 	)
 	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
+	pluginClient := pluginsv1.NewPluginServiceClient(sut.GetAuthServiceGRPCConn(t, "alice-admin"))
 
 	t.Run("filter apps", func(t *testing.T) {
 		var resp, err = oktaClient.GetApps(ctx, &oktav1.GetAppsRequest{
@@ -91,15 +92,37 @@ func TestPluginEnrolmentFullIntegration(t *testing.T) {
 		resp, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
 			OktaOrganizationUrl:  "https://trial-1234567.okta.com",
 			ApiCredentials:       apiCredentials,
-			EnableAccessListSync: true,
-			EnableAppGroupSync:   true,
 			EnableUserSync:       true,
+			EnableAppGroupSync:   true,
+			EnableAccessListSync: true,
 			AccessListSettings: &oktav1.AccessListSettings{
 				DefaultOwner: []string{"alice-admin"},
 			},
 		})
 		require.NoError(t, err)
 
+		oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+			Name: types.PluginTypeOkta,
+		})
+		require.NoError(t, err)
+		expectedOktaPluginSettings := &types.PluginOktaSettings{
+			OrgUrl: "https://trial-1234567.okta.com",
+			SyncSettings: &types.PluginOktaSyncSettings{
+				SsoConnectorId:       "okta-integration",
+				AppId:                resp.GetConnectorInfo().GetOktaAppId(),
+				SyncUsers:            true,
+				UserSyncSource:       "unknown", // TODO(kopiczko) to be implemented
+				DisableSyncAppGroups: false,
+				SyncAccessLists:      true,
+				DefaultOwners:        []string{"alice-admin"},
+			},
+			CredentialsInfo: &types.PluginOktaCredentialsInfo{
+				HasOauthCredentials: true,
+			},
+		}
+		require.Equal(t, expectedOktaPluginSettings, oktaPlugin.Spec.GetOkta())
+
+		require.NotEmpty(t, resp.GetConnectorInfo().GetOktaAppId())
 		_, _, err = oktaInfra.client.GetApplication(ctx, resp.GetConnectorInfo().GetOktaAppId(), &okta.SamlApplication{}, nil)
 		require.NoError(t, err)
 		_, err = sut.Teleport.Process.GetAuthServer().GetSAMLConnector(ctx, "okta-integration", false)
@@ -125,6 +148,11 @@ func TestPluginEnrolmentSSOMetadataURL(t *testing.T) {
 			StatusCode: http.StatusNotFound,
 		}, nil
 	})
+
+	// The value from app name is  taken from idp.EntityDescriptor returned by the httpMock
+	// above.
+	oktaInfra.Apps[0].Name = "example_test-okta-app-name"
+
 	oktaInfra.client.setRoundTripper(httpMock)
 	sut := common.InitSUT(t,
 		common.WithSAMLConnector(idp.SAMLConnector),
@@ -132,9 +160,10 @@ func TestPluginEnrolmentSSOMetadataURL(t *testing.T) {
 		common.WithUser(t, "alice-admin", "editor"),
 		common.WithHTTPClient(httpMock),
 	)
-
 	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
-	_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+	pluginClient := pluginsv1.NewPluginServiceClient(sut.GetAuthServiceGRPCConn(t, "alice-admin"))
+
+	resp, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
 		ApiCredentials:       apiCredentials,
 		EnableAccessListSync: true,
 		EnableAppGroupSync:   true,
@@ -145,9 +174,34 @@ func TestPluginEnrolmentSSOMetadataURL(t *testing.T) {
 		SsoMetadataUrl: "https://trial-1234567.okta.com/app/123487988/sso/saml/metadata",
 	})
 	require.NoError(t, err)
-	resp, err := sut.Teleport.Process.GetAuthServer().GetSAMLConnector(ctx, "okta-integration", false)
+
+	oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+		Name: types.PluginTypeOkta,
+	})
 	require.NoError(t, err)
-	require.Equal(t, "https://trial-1234567.okta.com", resp.GetMetadata().Labels[types.OktaOrgURLLabel])
+	expectedOktaPluginSettings := &types.PluginOktaSettings{
+		OrgUrl: "https://trial-1234567.okta.com",
+		SyncSettings: &types.PluginOktaSyncSettings{
+			SsoConnectorId:       "okta-integration",
+			AppId:                resp.GetConnectorInfo().GetOktaAppId(),
+			SyncUsers:            true,
+			UserSyncSource:       "unknown", // TODO(kopiczko) to be implemented
+			DisableSyncAppGroups: false,
+			SyncAccessLists:      true,
+			DefaultOwners:        []string{"alice-admin"},
+		},
+		CredentialsInfo: &types.PluginOktaCredentialsInfo{
+			HasOauthCredentials: true,
+		},
+	}
+	require.Equal(t, expectedOktaPluginSettings, oktaPlugin.Spec.GetOkta())
+
+	require.NotEmpty(t, resp.GetConnectorInfo().GetOktaAppId())
+	_, _, err = oktaInfra.client.GetApplication(ctx, resp.GetConnectorInfo().GetOktaAppId(), &okta.SamlApplication{}, nil)
+	require.NoError(t, err)
+	samlConnector, err := sut.Teleport.Process.GetAuthServer().GetSAMLConnector(ctx, "okta-integration", false)
+	require.NoError(t, err)
+	require.Equal(t, "https://trial-1234567.okta.com", samlConnector.GetMetadata().Labels[types.OktaOrgURLLabel])
 }
 
 // TestPluginEnrolmentSSOMetadataURL tests the enrolment of the Okta plugin where the SSO metadata URL is provided
@@ -195,7 +249,18 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 		common.WithUser(t, "alice-admin", "editor"),
 	)
 	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
+	pluginClient := pluginsv1.NewPluginServiceClient(sut.GetAuthServiceGRPCConn(t, "alice-admin"))
 	mustCreateOktaEveryoneGroupAndAssignOktaUsers(t, oktaInfra.client, oktaInfra.Users...)
+
+	// Let's make the first app the Okta SAML app for the connector.
+	samlApp := oktaInfra.Apps[0]
+	// The value from app name is  taken from idp.SAMLConnector above.
+	samlApp.Name = "trial-1234567_teleportsamlconnectorapp_1"
+	// Assign all users to this app for user sync.
+	for _, u := range oktaInfra.Users {
+		_, _, err := oktaInfra.client.AssignUserToApplication(ctx, samlApp.Id, okta.AppUser{Id: u.Id})
+		require.NoError(t, err)
+	}
 
 	t.Run("enroll okta integration with SCIM only", func(t *testing.T) {
 		_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
@@ -206,7 +271,24 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 			ReuseConnector:       "okta",
 		})
 		require.NoError(t, err)
-		pluginClient := pluginsv1.NewPluginServiceClient(sut.GetAuthServiceGRPCConn(t, "alice-admin"))
+
+		oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+			Name: types.PluginTypeOkta,
+		})
+		require.NoError(t, err)
+		expectedOktaPluginSettings := &types.PluginOktaSettings{
+			OrgUrl: "https://trial-1234567.okta.com",
+			SyncSettings: &types.PluginOktaSyncSettings{
+				SsoConnectorId:       "okta",
+				UserSyncSource:       "unknown", // TODO(kopiczko) to be implemented
+				DisableSyncAppGroups: true,
+			},
+			CredentialsInfo: &types.PluginOktaCredentialsInfo{
+				HasScimToken: true,
+			},
+		}
+		require.Equal(t, expectedOktaPluginSettings, oktaPlugin.Spec.GetOkta())
+
 		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
 				Name: types.PluginTypeOkta,
@@ -226,6 +308,27 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 			EnableUserSync: true,
 		})
 		require.NoError(t, err)
+
+		oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+			Name: types.PluginTypeOkta,
+		})
+		require.NoError(t, err)
+		expectedOktaPluginSettings := &types.PluginOktaSettings{
+			OrgUrl: "https://trial-1234567.okta.com",
+			SyncSettings: &types.PluginOktaSyncSettings{
+				SsoConnectorId:       "okta",
+				SyncUsers:            true,
+				UserSyncSource:       "unknown", // TODO(kopiczko) to be implemented
+				DisableSyncAppGroups: true,
+				AppId:                samlApp.Id,
+			},
+			CredentialsInfo: &types.PluginOktaCredentialsInfo{
+				HasOauthCredentials: true,
+				HasScimToken:        true,
+			},
+		}
+		require.Equal(t, expectedOktaPluginSettings, oktaPlugin.Spec.GetOkta())
+
 		mustWaitForEvent(t, sut, events.OktaUserSyncEvent, withTimeout(time.Second*5), withTimePoint(from))
 		userExistInTeleportAndIsNotLocked(t, ctx, sut.Teleport.Process.GetAuthServer(), oktaInfra.Users[0])
 
@@ -252,6 +355,26 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 			EnableAppGroupSync: true,
 		})
 		require.NoError(t, err)
+
+		oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+			Name: types.PluginTypeOkta,
+		})
+		require.NoError(t, err)
+		expectedOktaPluginSettings := &types.PluginOktaSettings{
+			OrgUrl: "https://trial-1234567.okta.com",
+			SyncSettings: &types.PluginOktaSyncSettings{
+				SsoConnectorId:       "okta",
+				SyncUsers:            true,
+				UserSyncSource:       "unknown", // TODO(kopiczko) to be implemented
+				DisableSyncAppGroups: false,
+				AppId:                samlApp.Id,
+			},
+			CredentialsInfo: &types.PluginOktaCredentialsInfo{
+				HasOauthCredentials: true,
+				HasScimToken:        true,
+			},
+		}
+		require.Equal(t, expectedOktaPluginSettings, oktaPlugin.Spec.GetOkta())
 
 		mustWaitForEvent(t, sut, events.OktaGroupsUpdateEvent, withTimeout(time.Second*5), withTimePoint(from))
 		mustWaitForEvent(t, sut, events.OktaApplicationsUpdateEvent, withTimeout(time.Second*10), withTimePoint(from))
@@ -281,10 +404,32 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 		}, time.Second, 200*time.Millisecond)
 		mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent, withTimeout(time.Second*5), withTimePoint(from))
 
+		oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+			Name: types.PluginTypeOkta,
+		})
+		require.NoError(t, err)
+		expectedOktaPluginSettings := &types.PluginOktaSettings{
+			OrgUrl: "https://trial-1234567.okta.com",
+			SyncSettings: &types.PluginOktaSyncSettings{
+				SsoConnectorId:       "okta",
+				SyncUsers:            true,
+				UserSyncSource:       "unknown", // TODO(kopiczko) to be implemented
+				DisableSyncAppGroups: false,
+				SyncAccessLists:      true,
+				DefaultOwners:        []string{"alice-admin"},
+				AppId:                samlApp.Id,
+			},
+			CredentialsInfo: &types.PluginOktaCredentialsInfo{
+				HasOauthCredentials: true,
+				HasScimToken:        true,
+			},
+		}
+		require.Equal(t, expectedOktaPluginSettings, oktaPlugin.Spec.GetOkta())
+
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			accessLists, err := sut.Teleport.Process.GetAuthServer().GetAccessLists(ctx)
 			assert.NoError(t, err)
-			assert.Len(t, accessLists, len(oktaInfra.Groups))
+			assert.Len(t, accessLists, len(oktaInfra.Groups)+1 /* +1 for the SAML app being assigned to all users */)
 		}, time.Second*2, time.Millisecond*100)
 	})
 
@@ -296,11 +441,36 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 			AccessListSettings: &oktav1.AccessListSettings{
 				DefaultOwner: []string{"alice-admin"},
 				GroupFilters: []string{oktaInfra.Groups[0].Profile.Name},
+				AppFilters:   []string{"__none__"},
 			},
 		})
 		require.NoError(t, err)
-		mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent, withTimeout(time.Second*5), withTimePoint(time.Now()))
 
+		oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+			Name: types.PluginTypeOkta,
+		})
+		require.NoError(t, err)
+		expectedOktaPluginSettings := &types.PluginOktaSettings{
+			OrgUrl: "https://trial-1234567.okta.com",
+			SyncSettings: &types.PluginOktaSyncSettings{
+				SsoConnectorId:       "okta",
+				SyncUsers:            true,
+				UserSyncSource:       "unknown", // TODO(kopiczko) to be implemented
+				DisableSyncAppGroups: false,
+				SyncAccessLists:      true,
+				GroupFilters:         []string{oktaInfra.Groups[0].Profile.Name},
+				AppFilters:           []string{"__none__"},
+				DefaultOwners:        []string{"alice-admin"},
+				AppId:                samlApp.Id,
+			},
+			CredentialsInfo: &types.PluginOktaCredentialsInfo{
+				HasOauthCredentials: true,
+				HasScimToken:        true,
+			},
+		}
+		require.Equal(t, expectedOktaPluginSettings, oktaPlugin.Spec.GetOkta())
+
+		mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent, withTimeout(time.Second*5), withTimePoint(time.Now()))
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			accessLists, err := sut.Teleport.Process.GetAuthServer().GetAccessLists(ctx)
 			assert.NoError(t, err)
