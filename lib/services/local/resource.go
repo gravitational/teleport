@@ -110,6 +110,13 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 		item, err = itemFromAutoUpdateConfig(r)
 	case *autoupdatev1pb.AutoUpdateVersion:
 		item, err = itemFromAutoUpdateVersion(r)
+	case types.Server:
+		switch r.GetKind() {
+		case types.KindNode:
+			item, err = itemFromNode(r)
+		default:
+			return nil, trace.NotImplemented("connot itemFrom unsupported server kind %q", r.GetKind())
+		}
 	default:
 		return nil, trace.NotImplemented("cannot itemFrom resource of type %T", resource)
 	}

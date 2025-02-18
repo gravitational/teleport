@@ -505,6 +505,24 @@ func getResourceUnmarshaler(kind string) (ResourceUnmarshaler, bool) {
 }
 
 func init() {
+	RegisterResourceMarshaler(types.KindNode, func(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
+		node, ok := resource.(types.Server)
+		if !ok {
+			return nil, trace.BadParameter("expected Server, got %T", resource)
+		}
+		bytes, err := MarshalServer(node, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return bytes, nil
+	})
+	RegisterResourceUnmarshaler(types.KindNode, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
+		node, err := UnmarshalServer(bytes, types.KindNode, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return node, nil
+	})
 	RegisterResourceMarshaler(types.KindUser, func(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
 		user, ok := resource.(types.User)
 		if !ok {

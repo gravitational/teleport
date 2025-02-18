@@ -73,6 +73,9 @@ message SSHAccessPermit {
   string create_host_user_shell = 16;
   repeated string host_groups = 17;
   repeated string host_sudoers = 18;
+
+  string session_recording_mode = 19;
+  string locking_mode = 20;
 }
 
 // SSHAccessDenial describes an SSH access denial.

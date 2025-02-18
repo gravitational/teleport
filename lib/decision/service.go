@@ -10,6 +10,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
@@ -150,7 +151,6 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 	}
 
 	// check if roles allow access to server
-	fmt.Printf("---> checking access identity=%+v, target=%+v\n", ident, target)
 	if err := accessChecker.CheckAccess(
 		target,
 		state,
@@ -160,6 +160,7 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 			Decision: &decisionpb.EvaluateSSHAccessResponse_Denial{
 				Denial: &decisionpb.SSHAccessDenial{
 					Metadata: &decisionpb.DenialMetadata{
+						PdpVersion: teleport.Version,
 						UserMessage: fmt.Sprintf("user %s@%s is not authorized to login as %v@%s: %v",
 							ident.Username, authority.GetClusterName(), req.OsUser, localClusterName, err),
 					},
@@ -175,16 +176,18 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 	}
 
 	permit := &decisionpb.SSHAccessPermit{
-		// XXX: add metadata to permit
-		ForwardAgent:      accessChecker.CheckAgentForward(req.OsUser) == nil,
-		X11Forwarding:     accessChecker.PermitX11Forwarding(),
-		SshFileCopy:       accessChecker.CanCopyFiles(),
-		PortForwardMode:   accessChecker.SSHPortForwardMode(),
-		ClientIdleTimeout: durationFromGoDuration(accessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())),
+		Metadata: &decisionpb.PermitMetadata{
+			PdpVersion: teleport.Version,
+		},
+		ForwardAgent:         accessChecker.CheckAgentForward(req.OsUser) == nil,
+		X11Forwarding:        accessChecker.PermitX11Forwarding(),
+		SshFileCopy:          accessChecker.CanCopyFiles(),
+		PortForwardMode:      accessChecker.SSHPortForwardMode(),
+		ClientIdleTimeout:    durationFromGoDuration(accessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())),
+		SessionRecordingMode: string(accessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH)),
+		LockingMode:          string(accessChecker.LockingMode(authPref.GetLockingMode())),
 		// TODO: a *lot* more needs to go here
 	}
-
-	fmt.Printf("---> permit=%+v\n", permit)
 
 	return &decisionpb.EvaluateSSHAccessResponse{
 		Decision: &decisionpb.EvaluateSSHAccessResponse_Permit{
