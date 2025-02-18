@@ -73,10 +73,9 @@ export function Tasks() {
 
   function close(resolved: boolean) {
     if (resolved) {
-      serverSidePagination.modifyFetchedData(p => ({
-        ...p,
-        agents: p.agents.filter(t => t.name !== showTask.name),
-      }));
+      // If there are multiple pages, we would rather refresh the table with X results rather than
+      // use modifyFetchedData to remove the item.
+      serverSidePagination.fetch();
     }
     setShowTask(undefined);
   }
