@@ -58,19 +58,17 @@ type Info struct {
 	Rootfulness Rootfulness
 }
 
-// Engine represents the container engine/runtime.
-type Engine interface {
-	// parseCgroupMount extracts the container and pod IDs from the given cgroup
-	// mount path.
-	parseCgroupMount(mountPath string) (*Info, error)
-}
+// Parser parses the cgroup mount path to extract the container and pod IDs.
+//
+// This information is encoded differently by the container runtimes.
+type Parser func(mountPath string) (*Info, error)
 
 // LookupPID discovers information about the container in which the process with
 // the given PID is running, by interrogating procfs.
 //
 // rootPath allows you to optionally override the system root path in tests,
 // pass an empty string to use the real root.
-func LookupPID(rootPath string, pid int, engine Engine) (*Info, error) {
+func LookupPID(rootPath string, pid int, parser Parser) (*Info, error) {
 	info, err := mount.ParseMountInfo(
 		path.Join(rootPath, "/proc", strconv.Itoa(pid), "mountinfo"),
 	)
@@ -91,7 +89,7 @@ func LookupPID(rootPath string, pid int, engine Engine) (*Info, error) {
 		}
 	}
 
-	ids, err := engine.parseCgroupMount(cgroupMount.Root)
+	ids, err := parser(cgroupMount.Root)
 	if err != nil {
 		return nil, trace.Wrap(
 			err, "parsing cgroup mount (root: %q)", cgroupMount.Root,

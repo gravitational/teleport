@@ -50,7 +50,7 @@ func NewPodmanAttestor(cfg PodmanAttestorConfig, log *slog.Logger) *PodmanAttest
 func (a *PodmanAttestor) Attest(ctx context.Context, pid int) (*workloadidentityv1pb.WorkloadAttrsPodman, error) {
 	a.log.DebugContext(ctx, "Starting Podman workload attestation", "pid", pid)
 
-	ctr, err := container.LookupPID(a.rootPath, pid, container.Podman)
+	ctr, err := container.LookupPID(a.rootPath, pid, container.PodmanParser)
 	if err != nil {
 		return nil, trace.Wrap(err, "determining pod and container ID")
 	}

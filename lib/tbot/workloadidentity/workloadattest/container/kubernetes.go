@@ -25,16 +25,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// Kubernetes discovers Kubernetes containers and pods.
-var Kubernetes Engine = k8s{}
-
-type k8s struct{}
-
-// Note: this is a fairly naive implementation, we may need to make further
-// improvements to account for other distributions of Kubernetes.
-//
-// There's a collection of real world mountfiles in testdata/mountfile.
-func (k8s) parseCgroupMount(source string) (*Info, error) {
+// KubernetesParser parses the cgroup mount path for Kubernetes pods.
+func KubernetesParser(source string) (*Info, error) {
 	matches := k8sContainerIDRegex.FindStringSubmatch(source)
 	if len(matches) != 2 {
 		return nil, trace.BadParameter(

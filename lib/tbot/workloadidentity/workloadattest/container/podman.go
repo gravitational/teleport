@@ -24,12 +24,8 @@ import (
 	"strings"
 )
 
-// Podman discovers Podman containers and pods.
-var Podman Engine = podman{}
-
-type podman struct{}
-
-func (podman) parseCgroupMount(mountPath string) (*Info, error) {
+// PodmanParser parses the cgroup mount path for Podman pods and containers.
+func PodmanParser(mountPath string) (*Info, error) {
 	info := &Info{}
 
 	switch {

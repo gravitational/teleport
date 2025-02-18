@@ -32,12 +32,12 @@ import (
 
 func TestLookupPID(t *testing.T) {
 	tests := map[string]struct {
-		engine   container.Engine
+		parser   container.Parser
 		expected *container.Info
 		error    string
 	}{
 		"k8s-real-docker-desktop": {
-			engine: container.Kubernetes,
+			parser: container.KubernetesParser,
 			expected: &container.Info{
 				PodID:       "941f292f-a62d-48ab-b9a8-eec84d87b928",
 				ID:          "3f79e718744418736d0f6b9958e08d44e969c6577068c33de1cc400d35aacec8",
@@ -45,7 +45,7 @@ func TestLookupPID(t *testing.T) {
 			},
 		},
 		"k8s-real-orbstack": {
-			engine: container.Kubernetes,
+			parser: container.KubernetesParser,
 			expected: &container.Info{
 				PodID:       "36827f77-691f-45aa-a470-0989cf3749c4",
 				ID:          "64dd9bf5199ff782835247cb072e4842dc3d0135ef02f6498cb6bb6f37a320d2",
@@ -53,7 +53,7 @@ func TestLookupPID(t *testing.T) {
 			},
 		},
 		"k8s-real-k3s-ubuntu-v1.28.6+k3s2": {
-			engine: container.Kubernetes,
+			parser: container.KubernetesParser,
 			expected: &container.Info{
 				PodID:       "fecd2321-17b5-49b9-9f75-8c5be777fbfb",
 				ID:          "397529d07efebd566f15dbc7e8af9f3ef586033f5e753adfa96b2bf730102c64",
@@ -61,7 +61,7 @@ func TestLookupPID(t *testing.T) {
 			},
 		},
 		"k8s-real-gcp-v1.29.5-gke.1091002": {
-			engine: container.Kubernetes,
+			parser: container.KubernetesParser,
 			expected: &container.Info{
 				PodID:       "61c266b0-6f75-4490-8d92-3c9ae4d02787",
 				ID:          "9da25af0b548c8c60aa60f77f299ba727bf72d58248bd7528eb5390ffcce555a",
@@ -69,7 +69,7 @@ func TestLookupPID(t *testing.T) {
 			},
 		},
 		"podman-real-4.3.1-rootful-systemd-pod": {
-			engine: container.Podman,
+			parser: container.PodmanParser,
 			expected: &container.Info{
 				PodID:       "88c57f699ea2c137d7f19b7a6aaa5828072cf12207b56d7155f02d4ecade4510",
 				ID:          "4f6f96595778a052ebbd8e783156e347143cd79f81348d0995a0ffd5718c3393",
@@ -77,7 +77,7 @@ func TestLookupPID(t *testing.T) {
 			},
 		},
 		"podman-real-4.3.1-rootful-systemd-container": {
-			engine: container.Podman,
+			parser: container.PodmanParser,
 			expected: &container.Info{
 				PodID:       "",
 				ID:          "12519ca1a57b8f58bc2a44f4e33e37eaf07c55a8d468ffb3db33f29d8d869186",
@@ -85,7 +85,7 @@ func TestLookupPID(t *testing.T) {
 			},
 		},
 		"podman-real-4.3.1-rootless-systemd-pod": {
-			engine: container.Podman,
+			parser: container.PodmanParser,
 			expected: &container.Info{
 				PodID:       "5ffc3df0af9a6dd0f92668fc949734aad2ad41a5670b7218196d377d55ca32c5",
 				ID:          "d54768c18894b931db6f6876f6be2178d8a8b34fc3485659fda78fe86af3e08b",
@@ -93,7 +93,7 @@ func TestLookupPID(t *testing.T) {
 			},
 		},
 		"podman-real-4.3.1-rootless-systemd-container": {
-			engine: container.Podman,
+			parser: container.PodmanParser,
 			expected: &container.Info{
 				PodID:       "",
 				ID:          "f89494c4c00e68029e176eb60c5be675f9b076b9ca63190678b27a2ef0d09d13",
@@ -101,7 +101,7 @@ func TestLookupPID(t *testing.T) {
 			},
 		},
 		"podman-real-4.3.1-rootful-cgroupfs-container": {
-			engine: container.Podman,
+			parser: container.PodmanParser,
 			expected: &container.Info{
 				PodID:       "",
 				ID:          "1861a57278895fe0165c953c04e6c1082bcd73428776f5209616061d0022e881",
@@ -109,7 +109,7 @@ func TestLookupPID(t *testing.T) {
 			},
 		},
 		"podman-real-4.3.1-rootless-cgroupfs-systemd-enabled-container": {
-			engine: container.Podman,
+			parser: container.PodmanParser,
 			error:  "--cgroup-manager cgroupfs",
 		},
 	}
@@ -123,7 +123,7 @@ func TestLookupPID(t *testing.T) {
 				0755),
 			)
 
-			info, err := container.LookupPID(tempDir, 1234, tc.engine)
+			info, err := container.LookupPID(tempDir, 1234, tc.parser)
 			if tc.error != "" {
 				require.ErrorContains(t, err, tc.error)
 			} else {
