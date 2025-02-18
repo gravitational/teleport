@@ -1,4 +1,4 @@
-.version: &version "18.0.0-dev.forrest-pdp.1"
+.version: &version "18.0.0-dev.forrest-pdp.2"
 
 apiVersion: v2
 name: teleport-plugin-event-handler

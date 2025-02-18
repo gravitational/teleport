@@ -3,6 +3,6 @@ package api
 
 import "github.com/coreos/go-semver/semver"
 
-const Version = "18.0.0-dev.forrest-pdp.1"
+const Version = "18.0.0-dev.forrest-pdp.2"
 
 var SemVersion = semver.New(Version)
