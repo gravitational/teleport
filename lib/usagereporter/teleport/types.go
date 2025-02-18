@@ -1782,7 +1782,7 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_AccessListGrantsToUser:
-		// This event is emitted as an one-off event as well as in an aggregated
+		// This event is emitted both as an one-off event as well as an aggregated
 		// user activity record report.
 		ret := &AccessListGrantsToUserEvent{
 			UserName:                    e.AccessListGrantsToUser.GetUserName(),
@@ -1808,7 +1808,7 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_AccessListReviewCreate:
-		// This event is emitted as an one-off event as well as in an aggregated
+		// This event is emitted both as an one-off event as well as an aggregated
 		// user activity record report.
 		ret := &AccessListReviewCreateEvent{
 			UserName: userMD.Username,

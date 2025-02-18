@@ -540,7 +540,7 @@ message AccessListGrantsToUser {
   // count_inherited_traits_granted is the number of traits granted to a user inherited from nested access lists.
   int32 count_inherited_traits_granted = 4;
 
-  // user_name of the user for whom the role or trait was granted for.
+  // user_name is the Teleport username of the user for whom a role or trait was granted for.
   string user_name = 5;
 }
 

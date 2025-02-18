@@ -3639,7 +3639,7 @@ type AccessListGrantsToUser struct {
 	CountTraitsGranted int32 `protobuf:"varint,2,opt,name=count_traits_granted,json=countTraitsGranted,proto3" json:"count_traits_granted,omitempty"`
 	// count_inherited_traits_granted is the number of traits granted to a user inherited from nested access lists.
 	CountInheritedTraitsGranted int32 `protobuf:"varint,4,opt,name=count_inherited_traits_granted,json=countInheritedTraitsGranted,proto3" json:"count_inherited_traits_granted,omitempty"`
-	// user_name of the user for whom the role or trait was granted for.
+	// user_name is the Teleport username of the user for whom a role or trait was granted for.
 	UserName             string   `protobuf:"bytes,5,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
