@@ -46,6 +46,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
+	apicommon "github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/entitlements"
@@ -2572,6 +2573,53 @@ func TestPluginResourceWrapper(t *testing.T) {
 						Oauth2AccessToken: &types.PluginOAuth2AccessTokenCredentials{
 							AccessToken:  "token",
 							RefreshToken: "refresh_token",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "identity center",
+			plugin: types.PluginV1{
+				Metadata: types.Metadata{
+					Name: apicommon.OriginAWSIdentityCenter,
+					Labels: map[string]string{
+						"teleport.dev/hosted-plugin": "true",
+					},
+				},
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_AwsIc{
+						AwsIc: &types.PluginAWSICSettings{
+							IntegrationName: apicommon.OriginAWSIdentityCenter,
+							Region:          "ap-south-2",
+							Arn:             "some:arn",
+							ProvisioningSpec: &types.AWSICProvisioningSpec{
+								BaseUrl: "https://scim.example.com/v2",
+							},
+							AccessListDefaultOwners: []string{"root"},
+							CredentialsSource:       types.AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_SYSTEM,
+							UserSyncFilters: []*types.AWSICUserSyncFilter{
+								{Labels: map[string]string{types.OriginLabel: types.OriginOkta}},
+								{Labels: map[string]string{types.OriginLabel: types.OriginEntraID}},
+							},
+							GroupSyncFilters: []*types.AWSICResourceFilter{
+								{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: `^Group #\\d+$`}},
+								{Include: &types.AWSICResourceFilter_Id{Id: "42"}},
+							},
+							AwsAccountsFilters: []*types.AWSICResourceFilter{
+								{Include: &types.AWSICResourceFilter_Id{Id: "314159"}},
+								{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: `^Account #\\d+$`}},
+							},
+						},
+					},
+				},
+				Status: types.PluginStatusV1{
+					Code: types.PluginStatusCode_RUNNING,
+					Details: &types.PluginStatusV1_AwsIc{
+						AwsIc: &types.PluginAWSICStatusV1{
+							GroupImportStatus: &types.AWSICGroupImportStatus{
+								StatusCode: types.AWSICGroupImportStatusCode_DONE,
+							},
 						},
 					},
 				},
