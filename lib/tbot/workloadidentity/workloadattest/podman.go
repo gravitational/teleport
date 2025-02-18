@@ -84,7 +84,7 @@ type PodmanAttestorConfig struct {
 	// In the override file add:
 	//
 	// 	[Socket]
-	// 	ListenStream=/path/to/socket # Example: /tmp/podman.<podman user>.sock
+	// 	ListenStream=/path/to/socket # Example: /srv/podman.<podman user>/podman.sock
 	//
 	// Remember to reload the systemd daemon and restart the socket unit:
 	//
