@@ -22,7 +22,7 @@ trap 'rm -rf -- "$tempDir"' EXIT
 teleportTarballName() {
     if [ "${OS}" = "Darwin" ]; then
         if [ "$fips" = "true"]; then
-            echo "FIPS install is not supported on MacOS"
+            echo "FIPS version of Teleport is not compatible with MacOS. Please run this script in a Linux machine."
             return 1
         fi
         echo "${teleportFlavor}-${teleportVersion}-darwin-universal-${packageSuffix}"
