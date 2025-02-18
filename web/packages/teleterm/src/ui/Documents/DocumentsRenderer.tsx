@@ -16,12 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useMemo } from 'react';
+import { MutableRefObject, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 
 import { Text } from 'design';
 
+import {
+  AccessRequestsContextProvider,
+  AccessRequestsMenu,
+} from 'teleterm/ui/AccessRequests';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   ConnectMyComputerContextProvider,
@@ -48,7 +52,8 @@ import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 import { WorkspaceContextProvider } from './workspaceContext';
 
 export function DocumentsRenderer(props: {
-  topBarContainerRef: React.MutableRefObject<HTMLDivElement>;
+  topBarConnectMyComputerRef: MutableRefObject<HTMLDivElement>;
+  topBarAccessRequestRef: MutableRefObject<HTMLDivElement>;
 }) {
   const { workspacesService } = useAppContext();
 
@@ -87,18 +92,30 @@ export function DocumentsRenderer(props: {
             <ConnectMyComputerContextProvider
               rootClusterUri={workspace.rootClusterUri}
             >
-              {workspace.documentsService.getDocuments().length ? (
-                renderDocuments(workspace.documentsService)
-              ) : (
-                <KeyboardShortcutsPanel />
-              )}
-              {workspace.rootClusterUri ===
-                workspacesService.getRootClusterUri() &&
-                props.topBarContainerRef.current &&
-                createPortal(
-                  <ConnectMyComputerNavigationMenu />,
-                  props.topBarContainerRef.current
+              <AccessRequestsContextProvider
+                rootClusterUri={workspace.rootClusterUri}
+              >
+                {workspace.documentsService.getDocuments().length ? (
+                  renderDocuments(workspace.documentsService)
+                ) : (
+                  <KeyboardShortcutsPanel />
                 )}
+                {workspace.rootClusterUri ===
+                  workspacesService.getRootClusterUri() && (
+                  <>
+                    {props.topBarConnectMyComputerRef.current &&
+                      createPortal(
+                        <ConnectMyComputerNavigationMenu />,
+                        props.topBarConnectMyComputerRef.current
+                      )}
+                    {props.topBarAccessRequestRef.current &&
+                      createPortal(
+                        <AccessRequestsMenu />,
+                        props.topBarAccessRequestRef.current
+                      )}
+                  </>
+                )}
+              </AccessRequestsContextProvider>
             </ConnectMyComputerContextProvider>
           </WorkspaceContextProvider>
         </DocumentsContainer>

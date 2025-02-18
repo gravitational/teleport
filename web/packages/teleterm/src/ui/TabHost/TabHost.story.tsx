@@ -66,7 +66,10 @@ export function Story() {
   return (
     <MockAppContextProvider appContext={ctx}>
       <ResourcesContextProvider>
-        <TabHostContainer topBarContainerRef={createRef()} />
+        <TabHostContainer
+          topBarConnectMyComputerRef={createRef()}
+          topBarAccessRequestRef={createRef()}
+        />
       </ResourcesContextProvider>
     </MockAppContextProvider>
   );

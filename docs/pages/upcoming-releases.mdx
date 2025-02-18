@@ -10,6 +10,7 @@ The Teleport team delivers a new major release roughly every 4 months.
 | Version | Date                        |
 |---------|-----------------------------|
 | 17.3.0  | Week of February 24th, 2025 |
+| 17.4.0  | Week of March 24th, 2025    |
 | 18.0.0  | Week of April 28th, 2025    |
 
 ### 17.3.0
@@ -28,6 +29,44 @@ the entire Teleport cluster.
 
 Teleport's VNet feature will be available for Windows, allowing users to access
 TCP applications protected by Teleport as if they were on the same network.
+
+#### Improved GitHub Proxy enrollment flow
+
+{/* lint ignore absolute-docs-links */}
+Teleport web UI will provide wizard-like guided enrollment flow for the new
+[GitHub
+Proxy](https://goteleport.com/docs/admin-guides/management/guides/github-integration)
+integration.
+
+#### AWS Identity Center integration improvements
+
+AWS Identity Center integration will support using IAM authentication instead
+of OIDC (useful for private clusters) and a hybrid setup that allows to use
+another IdP as external identity source.
+
+#### Okta integration improvements
+
+Teleport Okta integration will include updated guided enrollment flow and will
+allow updating integration settings (such as sync configuration or group filters)
+without having to recreate the integration.
+
+### 17.4.0
+
+#### Database access for Oracle RDS
+
+Teleport database access will support connecting to Oracle RDS with Kerberos
+authentication.
+
+#### Okta integration read-only mode
+
+Teleport Okta integration will support read-only mode that does not back-propagate
+changes from Teleport to Okta.
+
+#### AWS integration status dashboard
+
+Teleport web UI will provide detailed status dashboard for AWS integration as 
+well as the new "user tasks" view that will highlight integration issues requiring
+user attention along with suggested remediation steps.
 
 ### 18.0.0
 

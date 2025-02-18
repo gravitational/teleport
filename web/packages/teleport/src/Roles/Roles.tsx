@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ComponentType, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 import { Alert, Box, Button, Flex, H3, Link } from 'design';
@@ -50,8 +50,9 @@ import { State, useRoles } from './useRoles';
 
 // RoleDiffProps are an optional set of props to render the role diff visualizer.
 type RoleDiffProps = {
-  RoleDiffComponent: ComponentType;
-  updateRoleDiff: (role: Role) => Promise<void>;
+  roleDiffElement: React.ReactNode;
+  updateRoleDiff: (role: Role) => void;
+  errorMessage: string;
 };
 
 export type RolesProps = {

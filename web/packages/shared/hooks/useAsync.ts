@@ -255,22 +255,25 @@ export function makeErrorAttemptWithStatusText<T>(
 }
 
 /**
- * mapAttempt maps attempt data but only if the attempt is successful.
+ * mapAttempt maps attempt data if the attempt is successful or in progress and contains data.
  */
 export function mapAttempt<A, B>(
   attempt: Attempt<A>,
   mapFunction: (attemptData: A) => B
 ): Attempt<B> {
-  if (attempt.status !== 'success') {
+  if (
+    attempt.status === 'success' ||
+    (attempt.status === 'processing' && attempt.data)
+  ) {
     return {
       ...attempt,
-      data: null,
+      data: mapFunction(attempt.data),
     };
   }
 
   return {
     ...attempt,
-    data: mapFunction(attempt.data),
+    data: null,
   };
 }
 

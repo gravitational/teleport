@@ -44,7 +44,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	grpccredentials "google.golang.org/grpc/credentials"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/link/channel"
@@ -877,8 +877,13 @@ func TestRemoteAppProvider(t *testing.T) {
 		},
 	}, dialOpts, reissueClientCert, clock)
 
+	ipcCredentials, err := newIPCCredentials()
+	require.NoError(t, err)
+	serverTLSConfig, err := ipcCredentials.server.serverTLSConfig()
+	require.NoError(t, err)
+
 	grpcServer := grpc.NewServer(
-		grpc.Creds(insecure.NewCredentials()),
+		grpc.Creds(grpccredentials.NewTLS(serverTLSConfig)),
 		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
 		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
 	)
@@ -898,7 +903,14 @@ func TestRemoteAppProvider(t *testing.T) {
 		},
 	})
 
-	clt, err := newClientApplicationServiceClient(ctx, listener.Addr().String())
+	// Test writing the service credentials to and from disk as that's what
+	// really happens on Windows.
+	credDir := t.TempDir()
+	require.NoError(t, ipcCredentials.client.write(credDir), "writing service credentials to disk")
+	clientCreds, err := readCredentials(credDir)
+	require.NoError(t, err, "reading service credentials from disk")
+
+	clt, err := newClientApplicationServiceClient(ctx, clientCreds, listener.Addr().String())
 	require.NoError(t, err)
 	defer clt.close()
 	remoteAppProvider := newRemoteAppProvider(clt)

@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -35,8 +36,12 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// TestPassword is password generated during the test to login in test cluster.
-const TestPassword = "UPDATER_TEST_PASSWORD"
+const (
+	// TestPassword is env var used for setting password generated during the test to login in test cluster.
+	TestPassword = "UPDATER_TEST_PASSWORD"
+	// TestBuild is env var for setting test build type during the test.
+	TestBuild = "UPDATER_TEST_BUILD"
+)
 
 var (
 	version = teleport.Version
@@ -54,17 +59,20 @@ func (p *TestModules) GetSuggestedAccessLists(context.Context, *tlsca.Identity, 
 
 // BuildType returns build type (OSS or Enterprise)
 func (p *TestModules) BuildType() string {
+	if build := os.Getenv(TestBuild); build != "" {
+		return build
+	}
 	return "CLI"
 }
 
 // IsEnterpriseBuild returns false for [TestModules].
 func (p *TestModules) IsEnterpriseBuild() bool {
-	return false
+	return os.Getenv(TestBuild) == modules.BuildEnterprise
 }
 
 // IsOSSBuild returns false for [TestModules].
 func (p *TestModules) IsOSSBuild() bool {
-	return false
+	return os.Getenv(TestBuild) == modules.BuildOSS
 }
 
 // LicenseExpiry returns the expiry date of the enterprise license, if applicable.

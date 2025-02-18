@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 
 	cloudaws "github.com/gravitational/teleport/lib/cloud/imds/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 const (
@@ -101,7 +102,7 @@ func CreateSignedSTSIdentityRequest(ctx context.Context, challenge string, opts 
 	}
 
 	var signedRequest bytes.Buffer
-	stsClient := sts.NewFromConfig(awsConfig,
+	stsClient := stsutils.NewFromConfig(awsConfig,
 		sts.WithEndpointResolverV2(newCustomResolver(challenge)),
 		func(stsOpts *sts.Options) {
 			if options.useFIPS {

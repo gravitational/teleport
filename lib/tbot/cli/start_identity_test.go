@@ -47,6 +47,7 @@ func TestIdentityCommand(t *testing.T) {
 				"--storage=/foo",
 				"--destination=file:///bar",
 				"--proxy-server=example.com:443",
+				"--allow-reissue",
 			},
 			assertConfig: func(t *testing.T, cfg *config.BotConfig) {
 				token, err := cfg.Onboarding.Token()
@@ -75,6 +76,7 @@ func TestIdentityCommand(t *testing.T) {
 				dir, ok = ident.Destination.(*config.DestinationDirectory)
 				require.True(t, ok)
 				require.Equal(t, "/bar", dir.Path)
+				require.True(t, ident.AllowReissue)
 			},
 		},
 	})

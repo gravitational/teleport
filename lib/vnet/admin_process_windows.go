@@ -27,10 +27,27 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 )
 
+const (
+	tunInterfaceName = "TeleportVNet"
+)
+
 type windowsAdminProcessConfig struct {
 	// clientApplicationServiceAddr is the local TCP address of the client
 	// application gRPC service.
 	clientApplicationServiceAddr string
+	// serviceCredentialPath is the path where credentials for IPC with the
+	// client application are found.
+	serviceCredentialPath string
+}
+
+func (c *windowsAdminProcessConfig) check() error {
+	if c.clientApplicationServiceAddr == "" {
+		return trace.BadParameter("clientApplicationServiceAddr is required")
+	}
+	if c.serviceCredentialPath == "" {
+		return trace.BadParameter("serviceCredentialPath is required")
+	}
+	return nil
 }
 
 // runWindowsAdminProcess must run as administrator. It creates and sets up a TUN
@@ -39,8 +56,15 @@ type windowsAdminProcessConfig struct {
 // error.
 func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig) error {
 	log.InfoContext(ctx, "Running VNet admin process")
+	if err := cfg.check(); err != nil {
+		return trace.Wrap(err)
+	}
 
-	clt, err := newClientApplicationServiceClient(ctx, cfg.clientApplicationServiceAddr)
+	serviceCreds, err := readCredentials(cfg.serviceCredentialPath)
+	if err != nil {
+		return trace.Wrap(err, "reading service IPC credentials")
+	}
+	clt, err := newClientApplicationServiceClient(ctx, serviceCreds, cfg.clientApplicationServiceAddr)
 	if err != nil {
 		return trace.Wrap(err, "creating user process client")
 	}
@@ -50,7 +74,7 @@ func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig)
 		return trace.Wrap(err, "authenticating user process")
 	}
 
-	device, err := tun.CreateTUN("TeleportVNet", mtu)
+	device, err := tun.CreateTUN(tunInterfaceName, mtu)
 	if err != nil {
 		return trace.Wrap(err, "creating TUN device")
 	}

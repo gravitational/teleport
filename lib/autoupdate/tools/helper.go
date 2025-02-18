@@ -86,6 +86,7 @@ func CheckAndUpdateRemote(ctx context.Context, proxy string, insecure bool, reEx
 		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
 		return nil
 	}
+
 	// Overrides default base URL for custom CDN for downloading updates.
 	if envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar); envBaseURL != "" {
 		baseURL = envBaseURL
@@ -110,7 +111,7 @@ func updateAndReExec(ctx context.Context, updater *Updater, toolsVersion string,
 	// is required if the user passed in the TELEPORT_TOOLS_VERSION
 	// explicitly.
 	err := updater.UpdateWithLock(ctxUpdate, toolsVersion)
-	if err != nil && !errors.Is(err, context.Canceled) {
+	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, errNoBaseURL) {
 		return trace.Wrap(err)
 	}
 
