@@ -92,9 +92,7 @@ export function Tasks() {
         {integration && (
           <AwsOidcHeader integration={integration} tasks={true} />
         )}
-        <FeatureBox
-          css={{ maxWidth: '1400px', paddingTop: '16px', gap: '30px' }}
-        >
+        <FeatureBox maxWidth={1440} margin="auto" gap={3} paddingLeft={5}>
           {integration && (
             <AwsOidcTitle integration={integration} tasks={true} />
           )}
