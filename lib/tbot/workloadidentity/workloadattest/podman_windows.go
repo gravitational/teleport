@@ -34,7 +34,7 @@ type WindowsPodmanAttestor struct {
 }
 
 func (a WindowsPodmanAttestor) Attest(_ context.Context, _ int) (*workloadidentityv1pb.WorkloadAttrsPodman, error) {
-	return nil, trace.NotImplemented("kubernetes attestation is not supported on windows")
+	return nil, trace.NotImplemented("podman attestation is not supported on windows")
 }
 
 // NewPodmanAttestor creates a new PodmanAttestor.
