@@ -362,6 +362,134 @@ export type IntegrationDiscoveryRules = {
   nextKey: string;
 };
 
+// UserTasksListResponse contains a list of UserTasks.
+// In case of exceeding the pagination limit (either via query param `limit` or the default 1000)
+// a `nextToken` is provided and should be used to obtain the next page (as a query param `startKey`)
+export type UserTasksListResponse = {
+  // items is a list of resources retrieved.
+  items: UserTask[];
+  // nextKey is the position to resume listing events.
+  nextKey: string;
+};
+
+// UserTask describes UserTask fields.
+// Used for listing User Tasks without receiving all the details.
+export type UserTask = {
+  // name is the UserTask name.
+  name: string;
+  // taskType identifies this task's type.
+  taskType: string;
+  // state is the state for the User Task.
+  state: string;
+  // issueType identifies this task's issue type.
+  issueType: string;
+  // integration is the Integration Name this User Task refers to.
+  integration: string;
+  // lastStateChange indicates when the current's user task state was last changed.
+  lastStateChange: string;
+};
+
+// UserTaskDetail contains all the details for a User Task.
+export type UserTaskDetail = UserTask & {
+  // description is a markdown document that explains the issue and how to fix it.
+  description: string;
+  // discoverEc2 contains the task details for the DiscoverEc2 tasks.
+  discoverEc2: DiscoverEc2;
+  // discoverEKS contains the task details for the DiscoverEKS tasks.
+  discoverEks: DiscoverEks;
+  // discoverRDS contains the task details for the DiscoverRDS tasks.
+  discoverRds: DiscoverRds;
+};
+
+// DiscoverEc2 contains the instances that failed to auto-enroll into the cluster.
+export type DiscoverEc2 = {
+  // instances maps an instance id to the result of enrolling that instance into teleport.
+  instances: Record<string, DiscoverEc2Instance>;
+  // accountID is the AWS Account ID for the instances.
+  accountId: string;
+  // region is the AWS Region where Teleport failed to enroll EC2 instances.
+  region: string;
+  // ssmDocument is the Amazon Systems Manager SSM Document name that was used to install teleport on the instance.
+  // In Amazon console, the document is at:
+  // https://REGION.console.aws.amazon.com/systems-manager/documents/SSM_DOCUMENT/description
+  ssmDocument: string;
+  // installerScript is the Teleport installer script that was used to install teleport on the instance.
+  installerScript: string;
+};
+
+// DiscoverEc2Instance contains the result of enrolling an AWS EC2 Instance.
+export type DiscoverEc2Instance = {
+  // instanceID is the EC2 Instance ID that uniquely identifies the instance.
+  instance_id: string;
+  // name is the instance Name.
+  // Might be empty, if the instance doesn't have the Name tag.
+  name: string;
+  // invocationUrl is the url that points to the invocation.
+  // Empty if there was an error before installing the
+  invocationUrl: string;
+  // discoveryConfig is the discovery config name that originated this instance enrollment.
+  discoveryConfig: string;
+  // discoveryGroup is the DiscoveryGroup name that originated this task.
+  discoveryGroup: string;
+  // syncTime is the timestamp when the error was produced.
+  syncTime: number;
+};
+
+// DiscoverEks contains the clusters that failed to auto-enroll into the cluster.
+export type DiscoverEks = {
+  // clusters maps a cluster name to the result of enrolling that cluster into teleport.
+  clusters: Record<string, DiscoverEksCluster>;
+  // accountId is the AWS Account ID for the cluster.
+  accountId: string;
+  // region is the AWS Region where Teleport failed to enroll EKS Clusters.
+  region: string;
+  // appAutoDiscover indicates whether the Kubernetes agent should auto enroll HTTP services as Teleport Apps.
+  appAutoDiscover: boolean;
+};
+
+// DiscoverEksCluster contains the result of enrolling an AWS EKS Cluster.
+export type DiscoverEksCluster = {
+  // name is the cluster Name.
+  name: string;
+  // discoveryConfig is the discovery config name that originated this cluster enrollment.
+  discoveryConfig: string;
+  // discoveryGroup is the DiscoveryGroup name that originated this task.
+  discoveryGroup: string;
+  // syncTime is the timestamp when the error was produced.
+  syncTime: number;
+};
+
+// DiscoverRds contains the databases that failed to auto-enroll into teleport.
+export type DiscoverRds = {
+  // databases maps a database resource id to the result of enrolling that database into teleport.
+  // For RDS Aurora Clusters, this is the DBClusterIdentifier.
+  // For other RDS databases, this is the DBInstanceIdentifier.
+  databases: Record<string, DiscoverRdsDatabase>;
+  // accountId is the AWS Account ID for the database.
+  accountId: string;
+  // region is the AWS Region where Teleport failed to enroll RDS databases.
+  region: string;
+};
+
+// DiscoverRdsDatabase contains the result of enrolling an AWS RDS database.
+export type DiscoverRdsDatabase = {
+  // name is the database identifier.
+  // For RDS Aurora Clusters, this is the DBClusterIdentifier.
+  // For other RDS databases, this is the DBInstanceIdentifier.
+  name: string;
+  // isCluster indicates whether this database is a cluster or a single instance.
+  isCluster: boolean;
+  // engine indicates the engine name for this RDS.
+  // Eg, aurora-postgresql, postgresql
+  engine: string;
+  // discoveryConfig is the discovery config name that originated this database enrollment.
+  discoveryConfig: string;
+  // discoveryGroup is the DiscoveryGroup name that originated this task.
+  discoveryGroup: string;
+  // syncTime is the timestamp when the error was produced.
+  syncTime: number;
+};
+
 // IntegrationDiscoveryRule describes a discovery rule associated with an integration.
 export type IntegrationDiscoveryRule = {
   // resourceType indicates the type of resource that this rule targets.
