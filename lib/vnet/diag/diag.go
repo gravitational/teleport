@@ -18,6 +18,8 @@ package diag
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os/exec"
 	"strings"
 
@@ -123,9 +125,18 @@ func runCommand(cmd *exec.Cmd) *diagv1.CommandAttempt {
 
 	output, err := cmd.Output()
 	if err != nil {
+		var exitError *exec.ExitError
+		errMessage := err.Error()
+		if errors.As(err, &exitError) {
+			stderr := string(exitError.Stderr)
+			if stderr != "" {
+				errMessage = fmt.Sprintf("%s\n%s", errMessage, stderr)
+			}
+		}
+
 		return &diagv1.CommandAttempt{
 			Status:  diagv1.CommandAttemptStatus_COMMAND_ATTEMPT_STATUS_ERROR,
-			Error:   err.Error(),
+			Error:   errMessage,
 			Command: command,
 		}
 	}
