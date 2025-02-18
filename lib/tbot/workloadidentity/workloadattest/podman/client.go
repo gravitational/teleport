@@ -32,6 +32,7 @@ import (
 	"net/url"
 
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // APIVersion is the version of the Podman REST API we support.
@@ -60,11 +61,16 @@ func NewClient(addr string) (*Client, error) {
 	}
 	return &Client{
 		httpClient: &http.Client{
-			Transport: &http.Transport{
-				DialContext: func(ctx context.Context, _ string, _ string) (net.Conn, error) {
-					return (&net.Dialer{}).DialContext(ctx, "unix", u.Path)
+			Transport: otelhttp.NewTransport(
+				&http.Transport{
+					DialContext: func(ctx context.Context, _ string, _ string) (net.Conn, error) {
+						return (&net.Dialer{}).DialContext(ctx, "unix", u.Path)
+					},
 				},
-			},
+				otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+					return fmt.Sprintf("Podman API %s %s", r.Method, r.URL.Path)
+				}),
+			),
 		},
 	}, nil
 }
