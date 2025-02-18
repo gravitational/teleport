@@ -29,12 +29,8 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	diagv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/diag/v1"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
-
-var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.Component("vnet", "diag"))
 
 // RouteConflictConfig includes everything that [RouteConflictDiag] needs to run.
 type RouteConflictConfig struct {

@@ -28,11 +28,10 @@ import (
 	diagv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/diag/v1"
 )
 
-func TestDiagnostician_FailedCheck(t *testing.T) {
+func TestGenerateReport_FailedCheck(t *testing.T) {
 	diagCheck := &FakeDiagCheck{shouldFail: true}
 
-	diag := Diagnostician{}
-	report, err := diag.GenerateReport(context.Background(), ReportPrerequisites{
+	report, err := GenerateReport(context.Background(), ReportPrerequisites{
 		Clock:               clockwork.NewFakeClock(),
 		NetworkStackAttempt: &diagv1.NetworkStackAttempt{},
 		DiagChecks:          []DiagCheck{diagCheck},
@@ -50,11 +49,10 @@ func TestDiagnostician_FailedCheck(t *testing.T) {
 	require.NotNil(t, checkAttempt.CheckReport)
 }
 
-func TestDiagnostician_SkipCommands(t *testing.T) {
+func TestGenerateReport_SkipCommands(t *testing.T) {
 	diagCheck := &FakeDiagCheck{}
 
-	diag := Diagnostician{}
-	report, err := diag.GenerateReport(context.Background(), ReportPrerequisites{
+	report, err := GenerateReport(context.Background(), ReportPrerequisites{
 		Clock:               clockwork.NewFakeClock(),
 		NetworkStackAttempt: &diagv1.NetworkStackAttempt{},
 		DiagChecks:          []DiagCheck{diagCheck},

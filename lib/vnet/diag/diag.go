@@ -25,14 +25,18 @@ import (
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport"
 	diagv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/diag/v1"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
+
+var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.Component("vnet", "diag"))
 
 // Diagnostician runs individual diag checks along with their accompanying commands and produces a
 // report.
 type Diagnostician struct{}
 
-// DiagCheck is an individual diag check run by [Diagnostician].
+// DiagCheck is an individual diag check run by [GenerateReport].
 type DiagCheck interface {
 	// Run performs the check.
 	Run(context.Context) (*diagv1.CheckReport, error)
@@ -45,13 +49,13 @@ type DiagCheck interface {
 	EmptyCheckReport() *diagv1.CheckReport
 }
 
-// ReportPrerequisites are items needed by [Diagnostician] to generate a report.
+// ReportPrerequisites are items needed by [GenerateReport].
 type ReportPrerequisites struct {
 	Clock               clockwork.Clock
 	NetworkStackAttempt *diagv1.NetworkStackAttempt
 	DiagChecks          []DiagCheck
-	// SkipCommands controls whether the report provided by [Diagnostician] is going to include extra
-	// commands accompanying each diagnostic check. Useful in contexts where there's no place to
+	// SkipCommands controls whether the report returned from [GenerateReport] is going to include
+	// extra commands accompanying each diagnostic check. Useful in contexts where there's no place to
 	// display output of those commands.
 	SkipCommands bool
 }
@@ -62,7 +66,7 @@ func (rp *ReportPrerequisites) check() error {
 	}
 
 	if rp.NetworkStackAttempt == nil {
-		return trace.BadParameter("missing network stack result")
+		return trace.BadParameter("missing network stack attempt")
 	}
 
 	if len(rp.DiagChecks) == 0 {
@@ -73,7 +77,7 @@ func (rp *ReportPrerequisites) check() error {
 }
 
 // GenerateReport generates a report using the output of the checks provided through [rp].
-func (d *Diagnostician) GenerateReport(ctx context.Context, rp ReportPrerequisites) (*diagv1.Report, error) {
+func GenerateReport(ctx context.Context, rp ReportPrerequisites) (*diagv1.Report, error) {
 	if err := rp.check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -83,7 +87,7 @@ func (d *Diagnostician) GenerateReport(ctx context.Context, rp ReportPrerequisit
 	report.NetworkStackAttempt = rp.NetworkStackAttempt
 
 	for _, diagCheck := range rp.DiagChecks {
-		checkAttempt := d.runCheck(ctx, diagCheck, rp.SkipCommands)
+		checkAttempt := runCheck(ctx, diagCheck, rp.SkipCommands)
 
 		report.Checks = append(report.Checks, checkAttempt)
 	}
@@ -91,7 +95,7 @@ func (d *Diagnostician) GenerateReport(ctx context.Context, rp ReportPrerequisit
 	return report, nil
 }
 
-func (d *Diagnostician) runCheck(ctx context.Context, diagCheck DiagCheck, skipCommands bool) *diagv1.CheckAttempt {
+func runCheck(ctx context.Context, diagCheck DiagCheck, skipCommands bool) *diagv1.CheckAttempt {
 	attempt := &diagv1.CheckAttempt{}
 
 	report, err := diagCheck.Run(ctx)
@@ -108,14 +112,14 @@ func (d *Diagnostician) runCheck(ctx context.Context, diagCheck DiagCheck, skipC
 
 	if !skipCommands {
 		for _, cmd := range diagCheck.Commands(ctx) {
-			attempt.Commands = append(attempt.Commands, d.runCommand(cmd))
+			attempt.Commands = append(attempt.Commands, runCommand(cmd))
 		}
 	}
 
 	return attempt
 }
 
-func (d *Diagnostician) runCommand(cmd *exec.Cmd) *diagv1.CommandAttempt {
+func runCommand(cmd *exec.Cmd) *diagv1.CommandAttempt {
 	command := strings.Join(cmd.Args, " ")
 
 	output, err := cmd.Output()

@@ -62,8 +62,7 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 		return nil, trace.Wrap(err)
 	}
 
-	diagnostician := diag.Diagnostician{}
-	report, err := diagnostician.GenerateReport(ctx, diag.ReportPrerequisites{
+	report, err := diag.GenerateReport(ctx, diag.ReportPrerequisites{
 		Clock:               s.cfg.Clock,
 		NetworkStackAttempt: nsa,
 		DiagChecks:          []diag.DiagCheck{routeConflictDiag},
