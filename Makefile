@@ -434,18 +434,14 @@ tsh-app: TSH_APP_BUNDLE = $(BUILDDIR)/tsh.app
 tsh-app: TSH_APP_ENTITLEMENTS = build.assets/macos/$(TSH_SKELETON)/$(TSH_SKELETON).entitlements
 tsh-app:
 	cp -rf "build.assets/macos/$(TSH_SKELETON)/tsh.app/" "$(TSH_APP_BUNDLE)/"
-	mkdir -p "$(TSH_APP_BUNDLE)/Contents/MacOS/"
-	cp "$(BUILDDIR)/tsh" "$(TSH_APP_BUNDLE)/Contents/MacOS/."
-	$(NOTARIZE_TSH_APP)
+	mac-distribution package-app --retry 2 --entitlements "$(TSH_APP_ENTITLEMENTS)" "$(BUILDDIR)/tsh" "$(TSH_APP_BUNDLE)"
 
 .PHONY: tctl-app
 tctl-app: TCTL_APP_BUNDLE = $(BUILDDIR)/tctl.app
 tctl-app: TCTL_APP_ENTITLEMENTS = build.assets/macos/$(TCTL_SKELETON)/$(TCTL_SKELETON).entitlements
 tctl-app:
 	cp -rf "build.assets/macos/$(TCTL_SKELETON)/tctl.app/" "$(TCTL_APP_BUNDLE)/"
-	mkdir -p "$(TCTL_APP_BUNDLE)/Contents/MacOS/"
-	cp "$(BUILDDIR)/tctl" "$(TCTL_APP_BUNDLE)/Contents/MacOS/."
-	$(NOTARIZE_TCTL_APP)
+	mac-distribution package-app --entitlements "$(TCTL_APP_ENTITLEMENTS)" "$(BUILDDIR)/tctl" "$(TCTL_APP_BUNDLE)"
 
 #
 # BPF support (IF ENABLED)
@@ -1675,18 +1671,17 @@ endif
 .PHONY: pkg
 pkg: TELEPORT_PKG_UNSIGNED = $(BUILDDIR)/teleport-$(VERSION).unsigned.pkg
 pkg: TELEPORT_PKG_SIGNED = $(RELEASE_DIR)/teleport-$(VERSION).pkg
-pkg: | $(RELEASE_DIR)
+pkg: | $(RELEASE_DIR) $(BUILDDIR)/tsh.app $(BUILDDIR)/tctl.app
 	mkdir -p $(BUILDDIR)/
 
 	@echo Building tsh-$(VERSION).pkg
-	./build.assets/build-pkg-app.sh -t oss -v $(VERSION) -b $(TSH_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
-	mv tsh*.pkg* $(BUILDDIR)/
+	mac-distribution package-pkg --bundle-id $(TSH_BUNDLEID) --version $(VERSION) --install-location=/usr/local/bin $(BUILDDIR)/tsh.app $(BUILDDIR)/tsh-$(VERSION).pkg
 
 	@echo Building tctl-$(VERSION).pkg
-	./build.assets/build-pkg-app.sh -p tctl -t oss -v $(VERSION) -b $(TCTL_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
-	mv tctl*.pkg* $(BUILDDIR)/
+	mac-distribution package-pkg --bundle-id $(TCTL_BUNDLEID) --version $(VERSION) --install-location=/usr/local/bin $(BUILDDIR)/tctl.app $(BUILDDIR)/tctl-$(VERSION).pkg
 
 	@echo Building teleport-bin-$(VERSION).pkg
+	mac-distribution package-pkg --bundle-id $(TELEPORT_BUNDLEID) --version $(VERSION) --install-location=/usr/local/bin $(BUILDDIR)/teleport $(BUILDDIR)/teleport-bin-$(VERSION).pkg
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	# runtime is currently ignored on OS X
