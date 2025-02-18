@@ -107,6 +107,14 @@ func TestReporter(t *testing.T) {
 	r.AnonymizeAndSubmit(&usagereporter.SPIFFESVIDIssuedEvent{
 		UserName: "alice",
 	})
+	r.AnonymizeAndSubmit(&usagereporter.AccessRequestCreateEvent{
+		UserName: "alice",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.AccessRequestReviewEvent{
+		UserName: "alice",
+	})
+	recvIngested()
+	recvIngested()
 	recvIngested()
 	recvIngested()
 	recvIngested()
@@ -125,6 +133,8 @@ func TestReporter(t *testing.T) {
 	require.Equal(t, uint64(1), record.Logins)
 	require.Equal(t, uint64(2), record.SshSessions)
 	require.Equal(t, uint64(1), record.SpiffeSvidsIssued)
+	require.Equal(t, uint64(1), record.GetAccessRequestsCreated())
+	require.Equal(t, uint64(1), record.GetAccessRequestsReviewed())
 
 	r.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
 		Name:   "srv01",

@@ -1558,9 +1558,6 @@ message UserTaskStateEvent {
 
 // AccessRequestEvent emitted for Access Request audit events.
 message AccessRequestEvent {
-  // anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64;
-  //
-  // PostHog property: tp.user_name
   // Teleport user name. Anonymized.
   string user_name = 1;
 }

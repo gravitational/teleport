@@ -7851,9 +7851,6 @@ func (x *UserTaskStateEvent) GetInstancesCount() int32 {
 // AccessRequestEvent emitted for Access Request audit events.
 type AccessRequestEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64;
-	//
-	// PostHog property: tp.user_name
 	// Teleport user name. Anonymized.
 	UserName      string `protobuf:"bytes,1,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
 	unknownFields protoimpl.UnknownFields

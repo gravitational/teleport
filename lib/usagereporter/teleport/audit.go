@@ -19,6 +19,7 @@
 package usagereporter
 
 import (
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
@@ -83,10 +84,16 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 	case *apievents.AccessRequestCreate:
 		switch e.GetType() {
 		case events.AccessRequestCreateEvent:
+			if e.User == "" || e.User == teleport.UserSystem {
+				return nil
+			}
 			return &AccessRequestCreateEvent{
 				UserName: e.User,
 			}
 		case events.AccessRequestReviewEvent:
+			if e.Reviewer == "" || e.User == teleport.UserSystem {
+				return nil
+			}
 			return &AccessRequestReviewEvent{
 				UserName: e.Reviewer,
 			}

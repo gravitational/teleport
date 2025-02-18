@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -392,13 +391,9 @@ Ingest:
 			// Bots never generate tp.user.login events.
 			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).Logins++
 		case *usagereporter.AccessRequestCreateEvent:
-			if te.UserName != "" && te.UserName != teleport.UserSystem {
-				userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessRequestCreated++
-			}
+			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessRequestsCreated++
 		case *usagereporter.AccessRequestReviewEvent:
-			if te.UserName != "" && te.UserName != teleport.UserSystem {
-				userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessRequestReviewed++
-			}
+			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessRequestsReviewed++
 		case *usagereporter.SessionStartEvent:
 			switch te.SessionType {
 			case string(types.SSHSessionKind):

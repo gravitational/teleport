@@ -205,18 +205,17 @@ export interface UserActivityRecord {
      */
     spiffeIdsIssued: SPIFFEIDRecord[];
     /**
-     * 19 reserved for user_origin
-     * counter of Access Request create event
+     * counter of Access Requests created by this user.
      *
-     * @generated from protobuf field: uint64 access_request_created = 20;
+     * @generated from protobuf field: uint64 access_requests_created = 19;
      */
-    accessRequestCreated: bigint;
+    accessRequestsCreated: bigint;
     /**
-     * counter of Access Request review event
+     * counter of Access Requests reviewed by this user.
      *
-     * @generated from protobuf field: uint64 access_request_reviewed = 21;
+     * @generated from protobuf field: uint64 access_requests_reviewed = 20;
      */
-    accessRequestReviewed: bigint;
+    accessRequestsReviewed: bigint;
 }
 /**
  * @generated from protobuf message prehog.v1.ResourcePresenceReport
@@ -619,8 +618,8 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
             { no: 16, name: "bot_joins", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 17, name: "certificates_issued", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 18, name: "spiffe_ids_issued", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SPIFFEIDRecord },
-            { no: 20, name: "access_request_created", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
-            { no: 21, name: "access_request_reviewed", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+            { no: 19, name: "access_requests_created", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 20, name: "access_requests_reviewed", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
         ]);
     }
     create(value?: PartialMessage<UserActivityRecord>): UserActivityRecord {
@@ -643,8 +642,8 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         message.botJoins = 0n;
         message.certificatesIssued = 0n;
         message.spiffeIdsIssued = [];
-        message.accessRequestCreated = 0n;
-        message.accessRequestReviewed = 0n;
+        message.accessRequestsCreated = 0n;
+        message.accessRequestsReviewed = 0n;
         if (value !== undefined)
             reflectionMergePartial<UserActivityRecord>(this, message, value);
         return message;
@@ -708,11 +707,11 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
                 case /* repeated prehog.v1.SPIFFEIDRecord spiffe_ids_issued */ 18:
                     message.spiffeIdsIssued.push(SPIFFEIDRecord.internalBinaryRead(reader, reader.uint32(), options));
                     break;
-                case /* uint64 access_request_created */ 20:
-                    message.accessRequestCreated = reader.uint64().toBigInt();
+                case /* uint64 access_requests_created */ 19:
+                    message.accessRequestsCreated = reader.uint64().toBigInt();
                     break;
-                case /* uint64 access_request_reviewed */ 21:
-                    message.accessRequestReviewed = reader.uint64().toBigInt();
+                case /* uint64 access_requests_reviewed */ 20:
+                    message.accessRequestsReviewed = reader.uint64().toBigInt();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -780,12 +779,12 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         /* repeated prehog.v1.SPIFFEIDRecord spiffe_ids_issued = 18; */
         for (let i = 0; i < message.spiffeIdsIssued.length; i++)
             SPIFFEIDRecord.internalBinaryWrite(message.spiffeIdsIssued[i], writer.tag(18, WireType.LengthDelimited).fork(), options).join();
-        /* uint64 access_request_created = 20; */
-        if (message.accessRequestCreated !== 0n)
-            writer.tag(20, WireType.Varint).uint64(message.accessRequestCreated);
-        /* uint64 access_request_reviewed = 21; */
-        if (message.accessRequestReviewed !== 0n)
-            writer.tag(21, WireType.Varint).uint64(message.accessRequestReviewed);
+        /* uint64 access_requests_created = 19; */
+        if (message.accessRequestsCreated !== 0n)
+            writer.tag(19, WireType.Varint).uint64(message.accessRequestsCreated);
+        /* uint64 access_requests_reviewed = 20; */
+        if (message.accessRequestsReviewed !== 0n)
+            writer.tag(20, WireType.Varint).uint64(message.accessRequestsReviewed);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
