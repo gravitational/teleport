@@ -82,6 +82,11 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		}
 
 	case *apievents.AccessRequestCreate:
+		// The access request audit event emitter uses ClientUserMetadata function to
+		// deduce username. The ClientUserMetadata function may return teleport.UserSystem
+		// if it cannot find user identity in the context. Since we want to record
+		// user activity, event containing teleport.UserSystem should be filtered as
+		// it does not refer to an actual user account.
 		switch e.GetType() {
 		case events.AccessRequestCreateEvent:
 			if e.User == "" || e.User == teleport.UserSystem {
@@ -91,7 +96,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 				UserName: e.User,
 			}
 		case events.AccessRequestReviewEvent:
-			if e.Reviewer == "" || e.User == teleport.UserSystem {
+			if e.Reviewer == "" || e.Reviewer == teleport.UserSystem {
 				return nil
 			}
 			return &AccessRequestReviewEvent{
