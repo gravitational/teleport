@@ -1,4 +1,4 @@
-.version: &version "18.0.0-dev"
+.version: &version "18.0.0-dev.hugoau.12"
 
 name: teleport-operator
 apiVersion: v2
