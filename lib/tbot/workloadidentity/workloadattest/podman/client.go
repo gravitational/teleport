@@ -144,19 +144,19 @@ type Container struct {
 	ID string `json:"Id"`
 
 	// Name is the user-given name of the container.
-	Name string
+	Name string `json:"Name"`
 
 	// Config contains the initial configuration of the container.
-	Config ContainerConfig
+	Config ContainerConfig `json:"Config"`
 }
 
 // ContainerConfig is the initial configuration of a container.
 type ContainerConfig struct {
 	// Image name (e.g. nginx:latest)
-	Image string
+	Image string `json:"Image"`
 
 	// Labels given to the container.
-	Labels map[string]string
+	Labels map[string]string `json:"Labels"`
 }
 
 // Pod details.
@@ -165,8 +165,8 @@ type Pod struct {
 	ID string `json:"Id"`
 
 	// Name is the user-given name of the pod.
-	Name string
+	Name string `json:"Name"`
 
 	// Labels given to the pod.
-	Labels map[string]string
+	Labels map[string]string `json:"Labels"`
 }
