@@ -80,12 +80,21 @@
         },
         "apps": {
             "$id": "#/properties/apps",
-            "type": "array",
-            "default": [],
-            "required": [
-                "name",
-                "uri"
-            ],
+            "oneOf": [
+                {
+                    "type": "array",
+                    "default": [],
+                    "required": [
+                        "name",
+                        "uri"
+                    ]
+                },
+                {
+                    "type": "string",
+                    "default": ""
+                }
+            ]
+        },
             "properties": {
                 "name": {
                     "$id": "#/properties/apps/name",
