@@ -3,8 +3,8 @@
 # Keep versions in sync with devbox.json, when applicable.
 
 # Sync with devbox.json.
-GOLANG_VERSION ?= go1.23.6
-GOLANGCI_LINT_VERSION ?= v1.64.2
+GOLANG_VERSION ?= go1.24.0
+GOLANGCI_LINT_VERSION ?= v1.64.5
 
 # NOTE: Remember to update engines.node in package.json to match the major version.
 # TODO(ravicious): When updating Node.js, see if corepack distributed with the new Node.JS version

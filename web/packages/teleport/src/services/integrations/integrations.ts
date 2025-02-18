@@ -18,6 +18,7 @@
 
 import cfg from 'teleport/config';
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import api from 'teleport/services/api';
 
 import { App } from '../apps';
@@ -61,6 +62,9 @@ import {
   SecurityGroup,
   SecurityGroupRule,
   Subnet,
+  UserTask,
+  UserTaskDetail,
+  UserTasksListResponse,
 } from './types';
 
 export const integrationService = {
@@ -470,13 +474,76 @@ export const integrationService = {
         return { services: makeDatabaseServices(resp) };
       });
   },
+
+  fetchIntegrationUserTasksList(
+    name: string,
+    state: TaskState
+  ): Promise<UserTasksListResponse> {
+    return api
+      .get(cfg.getIntegrationUserTasksListUrl(name, state))
+      .then(resp => {
+        return {
+          items: resp?.items || [],
+          nextKey: resp?.nextKey,
+        };
+      });
+  },
+
+  fetchUserTask(name: string): Promise<UserTaskDetail> {
+    return api.get(cfg.getUserTaskUrl(name)).then(resp => {
+      return {
+        name: resp.name,
+        taskType: resp.taskType,
+        state: resp.state,
+        issueType: resp.issueType,
+        integration: resp.integration,
+        lastStateChange: resp.lastStateChange,
+        description: resp.description,
+        discoverEc2: {
+          instances: resp.discoverEc2?.instances,
+          accountId: resp.discoverEc2?.accountId,
+          region: resp.discoverEc2?.region,
+          ssmDocument: resp.discoverEc2?.ssmDocument,
+          installerScript: resp.discoverEc2?.installerScript,
+        },
+        discoverEks: {
+          clusters: resp.discoverEks?.instances,
+          accountId: resp.discoverEks?.accountId,
+          region: resp.discoverEks?.region,
+          appAutoDiscover: resp.discoverEks?.appAutoDiscover,
+        },
+        discoverRds: {
+          databases: resp.discoverRds?.instances,
+          accountId: resp.discoverRds?.accountId,
+          region: resp.discoverRds?.region,
+        },
+      };
+    });
+  },
+
+  resolveUserTask(name: string): Promise<UserTask> {
+    return api
+      .put(cfg.getResolveUserTaskUrl(name), {
+        state: TaskState.Resolved,
+      })
+      .then(resp => {
+        return {
+          name: resp.name,
+          taskType: resp.taskType,
+          state: resp.state,
+          issueType: resp.issueType,
+          integration: resp.integration,
+          lastStateChange: resp.lastStateChange,
+        };
+      });
+  },
 };
 
 function makeDatabaseServices(json: any): AWSOIDCDeployedDatabaseService[] {
   json = json ?? {};
   const { services } = json;
 
-  return services.map((service: AWSOIDCDeployedDatabaseService) => ({
+  return services?.map((service: AWSOIDCDeployedDatabaseService) => ({
     name: service.name ?? '',
     dashboardUrl: service.dashboardUrl ?? '',
     validTeleportConfig: service.validTeleportConfig ?? false,

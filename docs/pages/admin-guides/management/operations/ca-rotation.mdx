@@ -33,7 +33,7 @@ following order:
    signed by the new certificate authority, but still accept certificates issued
    by the original certificate authority. This only applies to the Teleport
    [`host` CA](#host).
-   1. `standby`: No rotation in progress. All operations have completed.
+1. `standby`: No rotation in progress. All operations have completed.
 
 Before the final `standby` phase, you can also put the rotation in the
 `rollback` phase, aborting the rotation and returning to the original

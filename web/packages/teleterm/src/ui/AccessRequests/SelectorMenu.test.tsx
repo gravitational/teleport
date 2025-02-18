@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024 Gravitational, Inc.
+ * Copyright (C) 2025 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,54 +16,68 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { act, renderHook } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { useEffect } from 'react';
 
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { render } from 'design/utils/testing';
+
+import {
+  makeAccessRequest,
+  makeRootCluster,
+} from 'teleterm/services/tshd/testHelpers';
+import { SelectorMenu } from 'teleterm/ui/AccessRequests/SelectorMenu';
 import {
   ResourcesContextProvider,
   useResourcesContext,
 } from 'teleterm/ui/DocumentCluster/resourcesContext';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
-import { useAssumedRolesBar } from './useAssumedRolesBar';
+import { AccessRequestsContextProvider } from './AccessRequestsContext';
 
-test('dropping a request refreshes resources', async () => {
+test('assuming or dropping a request refreshes resources', async () => {
   const appContext = new MockAppContext();
-  const cluster = makeRootCluster();
+  const cluster = makeRootCluster({
+    features: { advancedAccessWorkflows: true, isUsageBasedBilling: false },
+  });
   appContext.addRootCluster(cluster);
   jest.spyOn(appContext.clustersService, 'dropRoles');
   const refreshListener = jest.fn();
+  const accessRequest = makeAccessRequest();
+  appContext.clustersService.setState(draftState => {
+    draftState.clusters.get(cluster.uri).loggedInUser.assumedRequests = {
+      [accessRequest.id]: accessRequest,
+    };
+  });
 
-  const wrapper = ({ children }) => (
+  render(
     <MockAppContextProvider appContext={appContext}>
       <ResourcesContextProvider>
-        <RequestRefreshSubscriber
-          rootClusterUri={cluster.uri}
-          onResourcesRefreshRequest={refreshListener}
-        />
-        {children}
+        <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
+          <AccessRequestsContextProvider rootClusterUri={cluster.uri}>
+            <RequestRefreshSubscriber
+              rootClusterUri={cluster.uri}
+              onResourcesRefreshRequest={refreshListener}
+            />
+            <SelectorMenu />
+          </AccessRequestsContextProvider>
+        </MockWorkspaceContextProvider>
       </ResourcesContextProvider>
     </MockAppContextProvider>
   );
 
-  const { result } = renderHook(
-    () =>
-      useAssumedRolesBar({
-        roles: [],
-        id: 'mocked-request-id',
-        expires: new Date(),
-      }),
-    { wrapper }
-  );
+  const accessRequestsMenu = await screen.findByTitle('Access Requests');
+  await userEvent.click(accessRequestsMenu);
 
-  await act(() => result.current.dropRequest());
+  const item = await screen.findByText(accessRequest.resources.at(0).id.name);
+  await userEvent.click(item);
   expect(appContext.clustersService.dropRoles).toHaveBeenCalledTimes(1);
   expect(appContext.clustersService.dropRoles).toHaveBeenCalledWith(
     cluster.uri,
-    ['mocked-request-id']
+    [accessRequest.id]
   );
   expect(refreshListener).toHaveBeenCalledTimes(1);
 });

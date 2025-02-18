@@ -146,7 +146,7 @@ export function TitleAndSubtitle(props: { title: string; subtitle?: string }) {
         typography="body2"
         fontWeight="400"
         css={`
-          line-height: 1.25;
+          line-height: 1.3;
         `}
       >
         {props.title}
@@ -156,7 +156,7 @@ export function TitleAndSubtitle(props: { title: string; subtitle?: string }) {
         <P3
           color="text.slightlyMuted"
           css={`
-            line-height: 1.25;
+            line-height: 1.3;
           `}
         >
           {props.subtitle}

@@ -20,15 +20,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/awsfips"
 )
 
 // NewFromConfig wraps [iam.NewFromConfig] and applies FIPS settings
 // according to environment variables.
 //
-// See [awsutils.IsFIPSDisabledByEnv].
+// See [awsfips.IsFIPSDisabledByEnv].
 func NewFromConfig(cfg aws.Config, optFns ...func(*iam.Options)) *iam.Client {
-	if awsutils.IsFIPSDisabledByEnv() {
+	if awsfips.IsFIPSDisabledByEnv() {
 		// append so it overrides any preceding settings.
 		optFns = append(optFns, func(opts *iam.Options) {
 			opts.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateDisabled

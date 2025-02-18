@@ -4,7 +4,7 @@ This chart sets up and configures a Deployment for the Access Request Datadog In
 
 ## Installation
 
-See the [Access Requests with Datadog Incident Management guide](https://goteleport.com/docs/access-controls/access-request-plugins/datadog-hosted/).
+See the [Access Requests with Datadog Incident Management guide](https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/datadog-hosted/).
 
 ## Values
 

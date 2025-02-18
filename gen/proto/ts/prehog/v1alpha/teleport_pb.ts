@@ -286,6 +286,13 @@ export interface SessionStartEvent {
      * @generated from protobuf field: prehog.v1alpha.SessionStartAppMetadata app = 6;
      */
     app?: SessionStartAppMetadata;
+    /**
+     * if session_type == "git" the git struct contains additional information
+     * about git session.
+     *
+     * @generated from protobuf field: prehog.v1alpha.SessionStartGitMetadata git = 7;
+     */
+    git?: SessionStartGitMetadata;
 }
 /**
  * SessionStartDatabaseMetadata contains additional information about database session.
@@ -374,6 +381,26 @@ export interface SessionStartAppMetadata {
      * @generated from protobuf field: bool is_multi_port = 1;
      */
     isMultiPort: boolean;
+}
+/**
+ * SessionStartGitMetadata contains additional information about a git session.
+ *
+ * @generated from protobuf message prehog.v1alpha.SessionStartGitMetadata
+ */
+export interface SessionStartGitMetadata {
+    /**
+     * git session type (equivalent to git_server.sub_kind).
+     *
+     * @generated from protobuf field: string git_type = 1;
+     */
+    gitType: string;
+    /**
+     * git_service is the type of the git request like git-upload-pack or
+     * git-receive-pack.
+     *
+     * @generated from protobuf field: string git_service = 2;
+     */
+    gitService: string;
 }
 /**
  * the issuance of a user certificate from the user CA
@@ -4464,7 +4491,8 @@ class SessionStartEvent$Type extends MessageType<SessionStartEvent> {
             { no: 3, name: "database", kind: "message", T: () => SessionStartDatabaseMetadata },
             { no: 4, name: "desktop", kind: "message", T: () => SessionStartDesktopMetadata },
             { no: 5, name: "user_kind", kind: "enum", T: () => ["prehog.v1alpha.UserKind", UserKind, "USER_KIND_"] },
-            { no: 6, name: "app", kind: "message", T: () => SessionStartAppMetadata }
+            { no: 6, name: "app", kind: "message", T: () => SessionStartAppMetadata },
+            { no: 7, name: "git", kind: "message", T: () => SessionStartGitMetadata }
         ]);
     }
     create(value?: PartialMessage<SessionStartEvent>): SessionStartEvent {
@@ -4499,6 +4527,9 @@ class SessionStartEvent$Type extends MessageType<SessionStartEvent> {
                 case /* prehog.v1alpha.SessionStartAppMetadata app */ 6:
                     message.app = SessionStartAppMetadata.internalBinaryRead(reader, reader.uint32(), options, message.app);
                     break;
+                case /* prehog.v1alpha.SessionStartGitMetadata git */ 7:
+                    message.git = SessionStartGitMetadata.internalBinaryRead(reader, reader.uint32(), options, message.git);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -4529,6 +4560,9 @@ class SessionStartEvent$Type extends MessageType<SessionStartEvent> {
         /* prehog.v1alpha.SessionStartAppMetadata app = 6; */
         if (message.app)
             SessionStartAppMetadata.internalBinaryWrite(message.app, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.SessionStartGitMetadata git = 7; */
+        if (message.git)
+            SessionStartGitMetadata.internalBinaryWrite(message.git, writer.tag(7, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -4736,6 +4770,61 @@ class SessionStartAppMetadata$Type extends MessageType<SessionStartAppMetadata> 
  * @generated MessageType for protobuf message prehog.v1alpha.SessionStartAppMetadata
  */
 export const SessionStartAppMetadata = new SessionStartAppMetadata$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SessionStartGitMetadata$Type extends MessageType<SessionStartGitMetadata> {
+    constructor() {
+        super("prehog.v1alpha.SessionStartGitMetadata", [
+            { no: 1, name: "git_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "git_service", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SessionStartGitMetadata>): SessionStartGitMetadata {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.gitType = "";
+        message.gitService = "";
+        if (value !== undefined)
+            reflectionMergePartial<SessionStartGitMetadata>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SessionStartGitMetadata): SessionStartGitMetadata {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string git_type */ 1:
+                    message.gitType = reader.string();
+                    break;
+                case /* string git_service */ 2:
+                    message.gitService = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SessionStartGitMetadata, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string git_type = 1; */
+        if (message.gitType !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.gitType);
+        /* string git_service = 2; */
+        if (message.gitService !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.gitService);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.SessionStartGitMetadata
+ */
+export const SessionStartGitMetadata = new SessionStartGitMetadata$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class UserCertificateIssuedEvent$Type extends MessageType<UserCertificateIssuedEvent> {
     constructor() {
