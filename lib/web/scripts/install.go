@@ -22,7 +22,6 @@ import (
 	"context"
 	_ "embed"
 	"net/url"
-	"strconv"
 	"strings"
 
 	"github.com/google/safetext/shsprintf"
@@ -112,9 +111,9 @@ func (o *InstallScriptOptions) oneOffParams() (params oneoff.OneOffScriptParams)
 		version = "v" + o.TeleportVersion
 	}
 
-	args := []string{"enable", "--proxy", strconv.Quote(shsprintf.EscapeDefaultContext(o.ProxyAddr))}
+	args := []string{"enable", "--proxy", shsprintf.EscapeDefaultContext(o.ProxyAddr)}
 	if o.CDNBaseURL != "" {
-		args = append(args, "--base-url", strconv.Quote(shsprintf.EscapeDefaultContext(o.CDNBaseURL)))
+		args = append(args, "--base-url", shsprintf.EscapeDefaultContext(o.CDNBaseURL))
 	}
 
 	return oneoff.OneOffScriptParams{

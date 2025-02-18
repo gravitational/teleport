@@ -66,7 +66,7 @@ func TestGetInstallScript(t *testing.T) {
 				require.Contains(t, script, fmt.Sprintf("teleportVersion='v%s'", testVersion))
 				require.Contains(t, script, fmt.Sprintf("teleportFlavor='%s'", types.PackageNameOSS))
 				require.Contains(t, script, fmt.Sprintf("cdnBaseURL='%s'", teleportassets.CDNBaseURL()))
-				require.Contains(t, script, fmt.Sprintf("teleportArgs='enable --proxy %q'", testProxyAddr))
+				require.Contains(t, script, fmt.Sprintf("entrypointArgs='enable --proxy %q'", testProxyAddr))
 				require.Contains(t, script, "teleportFIPSSuffix=''")
 			},
 		},
@@ -84,7 +84,7 @@ func TestGetInstallScript(t *testing.T) {
 				require.Contains(t, script, fmt.Sprintf("teleportVersion='v%s'", testVersion))
 				require.Contains(t, script, fmt.Sprintf("teleportFlavor='%s'", types.PackageNameOSS))
 				require.Contains(t, script, "cdnBaseURL='https://cdn.example.com'")
-				require.Contains(t, script, fmt.Sprintf("teleportArgs='enable --proxy %q --base-url %q'", testProxyAddr, "https://cdn.example.com"))
+				require.Contains(t, script, fmt.Sprintf("entrypointArgs='enable --proxy %q --base-url %q'", testProxyAddr, "https://cdn.example.com"))
 				require.Contains(t, script, "teleportFIPSSuffix=''")
 			},
 		},
@@ -101,7 +101,7 @@ func TestGetInstallScript(t *testing.T) {
 				require.Contains(t, script, fmt.Sprintf("teleportVersion='v%s'", testVersion))
 				require.Contains(t, script, fmt.Sprintf("teleportFlavor='%s'", types.PackageNameEnt))
 				require.Contains(t, script, fmt.Sprintf("cdnBaseURL='%s'", teleportassets.CDNBaseURL()))
-				require.Contains(t, script, fmt.Sprintf("teleportArgs='enable --proxy %q'", testProxyAddr))
+				require.Contains(t, script, fmt.Sprintf("entrypointArgs='enable --proxy %q'", testProxyAddr))
 				require.Contains(t, script, "teleportFIPSSuffix=''")
 			},
 		},
@@ -119,7 +119,7 @@ func TestGetInstallScript(t *testing.T) {
 				require.Contains(t, script, fmt.Sprintf("teleportVersion='v%s'", testVersion))
 				require.Contains(t, script, fmt.Sprintf("teleportFlavor='%s'", types.PackageNameEnt))
 				require.Contains(t, script, fmt.Sprintf("cdnBaseURL='%s'", teleportassets.CDNBaseURL()))
-				require.Contains(t, script, fmt.Sprintf("teleportArgs='enable --proxy %q'", testProxyAddr))
+				require.Contains(t, script, fmt.Sprintf("entrypointArgs='enable --proxy %q'", testProxyAddr))
 				require.Contains(t, script, "teleportFIPSSuffix='fips-'")
 			},
 		},
