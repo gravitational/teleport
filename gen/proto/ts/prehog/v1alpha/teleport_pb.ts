@@ -2774,8 +2774,6 @@ export interface UserTaskStateEvent {
  */
 export interface AccessListReviewEvent {
     /**
-     * anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64;
-     *
      * Teleport user name. Anonymized.
      *
      * @generated from protobuf field: string user_name = 1;
