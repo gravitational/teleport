@@ -33,7 +33,7 @@ func UserOriginFromUserType(userType types.UserType) UserOrigin {
 	}
 }
 
-// UserOriginFromUserType converts API origin label value to UserOrigin.
+// UserOriginFromOriginLabel converts API origin label value to UserOrigin.
 func UserOriginFromOriginLabel(origin string) UserOrigin {
 	switch origin {
 	case common.OriginOkta:

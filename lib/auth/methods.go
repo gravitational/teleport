@@ -113,11 +113,6 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.Authe
 		return nil, nil, trace.Wrap(err)
 	}
 
-	userOrigin := apievents.UserOriginFromOriginLabel(user.Origin())
-	if userOrigin == apievents.UserOrigin_USER_ORIGIN_UNSPECIFIED {
-		userOrigin = apievents.UserOriginFromUserType(user.GetUserType())
-	}
-
 	// Verify if the MFA device is locked.
 	if err := verifyMFALocks(verifyMFADeviceLocksParams{
 		Checker: checker,
@@ -141,7 +136,7 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.Authe
 		clientMetadata: req.ClientMetadata,
 		mfaDevice:      mfaDev,
 		checker:        checker,
-		userOrigin:     userOrigin,
+		userOrigin:     userOrigin(user),
 	}); err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit login event", "error", err)
 	}
@@ -824,3 +819,11 @@ func trimUserAgent(userAgent string) string {
 }
 
 const noLocalAuth = "local auth disabled"
+
+func userOrigin(user types.User) apievents.UserOrigin {
+	userOrigin := apievents.UserOriginFromOriginLabel(user.Origin())
+	if userOrigin == apievents.UserOrigin_USER_ORIGIN_UNSPECIFIED {
+		userOrigin = apievents.UserOriginFromUserType(user.GetUserType())
+	}
+	return userOrigin
+}
