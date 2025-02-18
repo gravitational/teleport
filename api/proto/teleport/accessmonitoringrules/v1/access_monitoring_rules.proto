@@ -45,6 +45,8 @@ message AccessMonitoringRuleSpec {
   string condition = 3;
   // notification defines the plugin configuration for notifications if rule is triggered.
   Notification notification = 4;
+  // automatic_approval defines the plugin configuration for automatic approvals.
+  AutomaticApproval automatic_approval = 5;
 }
 
 // Notification contains configurations for plugin notification rules.
@@ -53,6 +55,12 @@ message Notification {
   string name = 1;
   // recipients is the list of recipients the plugin should notify.
   repeated string recipients = 2;
+}
+
+// AutomaticApproval contains configurations for plugin automatic approval rules.
+message AutomaticApproval {
+  // name is the name of the plugin to which this configuration should apply.
+  string name = 1;
 }
 
 // CreateAccessMonitoringRuleRequest is the request for CreateAccessMonitoringRule.
@@ -105,6 +113,9 @@ message ListAccessMonitoringRulesWithFilterRequest {
   repeated string subjects = 3;
   // notification_name is the value of the notification name field the rule must have. This field is optional.
   string notification_name = 4;
+  // automatic_approval_name is the value of the automatic_approval name field
+  // the rule must have. This field is optional.
+  string automatic_approval_name = 5;
 }
 
 // ListAccessMonitoringRulesResponse is the response from ListAccessMonitoringRules.
