@@ -50,6 +50,7 @@ type WorkloadIdentityX509Service struct {
 	// trustBundleCache is the cache of trust bundles. It only needs to be
 	// provided when running in daemon mode.
 	trustBundleCache *workloadidentity.TrustBundleCache
+	crlCache         *workloadidentity.CRLCache
 }
 
 // String returns a human-readable description of the service.
@@ -74,9 +75,16 @@ func (s *WorkloadIdentityX509Service) OneShot(ctx context.Context) error {
 	)
 	if err != nil {
 		return trace.Wrap(err, "fetching trust bundle set")
-
 	}
-	return s.render(ctx, bundleSet, res, privateKey)
+	crlSet, err := workloadidentity.FetchCRLSet(
+		ctx,
+		s.botAuthClient.WorkloadIdentityRevocationServiceClient(),
+	)
+	if err != nil {
+		return trace.Wrap(err, "fetching CRL set")
+	}
+
+	return s.render(ctx, bundleSet, res, privateKey, crlSet)
 }
 
 // Run runs the service in daemon mode, periodically generating the output and
@@ -85,6 +93,10 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 	bundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
 	if err != nil {
 		return trace.Wrap(err, "getting trust bundle set")
+	}
+	crlSet, err := s.crlCache.GetCRLSet(ctx)
+	if err != nil {
+		return trace.Wrap(err, "getting CRL set from cache")
 	}
 
 	jitter := retryutils.DefaultJitter
@@ -127,6 +139,13 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 				privateKey = nil
 			}
 			bundleSet = newBundleSet
+		case <-crlSet.Stale():
+			newCRLSet, err := s.crlCache.GetCRLSet(ctx)
+			if err != nil {
+				return trace.Wrap(err, "getting CRL set from cache")
+			}
+			crlSet = newCRLSet
+			s.log.DebugContext(ctx, "CRL set has been updated")
 		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval):
 			s.log.InfoContext(ctx, "Renewal interval reached, renewing SVIDs")
 			x509Cred = nil
@@ -143,7 +162,9 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 				continue
 			}
 		}
-		if err := s.render(ctx, bundleSet, x509Cred, privateKey); err != nil {
+		if err := s.render(
+			ctx, bundleSet, x509Cred, privateKey, crlSet,
+		); err != nil {
 			s.log.ErrorContext(ctx, "Failed to render output", "error", err)
 			failures++
 			continue
@@ -233,6 +254,7 @@ func (s *WorkloadIdentityX509Service) render(
 	bundleSet *workloadidentity.BundleSet,
 	x509Cred *workloadidentityv1pb.Credential,
 	privateKey crypto.Signer,
+	crlSet *workloadidentity.CRLSet,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -294,6 +316,13 @@ func (s *WorkloadIdentityX509Service) render(
 		ctx, config.SVIDTrustBundlePEMPath, trustBundleBytes,
 	); err != nil {
 		return trace.Wrap(err, "writing svid trust bundle")
+	}
+
+	crlBytes := crlSet.Marshal()
+	if len(crlBytes) > 0 {
+		if err := s.cfg.Destination.Write(ctx, config.SVIDCRLPemPath, crlBytes); err != nil {
+			return trace.Wrap(err, "writing CRL")
+		}
 	}
 
 	s.log.InfoContext(

@@ -21,6 +21,7 @@ package workloadidentity
 import (
 	"bytes"
 	"context"
+	"encoding/pem"
 	"log/slog"
 	"sync"
 	"time"
@@ -43,6 +44,15 @@ func (b *CRLSet) Clone() *CRLSet {
 		copy(clone.LocalCRL, b.LocalCRL)
 	}
 	return clone
+}
+
+// Marshal returns the CRL Set encoded in PEM format. It returns an empty
+// byte slice if no CRL is present.
+func (b *CRLSet) Marshal() []byte {
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "X509 CRL",
+		Bytes: b.LocalCRL,
+	})
 }
 
 // Stale returns a channel that will be closed when the CRLSet is stale
@@ -124,12 +134,14 @@ func (m *CRLCache) watch(ctx context.Context) error {
 
 func (m *CRLCache) setCRLSet(ctx context.Context, crlSet *CRLSet) {
 	m.mu.Lock()
+	defer m.mu.Unlock()
 	old := m.crlSet
 
 	// Exit early if the CRL set is the same as the current one.
 	if old != nil {
 		if bytes.Equal(old.LocalCRL, crlSet.LocalCRL) {
 			m.logger.DebugContext(ctx, "Ignoring unchanged CRL set")
+			return
 		}
 	}
 
@@ -145,7 +157,7 @@ func (m *CRLCache) setCRLSet(ctx context.Context, crlSet *CRLSet) {
 		// Indicate that a new CRL set is available.
 		close(old.stale)
 	}
-	m.mu.Unlock()
+	m.logger.DebugContext(ctx, "Broadcasting new CRL set to subscribed workloads")
 }
 
 func (m *CRLCache) getCRLSet() *CRLSet {
@@ -170,4 +182,34 @@ func (m *CRLCache) GetCRLSet(
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
+}
+
+// FetchCRLSet fetches the current CRL set from the revocations service.
+// Use this only in the implementation of OneShot methods, and prefer using the
+// cache for long-running services.
+func FetchCRLSet(
+	ctx context.Context,
+	revocationsClient workloadidentityv1pb.WorkloadIdentityRevocationServiceClient,
+) (*CRLSet, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	stream, err := revocationsClient.StreamSignedCRL(
+		ctx, &workloadidentityv1pb.StreamSignedCRLRequest{},
+	)
+	if trace.IsNotImplemented(err) {
+		return &CRLSet{}, nil
+	}
+	if err != nil {
+		return nil, trace.Wrap(err, "streaming CRL")
+	}
+
+	res, err := stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err, "receiving CRL")
+	}
+
+	return &CRLSet{
+		LocalCRL: res.Crl,
+	}, nil
 }

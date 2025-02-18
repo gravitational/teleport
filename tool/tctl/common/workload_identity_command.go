@@ -399,7 +399,8 @@ func (c *WorkloadIdentityCommand) ListRevocations(
 func (c *WorkloadIdentityCommand) StreamCRL(
 	ctx context.Context, client *authclient.Client,
 ) error {
-
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	revocationsClient := client.WorkloadIdentityRevocationServiceClient()
 
 	req := &workloadidentityv1pb.StreamSignedCRLRequest{}
