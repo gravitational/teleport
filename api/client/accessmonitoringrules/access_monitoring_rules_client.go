@@ -111,13 +111,8 @@ func (c *Client) ListAccessMonitoringRules(ctx context.Context, pageSize int, pa
 }
 
 // ListAccessMonitoringRulesWithFilter lists current access monitoring rules.
-func (c *Client) ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, pageToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
-	resp, err := c.grpcClient.ListAccessMonitoringRulesWithFilter(ctx, &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
-		PageSize:         int64(pageSize),
-		PageToken:        pageToken,
-		Subjects:         subjects,
-		NotificationName: notificationName,
-	})
+func (c *Client) ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
+	resp, err := c.grpcClient.ListAccessMonitoringRulesWithFilter(ctx, req)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
