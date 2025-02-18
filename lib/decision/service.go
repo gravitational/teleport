@@ -175,6 +175,12 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 		return nil, trace.Wrap(err)
 	}
 
+	// load auth preference (used during calculation of locking mode)
+	authPref, err := s.cfg.AccessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	permit := &decisionpb.SSHAccessPermit{
 		Metadata: &decisionpb.PermitMetadata{
 			PdpVersion: teleport.Version,
