@@ -123,8 +123,8 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 			Ready:       debugClient,
 			Log:         cfg.Log,
 		},
-		ReexecSetup: func(ctx context.Context, path string, reload bool) error {
-			name := filepath.Join(path, BinaryName)
+		ReexecSetup: func(ctx context.Context, pathDir string, reload bool) error {
+			name := filepath.Join(pathDir, BinaryName)
 			if cfg.SelfSetup && runtime.GOOS == constants.LinuxOS {
 				name = "/proc/self/exe"
 			}
@@ -136,7 +136,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 			if cfg.Debug {
 				args = append(args, "--debug")
 			}
-			args = append(args, "setup", "--path", path)
+			args = append(args, "setup", "--path", pathDir)
 			if reload {
 				args = append(args, "--reload")
 			}
@@ -211,7 +211,7 @@ type Installer interface {
 	// The revert function must restore the previous linking, returning false on any failure.
 	// If force is true, Link will overwrite non-symlinks.
 	// Link must be idempotent. Link's revert function must be idempotent.
-	Link(ctx context.Context, rev Revision, path string, force bool) (revert func(context.Context) bool, err error)
+	Link(ctx context.Context, rev Revision, pathDir string, force bool) (revert func(context.Context) bool, err error)
 	// LinkSystem links the system installation of Teleport into the system linking location.
 	// The revert function must restore the previous linking, returning false on any failure.
 	// LinkSystem must be idempotent. LinkSystem's revert function must be idempotent.
@@ -219,14 +219,14 @@ type Installer interface {
 	// TryLink links the specified revision of Teleport into path.
 	// Unlike Link, TryLink will fail if existing links to other locations are present.
 	// TryLink must be idempotent.
-	TryLink(ctx context.Context, rev Revision, path string) error
+	TryLink(ctx context.Context, rev Revision, pathDir string) error
 	// TryLinkSystem links the system (package) installation of Teleport into the system linking location.
 	// Unlike LinkSystem, TryLinkSystem will fail if existing links to other locations are present.
 	// TryLinkSystem must be idempotent.
 	TryLinkSystem(ctx context.Context) error
 	// Unlink unlinks the specified revision of Teleport from path.
 	// Unlink must be idempotent.
-	Unlink(ctx context.Context, rev Revision, path string) error
+	Unlink(ctx context.Context, rev Revision, pathDir string) error
 	// UnlinkSystem unlinks the system (package) installation of Teleport from the system linking location.
 	// UnlinkSystem must be idempotent.
 	UnlinkSystem(ctx context.Context) error
@@ -236,7 +236,7 @@ type Installer interface {
 	// Remove must be idempotent.
 	Remove(ctx context.Context, rev Revision) error
 	// IsLinked returns true if the revision is linked to path.
-	IsLinked(ctx context.Context, rev Revision, path string) (bool, error)
+	IsLinked(ctx context.Context, rev Revision, pathDir string) (bool, error)
 }
 
 var (
