@@ -78,10 +78,7 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-require (
-	github.com/spf13/afero v1.15.0
-	gopkg.in/yaml.v2 v2.4.0
-)
+require gopkg.in/yaml.v2 v2.4.0
 
 require (
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
