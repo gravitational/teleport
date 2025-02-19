@@ -33,9 +33,9 @@ import (
 
 const (
 	ServiceCommand     = "vnet-service"
+	serviceName        = "TeleportVNet"
 	serviceDescription = "This service manages networking and OS configuration for Teleport VNet."
 	serviceAccessFlags = windows.SERVICE_START | windows.SERVICE_STOP | windows.SERVICE_QUERY_STATUS
-	serviceName        = "TeleportVNet"
 )
 
 // runService is called from the normal user process to run the VNet Windows in
@@ -92,7 +92,7 @@ func startService(ctx context.Context, cfg *windowsAdminProcessConfig) (*mgr.Ser
 	if err := service.Start(ServiceCommand,
 		"--addr", cfg.clientApplicationServiceAddr,
 		"--cred-path", cfg.serviceCredentialPath,
-		"--username", cfg.username,
+		"--user-sid", cfg.userSID,
 	); err != nil {
 		return nil, trace.Wrap(err, "starting Windows service %s", serviceName)
 	}
@@ -167,7 +167,7 @@ func (s *windowsService) run(ctx context.Context, args []string) error {
 	serviceCmd := app.Command("vnet-service", "Start the VNet service.")
 	serviceCmd.Flag("addr", "client application service address").Required().StringVar(&cfg.clientApplicationServiceAddr)
 	serviceCmd.Flag("cred-path", "path to TLS credentials for connecting to client application").Required().StringVar(&cfg.serviceCredentialPath)
-	serviceCmd.Flag("username", "SID of the user running the client application").Required().StringVar(&cfg.username)
+	serviceCmd.Flag("user-sid", "SID of the user running the client application").Required().StringVar(&cfg.userSID)
 	cmd, err := app.Parse(args[1:])
 	if err != nil {
 		return trace.Wrap(err, "parsing runtime arguments to Windows service")

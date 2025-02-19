@@ -22,7 +22,6 @@ import (
 	"net"
 	"os"
 	"os/user"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -59,10 +58,12 @@ func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm 
 		return nil, nsi, trace.Wrap(err, "generating gRPC server TLS config")
 	}
 
-	username, userSID, err := currentUsernameAndSID()
+	u, err := user.Current()
 	if err != nil {
 		return nil, nsi, trace.Wrap(err, "getting current OS user")
 	}
+	// Uid is documented to be the user's SID on Windows.
+	userSID := u.Uid
 
 	credDir, err := os.MkdirTemp("", "vnet_service_certs")
 	if err != nil {
@@ -105,7 +106,7 @@ func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm 
 		return trace.Wrap(runService(processCtx, &windowsAdminProcessConfig{
 			clientApplicationServiceAddr: listener.Addr().String(),
 			serviceCredentialPath:        credDir,
-			username:                     username,
+			userSID:                      userSID,
 		}))
 	})
 	pm.AddCriticalBackgroundTask("gRPC service", func() error {
@@ -122,19 +123,6 @@ func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm 
 		return nil
 	})
 	return pm, nsi, nil
-}
-
-func currentUsernameAndSID() (string, string, error) {
-	u, err := user.Current()
-	if err != nil {
-		return "", "", trace.Wrap(err, "looking up current user")
-	}
-	// u.Username may start with a DOMAIN\ prefix.
-	// u.Uid is documented to be the user's SID on Windows.
-	if chunks := strings.SplitN(u.Username, `\`, 2); len(chunks) == 2 {
-		return chunks[1], u.Uid, nil
-	}
-	return u.Username, u.Uid, nil
 }
 
 // secureCredDir sets ACLs so that the current user can write and delete
