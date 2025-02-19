@@ -18,9 +18,11 @@
 package sortcache
 
 import (
+	"iter"
 	"sync"
 
 	"github.com/google/btree"
+	"golang.org/x/exp/maps"
 )
 
 // Config configures a [SortCache].
@@ -156,6 +158,18 @@ func (c *SortCache[T]) Put(value T) (evicted int) {
 	return
 }
 
+func (c *SortCache[T]) Clear() {
+	c.rw.Lock()
+	defer c.rw.Unlock()
+
+	for _, tree := range c.trees {
+		tree.Clear(true)
+	}
+
+	maps.Clear(c.values)
+	c.counter = 0
+}
+
 // Delete deletes the value associated with the specified index/key if one exists.
 func (c *SortCache[T]) Delete(index, key string) {
 	c.rw.Lock()
@@ -183,57 +197,40 @@ func (c *SortCache[T]) deleteValue(ref uint64) {
 	}
 }
 
-// Ascend iterates the specified range from least to greatest. iteration is terminated early if the
-// supplied closure returns false. if this method is being used to read a range, it is strongly recommended
-// that all values retained be cloned. any mutation that results in changing a value's index keys will put
-// the sort cache into a permanently bad state. empty strings are treated as "open" bounds. passing an empty
-// string for both the start and stop bounds iterates all values.
+// Ascend consumes the specified range from least to greatest. if this method is being used to read a range,
+// it is strongly recommended that all values retained be cloned. any mutation that results in changing a
+// value's index keys will put the sort cache into a permanently bad state. empty strings are treated
+// as "open" bounds. passing an empty string for both the start and stop bounds iterates all values.
 //
 // NOTE: ascending ranges are equivalent to the default range logic used across most of teleport, so
 // common helpers like `backend.RangeEnd` will function as expected with this method.
-func (c *SortCache[T]) Ascend(index, start, stop string, iterator func(T) bool) {
-	c.rw.RLock()
-	defer c.rw.RUnlock()
+func (c *SortCache[T]) Ascend(index, start, stop string) iter.Seq[T] {
+	return func(yield func(T) bool) {
+		c.rw.RLock()
+		defer c.rw.RUnlock()
 
-	tree, ok := c.trees[index]
-	if !ok {
-		return
+		tree, ok := c.trees[index]
+		if !ok {
+			return
+		}
+
+		fn := func(ent entry) bool {
+			return yield(c.values[ent.ref])
+		}
+
+		// select the appropriate ascend variant based on wether or not
+		// start/stop points were specified.
+		switch {
+		case start == "" && stop == "":
+			tree.Ascend(fn)
+		case start == "":
+			tree.AscendLessThan(entry{key: stop}, fn)
+		case stop == "":
+			tree.AscendGreaterOrEqual(entry{key: start}, fn)
+		default:
+			tree.AscendRange(entry{key: start}, entry{key: stop}, fn)
+		}
 	}
-
-	fn := func(ent entry) bool {
-		return iterator(c.values[ent.ref])
-	}
-
-	// select the appropriate ascend variant based on wether or not
-	// start/stop points were specified.
-	switch {
-	case start == "" && stop == "":
-		tree.Ascend(fn)
-	case start == "":
-		tree.AscendLessThan(entry{key: stop}, fn)
-	case stop == "":
-		tree.AscendGreaterOrEqual(entry{key: start}, fn)
-	default:
-		tree.AscendRange(entry{key: start}, entry{key: stop}, fn)
-	}
-}
-
-// AscendPaginated returns a page from a range of items in the sortcache in ascending order, and the nextKey.
-func (c *SortCache[T]) AscendPaginated(index, startKey string, endKey string, pageSize int) ([]T, string) {
-	page := make([]T, 0, pageSize+1)
-
-	c.Ascend(index, startKey, endKey, func(r T) bool {
-		page = append(page, r)
-		return len(page) <= pageSize
-	})
-
-	var nextKey string
-	if len(page) > pageSize {
-		nextKey = c.KeyOf(index, page[pageSize])
-		page = page[:pageSize]
-	}
-
-	return page, nextKey
 }
 
 // Descend iterates the specified range from greatest to least. iteration is terminated early if the
@@ -245,30 +242,33 @@ func (c *SortCache[T]) AscendPaginated(index, startKey string, endKey string, pa
 // NOTE: descending sort order is the *opposite* of what most teleport range-based logic uses, meaning that
 // many common patterns need to be inverted when using this method (e.g. `backend.RangeEnd` actually gives
 // you the start position for descending ranges).
-func (c *SortCache[T]) Descend(index, start, stop string, iterator func(T) bool) {
-	c.rw.RLock()
-	defer c.rw.RUnlock()
+func (c *SortCache[T]) Descend(index, start, stop string) iter.Seq[T] {
+	return func(yield func(T) bool) {
 
-	tree, ok := c.trees[index]
-	if !ok {
-		return
-	}
+		c.rw.RLock()
+		defer c.rw.RUnlock()
 
-	fn := func(ent entry) bool {
-		return iterator(c.values[ent.ref])
-	}
+		tree, ok := c.trees[index]
+		if !ok {
+			return
+		}
 
-	// select the appropriate descend variant based on wether or not
-	// start/stop points were specified.
-	switch {
-	case start == "" && stop == "":
-		tree.Descend(fn)
-	case start == "":
-		tree.DescendGreaterThan(entry{key: stop}, fn)
-	case stop == "":
-		tree.DescendLessOrEqual(entry{key: start}, fn)
-	default:
-		tree.DescendRange(entry{key: start}, entry{key: stop}, fn)
+		fn := func(ent entry) bool {
+			return yield(c.values[ent.ref])
+		}
+
+		// select the appropriate descend variant based on wether or not
+		// start/stop points were specified.
+		switch {
+		case start == "" && stop == "":
+			tree.Descend(fn)
+		case start == "":
+			tree.DescendGreaterThan(entry{key: stop}, fn)
+		case stop == "":
+			tree.DescendLessOrEqual(entry{key: start}, fn)
+		default:
+			tree.DescendRange(entry{key: start}, entry{key: stop}, fn)
+		}
 	}
 }
 
@@ -276,10 +276,12 @@ func (c *SortCache[T]) Descend(index, start, stop string, iterator func(T) bool)
 func (c *SortCache[T]) DescendPaginated(index, startKey string, endKey string, pageSize int) ([]T, string) {
 	page := make([]T, 0, pageSize+1)
 
-	c.Descend(index, startKey, endKey, func(r T) bool {
+	for r := range c.Descend(index, startKey, endKey) {
 		page = append(page, r)
-		return len(page) <= pageSize
-	})
+		if len(page) > pageSize {
+			break
+		}
+	}
 
 	var nextKey string
 	if len(page) > pageSize {
