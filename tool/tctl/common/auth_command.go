@@ -289,7 +289,14 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt authCommandClie
 	}
 
 	// Only a single CA is exported if we got this far.
-	fmt.Printf("%s\n", authorities[0].Data)
+	data := authorities[0].Data
+
+	// Windows exports are DER-encoded.
+	if a.authType == "windows" {
+		os.Stdout.Write(data)
+	} else {
+		fmt.Printf("%s\n", data)
+	}
 	return nil
 }
 
@@ -515,7 +522,8 @@ func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authComma
 		return trace.Wrap(err)
 	}
 
-	fmt.Println(string(crl))
+	// CRLs are in DER format (a binary encoding), so don't use fmt.Println.
+	os.Stdout.Write(crl)
 	return nil
 }
 
