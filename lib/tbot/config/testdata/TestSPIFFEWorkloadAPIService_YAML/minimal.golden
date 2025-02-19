@@ -7,3 +7,5 @@ attestors:
     enabled: false
   podman:
     enabled: false
+  docker:
+    enabled: false
