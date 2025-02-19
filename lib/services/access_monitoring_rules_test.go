@@ -21,12 +21,12 @@ package services
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
-
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestValidateAccessMonitoringRule(t *testing.T) {
