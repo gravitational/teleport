@@ -26,14 +26,15 @@ import {
   AwsResource,
   StatCard,
 } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { TaskAlert } from 'teleport/Integrations/status/AwsOidc/Tasks/TaskAlert';
 import { useAwsOidcStatus } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
 
 export function AwsOidcDashboard() {
   const { statsAttempt, integrationAttempt } = useAwsOidcStatus();
 
   if (
-    statsAttempt.status == 'processing' ||
-    integrationAttempt.status == 'processing'
+    statsAttempt.status === 'processing' ||
+    integrationAttempt.status === 'processing'
   ) {
     return (
       <Box textAlign="center" mt={4}>
@@ -42,11 +43,11 @@ export function AwsOidcDashboard() {
     );
   }
 
-  if (integrationAttempt.status == 'error') {
+  if (integrationAttempt.status === 'error') {
     return <Danger>{integrationAttempt.statusText}</Danger>;
   }
 
-  if (statsAttempt.status == 'error') {
+  if (statsAttempt.status === 'error') {
     return <Danger>{statsAttempt.statusText}</Danger>;
   }
 
@@ -59,8 +60,14 @@ export function AwsOidcDashboard() {
   return (
     <>
       <AwsOidcHeader integration={integration} />
-      <FeatureBox css={{ maxWidth: '1400px', paddingTop: '16px' }}>
-        {integration && <AwsOidcTitle integration={integration} />}
+      <FeatureBox css={{ maxWidth: '1400px', paddingTop: '16px', gap: '16px' }}>
+        {integration && (
+          <>
+            <AwsOidcTitle integration={integration} />
+            <TaskAlert name={integration.name} />
+          </>
+        )}
+
         <H2 my={3}>Auto-Enrollment</H2>
         <Flex gap={3}>
           <StatCard

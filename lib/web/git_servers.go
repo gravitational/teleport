@@ -93,5 +93,5 @@ func (h *Handler) gitServerDelete(_ http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	return nil, clt.GitServerClient().DeleteGitServer(r.Context(), name)
+	return OK(), clt.GitServerClient().DeleteGitServer(r.Context(), name)
 }

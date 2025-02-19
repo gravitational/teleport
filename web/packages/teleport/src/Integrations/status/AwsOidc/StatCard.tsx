@@ -77,7 +77,7 @@ export function StatCard({ name, resource, summary }: StatCardProps) {
             <Text>Enrollment Rules </Text>
             <Text>{summary?.rulesCount || 0}</Text>
           </Flex>
-          {resource == AwsResource.rds && (
+          {resource === AwsResource.rds && (
             <Flex justifyContent="space-between" data-testid="rds-agents">
               <Text>Agents </Text>
               <Text>{summary?.ecsDatabaseServiceCount || 0}</Text>
@@ -127,7 +127,7 @@ function getResourceTerm(resource: AwsResource): string {
 }
 
 function foundResource(resource: ResourceTypeSummary): boolean {
-  if (Object.keys(resource).length == 0) {
+  if (!resource || Object.keys(resource).length === 0) {
     return false;
   }
 
