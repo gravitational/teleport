@@ -1,0 +1,48 @@
+kind: user
+metadata:
+  name: alice
+spec:
+  roles:
+  - staging-access
+  traits:
+    logins:
+    - alice
+version: v2
+---
+kind: role
+metadata:
+  name: staging-access
+spec:
+  allow:
+    logins:
+    - '{{internal.logins}}'
+    node_labels:
+      'env': 'staging'
+  options:
+    forward_agent: true
+    ssh_file_copy: true
+    permit_x11_forwarding: true
+    ssh_port_forwarding:
+      local:
+        enabled: true
+      remote:
+        enabled: false
+version: v7
+---
+kind: node
+metadata:
+  labels:
+    env: staging
+  name: f48b739e-7b6c-47e5-997e-f52e43273fae
+spec:
+  hostname: staging-node
+version: v2
+---
+kind: node
+metadata:
+  labels:
+    env: prod
+  name: 3c6924b0-3889-48d5-a886-ae79321dbeab
+spec:
+  hostname: staging-node
+version: v2

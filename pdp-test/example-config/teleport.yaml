@@ -1,0 +1,22 @@
+version: v3
+teleport:
+  nodename: root
+  auth_token: root-token
+  auth_server: 127.0.0.1:3026
+
+auth_service:
+  listen_addr: 127.0.0.1:3026
+  enabled: "yes"
+  authentication:
+    second_factor: otp
+  proxy_listener_mode: multiplex
+  tokens:
+  - proxy:root-token
+
+ssh_service:
+  enabled: "no"
+      
+proxy_service:
+  enabled: "yes"
+  web_listen_addr: 0.0.0.0:3080
+  public_addr: localhost:3080
