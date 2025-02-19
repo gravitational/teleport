@@ -597,10 +597,10 @@ func readListResourcesCache(cache *Cache, resourceType string) (readGuard[resour
 
 // readCachedResource acquires the cache read lock and calls the appropriate function for read operations
 // based on the cache health.
-func readCachedResource[T any, S store[T], U upstream[T]](ctx context.Context, cache *Cache, collect *collection[T, S, U], cacheRead func(context.Context, S) (T, error), upstreamRead func(context.Context, U) (T, error)) (T, error) {
+func readCachedResource[T any, S store[T], U upstream[T], R any](ctx context.Context, cache *Cache, collect *collection[T, S, U], cacheRead func(context.Context, S) (R, error), upstreamRead func(context.Context, U) (R, error)) (R, error) {
 	if cache.closed.Load() {
-		var t T
-		return t, trace.Errorf("cache is closed")
+		var r R
+		return r, trace.Errorf("cache is closed")
 	}
 
 	cache.rw.RLock()
@@ -608,15 +608,15 @@ func readCachedResource[T any, S store[T], U upstream[T]](ctx context.Context, c
 		kind := collect.watchKind()
 		if _, kindOK := cache.confirmedKinds[resourceKind{kind: kind.Kind, subkind: kind.SubKind}]; kindOK {
 			defer cache.rw.RUnlock()
-			t, err := cacheRead(ctx, collect.store)
-			return t, trace.Wrap(err)
+			r, err := cacheRead(ctx, collect.store)
+			return r, trace.Wrap(err)
 		}
 	}
 
-	cache.rw.Unlock()
+	cache.rw.RUnlock()
 
-	t, err := upstreamRead(ctx, collect.upstream)
-	return t, trace.Wrap(err)
+	r, err := upstreamRead(ctx, collect.upstream)
+	return r, trace.Wrap(err)
 }
 
 // readCache acquires the cache read lock and uses getReader() to select the appropriate target for read operations
@@ -1874,82 +1874,6 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	}
 
 	return nil
-}
-
-type getCertAuthorityCacheKey struct {
-	id types.CertAuthID
-}
-
-var _ map[getCertAuthorityCacheKey]struct{} // compile-time hashability check
-
-// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
-// controls if signing keys are loaded
-func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetCertAuthority")
-	defer span.End()
-
-	rg, err := readCollectionCache(c, c.legacyCacheCollections.certAuthorities)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	if !rg.IsCacheRead() && !loadSigningKeys {
-		cachedCA, err := utils.FnCacheGet(ctx, c.fnCache, getCertAuthorityCacheKey{id}, func(ctx context.Context) (types.CertAuthority, error) {
-			ca, err := rg.reader.GetCertAuthority(ctx, id, loadSigningKeys)
-			return ca, err
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return cachedCA.Clone(), nil
-	}
-
-	ca, err := rg.reader.GetCertAuthority(ctx, id, loadSigningKeys)
-	if trace.IsNotFound(err) && rg.IsCacheRead() {
-		// release read lock early
-		rg.Release()
-		// fallback is sane because method is never used
-		// in construction of derivative caches.
-		if ca, err := c.Config.Trust.GetCertAuthority(ctx, id, loadSigningKeys); err == nil {
-			return ca, nil
-		}
-	}
-	return ca, trace.Wrap(err)
-}
-
-type getCertAuthoritiesCacheKey struct {
-	caType types.CertAuthType
-}
-
-var _ map[getCertAuthoritiesCacheKey]struct{} // compile-time hashability check
-
-// GetCertAuthorities returns a list of authorities of a given type
-// loadSigningKeys controls whether signing keys should be loaded or not
-func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadSigningKeys bool) ([]types.CertAuthority, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetCertAuthorities")
-	defer span.End()
-
-	rg, err := readCollectionCache(c, c.legacyCacheCollections.certAuthorities)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	if !rg.IsCacheRead() && !loadSigningKeys {
-		cachedCAs, err := utils.FnCacheGet(ctx, c.fnCache, getCertAuthoritiesCacheKey{caType}, func(ctx context.Context) ([]types.CertAuthority, error) {
-			cas, err := rg.reader.GetCertAuthorities(ctx, caType, loadSigningKeys)
-			return cas, trace.Wrap(err)
-		})
-		if err != nil || cachedCAs == nil {
-			return nil, trace.Wrap(err)
-		}
-		cas := make([]types.CertAuthority, 0, len(cachedCAs))
-		for _, ca := range cachedCAs {
-			cas = append(cas, ca.Clone())
-		}
-		return cas, nil
-	}
-	return rg.reader.GetCertAuthorities(ctx, caType, loadSigningKeys)
 }
 
 // GetTokens returns all active (non-expired) provisioning tokens
