@@ -33,6 +33,25 @@ var matchAWSICEndpointIDField = regexp.MustCompile(`^[a-zA-Z0-9-]*$`).MatchStrin
 // EnsureSCIMEndpoint validates dynamic fields of SCIM base URL and returns
 // a new base URL constructed from the validated fields.
 //
+// See [EnsureSCIMEndpointURL] for specifics about what constitutes a valid
+// endpoint URL
+func EnsureSCIMEndpoint(u string) (string, error) {
+	baseURL, err := url.ParseRequestURI(u)
+	if err != nil {
+		return "", trace.BadParameter("invalid SCIM endpoint format: %s", err.Error())
+	}
+
+	validatedURL, err := EnsureSCIMEndpointURL(baseURL)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return validatedURL.String(), nil
+}
+
+// EnsureSCIMEndpointURL validates dynamic fields of SCIM base URL and
+// returns a new base URL constructed from the validated field.
+//
 // E.g. valid SCIM base URL:
 // "https://scim.ca-central-1.amazonaws.com/bdh6a5e3698-0fc6-4232-a028-fea1a99ff77a/scim/v2".
 // Dynamic field includes the AWS region and a random ID field:
@@ -41,48 +60,44 @@ var matchAWSICEndpointIDField = regexp.MustCompile(`^[a-zA-Z0-9-]*$`).MatchStrin
 // validated against an alphanumeric with hyphen regexp.
 // Note: The random ID field looks like a UUID field but does not confirm to
 // standard UUID format defined in RFC 4122.
-func EnsureSCIMEndpoint(u string) (string, error) {
-	baseURL, err := url.ParseRequestURI(u)
-	if err != nil {
-		return "", trace.BadParameter("invalid SCIM endpoint format: %s", err.Error())
-	}
+func EnsureSCIMEndpointURL(baseURL *url.URL) (*url.URL, error) {
 	if baseURL.Scheme != "https" {
-		return "", trace.BadParameter("url scheme must be https")
+		return nil, trace.BadParameter("url scheme must be https")
 	}
 
 	domainParts := strings.Split(baseURL.Hostname(), ".")
 	if len(domainParts) != 4 {
-		return "", trace.BadParameter("invalid SCIM endpoint format")
+		return nil, trace.BadParameter("invalid SCIM endpoint format")
 	}
 	if domainParts[0] != "scim" {
-		return "", trace.BadParameter("unrecognized SCIM endpoint")
+		return nil, trace.BadParameter("unrecognized SCIM endpoint")
 	}
 	region := domainParts[1]
 	if !awsutils.IsKnownRegion(region) {
-		return "", trace.BadParameter("region %q is invalid", region)
+		return nil, trace.BadParameter("region %q is invalid", region)
 	}
 	if domainParts[2] != "amazonaws" || domainParts[3] != "com" {
-		return "", trace.BadParameter("SCIM endpoint must be of 'amazonaws.com' domain")
+		return nil, trace.BadParameter("SCIM endpoint must be of 'amazonaws.com' domain")
 	}
 
 	pathParts := strings.Split(baseURL.Path, "/")
 	if len(pathParts) != 4 {
-		return "", trace.BadParameter("invalid SCIM endpoint format")
+		return nil, trace.BadParameter("invalid SCIM endpoint format")
 	}
 	if !matchAWSICEndpointIDField(pathParts[1]) {
-		return "", trace.BadParameter("invalid SCIM endpoint format")
+		return nil, trace.BadParameter("invalid SCIM endpoint format")
 	}
 	if pathParts[2] != "scim" {
-		return "", trace.BadParameter("unrecognized SCIM endpoint")
+		return nil, trace.BadParameter("unrecognized SCIM endpoint")
 	}
 	if pathParts[3] != "v2" {
-		return "", trace.BadParameter("only v2 SCIM endpoint is supported")
+		return nil, trace.BadParameter("only v2 SCIM endpoint is supported")
 	}
 
-	newBaseURL := url.URL{
+	newBaseURL := &url.URL{
 		Scheme: "https",
 		Host:   fmt.Sprintf("scim.%s.amazonaws.com", region),
 		Path:   fmt.Sprintf("%s/scim/v2", pathParts[1]),
 	}
-	return newBaseURL.String(), nil
+	return newBaseURL, nil
 }
