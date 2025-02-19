@@ -72,7 +72,7 @@ func (p *TestModules) IsEnterpriseBuild() bool {
 
 // IsOSSBuild returns false for [TestModules].
 func (p *TestModules) IsOSSBuild() bool {
-	return os.Getenv(TestBuild) == modules.BuildOSS
+	return true
 }
 
 // LicenseExpiry returns the expiry date of the enterprise license, if applicable.
