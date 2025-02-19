@@ -43,7 +43,7 @@ func TestSingletonStore(t *testing.T) {
 	require.NoError(t, err)
 
 	out, err := store.get()
-	require.ErrorIs(t, err, &trace.NotFoundError{Message: "no items present"})
+	require.ErrorIs(t, err, &trace.NotFoundError{Message: "no value for singleton of type *types.StaticTokens"})
 	require.Zero(t, out)
 
 	require.NoError(t, store.put(staticTokens))
@@ -55,7 +55,7 @@ func TestSingletonStore(t *testing.T) {
 	require.NoError(t, store.delete(staticTokens))
 
 	out, err = store.get()
-	require.ErrorIs(t, err, &trace.NotFoundError{Message: "no items present"})
+	require.ErrorIs(t, err, &trace.NotFoundError{Message: "no value for singleton of type *types.StaticTokens"})
 	require.Zero(t, out)
 
 	st := &types.StaticTokensV2{Spec: spec}
@@ -68,7 +68,7 @@ func TestSingletonStore(t *testing.T) {
 	require.NoError(t, store.clear())
 
 	out, err = store.get()
-	require.ErrorIs(t, err, &trace.NotFoundError{Message: "no items present"})
+	require.ErrorIs(t, err, &trace.NotFoundError{Message: "no value for singleton of type *types.StaticTokens"})
 	var empty types.StaticTokens
 	require.Empty(t, cmp.Diff(empty, out))
 }
