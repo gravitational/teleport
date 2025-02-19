@@ -87,7 +87,7 @@ test('rendering and switching tabs for new role', async () => {
   expect(
     screen.queryByRole('button', { name: /Reset to Standard Settings/i })
   ).not.toBeInTheDocument();
-  expect(screen.getByLabelText('Role Name')).toHaveValue('new_role_name');
+  expect(screen.getByLabelText('Role Name *')).toHaveValue('new_role_name');
   expect(screen.getByLabelText('Description')).toHaveValue('');
   expect(screen.getByRole('button', { name: 'Create Role' })).toBeEnabled();
 
@@ -109,7 +109,7 @@ test('rendering and switching tabs for new role', async () => {
   expect(screen.getByRole('button', { name: 'Create Role' })).toBeEnabled();
 
   await user.click(getStandardEditorTab());
-  await screen.findByLabelText('Role Name');
+  await screen.findByLabelText('Role Name *');
   expect(
     screen.queryByRole('button', { name: /Reset to Standard Settings/i })
   ).not.toBeInTheDocument();
@@ -138,7 +138,7 @@ test('rendering and switching tabs for a non-standard role', async () => {
 
   await user.click(getStandardEditorTab());
   expect(screen.getByText(/This role is too complex/)).toBeVisible();
-  expect(screen.getByLabelText('Role Name')).toHaveValue('some-role');
+  expect(screen.getByLabelText('Role Name *')).toHaveValue('some-role');
   expect(screen.getByLabelText('Description')).toHaveValue('');
   expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled();
 
@@ -166,10 +166,10 @@ test('switching tabs triggers validation', async () => {
   // Triggering validation is necessary, because server-side yamlification
   // sometimes will reject the data anyway.
   render(<TestRoleEditor />);
-  await user.clear(screen.getByLabelText('Role Name'));
+  await user.clear(screen.getByLabelText('Role Name *'));
   expect(getStandardEditorTab()).toHaveAttribute('aria-selected', 'true');
   await user.click(getYamlEditorTab());
-  expect(screen.getByLabelText('Role Name')).toHaveAccessibleDescription(
+  expect(screen.getByLabelText('Role Name *')).toHaveAccessibleDescription(
     'Role name is required'
   );
   // Expect to still be on the standard tab.
@@ -208,9 +208,9 @@ test('no double conversions when clicking already active tabs', async () => {
   render(<TestRoleEditor />);
   await user.click(getYamlEditorTab());
   await user.click(getStandardEditorTab());
-  await user.type(screen.getByLabelText('Role Name'), '_2');
+  await user.type(screen.getByLabelText('Role Name *'), '_2');
   await user.click(getStandardEditorTab());
-  expect(screen.getByLabelText('Role Name')).toHaveValue('new_role_name_2');
+  expect(screen.getByLabelText('Role Name *')).toHaveValue('new_role_name_2');
 
   await user.click(getYamlEditorTab());
   await user.clear(await findTextEditor());
@@ -252,8 +252,8 @@ test('saving a new role', async () => {
   render(<TestRoleEditor onSave={onSave} />);
   expect(screen.getByRole('button', { name: 'Create Role' })).toBeEnabled();
 
-  await user.clear(screen.getByLabelText('Role Name'));
-  await user.type(screen.getByLabelText('Role Name'), 'great-old-one');
+  await user.clear(screen.getByLabelText('Role Name *'));
+  await user.type(screen.getByLabelText('Role Name *'), 'great-old-one');
   await user.clear(screen.getByLabelText('Description'));
   await user.type(
     screen.getByLabelText('Description'),
