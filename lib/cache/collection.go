@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"reflect"
 
 	"github.com/gravitational/trace"
 
@@ -75,16 +76,16 @@ func (c *collection[T, _, _]) onDelete(r types.Resource) error {
 		unwrapped := t.Unwrap()
 		tt, ok := unwrapped.(T)
 		if !ok {
-			return trace.BadParameter("unexpected wrapped type %T (expected %T)", unwrapped, tt)
+			return trace.BadParameter("unexpected wrapped type %T (expected %v)", unwrapped, reflect.TypeOf((*T)(nil)).Elem())
 		}
 
-		c.store.delete(tt)
-		return nil
+		return trace.Wrap(c.store.delete(tt))
+	case *types.ResourceHeader:
+		return trace.BadParameter("unable to convert types.ResourceHeader to %v", reflect.TypeOf((*T)(nil)).Elem())
 	case T:
-		c.store.delete(t)
-		return nil
+		return trace.Wrap(c.store.delete(t))
 	default:
-		return trace.BadParameter("unexpected type %T (expected %T)", r, t)
+		return trace.BadParameter("unexpected type %T (expected %v)", r, reflect.TypeOf((*T)(nil)).Elem())
 	}
 }
 
@@ -94,7 +95,7 @@ func (c *collection[T, _, _]) onUpdate(r types.Resource) error {
 		unwrapped := t.Unwrap()
 		tt, ok := unwrapped.(T)
 		if !ok {
-			return trace.BadParameter("unexpected wrapped type %T (expected %T)", unwrapped, tt)
+			return trace.BadParameter("unexpected wrapped type %T (expected %v)", unwrapped, reflect.TypeOf((*T)(nil)).Elem())
 		}
 
 		c.store.put(tt)
@@ -103,7 +104,7 @@ func (c *collection[T, _, _]) onUpdate(r types.Resource) error {
 		c.store.put(t)
 		return nil
 	default:
-		return trace.BadParameter("unexpected type %T (expected %T)", r, t)
+		return trace.BadParameter("unexpected type %T (expected %v)", r, reflect.TypeOf((*T)(nil)).Elem())
 	}
 }
 
@@ -151,7 +152,8 @@ func (c collection[T, _, _]) fetch(ctx context.Context, cacheOK bool) (apply fun
 type collections struct {
 	byKind map[resourceKind]eventHandler
 
-	staticTokens *collection[types.StaticTokens, *singletonStore[types.StaticTokens], *staticTokensUpstream]
+	staticTokens    *collection[types.StaticTokens, *singletonStore[types.StaticTokens], *staticTokensUpstream]
+	certAuthorities *collection[types.CertAuthority, *resourceStore[types.CertAuthority], *caUpstream]
 }
 
 func setupCollections(c Config, watches []types.WatchKind) (*collections, error) {
@@ -171,7 +173,14 @@ func setupCollections(c Config, watches []types.WatchKind) (*collections, error)
 
 			out.staticTokens = collect
 			out.byKind[resourceKind] = out.staticTokens
+		case types.KindCertAuthority:
+			collect, err := newCertAuthorityCollection(c.Trust, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 
+			out.certAuthorities = collect
+			out.byKind[resourceKind] = out.certAuthorities
 		}
 	}
 

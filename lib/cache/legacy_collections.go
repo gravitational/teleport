@@ -124,7 +124,6 @@ type legacyCollections struct {
 	appServers                         collectionReader[appServerGetter]
 	authPreferences                    collectionReader[authPreferenceGetter]
 	authServers                        collectionReader[authServerGetter]
-	certAuthorities                    collectionReader[services.AuthorityGetter]
 	clusterAuditConfigs                collectionReader[clusterAuditConfigGetter]
 	clusterNames                       collectionReader[clusterNameGetter]
 	clusterNetworkingConfigs           collectionReader[clusterNetworkingConfigGetter]
@@ -187,19 +186,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 	for _, watch := range watches {
 		resourceKind := resourceKindFromWatchKind(watch)
 		switch watch.Kind {
-		case types.KindCertAuthority:
-			if c.Trust == nil {
-				return nil, trace.BadParameter("missing parameter Trust")
-			}
-			var filter types.CertAuthorityFilter
-			filter.FromMap(watch.Filter)
-
-			collections.certAuthorities = &genericCollection[types.CertAuthority, services.AuthorityGetter, certAuthorityExecutor]{
-				cache: c,
-				exec:  certAuthorityExecutor{filter: filter},
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.certAuthorities
 		case types.KindToken:
 			if c.Provisioner == nil {
 				return nil, trace.BadParameter("missing parameter Provisioner")
