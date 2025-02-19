@@ -35,10 +35,6 @@ import (
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.Component("vnet", "diag"))
 
-// Diagnostician runs individual diag checks along with their accompanying commands and produces a
-// report.
-type Diagnostician struct{}
-
 // DiagCheck is an individual diag check run by [GenerateReport].
 type DiagCheck interface {
 	// Run performs the check.
