@@ -41,6 +41,7 @@ func newTestService(t *testing.T, fixture *ictest.Fixture) *Service {
 		PluginsService:   fixture.PluginService,
 		PluginStatusSink: fixture.PluginStatusSink,
 		UserPredicate:    identitycentercommon.UserPredicateFilter(nil),
+		Emitter:          fixture.Emitter,
 	}
 
 	svc, err := NewService(cfg)

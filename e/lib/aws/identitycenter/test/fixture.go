@@ -31,6 +31,7 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/clocki"
@@ -48,6 +49,7 @@ type Fixture struct {
 	ICClient         *icsdk.ClientMock
 	PluginService    *local.PluginsService
 	PluginStatusSink common.StatusSink
+	Emitter          *eventstest.ChannelEmitter
 }
 
 type CacheArgs struct {
@@ -103,6 +105,7 @@ func NewFixture(t *testing.T, opts ...auth.ServerOption) *Fixture {
 		ICClient:         ICClient,
 		PluginService:    pluginService,
 		PluginStatusSink: &integration.FakeStatusSink{},
+		Emitter:          eventstest.NewChannelEmitter(10),
 	}
 
 	return fixture

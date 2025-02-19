@@ -11,6 +11,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/calculator"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/monitor"
 	icprov "github.com/gravitational/teleport/e/lib/aws/identitycenter/provisioning"
@@ -18,6 +19,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/provisioning"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -50,6 +52,7 @@ type Service struct {
 	principalEventCh           chan *monitor.PrincipalEvent
 	assignmentCalculator       *calculator.AssignmentCalculator
 	assignmentProvisioner      *icprov.AssignmentProvisioner
+	emitter                    apievents.Emitter
 }
 
 // NewService creates a new Identity Center Service instance from the supplied
@@ -142,6 +145,7 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 		principalEventCh:           principalEventCh,
 		assignmentCalculator:       assignmentCalculator,
 		assignmentProvisioner:      assignmentProvisioner,
+		emitter:                    config.Emitter,
 	}
 	resourceMonitor.SetEventHandler(svc.onResourceMonitorEvent)
 
@@ -230,4 +234,33 @@ func (svc *Service) isTargetedResource(ctx context.Context, resource types.Resou
 	default:
 		return false, nil
 	}
+}
+
+// emitSyncEvent emits resource sync audit event.
+func (svc *Service) emitSyncEvent(ctx context.Context, in *apievents.AWSICResourceSync, success bool) {
+	in.Metadata.Type = events.AWSICResourceSyncSuccessEvent
+	in.Metadata.Code = events.AWSICResourceSyncSuccessCode
+	in.Status.Success = true
+	if !success {
+		in.Metadata.Type = events.AWSICResourceSyncFailureEvent
+		in.Metadata.Code = events.AWSICResourceSyncFailureCode
+		in.Status.Success = false
+	}
+	if err := svc.emitter.EmitAuditEvent(ctx, in); err != nil {
+		svc.log.ErrorContext(ctx, "Failed to emit resource sync event", "error", err)
+	}
+}
+
+// syncEventUserMessage
+func syncEventUserMessage(inMessage string, err error) string {
+	const successMessage = "Periodic account, permission set and account assignment sync"
+	if err != nil {
+		// inMessage will be empty if the sync process erred out during
+		// upstream resource fetch or fetched data processing step.
+		if inMessage == "" {
+			inMessage = successMessage + " failed"
+		}
+		return inMessage
+	}
+	return successMessage
 }

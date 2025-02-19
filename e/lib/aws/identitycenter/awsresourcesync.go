@@ -8,6 +8,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	apievents "github.com/gravitational/teleport/api/types/events"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -88,6 +89,13 @@ func (svc *Service) synchronize(ctx context.Context) error {
 	svc.log.InfoContext(ctx, "Entering synchronization")
 	defer svc.log.InfoContext(ctx, "Exiting synchronization")
 
+	var syncEvent apievents.AWSICResourceSync
+	var err error
+	defer func() {
+		syncEvent.UserMessage = syncEventUserMessage(syncEvent.UserMessage, err)
+		svc.emitSyncEvent(ctx, &syncEvent, err == nil)
+	}()
+
 	awsData, err := svc.refreshExternalData(ctx)
 	if err != nil {
 		return trace.Wrap(err, "fetching AWS resources")
@@ -109,21 +117,28 @@ func (svc *Service) synchronize(ctx context.Context) error {
 
 	_, err = svc.reconcileAccounts(ctx, teleportResources.awsAccounts, awsResources.accounts)
 	if err != nil {
+		syncEvent.UserMessage = "Periodic account sync failed"
 		return trace.Wrap(err, "reconciling initial account list")
 	}
+	syncEvent.TotalAccounts = int32(len(awsResources.accounts))
 
 	_, err = svc.reconcilePermissionSets(ctx, teleportResources.permissionSets, awsResources.permissionSets)
 	if err != nil {
+		syncEvent.UserMessage = "Periodic permission set sync failed"
 		return trace.Wrap(err, "reconciling initial account list")
 	}
+	syncEvent.TotalPermissionSets = int32(len(awsResources.permissionSets))
 
 	_, err = svc.reconcileAccountAssignments(ctx, teleportResources.accountAssignments, awsResources.accountAssignments)
 	if err != nil {
+		syncEvent.UserMessage = "Periodic account assignment sync failed"
 		return trace.Wrap(err, "reconciling permission set records")
 	}
+	syncEvent.TotalAccountAssignments = int32(len(awsResources.accountAssignments))
 
 	_, err = svc.reconcileAccountAssignmentRoles(ctx, teleportResources.accountAssignmentRoles, awsResources.accountAssignmentRoles)
 	if err != nil {
+		syncEvent.UserMessage = "Periodic account assignment role reconciliation failed"
 		return trace.Wrap(err, "reconciling  account assignment roles")
 	}
 

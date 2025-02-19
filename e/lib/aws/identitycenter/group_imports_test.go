@@ -17,6 +17,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	icfixture "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
@@ -27,6 +28,8 @@ import (
 	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
 	_ "github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -383,8 +386,24 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 			require.Equal(t, types.PluginStatusCode_RUNNING, statusSink.Get().GetCode())
 			require.NotNil(t, statusSink.Get().GetAwsIc())
 			require.Equal(t, types.AWSICGroupImportStatusCode_DONE, statusSink.Get().GetAwsIc().GroupImportStatus.StatusCode)
+
+			expectResourceSyncEvent(t, tEnv.emitter, func(e *apievents.AWSICResourceSync) {
+				require.Equal(t, events.AWSICResourceSyncSuccessCode, e.GetCode())
+				require.Equal(t, events.AWSICResourceSyncSuccessEvent, e.GetType())
+				require.Equal(t, countICOriginatedList(tc.expectedList), int(e.TotalUserGroups))
+			})
 		})
 	}
+}
+
+func countICOriginatedList(in []listWithMembersAndRoles) int {
+	count := 0
+	for _, l := range in {
+		if l.origin == common.OriginAWSIdentityCenter {
+			count++
+		}
+	}
+	return count
 }
 
 func compareAccessLists(t *testing.T, ctx context.Context, expected []listWithMembersAndRoles, service services.AccessLists) {
@@ -569,6 +588,7 @@ type listWithMembersAndRoles struct {
 // tEnv is a test service for Identity Center service
 type tEnv struct {
 	service *Service
+	emitter *eventstest.ChannelEmitter
 }
 
 func newTEnv(t *testing.T, statusSink accesscommon.StatusSink) (*tEnv, error) {
@@ -601,6 +621,7 @@ func newTEnv(t *testing.T, statusSink accesscommon.StatusSink) (*tEnv, error) {
 		},
 	})
 
+	emitter := eventstest.NewChannelEmitter(1)
 	return &tEnv{
 		service: &Service{
 			accessListSvc:      newAccessListService,
@@ -613,7 +634,9 @@ func newTEnv(t *testing.T, statusSink accesscommon.StatusSink) (*tEnv, error) {
 			},
 			pluginsService:   pluginService,
 			pluginStatusSink: statusSink,
+			emitter:          emitter,
 		},
+		emitter: emitter,
 	}, nil
 }
 

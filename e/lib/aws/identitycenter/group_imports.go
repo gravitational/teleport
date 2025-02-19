@@ -12,6 +12,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/e/lib/provisioning"
@@ -143,13 +144,25 @@ func (s *Service) startGroupsAndGroupMembersImport(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	err = trace.NewAggregate(
+	if err = trace.NewAggregate(
 		accessListReconciler.Reconcile(ctx),
 		memberReconciler.Reconcile(ctx),
-	)
-	if err != nil {
+	); err != nil {
+		s.emitSyncEvent(ctx, &apievents.AWSICResourceSync{
+			TotalUserGroups: int32(len(newList)),
+			Status: apievents.Status{
+				UserMessage: "User groups synchronization failed",
+			},
+		}, false /* failed */)
 		return trace.Wrap(err)
 	}
+
+	s.emitSyncEvent(ctx, &apievents.AWSICResourceSync{
+		TotalUserGroups: int32(len(newList)),
+		Status: apievents.Status{
+			UserMessage: "User groups imported and synced as Access List",
+		},
+	}, true /* success */)
 
 	return nil
 }

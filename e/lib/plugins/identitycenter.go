@@ -119,6 +119,7 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 			PluginStatusSink: deps.statusSink,
 			PluginsService:   deps.pluginsService,
 			UserPredicate:    identitycentercommon.UserPredicateFilter(settings.UserSyncFilters),
+			Emitter:          deps.parentProcess.GetAuthServer().GetEmitter(),
 		})
 		if err != nil {
 			return trace.Wrap(err)

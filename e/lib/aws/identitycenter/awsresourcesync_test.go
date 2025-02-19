@@ -4,13 +4,18 @@ import (
 	"context"
 	"maps"
 	"testing"
+	"time"
 
 	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	apievents "github.com/gravitational/teleport/api/types/events"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
 	ictest "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -190,4 +195,48 @@ func (m accountResourceMap) deepCopy() accountResourceMap {
 		dst[k] = v.CloneResource().(services.IdentityCenterAccount)
 	}
 	return dst
+}
+
+func TestEventEmittedOnSynchronize(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	fixture := ictest.NewFixture(t)
+	icSvc := newTestService(t, fixture)
+
+	// Input data for this test is the default data set for the mocked Identity
+	// Center SDK client provided by NewMockedAWSState().
+	require.NoError(t, icSvc.synchronize(ctx))
+	expectResourceSyncEvent(t, fixture.Emitter, func(e *apievents.AWSICResourceSync) {
+		require.Equal(t, events.AWSICResourceSyncSuccessCode, e.GetCode())
+		require.Equal(t, events.AWSICResourceSyncSuccessEvent, e.GetType())
+		require.Equal(t, len(fixture.ICClient.Accounts), int(e.TotalAccounts))
+		require.Equal(t, (len(fixture.ICClient.UserAssignments) + len(fixture.ICClient.GroupAssignments)), int(e.TotalAccountAssignments))
+		require.Equal(t, len(fixture.ICClient.PermissionSets), int(e.TotalPermissionSets))
+	})
+
+	fixture.ICClient.MonkeyPatch.DescribeInstance = func(context.Context) (*icsdk.InstanceInfo, error) {
+		return nil, trace.AccessDenied("unauthorized")
+	}
+	icSvc = newTestService(t, fixture)
+
+	// Input data for this test is the default data set for the mocked Identity
+	// Center SDK client provided by NewMockedAWSState().
+	require.Error(t, icSvc.synchronize(ctx))
+	expectResourceSyncEvent(t, fixture.Emitter, func(e *apievents.AWSICResourceSync) {
+		require.Equal(t, events.AWSICResourceSyncFailureCode, e.GetCode())
+		require.Equal(t, events.AWSICResourceSyncFailureEvent, e.GetType())
+	})
+}
+
+func expectResourceSyncEvent(t *testing.T, emitter *eventstest.ChannelEmitter, fn func(*apievents.AWSICResourceSync)) {
+	select {
+	case event := <-emitter.C():
+		syncEvent, ok := event.(*apievents.AWSICResourceSync)
+		require.True(t, ok, "expected AWSICResourceSync event, got %T", event)
+
+		fn(syncEvent)
+	case <-time.After(5 * time.Second):
+		require.Fail(t, "timed out waiting for event")
+	}
 }

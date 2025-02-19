@@ -9,6 +9,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	identitycentercommon "github.com/gravitational/teleport/e/lib/aws/identitycenter/common"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/e/lib/provisioning"
@@ -125,6 +126,9 @@ type ServiceConfig struct {
 	// the resource monitors and the provisioner. Defaults to
 	// `defaultEventBufferSize` if unset.
 	EventBufferSize int
+
+	// Emitter is an audit event emitter.
+	Emitter apievents.Emitter
 }
 
 func (cfg *ServiceConfig) CheckAndSetDefaults() error {
@@ -178,6 +182,9 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.EventBufferSize == 0 {
 		cfg.EventBufferSize = defaultEventEventBufferSize
+	}
+	if cfg.Emitter == nil {
+		return trace.BadParameter("missing event emitter")
 	}
 
 	return nil
