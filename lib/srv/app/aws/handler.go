@@ -196,7 +196,7 @@ func (s *signerHandler) serveCommonRequest(sessCtx *common.SessionContext, w htt
 // serveRequestByAssumedRole forwards the requests signed with real credentials
 // of an assumed role to AWS.
 func (s *signerHandler) serveRequestByAssumedRole(sessCtx *common.SessionContext, w http.ResponseWriter, req *http.Request) error {
-	re, err := resolveEndpointByXForwardedHost(req, common.TeleportAWSAssumedRoleAuthorization)
+	re, err := resolveEndpoint(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
