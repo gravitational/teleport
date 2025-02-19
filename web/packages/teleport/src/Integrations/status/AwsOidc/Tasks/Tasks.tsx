@@ -185,7 +185,10 @@ export function Tasks() {
               },
             ]}
             emptyText={`No pending tasks`}
-            pagination={{ pageSize: serverSidePagination.pageSize }}
+            pagination={{
+              pageSize: serverSidePagination.pageSize,
+              pagerPosition: 'both',
+            }}
             fetching={{
               fetchStatus: serverSidePagination.fetchStatus,
               onFetchNext: serverSidePagination.fetchNext,
