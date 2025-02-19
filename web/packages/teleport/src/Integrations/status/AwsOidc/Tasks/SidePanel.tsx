@@ -40,13 +40,7 @@ export const SidePanel = ({
       borderLeft={1}
       borderColor="levels.surface"
     >
-      <Flex
-        alignItems="center"
-        justifyContent="space-between"
-        mt={3}
-        mb={3}
-        px={4}
-      >
+      <Flex alignItems="center" justifyContent="space-between" my={3} px={4}>
         {header}
         <ButtonIcon onClick={onClose} disabled={disabled}>
           <Cross size="medium" />
