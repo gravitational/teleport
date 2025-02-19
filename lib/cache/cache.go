@@ -595,6 +595,30 @@ func readListResourcesCache(cache *Cache, resourceType string) (readGuard[resour
 	return readCache(cache, types.WatchKind{Kind: resourceType}, getResourceReader)
 }
 
+// readCachedResource acquires the cache read lock and calls the appropriate function for read operations
+// based on the cache health.
+func readCachedResource[T any, S store[T], U upstream[T]](ctx context.Context, cache *Cache, collect *collection[T, S, U], cacheRead func(context.Context, S) (T, error), upstreamRead func(context.Context, U) (T, error)) (T, error) {
+	if cache.closed.Load() {
+		var t T
+		return t, trace.Errorf("cache is closed")
+	}
+
+	cache.rw.RLock()
+	if cache.ok {
+		kind := collect.watchKind()
+		if _, kindOK := cache.confirmedKinds[resourceKind{kind: kind.Kind, subkind: kind.SubKind}]; kindOK {
+			defer cache.rw.RUnlock()
+			t, err := cacheRead(ctx, collect.store)
+			return t, trace.Wrap(err)
+		}
+	}
+
+	cache.rw.Unlock()
+
+	t, err := upstreamRead(ctx, collect.upstream)
+	return t, trace.Wrap(err)
+}
+
 // readCache acquires the cache read lock and uses getReader() to select the appropriate target for read operations
 // on resources of the specified kind. The returned guard *must* be released to prevent deadlocks.
 func readCache[R any](cache *Cache, kind types.WatchKind, getReader func(cacheOK bool) R) (readGuard[R], error) {
@@ -1926,11 +1950,6 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 		return cas, nil
 	}
 	return rg.reader.GetCertAuthorities(ctx, caType, loadSigningKeys)
-}
-
-func (c *Cache) isConfirmedUndlerLock(wk types.WatchKind) bool {
-	_, ok := c.confirmedKinds[resourceKind{kind: wk.Kind, subkind: wk.SubKind}]
-	return ok
 }
 
 // GetTokens returns all active (non-expired) provisioning tokens
