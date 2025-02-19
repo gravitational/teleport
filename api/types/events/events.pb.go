@@ -15891,7 +15891,7 @@ type AWSICResourceSync struct {
 	// Total imported AWS accounts.
 	TotalAccounts int32 `protobuf:"varint,2,opt,name=total_accounts,json=totalAccounts,proto3" json:"total_accounts,omitempty"`
 	// Total account assignments imported from Identity Center. Account assignments
-	// are permission's assigned to users or group.
+	// are permissions assigned to users or groups.
 	TotalAccountAssignments int32 `protobuf:"varint,3,opt,name=total_account_assignments,json=totalAccountAssignments,proto3" json:"total_account_assignments,omitempty"`
 	// Total user groups imported from Identity Center.
 	TotalUserGroups int32 `protobuf:"varint,4,opt,name=total_user_groups,json=totalUserGroups,proto3" json:"total_user_groups,omitempty"`
