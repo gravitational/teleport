@@ -19,11 +19,12 @@ package resource
 import (
 	"go/parser"
 	"go/token"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -75,7 +76,7 @@ type Metadata struct {
 				}: {
 					SectionName: "Metadata",
 					Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					YAMLExample: `name: "string"
 description: "string"
 age: 1
@@ -133,7 +134,7 @@ type Metadata struct {
 				}: {
 					SectionName: "Metadata",
 					Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					YAMLExample: `names: 
   - "string"
   - "string"
@@ -190,7 +191,7 @@ type Metadata struct {
 				}: {
 					SectionName: "Metadata",
 					Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					YAMLExample: `attributes: 
   "string": 
     - "string"
@@ -239,7 +240,7 @@ type Server struct {
 				}: ReferenceEntry{
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					Fields: []Field{
 						{
 							Name:        "spec",
@@ -287,7 +288,7 @@ type Labels []string
 				}: ReferenceEntry{
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					Fields: []Field{
 						{
 							Name:        "spec",
@@ -314,7 +315,7 @@ type Labels []string
 				}: ReferenceEntry{
 					SectionName: "Labels",
 					Description: "A slice of strings that we'll process downstream",
-					SourcePath:  "/src/myfile0.go",
+					SourcePath:  "src/myfile0.go",
 					Fields:      nil,
 					YAMLExample: "",
 				},
@@ -352,7 +353,7 @@ func (s *Server) UnmarshalJSON (b []byte) error {
 				}: ReferenceEntry{
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					Fields: []Field{
 						{
 							Name:        "spec",
@@ -401,7 +402,7 @@ func (a *Application) UnmarshalYAML(value *yaml.Node) error {
 				}: ReferenceEntry{
 					SectionName: "Application",
 					Description: "Includes information about an application registered with Teleport.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					Fields: []Field{
 						{
 							Name:        "spec",
@@ -453,7 +454,7 @@ type ServerSpecV1 struct {
 				}: {
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					YAMLExample: `name: "string"
 spec: # [...]
 `,
@@ -476,7 +477,7 @@ spec: # [...]
 				}: {
 					SectionName: "Server Spec",
 					Description: "Includes aspects of a proxied server.",
-					SourcePath:  "/src/myfile0.go",
+					SourcePath:  "src/myfile0.go",
 					YAMLExample: `address: "string"
 ttl: 1
 is_active: true
@@ -538,7 +539,7 @@ type Label string
 				}: {
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					YAMLExample: `spec: # [...]
 label_maps: 
   - 
@@ -572,7 +573,7 @@ label_maps:
 				}: {
 					SectionName: "Server Spec",
 					Description: "Includes aspects of a proxied server.",
-					SourcePath:  "/src/myfile0.go",
+					SourcePath:  "src/myfile0.go",
 					YAMLExample: `address: "string"
 `,
 					Fields: []Field{
@@ -589,7 +590,7 @@ label_maps:
 				}: {
 					SectionName: "Label",
 					Description: "A custom type that we unmarshal in a non-default way.",
-					SourcePath:  "/src/myfile1.go",
+					SourcePath:  "src/myfile1.go",
 					Fields:      nil,
 				},
 			},
@@ -625,7 +626,7 @@ type ServerImplementation interface{
 				}: {
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					Fields: []Field{
 						{
 							Name:        "name",
@@ -648,7 +649,7 @@ impl: # [...]
 				}: ReferenceEntry{
 					SectionName: "Server Implementation",
 					Description: "A remote service with a URL.",
-					SourcePath:  "/src/myfile0.go",
+					SourcePath:  "src/myfile0.go",
 					Fields:      nil,
 					YAMLExample: "",
 				},
@@ -687,7 +688,7 @@ type Metadata struct {
 				}: {
 					SectionName: "My Resource",
 					Description: "A resource declared for testing.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					Fields: []Field{
 
 						{
@@ -746,7 +747,7 @@ type Metadata struct {
 				}: {
 					SectionName: "My Resource",
 					Description: "A resource declared for testing.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					Fields: []Field{
 
 						{
@@ -811,7 +812,7 @@ type ActivityStatus struct{
 				}: {
 					SectionName: "My Resource",
 					Description: "A resource declared for testing.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					Fields: []Field{
 						{
 							Name:        "name",
@@ -875,7 +876,7 @@ type ActivityStatus struct{
 				}: {
 					SectionName: "My Resource",
 					Description: "A resource declared for testing.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					Fields: []Field{
 						{
 							Name:        "name",
@@ -926,7 +927,7 @@ type Metadata struct {
 				}: {
 					SectionName: "Metadata",
 					Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					YAMLExample: `name: "string"
 `,
 					Fields: []Field{
@@ -974,7 +975,7 @@ type Metadata struct {
 				}: ReferenceEntry{
 					SectionName: "Database Server",
 					Description: "Represents a database access server.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					Fields: []Field{
 						Field{
 							Name:        "metadata",
@@ -997,7 +998,7 @@ metadata: # [...]
 				}: ReferenceEntry{
 					SectionName: "Metadata",
 					Description: "Resource metadata",
-					SourcePath:  "/src/myfile0.go",
+					SourcePath:  "src/myfile0.go",
 					Fields: []Field{
 						{
 							Name:        "name",
@@ -1046,7 +1047,7 @@ type Metadata struct {
 				}: ReferenceEntry{
 					SectionName: "Database Server",
 					Description: "Represents a database access server.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					Fields: []Field{
 						Field{
 							Name:        "metadata",
@@ -1063,7 +1064,7 @@ type Metadata struct {
 				}: ReferenceEntry{
 					SectionName: "Metadata",
 					Description: "Resource metadata",
-					SourcePath:  "/src/myfile0.go",
+					SourcePath:  "src/myfile0.go",
 					Fields: []Field{
 						{
 							Name:        "name",
@@ -1107,7 +1108,7 @@ type ServerSpecV1 struct {
 				}: {
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					YAMLExample: `name: "string"
 label_maps: 
   - 
@@ -1173,7 +1174,7 @@ func (stream *streamFunc[T]) Next() bool {
 				}: ReferenceEntry{
 					SectionName: "Resource",
 					Description: "A resource.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					YAMLExample: `name: "string"
 `,
 					Fields: []Field{
@@ -1209,7 +1210,7 @@ type Resource struct {
 				}: ReferenceEntry{
 					SectionName: "Resource",
 					Description: "A resource.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					YAMLExample: `name: "string"
 expiry: # See description
 `,
@@ -1254,7 +1255,7 @@ type Metadata struct {
 				}: {
 					SectionName: "Metadata",
 					Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					YAMLExample: `name: "string"
 private_key: BASE64_STRING
 `,
@@ -1312,7 +1313,7 @@ type ServerSpec struct {
 				}: {
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					YAMLExample: `name: "string"
 spec: # [...]
 `,
@@ -1335,7 +1336,7 @@ spec: # [...]
 				}: {
 					SectionName: "Server Spec",
 					Description: "Includes aspects of a proxied server.",
-					SourcePath:  "/src/myfile0.go",
+					SourcePath:  "src/myfile0.go",
 					YAMLExample: `address: "string"
 `,
 					Fields: []Field{
@@ -1386,7 +1387,7 @@ type AddressInfo struct {
 				}: {
 					SectionName: "Address Info",
 					Description: "Provides information about an address.",
-					SourcePath:  "/src/myfile1.go",
+					SourcePath:  "src/myfile1.go",
 					Fields: []Field{
 						{
 							Name:        "address",
@@ -1402,7 +1403,7 @@ type AddressInfo struct {
 				}: {
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					YAMLExample: `spec: # [...]
 `,
 					Fields: []Field{
@@ -1418,7 +1419,7 @@ type AddressInfo struct {
 				}: {
 					SectionName: "Server Spec",
 					Description: "Includes aspects of a proxied server.",
-					SourcePath:  "/src/myfile0.go",
+					SourcePath:  "src/myfile0.go",
 					YAMLExample: `info: # [...]
 `,
 					Fields: []Field{
@@ -1459,7 +1460,7 @@ type Metadata struct {
 				}: {
 					SectionName: "Metadata",
 					Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					YAMLExample: `name: "string"
 description: "string"
 `,
@@ -1501,7 +1502,7 @@ type Metadata struct {
 				}: {
 					SectionName: "Metadata",
 					Description: "Describes information about a `{dynamic resource}`. Every dynamic resource in Teleport has a metadata object.",
-					SourcePath:  "/src/myfile.go",
+					SourcePath:  "src/myfile.go",
 					YAMLExample: `name: "string"
 `,
 					Fields: []Field{
@@ -1518,24 +1519,31 @@ type Metadata struct {
 
 	for _, tc := range cases {
 		t.Run(tc.description, func(t *testing.T) {
-			// Make a map of filenames to content
-			sources := make(map[string][]byte)
-			sources["/src/myfile.go"] = []byte(replaceBackticks(tc.source))
-			for i, s := range tc.declSources {
-				sources["/src/myfile"+strconv.Itoa(i)+".go"] = []byte(replaceBackticks(s))
-			}
-
-			memfs := afero.NewMemMapFs()
-			if err := memfs.MkdirAll("/src", 0777); err != nil {
+			tmp := t.TempDir()
+			if err := os.Mkdir(filepath.Join(tmp, "src"), 0777); err != nil {
 				t.Fatal(err)
 			}
+
+			// Make a map of filenames to content
+			sources := make(map[string][]byte)
+			sources[filepath.Join(tmp, "src", "myfile.go")] = []byte(replaceBackticks(tc.source))
+			for i, s := range tc.declSources {
+				sources[filepath.Join(tmp, "src", "myfile"+strconv.Itoa(i)+".go")] = []byte(replaceBackticks(s))
+			}
+
+			// Write the source content to a temporary directory
 			for n, v := range sources {
-				if err := afero.WriteFile(memfs, n, v, 0777); err != nil {
+				f, err := os.Create(n)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				if _, err := f.Write(v); err != nil {
 					t.Fatal(err)
 				}
 			}
 
-			sourceData, err := NewSourceData(memfs, "/src")
+			sourceData, err := NewSourceData(tmp)
 			if err != nil {
 				t.Fatal(err)
 			}
