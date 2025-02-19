@@ -48,7 +48,7 @@ func (s *singletonStore[T]) get() (T, error) {
 	item := s.t.Load()
 	if item == nil {
 		var t T
-		return t, trace.NotFound("no items present")
+		return t, trace.NotFound("no value for singleton of type %T", new(T))
 	}
 
 	return *item, nil
