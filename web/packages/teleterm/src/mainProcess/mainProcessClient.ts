@@ -103,6 +103,9 @@ export default function createMainProcessClient(): MainProcessClient {
     showFileSaveDialog(filePath: string) {
       return ipcRenderer.invoke('main-process-show-file-save-dialog', filePath);
     },
+    saveTextToFile(args) {
+      return ipcRenderer.invoke(MainProcessIpc.SaveTextToFile, args);
+    },
     openTerminalContextMenu,
     openTabContextMenu,
     configService: createConfigServiceClient(),
