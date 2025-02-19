@@ -18,10 +18,12 @@
 
 import { useEffect, useState } from 'react';
 import { useHistory } from 'react-router';
+import styled from 'styled-components';
 
 import { ButtonBorder, Flex, Indicator } from 'design';
 import { Danger } from 'design/Alert';
 import Table, { Cell } from 'design/DataTable';
+import { Notification, NotificationItem } from 'shared/components/Notification';
 
 import { useServerSidePagination } from 'teleport/components/hooks';
 import { FeatureBox } from 'teleport/components/Layout';
@@ -37,6 +39,7 @@ export function Tasks() {
   const history = useHistory();
   const searchParams = new URLSearchParams(history.location.search);
   const taskName = searchParams.get('task');
+  const [notification, setNotification] = useState<NotificationItem>();
 
   const { integrationAttempt } = useAwsOidcStatus();
   const { data: integration } = integrationAttempt;
@@ -95,6 +98,15 @@ export function Tasks() {
       // If there are multiple pages, we would rather refresh the table with X results rather than
       // use modifyFetchedData to remove the item.
       serverSidePagination.fetch();
+
+      setNotification({
+        content: {
+          description:
+            'The task has been marked as resolved; it will reappear in the table if the issue persists in the next sync.',
+        },
+        severity: 'success',
+        id: taskName,
+      });
     }
     history.replace(history.location.pathname);
   }
@@ -180,9 +192,25 @@ export function Tasks() {
               onFetchPrev: serverSidePagination.fetchPrev,
             }}
           />
+          {notification && (
+            <NotificationContainer>
+              <Notification
+                key={notification.id}
+                item={notification}
+                onRemove={() => setNotification(undefined)}
+                minWidth="432px"
+              />
+            </NotificationContainer>
+          )}
         </FeatureBox>
       </Flex>
       {selectedTask && <Task name={selectedTask} close={closeTask} />}
     </Flex>
   );
 }
+
+const NotificationContainer = styled.div`
+  position: absolute;
+  top: ${props => props.theme.space[10]}px;
+  right: ${props => props.theme.space[5]}px;
+`;
