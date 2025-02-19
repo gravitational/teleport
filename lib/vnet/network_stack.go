@@ -724,4 +724,6 @@ func protocolVersion(b byte) (tcpip.NetworkProtocolNumber, bool) {
 type NetworkStackInfo struct {
 	// IfaceName is the name of the interface used by VNet.
 	IfaceName string
+	// IPv6Prefix is the IPv6 prefix under which VNet assigns addresses for apps and the DNS nameserver.
+	IPv6Prefix string
 }

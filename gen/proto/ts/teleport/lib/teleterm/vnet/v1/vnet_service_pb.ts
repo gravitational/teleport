@@ -30,6 +30,7 @@ import type { IBinaryReader } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
+import { Report } from "../../../vnet/diag/v1/diag_pb";
 /**
  * Request for Start.
  *
@@ -109,6 +110,10 @@ export interface RunDiagnosticsRequest {
  * @generated from protobuf message teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse
  */
 export interface RunDiagnosticsResponse {
+    /**
+     * @generated from protobuf field: teleport.lib.vnet.diag.v1.Report report = 1;
+     */
+    report?: Report;
 }
 /**
  * BackgroundItemStatus maps to SMAppServiceStatus of the Service Management framework in macOS.
@@ -417,7 +422,9 @@ export const RunDiagnosticsRequest = new RunDiagnosticsRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class RunDiagnosticsResponse$Type extends MessageType<RunDiagnosticsResponse> {
     constructor() {
-        super("teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse", []);
+        super("teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse", [
+            { no: 1, name: "report", kind: "message", T: () => Report }
+        ]);
     }
     create(value?: PartialMessage<RunDiagnosticsResponse>): RunDiagnosticsResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
@@ -426,9 +433,28 @@ class RunDiagnosticsResponse$Type extends MessageType<RunDiagnosticsResponse> {
         return message;
     }
     internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RunDiagnosticsResponse): RunDiagnosticsResponse {
-        return target ?? this.create();
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.lib.vnet.diag.v1.Report report */ 1:
+                    message.report = Report.internalBinaryRead(reader, reader.uint32(), options, message.report);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
     }
     internalBinaryWrite(message: RunDiagnosticsResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.lib.vnet.diag.v1.Report report = 1; */
+        if (message.report)
+            Report.internalBinaryWrite(message.report, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
