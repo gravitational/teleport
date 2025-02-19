@@ -1323,7 +1323,7 @@ IS_PROD_SEMVER = $(if $(findstring -,$(VERSION)),$(call find-any,$(PROD_VERSIONS
 # specified explicitly with `make tag-build CLOUD_ONLY=<true|false>`.
 .PHONY: tag-build
 tag-build: CLOUD_ONLY = $(if $(IS_CLOUD_SEMVER),true,false)
-tag-build: ENVIRONMENT = $(if $(IS_PROD_SEMVER),build-prod,build-stage)
+tag-build: ENVIRONMENT = $(if $(IS_PROD_SEMVER),prod/build,stage/build)
 tag-build:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-build.yaml \
@@ -1343,7 +1343,7 @@ tag-build:
 # specified explicitly with `make tag-publish CLOUD_ONLY=<true|false>`.
 .PHONY: tag-publish
 tag-publish: CLOUD_ONLY = $(if $(IS_CLOUD_SEMVER),true,false)
-tag-publish: ENVIRONMENT = $(if $(IS_PROD_SEMVER),publish-prod,publish-stage)
+tag-publish: ENVIRONMENT = $(if $(IS_PROD_SEMVER),prod/publish,stage/publish)
 tag-publish:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-publish.yaml \
