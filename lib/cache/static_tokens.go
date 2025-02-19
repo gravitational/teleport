@@ -52,26 +52,21 @@ func (s staticTokensUpstream) getAll(ctx context.Context, loadSecrets bool) ([]t
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
 func (c *Cache) GetStaticTokens() (types.StaticTokens, error) {
-	_, span := c.Tracer.Start(context.TODO(), "cache/GetStaticTokens")
+	ctx, span := c.Tracer.Start(context.TODO(), "cache/GetStaticTokens")
 	defer span.End()
 
-	if c.closed.Load() {
-		return nil, trace.Errorf("cache is closed")
-	}
-
-	c.rw.RLock()
-	collection := c.collections.staticTokens
-
-	if c.ok {
-		if c.isConfirmedUndlerLock(collection.watchKind()) {
-			defer c.rw.RUnlock()
-			st, err := collection.store.get()
+	st, err := readCachedResource(
+		ctx,
+		c,
+		c.collections.staticTokens,
+		func(_ context.Context, store *singletonStore[types.StaticTokens]) (types.StaticTokens, error) {
+			st, err := store.get()
 			return st, trace.Wrap(err)
-		}
-	}
-
-	c.rw.RUnlock()
-
-	st, err := collection.upstream.GetStaticTokens()
+		},
+		func(_ context.Context, upstream *staticTokensUpstream) (types.StaticTokens, error) {
+			st, err := upstream.GetStaticTokens()
+			return st, trace.Wrap(err)
+		},
+	)
 	return st, trace.Wrap(err)
 }
