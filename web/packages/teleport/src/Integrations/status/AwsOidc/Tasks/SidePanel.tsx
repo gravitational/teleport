@@ -15,33 +15,36 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-import React, { PropsWithChildren } from 'react';
+import { PropsWithChildren, ReactNode } from 'react';
 import styled from 'styled-components';
 
-import { Box, ButtonIcon, Flex } from 'design';
+import { ButtonIcon, Flex } from 'design';
 import { Cross } from 'design/Icon';
 
 export const SidePanel = ({
   onClose,
   header,
+  footer,
   disabled = false,
   children,
 }: PropsWithChildren & {
   onClose: () => void;
-  header?: React.ReactNode;
+  header?: ReactNode;
+  footer?: ReactNode;
   disabled?: boolean;
 }) => {
   return (
-    <Flex width="500px" flexDirection="column">
+    <Container
+      width="500px"
+      flexDirection="column"
+      borderLeft={1}
+      borderColor="levels.surface"
+    >
       <Flex
         alignItems="center"
-        mb={3}
         justifyContent="space-between"
-        maxWidth="500px"
-        borderBottom={1}
-        borderColor="levels.surface"
-        py={1}
+        mt={3}
+        mb={3}
         px={4}
       >
         {header}
@@ -49,15 +52,27 @@ export const SidePanel = ({
           <Cross size="medium" />
         </ButtonIcon>
       </Flex>
-      <ScrollContent px={4}>{children}</ScrollContent>
-    </Flex>
+      <Flex
+        flexDirection="column"
+        px={4}
+        style={{
+          flex: 1,
+          overflow: 'auto',
+          height: '100%',
+        }}
+      >
+        {children}
+      </Flex>
+      <Flex borderTop={1} borderColor="levels.surface" py={3} px={4}>
+        {footer}
+      </Flex>
+    </Container>
   );
 };
 
-const ScrollContent = styled(Box)`
-  max-height: calc(
-    100vh - ${props => props.theme.space[9]}px -
-      ${props => props.theme.topBarHeight[1]}px
-  );
-  overflow: auto;
+const Container = styled(Flex)`
+  display: flex;
+  flex-direction: column;
+
+  height: calc(100vh - ${props => props.theme.topBarHeight[1]}px);
 `;
