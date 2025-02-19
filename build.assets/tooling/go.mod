@@ -59,9 +59,6 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
-require (
-	github.com/spf13/afero v1.12.0
-	gopkg.in/yaml.v2 v2.4.0
-)
+require gopkg.in/yaml.v2 v2.4.0
 
 replace github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33
