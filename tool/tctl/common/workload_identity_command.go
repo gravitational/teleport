@@ -58,7 +58,6 @@ type WorkloadIdentityCommand struct {
 	revocationSerial string
 	revocationReason string
 	revocationExpiry string
-	revokedAt        string
 
 	now func() time.Time
 
