@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -129,7 +130,7 @@ func runCommand(cmd *exec.Cmd) *diagv1.CommandAttempt {
 		errMessage := err.Error()
 		if errors.As(err, &exitError) {
 			stderr := string(exitError.Stderr)
-			if stderr != "" {
+			if stderr != "" && utf8.Valid(exitError.Stderr) {
 				errMessage = fmt.Sprintf("%s\n%s", errMessage, stderr)
 			}
 		}
@@ -137,6 +138,15 @@ func runCommand(cmd *exec.Cmd) *diagv1.CommandAttempt {
 		return &diagv1.CommandAttempt{
 			Status:  diagv1.CommandAttemptStatus_COMMAND_ATTEMPT_STATUS_ERROR,
 			Error:   errMessage,
+			Command: command,
+		}
+	}
+
+	// A protobuf string must contain valid UTF-8 or 7-bit ASCII text .
+	if !utf8.Valid(output) {
+		return &diagv1.CommandAttempt{
+			Status:  diagv1.CommandAttemptStatus_COMMAND_ATTEMPT_STATUS_ERROR,
+			Error:   "command output contains text that is not UTF-8 encoded",
 			Command: command,
 		}
 	}
