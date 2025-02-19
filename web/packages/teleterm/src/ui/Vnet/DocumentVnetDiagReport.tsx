@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import styled from 'styled-components';
 
 import { Button, Alert as DesignAlert, Flex, H1, Link, Stack } from 'design';
@@ -32,12 +32,15 @@ import {
 } from 'design/Icon';
 import { P1, P2 } from 'design/Text/Text';
 import { HoverTooltip } from 'design/Tooltip';
+import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import * as diag from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 import { useAsync } from 'shared/hooks/useAsync';
 import { pluralize } from 'shared/utils/text';
 
 import { reportOneOfIsRouteConflictReport } from 'teleterm/helpers';
+import { reportToText } from 'teleterm/services/vnet/diag';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import type * as docTypes from 'teleterm/ui/services/workspacesService';
@@ -52,6 +55,7 @@ export function DocumentVnetDiagReport(props: {
   const { networkStackAttempt } = report;
   const { networkStack } = networkStackAttempt;
   const createdAt = displayDateTime(Timestamp.toDate(report.createdAt));
+  const { notificationsService } = useAppContext();
   const { getDisabledDiagnosticsReason, runDiagnostics } = useVnetContext();
   const { documentsService } = useWorkspaceContext();
 
@@ -80,6 +84,17 @@ export function DocumentVnetDiagReport(props: {
   const disabledDiagnosticsReason = getDisabledDiagnosticsReason(
     manualDiagnosticsAttempt
   );
+
+  const previousClipboardNotificationIdRef = useRef('');
+  const copyReportToClipboard = async () => {
+    notificationsService.removeNotification(
+      previousClipboardNotificationIdRef.current
+    );
+    const text = reportToText(report);
+    await copyToClipboard(text);
+    previousClipboardNotificationIdRef.current =
+      notificationsService.notifyInfo('Copied the report to the clipboard.');
+  };
 
   return (
     <Document visible={props.visible}>
@@ -122,7 +137,7 @@ export function DocumentVnetDiagReport(props: {
               </HoverTooltip>
 
               <HoverTooltip tipContent="Copy Report to Clipboard">
-                <Button intent="neutral" p={1}>
+                <Button intent="neutral" p={1} onClick={copyReportToClipboard}>
                   <Copy size="medium" />
                 </Button>
               </HoverTooltip>
