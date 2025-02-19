@@ -22,6 +22,8 @@ import {
   CheckAttemptStatus,
   CheckReport,
   CheckReportStatus,
+  CommandAttempt,
+  CommandAttemptStatus,
   Report,
   RouteConflict,
 } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
@@ -74,3 +76,27 @@ export const makeRouteConflict = (
   interfaceApp: '',
   ...props,
 });
+
+export const makeCommandAttempt = (
+  props: Partial<CommandAttempt> = {}
+): CommandAttempt => ({
+  command: 'netstat -rn -f inet',
+  status: CommandAttemptStatus.OK,
+  error: '',
+  output: netstatOutput,
+  ...props,
+});
+
+const netstatOutput = `Routing tables
+
+Internet:
+Destination        Gateway            Flags               Netif Expire
+default            192.168.1.1        UGdScg                en0       
+default            link#23            UCSIg           bridge100      !
+default            link#25            UCSIg               utun4       
+100.64/10          link#25            UCS                 utun4       
+100.64.0.1         100.64.0.1         UH                  utun5       
+100.87.112.117     100.87.112.117     UH                  utun4       
+100.100.100.100/32 link#25            UCS                 utun4       
+100.100.100.100    link#25            UHWIi               utun4       
+`;
