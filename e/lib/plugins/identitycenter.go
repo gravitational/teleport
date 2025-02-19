@@ -18,6 +18,7 @@ import (
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/credprovider"
 )
 
@@ -81,12 +82,12 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 			return trace.Wrap(err, "creating Identity Center client")
 		}
 
-		accountFilters, err := identitycentercommon.NewFilters(settings.AwsAccountsFilters)
+		accountFilters, err := icfilters.New(settings.AwsAccountsFilters)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		groupsFilters, err := identitycentercommon.NewFilters(settings.GroupSyncFilters)
+		groupsFilters, err := icfilters.New(settings.GroupSyncFilters)
 		if err != nil {
 			return trace.Wrap(err)
 		}

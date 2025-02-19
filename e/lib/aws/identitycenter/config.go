@@ -15,6 +15,7 @@ import (
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/integrations/access/common"
+	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -66,12 +67,12 @@ type ImportConfig struct {
 
 	// GroupSyncFilter is a filter that is used to filter groups that are
 	// synchronized from Identity Center to Teleport.
-	GroupSyncFilter identitycentercommon.Filters
+	GroupSyncFilter icfilters.Filters
 
 	// AccountFilters is an optional collection of filters used to create an
 	// allow-list when importing AWS accounts. An empty collection implies
 	// "import everything"
-	AccountFilters identitycentercommon.Filters
+	AccountFilters icfilters.Filters
 }
 
 func (cfg *ImportConfig) CheckAndSetDefaults() error {

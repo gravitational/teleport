@@ -15,8 +15,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	cloudaws "github.com/gravitational/teleport/e/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
+	icutils "github.com/gravitational/teleport/lib/utils/aws/identitycenterutils"
 )
 
 // Client is the interface for the SCIM SDK client
@@ -239,7 +239,7 @@ func (c *Config) checkAndSetDefaults() error {
 		return trace.BadParameter("missing integration type")
 	}
 	if c.IntegrationType == types.PluginTypeAWSIdentityCenter {
-		ensuredURL, err := cloudaws.EnsureAWSICSCIMEndpoint(c.Endpoint)
+		ensuredURL, err := icutils.EnsureSCIMEndpoint(c.Endpoint)
 		if err != nil {
 			return trace.Wrap(err)
 		}

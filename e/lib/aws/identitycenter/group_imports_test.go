@@ -18,13 +18,13 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/header"
-	identitycentercommon "github.com/gravitational/teleport/e/lib/aws/identitycenter/common"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	icfixture "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
 	"github.com/gravitational/teleport/e/lib/provisioning"
 	"github.com/gravitational/teleport/entitlements"
 	accesscommon "github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
+	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
 	_ "github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
@@ -55,7 +55,7 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 		existingList []listWithMembersAndRoles
 		icData       icData
 		expectedList []listWithMembersAndRoles
-		groupFilters identitycentercommon.Filters
+		groupFilters icfilters.Filters
 	}{
 		{
 			name: "new integration with a fresh Access List from group and group member imports",
@@ -304,7 +304,7 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 		},
 		{
 			name: "groups import with filters",
-			groupFilters: identitycentercommon.Filters{
+			groupFilters: icfilters.Filters{
 				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_Id{Id: "id2"}},
 				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "acl3"}},
 				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "acl7"}},
