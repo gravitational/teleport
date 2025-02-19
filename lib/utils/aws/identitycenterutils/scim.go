@@ -34,7 +34,7 @@ var matchAWSICEndpointIDField = regexp.MustCompile(`^[a-zA-Z0-9-]*$`).MatchStrin
 // a new base URL constructed from the validated fields.
 //
 // See [EnsureSCIMEndpointURL] for specifics about what constitutes a valid
-// endpoiint URL
+// endpoint URL
 func EnsureSCIMEndpoint(u string) (string, error) {
 	baseURL, err := url.ParseRequestURI(u)
 	if err != nil {
