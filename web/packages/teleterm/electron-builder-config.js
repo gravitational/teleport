@@ -193,6 +193,10 @@ module.exports = {
     // Turn off blockmaps since we don't support automatic updates.
     // https://github.com/electron-userland/electron-builder/issues/2900#issuecomment-730571696
     differentialPackage: false,
+    // Use a per-machine installation to support VNet.
+    // VNet installs a Windows service per-machine, and tsh.exe must be
+    // installed in a path that is not user-writable.
+    perMachine: true,
   },
   rpm: {
     artifactName: '${name}-${version}.${arch}.${ext}',
