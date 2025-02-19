@@ -31,11 +31,11 @@
     # https://nsis.sourceforge.io/Docs/Chapter4.html#varother
     EnVar::DeleteValue "Path" $INSTDIR\resources\bin
 
-    nsExec::ExecToStack '"$INSTDIR\resources\bin\tsh.exe" vnet-uninstall-service'
+    nsExec::ExecToStack 'sc delete TeleportVNet'
     Pop $0 # ExitCode
     Pop $1 # Output
     ${If} $0 != 0
         MessageBox MB_ICONSTOP \
-            "tsh.exe vnet-uninstall-service failed with exit code $0. Output: $1"
+            "sc delete TeleportVNet failed with exit code $0. Output: $1"
     ${Endif}
 !macroend
