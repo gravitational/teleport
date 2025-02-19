@@ -31,7 +31,7 @@ import (
 //
 // Windows services are installed by the service manager, which takes a path to
 // the service executable. So that regular users are not able to overwrite the
-// executable at that path, we use a path under C:\Program Files\, which is not
+// executable at that path, we use a path under %PROGRAMFILES%, which is not
 // writable by regular users by default.
 func InstallService(ctx context.Context) (err error) {
 	tshPath, err := os.Executable()
@@ -39,7 +39,7 @@ func InstallService(ctx context.Context) (err error) {
 		return trace.Wrap(err, "getting current exe path")
 	}
 	if err := assertProgramFiles(tshPath); err != nil {
-		return trace.Wrap(err, "checking if tsh.exe is installed under Program Files")
+		return trace.Wrap(err, "checking if tsh.exe is installed under %PROGRAMFILES%")
 	}
 	if err := assertWintunInstalled(tshPath); err != nil {
 		return trace.Wrap(err, "checking if wintun.dll is installed next to %s", tshPath)
@@ -142,10 +142,13 @@ func assertProgramFiles(tshPath string) error {
 	if programFiles == "" {
 		return trace.Errorf("PROGRAMFILES env var is not set")
 	}
-	if !strings.HasPrefix(tshPath, programFiles) {
+	// Windows file paths are case-insensitive.
+	cleanedProgramFiles := strings.ToLower(filepath.Clean(programFiles)) + string(filepath.Separator)
+	cleanedTshPath := strings.ToLower(filepath.Clean(tshPath))
+	if !strings.HasPrefix(cleanedTshPath, cleanedProgramFiles) {
 		return trace.BadParameter(
-			"tsh.exe must be installed under %s in order to install the VNet Windows service",
-			programFiles)
+			"tsh.exe is currently installed at %s, it must be installed under %s in order to install the VNet Windows service",
+			tshPath, programFiles)
 	}
 	return nil
 }
