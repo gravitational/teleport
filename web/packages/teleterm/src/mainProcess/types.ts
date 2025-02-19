@@ -157,6 +157,10 @@ export type MainProcessClient = {
   tryRemoveConnectMyComputerAgentBinary(): Promise<void>;
   getAgentState(args: { rootClusterUri: RootClusterUri }): AgentProcessState;
   getAgentLogs(args: { rootClusterUri: RootClusterUri }): string;
+  /**
+   * Signals to the windows manager that the UI has been fully initialized, that is the user has
+   * interacted with the relevant modals during startup and is free to use the app.
+   */
   signalUserInterfaceReadiness(args: { success: boolean }): void;
   refreshClusterList(): void;
 };
