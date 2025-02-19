@@ -440,13 +440,14 @@ func (p *certAuthorityParser) parse(event backend.Event) (types.Resource, error)
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}
 
-		return &types.ResourceHeader{
+		return &types.CertAuthorityV2{
 			Kind:    types.KindCertAuthority,
-			SubKind: components[1],
 			Version: types.V2,
 			Metadata: types.Metadata{
-				Name:      components[2],
-				Namespace: apidefaults.Namespace,
+				Name: components[2],
+			},
+			Spec: types.CertAuthoritySpecV2{
+				Type: types.CertAuthType(components[1]),
 			},
 		}, nil
 	case types.OpPut:
