@@ -40,7 +40,7 @@ export function Tasks() {
 
   const { integrationAttempt } = useAwsOidcStatus();
   const { data: integration } = integrationAttempt;
-  const [selectedTask, setSelectedTask] = useState<string>(undefined);
+  const [selectedTask, setSelectedTask] = useState<string>('');
 
   const serverSidePagination = useServerSidePagination<UserTask>({
     pageSize: 20,
@@ -66,11 +66,11 @@ export function Tasks() {
       taskName &&
       taskName !== '' &&
       serverSidePagination.fetchedData.agents &&
-      selectedTask === undefined
+      selectedTask === ''
     ) {
       setSelectedTask(taskName);
     } else {
-      setSelectedTask(undefined);
+      setSelectedTask('');
     }
   }, [taskName, serverSidePagination?.fetchedData]);
 
@@ -100,11 +100,12 @@ export function Tasks() {
   }
 
   function openTask(task: UserTask) {
-    if (selectedTask == undefined) {
-      const urlParams = new URLSearchParams();
-      urlParams.append('task', task.name);
-      history.replace(`${history.location.pathname}?${urlParams.toString()}`);
+    if (selectedTask != '') {
+      return;
     }
+    const urlParams = new URLSearchParams();
+    urlParams.append('task', task.name);
+    history.replace(`${history.location.pathname}?${urlParams.toString()}`);
   }
 
   return (
@@ -126,12 +127,12 @@ export function Tasks() {
             data={serverSidePagination.fetchedData?.agents || []}
             row={{
               onClick: row => {
-                if (selectedTask === undefined) {
+                if (selectedTask === '') {
                   openTask(row);
                 }
               },
               getStyle: () => {
-                if (selectedTask === undefined) {
+                if (selectedTask === '') {
                   return { cursor: 'pointer' };
                 }
               },
@@ -162,7 +163,7 @@ export function Tasks() {
                   <Cell>
                     <ButtonBorder
                       onClick={() => openTask(item)}
-                      disabled={selectedTask != undefined}
+                      disabled={selectedTask != ''}
                       size="small"
                     >
                       View
