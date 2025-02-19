@@ -897,7 +897,7 @@ func (p *proxyPingResponse) proxyWebAddr() (string, error) {
 // Includes potential override via TBOT_USE_PROXY_ADDR.
 func (p *proxyPingResponse) proxySSHAddr() (string, error) {
 	if p.Proxy.TLSRoutingEnabled && shouldUseProxyAddr() {
-		// If using TLS routing, we should use the manually overriden address
+		// If using TLS routing, we should use the manually overridden address
 		// for the proxy web port.
 		if p.configuredProxyAddr == "" {
 			return "", trace.BadParameter("TBOT_USE_PROXY_ADDR set but no explicit proxy address configured")
