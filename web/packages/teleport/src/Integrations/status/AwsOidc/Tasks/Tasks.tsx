@@ -18,7 +18,7 @@
 
 import { useEffect, useState } from 'react';
 import { useHistory } from 'react-router';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
 import { ButtonBorder, Flex, Indicator } from 'design';
 import { Danger } from 'design/Alert';
@@ -36,6 +36,7 @@ import { useAwsOidcStatus } from 'teleport/Integrations/status/AwsOidc/useAwsOid
 import { integrationService, UserTask } from 'teleport/services/integrations';
 
 export function Tasks() {
+  const theme = useTheme();
   const history = useHistory();
   const searchParams = new URLSearchParams(history.location.search);
   const taskName = searchParams.get('task');
@@ -143,9 +144,14 @@ export function Tasks() {
                   openTask(row);
                 }
               },
-              getStyle: () => {
+              getStyle: (row: UserTask) => {
                 if (selectedTask === '') {
                   return { cursor: 'pointer' };
+                }
+                if (row.name === selectedTask) {
+                  return {
+                    backgroundColor: theme.colors.interactive.tonal.primary[0],
+                  };
                 }
               },
             }}
