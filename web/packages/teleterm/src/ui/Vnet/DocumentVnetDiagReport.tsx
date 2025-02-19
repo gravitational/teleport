@@ -39,7 +39,7 @@ import { useAsync } from 'shared/hooks/useAsync';
 import { pluralize } from 'shared/utils/text';
 
 import { reportOneOfIsRouteConflictReport } from 'teleterm/helpers';
-import { reportToText } from 'teleterm/services/vnet/diag';
+import { getReportFilename, reportToText } from 'teleterm/services/vnet/diag';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
@@ -55,7 +55,7 @@ export function DocumentVnetDiagReport(props: {
   const { networkStackAttempt } = report;
   const { networkStack } = networkStackAttempt;
   const createdAt = displayDateTime(Timestamp.toDate(report.createdAt));
-  const { notificationsService } = useAppContext();
+  const { notificationsService, mainProcessClient } = useAppContext();
   const { getDisabledDiagnosticsReason, runDiagnostics } = useVnetContext();
   const { documentsService } = useWorkspaceContext();
 
@@ -94,6 +94,34 @@ export function DocumentVnetDiagReport(props: {
     await copyToClipboard(text);
     previousClipboardNotificationIdRef.current =
       notificationsService.notifyInfo('Copied the report to the clipboard.');
+  };
+
+  const previousSaveToFileNotificationIdRef = useRef('');
+  const saveReportToFile = async () => {
+    notificationsService.removeNotification(
+      previousSaveToFileNotificationIdRef.current
+    );
+
+    const text = reportToText(report);
+    let result: Awaited<ReturnType<typeof mainProcessClient.saveTextToFile>>;
+    try {
+      result = await mainProcessClient.saveTextToFile({
+        text,
+        defaultBasename: getReportFilename(report),
+      });
+    } catch (error) {
+      previousSaveToFileNotificationIdRef.current =
+        notificationsService.notifyError({
+          title: 'Could not save the report to a file.',
+          description: error?.message,
+        });
+      return;
+    }
+
+    if (!result.canceled) {
+      previousSaveToFileNotificationIdRef.current =
+        notificationsService.notifyInfo('Saved the report to a file.');
+    }
   };
 
   return (
@@ -143,7 +171,7 @@ export function DocumentVnetDiagReport(props: {
               </HoverTooltip>
 
               <HoverTooltip tipContent="Save Report to File">
-                <Button intent="neutral" p={1}>
+                <Button intent="neutral" p={1} onClick={saveReportToFile}>
                   <Download size="medium" />
                 </Button>
               </HoverTooltip>

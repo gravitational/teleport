@@ -22,6 +22,19 @@ import * as diag from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 
 import { reportOneOfIsRouteConflictReport } from 'teleterm/helpers';
 
+export const getReportFilename = (report: diag.Report) => {
+  const createdAt = displayDateTime(Timestamp.toDate(report.createdAt));
+  // Colons are best avoided on macOS and forbidden on Windows.
+  // https://en.wikipedia.org/wiki/Filename#Comparison_of_filename_limitations
+  // Spaces are removed as well to avoid issues with encoding if the user uploads the file and makes
+  // it accessible over a URL that includes the filename.
+  const sanitizedCreatedAt = createdAt
+    .replaceAll(' ', '_')
+    .replaceAll(':', '-');
+
+  return `vnet_diag_report_${sanitizedCreatedAt}.txt`;
+};
+
 export function reportToText(report: diag.Report): string {
   const createdAt = Timestamp.toDate(report.createdAt);
   const localCreatedAt = displayDateTime(createdAt);
