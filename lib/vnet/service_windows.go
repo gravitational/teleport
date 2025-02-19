@@ -35,11 +35,8 @@ const (
 	ServiceCommand     = "vnet-service"
 	serviceDescription = "This service manages networking and OS configuration for Teleport VNet."
 	serviceAccessFlags = windows.SERVICE_START | windows.SERVICE_STOP | windows.SERVICE_QUERY_STATUS
+	serviceName        = "TeleportVNet"
 )
-
-func userServiceName(username string) string {
-	return "TeleportVNet-" + username
-}
 
 // runService is called from the normal user process to run the VNet Windows in
 // the background and wait for it to exit. It will terminate the service and
@@ -80,17 +77,16 @@ func startService(ctx context.Context, cfg *windowsAdminProcessConfig) (*mgr.Ser
 		return nil, trace.Wrap(err, "opening Windows service manager")
 	}
 	defer windows.CloseServiceHandle(scManager)
-	svcName := userServiceName(cfg.username)
-	svcNamePtr, err := syscall.UTF16PtrFromString(svcName)
+	serviceNamePtr, err := syscall.UTF16PtrFromString(serviceName)
 	if err != nil {
 		return nil, trace.Wrap(err, "converting service name to UTF16")
 	}
-	serviceHandle, err := windows.OpenService(scManager, svcNamePtr, serviceAccessFlags)
+	serviceHandle, err := windows.OpenService(scManager, serviceNamePtr, serviceAccessFlags)
 	if err != nil {
-		return nil, trace.Wrap(err, "opening Windows service %v", svcName)
+		return nil, trace.Wrap(err, "opening Windows service %v", serviceName)
 	}
 	service := &mgr.Service{
-		Name:   svcName,
+		Name:   serviceName,
 		Handle: serviceHandle,
 	}
 	if err := service.Start(ServiceCommand,
@@ -98,7 +94,7 @@ func startService(ctx context.Context, cfg *windowsAdminProcessConfig) (*mgr.Ser
 		"--cred-path", cfg.serviceCredentialPath,
 		"--username", cfg.username,
 	); err != nil {
-		return nil, trace.Wrap(err, "starting Windows service %s", svcName)
+		return nil, trace.Wrap(err, "starting Windows service %s", serviceName)
 	}
 	return service, nil
 }
@@ -108,7 +104,7 @@ func ServiceMain() error {
 	if err := setupServiceLogger(); err != nil {
 		return trace.Wrap(err, "setting up logger for service")
 	}
-	if err := svc.Run("TeleportVNet", &windowsService{}); err != nil {
+	if err := svc.Run(serviceName, &windowsService{}); err != nil {
 		return trace.Wrap(err, "running Windows service")
 	}
 	return nil
