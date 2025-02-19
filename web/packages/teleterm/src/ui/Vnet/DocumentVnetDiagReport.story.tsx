@@ -19,6 +19,7 @@
 import { Meta } from '@storybook/react';
 import { PropsWithChildren, useEffect } from 'react';
 
+import { Box } from 'design';
 import {
   CheckAttemptStatus,
   CheckReportStatus,
@@ -30,6 +31,7 @@ import { usePromiseRejectedOnUnmount } from 'shared/utils/wait';
 
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { reportToText } from 'teleterm/services/vnet/diag';
 import {
   makeCheckAttempt,
   makeCheckReport,
@@ -46,6 +48,7 @@ import { DocumentVnetDiagReport as Component } from './DocumentVnetDiagReport';
 import { useVnetContext, VnetContextProvider } from './vnetContext';
 
 type StoryProps = {
+  asText: boolean;
   networkStackAttempt: 'ok' | 'error';
   ipv4CidrRanges: string[];
   dnsZones: string[];
@@ -68,6 +71,10 @@ const meta: Meta<StoryProps> = {
     );
   },
   argTypes: {
+    asText: {
+      description:
+        'Render the report as text rather than as a React component.',
+    },
     networkStackAttempt: {
       control: { type: 'inline-radio' },
       options: ['ok', 'error'],
@@ -85,7 +92,7 @@ const meta: Meta<StoryProps> = {
     },
     displayUnsupportedCheckAttempt: {
       description:
-        "Simulates the component receiving a report with a check attempt that's not supported in the current version",
+        "Simulate the component receiving a report with a check attempt that's not supported in the current version",
     },
     reRunDiagnostics: {
       control: { type: 'inline-radio' },
@@ -93,6 +100,7 @@ const meta: Meta<StoryProps> = {
     },
   },
   args: {
+    asText: false,
     networkStackAttempt: 'ok',
     ipv4CidrRanges: ['100.64.0.0/10'],
     dnsZones: ['teleport.example.com', 'company.test'],
@@ -236,6 +244,14 @@ export function DocumentVnetDiagReport(props: StoryProps) {
       stop();
     };
   }, [props.vnetRunning, start, stop]);
+
+  if (props.asText) {
+    return (
+      <Box backgroundColor="levels.surface" p={2}>
+        <pre>{reportToText(report)}</pre>
+      </Box>
+    );
+  }
 
   return <Component visible doc={doc} />;
 }

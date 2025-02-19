@@ -1,0 +1,124 @@
+/**
+ * Teleport
+ * Copyright (C) 2025 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import { displayDateTime } from 'design/datetime';
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import * as diag from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
+
+import { reportOneOfIsRouteConflictReport } from 'teleterm/helpers';
+
+export function reportToText(report: diag.Report): string {
+  const createdAt = Timestamp.toDate(report.createdAt);
+  const localCreatedAt = displayDateTime(createdAt);
+  const utcCreatedAt = createdAt.toUTCString();
+  const networkStack = networkStackAttemptToText(report.networkStackAttempt);
+  const checkReports = report.checks.map(checkAttemptToText).join('\n\n');
+
+  return `VNet Diagnostic Report
+
+Created at (local): ${localCreatedAt}
+Created at (UTC): ${utcCreatedAt}
+${networkStack}
+
+${checkReports}\n`;
+}
+
+function networkStackAttemptToText(
+  networkStackAttempt: diag.NetworkStackAttempt
+): string {
+  const { networkStack } = networkStackAttempt;
+
+  return networkStackAttempt.status === diag.CheckAttemptStatus.ERROR
+    ? `Network details could not be determined:
+${networkStackAttempt.error}`
+    : `Network interface: ${networkStack.interfaceName}
+IPv4 CIDR ranges: ${networkStack.ipv4CidrRanges.join(', ')}
+IPv6 prefix: ${networkStack.ipv6Prefix}
+DNS zones: ${networkStack.dnsZones.join(', ')}`;
+}
+
+function checkAttemptToText(checkAttempt: diag.CheckAttempt): string {
+  const reportOneof = checkAttempt.checkReport.report.oneofKind;
+  const displayDetails = reportOneofToDisplayDetails[reportOneof];
+
+  if (!displayDetails) {
+    return `Cannot display the result from an unsupported check ${reportOneof}.`;
+  }
+
+  let checkSummary: string;
+  if (checkAttempt.status === diag.CheckAttemptStatus.ERROR) {
+    checkSummary = `Failed to ${displayDetails.errorTitle}:
+${checkAttempt.error}`;
+  } else {
+    checkSummary = displayDetails.reportToText(checkAttempt.checkReport);
+  }
+
+  const commandSummaries = checkAttempt.commands.map(commandAttempt =>
+    commandAttempt.status === diag.CommandAttemptStatus.ERROR
+      ? `Ran into an error when executing ${commandAttempt.command}:
+${commandAttempt.error}`
+      : `\`\`\`
+$ ${commandAttempt.command}
+${commandAttempt.output}
+\`\`\``
+  );
+
+  return `---
+${checkSummary}
+
+${commandSummaries.join('\n\n')}`;
+}
+
+const reportOneofToDisplayDetails: Record<
+  diag.CheckReport['report']['oneofKind'],
+  {
+    reportToText: (checkReport: diag.CheckReport) => string;
+    errorTitle: string;
+  }
+> = {
+  routeConflictReport: {
+    errorTitle: 'inspect network routes',
+    reportToText: routeConflictReportToText,
+  },
+};
+
+function routeConflictReportToText({
+  report,
+  status,
+}: diag.CheckReport): string {
+  if (!reportOneOfIsRouteConflictReport(report)) {
+    return '';
+  }
+
+  if (status === diag.CheckReportStatus.OK) {
+    return '✅ There are no network routes in conflict with VNet.';
+  }
+
+  const tableRows = report.routeConflictReport.routeConflicts
+    .map(
+      routeConflict =>
+        `| ${routeConflict.dest} | ${routeConflict.vnetDest} | ${routeConflict.interfaceName} | ${routeConflict.interfaceApp || 'unknown'} |`
+    )
+    .join('\n');
+
+  return `⚠️ There are network routes in conflict with VNet.
+
+| Conflicting destination | VNet destination | Interface | Set up by |
+| ----------------------- | ---------------- | --------- | --------- |
+${tableRows}`;
+}
