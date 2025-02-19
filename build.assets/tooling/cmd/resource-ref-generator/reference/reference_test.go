@@ -18,18 +18,14 @@ package reference
 
 import (
 	"errors"
-	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
-	"runtime"
 	"testing"
 
-	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/resource"
@@ -229,15 +225,8 @@ type MyStruct struct{
 // files, delete the destination directory (reference/testdata/dest) and run the
 // test again.
 func TestGenerate(t *testing.T) {
-	// Define paths based on relative paths from this Go source file to
-	// guarantee consistent results regardless of where a user runs "go test".
-	_, callerPath, _, _ := runtime.Caller(0)
-	fmt.Println(callerPath)
-	tdPath, err := filepath.Rel(filepath.Dir(callerPath), filepath.Join(filepath.Dir(callerPath), "testdata"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	config := GeneratorConfig{
+	tdPath := "testdata"
+	baseConf := GeneratorConfig{
 		RequiredFieldTypes: []TypeInfo{
 			{
 				Name:    "ResourceHeader",
@@ -252,12 +241,10 @@ func TestGenerate(t *testing.T) {
 				Package: "v1",
 			},
 		},
-		SourcePath: path.Join(
+		SourcePath: filepath.Join(
 			tdPath, "src",
 		),
-		DestinationDirectory: path.Join(
-			tdPath, "dest",
-		),
+		DestinationDirectory: "dest",
 		ExcludedResourceTypes: []TypeInfo{
 			{
 				Name:    "ResourceHeader",
@@ -267,16 +254,18 @@ func TestGenerate(t *testing.T) {
 		FieldAssignmentMethodName: "setStaticFields",
 	}
 
-	dirExpected, err := os.ReadDir(config.DestinationDirectory)
-	osFS := afero.NewOsFs()
+	goldenConf := baseConf
+	goldenConf.DestinationDirectory = filepath.Join(tdPath, "dest")
+
+	dirExpected, err := os.ReadDir(goldenConf.DestinationDirectory)
 
 	switch {
 	// Recreate the golden file directory if it is missing.
 	case errors.Is(err, os.ErrNotExist):
-		if err := os.Mkdir(config.DestinationDirectory, 0777); err != nil {
+		if err := os.Mkdir(goldenConf.DestinationDirectory, 0777); err != nil {
 			t.Fatal(err)
 		}
-		if err := Generate(osFS, osFS, config); err != nil {
+		if err := Generate(goldenConf); err != nil {
 			t.Fatal(err)
 		}
 		return
@@ -284,16 +273,19 @@ func TestGenerate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	memfs := afero.NewMemMapFs()
-	if err := Generate(osFS, memfs, config); err != nil {
+	tmp := t.TempDir()
+	tmpConf := baseConf
+	tmpConf.DestinationDirectory = filepath.Join(tmp, "dest")
+
+	if err := os.Mkdir(tmpConf.DestinationDirectory, 0777); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := memfs.MkdirAll(config.DestinationDirectory, 0777); err != nil {
+	if err := Generate(tmpConf); err != nil {
 		t.Fatal(err)
 	}
 
-	fileActual, err := memfs.Open(config.DestinationDirectory)
+	fileActual, err := os.Open(tmpConf.DestinationDirectory)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -305,12 +297,12 @@ func TestGenerate(t *testing.T) {
 
 	expectedFiles := make(map[string]struct{})
 	for _, f := range dirExpected {
-		expectedFiles[path.Join(config.DestinationDirectory, f.Name())] = struct{}{}
+		expectedFiles[f.Name()] = struct{}{}
 	}
 
 	actualFiles := make(map[string]struct{})
 	for _, f := range dirActual {
-		actualFiles[path.Join(config.DestinationDirectory, f.Name())] = struct{}{}
+		actualFiles[f.Name()] = struct{}{}
 	}
 
 	for f := range actualFiles {
@@ -318,7 +310,7 @@ func TestGenerate(t *testing.T) {
 			t.Fatalf(
 				"file %v created after running the generator but is not in %v",
 				f,
-				config.DestinationDirectory,
+				tmpConf.DestinationDirectory,
 			)
 		}
 	}
@@ -327,7 +319,7 @@ func TestGenerate(t *testing.T) {
 			t.Fatalf(
 				"file %v in %v was not created after running the generator",
 				f,
-				config.DestinationDirectory,
+				goldenConf.DestinationDirectory,
 			)
 		}
 	}
@@ -335,7 +327,7 @@ func TestGenerate(t *testing.T) {
 	// Actual file names and expected file names match, so we can compare
 	// each file.
 	for f := range actualFiles {
-		actual, err := memfs.Open(f)
+		actual, err := os.Open(filepath.Join(tmpConf.DestinationDirectory, f))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -344,7 +336,7 @@ func TestGenerate(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		expected, err := os.Open(f)
+		expected, err := os.Open(filepath.Join(goldenConf.DestinationDirectory, f))
 		if err != nil {
 			t.Fatal(err)
 		}
