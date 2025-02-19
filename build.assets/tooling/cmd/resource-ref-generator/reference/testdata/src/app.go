@@ -17,7 +17,7 @@
 package typestest
 
 import (
-	fmt "fmt"
+	"fmt"
 	"net/url"
 	"strings"
 

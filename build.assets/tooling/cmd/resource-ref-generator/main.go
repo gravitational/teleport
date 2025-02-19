@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/afero"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/reference"
@@ -83,8 +82,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	osFS := afero.NewOsFs()
-	err = reference.Generate(osFS, osFS, genconf)
+	err = reference.Generate(genconf)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Could not generate the resource reference: %v\n", err)
 		os.Exit(1)

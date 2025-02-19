@@ -21,11 +21,11 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
 
-	"github.com/spf13/afero"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/resource"
@@ -232,8 +232,8 @@ func (g GenerationError) Error() string {
 
 // Generate uses the provided user-facing configuration to write the resource
 // reference to fs.
-func Generate(srcFS, destFS afero.Fs, conf GeneratorConfig) error {
-	sourceData, err := resource.NewSourceData(srcFS, conf.SourcePath)
+func Generate(conf GeneratorConfig) error {
+	sourceData, err := resource.NewSourceData(conf.SourcePath)
 	if err != nil {
 		return fmt.Errorf("loading Go source files: %w", err)
 	}
@@ -287,13 +287,15 @@ func Generate(srcFS, destFS afero.Fs, conf GeneratorConfig) error {
 		pc.Resource.Version = verName
 
 		filename := strings.ReplaceAll(strings.ToLower(pc.Resource.SectionName), " ", "-")
-		doc, err := destFS.Create(filepath.Join(conf.DestinationDirectory, filename+".mdx"))
+		docpath := filepath.Join(conf.DestinationDirectory, filename+".mdx")
+		doc, err := os.Create(docpath)
 		if err != nil {
-			errs.messages = append(errs.messages, err)
+			errs.messages = append(errs.messages, fmt.Errorf("cannot create page at %v: %v", docpath, err))
+			continue
 		}
 
 		if err := tmpl.Execute(doc, pc); err != nil {
-			errs.messages = append(errs.messages, err)
+			errs.messages = append(errs.messages, fmt.Errorf("cannot populate the resource reference template: %v", err))
 		}
 	}
 	if len(errs.messages) > 0 {

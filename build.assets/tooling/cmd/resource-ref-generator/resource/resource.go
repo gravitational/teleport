@@ -23,13 +23,13 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	gofs "io/fs"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 
-	"github.com/spf13/afero"
 	"golang.org/x/tools/go/ast/astutil"
 )
 
@@ -95,7 +95,7 @@ type SourceData struct {
 	StringAssignments map[PackageInfo]string
 }
 
-func NewSourceData(fs afero.Fs, rootPath string) (SourceData, error) {
+func NewSourceData(rootPath string) (SourceData, error) {
 	// All declarations within the source tree. We use this to extract
 	// information about dynamic resource fields, which we can look up by
 	// package and declaration name.
@@ -107,7 +107,7 @@ func NewSourceData(fs afero.Fs, rootPath string) (SourceData, error) {
 	// packages.Load here since the resulting []*Package does not expose
 	// individual file names, which we need so contributors who want to edit
 	// the resulting docs page know which files to modify.
-	err := afero.Walk(fs, rootPath, func(currentPath string, info gofs.FileInfo, err error) error {
+	err := filepath.Walk(rootPath, func(currentPath string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return fmt.Errorf("loading Go source: %w", err)
 		}
@@ -122,7 +122,7 @@ func NewSourceData(fs afero.Fs, rootPath string) (SourceData, error) {
 
 		// Open the file so we can pass it to ParseFile. Otherwise,
 		// ParseFile always reads from the OS FS, not from fs.
-		f, err := fs.Open(currentPath)
+		f, err := os.Open(currentPath)
 		if err != nil {
 			return err
 		}
@@ -142,6 +142,13 @@ func NewSourceData(fs afero.Fs, rootPath string) (SourceData, error) {
 			stringAssignments[k] = v
 		}
 
+		// Use a relative path from the source directory for cleaner
+		// paths
+		relDeclPath, err := filepath.Rel(rootPath, currentPath)
+		if err != nil {
+			return err
+		}
+
 		// Collect information from each file:
 		// - Imported packages and their aliases
 		// - Possible function declarations (for identifying relevant
@@ -151,7 +158,7 @@ func NewSourceData(fs afero.Fs, rootPath string) (SourceData, error) {
 		for _, decl := range file.Decls {
 			di := DeclarationInfo{
 				Decl:         decl,
-				FilePath:     currentPath,
+				FilePath:     relDeclPath,
 				PackageName:  file.Name.Name,
 				NamedImports: pn,
 			}
@@ -173,7 +180,7 @@ func NewSourceData(fs afero.Fs, rootPath string) (SourceData, error) {
 				PackageName: file.Name.Name,
 			}] = DeclarationInfo{
 				Decl:         l,
-				FilePath:     currentPath,
+				FilePath:     relDeclPath,
 				PackageName:  file.Name.Name,
 				NamedImports: pn,
 			}
