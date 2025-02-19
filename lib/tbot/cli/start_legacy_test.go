@@ -53,8 +53,8 @@ func TestLegacyCommand(t *testing.T) {
 				require.Equal(t, "foo", token)
 
 				require.ElementsMatch(t, cfg.Onboarding.CAPins, []string{"bar"})
-				require.Equal(t, time.Minute*10, cfg.CertificateTTL)
-				require.Equal(t, time.Minute*5, cfg.RenewalInterval)
+				require.Equal(t, time.Minute*10, cfg.CredentialLifetime.TTL)
+				require.Equal(t, time.Minute*5, cfg.CredentialLifetime.RenewalInterval)
 				require.Equal(t, types.JoinMethodGitHub, cfg.Onboarding.JoinMethod)
 				require.True(t, cfg.Oneshot)
 				require.Equal(t, "0.0.0.0:8080", cfg.DiagAddr)

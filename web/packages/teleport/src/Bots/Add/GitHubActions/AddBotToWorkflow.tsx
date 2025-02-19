@@ -96,7 +96,7 @@ jobs:
       # able to authenticate with the cluster.
       id-token: write
       contents: read
-    ${includeNameComment && '# if you added a workflow name in the previous step, make sure you use the same value here'}
+    ${includeNameComment ? '# if you added a workflow name in the previous step, make sure you use the same value here' : ''}
     name: ${botName}-example
     runs-on: ubuntu-latest
     steps:

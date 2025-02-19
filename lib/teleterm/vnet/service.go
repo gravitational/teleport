@@ -239,8 +239,14 @@ func (s *Service) ListDNSZones(ctx context.Context, req *api.ListDNSZonesRequest
 		return nil, trace.Wrap(err)
 	}
 
-	dnsZones := []string{}
+	dnsZones, _ := s.listDNSZonesAndCIDRRanges(ctx, profileNames)
 
+	return &api.ListDNSZonesResponse{
+		DnsZones: dnsZones,
+	}, nil
+}
+
+func (s *Service) listDNSZonesAndCIDRRanges(ctx context.Context, profileNames []string) (dnsZones []string, cidrRanges []string) {
 	for _, profileName := range profileNames {
 		rootClusterURI := uri.NewClusterURI(profileName)
 		cLog := log.With("cluster", rootClusterURI)
@@ -257,6 +263,7 @@ func (s *Service) ListDNSZones(ctx context.Context, req *api.ListDNSZonesRequest
 		}
 
 		dnsZones = append(dnsZones, clusterConfig.DNSZones...)
+		cidrRanges = append(cidrRanges, clusterConfig.IPv4CIDRRange)
 
 		leafClusters, err := s.cfg.DaemonService.ListLeafClusters(ctx, rootClusterURI.String())
 		if err != nil {
@@ -279,14 +286,14 @@ func (s *Service) ListDNSZones(ctx context.Context, req *api.ListDNSZonesRequest
 			}
 
 			dnsZones = append(dnsZones, clusterConfig.DNSZones...)
+			cidrRanges = append(cidrRanges, clusterConfig.IPv4CIDRRange)
 		}
 	}
 
 	dnsZones = utils.Deduplicate(dnsZones)
+	cidrRanges = utils.Deduplicate(cidrRanges)
 
-	return &api.ListDNSZonesResponse{
-		DnsZones: dnsZones,
-	}, nil
+	return dnsZones, cidrRanges
 }
 
 func (s *Service) stopLocked() error {

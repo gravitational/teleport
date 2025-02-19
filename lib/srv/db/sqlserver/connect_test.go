@@ -142,11 +142,10 @@ func TestConnectorSelection(t *testing.T) {
 	}
 }
 
-type mockKerberos struct {
-}
+type mockKerberos struct{}
 
 const unimplementedMessage = "intentionally left unimplemented"
 
-func (m *mockKerberos) GetKerberosClient(ctx context.Context, sessionCtx *common.Session) (*client.Client, error) {
+func (m *mockKerberos) GetKerberosClient(ctx context.Context, ad types.AD, username string) (*client.Client, error) {
 	return nil, trace.BadParameter(unimplementedMessage)
 }
