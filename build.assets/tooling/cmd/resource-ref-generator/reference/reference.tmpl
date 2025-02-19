@@ -3,6 +3,9 @@ title: {{ .Resource.SectionName }} Reference
 description: Provides a reference of fields within the {{ .Resource.SectionName }} resource, which you can manage with tctl.
 sidebar_title: {{ .Resource.SectionName }}
 ---
+{/* Automatically generated from: {{ .Resource.SourcePath}} */}
+{/* DO NOT EDIT */}
+
 {{- if ne .Resource.Kind "" }}
 
 **Kind**: {{ .Resource.Kind }}
@@ -13,8 +16,6 @@ sidebar_title: {{ .Resource.SectionName }}
 {{- end }}
 
 {{ .Resource.Description }}
-
-{/*Automatically generated from: {{ .Resource.SourcePath}}*/}
 
 Example:
 
@@ -35,7 +36,6 @@ Example:
 
 {{ .Description }}
 
-{/*Automatically generated from: {{ .SourcePath}}*/}
 {{ if ne .YAMLExample "" }}
 Example:
 
