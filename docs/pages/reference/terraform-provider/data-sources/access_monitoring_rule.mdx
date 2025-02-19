@@ -32,9 +32,17 @@ Required:
 
 Optional:
 
+- `automatic_approval` (Attributes) automatic_approval defines the plugin configuration for automatic approvals. (see [below for nested schema](#nested-schema-for-specautomatic_approval))
 - `condition` (String) condition is a predicate expression that operates on the specified subject resources, and determines whether the subject will be moved into desired state.
 - `notification` (Attributes) notification defines the plugin configuration for notifications if rule is triggered. (see [below for nested schema](#nested-schema-for-specnotification))
 - `states` (List of String) states are the desired state which the monitoring rule is attempting to bring the subjects matching the condition to.
+
+### Nested Schema for `spec.automatic_approval`
+
+Optional:
+
+- `name` (String) name is the name of the plugin to which this configuration should apply.
+
 
 ### Nested Schema for `spec.notification`
 
