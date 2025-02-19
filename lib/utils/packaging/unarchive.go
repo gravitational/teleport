@@ -129,9 +129,6 @@ func replaceZip(toolsDir string, archivePath string, extractDir string, execName
 				return trace.Wrap(err)
 			}
 			appPath := filepath.Join(toolsDir, baseName)
-			if err := os.Remove(appPath); err != nil && !os.IsNotExist(err) {
-				return trace.Wrap(err)
-			}
 			// For the Windows build we have to copy binary to be able
 			// to do this without administrative access as it required
 			// for symlinks.
