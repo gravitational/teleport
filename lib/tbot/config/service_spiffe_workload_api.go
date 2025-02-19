@@ -126,6 +126,10 @@ type SPIFFEWorkloadAPIService struct {
 	// Workload API server are valid for. If unspecified, this falls back to
 	// the globally configured default.
 	JWTSVIDTTL time.Duration `yaml:"jwt_svid_ttl,omitempty"`
+
+	// CredentialLifetime contains configuration for how long X.509 SVIDs will
+	// last and the frequency at which they'll be renewed.
+	CredentialLifetime CredentialLifetime `yaml:",inline"`
 }
 
 func (s *SPIFFEWorkloadAPIService) Type() string {
@@ -162,4 +166,8 @@ func (s *SPIFFEWorkloadAPIService) CheckAndSetDefaults() error {
 		return trace.Wrap(err, "validating attestor")
 	}
 	return nil
+}
+
+func (o *SPIFFEWorkloadAPIService) GetCredentialLifetime() CredentialLifetime {
+	return o.CredentialLifetime
 }

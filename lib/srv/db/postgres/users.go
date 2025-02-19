@@ -188,18 +188,19 @@ func (e *Engine) granularPermissionsEnabled(sessionCtx *common.Session) bool {
 }
 
 func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Session) error {
+	logger := e.Log.With("user", sessionCtx.DatabaseUser)
 	allow, _, err := sessionCtx.Checker.GetDatabasePermissions(sessionCtx.Database)
 	if err != nil {
-		e.Log.ErrorContext(e.Context, "Failed to calculate effective database permissions.", "error", err)
+		logger.ErrorContext(e.Context, "Failed to calculate effective database permissions.", "error", err)
 		return trace.Wrap(err)
 	}
 	if len(allow) == 0 {
-		e.Log.InfoContext(e.Context, "Skipping applying fine-grained permissions: none to apply.")
+		logger.InfoContext(e.Context, "Skipping applying fine-grained permissions: none to apply.")
 		return nil
 	}
 
 	if len(sessionCtx.DatabaseRoles) > 0 {
-		e.Log.ErrorContext(ctx, "Cannot apply fine-grained permissions: non-empty list of database roles.", "roles", sessionCtx.DatabaseRoles)
+		logger.ErrorContext(ctx, "Cannot apply fine-grained permissions: non-empty list of database roles.", "roles", sessionCtx.DatabaseRoles)
 		return trace.BadParameter("fine-grained database permissions and database roles are mutually exclusive, yet both were provided.")
 	}
 
@@ -223,7 +224,7 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 	}
 
 	summary, eventData := permissions.SummarizePermissions(permissionSet)
-	e.Log.InfoContext(ctx, "Calculated database permissions.", "summary", summary, "user", sessionCtx.DatabaseUser)
+	logger.InfoContext(ctx, "Calculated database permissions.", "summary", summary)
 	e.auditUserPermissions(sessionCtx, eventData)
 
 	perms, err := convertPermissions(permissionSet)
@@ -240,7 +241,6 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 
 	// teleport_remove_permissions and teleport_update_permissions are created in pg_temp table of the session database.
 	// teleport_remove_permissions gets called by teleport_update_permissions as needed.
-	logger := e.Log.With("user", sessionCtx.DatabaseUser)
 	err = withRetry(ctx, logger, func() error {
 		err := e.createProcedures(ctx, sessionCtx, conn, []string{removePermissionsProcName, updatePermissionsProcName})
 		return trace.Wrap(err)
