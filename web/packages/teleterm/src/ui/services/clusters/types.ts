@@ -78,7 +78,7 @@ export type ClustersServiceState = {
       // The AssumedRequest objects are needed only in AssumedRolesBar.
       // We should be able to move fetching them there.
       loggedInUser?: tsh.LoggedInUser & {
-        assumedRequests?: Record<string, tsh.AssumedRequest>;
+        assumedRequests?: Record<string, tsh.AccessRequest>;
       };
     }
   >;
