@@ -65,7 +65,6 @@ export const SidePanel = ({
 };
 
 const Container = styled(Flex)`
-  display: flex;
   flex-direction: column;
 
   height: calc(100vh - ${props => props.theme.topBarHeight[1]}px);

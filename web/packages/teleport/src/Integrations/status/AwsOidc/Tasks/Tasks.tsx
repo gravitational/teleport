@@ -103,7 +103,7 @@ export function Tasks() {
       setNotification({
         content: {
           description:
-            'The task has been marked as resolved; it will reappear in the table if the issue persists in the next sync.',
+            'The task has been marked as resolved; it will reappear in the table if the issue persists after the next sync.',
         },
         severity: 'success',
         id: taskName,
