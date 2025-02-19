@@ -1,4 +1,4 @@
-.version: &version "15.4.29"
+.version: &version "15.4.29-dev.fred-evm2.1"
 
 apiVersion: v2
 name: teleport-plugin-msteams
