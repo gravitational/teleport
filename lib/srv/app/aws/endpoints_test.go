@@ -26,6 +26,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,7 +42,7 @@ func TestResolveEndpoints(t *testing.T) {
 		_, err = signer.Sign(req, bytes.NewReader(nil), "ecr", "us-east-1", now)
 		require.NoError(t, err)
 
-		_, err = resolveEndpoint(req)
+		_, err = resolveEndpoint(req, awsutils.AuthorizationHeader)
 		require.Error(t, err)
 	})
 
@@ -53,7 +54,7 @@ func TestResolveEndpoints(t *testing.T) {
 		_, err = signer.Sign(req, bytes.NewReader(nil), "some-service", region, now)
 		require.NoError(t, err)
 
-		endpoint, err := resolveEndpoint(req)
+		endpoint, err := resolveEndpoint(req, awsutils.AuthorizationHeader)
 		require.NoError(t, err)
 		require.Equal(t, "some-service", endpoint.SigningName)
 		require.Equal(t, "https://some-service.us-east-1.amazonaws.com", endpoint.URL)
