@@ -39,7 +39,7 @@ func InstallService(ctx context.Context) (err error) {
 		return trace.Wrap(err, "getting current exe path")
 	}
 	if err := assertProgramFiles(tshPath); err != nil {
-		return trace.Wrap(err, "checking if tsh.exe is installed under %PROGRAMFILES%")
+		return trace.Wrap(err, "checking if tsh.exe is installed under %%PROGRAMFILES%%")
 	}
 	if err := assertWintunInstalled(tshPath); err != nil {
 		return trace.Wrap(err, "checking if wintun.dll is installed next to %s", tshPath)
