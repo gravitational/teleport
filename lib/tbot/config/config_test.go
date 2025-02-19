@@ -517,3 +517,57 @@ func TestCredentialLifetimeValidate(t *testing.T) {
 		})
 	}
 }
+
+// TestBotConfig_Base64 ensures that config can be read from bas64 encoded YAML
+func TestBotConfig_Base64(t *testing.T) {
+	tests := []struct {
+		name         string
+		configBase64 string
+		expected     BotConfig
+	}{
+		{
+			name:         "minimal config, proxy server",
+			configBase64: "dmVyc2lvbjogdjIKcHJveHlfc2VydmVyOiAiZXhhbXBsZS50ZWxlcG9ydC5zaDo0NDMiCm9uYm9hcmRpbmc6CiAgdG9rZW46ICJteS10b2tlbiIKICBqb2luX21ldGhvZDogInRva2VuIgpzZXJ2aWNlczoKLSB0eXBlOiBhcHBsaWNhdGlvbi10dW5uZWwKICBhcHBfbmFtZTogdGVzdGFwcAogIGxpc3RlbjogdGNwOi8vMTI3LjAuMC4xOjgwODA=",
+			expected: BotConfig{
+				Version:     V2,
+				ProxyServer: "example.teleport.sh:443",
+				Onboarding: OnboardingConfig{
+					JoinMethod: "token",
+					TokenValue: "my-token",
+				},
+				Services: []ServiceConfig{
+					&ApplicationTunnelService{
+						Listen:  "tcp://127.0.0.1:8080",
+						AppName: "testapp",
+					},
+				},
+			},
+		},
+		{
+			name:         "minimal config, auth server",
+			configBase64: "dmVyc2lvbjogdjIKYXV0aF9zZXJ2ZXI6ICJleGFtcGxlLnRlbGVwb3J0LnNoOjQ0MyIKb25ib2FyZGluZzoKICB0b2tlbjogIm15LXRva2VuIgogIGpvaW5fbWV0aG9kOiAidG9rZW4iCnNlcnZpY2VzOgotIHR5cGU6IGFwcGxpY2F0aW9uLXR1bm5lbAogIGFwcF9uYW1lOiB0ZXN0YXBwCiAgbGlzdGVuOiB0Y3A6Ly8xMjcuMC4wLjE6ODA4MA==",
+			expected: BotConfig{
+				Version:    V2,
+				AuthServer: "example.teleport.sh:443",
+				Onboarding: OnboardingConfig{
+					JoinMethod: "token",
+					TokenValue: "my-token",
+				},
+				Services: []ServiceConfig{
+					&ApplicationTunnelService{
+						Listen:  "tcp://127.0.0.1:8080",
+						AppName: "testapp",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := ReadConfigFromBase64String(tt.configBase64, false)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, *cfg)
+		})
+	}
+}
