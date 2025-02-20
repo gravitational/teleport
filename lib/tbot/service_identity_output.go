@@ -269,11 +269,10 @@ func renderSSHConfig(
 	)
 	defer span.End()
 
-	proxyAddr, err := proxyPing.proxyWebAddr()
+	proxyAddr, err := proxyPing.proxySSHAddr()
 	if err != nil {
-		return trace.Wrap(err, "determining proxy web addr")
+		return trace.Wrap(err, "determining proxy ssh addr")
 	}
-
 	proxyHost, proxyPort, err := utils.SplitHostPort(proxyAddr)
 	if err != nil {
 		return trace.BadParameter(
