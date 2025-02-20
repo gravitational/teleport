@@ -32,7 +32,6 @@ import { getHostName } from 'teleport/services/api';
 import ProgressBar from './ProgressBar';
 
 const reload = () => window.location.reload();
-const handleContextMenu = () => true;
 const PROGRESS_BAR_ID = 'progressBarDesktop';
 
 // overflow: 'hidden' is needed to prevent the canvas from outgrowing the container due to some weird css flex idiosyncracy.
@@ -145,7 +144,6 @@ export const DesktopPlayer = ({
           clientOnPngFrame={clientOnPngFrame}
           clientOnBmpFrame={clientOnBitmapFrame}
           clientOnClientScreenSpec={clientOnClientScreenSpec}
-          canvasOnContextMenu={handleContextMenu}
           style={{
             ...canvasStyle,
             ...canvasAndProgressBarDisplayStyle,

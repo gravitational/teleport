@@ -17,7 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import { NotificationItem } from 'shared/components/Notification';
 import { Attempt } from 'shared/hooks/useAttemptNext';
@@ -205,10 +205,10 @@ export default function useTdpClientCanvas(props: Props) {
     setWsConnection({ status: 'open' });
   };
 
-  const canvasOnKeyDown = (cli: TdpClient, e: KeyboardEvent) => {
+  const canvasOnKeyDown = (e: React.KeyboardEvent) => {
     keyboardHandler.current.handleKeyboardEvent({
-      cli,
-      e,
+      cli: tdpClient,
+      e: e.nativeEvent,
       state: ButtonState.DOWN,
     });
 
@@ -220,14 +220,14 @@ export default function useTdpClientCanvas(props: Props) {
       // Opportunistically sync local clipboard to remote while
       // transient user activation is in effect.
       // https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#security
-      sendLocalClipboardToRemote(cli);
+      sendLocalClipboardToRemote(tdpClient);
     }
   };
 
-  const canvasOnKeyUp = (cli: TdpClient, e: KeyboardEvent) => {
+  const canvasOnKeyUp = (e: React.KeyboardEvent) => {
     keyboardHandler.current.handleKeyboardEvent({
-      cli,
-      e,
+      cli: tdpClient,
+      e: e.nativeEvent,
       state: ButtonState.UP,
     });
   };
@@ -236,51 +236,49 @@ export default function useTdpClientCanvas(props: Props) {
     keyboardHandler.current.onFocusOut();
   };
 
-  const canvasOnMouseMove = (
-    cli: TdpClient,
-    canvas: HTMLCanvasElement,
-    e: MouseEvent
-  ) => {
-    const rect = canvas.getBoundingClientRect();
+  const canvasOnMouseMove = (e: React.MouseEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    cli.sendMouseMove(x, y);
+    tdpClient.sendMouseMove(x, y);
   };
 
-  const canvasOnMouseDown = (cli: TdpClient, e: MouseEvent) => {
+  const canvasOnMouseDown = (e: React.MouseEvent) => {
     if (e.button === 0 || e.button === 1 || e.button === 2) {
-      cli.sendMouseButton(e.button, ButtonState.DOWN);
+      tdpClient.sendMouseButton(e.button, ButtonState.DOWN);
     }
 
     // Opportunistically sync local clipboard to remote while
     // transient user activation is in effect.
     // https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#security
-    sendLocalClipboardToRemote(cli);
+    sendLocalClipboardToRemote(tdpClient);
   };
 
-  const canvasOnMouseUp = (cli: TdpClient, e: MouseEvent) => {
+  const canvasOnMouseUp = (e: React.MouseEvent) => {
     if (e.button === 0 || e.button === 1 || e.button === 2) {
-      cli.sendMouseButton(e.button, ButtonState.UP);
+      tdpClient.sendMouseButton(e.button, ButtonState.UP);
     }
   };
 
-  const canvasOnMouseWheelScroll = (cli: TdpClient, e: WheelEvent) => {
+  const canvasOnMouseWheelScroll = (e: WheelEvent) => {
     e.preventDefault();
     // We only support pixel scroll events, not line or page events.
     // https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent/deltaMode
     if (e.deltaMode === WheelEvent.DOM_DELTA_PIXEL) {
       if (e.deltaX) {
-        cli.sendMouseWheelScroll(ScrollAxis.HORIZONTAL, -e.deltaX);
+        tdpClient.sendMouseWheelScroll(ScrollAxis.HORIZONTAL, -e.deltaX);
       }
       if (e.deltaY) {
-        cli.sendMouseWheelScroll(ScrollAxis.VERTICAL, -e.deltaY);
+        tdpClient.sendMouseWheelScroll(ScrollAxis.VERTICAL, -e.deltaY);
       }
     }
   };
 
   // Block browser context menu so as not to obscure the context menu
   // on the remote machine.
-  const canvasOnContextMenu = () => false;
+  const canvasOnContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+  };
 
   const windowOnResize = debounce(
     (cli: TdpClient) => {
