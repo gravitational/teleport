@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import { Box, ButtonPrimary, ButtonSecondary, Flex, Indicator } from 'design';
 import { Info } from 'design/Alert';
@@ -30,6 +30,7 @@ import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
+import { TdpClientCanvasRef } from 'teleport/components/TdpClientCanvas/TdpClientCanvas';
 import { TdpClientEvent } from 'teleport/lib/tdp';
 import type { MfaState } from 'teleport/lib/useMfa';
 
@@ -199,6 +200,20 @@ export function DesktopSession(props: State) {
     mfa,
   ]);
 
+  const tdpClientCanvasRef = useRef<TdpClientCanvasRef>(null);
+
+  useEffect(() => {
+    if (!client) {
+      return;
+    }
+    const setPointer = tdpClientCanvasRef.current?.setPointer;
+    client.addListener(TdpClientEvent.POINTER, setPointer);
+
+    return () => {
+      client.removeListener(TdpClientEvent.POINTER, setPointer);
+    };
+  }, [client]);
+
   return (
     <Flex flexDirection="column">
       <TopBar
@@ -250,7 +265,6 @@ export function DesktopSession(props: State) {
         onMouseWheel={canvasOnMouseWheelScroll}
         onContextMenu={canvasOnContextMenu}
         onResize={onResize}
-        updatePointer={true}
       />
     </Flex>
   );
