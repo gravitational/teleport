@@ -24,7 +24,7 @@ import { Alert, Box, Flex, Indicator } from 'design';
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import cfg from 'teleport/config';
 import { formatDisplayTime, StatusEnum } from 'teleport/lib/player';
-import { PlayerClient, TdpClient } from 'teleport/lib/tdp';
+import { PlayerClient, TdpClient, TdpClientEvent } from 'teleport/lib/tdp';
 import type { BitmapFrame } from 'teleport/lib/tdp/client';
 import type { ClientScreenSpec, PngFrame } from 'teleport/lib/tdp/codec';
 import { getHostName } from 'teleport/services/api';
@@ -69,6 +69,51 @@ export const DesktopPlayer = ({
     clusterId,
   });
 
+  useEffect(() => {
+    if (playerClient && clientOnTdpError) {
+      playerClient.on(TdpClientEvent.TDP_ERROR, clientOnTdpError);
+      playerClient.on(TdpClientEvent.CLIENT_ERROR, clientOnTdpError);
+
+      return () => {
+        playerClient.removeListener(TdpClientEvent.TDP_ERROR, clientOnTdpError);
+        playerClient.removeListener(
+          TdpClientEvent.CLIENT_ERROR,
+          clientOnTdpError
+        );
+      };
+    }
+  }, [playerClient, clientOnTdpError]);
+
+  useEffect(() => {
+    if (playerClient && clientOnTdpInfo) {
+      playerClient.on(TdpClientEvent.TDP_INFO, clientOnTdpInfo);
+
+      return () => {
+        playerClient.removeListener(TdpClientEvent.TDP_INFO, clientOnTdpInfo);
+      };
+    }
+  }, [playerClient, clientOnTdpInfo]);
+
+  useEffect(() => {
+    if (playerClient && clientOnWsClose) {
+      playerClient.on(TdpClientEvent.WS_CLOSE, clientOnWsClose);
+
+      return () => {
+        playerClient.removeListener(TdpClientEvent.WS_CLOSE, clientOnWsClose);
+      };
+    }
+  }, [playerClient, clientOnWsClose]);
+
+  // Call connect after all listeners have been registered
+  useEffect(() => {
+    if (playerClient) {
+      playerClient.connect();
+      return () => {
+        playerClient.shutdown();
+      };
+    }
+  }, [playerClient]);
+
   const isError = playerStatus === StatusEnum.ERROR || statusText !== '';
   const isLoading = playerStatus === StatusEnum.LOADING;
   const isPlaying = playerStatus === StatusEnum.PLAYING;
@@ -97,13 +142,9 @@ export const DesktopPlayer = ({
       <StyledContainer>
         <TdpClientCanvas
           client={playerClient}
-          clientShouldConnect={true}
           clientOnPngFrame={clientOnPngFrame}
           clientOnBmpFrame={clientOnBitmapFrame}
           clientOnClientScreenSpec={clientOnClientScreenSpec}
-          clientOnWsClose={clientOnWsClose}
-          clientOnTdpError={clientOnTdpError}
-          clientOnTdpInfo={clientOnTdpInfo}
           canvasOnContextMenu={handleContextMenu}
           style={{
             ...canvasStyle,

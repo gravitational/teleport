@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { Box, ButtonPrimary, ButtonSecondary, Flex, Indicator } from 'design';
 import { Info } from 'design/Alert';
@@ -30,6 +30,7 @@ import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
+import { TdpClientEvent } from 'teleport/lib/tdp';
 import type { MfaState } from 'teleport/lib/useMfa';
 
 import TopBar from './TopBar';
@@ -56,7 +57,7 @@ declare global {
 export function DesktopSession(props: State) {
   const {
     mfa,
-    tdpClient,
+    tdpClient: client,
     username,
     hostname,
     directorySharingState,
@@ -97,6 +98,87 @@ export function DesktopSession(props: State) {
     canvasState: { shouldConnect: false, shouldDisplay: false },
   });
 
+  useEffect(() => {
+    if (client && clientOnClipboardData) {
+      client.on(TdpClientEvent.TDP_CLIPBOARD_DATA, clientOnClipboardData);
+
+      return () => {
+        client.removeListener(
+          TdpClientEvent.TDP_CLIPBOARD_DATA,
+          clientOnClipboardData
+        );
+      };
+    }
+  }, [client, clientOnClipboardData]);
+
+  useEffect(() => {
+    if (client && clientOnTdpError) {
+      client.on(TdpClientEvent.TDP_ERROR, clientOnTdpError);
+      client.on(TdpClientEvent.CLIENT_ERROR, clientOnTdpError);
+
+      return () => {
+        client.removeListener(TdpClientEvent.TDP_ERROR, clientOnTdpError);
+        client.removeListener(TdpClientEvent.CLIENT_ERROR, clientOnTdpError);
+      };
+    }
+  }, [client, clientOnTdpError]);
+
+  useEffect(() => {
+    if (client && clientOnTdpWarning) {
+      client.on(TdpClientEvent.TDP_WARNING, clientOnTdpWarning);
+      client.on(TdpClientEvent.CLIENT_WARNING, clientOnTdpWarning);
+
+      return () => {
+        client.removeListener(TdpClientEvent.TDP_WARNING, clientOnTdpWarning);
+        client.removeListener(
+          TdpClientEvent.CLIENT_WARNING,
+          clientOnTdpWarning
+        );
+      };
+    }
+  }, [client, clientOnTdpWarning]);
+
+  useEffect(() => {
+    if (client && clientOnTdpInfo) {
+      client.on(TdpClientEvent.TDP_INFO, clientOnTdpInfo);
+
+      return () => {
+        client.removeListener(TdpClientEvent.TDP_INFO, clientOnTdpInfo);
+      };
+    }
+  }, [client, clientOnTdpInfo]);
+
+  useEffect(() => {
+    if (client && clientOnWsClose) {
+      client.on(TdpClientEvent.WS_CLOSE, clientOnWsClose);
+
+      return () => {
+        client.removeListener(TdpClientEvent.WS_CLOSE, clientOnWsClose);
+      };
+    }
+  }, [client, clientOnWsClose]);
+
+  useEffect(() => {
+    if (client && clientOnWsOpen) {
+      client.on(TdpClientEvent.WS_OPEN, clientOnWsOpen);
+
+      return () => {
+        client.removeListener(TdpClientEvent.WS_OPEN, clientOnWsOpen);
+      };
+    }
+  }, [client, clientOnWsOpen]);
+
+  const { shouldConnect } = screenState.canvasState;
+  // Call connect after all listeners have been registered
+  useEffect(() => {
+    if (client && shouldConnect) {
+      client.connect(clientScreenSpecToRequest);
+      return () => {
+        client.shutdown();
+      };
+    }
+  }, [client, shouldConnect]);
+
   // Calculate the next `ScreenState` whenever any of the constituent pieces of state change.
   useEffect(() => {
     setScreenState(prevState =>
@@ -129,7 +211,7 @@ export function DesktopSession(props: State) {
             ...prevState,
             isSharing: false,
           }));
-          tdpClient.shutdown();
+          client.shutdown();
         }}
         userHost={`${username}@${hostname}`}
         canShareDirectory={directorySharingPossible(directorySharingState)}
@@ -155,18 +237,10 @@ export function DesktopSession(props: State) {
         style={{
           display: screenState.canvasState.shouldDisplay ? 'flex' : 'none',
         }}
-        client={tdpClient}
-        clientShouldConnect={screenState.canvasState.shouldConnect}
-        clientScreenSpecToRequest={clientScreenSpecToRequest}
+        client={client}
         clientOnPngFrame={clientOnPngFrame}
         clientOnBmpFrame={clientOnBitmapFrame}
         clientOnClientScreenSpec={clientOnClientScreenSpec}
-        clientOnClipboardData={clientOnClipboardData}
-        clientOnTdpError={clientOnTdpError}
-        clientOnTdpWarning={clientOnTdpWarning}
-        clientOnTdpInfo={clientOnTdpInfo}
-        clientOnWsClose={clientOnWsClose}
-        clientOnWsOpen={clientOnWsOpen}
         canvasOnKeyDown={canvasOnKeyDown}
         canvasOnKeyUp={canvasOnKeyUp}
         canvasOnFocusOut={canvasOnFocusOut}
