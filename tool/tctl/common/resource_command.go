@@ -3029,7 +3029,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		var tasks []*usertasksv1.UserTask
 		nextToken := ""
 		for {
-			resp, token, err := userTasksClient.ListUserTasks(ctx, 0 /* default size */, nextToken)
+			resp, token, err := userTasksClient.ListUserTasks(ctx, 0 /* default size */, nextToken, &usertasksv1.ListUserTasksFilters{})
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
