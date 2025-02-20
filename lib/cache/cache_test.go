@@ -670,8 +670,6 @@ func TestNodeCAFiltering(t *testing.T) {
 		Events:                  p.cache,
 		Trust:                   p.cache.trustCache,
 		ClusterConfig:           p.cache.clusterConfigCache,
-		Provisioner:             p.cache.provisionerCache,
-		Users:                   p.cache.usersCache,
 		Access:                  p.cache.accessCache,
 		DynamicAccess:           p.cache.dynamicAccessCache,
 		Presence:                p.cache.presenceCache,
@@ -1597,37 +1595,6 @@ func TestClusterName(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Empty(t, cmp.Diff(outName, clusterName, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-}
-
-// TestUsers tests caching of users
-func TestUsers(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForProxy)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[types.User]{
-		newResource: func(name string) (types.User, error) {
-			return types.NewUser("bob")
-		},
-		create: func(ctx context.Context, user types.User) error {
-			_, err := p.usersS.UpsertUser(ctx, user)
-			return err
-		},
-		list: func(ctx context.Context) ([]types.User, error) {
-			return p.usersS.GetUsers(ctx, false)
-		},
-		cacheList: func(ctx context.Context) ([]types.User, error) {
-			return p.cache.GetUsers(ctx, false)
-		},
-		update: func(ctx context.Context, user types.User) error {
-			_, err := p.usersS.UpdateUser(ctx, user)
-			return err
-		},
-		deleteAll: func(ctx context.Context) error {
-			return p.usersS.DeleteAllUsers(ctx)
-		},
-	})
 }
 
 // TestRoles tests caching of roles
@@ -3579,7 +3546,7 @@ func TestPartialHealth(t *testing.T) {
 	meta := user.GetMetadata()
 	meta.Labels = map[string]string{"origin": "cache"}
 	user.SetMetadata(meta)
-	_, err = p.cache.usersCache.UpsertUser(ctx, user)
+	err = p.cache.collections.users.onUpdate(user)
 	require.NoError(t, err)
 
 	// the label on the returned user proves that it came from the cache
