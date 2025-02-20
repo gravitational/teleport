@@ -1101,7 +1101,7 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
         const orgs = optionsToStrings(res.organizations);
         if (orgs.length > 0) {
           role.spec.allow.github_permissions = [
-            { orgs: optionsToStrings(res.organizations) },
+            { orgs },
           ];
         }
         break;
