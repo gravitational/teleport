@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -401,6 +402,8 @@ func (s *RevocationService) StreamSignedCRL(
 	}
 }
 
+const crlSignerBackoff = time.Second * 30
+
 func (s *RevocationService) RunCRLSigner(ctx context.Context) {
 	for {
 		err := s.watchAndSign(ctx)
@@ -410,12 +413,22 @@ func (s *RevocationService) RunCRLSigner(ctx context.Context) {
 			}
 			err = trace.BadParameter("watchAndSign exited unexpectedly")
 		}
+		retryAfter := retryutils.HalfJitter(crlSignerBackoff)
 		if err != nil {
-			s.logger.Error("CRL signer failed exited with error", "error", err)
+			s.logger.ErrorContext(
+				ctx,
+				"CRL signer failed exited with error",
+				"error", err,
+				"retry_after", retryAfter,
+			)
 		}
 
-		// TODO: Backoff
-		time.Sleep(5 * time.Second)
+		select {
+		case <-ctx.Done():
+			return
+		case <-s.clock.After(retryAfter):
+			s.logger.DebugContext(ctx, "Retry backoff expired, restarting CRL signer")
+		}
 	}
 
 }
@@ -425,6 +438,7 @@ const (
 )
 
 func (s *RevocationService) watchAndSign(ctx context.Context) error {
+	s.logger.DebugContext(ctx, "Starting CRL signer")
 	w, err := s.eventsWatcher.NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{{
 			Kind: types.KindWorkloadIdentityX509Revocation,
@@ -494,6 +508,7 @@ func (s *RevocationService) watchAndSign(ctx context.Context) error {
 		return trace.Wrap(err, "signing initial CRL")
 	}
 	s.publishSignedCRL(crl)
+	s.logger.DebugContext(ctx, "Finished initializing CRL signer, watching for revocation events")
 
 	// A short, simple debounce so that we:
 	// - Avoid signing the CRL too frequently. This is computationally
@@ -501,8 +516,6 @@ func (s *RevocationService) watchAndSign(ctx context.Context) error {
 	//  multiple successive revocations.
 	// - Avoid spamming the clients with a rapid succession of CRL updates.
 	var debounceCh <-chan time.Time
-	// TODO(Noah): Should we re-issue the CRL every X minutes, regardless of
-	// whether there are new revocations?
 	for {
 		select {
 		case e := <-w.Events():
