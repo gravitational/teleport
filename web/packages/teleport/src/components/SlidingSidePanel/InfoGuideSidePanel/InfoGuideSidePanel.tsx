@@ -72,7 +72,7 @@ const InfoGuideHeader = ({ onClose }: { onClose(): void }) => (
       <Info size="small" />
       <Text bold>Info Guide</Text>
     </Flex>
-    <ButtonIcon onClick={onClose}>
+    <ButtonIcon onClick={onClose} data-testid="info-guide-btn-close">
       <Cross size="small" />
     </ButtonIcon>
   </Flex>
@@ -88,7 +88,7 @@ export const InfoGuideWrapper: React.FC<
 > = ({ onClick, children }) => (
   <Flex alignItems="center">
     {children}
-    <ButtonIcon onClick={onClick}>
+    <ButtonIcon onClick={onClick} data-testid="info-guide-btn-open">
       <Info size="small" />
     </ButtonIcon>
   </Flex>
