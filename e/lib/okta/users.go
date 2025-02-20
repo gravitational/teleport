@@ -34,9 +34,6 @@ type UserAssignmentCreatorAccessPoint interface {
 	// GetLocks gets all/in-force locks that match at least one of the targets when specified.
 	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
 
-	// ListResources returns a paginated list of resources.
-	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
-
 	// ListUserGroups returns a paginated list of all user group resources.
 	ListUserGroups(context.Context, int, string) ([]types.UserGroup, string, error)
 
@@ -73,6 +70,9 @@ type UserAssignmentCreatorConfig struct {
 	// AccessPoint is the access point for the user assignment creator.
 	AccessPoint UserAssignmentCreatorAccessPoint
 
+	// UnifiedResourceCache allows more efficient access for inspecting applications.
+	UnifiedResourceCache *services.UnifiedResourceCache
+
 	// PrintDiffs will print user diffs if set to true.
 	PrintDiffs bool
 }
@@ -90,6 +90,10 @@ func (c *UserAssignmentCreatorConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("okta connected is missing")
 	}
 
+	if c.UnifiedResourceCache == nil {
+		return trace.BadParameter("unified resource cache is missing")
+	}
+
 	if c.Logger == nil {
 		c.Logger = slog.With(teleport.ComponentKey, eteleport.ComponentOktaUserAssignmentCreator)
 	}
@@ -105,12 +109,13 @@ func (c *UserAssignmentCreatorConfig) CheckAndSetDefaults() error {
 // the permissions the user has within Teleport are appropriately reflected
 // in Okta.
 type UserAssignmentCreator struct {
-	logger      *slog.Logger
-	clock       clockwork.Clock
-	clusterName string
-	accessPoint UserAssignmentCreatorAccessPoint
-	accessState services.AccessState
-	connected   *connected.OktaConnected
+	logger        *slog.Logger
+	clock         clockwork.Clock
+	clusterName   string
+	accessPoint   UserAssignmentCreatorAccessPoint
+	accessState   services.AccessState
+	connected     *connected.OktaConnected
+	resourceCache *services.UnifiedResourceCache
 
 	// hash will be used to calculate the name of the assignment to create.
 	hash          crypto.Hash
@@ -126,11 +131,12 @@ func NewUserAssignmentCreator(config UserAssignmentCreatorConfig) (*UserAssignme
 	}
 
 	creator := &UserAssignmentCreator{
-		logger:      config.Logger,
-		clock:       config.Clock,
-		clusterName: config.ClusterName,
-		accessPoint: config.AccessPoint,
-		connected:   config.OktaConnected,
+		logger:        config.Logger,
+		clock:         config.Clock,
+		clusterName:   config.ClusterName,
+		accessPoint:   config.AccessPoint,
+		connected:     config.OktaConnected,
+		resourceCache: config.UnifiedResourceCache,
 
 		// We'll use an access state with MFAVerified to true because, for the RBAC calculations
 		// made here, we don't need to use MFA.
@@ -345,57 +351,47 @@ func (u *UserAssignmentCreator) groupTargets(ctx context.Context, accessChecker 
 	return out, nil
 }
 
-// groupTargets returns the names of all Okta app IDs that the user has access to.
+// appServerTargets returns the names of all Okta app IDs that the user has access to.
 func (u *UserAssignmentCreator) appServerTargets(ctx context.Context, accessChecker services.AccessChecker) ([]string, error) {
 	targets := map[string]struct{}{}
 
-	// Page through the app servers.
-	resp, err := u.accessPoint.ListResources(ctx, proto.ListResourcesRequest{
-		ResourceType: types.KindAppServer,
-		Limit:        int32(u.appPageSize),
+	// Iterate through the app servers. Note that when iterating
+	// false, nil is returned in all branches because we don't
+	// want the unified resource cache to accumulate resources.
+	// Similarly the returned resources and next key are ignored
+	// because the targets map is built manually during iteration.
+	_, _, err := u.resourceCache.IterateUnifiedResources(ctx, func(rwl types.ResourceWithLabels) (bool, error) {
+		// Only check Okta apps.
+		if rwl.Origin() != types.OriginOkta {
+			return false, nil
+		}
+
+		appServer, ok := rwl.(types.AppServer)
+		if !ok {
+			return false, nil
+		}
+
+		app := appServer.GetApp()
+		// If the user has access to the app, extra the Okta app label and add it to the list of targets.
+		if err := accessChecker.CheckAccess(app, u.accessState); err == nil {
+			// We're deduplicating here because app servers are not unique depending on the heartbeat/backend/etc.,
+			// so we're making sure that we're not creating duplicate entries for the same apps.
+			targets[app.GetName()] = struct{}{}
+		} else if !trace.IsAccessDenied(err) {
+			u.logger.ErrorContext(ctx, "Error checking access to application during login", "error", err)
+		}
+
+		return false, nil
+	}, &proto.ListUnifiedResourcesRequest{
+		Kinds:  []string{types.KindAppServer},
+		SortBy: types.SortBy{Field: services.SortByName},
 	})
 
-	for {
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		for _, resource := range resp.Resources {
-			// Only check Okta apps.
-			if resource.Origin() == types.OriginOkta {
-				appServer, ok := resource.(types.AppServer)
-
-				if !ok {
-					u.logger.ErrorContext(ctx, "received unexpected resource when listing AppServers",
-						"resource_type", resource.GetKind(),
-						"resource_name", resource.GetName(),
-					)
-					continue
-				}
-				app := appServer.GetApp()
-				// If the user has access to the app, extra the Okta app label and add it to the list of targets.
-				if err := accessChecker.CheckAccess(app, u.accessState); err == nil {
-					// We're deduplicating here because app servers are not unique depending on the heartbeat/backend/etc.,
-					// so we're making sure that we're not creating duplicate entries for the same apps.
-					targets[app.GetName()] = struct{}{}
-				} else if !trace.IsAccessDenied(err) {
-					u.logger.ErrorContext(ctx, "Error checking access to application during login", "error", err)
-				}
-			}
-		}
-
-		if resp.NextKey == "" {
-			break
-		}
-
-		// Get the next page of results.
-		resp, err = u.accessPoint.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType: types.KindAppServer,
-			StartKey:     resp.NextKey,
-			Limit:        int32(u.appPageSize),
-		})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	var out []string
+	out := make([]string, 0, len(targets))
 	for k := range maps.Keys(targets) {
 		out = append(out, k)
 	}

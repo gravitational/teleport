@@ -3,11 +3,13 @@ package okta
 import (
 	"context"
 	"crypto"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -58,10 +60,13 @@ func TestUserAssignmentCreator(t *testing.T) {
 	require.NoError(t, uac.OnLogin(ctx, user))
 	assertEmptyAssignmentList(t, ap)
 
-	for _, v := range []types.AppServer{app1, appDupe} {
-		mustUpsertApplicationServer(t, ctx, ap, v)
-	}
-	assertResourceCount(t, ctx, ap, 2)
+	mustUpsertApplicationServer(t, ctx, ap, app1)
+	mustUpsertApplicationServer(t, ctx, ap, appDupe)
+
+	// The UnifiedResourceCache doesn't take host id into consideration for apps.
+	// So even though there exist two apps, the most recent one is the only app
+	// that will appear in the cache.
+	assertResourceCount(t, ctx, ap, 1)
 
 	// This run should be skipped since no Okta roles or plugins are connected.
 	ap.serviceCounts[types.RoleOkta] = 0
@@ -84,6 +89,8 @@ func TestUserAssignmentCreator(t *testing.T) {
 		require.NoError(t, ap.DeleteApplicationServer(ctx, defaults.Namespace, appDupe.GetHostID(), appDupe.GetName()))
 		require.NoError(t, ap.CreateUserGroup(ctx, group1))
 
+		assertResourceCount(t, ctx, ap, 0)
+
 		require.NoError(t, uac.OnLogin(ctx, user))
 		mustDeleteCleanupAssignments(t, ctx, ap)
 
@@ -95,6 +102,8 @@ func TestUserAssignmentCreator(t *testing.T) {
 
 	t.Run("re-add application", func(t *testing.T) {
 		mustUpsertApplicationServer(t, ctx, ap, app1)
+
+		assertResourceCount(t, ctx, ap, 1)
 
 		// Should get an assignment that has two actions: one for the app and one for the group.
 		require.NoError(t, uac.OnLogin(ctx, user))
@@ -110,6 +119,8 @@ func TestUserAssignmentCreator(t *testing.T) {
 		// We'll add a new app, which should cause a new assignment to be generated and the
 		// old one to be marked as needing cleanup.
 		mustUpsertApplicationServer(t, ctx, ap, app2)
+
+		assertResourceCount(t, ctx, ap, 2)
 
 		require.NoError(t, uac.OnLogin(ctx, user))
 		mustDeleteCleanupAssignments(t, ctx, ap)
@@ -177,16 +188,37 @@ func TestUserAssignmentCreator(t *testing.T) {
 	})
 }
 
-func assertResourceCount(t *testing.T, ctx context.Context, ap *testUACAccessPoint, want int) {
-	resources, err := ap.ListResources(ctx, proto.ListResourcesRequest{
-		ResourceType: types.KindAppServer,
-		Limit:        5,
-	})
-	require.NoError(t, err)
-	require.Len(t, resources.Resources, want)
+func BenchmarkUserAssignmentCreator(b *testing.B) {
+	clock := clockwork.NewFakeClock()
+	ctx := context.Background()
+	suite := initUACSuite(b, ctx, clock)
+
+	for i := 0; i < 1234; i++ {
+		app1 := application(b, suite.uac.hash, "app"+strconv.Itoa(i), "link", types.OriginOkta, testOrgURL, testHostID)
+		mustUpsertApplicationServer(b, ctx, suite, app1)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		assert.NoError(b, suite.uac.OnLogin(context.Background(), suite.user))
+	}
 }
 
-func mustUpsertApplicationServer(t *testing.T, ctx context.Context, ap *testUACAccessPoint, app1 types.AppServer) {
+func assertResourceCount(t *testing.T, ctx context.Context, ap *testUACAccessPoint, want int) {
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		resources, _, err := ap.uac.resourceCache.IterateUnifiedResources(ctx, func(rwl types.ResourceWithLabels) (bool, error) {
+			return rwl.GetKind() == types.KindAppServer, nil
+		}, &proto.ListUnifiedResourcesRequest{
+			Kinds:  []string{types.KindAppServer},
+			Limit:  5,
+			SortBy: types.SortBy{Field: services.SortByName},
+		})
+		assert.NoError(t, err)
+		assert.Len(t, resources, want)
+	}, 10*time.Second, 100*time.Millisecond)
+}
+
+func mustUpsertApplicationServer(t testing.TB, ctx context.Context, ap *testUACAccessPoint, app1 types.AppServer) {
 	_, err := ap.UpsertApplicationServer(ctx, app1)
 	require.NoError(t, err)
 }
@@ -351,7 +383,7 @@ func mustCreateAssignmentList(t *testing.T, hash crypto.Hash, user string, clock
 	}
 }
 
-func initUACSuite(t *testing.T, ctx context.Context, clock clockwork.Clock) *testUACAccessPoint {
+func initUACSuite(t testing.TB, ctx context.Context, clock clockwork.Clock) *testUACAccessPoint {
 	ap := &testUACAccessPoint{
 		testAccessPoint: newTestAccessPoint(t, clock),
 	}
@@ -363,11 +395,26 @@ func initUACSuite(t *testing.T, ctx context.Context, clock clockwork.Clock) *tes
 	})
 	require.NoError(t, err)
 
+	urc, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
+		Clock: clock,
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client:    ap,
+		},
+		ResourceGetter: ap,
+	})
+	require.NoError(t, err)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assert.True(t, urc.IsInitialized())
+	}, 10*time.Second, 100*time.Millisecond)
+
 	ap.uac, err = NewUserAssignmentCreator(UserAssignmentCreatorConfig{
-		Clock:         clock,
-		ClusterName:   testClusterName,
-		AccessPoint:   ap,
-		OktaConnected: connected,
+		Clock:                clock,
+		ClusterName:          testClusterName,
+		AccessPoint:          ap,
+		OktaConnected:        connected,
+		UnifiedResourceCache: urc,
 	})
 	require.NoError(t, err)
 

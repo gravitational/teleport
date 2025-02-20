@@ -294,10 +294,11 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 
 	// Register the Okta user assignment creator login hook.
 	uac, err := okta.NewUserAssignmentCreator(okta.UserAssignmentCreatorConfig{
-		Logger:        logger,
-		ClusterName:   clusterName.GetClusterName(),
-		AccessPoint:   p.authServer.AuthServer,
-		OktaConnected: p.oktaConnected,
+		Logger:               logger,
+		ClusterName:          clusterName.GetClusterName(),
+		AccessPoint:          p.authServer.AuthServer,
+		OktaConnected:        p.oktaConnected,
+		UnifiedResourceCache: p.authServer.AuthServer.UnifiedResourceCache,
 	})
 	if err != nil {
 		return trace.Wrap(err)

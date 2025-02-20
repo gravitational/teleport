@@ -58,6 +58,10 @@ type testAccessPoint struct {
 	services.Trust
 	services.UserGroups
 	services.WindowsDesktops
+	services.SAMLIdpServiceProviderGetter
+	services.IdentityCenterAccountGetter
+	services.IdentityCenterAccountAssignmentGetter
+	services.GitServerGetter
 	types.Events
 
 	serviceCounts map[types.SystemRole]uint64
@@ -86,7 +90,7 @@ func (t *testAccessPoint) setServiceCounts(m map[types.SystemRole]uint64) {
 }
 
 // newTestAccessPoint will create a memory backed test access point for the Okta service.
-func newTestAccessPoint(t *testing.T, clock clockwork.Clock) *testAccessPoint {
+func newTestAccessPoint(t testing.TB, clock clockwork.Clock) *testAccessPoint {
 	t.Helper()
 
 	ctx := context.Background()
@@ -127,23 +131,36 @@ func newTestAccessPoint(t *testing.T, clock clockwork.Clock) *testAccessPoint {
 	_, err = clusterConfiguration.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
 	require.NoError(t, err)
 
+	git, err := local.NewGitServerService(backend)
+	require.NoError(t, err)
+
+	ic, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{Backend: backend})
+	require.NoError(t, err)
+
+	idp, err := local.NewSAMLIdPServiceProviderService(backend)
+	require.NoError(t, err)
+
 	client := &testAccessPoint{
-		Streamer:              streamer,
-		Closer:                io.NopCloser(nil),
-		Access:                access,
-		AccessLists:           accessLists,
-		ClusterConfiguration:  clusterConfiguration,
-		ConnectionsDiagnostic: connectionsDiagnostic,
-		DatabaseServices:      databaseServices,
-		DynamicAccessService:  dynamicAccess,
-		Identity:              identity,
-		Okta:                  okta,
-		Plugins:               plugins,
-		Presence:              presence,
-		Trust:                 ca,
-		UserGroups:            userGroups,
-		WindowsDesktops:       windowsDesktops,
-		Events:                events,
+		Streamer:                              streamer,
+		Closer:                                io.NopCloser(nil),
+		Access:                                access,
+		AccessLists:                           accessLists,
+		ClusterConfiguration:                  clusterConfiguration,
+		ConnectionsDiagnostic:                 connectionsDiagnostic,
+		DatabaseServices:                      databaseServices,
+		DynamicAccessService:                  dynamicAccess,
+		Identity:                              identity,
+		Okta:                                  okta,
+		Plugins:                               plugins,
+		Presence:                              presence,
+		Trust:                                 ca,
+		UserGroups:                            userGroups,
+		WindowsDesktops:                       windowsDesktops,
+		Events:                                events,
+		SAMLIdpServiceProviderGetter:          idp,
+		IdentityCenterAccountGetter:           ic,
+		IdentityCenterAccountAssignmentGetter: ic,
+		GitServerGetter:                       git,
 	}
 	client.serviceCounts = map[types.SystemRole]uint64{
 		types.RoleOkta: 1,
@@ -294,14 +311,14 @@ func waitForResult[T any](t *testing.T, ch chan T, expected T, numTimes int) {
 	}
 }
 
-func mustAppName(t *testing.T, name, appLinkName string) string {
+func mustAppName(t testing.TB, name, appLinkName string) string {
 	t.Helper()
 	appName, err := AppName(name, appLinkName)
 	require.NoError(t, err)
 	return appName
 }
 
-func newApp(t *testing.T, metadata types.Metadata, appSpec types.AppSpecV3) *types.AppV3 {
+func newApp(t testing.TB, metadata types.Metadata, appSpec types.AppSpecV3) *types.AppV3 {
 	t.Helper()
 
 	app, err := types.NewAppV3(metadata, appSpec)
@@ -310,7 +327,7 @@ func newApp(t *testing.T, metadata types.Metadata, appSpec types.AppSpecV3) *typ
 	return app
 }
 
-func application(t *testing.T, hash crypto.Hash, name, appLinkName, origin, orgURL, hostID string) types.AppServer {
+func application(t testing.TB, hash crypto.Hash, name, appLinkName, origin, orgURL, hostID string) types.AppServer {
 	t.Helper()
 
 	labels := map[string]string{

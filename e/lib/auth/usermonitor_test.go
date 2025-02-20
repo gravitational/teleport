@@ -609,9 +609,10 @@ func setupOktaUAC(t *testing.T, svc *UserMonitor) {
 	require.NoError(t, err)
 
 	uac, err := okta.NewUserAssignmentCreator(okta.UserAssignmentCreatorConfig{
-		ClusterName:   clusterName.GetClusterName(),
-		AccessPoint:   svc.authServer,
-		OktaConnected: connected,
+		ClusterName:          clusterName.GetClusterName(),
+		AccessPoint:          svc.authServer,
+		OktaConnected:        connected,
+		UnifiedResourceCache: svc.authServer.UnifiedResourceCache,
 	})
 	require.NoError(t, err)
 	svc.authServer.RegisterLoginHook(uac.OnLogin)
