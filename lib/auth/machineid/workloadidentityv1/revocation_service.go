@@ -92,6 +92,9 @@ type RevocationService struct {
 	clusterName         string
 	eventsWatcher       eventsWatcher
 
+	crlSigningDebounce time.Duration
+	crlFailureBackoff  time.Duration
+
 	// mu protects the signedCRL and notifyNewSignedCRL field.
 	mu        sync.Mutex
 	signedCRL []byte
@@ -133,6 +136,8 @@ func NewRevocationService(cfg *RevocationServiceConfig) (*RevocationService, err
 		certAuthorityGetter: cfg.CertAuthorityGetter,
 		keyStorer:           cfg.KeyStorer,
 		eventsWatcher:       cfg.EventsWatcher,
+		crlSigningDebounce:  5 * time.Second,
+		crlFailureBackoff:   30 * time.Second,
 
 		notifyNewSignedCRL: make(chan struct{}),
 	}, nil
@@ -402,8 +407,6 @@ func (s *RevocationService) StreamSignedCRL(
 	}
 }
 
-const crlSignerBackoff = time.Second * 30
-
 func (s *RevocationService) RunCRLSigner(ctx context.Context) {
 	for {
 		err := s.watchAndSign(ctx)
@@ -413,11 +416,11 @@ func (s *RevocationService) RunCRLSigner(ctx context.Context) {
 			}
 			err = trace.BadParameter("watchAndSign exited unexpectedly")
 		}
-		retryAfter := retryutils.HalfJitter(crlSignerBackoff)
+		retryAfter := retryutils.HalfJitter(s.crlFailureBackoff)
 		if err != nil {
 			s.logger.ErrorContext(
 				ctx,
-				"CRL signer failed exited with error",
+				"CRL signer exited with error",
 				"error", err,
 				"retry_after", retryAfter,
 			)
@@ -433,10 +436,6 @@ func (s *RevocationService) RunCRLSigner(ctx context.Context) {
 
 }
 
-const (
-	debounceDuration = time.Second * 5
-)
-
 func (s *RevocationService) watchAndSign(ctx context.Context) error {
 	s.logger.DebugContext(ctx, "Starting CRL signer")
 	w, err := s.eventsWatcher.NewWatcher(ctx, types.Watch{
@@ -447,6 +446,11 @@ func (s *RevocationService) watchAndSign(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "creating events watcher")
 	}
+	defer func() {
+		if err := w.Close(); err != nil {
+			s.logger.WarnContext(ctx, "Failed to close watcher", "error", err)
+		}
+	}()
 
 	// Wait for initial "Init" event to indicate we're now receiving events.
 	select {
@@ -527,7 +531,7 @@ func (s *RevocationService) watchAndSign(ctx context.Context) error {
 				s.logger.DebugContext(ctx, "Received change to WorkloadIdentityX509Revocation indicating new CRL should be signed", "workload_identity_revocation_name", e.Resource.GetName())
 				if debounceCh == nil {
 					s.logger.DebugContext(ctx, "Starting debounce timer for signing of new CRL")
-					debounceCh = s.clock.After(debounceDuration)
+					debounceCh = s.clock.After(s.crlSigningDebounce)
 				}
 			}
 			continue
@@ -535,6 +539,8 @@ func (s *RevocationService) watchAndSign(ctx context.Context) error {
 			if err := w.Error(); err != nil {
 				return trace.Wrap(err, "watcher failed")
 			}
+			return nil
+		case <-ctx.Done():
 			return nil
 		case <-debounceCh:
 			// Set debounce channel to nil to indicate that the requested

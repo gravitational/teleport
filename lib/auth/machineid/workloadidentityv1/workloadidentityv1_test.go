@@ -61,6 +61,7 @@ import (
 	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -2988,4 +2989,59 @@ func TestRevocationService_UpsertWorkloadIdentityX509Revocation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRevocationService_CRL(t *testing.T) {
+	t.Parallel()
+	srv, _ := newTestTLSServer(t)
+	ctx := context.Background()
+
+	authorizedUser, _, err := auth.CreateUserAndRole(
+		srv.Auth(),
+		"authorized",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindWorkloadIdentityX509Revocation},
+				Verbs:     []string{types.VerbRead, types.VerbList, types.VerbCreate, types.VerbUpdate},
+			},
+		})
+	require.NoError(t, err)
+	authorizedClient, err := srv.NewClient(auth.TestUser(authorizedUser.GetName()))
+	require.NoError(t, err)
+
+	// Fetch the SPIFFE CA so we can validate CRL signature.
+	ca, err := srv.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.SPIFFECA,
+		DomainName: srv.ClusterName(),
+	}, false)
+	require.NoError(t, err)
+	caCert, err := tlsca.ParseCertificatePEM(ca.GetActiveKeys().TLS[0].Cert)
+	require.NoError(t, err)
+
+	checkCRL := func(
+		t *testing.T,
+		crlBytes []byte,
+		wantEntries []*x509.RevocationListEntry,
+	) {
+		require.NotEmpty(t, crlBytes)
+
+		// Expect a DER encoded CRL directly (e.g no PEM)
+		parsed, err := x509.ParseRevocationList(crlBytes)
+		require.NoError(t, err)
+
+		// Check CRL has a valid signature
+		require.NoError(t, parsed.CheckSignatureFrom(caCert))
+	}
+
+	// Fetch the initial, empty, CRL
+	revocationsClient := authorizedClient.WorkloadIdentityRevocationServiceClient()
+	stream, err := revocationsClient.StreamSignedCRL(
+		ctx, &workloadidentityv1pb.StreamSignedCRLRequest{},
+	)
+	require.NoError(t, err)
+	res, err := stream.Recv()
+	require.NoError(t, err)
+	checkCRL(t, res.Crl, []*x509.RevocationListEntry{})
+
 }
