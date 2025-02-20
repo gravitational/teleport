@@ -2356,11 +2356,11 @@ func TestUserTasks(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]*usertasksv1.UserTask, error) {
-			items, _, err := p.userTasks.ListUserTasks(ctx, 0, "")
+			items, _, err := p.userTasks.ListUserTasks(ctx, 0, "", &usertasksv1.ListUserTasksFilters{})
 			return items, trace.Wrap(err)
 		},
 		cacheList: func(ctx context.Context) ([]*usertasksv1.UserTask, error) {
-			items, _, err := p.userTasks.ListUserTasks(ctx, 0, "")
+			items, _, err := p.userTasks.ListUserTasks(ctx, 0, "", &usertasksv1.ListUserTasksFilters{})
 			return items, trace.Wrap(err)
 		},
 		deleteAll: p.userTasks.DeleteAllUserTasks,
