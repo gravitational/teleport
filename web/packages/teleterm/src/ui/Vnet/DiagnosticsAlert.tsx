@@ -26,7 +26,9 @@ import {
   CheckReportStatus,
 } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 
 import { textSpacing } from './sliderStep';
 import { useVnetContext } from './vnetContext';
@@ -34,6 +36,8 @@ import { useVnetContext } from './vnetContext';
 export const DiagnosticsAlert = () => {
   const { diagnosticsAttempt, runDiagnostics, resetDiagnosticsAttempt } =
     useVnetContext();
+  const { workspacesService } = useAppContext();
+  const { close: closeConnectionsPanel } = useConnectionsContext();
   const rootClusterUri = useStoreSelector(
     'workspacesService',
     useCallback(state => state.rootClusterUri, [])
@@ -70,7 +74,34 @@ export const DiagnosticsAlert = () => {
       }
     : {};
   const openReport = () => {
-    // TODO(ravicious): Open report doc.
+    if (!rootClusterUri) {
+      return;
+    }
+
+    const docsService =
+      workspacesService.getWorkspaceDocumentService(rootClusterUri);
+
+    // Check for an existing doc first. It may be present if someone re-runs diagnostics from
+    // within a doc, then opens the VNet panel and clicks "Open Report". The report in the panel
+    // and the report in the doc are equal in that case, as they both come from
+    // diagnosticsAttempt.data.
+    const existingDoc = docsService.getDocuments().find(
+      d =>
+        d.kind === 'doc.vnet_diag_report' &&
+        // Reports don't have IDs, so createdAt is used as a good-enough approximation of an ID.
+        d.report?.createdAt === report.createdAt
+    );
+    if (existingDoc) {
+      docsService.open(existingDoc.uri);
+    } else {
+      const doc = docsService.createVnetDiagReportDocument({
+        rootClusterUri,
+        report,
+      });
+      docsService.add(doc);
+      docsService.open(doc.uri);
+    }
+    closeConnectionsPanel();
   };
 
   if (
