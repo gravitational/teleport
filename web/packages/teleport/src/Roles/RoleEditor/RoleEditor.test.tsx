@@ -365,7 +365,7 @@ test('error while parsing', async () => {
   expect(screen.getByText(/me no speak yaml/)).toBeVisible();
 });
 
-test('YAML editor usable even if the standard one throws', async () => {
+test('YAML editor is usable even if the standard one throws', async () => {
   // Mock the standard editor to force it to throw an error.
   jest.spyOn(StandardEditorModule, 'StandardEditor').mockImplementation(() => {
     throw new Error('oh noes, it crashed');
