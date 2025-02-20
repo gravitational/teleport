@@ -132,6 +132,8 @@ func NewRevocationService(cfg *RevocationServiceConfig) (*RevocationService, err
 		certAuthorityGetter: cfg.CertAuthorityGetter,
 		keyStorer:           cfg.KeyStorer,
 		eventsWatcher:       cfg.EventsWatcher,
+
+		notifyNewSignedCRL: make(chan struct{}),
 	}, nil
 }
 

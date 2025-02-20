@@ -41,7 +41,9 @@ type CRLSet struct {
 
 // Clone returns a deep copy of the CRLSet.
 func (b *CRLSet) Clone() *CRLSet {
-	clone := &CRLSet{}
+	clone := &CRLSet{
+		stale: b.stale,
+	}
 	if b.LocalCRL != nil {
 		clone.LocalCRL = make([]byte, len(b.LocalCRL))
 		copy(clone.LocalCRL, b.LocalCRL)

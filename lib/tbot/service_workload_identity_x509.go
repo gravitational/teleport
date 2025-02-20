@@ -131,7 +131,7 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 			if err != nil {
 				return trace.Wrap(err, "getting trust bundle set")
 			}
-			s.log.InfoContext(ctx, "Trust bundle set has been updated")
+			s.log.InfoContext(ctx, "Trust bundle set has been updated, will regenerate output")
 			if !newBundleSet.Local.Equal(bundleSet.Local) {
 				// If the local trust domain CA has changed, we need to reissue
 				// the SVID.
@@ -145,7 +145,7 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 				return trace.Wrap(err, "getting CRL set from cache")
 			}
 			crlSet = newCRLSet
-			s.log.DebugContext(ctx, "CRL set has been updated")
+			s.log.DebugContext(ctx, "CRL set has been updated, will regenerate output")
 		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval):
 			s.log.InfoContext(ctx, "Renewal interval reached, renewing SVIDs")
 			x509Cred = nil
