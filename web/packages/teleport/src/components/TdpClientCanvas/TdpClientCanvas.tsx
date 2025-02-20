@@ -18,7 +18,7 @@
 
 import React, { memo, useEffect, useRef, type CSSProperties } from 'react';
 
-import { DebouncedFunc } from 'shared/utils/highbar';
+import { debounce } from 'shared/utils/highbar';
 
 import { TdpClient, TdpClientEvent } from 'teleport/lib/tdp';
 import { BitmapFrame } from 'teleport/lib/tdp/client';
@@ -38,7 +38,7 @@ function TdpClientCanvas(props: Props) {
     onMouseUp,
     onMouseWheel,
     onContextMenu,
-    windowOnResize,
+    onResize,
     style,
     updatePointer,
   } = props;
@@ -186,15 +186,26 @@ function TdpClientCanvas(props: Props) {
   }, [client, clientOnClientScreenSpec]);
 
   useEffect(() => {
-    if (client && windowOnResize) {
-      const _onresize = () => windowOnResize(client);
-      window.addEventListener('resize', _onresize);
-      return () => {
-        windowOnResize.cancel();
-        window.removeEventListener('resize', _onresize);
-      };
+    if (!onResize) {
+      return;
     }
-  }, [client, windowOnResize]);
+
+    const debouncedOnResize = debounce(onResize, 250, { trailing: true });
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) {
+        debouncedOnResize({
+          height: entry.contentRect.height,
+          width: entry.contentRect.width,
+        });
+      }
+    });
+    observer.observe(canvasRef.current);
+
+    return () => {
+      debouncedOnResize.cancel();
+      observer.disconnect();
+    };
+  }, [onResize]);
 
   useEffect(() => {
     if (client) {
@@ -260,7 +271,13 @@ export type Props = {
   onMouseUp?(e: React.MouseEvent): void;
   onMouseWheel?(e: WheelEvent): void;
   onContextMenu?(e: React.MouseEvent): void;
-  windowOnResize?: DebouncedFunc<(cli: TdpClient) => void>;
+  /**
+   * Handles canvas resize events.
+   *
+   * This function is called whenever the canvas is resized,
+   * with a debounced delay of 250 ms to optimize performance.
+   */
+  onResize?(e: { width: number; height: number }): void;
   style?: CSSProperties;
   updatePointer?: boolean;
 };
