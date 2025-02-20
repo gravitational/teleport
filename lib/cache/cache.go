@@ -46,7 +46,6 @@ import (
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
-	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
@@ -1084,7 +1083,6 @@ func New(config Config) (*Cache, error) {
 		clusterConfigCache:           clusterConfigCache,
 		autoUpdateCache:              autoUpdateCache,
 		provisionerCache:             local.NewProvisioningService(config.Backend),
-		usersCache:                   identityService,
 		accessCache:                  local.NewAccessService(config.Backend),
 		dynamicAccessCache:           local.NewDynamicAccessService(config.Backend),
 		presenceCache:                local.NewPresenceService(config.Backend),
@@ -2320,67 +2318,6 @@ func (c *Cache) ListRemoteClusters(ctx context.Context, pageSize int, nextToken 
 	defer rg.Release()
 	remoteClusters, token, err := rg.reader.ListRemoteClusters(ctx, pageSize, nextToken)
 	return remoteClusters, token, trace.Wrap(err)
-}
-
-// GetUser is a part of auth.Cache implementation.
-func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
-	_, span := c.Tracer.Start(ctx, "cache/GetUser")
-	defer span.End()
-
-	if withSecrets { // cache never tracks user secrets
-		return c.Config.Users.GetUser(ctx, name, withSecrets)
-	}
-	rg, err := readCollectionCache(c, c.legacyCacheCollections.users)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	user, err := rg.reader.GetUser(ctx, name, withSecrets)
-	if trace.IsNotFound(err) && rg.IsCacheRead() {
-		// release read lock early
-		rg.Release()
-		// fallback is sane because method is never used
-		// in construction of derivative caches.
-		if user, err := c.Config.Users.GetUser(ctx, name, withSecrets); err == nil {
-			return user, nil
-		}
-	}
-	return user, trace.Wrap(err)
-}
-
-// GetUsers is a part of auth.Cache implementation
-func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	_, span := c.Tracer.Start(ctx, "cache/GetUsers")
-	defer span.End()
-
-	if withSecrets { // cache never tracks user secrets
-		return c.Users.GetUsers(ctx, withSecrets)
-	}
-	rg, err := readCollectionCache(c, c.legacyCacheCollections.users)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetUsers(ctx, withSecrets)
-}
-
-// ListUsers returns a page of users.
-func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
-	_, span := c.Tracer.Start(ctx, "cache/ListUsers")
-	defer span.End()
-
-	if req.WithSecrets { // cache never tracks user secrets
-		rsp, err := c.Users.ListUsers(ctx, req)
-		return rsp, trace.Wrap(err)
-	}
-	rg, err := readCollectionCache(c, c.legacyCacheCollections.users)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	rsp, err := rg.reader.ListUsers(ctx, req)
-	return rsp, trace.Wrap(err)
 }
 
 // GetTunnelConnections is a part of auth.Cache implementation
