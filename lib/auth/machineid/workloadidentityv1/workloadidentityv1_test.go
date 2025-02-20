@@ -24,6 +24,7 @@ import (
 	"crypto/x509/pkix"
 	"errors"
 	"fmt"
+	"math/big"
 	"net"
 	"os"
 	"slices"
@@ -3022,7 +3023,7 @@ func TestRevocationService_CRL(t *testing.T) {
 	checkCRL := func(
 		t *testing.T,
 		crlBytes []byte,
-		wantEntries []*x509.RevocationListEntry,
+		wantEntries []x509.RevocationListEntry,
 	) {
 		require.NotEmpty(t, crlBytes)
 
@@ -3032,6 +3033,12 @@ func TestRevocationService_CRL(t *testing.T) {
 
 		// Check CRL has a valid signature
 		require.NoError(t, parsed.CheckSignatureFrom(caCert))
+
+		diff := cmp.Diff(
+			wantEntries,
+			parsed.RevokedCertificateEntries,
+		)
+		require.Empty(t, diff)
 	}
 
 	// Fetch the initial, empty, CRL
@@ -3042,6 +3049,40 @@ func TestRevocationService_CRL(t *testing.T) {
 	require.NoError(t, err)
 	res, err := stream.Recv()
 	require.NoError(t, err)
-	checkCRL(t, res.Crl, []*x509.RevocationListEntry{})
+	checkCRL(t, res.Crl, nil)
 
+	// Create a new revocation
+	revokedAt := srv.Clock().Now()
+	_, err = revocationsClient.CreateWorkloadIdentityX509Revocation(
+		ctx,
+		&workloadidentityv1pb.CreateWorkloadIdentityX509RevocationRequest{
+			WorkloadIdentityX509Revocation: &workloadidentityv1pb.WorkloadIdentityX509Revocation{
+				Kind:    types.KindWorkloadIdentityX509Revocation,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name:    "ff",
+					Expires: timestamppb.New(srv.Clock().Now().Add(time.Hour)),
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
+					Reason:    "compromised",
+					RevokedAt: timestamppb.New(revokedAt),
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	fakeClock := srv.Clock().(*clockwork.FakeClock)
+	require.NoError(t, fakeClock.BlockUntilContext(ctx, 1))
+	t.Log("Advancing fake clock to pass debounce period")
+	fakeClock.Advance(6 * time.Second)
+
+	// The client should now receive a new CRL
+	res, err = stream.Recv()
+	require.NoError(t, err)
+	checkCRL(t, res.Crl, []x509.RevocationListEntry{
+		{
+			SerialNumber:   big.NewInt(255),
+			RevocationTime: revokedAt,
+		},
+	})
 }
