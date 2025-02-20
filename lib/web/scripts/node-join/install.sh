@@ -22,6 +22,13 @@ TELEPORT_BINARY_LIST_darwin="teleport" # only install server binaries for macOS
 TELEPORT_CONFIG_PATH="/etc/teleport.yaml"
 TELEPORT_DATA_DIR="/var/lib/teleport"
 TELEPORT_DOCS_URL="https://goteleport.com/docs/"
+# TELEPORT_FORMAT contains the Teleport installation formats.
+# The value is dynamically computed unless OVERRIDE_FORMAT it set.
+# Possible values are:
+# - "deb"
+# - "rpm"
+# - "tarball"
+# - "updater"
 TELEPORT_FORMAT=""
 
 # initialise variables (because set -u disallows unbound variables)
@@ -39,6 +46,9 @@ INTERACTIVE=false
 # optionally be replaced by the server before the script is served up
 TELEPORT_VERSION='{{.version}}'
 TELEPORT_PACKAGE_NAME='{{.packageName}}'
+# UPDATER_STYLE holds the Teleport updater style.
+# Supported values are "none", "" (same as "none"), "package", and "binary".
+UPDATER_STYLE='{{.installUpdater}}'
 REPO_CHANNEL='{{.repoChannel}}'
 TARGET_HOSTNAME='{{.hostname}}'
 TARGET_PORT='{{.port}}'
@@ -681,23 +691,30 @@ fi
 
 # use OSTYPE variable to figure out host type/arch
 if [[ "${OSTYPE}" == "linux"* ]]; then
-    # linux host, now detect arch
-    TELEPORT_BINARY_TYPE="linux"
-    ARCH=$(uname -m)
-    log "Detected host: ${OSTYPE}, using Teleport binary type ${TELEPORT_BINARY_TYPE}"
-    if [[ ${ARCH} == "armv7l" ]]; then
-        TELEPORT_ARCH="arm"
-    elif [[ ${ARCH} == "aarch64" ]]; then
-        TELEPORT_ARCH="arm64"
-    elif [[ ${ARCH} == "x86_64" ]]; then
-        TELEPORT_ARCH="amd64"
-    elif [[ ${ARCH} == "i686" ]]; then
-        TELEPORT_ARCH="386"
+
+    if [[ "$UPDATER_STYLE" == "binary" ]]; then
+      # if we are using the new updater, we can bypass this detection dance
+      # and always use the updater.
+      TELEPORT_FORMAT="updater"
     else
-        log_important "Error: cannot detect architecture from uname -m: ${ARCH}"
-        exit 1
+        # linux host, now detect arch
+        TELEPORT_BINARY_TYPE="linux"
+        ARCH=$(uname -m)
+        log "Detected host: ${OSTYPE}, using Teleport binary type ${TELEPORT_BINARY_TYPE}"
+        if [[ ${ARCH} == "armv7l" ]]; then
+            TELEPORT_ARCH="arm"
+        elif [[ ${ARCH} == "aarch64" ]]; then
+            TELEPORT_ARCH="arm64"
+        elif [[ ${ARCH} == "x86_64" ]]; then
+            TELEPORT_ARCH="amd64"
+        elif [[ ${ARCH} == "i686" ]]; then
+            TELEPORT_ARCH="386"
+        else
+            log_important "Error: cannot detect architecture from uname -m: ${ARCH}"
+            exit 1
+        fi
+        log "Detected arch: ${ARCH}, using Teleport arch ${TELEPORT_ARCH}"
     fi
-    log "Detected arch: ${ARCH}, using Teleport arch ${TELEPORT_ARCH}"
     # if the download format is already set, we have no need to detect distro
     if [[ ${TELEPORT_FORMAT} == "" ]]; then
         # detect distro
@@ -987,6 +1004,21 @@ install_from_repo() {
     fi
 }
 
+install_from_updater() {
+    SCRIPT_URL="https://$TARGET_HOSTNAME:$TARGET_PORT/scripts/install.sh"
+    CURL_COMMAND="curl -fsl"
+    if [[ ${DISABLE_TLS_VERIFICATION} == "true" ]]; then
+        CURL_COMMAND+=" -k"
+        SCRIPT_URL+="?insecure=true"
+    fi
+
+    log "Requesting the install script: $SCRIPT_URL"
+    $CURL_COMMAND "$SCRIPT_URL" -o "$TEMP_DIR/install.sh" || (log "Failed to retrieve the install script." && exit 1)
+
+    log "Executing the install script"
+    bash "$TEMP_DIR/install.sh"
+}
+
 # package_list returns the list of packages to install.
 # The list of packages can be fed into yum or apt because they already have the expected format when pinning versions.
 package_list() {
@@ -1007,7 +1039,7 @@ package_list() {
     # (warning): This expression is constant. Did you forget the $ on a variable?
     # Disabling the warning above because expression is templated.
     # shellcheck disable=SC2050
-    if is_using_systemd && [[ "{{.installUpdater}}" == "true" ]]; then
+    if is_using_systemd && [[ "$UPDATER_STYLE" == "package" ]]; then
         # Teleport Updater requires systemd.
         PACKAGE_LIST+=" ${TELEPORT_UPDATER_PIN_VERSION}"
     fi
@@ -1037,7 +1069,10 @@ is_repo_available() {
     return 1
 }
 
-if is_repo_available; then
+if [[ "$TELEPORT_FORMAT" == "updater" ]]; then
+    log "Installing from updater binary."
+    install_from_updater
+elif is_repo_available; then
     log "Installing repo for distro $ID."
     install_from_repo
 else
