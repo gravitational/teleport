@@ -30,6 +30,7 @@ import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { makeReport } from 'teleterm/services/vnet/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 
 import { useVnetContext, VnetContextProvider } from './vnetContext';
 import { VnetSliderStep as Component } from './VnetSliderStep';
@@ -203,19 +204,21 @@ export function VnetSliderStep(props: StoryProps) {
       // data are fired again.
       key={JSON.stringify(props)}
     >
-      <VnetContextProvider>
-        {props.listDnsZones === 'processing-with-previous-results' && (
-          <RerequestDNSZones />
-        )}
-        <Component
-          refCallback={noop}
-          next={noop}
-          prev={noop}
-          hasTransitionEnded
-          stepIndex={1}
-          flowLength={2}
-        />
-      </VnetContextProvider>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          {props.listDnsZones === 'processing-with-previous-results' && (
+            <RerequestDNSZones />
+          )}
+          <Component
+            refCallback={noop}
+            next={noop}
+            prev={noop}
+            hasTransitionEnded
+            stepIndex={1}
+            flowLength={2}
+          />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
 }
