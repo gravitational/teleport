@@ -213,17 +213,12 @@ func (h *Handler) integrationsDelete(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	if deleteAssociatedResources, _ := apiutils.ParseBool(r.URL.Query().Get("associatedresources")); deleteAssociatedResources {
-		if _, err := clt.IntegrationsClient().DeleteIntegration(r.Context(), &integrationv1.DeleteIntegrationRequest{
-			Name:                      integrationName,
-			DeleteAssociatedResources: true,
-		}); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		if err := clt.DeleteIntegration(r.Context(), integrationName); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	deleteAssociatedResources, _ := apiutils.ParseBool(r.URL.Query().Get("associatedresources"))
+	if _, err := clt.IntegrationsClient().DeleteIntegration(r.Context(), &integrationv1.DeleteIntegrationRequest{
+		Name:                      integrationName,
+		DeleteAssociatedResources: deleteAssociatedResources,
+	}); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return OK(), nil
