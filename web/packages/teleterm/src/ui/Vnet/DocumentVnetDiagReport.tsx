@@ -73,7 +73,7 @@ export function DocumentVnetDiagReport(props: {
             <H1>VNet Diagnostic Report</H1>
 
             <Flex gap={2}>
-              {/* TODO: Implement buttons. */}
+              {/* TODO(ravicious): Implement buttons. */}
               <HoverTooltip tipContent="Run Diagnostics Again">
                 <Button intent="neutral" p={1}>
                   <Refresh size="medium" />
