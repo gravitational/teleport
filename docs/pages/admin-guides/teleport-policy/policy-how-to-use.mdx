@@ -1,17 +1,17 @@
 ---
-title: How to use Teleport Policy
-description: Using Access Graph with Teleport Policy.
+title: How to use Teleport Teleport Identity Security
+description: Using Access Graph with Identity Security.
 ---
 
-Teleport Policy provides a framework for visualizing and managing access controls across an organization’s infrastructure.
+Identity Security provides a framework for visualizing and managing access controls across an organization’s infrastructure.
 
 This interface enables administrators to efficiently identify and address potential security risks,
 such as overly broad permissions or conflicting roles, ensuring that access is granted
 on principles of least privilege.
 
-## How to use Teleport Policy feature
+## How to use Identity Security feature
 
-Teleport Policy's Access Graph feature can help you to answer questions like:
+Identity Security's Access Graph feature can help you to answer questions like:
 
 - Who can access a specific resource?
 
@@ -24,6 +24,15 @@ Determine who has access to resources and understand the pathways that grant acc
 At a glance, you can view all the resources a user can access:
 
 ![Show Access Path](../../../img/access-graph/show-access-path.gif)
+
+## Dashboard: Standing Privileges
+
+Identity Security's Access Graph dashboard provides a high-level overview of standing privileges across 
+your infrastructure.  Standing privileges are the number of resources that an identity can access 
+without creating an Access Request. Details about standing privileges can be found by clicking on the
+user or bot. 
+
+![Standing Privileges](../../../img/access-graph/standing-privileges.png)
 
 ## Graph View
 
