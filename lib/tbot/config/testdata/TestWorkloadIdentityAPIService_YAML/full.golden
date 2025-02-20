@@ -11,3 +11,5 @@ attestors:
       anonymous: true
 selector:
   name: my-workload-identity
+credential_ttl: 1m0s
+renewal_interval: 30s

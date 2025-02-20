@@ -473,7 +473,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
             bg="levels.sunken"
             details={updatePinnedResourcesAttempt.statusText}
           >
-            Could not update pinned resources:
+            Could not update pinned resources
           </Danger>
         )}
         {unifiedResourcePreferencesAttempt?.status === 'error' && (

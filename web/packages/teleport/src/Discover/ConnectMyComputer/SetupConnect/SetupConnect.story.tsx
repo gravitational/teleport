@@ -144,6 +144,7 @@ const Provider = ({ children }) => {
   const updatePreferences = () => Promise.resolve();
   const getClusterPinnedResources = () => Promise.resolve([]);
   const updateClusterPinnedResources = () => Promise.resolve();
+  const updateDiscoverResourcePreferences = () => Promise.resolve();
 
   return (
     <MemoryRouter>
@@ -153,6 +154,7 @@ const Provider = ({ children }) => {
           updatePreferences,
           getClusterPinnedResources,
           updateClusterPinnedResources,
+          updateDiscoverResourcePreferences,
         }}
       >
         <ContextProvider ctx={ctx}>{children}</ContextProvider>

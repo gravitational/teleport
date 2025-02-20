@@ -122,6 +122,12 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 			IsMultiPort: u.App.IsMultiPort,
 		}
 	}
+	if u.Git != nil {
+		sessionStart.Git = &prehogv1a.SessionStartGitMetadata{
+			GitType:    u.Git.GitType,
+			GitService: u.Git.GitService,
+		}
+	}
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_SessionStartV2{
 			SessionStartV2: sessionStart,

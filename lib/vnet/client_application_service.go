@@ -69,7 +69,10 @@ func (s *clientApplicationService) AuthenticateProcess(ctx context.Context, req 
 		return nil, trace.BadParameter("version mismatch, user process version is %s, admin process version is %s",
 			api.Version, req.Version)
 	}
-	// TODO(nklaassen): implement process authentication.
+	if err := platformAuthenticateProcess(ctx, req); err != nil {
+		log.ErrorContext(ctx, "Failed to authenticate process", "error", err)
+		return nil, trace.Wrap(err, "authenticating process")
+	}
 	return &vnetv1.AuthenticateProcessResponse{
 		Version: api.Version,
 	}, nil

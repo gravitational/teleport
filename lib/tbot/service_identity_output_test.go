@@ -42,7 +42,8 @@ import (
 
 const (
 	// mockProxyAddr is the address of the mock proxy server, used in tests
-	mockProxyAddr = "tele.blackmesa.gov:443"
+	mockProxyAddr    = "tele.blackmesa.gov:443"
+	mockProxySSHAddr = "tele.blackmesa.gov:3023"
 	// mockRemoteClusterName is the remote cluster name used for the mock auth
 	// client
 	mockRemoteClusterName = "tele.aperture.labs"
@@ -163,7 +164,8 @@ func Test_renderSSHConfig(t *testing.T) {
 						Proxy: webclient.ProxySettings{
 							TLSRoutingEnabled: tc.TLSRouting,
 							SSH: webclient.SSHProxySettings{
-								PublicAddr: mockProxyAddr,
+								PublicAddr:    mockProxyAddr,
+								SSHPublicAddr: mockProxySSHAddr,
 							},
 						},
 					},

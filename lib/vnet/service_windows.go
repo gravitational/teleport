@@ -89,7 +89,11 @@ func startService(ctx context.Context, cfg *windowsAdminProcessConfig) (*mgr.Ser
 		Name:   serviceName,
 		Handle: serviceHandle,
 	}
-	if err := service.Start(ServiceCommand, "--addr", cfg.clientApplicationServiceAddr); err != nil {
+	if err := service.Start(ServiceCommand,
+		"--addr", cfg.clientApplicationServiceAddr,
+		"--cred-path", cfg.serviceCredentialPath,
+		"--user-sid", cfg.userSID,
+	); err != nil {
 		return nil, trace.Wrap(err, "starting Windows service %s", serviceName)
 	}
 	return service, nil
@@ -158,10 +162,12 @@ loop:
 }
 
 func (s *windowsService) run(ctx context.Context, args []string) error {
-	var clientApplicationServiceAddr string
+	var cfg windowsAdminProcessConfig
 	app := kingpin.New(serviceName, "Teleport VNet Windows Service")
 	serviceCmd := app.Command("vnet-service", "Start the VNet service.")
-	serviceCmd.Flag("addr", "client application service address").Required().StringVar(&clientApplicationServiceAddr)
+	serviceCmd.Flag("addr", "client application service address").Required().StringVar(&cfg.clientApplicationServiceAddr)
+	serviceCmd.Flag("cred-path", "path to TLS credentials for connecting to client application").Required().StringVar(&cfg.serviceCredentialPath)
+	serviceCmd.Flag("user-sid", "SID of the user running the client application").Required().StringVar(&cfg.userSID)
 	cmd, err := app.Parse(args[1:])
 	if err != nil {
 		return trace.Wrap(err, "parsing runtime arguments to Windows service")
@@ -169,9 +175,7 @@ func (s *windowsService) run(ctx context.Context, args []string) error {
 	if cmd != serviceCmd.FullCommand() {
 		return trace.BadParameter("Windows service runtime arguments did not match \"vnet-service\", args: %v", args[1:])
 	}
-	if err := runWindowsAdminProcess(ctx, &windowsAdminProcessConfig{
-		clientApplicationServiceAddr: clientApplicationServiceAddr,
-	}); err != nil {
+	if err := runWindowsAdminProcess(ctx, &cfg); err != nil {
 		return trace.Wrap(err, "running admin process")
 	}
 	return nil

@@ -91,7 +91,7 @@ func TestCalculatePermissions(t *testing.T) {
 					mkDatabaseObject("bar", map[string]string{"kind": "schema"}),
 				},
 			},
-			summary: "\"DELETE\": 1 objects (table:1), \"SELECT\": 1 objects (table:1)",
+			summary: "DELETE: 1 objects (table:1), SELECT: 1 objects (table:1)",
 			details: []events.DatabasePermissionEntry{
 				{
 					Permission: "DELETE",
@@ -136,7 +136,7 @@ func TestCalculatePermissions(t *testing.T) {
 					mkDatabaseObject("bar", map[string]string{"kind": "schema"}),
 				},
 			},
-			summary: "\"SELECT\": 1 objects (table:1)",
+			summary: "SELECT: 1 objects (table:1)",
 			details: []events.DatabasePermissionEntry{
 				{
 					Permission: "SELECT",
