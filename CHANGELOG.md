@@ -1,5 +1,18 @@
 # Changelog
 
+## 17.2.8 (02/19/25)
+
+* Fixed broken `Download Metadata File` button from the SAML enrolling resource flow in the web UI. [#52276](https://github.com/gravitational/teleport/pull/52276)
+* Fixed broken `Refresh` button in the Access Monitoring reports page in the web UI. [#52276](https://github.com/gravitational/teleport/pull/52276)
+* Fixed broken `Download app.zip` menu item in the Integrations list dropdown menu for Microsoft Teams in the web UI. [#52276](https://github.com/gravitational/teleport/pull/52276)
+* Fixed `Unexpected end of JSON input` error in an otherwise successful web API call. [#52276](https://github.com/gravitational/teleport/pull/52276)
+* Teleport Connect now features a new menu for quick access request management. [#52217](https://github.com/gravitational/teleport/pull/52217)
+* Remove the ability of tctl to load the default configuration file on Windows. [#52188](https://github.com/gravitational/teleport/pull/52188)
+* Tbot: support overriding `credential_ttl` and `renewal_interval` on most outputs and services. [#52185](https://github.com/gravitational/teleport/pull/52185)
+* Fix an issue that GitHub integration CA gets deleted during Auth restart for non-software key stores like KMS. For broken GitHub integrations, the `integration` resource must be deleted and recreated. [#52149](https://github.com/gravitational/teleport/pull/52149)
+* Added support for non-FIPS AWS endpoints for IAM and STS on FIPS binaries (`TELEPORT_UNSTABLE_DISABLE_AWS_FIPS=yes`) [#52127](https://github.com/gravitational/teleport/pull/52127)
+* Introduced the allow_reissue property to the tbot identity output for compatibility with tsh based reissuance. [#52116](https://github.com/gravitational/teleport/pull/52116)
+
 ## 17.2.7 (02/13/25)
 
 ### Security Fixes
