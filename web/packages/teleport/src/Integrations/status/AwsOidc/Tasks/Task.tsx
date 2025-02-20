@@ -71,7 +71,6 @@ export function Task({
     return null;
   }
 
-  // todo (michellescripts) implement either success view or confirmation based on design sync
   function resolve() {
     setAttempt({ status: 'processing' });
     integrationService
@@ -92,7 +91,8 @@ export function Task({
   return (
     <SidePanel
       onClose={() => close(false)}
-      header={
+      header={<H2>{taskAttempt.data.issueType}</H2>}
+      footer={
         <ButtonBorder
           intent="success"
           onClick={resolve}
@@ -103,7 +103,6 @@ export function Task({
       }
       disabled={attempt.status === 'processing'}
     >
-      <H2 mb={2}>{taskAttempt.data.issueType}</H2>
       {attempt.status === 'failed' && (
         <Alert kind="danger" details={attempt.statusText}>
           Unable to resolve task

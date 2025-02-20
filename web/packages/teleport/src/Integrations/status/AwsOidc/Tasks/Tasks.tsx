@@ -18,10 +18,12 @@
 
 import { useEffect, useState } from 'react';
 import { useHistory } from 'react-router';
+import styled, { useTheme } from 'styled-components';
 
 import { ButtonBorder, Flex, Indicator } from 'design';
 import { Danger } from 'design/Alert';
 import Table, { Cell } from 'design/DataTable';
+import { Notification, NotificationItem } from 'shared/components/Notification';
 
 import { useServerSidePagination } from 'teleport/components/hooks';
 import { FeatureBox } from 'teleport/components/Layout';
@@ -34,9 +36,11 @@ import { useAwsOidcStatus } from 'teleport/Integrations/status/AwsOidc/useAwsOid
 import { integrationService, UserTask } from 'teleport/services/integrations';
 
 export function Tasks() {
+  const theme = useTheme();
   const history = useHistory();
   const searchParams = new URLSearchParams(history.location.search);
   const taskName = searchParams.get('task');
+  const [notification, setNotification] = useState<NotificationItem>();
 
   const { integrationAttempt } = useAwsOidcStatus();
   const { data: integration } = integrationAttempt;
@@ -95,6 +99,15 @@ export function Tasks() {
       // If there are multiple pages, we would rather refresh the table with X results rather than
       // use modifyFetchedData to remove the item.
       serverSidePagination.fetch();
+
+      setNotification({
+        content: {
+          description:
+            'The task has been marked as resolved; it will reappear in the table if the issue persists after the next sync.',
+        },
+        severity: 'success',
+        id: taskName,
+      });
     }
     history.replace(history.location.pathname);
   }
@@ -131,9 +144,14 @@ export function Tasks() {
                   openTask(row);
                 }
               },
-              getStyle: () => {
+              getStyle: (row: UserTask) => {
                 if (selectedTask === '') {
                   return { cursor: 'pointer' };
+                }
+                if (row.name === selectedTask) {
+                  return {
+                    backgroundColor: theme.colors.interactive.tonal.primary[0],
+                  };
                 }
               },
             }}
@@ -173,16 +191,35 @@ export function Tasks() {
               },
             ]}
             emptyText={`No pending tasks`}
-            pagination={{ pageSize: serverSidePagination.pageSize }}
+            pagination={{
+              pageSize: serverSidePagination.pageSize,
+              pagerPosition: 'both',
+            }}
             fetching={{
               fetchStatus: serverSidePagination.fetchStatus,
               onFetchNext: serverSidePagination.fetchNext,
               onFetchPrev: serverSidePagination.fetchPrev,
             }}
           />
+          {notification && (
+            <NotificationContainer>
+              <Notification
+                key={notification.id}
+                item={notification}
+                onRemove={() => setNotification(undefined)}
+                minWidth="432px"
+              />
+            </NotificationContainer>
+          )}
         </FeatureBox>
       </Flex>
       {selectedTask && <Task name={selectedTask} close={closeTask} />}
     </Flex>
   );
 }
+
+const NotificationContainer = styled.div`
+  position: absolute;
+  top: ${props => props.theme.space[10]}px;
+  right: ${props => props.theme.space[5]}px;
+`;
