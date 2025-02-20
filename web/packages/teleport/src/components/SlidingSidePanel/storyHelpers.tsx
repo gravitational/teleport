@@ -28,10 +28,10 @@ import { ContextProvider } from 'teleport/index';
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
-import { TopBar } from 'teleport/TopBar';
+import { TopBar as Component } from 'teleport/TopBar';
 import { UserContext } from 'teleport/User/UserContext';
 
-export const Providers: React.FC<PropsWithChildren> = ({ children }) => {
+export const TopBar: React.FC<PropsWithChildren> = ({ children }) => {
   const ctx = createTeleportContext();
   const updatePreferences = () => Promise.resolve();
   const getClusterPinnedResources = () => Promise.resolve([]);
@@ -61,7 +61,7 @@ export const Providers: React.FC<PropsWithChildren> = ({ children }) => {
                   left: 0;
                 `}
               >
-                <TopBar />
+                <Component />
                 {children}
               </Box>
             </LayoutContextProvider>
