@@ -19,7 +19,7 @@ The Teleport Datadog Incident Management integration connects to the Teleport
 gRPC API and listens for Role Access Requests. When the integration receives a
 status change for a Role Access Request, it either creates a new incident in
 Datadog or, if an incident exists, updates it. The integration also reads
-annotations on each Teleport Access Request and, depending on the annotations,
+annotations on each Teleport Zero Trust Access Request and, depending on the annotations,
 may approve the Access Request automatically.
 
 ## Prerequisites
@@ -43,10 +43,10 @@ may approve the Access Request automatically.
 
 To demonstrate the Datadog Incident Management plugin, create a team in Datadog.
 In the Datadog web UI, navigate to the **Teams** tab and click on **New Team** to
-create a new Datadog team. Name it "Teleport Access".
+create a new Datadog team. Name it "Zero Trust Access".
 
 We will configure the Datadog Incident Management plugin to route certain access
-requests to the "Teleport Access" team.
+requests to the "Zero Trust Access" team.
 
 ## Step 2/6. Define RBAC resources
 
@@ -113,7 +113,7 @@ to the Teleport plugin.
 
 First, in the Datadog web UI navigate to **Organization Settings -> Access -> API Keys**
 to view your organization's API keys. To generate a new API key, click on **New Key**
-and name it "Teleport Access". Copy the API key to paste in a later step.
+and name it "Zero Trust Access". Copy the API key to paste in a later step.
 
 ![Datadog dashboard for API Keys](../../../../img/enterprise/plugins/datadog/dashboard-api-keys.png)
 
@@ -121,15 +121,15 @@ and name it "Teleport Access". Copy the API key to paste in a later step.
 
 Next, navigate to **Organization Settings -> Identity & Accounts -> Service Accounts**
 to view your organization's service accounts. To create a new service account, click
-on **New Service Account** and name it "Teleport Access". You can provide whatever
+on **New Service Account** and name it "Zero Trust Access". You can provide whatever
 email you'd like to associate with the service account, then assign the role
 "Datadog Standard Role". This role provides the required permissions necessary to
-manage the Teleport Access Request incidents.
+manage the Zero Trust Access Request incidents.
 
 ![Datadog dashboard for Service Accounts](../../../../img/enterprise/plugins/datadog/dashboard-service-accounts.png)
 
-Now click on the "Teleport Access" service account that was just created and click
-on the **Application Keys** tab and click on **New Key** and name it "Teleport Access"
+Now click on the "Zero Trust Access" service account that was just created and click
+on the **Application Keys** tab and click on **New Key** and name it "Zero Trust Access"
 to create a new Application key. Copy the Application key to paste in a later step.
 
 ![Datadog dashboard for Application Keys](../../../../img/enterprise/plugins/datadog/dashboard-application-keys.png)
@@ -218,7 +218,7 @@ Request Reviewed` in the Teleport Web UI.
 
 To enable automatic approvals for Access Requests, you will need to set up an
 on-call schedule for your Datadog team. Navigate to **On-Call -> Teams** and
-select **Add Team to On-Call** to set up an on-call schedule for the "Teleport Access"
+select **Add Team to On-Call** to set up an on-call schedule for the "Zero Trust Access"
 team.
 
 ### Update Teleport RBAC to support automatic approvals

@@ -22,7 +22,7 @@ log in via Teleport Auth Connectors.
 </Notice>
 
 - A running Teleport Enterprise cluster v16.2.0 or later.
-- For self-hosted clusters, an updated `license.pem` with Teleport Policy enabled.
+- For self-hosted clusters, an updated `license.pem` with Teleport Teleport Identity Security enabled.
 - For self-hosted clusters, a running Access Graph node v1.24.0 or later.
 Check [Access Graph page](teleport-policy.mdx) for details on
 how to set up Access Graph.
@@ -50,7 +50,7 @@ version: v7
 ## Creating a Crown Jewel
 
 To create a Crown Jewel, you need to mark a resource or user as critical. Only changes to marked resources
-and users will be logged by Teleport Policy.
+and users will be logged by Identity Security.
 To mark a resource or user as Crown Jewel, open the Access Graph and navigate to the "Crown Jewels" tab.
 
 ![Create Page](../../../img/access-graph/crown-jewels/create-page.webp)

@@ -1,9 +1,9 @@
 ---
-title: Discover NetIQ Access Patterns with Teleport Policy
-description: Describes how to synchronize OpenTex NetIQ access patterns using Teleport Policy and Access Graph.
+title: Discover NetIQ Access Patterns with Teleport Teleport Identity Security
+description: Describes how to synchronize OpenTex NetIQ access patterns using Identity Security and Access Graph.
 ---
 
-With Teleport Policy's Access Graph, you gain insights into your NetIQ organization
+With Identity Security's Access Graph, you gain insights into your NetIQ organization
 structure, the resources each user can access, and the roles that grant them access.
 Access Graph provides a visual representation that enhances security and improves
 understanding of large NetIQ organizations.  
@@ -13,9 +13,9 @@ Access Graph helps answer key questions such as:
 - **Which resources does each user have access to?**  
 - **Which roles grant access to specific resources?**  
 
-Access Graph is a feature of the [Teleport Policy](https://goteleport.com/platform/policy/) product, available to **Teleport Enterprise edition** customers.  
+Access Graph is a feature of the [Identity Security](https://goteleport.com/platform/policy/) product, available to **Teleport Enterprise edition** customers.  
 
-If enabled, Teleport Policy options can be found under the **Policy** section in the left navigation menu.  
+If enabled, Identity Security options can be found under the **Policy** section in the left navigation menu.  
 
 ## How it works
 
@@ -41,7 +41,7 @@ ensuring it remains updated with the latest information from your NetIQ organiza
 
 ### Importing resources
 
-Teleport Policy’s Access Graph processes the imported resources 
+Identity Security’s Access Graph processes the imported resources 
 and their relationships, generating a graphical representation
 to visualize access structures effectively.  
 
@@ -49,12 +49,12 @@ to visualize access structures effectively.
 ## Prerequisites
 
 - A running Teleport Enterprise cluster v17.2.4 or later.
-- Teleport Policy enabled for your account.
+- Identity Security enabled for your account.
 - An OpenTex NetIQ instance with a user that has read access to the organization.
 - For self-hosted clusters:
   - Ensure that an up-to-date `license.pem` is used in the Auth Service configuration.
   - A running Access Graph node v1.27.0 or later.
-Check the [Teleport Policy page](../teleport-policy.mdx) for details on
+Check the [Identity Security page](../teleport-policy.mdx) for details on
 how to set up Access Graph.
   - The node running the Access Graph service must be reachable from the Teleport Auth Service.
 

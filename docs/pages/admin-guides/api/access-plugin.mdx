@@ -357,7 +357,7 @@ so, it calls `createRow`. If not, it calls `updateSpreadsheet`.
 The Teleport API client type, `client.Client`, has a `NewWatcher` method that
 listens for new audit events from the Auth Service API via a gRPC stream. The
 second parameter of the method indicates the type of audit event to watch for,
-in this case, events having to do with Teleport Access Requests.
+in this case, events having to do with Teleport Zero Trust Access Requests.
 
 The result of `NewWatcher`, a `types.Watcher`, enables `Run` to respond to new
 audit events by calling the `Events` method. This returns a Go **channel**, a

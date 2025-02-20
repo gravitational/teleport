@@ -3,8 +3,8 @@ title: Run the Jira Access Request Plugin
 description: How to set up the Teleport Jira plugin to notify users when another user requests elevated privileges.
 ---
 
-This guide explains how to set up the Teleport Access Request plugin for Jira.
-Teleport's Jira integration allows you to manage Teleport Access Requests as
+This guide explains how to set up the Teleport Zero Trust Access Request plugin for Jira.
+Teleport's Jira integration allows you to manage Zero Trust Access Requests as
 Jira issues.
 
 The Teleport Jira plugin synchronizes a Jira project board with the Access
@@ -107,7 +107,7 @@ project**. Select **Kanban** for the template, then **Use template**. Click
 **Select a company-managed project**.
 
 You'll see a screen where you can enter a name for your project. In this guide,
-we assume that your project is called "Teleport Access Requests", which
+we assume that your project is called "Zero Trust Access Requests", which
 receives the key `TAR` by default. 
 
 Make sure "Connect repositories, documents, and more" is unset, then click
@@ -139,7 +139,7 @@ Click **Back to board** to review your changes.
 
 ### Retrieve your Jira API token
 
-Obtain an API token that the Teleport Access Request plugin uses to make
+Obtain an API token that the Zero Trust Access Request plugin uses to make
 changes to your Jira project. Click the gear menu at the upper right of the
 screen, then click **Atlassian account settings**. Click **Security** >
 **Create and manage API tokens** > **Create API token**. 
@@ -160,13 +160,13 @@ Return to Jira. Click the gear menu on the upper right of the screen. Click
 <Tabs>
 <TabItem label="Executable">
 
-Enter "Teleport Access Request Plugin" in the "Name" field. In the "URL" field,
+Enter "Zero Trust Access Request Plugin" in the "Name" field. In the "URL" field,
 enter the domain name you created for the plugin earlier, plus port `8081`.
 
 </TabItem>
 <TabItem label="Helm Chart">
 
-Enter "Teleport Access Request Plugin" in the "Name" field. In the "URL" field,
+Enter "Zero Trust Access Request Plugin" in the "Name" field. In the "URL" field,
 enter the domain name you created for the plugin earlier, plus port `443`.
 
 </TabItem>
@@ -386,7 +386,7 @@ Access Request:
 (!docs/pages/includes/plugins/create-request.mdx!)
 
 When you create the request, you will see a new task in the "Pending" column of
-the Teleport Access Requests board:
+the Zero Trust Access Requests board:
 
 ![New Access Request](../../../../img/enterprise/plugins/jira/new-request.png)
 

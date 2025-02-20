@@ -1,9 +1,9 @@
 ---
-title: Run Teleport Policy on Self-Hosted Clusters
+title: Run Teleport Teleport Identity Security on Self-Hosted Clusters
 description: Describes how to deploy Access Graph on self-hosted clusters.
 ---
 
-Teleport Policy's Access Graph with a self-hosted Teleport cluster requires setting up 
+Identity Security's Access Graph with a self-hosted Teleport cluster requires setting up 
 Access Graph, a dedicated service which uses PostgreSQL as its backing storage and communicates 
 with Auth Service and Proxy Service to collect information about resources and access.
 
@@ -12,7 +12,7 @@ This guide will help you set up the service and enable Access Graph in your Tele
 ## Prerequisites
 
 - A running Teleport Enterprise cluster v14.3.6 or later.
-- An updated `license.pem` with Teleport Policy enabled.
+- An updated `license.pem` with Identity Security enabled.
 - Docker version v(=docker.version=) or later.
 - A PostgreSQL database server v14 or later.
   - Access Graph needs a dedicated [database](https://www.postgresql.org/docs/current/sql-createdatabase.html) to store its data.
