@@ -187,7 +187,7 @@ function Install-Wintun {
             throw "Checksum verification for wintun.zip failed! Expected $ExpectedHash but got $($ZipFileHash.Hash)"
         }
         Expand-Archive -Force -Path $WintunZipfile -DestinationPath $InstallDir
-        Move-Item -Force -Path "$InstallDir/wintun/bin/x86/wintun.dll" -Destination "$InstallDir/wintun.dll"
+        Move-Item -Force -Path "$InstallDir/wintun/bin/amd64/wintun.dll" -Destination "$InstallDir/wintun.dll"
         Write-Host "::endgroup::"
     }
 }
