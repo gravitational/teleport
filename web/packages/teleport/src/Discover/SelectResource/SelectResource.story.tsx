@@ -96,6 +96,7 @@ const Provider = ({
   const updatePreferences = () => Promise.resolve();
   const getClusterPinnedResources = () => Promise.resolve([]);
   const updateClusterPinnedResources = () => Promise.resolve();
+  const updateDiscoverResourcePreferences = () => Promise.resolve();
   const preferences: UserPreferences = makeDefaultUserPreferences();
   preferences.onboard.preferredResources = resources;
 
@@ -109,6 +110,7 @@ const Provider = ({
           updatePreferences,
           getClusterPinnedResources,
           updateClusterPinnedResources,
+          updateDiscoverResourcePreferences,
         }}
       >
         <ContextProvider ctx={ctx}>{children}</ContextProvider>
