@@ -889,6 +889,12 @@ func (c *Client) WorkloadIdentityResourceServiceClient() workloadidentityv1pb.Wo
 	return workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(c.conn)
 }
 
+// WorkloadIdentityRevocationServiceClient returns an unadorned client for the
+// workload identity revocation service.
+func (c *Client) WorkloadIdentityRevocationServiceClient() workloadidentityv1pb.WorkloadIdentityRevocationServiceClient {
+	return workloadidentityv1pb.NewWorkloadIdentityRevocationServiceClient(c.conn)
+}
+
 // WorkloadIdentityIssuanceClient returns an unadorned client for the workload
 // identity service.
 func (c *Client) WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient {
