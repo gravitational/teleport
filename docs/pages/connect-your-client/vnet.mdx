@@ -13,13 +13,21 @@ Teleport. Underneath, VNet authenticates the connection with your credentials, u
 routing technology](../reference/architecture/tls-routing.mdx) as `tsh proxy app`. This is all done
 client-side – VNet sets up a local DNS name server and a virtual network device.
 
-VNet is available on macOS in Teleport Connect and tsh, with plans for future Windows and Linux
-versions.
+VNet is available on macOS and Windows in Teleport Connect and tsh, with plans
+for Linux support in a future version.
 
 ## Prerequisites
 
+<Tabs>
+<TabItem label="macOS">
 - A client machine running macOS Ventura (13.0) or higher.
 - [Teleport Connect](teleport-connect.mdx), version 16.0.0 or higher.
+</TabItem>
+<TabItem label="Windows">
+- A client machine running Windows 10 or higher.
+- [Teleport Connect](teleport-connect.mdx), version 17.3.0 or higher.
+</TabItem>
+</Tabs>
 
 ## Step 1/3. Start Teleport Connect
 
@@ -33,10 +41,12 @@ have `tcp://` as the protocol in their addresses.
 Click "Connect" next to the TCP app. This starts VNet if it's not already running. Alternatively,
 you can start VNet through the connection list in the top left.
 
+<Details title="First launch on macOS">
 During the first launch, macOS will prompt you to enable a background item for tsh.app. VNet needs
 this background item in order to configure DNS on your device. To enable the background item, either
 interact with the system notification or go to System Settings > General > Login Items and look for
 tsh.app under "Allow in the Background".
+</Details>
 
 ![VNet starting up](../../img/use-teleport/vnet-starting@2x.png)
 
