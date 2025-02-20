@@ -17,10 +17,13 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useHistory } from 'react-router';
+import styled, { useTheme } from 'styled-components';
 
 import { ButtonBorder, Flex, Indicator } from 'design';
 import { Danger } from 'design/Alert';
 import Table, { Cell } from 'design/DataTable';
+import { Notification, NotificationItem } from 'shared/components/Notification';
 
 import { useServerSidePagination } from 'teleport/components/hooks';
 import { FeatureBox } from 'teleport/components/Layout';
@@ -33,9 +36,15 @@ import { useAwsOidcStatus } from 'teleport/Integrations/status/AwsOidc/useAwsOid
 import { integrationService, UserTask } from 'teleport/services/integrations';
 
 export function Tasks() {
+  const theme = useTheme();
+  const history = useHistory();
+  const searchParams = new URLSearchParams(history.location.search);
+  const taskName = searchParams.get('task');
+  const [notification, setNotification] = useState<NotificationItem>();
+
   const { integrationAttempt } = useAwsOidcStatus();
   const { data: integration } = integrationAttempt;
-  const [showTask, setShowTask] = useState<UserTask>(undefined);
+  const [selectedTask, setSelectedTask] = useState<string>('');
 
   const serverSidePagination = useServerSidePagination<UserTask>({
     pageSize: 20,
@@ -55,6 +64,20 @@ export function Tasks() {
     serverSidePagination.fetch();
   }, [integration]);
 
+  // use updated query params to set/unset the task side panel
+  useEffect(() => {
+    if (
+      taskName &&
+      taskName !== '' &&
+      serverSidePagination.fetchedData.agents &&
+      selectedTask === ''
+    ) {
+      setSelectedTask(taskName);
+    } else {
+      setSelectedTask('');
+    }
+  }, [taskName, serverSidePagination?.fetchedData]);
+
   if (integrationAttempt.status === 'processing') {
     return <Indicator />;
   }
@@ -71,14 +94,31 @@ export function Tasks() {
     return <Danger>{serverSidePagination.attempt.statusText}</Danger>;
   }
 
-  function close(resolved: boolean) {
+  function closeTask(resolved: boolean) {
     if (resolved) {
-      serverSidePagination.modifyFetchedData(p => ({
-        ...p,
-        agents: p.agents.filter(t => t.name !== showTask.name),
-      }));
+      // If there are multiple pages, we would rather refresh the table with X results rather than
+      // use modifyFetchedData to remove the item.
+      serverSidePagination.fetch();
+
+      setNotification({
+        content: {
+          description:
+            'The task has been marked as resolved; it will reappear in the table if the issue persists after the next sync.',
+        },
+        severity: 'success',
+        id: taskName,
+      });
     }
-    setShowTask(undefined);
+    history.replace(history.location.pathname);
+  }
+
+  function openTask(task: UserTask) {
+    if (selectedTask != '') {
+      return;
+    }
+    const urlParams = new URLSearchParams();
+    urlParams.append('task', task.name);
+    history.replace(`${history.location.pathname}?${urlParams.toString()}`);
   }
 
   return (
@@ -92,9 +132,7 @@ export function Tasks() {
         {integration && (
           <AwsOidcHeader integration={integration} tasks={true} />
         )}
-        <FeatureBox
-          css={{ maxWidth: '1400px', paddingTop: '16px', gap: '30px' }}
-        >
+        <FeatureBox maxWidth={1440} margin="auto" gap={3} paddingLeft={5}>
           {integration && (
             <AwsOidcTitle integration={integration} tasks={true} />
           )}
@@ -102,13 +140,18 @@ export function Tasks() {
             data={serverSidePagination.fetchedData?.agents || []}
             row={{
               onClick: row => {
-                if (showTask === undefined) {
-                  setShowTask(row);
+                if (selectedTask === '') {
+                  openTask(row);
                 }
               },
-              getStyle: () => {
-                if (showTask === undefined) {
+              getStyle: (row: UserTask) => {
+                if (selectedTask === '') {
                   return { cursor: 'pointer' };
+                }
+                if (row.name === selectedTask) {
+                  return {
+                    backgroundColor: theme.colors.interactive.tonal.primary[0],
+                  };
                 }
               },
             }}
@@ -137,8 +180,8 @@ export function Tasks() {
                 render: item => (
                   <Cell>
                     <ButtonBorder
-                      onClick={() => setShowTask(item)}
-                      disabled={showTask != undefined}
+                      onClick={() => openTask(item)}
+                      disabled={selectedTask != ''}
                       size="small"
                     >
                       View
@@ -148,16 +191,35 @@ export function Tasks() {
               },
             ]}
             emptyText={`No pending tasks`}
-            pagination={{ pageSize: serverSidePagination.pageSize }}
+            pagination={{
+              pageSize: serverSidePagination.pageSize,
+              pagerPosition: 'both',
+            }}
             fetching={{
               fetchStatus: serverSidePagination.fetchStatus,
               onFetchNext: serverSidePagination.fetchNext,
               onFetchPrev: serverSidePagination.fetchPrev,
             }}
           />
+          {notification && (
+            <NotificationContainer>
+              <Notification
+                key={notification.id}
+                item={notification}
+                onRemove={() => setNotification(undefined)}
+                minWidth="432px"
+              />
+            </NotificationContainer>
+          )}
         </FeatureBox>
       </Flex>
-      {showTask && <Task name={showTask.name} close={close} />}
+      {selectedTask && <Task name={selectedTask} close={closeTask} />}
     </Flex>
   );
 }
+
+const NotificationContainer = styled.div`
+  position: absolute;
+  top: ${props => props.theme.space[10]}px;
+  right: ${props => props.theme.space[5]}px;
+`;
