@@ -141,7 +141,7 @@ function foundResource(resource: ResourceTypeSummary): boolean {
 export const SelectCard = styled(Card)`
   width: 33%;
   background-color: ${props => props.theme.colors.levels.surface};
-  padding: 12px;
+  padding: ${props => props.theme.space[3]}px;
   border-radius: ${props => props.theme.radii[2]}px;
   border: ${props => `1px solid ${props.theme.colors.levels.surface}`};
   cursor: pointer;
