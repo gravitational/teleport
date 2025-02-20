@@ -427,6 +427,9 @@ func (c *WorkloadIdentityCommand) StreamCRL(
 	for {
 		res, err := stream.Recv()
 		if err != nil {
+			if trace.IsNotImplemented(err) {
+				slog.ErrorContext(ctx, "Server does not support X509 CRL functionality")
+			}
 			return trace.Wrap(err)
 		}
 		slog.InfoContext(ctx, "Received CRL from server")

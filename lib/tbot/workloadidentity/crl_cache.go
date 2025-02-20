@@ -31,9 +31,12 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
+// CRLSet is a collection of CRLs.
 type CRLSet struct {
+	// LocalCRL is the CRL related to the local trust domain
 	LocalCRL []byte
-	stale    chan struct{}
+	// stale is closed to indicate that this CRLSet has been replaced.
+	stale chan struct{}
 }
 
 // Clone returns a deep copy of the CRLSet.
@@ -61,6 +64,8 @@ func (b *CRLSet) Stale() <-chan struct{} {
 	return b.stale
 }
 
+// CRLCache streams CRLs from the revocations service and caches them. It
+// provides a mechanism to inform consumers when a new CRL is available.
 type CRLCache struct {
 	revocationsClient workloadidentityv1pb.WorkloadIdentityRevocationServiceClient
 	logger            *slog.Logger
@@ -69,6 +74,27 @@ type CRLCache struct {
 	crlSet *CRLSet
 	// initialized will close when the cache is fully initialized.
 	initialized chan struct{}
+}
+
+// CRLCacheConfig is the configuration for a CRLCache.
+type CRLCacheConfig struct {
+	RevocationsClient workloadidentityv1pb.WorkloadIdentityRevocationServiceClient
+	Logger            *slog.Logger
+}
+
+// NewCRLCache creates a new CRLCache.
+func NewCRLCache(cfg CRLCacheConfig) (*CRLCache, error) {
+	switch {
+	case cfg.RevocationsClient == nil:
+		return nil, trace.BadParameter("missing RevocationsClient")
+	case cfg.Logger == nil:
+		return nil, trace.BadParameter("missing Logger")
+	}
+	return &CRLCache{
+		revocationsClient: cfg.RevocationsClient,
+		logger:            cfg.Logger,
+		initialized:       make(chan struct{}),
+	}, nil
 }
 
 // String returns a string representation of the CRLCache. Implements the
@@ -114,17 +140,20 @@ func (m *CRLCache) Run(ctx context.Context) error {
 }
 
 func (m *CRLCache) watch(ctx context.Context) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	stream, err := m.revocationsClient.StreamSignedCRL(
 		ctx, &workloadidentityv1pb.StreamSignedCRLRequest{},
 	)
 	if err != nil {
-		return trace.Wrap(err, "streaming CRL")
+		return trace.Wrap(err, "opening CRL stream")
 	}
 
 	for {
 		res, err := stream.Recv()
 		if err != nil {
-			return trace.Wrap(err, "receiving CRL")
+			return trace.Wrap(err, "receiving CRL stream data")
 		}
 		m.setCRLSet(ctx, &CRLSet{
 			LocalCRL: res.Crl,
@@ -157,7 +186,7 @@ func (m *CRLCache) setCRLSet(ctx context.Context, crlSet *CRLSet) {
 		// Indicate that a new CRL set is available.
 		close(old.stale)
 	}
-	m.logger.DebugContext(ctx, "Broadcasting new CRL set to subscribed workloads")
+	m.logger.DebugContext(ctx, "Broadcasting new CRL set to consumers")
 }
 
 func (m *CRLCache) getCRLSet() *CRLSet {
@@ -197,15 +226,16 @@ func FetchCRLSet(
 	stream, err := revocationsClient.StreamSignedCRL(
 		ctx, &workloadidentityv1pb.StreamSignedCRLRequest{},
 	)
-	if trace.IsNotImplemented(err) {
-		return &CRLSet{}, nil
-	}
 	if err != nil {
 		return nil, trace.Wrap(err, "streaming CRL")
 	}
 
 	res, err := stream.Recv()
 	if err != nil {
+		if trace.IsNotImplemented(err) {
+			slog.WarnContext(ctx, "Server does not support X509 CRL functionality, no CRL will be included in the output.")
+			return &CRLSet{}, nil
+		}
 		return nil, trace.Wrap(err, "receiving CRL")
 	}
 

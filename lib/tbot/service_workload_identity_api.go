@@ -418,7 +418,9 @@ func (s *WorkloadIdentityAPIService) FetchX509Bundles(
 		case <-ctx.Done():
 			return nil
 		case <-bundleSet.Stale():
+			s.log.DebugContext(ctx, "Trust bundle set has been updated, distributing to client")
 		case <-crlSet.Stale():
+			s.log.DebugContext(ctx, "CRL set has been updated, distributing to client")
 		}
 	}
 }
