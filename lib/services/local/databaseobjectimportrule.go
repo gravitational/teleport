@@ -72,7 +72,7 @@ const (
 
 func NewDatabaseObjectImportRuleService(b backend.Backend) (services.DatabaseObjectImportRules, error) {
 	service, err := generic.NewServiceWrapper(
-		generic.ServiceWrapperConfig[*databaseobjectimportrulev1.DatabaseObjectImportRule]{
+		generic.ServiceConfig[*databaseobjectimportrulev1.DatabaseObjectImportRule]{
 			Backend:       b,
 			ResourceKind:  types.KindDatabaseObjectImportRule,
 			BackendPrefix: backend.NewKey(databaseObjectImportRulePrefix),

@@ -46,7 +46,7 @@ var _ services.ProvisioningStates = (*ProvisioningStateService)(nil)
 // NewProvisioningStateService creates a new ProvisioningStateService backed by
 // the supplied backend.
 func NewProvisioningStateService(backendInstance backend.Backend) (*ProvisioningStateService, error) {
-	userStatusSvc, err := generic.NewServiceWrapper(generic.ServiceWrapperConfig[*provisioningv1.PrincipalState]{
+	userStatusSvc, err := generic.NewServiceWrapper(generic.ServiceConfig[*provisioningv1.PrincipalState]{
 		Backend:       backendInstance,
 		ResourceKind:  types.KindProvisioningPrincipalState,
 		BackendPrefix: backend.NewKey(provisioningStatePrefix),

@@ -47,14 +47,14 @@ type AutoUpdateService struct {
 // NewAutoUpdateService returns a new AutoUpdateService.
 func NewAutoUpdateService(b backend.Backend) (*AutoUpdateService, error) {
 	config, err := generic.NewServiceWrapper(
-		generic.ServiceWrapperConfig[*autoupdate.AutoUpdateConfig]{
+		generic.ServiceConfig[*autoupdate.AutoUpdateConfig]{
 			Backend:       b,
 			ResourceKind:  types.KindAutoUpdateConfig,
 			BackendPrefix: backend.NewKey(autoUpdateConfigPrefix),
 			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateConfig],
 			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateConfig],
 			ValidateFunc:  update.ValidateAutoUpdateConfig,
-			KeyFunc: func(*autoupdate.AutoUpdateConfig) string {
+			ResourceKeyFunc: func(*autoupdate.AutoUpdateConfig) string {
 				return types.MetaNameAutoUpdateConfig
 			},
 		})
@@ -62,14 +62,14 @@ func NewAutoUpdateService(b backend.Backend) (*AutoUpdateService, error) {
 		return nil, trace.Wrap(err)
 	}
 	version, err := generic.NewServiceWrapper(
-		generic.ServiceWrapperConfig[*autoupdate.AutoUpdateVersion]{
+		generic.ServiceConfig[*autoupdate.AutoUpdateVersion]{
 			Backend:       b,
 			ResourceKind:  types.KindAutoUpdateVersion,
 			BackendPrefix: backend.NewKey(autoUpdateVersionPrefix),
 			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateVersion],
 			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateVersion],
 			ValidateFunc:  update.ValidateAutoUpdateVersion,
-			KeyFunc: func(version *autoupdate.AutoUpdateVersion) string {
+			ResourceKeyFunc: func(*autoupdate.AutoUpdateVersion) string {
 				return types.MetaNameAutoUpdateVersion
 			},
 		})
@@ -77,14 +77,14 @@ func NewAutoUpdateService(b backend.Backend) (*AutoUpdateService, error) {
 		return nil, trace.Wrap(err)
 	}
 	rollout, err := generic.NewServiceWrapper(
-		generic.ServiceWrapperConfig[*autoupdate.AutoUpdateAgentRollout]{
+		generic.ServiceConfig[*autoupdate.AutoUpdateAgentRollout]{
 			Backend:       b,
 			ResourceKind:  types.KindAutoUpdateAgentRollout,
 			BackendPrefix: backend.NewKey(autoUpdateAgentRolloutPrefix),
 			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateAgentRollout],
 			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateAgentRollout],
 			ValidateFunc:  update.ValidateAutoUpdateAgentRollout,
-			KeyFunc: func(_ *autoupdate.AutoUpdateAgentRollout) string {
+			ResourceKeyFunc: func(*autoupdate.AutoUpdateAgentRollout) string {
 				return types.MetaNameAutoUpdateAgentRollout
 			},
 		})
@@ -222,7 +222,7 @@ func itemFromAutoUpdateConfig(config *autoupdate.AutoUpdateConfig) (*backend.Ite
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	value, err := services.MarshalProtoResource[*autoupdate.AutoUpdateConfig](config)
+	value, err := services.MarshalProtoResource(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -248,7 +248,7 @@ func itemFromAutoUpdateVersion(version *autoupdate.AutoUpdateVersion) (*backend.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	value, err := services.MarshalProtoResource[*autoupdate.AutoUpdateVersion](version)
+	value, err := services.MarshalProtoResource(version)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
