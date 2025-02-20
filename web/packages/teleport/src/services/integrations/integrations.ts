@@ -24,6 +24,7 @@ import api from 'teleport/services/api';
 import { App } from '../apps';
 import makeApp from '../apps/makeApps';
 import auth, { MfaChallengeScope } from '../auth/auth';
+import makeNode from '../nodes/makeNode';
 import { withUnsupportedLabelFeatureErrorConversion } from '../version/unsupported';
 import {
   AwsDatabaseVpcsResponse,
@@ -45,6 +46,7 @@ import {
   Integration,
   IntegrationCreateRequest,
   IntegrationCreateResult,
+  IntegrationDiscoveryRules,
   IntegrationKind,
   IntegrationListResponse,
   IntegrationStatusCode,
