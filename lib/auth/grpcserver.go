@@ -4526,7 +4526,15 @@ func (g *GRPCServer) GetInstaller(ctx context.Context, req *types.ResourceReques
 		if trace.IsNotFound(err) {
 			switch req.Name {
 			case installers.InstallerScriptName:
-				return installer.DefaultInstaller, nil
+				_, err = auth.authServer.GetAutoUpdateAgentRollout(ctx)
+				switch {
+				case trace.IsNotFound(err):
+					return installer.LegacyDefaultInstaller, nil
+				case err != nil:
+					return nil, trace.Wrap(err, "failed to get query autoupdate state to build installer")
+				default:
+					return installer.NewDefaultInstaller, nil
+				}
 			case installers.InstallerScriptNameAgentless:
 				return installers.DefaultAgentlessInstaller, nil
 			}
@@ -4551,8 +4559,20 @@ func (g *GRPCServer) GetInstallers(ctx context.Context, _ *emptypb.Empty) (*type
 		return nil, trace.Wrap(err)
 	}
 	var installersV1 []*types.InstallerV1
+
+	var defaultInstaller *types.InstallerV1
+	_, err = auth.authServer.GetAutoUpdateAgentRollout(ctx)
+	switch {
+	case trace.IsNotFound(err):
+		defaultInstaller = installer.LegacyDefaultInstaller
+	case err != nil:
+		return nil, trace.Wrap(err, "failed to get query autoupdate state to build installer")
+	default:
+		defaultInstaller = installer.NewDefaultInstaller
+	}
+
 	defaultInstallers := map[string]*types.InstallerV1{
-		types.DefaultInstallerScriptName:        installer.DefaultInstaller,
+		types.DefaultInstallerScriptName:        defaultInstaller,
 		installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller,
 	}
 
