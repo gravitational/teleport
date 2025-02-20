@@ -22,7 +22,7 @@ import { Box, ButtonPrimary, Text } from 'design';
 import { Info } from 'design/Alert';
 
 import { SlidingSidePanel } from './SlidingSidePanel';
-import { LongContent, Providers } from './storyHelpers';
+import { LongContent, TopBar } from './storyHelpers';
 
 export default {
   title: 'Teleport/SlidingSidePanel',
@@ -35,7 +35,7 @@ const DevInfo = () => (
 export const SlideFromRight = () => {
   const [show, setShow] = useState(false);
   return (
-    <Providers>
+    <TopBar>
       {/* this Box wrapper is just for demo purposes */}
       <Box mt={10} textAlign="center">
         <DevInfo />
@@ -51,14 +51,14 @@ export const SlideFromRight = () => {
       >
         <LongContent />
       </SlidingSidePanel>
-    </Providers>
+    </TopBar>
   );
 };
 
 export const SlideFromLeft = () => {
   const [show, setShow] = useState(false);
   return (
-    <Providers>
+    <TopBar>
       {/* this Box wrapper is just for demo purposes */}
       <Box mt={10} ml={3} textAlign="center">
         <DevInfo />
@@ -74,6 +74,6 @@ export const SlideFromLeft = () => {
       >
         <LongContent />
       </SlidingSidePanel>
-    </Providers>
+    </TopBar>
   );
 };
