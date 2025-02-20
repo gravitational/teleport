@@ -299,9 +299,7 @@ test('renders the role diff component', async () => {
   );
   await openEditor();
   expect(screen.getByText('i am rendered')).toBeInTheDocument();
-  await waitFor(() => {
-    expect(screen.getByText('there is an error here')).toBeInTheDocument();
-  });
+  expect(await screen.findByText('there is an error here')).toBeInTheDocument();
 });
 
 async function openEditor() {

@@ -92,6 +92,10 @@ export type RoleEditorModel = {
   conversionErrors: ConversionErrorGroup[];
 };
 
+export function requiresReset(rm: RoleEditorModel | undefined): boolean {
+  if (rm === undefined) return false;
+}
+
 export type MetadataModel = {
   name: string;
   description?: string;

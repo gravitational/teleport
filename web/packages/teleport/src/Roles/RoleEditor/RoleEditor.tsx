@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useId, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 
 import { Alert, Box, Flex } from 'design';
 import { Danger } from 'design/Alert';
@@ -114,17 +114,19 @@ export const RoleEditor = ({
 
   // The standard editor will automatically preview the changes based on state updates
   // but the yaml editor needs to be told when to update (the preview button)
-  const [yamlPreviewAttempt, handleYamlPreview] = useAsync(async () => {
-    if (!onRoleUpdate) {
-      return;
-    }
-    try {
-      const newRole = await yamlModelToRole(yamlModel);
-      onRoleUpdate(newRole);
-    } catch (err) {
-      throw new Error(unableToUpdatePreviewMessage, { cause: err });
-    }
-  });
+  const [yamlPreviewAttempt, handleYamlPreview] = useAsync(
+    useCallback(async () => {
+      if (!onRoleUpdate) {
+        return;
+      }
+      try {
+        const newRole = await yamlModelToRole(yamlModel);
+        onRoleUpdate(newRole);
+      } catch (err) {
+        throw new Error(unableToUpdatePreviewMessage, { cause: err });
+      }
+    }, [onRoleUpdate, yamlModel])
+  );
 
   // Converts standard editor model to a YAML representation.
   const [yamlifyAttempt, yamlifyRole] = useAsync(
@@ -159,7 +161,7 @@ export const RoleEditor = ({
     // attempt to submit the form.
     if (
       standardModel.roleModel !== undefined &&
-      !standardModel.roleModel.requiresReset &&
+      !standardModel.roleModel?.requiresReset &&
       !validator.validate()
     )
       return;
