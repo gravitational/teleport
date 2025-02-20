@@ -17,6 +17,8 @@
 package cache
 
 import (
+	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -71,4 +73,52 @@ func TestSingletonStore(t *testing.T) {
 	require.ErrorIs(t, err, &trace.NotFoundError{Message: "no value for singleton of type types.StaticTokens"})
 	var empty types.StaticTokens
 	require.Empty(t, cmp.Diff(empty, out))
+}
+
+func TestResourceStore(t *testing.T) {
+	store := newResourceStoreWithFilter(
+		func(i int) bool { return i%2 == 0 },
+		map[string]func(i int) string{
+			"numbers":    strconv.Itoa,
+			"characters": func(i int) string { return strconv.FormatUint(uint64(i), 16) },
+		})
+
+	for i := 0; i < 100; i++ {
+		require.NoError(t, store.put(i))
+	}
+
+	zero, err := store.get("numbers", "0")
+	require.NoError(t, err)
+	require.Equal(t, 0, zero)
+
+	n, err := store.get("numbers", "1")
+	require.ErrorIs(t, err, &trace.NotFoundError{Message: `no value for key "1" in index "numbers"`})
+	require.Equal(t, 0, n)
+
+	v, err := store.get("characters", "1c")
+	require.NoError(t, err)
+	require.Equal(t, 28, v)
+
+	out := slices.Collect(store.iterate("numbers", "", ""))
+	require.Len(t, out, 50)
+	for _, n := range out {
+		require.Equal(t, 0, n%2)
+	}
+
+	out = slices.Collect(store.iterate("characters", "", ""))
+	require.Len(t, out, 50)
+	for _, n := range out {
+		require.Equal(t, 0, n%2)
+	}
+
+	require.NoError(t, store.delete(0))
+	_, err = store.get("numbers", "0")
+	require.ErrorIs(t, err, &trace.NotFoundError{Message: `no value for key "0" in index "numbers"`})
+
+	require.NoError(t, store.clear())
+
+	_, err = store.get("numbers", "0")
+	require.ErrorIs(t, err, &trace.NotFoundError{Message: `no value for key "0" in index "numbers"`})
+
+	require.Zero(t, store.cache.Len())
 }
