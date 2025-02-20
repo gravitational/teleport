@@ -1,13 +1,13 @@
 ---
-title: Discover Azure Access Patterns with Teleport Policy
-description: Describes how to import and visualize Azure subscription access patterns using Teleport Policy and Access Graph.
+title: Discover Azure Access Patterns with Teleport Teleport Identity Security
+description: Describes how to import and visualize Azure subscription access patterns using Identity Security and Access Graph.
 ---
 
-Teleport Policy streamlines and centralizes access management across your entire infrastructure. You can view access
+Identity Security streamlines and centralizes access management across your entire infrastructure. You can view access
 relationships in seconds, viewing unified, up-to-date relationships and policies between all users, groups, and
 computing resources.
 
-Teleport Policy with Access Graph offers insights into access patterns within your Azure subscription. By scanning
+Identity Security with Access Graph offers insights into access patterns within your Azure subscription. By scanning
 users, groups, service principals, and role definitions, it provides a visual representation and aids in enhancing the permission model
 within your Azure environment. This functionality enables you to address queries such as:
 
@@ -25,7 +25,7 @@ Graph service, a Discovery Service, and integration with your Azure subscription
 Access Graph discovers Azure access patterns, synchronizes various Azure resources,
 including users, groups, service principals, and role definitions.
 These resources are then visualized using the graph representation detailed in the
-[Teleport Policy usage page](../policy-how-to-use.mdx).
+[Identity Security usage page](../policy-how-to-use.mdx).
 
 The importing process involves two primary steps:
 
@@ -46,15 +46,15 @@ that it remains updated with the latest information from your Azure environment.
 
 ### Importing resources
 
-Teleport Policy’s Access Graph feature visualizes the resources retrieved from your Azure subscription.
+Identity Security’s Access Graph feature visualizes the resources retrieved from your Azure subscription.
 
 ## Prerequisites
 
 - A running Teleport Enterprise cluster v17.2.1 or later.
-- Teleport Policy enabled for your account.
+- Identity Security enabled for your account.
 - For self-hosted clusters:
   - Ensure that an up-to-date `license.pem` is used in the Auth Service configuration.
-  - A running Access Graph node v1.27.0 or later. Check the [Teleport Policy page](../teleport-policy.mdx) for details on
+  - A running Access Graph node v1.27.0 or later. Check the [Identity Security page](../teleport-policy.mdx) for details on
 how to set up Access Graph.
   - The node running the Access Graph service must be reachable from the Teleport Auth Service.
 
