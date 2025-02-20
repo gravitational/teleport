@@ -3,22 +3,41 @@ run-name: Build on Mac OS
 
 on:
   merge_group:
-    paths:
-      - '.github/workflows/build-macos.yaml'
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - '**.rs'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'build.assets/Makefile'
-      - 'build.assets/Dockerfile*'
-      - 'Makefile'
 
 jobs:
+  changes:
+    name: Check for relevant changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
+    steps:
+      - name: Checkout
+        if: ${{ github.event_name == 'merge_group' }}
+        uses: actions/checkout@v4
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: changes
+        with:
+          base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+          filters: |
+            changed:
+              - '.github/workflows/build-macos.yaml'
+              - '**.go'
+              - 'go.mod'
+              - 'go.sum'
+              - '**.rs'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'build.assets/Makefile'
+              - 'build.assets/Dockerfile*'
+              - 'Makefile'
+
   build:
     name: Build on Mac OS
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' }}
     runs-on: macos-13-xl-arm64
 
     permissions:
