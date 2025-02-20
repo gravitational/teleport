@@ -274,17 +274,31 @@ func TestAddKey_withoutSSHCert(t *testing.T) {
 	require.Len(t, keyCopy.DBTLSCerts, 1)
 }
 
-func TestConfigDirNotDeleted(t *testing.T) {
+func TestProtectedDirsNotDeleted(t *testing.T) {
 	t.Parallel()
 	auth := newTestAuthority(t)
 	keyStore := newTestFSKeyStore(t)
 
 	idx := KeyIndex{"host.a", "bob", "root"}
 	keyStore.AddKey(auth.makeSignedKey(t, idx, false))
+
 	configPath := filepath.Join(keyStore.KeyDir, "config")
 	require.NoError(t, os.Mkdir(configPath, 0700))
+
+	azurePath := filepath.Join(keyStore.KeyDir, "azure")
+	require.NoError(t, os.Mkdir(azurePath, 0700))
+
+	binPath := filepath.Join(keyStore.KeyDir, "bin")
+	require.NoError(t, os.Mkdir(binPath, 0700))
+
+	testPath := filepath.Join(keyStore.KeyDir, "test")
+	require.NoError(t, os.Mkdir(testPath, 0700))
+
 	require.NoError(t, keyStore.DeleteKeys())
 	require.DirExists(t, configPath)
+	require.DirExists(t, azurePath)
+	require.DirExists(t, binPath)
+	require.NoDirExists(t, testPath)
 
 	require.NoDirExists(t, filepath.Join(keyStore.KeyDir, "keys"))
 }
