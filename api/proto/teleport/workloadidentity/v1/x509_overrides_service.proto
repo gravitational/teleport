@@ -1,0 +1,110 @@
+// Copyright 2025 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.workloadidentity.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/workloadidentity/v1/x509_overrides.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1";
+
+// FIXME
+service X509OverridesService {
+  // FIXME
+  rpc SignX509IssuerCSR(SignX509IssuerCSRRequest) returns (SignX509IssuerCSRResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+
+  // FIXME
+  rpc GetX509IssuerOverride(GetX509IssuerOverrideRequest) returns (X509IssuerOverride) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // FIXME
+  rpc ListX509IssuerOverrides(ListX509IssuerOverridesRequest) returns (ListX509IssuerOverridesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+
+  // FIXME
+  rpc CreateX509IssuerOverride(CreateX509IssuerOverrideRequest) returns (X509IssuerOverride);
+  // FIXME
+  rpc UpdateX509IssuerOverride(UpdateX509IssuerOverrideRequest) returns (X509IssuerOverride);
+  // FIXME
+  rpc UpsertX509IssuerOverride(UpsertX509IssuerOverrideRequest) returns (X509IssuerOverride) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // FIXME
+  rpc DeleteX509IssuerOverride(DeleteX509IssuerOverrideRequest) returns (google.protobuf.Empty);
+}
+
+// FIXME
+message SignX509IssuerCSRRequest {
+  // ASN.1 DER certificate, the X.509 certificate in the spiffe cert_authority
+  // whose key we want to use for the CSR.
+  bytes issuer = 1;
+
+  // this can be populated as needed to support filling in the CSR for issuing
+  // methods such as ACME; when adding fields they should probably be added as
+  // "optional" so we can distinguish between present but empty and absent
+
+  // this can be extended with a "bool supports_async" field that would result,
+  // if necessary, in the auth queuing the request for another auth to pick up
+  // (for HSM support); the client would then poll the same request or maybe use
+  // a different RPC with an identifier returned by this RPC to poll for the
+  // signature
+}
+
+// FIXME
+message SignX509IssuerCSRResponse {
+  // ASN.1 DER certificate request.
+  bytes csr = 1;
+}
+
+// FIXME
+message GetX509IssuerOverrideRequest {
+  string name = 1;
+}
+
+// FIXME
+message ListX509IssuerOverridesRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+// FIXME
+message ListX509IssuerOverridesResponse {
+  repeated X509IssuerOverride x509_issuer_overrides = 1;
+  string next_page_token = 2;
+}
+
+// FIXME
+message CreateX509IssuerOverrideRequest {
+  X509IssuerOverride x509_issuer_override = 1;
+}
+
+// FIXME
+message UpdateX509IssuerOverrideRequest {
+  X509IssuerOverride x509_issuer_override = 1;
+}
+
+// FIXME
+message UpsertX509IssuerOverrideRequest {
+  X509IssuerOverride x509_issuer_override = 1;
+}
+
+// FIXME
+message DeleteX509IssuerOverrideRequest {
+  string name = 1;
+}

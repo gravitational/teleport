@@ -5205,11 +5205,13 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err, "getting cluster name")
 	}
 	workloadIdentityIssuanceService, err := workloadidentityv1.NewIssuanceService(&workloadidentityv1.IssuanceServiceConfig{
-		Authorizer:  cfg.Authorizer,
-		Cache:       cfg.AuthServer.Cache,
-		Emitter:     cfg.Emitter,
-		Clock:       cfg.AuthServer.GetClock(),
-		KeyStore:    cfg.AuthServer.keyStore,
+		Authorizer:     cfg.Authorizer,
+		Cache:          cfg.AuthServer.Cache,
+		Clock:          cfg.AuthServer.GetClock(),
+		Emitter:        cfg.Emitter,
+		KeyStore:       cfg.AuthServer.keyStore,
+		OverrideGetter: cfg.AuthServer.Services.WorkloadIdentityX509Overrides,
+
 		ClusterName: clusterName.GetClusterName(),
 	})
 	if err != nil {
@@ -5227,6 +5229,22 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err, "creating workload identity issuance service")
 	}
 	workloadidentityv1pb.RegisterWorkloadIdentityRevocationServiceServer(server, workloadIdentityRevocationService)
+
+	workloadIdentityX509OverridesService, err := workloadidentityv1.NewX509OverridesService(workloadidentityv1.X509OverridesServiceConfig{
+		Authorizer:          cfg.Authorizer,
+		CertAuthorityGetter: cfg.AuthServer.Cache,
+		Clock:               cfg.AuthServer.GetClock(),
+		Emitter:             cfg.Emitter,
+		KeyStore:            cfg.AuthServer.keyStore,
+		Logger:              cfg.AuthServer.logger.With(teleport.ComponentKey, "x509_overrides.service"),
+		Storage:             cfg.AuthServer.Services.WorkloadIdentityX509Overrides,
+
+		ClusterName: clusterName.GetClusterName(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating workload identity X509 overrides service")
+	}
+	workloadidentityv1pb.RegisterX509OverridesServiceServer(server, workloadIdentityX509OverridesService)
 
 	dbObjectImportRuleService, err := dbobjectimportrulev1.NewDatabaseObjectImportRuleService(dbobjectimportrulev1.DatabaseObjectImportRuleServiceConfig{
 		Authorizer: cfg.Authorizer,

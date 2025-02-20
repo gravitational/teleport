@@ -113,7 +113,8 @@ func IssueX509WorkloadIdentity(
 				Name: workloadIdentity.Name,
 				Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams{
 					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
-						PublicKey: pubBytes,
+						PublicKey:          pubBytes,
+						UseIssuerOverrides: true,
 					},
 				},
 				RequestedTtl:  durationpb.New(ttl),
@@ -141,7 +142,8 @@ func IssueX509WorkloadIdentity(
 				LabelSelectors: labelSelectors,
 				Credential: &workloadidentityv1pb.IssueWorkloadIdentitiesRequest_X509SvidParams{
 					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
-						PublicKey: pubBytes,
+						PublicKey:          pubBytes,
+						UseIssuerOverrides: true,
 					},
 				},
 				RequestedTtl:  durationpb.New(ttl),

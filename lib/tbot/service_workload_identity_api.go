@@ -17,6 +17,7 @@
 package tbot
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"crypto/x509"
@@ -428,12 +429,17 @@ func (s *WorkloadIdentityAPIService) fetchX509SVIDs(
 	// format.
 	svids := make([]*workloadpb.X509SVID, len(creds))
 	for i, cred := range creds {
+		var svid bytes.Buffer
+		svid.Write(cred.GetX509Svid().GetCert())
+		for _, c := range cred.GetX509Svid().Chain {
+			svid.Write(c)
+		}
 		svids[i] = &workloadpb.X509SVID{
 			// Required. The SPIFFE ID of the SVID in this entry
 			SpiffeId: cred.SpiffeId,
 			// Required. ASN.1 DER encoded certificate chain. MAY include
 			// intermediates, the leaf certificate (or SVID itself) MUST come first.
-			X509Svid: cred.GetX509Svid().GetCert(),
+			X509Svid: svid.Bytes(),
 			// Required. ASN.1 DER encoded PKCS#8 private key. MUST be unencrypted.
 			X509SvidKey: pkcs8PrivateKey,
 			// Required. ASN.1 DER encoded X.509 bundle for the trust domain.

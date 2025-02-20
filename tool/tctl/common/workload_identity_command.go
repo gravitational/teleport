@@ -17,11 +17,15 @@
 package common
 
 import (
+	"bytes"
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"math/big"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -36,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -58,6 +63,11 @@ type WorkloadIdentityCommand struct {
 	revocationSerial string
 	revocationReason string
 	revocationExpiry string
+
+	overridesSignCSRsCmd *kingpin.CmdClause
+	overridesCreateCmd   *kingpin.CmdClause
+
+	overridesCreateFullchains []string
 
 	now func() time.Time
 
@@ -126,6 +136,13 @@ func (c *WorkloadIdentityCommand) Initialize(
 		Default(teleport.Text).
 		EnumVar(&c.format, teleport.Text, teleport.JSON)
 
+	overridesCmd := cmd.Command("unstable-x509-overrides", "Manage X.509 overrides.")
+
+	c.overridesSignCSRsCmd = overridesCmd.Command("sign-csrs", "Sign CSRs with the SPIFFE X.509 CA keys.")
+
+	c.overridesCreateCmd = overridesCmd.Command("create-default-override", "Create a default issuer override from certificate chains.")
+	c.overridesCreateCmd.Arg("fullchain.pem", "Issuer and optional chain.").Required().ExistingFilesVar(&c.overridesCreateFullchains)
+
 	if c.stdout == nil {
 		c.stdout = os.Stdout
 	}
@@ -150,6 +167,10 @@ func (c *WorkloadIdentityCommand) TryRun(
 		commandFunc = c.ListRevocations
 	case c.revocationsRmCmd.FullCommand():
 		commandFunc = c.DeleteRevocation
+	case c.overridesSignCSRsCmd.FullCommand():
+		commandFunc = c.runOverridesSignCSRs
+	case c.overridesCreateCmd.FullCommand():
+		commandFunc = c.runOverridesCreate
 	default:
 		return false, nil
 	}
@@ -375,6 +396,137 @@ func (c *WorkloadIdentityCommand) ListRevocations(
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal revocations")
 		}
+	}
+	return nil
+}
+
+func (c *WorkloadIdentityCommand) runOverridesCreate(ctx context.Context, client *authclient.Client) error {
+	oclt := client.WorkloadIdentityX509OverridesClient()
+
+	overrides := make([][]*x509.Certificate, 0, len(c.overridesCreateFullchains))
+	for _, p := range c.overridesCreateFullchains {
+		f, err := os.ReadFile(p)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		certs, err := tlsca.ParseCertificatePEMs(f)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(certs) < 1 {
+			return trace.BadParameter("got no certificates from fullchain.pem file %q", p)
+		}
+		overrides = append(overrides, certs)
+	}
+
+	clusterName, err := client.GetDomainName(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	const loadSigningKeysFalse = false
+	ca, err := client.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.SPIFFECA,
+		DomainName: clusterName,
+	}, loadSigningKeysFalse)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	keypairs := ca.GetTrustedTLSKeyPairs()
+	if len(overrides) != len(keypairs) {
+		return trace.BadParameter("expected %v override(s), got %v", len(keypairs), len(overrides))
+	}
+
+	caCerts := make([]*x509.Certificate, 0, len(keypairs))
+	for _, keypair := range keypairs {
+		caCert, err := tlsca.ParseCertificatePEM(keypair.Cert)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		caCerts = append(caCerts, caCert)
+	}
+
+	for i, override := range overrides {
+		if !slices.ContainsFunc(caCerts, func(caCert *x509.Certificate) bool {
+			return bytes.Equal(override[0].RawSubjectPublicKeyInfo, caCert.RawSubjectPublicKeyInfo)
+		}) {
+			return trace.BadParameter("override in fullchain.pem %q does not match any issuer", c.overridesCreateFullchains[i])
+		}
+	}
+
+	pbOverrides := make([]*workloadidentityv1pb.X509IssuerOverrideSpec_Override, 0, len(overrides))
+	for _, override := range overrides {
+		chainDer := make([][]byte, 0, len(override))
+		for _, cert := range override {
+			chainDer = append(chainDer, cert.Raw)
+		}
+		pbOverrides = append(pbOverrides, &workloadidentityv1pb.X509IssuerOverrideSpec_Override{
+			Issuer: chainDer[0],
+			Chain:  chainDer,
+		})
+	}
+
+	if _, err := oclt.CreateX509IssuerOverride(ctx, &workloadidentityv1pb.CreateX509IssuerOverrideRequest{
+		X509IssuerOverride: &workloadidentityv1pb.X509IssuerOverride{
+			Kind:    types.KindWorkloadIdentityX509IssuerOverride,
+			SubKind: "",
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "default",
+			},
+			Spec: &workloadidentityv1pb.X509IssuerOverrideSpec{
+				Overrides: pbOverrides,
+			},
+		},
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintln(c.stdout, "Created default workload_identity_x509_issuer_override; to check, run: tctl get workload_identity_x509_issuer_override/default")
+	return nil
+}
+
+func (c *WorkloadIdentityCommand) runOverridesSignCSRs(ctx context.Context, client *authclient.Client) error {
+	oclt := client.WorkloadIdentityX509OverridesClient()
+
+	clusterName, err := client.GetDomainName(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	const loadSigningKeysFalse = false
+	ca, err := client.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.SPIFFECA,
+		DomainName: clusterName,
+	}, loadSigningKeysFalse)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	keypairs := ca.GetTrustedTLSKeyPairs()
+	csrs := make([]*x509.CertificateRequest, 0, len(keypairs))
+	for _, kp := range keypairs {
+		block, _ := pem.Decode(kp.Cert)
+		if block == nil {
+			return trace.BadParameter("failed to decode PEM block in SPIFFE CA")
+		}
+		resp, err := oclt.SignX509IssuerCSR(ctx, &workloadidentityv1pb.SignX509IssuerCSRRequest{Issuer: block.Bytes})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		csr, err := x509.ParseCertificateRequest(resp.GetCsr())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		csrs = append(csrs, csr)
+	}
+	for _, csr := range csrs {
+		fmt.Println(csr.Subject)
+		_ = pem.Encode(c.stdout, &pem.Block{
+			Type:  "CERTIFICATE REQUEST",
+			Bytes: csr.Raw,
+		})
 	}
 	return nil
 }

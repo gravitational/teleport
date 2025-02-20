@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -63,14 +64,19 @@ type issuerCache interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 }
 
+type overrideGetter interface {
+	GetX509IssuerOverride(context.Context, string) (*workloadidentityv1pb.X509IssuerOverride, error)
+}
+
 // IssuanceServiceConfig holds configuration options for the IssuanceService.
 type IssuanceServiceConfig struct {
-	Authorizer authz.Authorizer
-	Cache      issuerCache
-	Clock      clockwork.Clock
-	Emitter    apievents.Emitter
-	Logger     *slog.Logger
-	KeyStore   KeyStorer
+	Authorizer     authz.Authorizer
+	Cache          issuerCache
+	Clock          clockwork.Clock
+	Emitter        apievents.Emitter
+	KeyStore       KeyStorer
+	Logger         *slog.Logger
+	OverrideGetter overrideGetter
 
 	ClusterName string
 }
@@ -80,12 +86,13 @@ type IssuanceServiceConfig struct {
 type IssuanceService struct {
 	workloadidentityv1pb.UnimplementedWorkloadIdentityIssuanceServiceServer
 
-	authorizer authz.Authorizer
-	cache      issuerCache
-	clock      clockwork.Clock
-	emitter    apievents.Emitter
-	logger     *slog.Logger
-	keyStore   KeyStorer
+	authorizer     authz.Authorizer
+	cache          issuerCache
+	clock          clockwork.Clock
+	emitter        apievents.Emitter
+	keyStore       KeyStorer
+	logger         *slog.Logger
+	overrideGetter overrideGetter
 
 	clusterName string
 }
@@ -93,14 +100,16 @@ type IssuanceService struct {
 // NewIssuanceService returns a new instance of the IssuanceService.
 func NewIssuanceService(cfg *IssuanceServiceConfig) (*IssuanceService, error) {
 	switch {
-	case cfg.Cache == nil:
-		return nil, trace.BadParameter("cache service is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
+	case cfg.Cache == nil:
+		return nil, trace.BadParameter("cache service is required")
 	case cfg.Emitter == nil:
 		return nil, trace.BadParameter("emitter is required")
 	case cfg.KeyStore == nil:
 		return nil, trace.BadParameter("key store is required")
+	case cfg.OverrideGetter == nil:
+		return nil, trace.BadParameter("override getter is required")
 	case cfg.ClusterName == "":
 		return nil, trace.BadParameter("cluster name is required")
 	}
@@ -111,13 +120,16 @@ func NewIssuanceService(cfg *IssuanceServiceConfig) (*IssuanceService, error) {
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
 	}
+
 	return &IssuanceService{
-		authorizer:  cfg.Authorizer,
-		cache:       cfg.Cache,
-		clock:       cfg.Clock,
-		emitter:     cfg.Emitter,
-		logger:      cfg.Logger,
-		keyStore:    cfg.KeyStore,
+		authorizer:     cfg.Authorizer,
+		cache:          cfg.Cache,
+		clock:          cfg.Clock,
+		emitter:        cfg.Emitter,
+		keyStore:       cfg.KeyStore,
+		logger:         cfg.Logger,
+		overrideGetter: cfg.OverrideGetter,
+
 		clusterName: cfg.ClusterName,
 	}, nil
 }
@@ -190,9 +202,20 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 		if err != nil {
 			return nil, trace.Wrap(err, "fetching X509 SPIFFE CA")
 		}
+		var chainDER [][]byte
+
+		if modules.GetModules().BuildType() == modules.BuildEnterprise && v.X509SvidParams.GetUseIssuerOverrides() {
+			newCA, newChainDER, err := s.maybeOverrideCA(ctx, ca)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			ca, chainDER = newCA, newChainDER
+		}
+
 		cred, err = s.issueX509SVID(
 			ctx,
 			ca,
+			chainDER,
 			decision.templatedWorkloadIdentity,
 			v.X509SvidParams,
 			req.RequestedTtl.AsDuration(),
@@ -223,6 +246,35 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 	return &workloadidentityv1pb.IssueWorkloadIdentityResponse{
 		Credential: cred,
 	}, nil
+}
+
+func (s *IssuanceService) maybeOverrideCA(ctx context.Context, ca *tlsca.CertAuthority) (_ *tlsca.CertAuthority, chainDER [][]byte, _ error) {
+	// TODO(espadolini): use a watcher and keep the override in its parsed form
+	issuerOverrideProto, err := s.overrideGetter.GetX509IssuerOverride(ctx, "default")
+	if err != nil {
+		if trace.IsNotFound(err) {
+			// no override, we're good
+			return ca, nil, nil
+		}
+		return nil, nil, trace.Wrap(err, "fetching X509 issuer override")
+	}
+
+	// we have an override, it must parse cleanly and we must find an alternate
+	// issuer or fail issuance
+	issuerOverrides, err := services.ParseWorkloadIdentityX509IssuerOverride(issuerOverrideProto)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "parsing issuer in workload_identity_x509_issuer_override \"default\"")
+	}
+	issuer, chainDER := issuerOverrides.GetOverrideForIssuer(ca.Cert)
+	if issuer == nil {
+		return nil, nil, trace.NotFound("issuer not found in workload_identity_x509_issuer_override \"default\"")
+	}
+
+	newCA := *ca
+	// this is ok because issuer and ca.Cert have the same SPKI so
+	// they have the same public key
+	newCA.Cert = issuer
+	return &newCA, chainDER, nil
 }
 
 // maxWorkloadIdentitiesIssued is the maximum number of workload identities that
@@ -289,10 +341,21 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 		if err != nil {
 			return nil, trace.Wrap(err, "fetching CA to sign X509 SVID")
 		}
+		var chainDER [][]byte
+
+		if v.X509SvidParams.GetUseIssuerOverrides() {
+			newCA, newChainDER, err := s.maybeOverrideCA(ctx, ca)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			ca, chainDER = newCA, newChainDER
+		}
+
 		for _, wi := range shouldIssue {
 			cred, err := s.issueX509SVID(
 				ctx,
 				ca,
+				chainDER,
 				wi,
 				v.X509SvidParams,
 				req.RequestedTtl.AsDuration(),
@@ -455,6 +518,7 @@ func calculateTTL(
 func (s *IssuanceService) issueX509SVID(
 	ctx context.Context,
 	ca *tlsca.CertAuthority,
+	chainDER [][]byte,
 	wid *workloadidentityv1pb.WorkloadIdentity,
 	params *workloadidentityv1pb.X509SVIDParams,
 	requestedTTL time.Duration,
@@ -535,6 +599,7 @@ func (s *IssuanceService) issueX509SVID(
 			X509Svid: &workloadidentityv1pb.X509SVIDCredential{
 				Cert:         certBytes,
 				SerialNumber: serialString,
+				Chain:        chainDER,
 			},
 		},
 	}, nil

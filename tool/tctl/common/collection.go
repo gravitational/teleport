@@ -68,6 +68,22 @@ type ResourceCollection interface {
 	resources() []types.Resource
 }
 
+type genericResourceCollection []types.Resource
+
+// resources implements ResourceCollection.
+func (c genericResourceCollection) resources() []types.Resource {
+	return c
+}
+
+// writeText implements ResourceCollection.
+func (c genericResourceCollection) writeText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"Name"})
+	for _, override := range c {
+		t.AddRow([]string{override.GetName()})
+	}
+	return trace.Wrap(t.WriteTo(w))
+}
+
 type roleCollection struct {
 	roles []types.Role
 }
@@ -1598,7 +1614,6 @@ type pluginResourceWrapper struct {
 }
 
 func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
-
 	const (
 		credOauth2AccessToken             = "oauth2_access_token"
 		credBearerToken                   = "bearer_token"
@@ -1659,7 +1674,6 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 	}
 
 	for k := range unknownPlugin.Spec.Settings {
-
 		switch k {
 		case settingsSlackAccessPlugin:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_SlackAccessPlugin{}
@@ -1867,7 +1881,6 @@ func (c *staticHostUserCollection) resources() []types.Resource {
 func (c *staticHostUserCollection) writeText(w io.Writer, verbose bool) error {
 	var rows [][]string
 	for _, item := range c.items {
-
 		for _, matcher := range item.Spec.Matchers {
 			labelMap := label.ToMap(matcher.NodeLabels)
 			labelStringMap := make(map[string]string, len(labelMap))

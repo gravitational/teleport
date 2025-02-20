@@ -181,6 +181,8 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindAutoUpdateConfig:         rc.createAutoUpdateConfig,
 		types.KindAutoUpdateVersion:        rc.createAutoUpdateVersion,
 		types.KindGitServer:                rc.createGitServer,
+
+		types.KindWorkloadIdentityX509IssuerOverride: rc.createWorkloadIdentityX509IssuerOverride,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                    rc.updateUser,
@@ -202,6 +204,8 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindAutoUpdateVersion:       rc.updateAutoUpdateVersion,
 		types.KindDynamicWindowsDesktop:   rc.updateDynamicWindowsDesktop,
 		types.KindGitServer:               rc.updateGitServer,
+
+		types.KindWorkloadIdentityX509IssuerOverride: rc.updateWorkloadIdentityX509IssuerOverride,
 	}
 	rc.config = config
 
@@ -2049,6 +2053,13 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("git_server %q has been deleted\n", rc.ref.Name)
+	case types.KindWorkloadIdentityX509IssuerOverride:
+		if _, err := client.WorkloadIdentityX509OverridesClient().DeleteX509IssuerOverride(ctx, &workloadidentityv1pb.DeleteX509IssuerOverrideRequest{
+			Name: rc.ref.Name,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("workload_identity_x509_issuer_override %q has been deleted\n", rc.ref.Name)
 	case types.KindAutoUpdateConfig:
 		if err := client.DeleteAutoUpdateConfig(ctx); err != nil {
 			return trace.Wrap(err)
@@ -3385,6 +3396,39 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		// TODO(greedy52) consider making dedicated git server collection.
 		return &serverCollection{servers: servers}, nil
+
+	case types.KindWorkloadIdentityX509IssuerOverride:
+		if rc.ref.Name != "" {
+			x509IssuerOverride, err := client.WorkloadIdentityX509OverridesClient().
+				GetX509IssuerOverride(ctx, &workloadidentityv1pb.GetX509IssuerOverrideRequest{
+					Name: rc.ref.Name,
+				})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return genericResourceCollection{types.ProtoResource153ToLegacy(x509IssuerOverride)}, nil
+		}
+		var collection genericResourceCollection
+		var pageToken string
+		for {
+			resp, err := client.WorkloadIdentityX509OverridesClient().
+				ListX509IssuerOverrides(ctx, &workloadidentityv1pb.ListX509IssuerOverridesRequest{
+					PageToken: pageToken,
+				})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			collection = slices.Grow(collection, len(resp.GetX509IssuerOverrides()))
+			for _, override := range resp.GetX509IssuerOverrides() {
+				collection = append(collection, types.ProtoResource153ToLegacy(override))
+			}
+			pageToken = resp.GetNextPageToken()
+			if pageToken == "" {
+				break
+			}
+		}
+		return collection, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
@@ -3824,5 +3868,41 @@ func (rc *ResourceCommand) updateGitServer(ctx context.Context, client *authclie
 		return trace.Wrap(err)
 	}
 	fmt.Printf("git server %q has been updated\n", server.GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) createWorkloadIdentityX509IssuerOverride(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	x509IssuerOverride, err := services.UnmarshalProtoResource[*workloadidentityv1pb.X509IssuerOverride](raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if rc.IsForced() {
+		_, err = client.WorkloadIdentityX509OverridesClient().UpsertX509IssuerOverride(ctx, &workloadidentityv1pb.UpsertX509IssuerOverrideRequest{
+			X509IssuerOverride: x509IssuerOverride,
+		})
+	} else {
+		_, err = client.WorkloadIdentityX509OverridesClient().CreateX509IssuerOverride(ctx, &workloadidentityv1pb.CreateX509IssuerOverrideRequest{
+			X509IssuerOverride: x509IssuerOverride,
+		})
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("workload_identity_x509_issuer_override %q has been created\n", x509IssuerOverride.GetMetadata().GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) updateWorkloadIdentityX509IssuerOverride(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	x509IssuerOverride, err := services.UnmarshalProtoResource[*workloadidentityv1pb.X509IssuerOverride](raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = client.WorkloadIdentityX509OverridesClient().UpdateX509IssuerOverride(ctx, &workloadidentityv1pb.UpdateX509IssuerOverrideRequest{
+		X509IssuerOverride: x509IssuerOverride,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("workload_identity_x509_issuer_override %q has been updated\n", x509IssuerOverride.GetMetadata().GetName())
 	return nil
 }

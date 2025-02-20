@@ -51,6 +51,9 @@ type ServiceWrapperConfig[T types.ResourceMetadata] struct {
 	// KeyFunc optionally allows resource to have a custom key. If not provided the
 	// name of the resource will be used.
 	KeyFunc func(T) string
+	// KeyForNameFunc is the same as [KeyFunc] but for situations in which only
+	// a resource name is available and not the whole resource.
+	KeyForNameFunc func(name string) string
 }
 
 // NewServiceWrapper will return a new generic service wrapper. It is compatible with resources aligned with RFD 153.
@@ -80,6 +83,10 @@ func NewServiceWrapper[T types.ResourceMetadata](cfg ServiceWrapperConfig[T]) (*
 		serviceConfig.KeyFunc = func(rma resourceMetadataAdapter[T]) string {
 			return cfg.KeyFunc(rma.resource)
 		}
+	}
+
+	if cfg.KeyForNameFunc != nil {
+		serviceConfig.KeyForNameFunc = cfg.KeyForNameFunc
 	}
 
 	service, err := NewService[resourceMetadataAdapter[T]](serviceConfig)

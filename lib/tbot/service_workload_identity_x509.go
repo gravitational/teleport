@@ -17,6 +17,7 @@
 package tbot
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"crypto"
@@ -267,11 +268,18 @@ func (s *WorkloadIdentityX509Service) render(
 		return trace.Wrap(err, "writing svid key")
 	}
 
-	certPEM := pem.EncodeToMemory(&pem.Block{
+	var certPEM bytes.Buffer
+	pem.Encode(&certPEM, &pem.Block{
 		Type:  pemCertificate,
 		Bytes: x509Cred.GetX509Svid().GetCert(),
 	})
-	if err := s.cfg.Destination.Write(ctx, config.SVIDPEMPath, certPEM); err != nil {
+	for _, c := range x509Cred.GetX509Svid().GetChain() {
+		pem.Encode(&certPEM, &pem.Block{
+			Type:  pemCertificate,
+			Bytes: c,
+		})
+	}
+	if err := s.cfg.Destination.Write(ctx, config.SVIDPEMPath, certPEM.Bytes()); err != nil {
 		return trace.Wrap(err, "writing svid certificate")
 	}
 

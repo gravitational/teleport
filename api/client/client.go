@@ -901,6 +901,11 @@ func (c *Client) WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadI
 	return workloadidentityv1pb.NewWorkloadIdentityIssuanceServiceClient(c.conn)
 }
 
+// FIXME
+func (c *Client) WorkloadIdentityX509OverridesClient() workloadidentityv1pb.X509OverridesServiceClient {
+	return workloadidentityv1pb.NewX509OverridesServiceClient(c.conn)
+}
+
 // PresenceServiceClient returns an unadorned client for the presence service.
 func (c *Client) PresenceServiceClient() presencepb.PresenceServiceClient {
 	return presencepb.NewPresenceServiceClient(c.conn)

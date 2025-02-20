@@ -67,6 +67,9 @@ type ServiceConfig[T Resource] struct {
 	// KeyFunc optionally allows resource to have a custom key. If not provided the
 	// name of the resource will be used.
 	KeyFunc func(T) string
+	// KeyForNameFunc is the same as [KeyFunc] but for situations in which only
+	// a resource name is available and not the whole resource.
+	KeyForNameFunc func(name string) string
 }
 
 func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
@@ -98,6 +101,9 @@ func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
 	if c.KeyFunc == nil {
 		c.KeyFunc = func(t T) string { return t.GetName() }
 	}
+	if c.KeyForNameFunc == nil {
+		c.KeyForNameFunc = func(name string) string { return name }
+	}
 
 	return nil
 }
@@ -113,6 +119,7 @@ type Service[T Resource] struct {
 	validateFunc                func(T) error
 	runWhileLockedRetryInterval time.Duration
 	keyFunc                     func(T) string
+	keyForNameFunc              func(name string) string
 }
 
 // NewService will return a new generic service with the given config. This will
@@ -132,6 +139,7 @@ func NewService[T Resource](cfg *ServiceConfig[T]) (*Service[T], error) {
 		validateFunc:                cfg.ValidateFunc,
 		runWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
 		keyFunc:                     cfg.KeyFunc,
+		keyForNameFunc:              cfg.KeyForNameFunc,
 	}, nil
 }
 
@@ -151,6 +159,7 @@ func (s *Service[T]) WithPrefix(parts ...string) *Service[T] {
 		validateFunc:                s.validateFunc,
 		runWhileLockedRetryInterval: s.runWhileLockedRetryInterval,
 		keyFunc:                     s.keyFunc,
+		keyForNameFunc:              s.keyForNameFunc,
 	}
 }
 
@@ -296,7 +305,7 @@ func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, 
 
 // GetResource returns the specified resource.
 func (s *Service[T]) GetResource(ctx context.Context, name string) (resource T, err error) {
-	item, err := s.backend.Get(ctx, s.MakeKey(backend.NewKey(name)))
+	item, err := s.backend.Get(ctx, s.MakeKey(backend.NewKey(s.keyForNameFunc(name))))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return resource, trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
@@ -406,7 +415,7 @@ func (s *Service[T]) UpsertResource(ctx context.Context, resource T) (T, error) 
 
 // DeleteResource removes the specified resource.
 func (s *Service[T]) DeleteResource(ctx context.Context, name string) error {
-	err := s.backend.Delete(ctx, s.MakeKey(backend.NewKey(name)))
+	err := s.backend.Delete(ctx, s.MakeKey(backend.NewKey(s.keyForNameFunc(name))))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
@@ -425,7 +434,7 @@ func (s *Service[T]) DeleteAllResources(ctx context.Context) error {
 // UpdateAndSwapResource will get the resource from the backend, modify it, and swap the new value into the backend.
 func (s *Service[T]) UpdateAndSwapResource(ctx context.Context, name string, modify func(T) error) (T, error) {
 	var t T
-	existingItem, err := s.backend.Get(ctx, s.MakeKey(backend.NewKey(name)))
+	existingItem, err := s.backend.Get(ctx, s.MakeKey(backend.NewKey(s.keyForNameFunc(name))))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return t, trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
@@ -447,7 +456,7 @@ func (s *Service[T]) UpdateAndSwapResource(ctx context.Context, name string, mod
 		return t, trace.Wrap(err)
 	}
 
-	replacementItem, err := s.MakeBackendItem(resource, name)
+	replacementItem, err := s.MakeBackendItem(resource, s.keyFunc(resource))
 	if err != nil {
 		return t, trace.Wrap(err)
 	}
