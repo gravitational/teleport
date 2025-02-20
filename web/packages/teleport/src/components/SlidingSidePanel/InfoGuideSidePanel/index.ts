@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024 Gravitational, Inc.
+ * Copyright (C) 2025 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,10 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export const zIndexMap = {
-  topBar: 9,
-  sideNavButtons: 8,
-  sideNavContainer: 7,
-  sideNavExpandedPanel: 6,
-  infoGuideSidePanel: 5,
-};
+export { InfoGuideSidePanel } from './InfoGuideSidePanel';
