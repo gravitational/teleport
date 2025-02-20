@@ -22,25 +22,13 @@ import { DebouncedFunc } from 'shared/utils/highbar';
 
 import { TdpClient, TdpClientEvent } from 'teleport/lib/tdp';
 import { BitmapFrame } from 'teleport/lib/tdp/client';
-import type {
-  ClientScreenSpec,
-  ClipboardData,
-  PngFrame,
-} from 'teleport/lib/tdp/codec';
+import type { ClientScreenSpec, PngFrame } from 'teleport/lib/tdp/codec';
 
 function TdpClientCanvas(props: Props) {
   const {
     client,
-    clientShouldConnect = false,
-    clientScreenSpecToRequest,
     clientOnPngFrame,
     clientOnBmpFrame,
-    clientOnClipboardData,
-    clientOnTdpError,
-    clientOnTdpWarning,
-    clientOnTdpInfo,
-    clientOnWsClose,
-    clientOnWsOpen,
     clientOnClientScreenSpec,
     canvasOnKeyDown,
     canvasOnKeyUp,
@@ -198,76 +186,6 @@ function TdpClientCanvas(props: Props) {
   }, [client, clientOnClientScreenSpec]);
 
   useEffect(() => {
-    if (client && clientOnClipboardData) {
-      client.on(TdpClientEvent.TDP_CLIPBOARD_DATA, clientOnClipboardData);
-
-      return () => {
-        client.removeListener(
-          TdpClientEvent.TDP_CLIPBOARD_DATA,
-          clientOnClipboardData
-        );
-      };
-    }
-  }, [client, clientOnClipboardData]);
-
-  useEffect(() => {
-    if (client && clientOnTdpError) {
-      client.on(TdpClientEvent.TDP_ERROR, clientOnTdpError);
-      client.on(TdpClientEvent.CLIENT_ERROR, clientOnTdpError);
-
-      return () => {
-        client.removeListener(TdpClientEvent.TDP_ERROR, clientOnTdpError);
-        client.removeListener(TdpClientEvent.CLIENT_ERROR, clientOnTdpError);
-      };
-    }
-  }, [client, clientOnTdpError]);
-
-  useEffect(() => {
-    if (client && clientOnTdpWarning) {
-      client.on(TdpClientEvent.TDP_WARNING, clientOnTdpWarning);
-      client.on(TdpClientEvent.CLIENT_WARNING, clientOnTdpWarning);
-
-      return () => {
-        client.removeListener(TdpClientEvent.TDP_WARNING, clientOnTdpWarning);
-        client.removeListener(
-          TdpClientEvent.CLIENT_WARNING,
-          clientOnTdpWarning
-        );
-      };
-    }
-  }, [client, clientOnTdpWarning]);
-
-  useEffect(() => {
-    if (client && clientOnTdpInfo) {
-      client.on(TdpClientEvent.TDP_INFO, clientOnTdpInfo);
-
-      return () => {
-        client.removeListener(TdpClientEvent.TDP_INFO, clientOnTdpInfo);
-      };
-    }
-  }, [client, clientOnTdpInfo]);
-
-  useEffect(() => {
-    if (client && clientOnWsClose) {
-      client.on(TdpClientEvent.WS_CLOSE, clientOnWsClose);
-
-      return () => {
-        client.removeListener(TdpClientEvent.WS_CLOSE, clientOnWsClose);
-      };
-    }
-  }, [client, clientOnWsClose]);
-
-  useEffect(() => {
-    if (client && clientOnWsOpen) {
-      client.on(TdpClientEvent.WS_OPEN, clientOnWsOpen);
-
-      return () => {
-        client.removeListener(TdpClientEvent.WS_OPEN, clientOnWsOpen);
-      };
-    }
-  }, [client, clientOnWsOpen]);
-
-  useEffect(() => {
     const canvas = canvasRef.current;
     const _oncontextmenu = canvasOnContextMenu;
     if (canvasOnContextMenu) {
@@ -408,27 +326,11 @@ function TdpClientCanvas(props: Props) {
     }
   }, [client]);
 
-  // Call connect after all listeners have been registered
-  useEffect(() => {
-    if (client && clientShouldConnect) {
-      client.connect(clientScreenSpecToRequest);
-      return () => {
-        client.shutdown();
-      };
-    }
-  }, [client, clientShouldConnect]);
-
   return <canvas style={{ ...style }} ref={canvasRef} />;
 }
 
 export type Props = {
   client: TdpClient;
-  // clientShouldConnect determines whether the TdpClientCanvas
-  // will try to connect to the server.
-  clientShouldConnect?: boolean;
-  // clientScreenSpecToRequest will be passed to client.connect() if
-  // clientShouldConnect is true.
-  clientScreenSpecToRequest?: ClientScreenSpec;
   clientOnPngFrame?: (
     ctx: CanvasRenderingContext2D,
     pngFrame: PngFrame
@@ -437,12 +339,6 @@ export type Props = {
     ctx: CanvasRenderingContext2D,
     pngFrame: BitmapFrame
   ) => void;
-  clientOnClipboardData?: (clipboardData: ClipboardData) => void;
-  clientOnTdpError?: (error: Error) => void;
-  clientOnTdpWarning?: (warning: string) => void;
-  clientOnTdpInfo?: (info: string) => void;
-  clientOnWsClose?: (message: string) => void;
-  clientOnWsOpen?: () => void;
   clientOnClientScreenSpec?: (
     cli: TdpClient,
     canvas: HTMLCanvasElement,
