@@ -5298,9 +5298,10 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		KeyStorer:           cfg.AuthServer.keyStore,
 		CertAuthorityGetter: cfg.AuthServer.Cache,
 		EventsWatcher:       cfg.AuthServer.Services,
+		ClusterName:         clusterName.GetClusterName(),
 	})
 	if err != nil {
-		return nil, trace.Wrap(err, "creating workload identity issuance service")
+		return nil, trace.Wrap(err, "creating workload identity revocation service")
 	}
 	workloadidentityv1pb.RegisterWorkloadIdentityRevocationServiceServer(server, workloadIdentityRevocationService)
 
