@@ -4754,6 +4754,7 @@ message OneOf {
     events.WorkloadIdentityX509RevocationDelete WorkloadIdentityX509RevocationDelete = 202;
     events.WorkloadIdentityX509RevocationUpdate WorkloadIdentityX509RevocationUpdate = 203;
     events.AWSICResourceSync AWSICResourceSync = 204;
+    events.AWSICAccountAssignment AWSICAccountAssignment = 205;
   }
 }
 
@@ -8107,4 +8108,50 @@ message AWSICResourceSync {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+}
+
+// AWSICAccountAssignment is emitted when an account assignment is created
+// or deleted from Identity Center.
+// For users, assignment is created when Access Request to a role
+// that grants access to AWS account is approved. Assignment is deleted
+// when that access request expires.
+// For Access List, assignment is created when a role that grants access to
+// AWS account is added to the Access List. Assignment is deleted when that
+// role is removed from the Access List.
+message AWSICAccountAssignment {
+  // Assignment is a principal assignment record.
+  message Assignment {
+    // Account ID of the AWS account.
+    string account_id = 1 [(gogoproto.jsontag) = "account_id,omitempty"];
+    // Display name of the account
+    string account_name = 2 [(gogoproto.jsontag) = "account_name,omitempty"];
+    // ARN value of the permission set assigned to this account.
+    string permission_set_arn = 3 [(gogoproto.jsontag) = "permission_set_arn,omitempty"];
+    // Display name of the permission set.
+    string permission_set_name = 4 [(gogoproto.jsontag) = "permission_set_name,omitempty"];
+  }
+  // Metadata is an event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // PrincipalMetadata defines identifiable metadata for User or Access List.
+  PrincipalMetadata principal_metadata = 2 [(gogoproto.jsontag) = "principal_metadata,omitempty"];
+  // Array of account assignment object.
+  repeated Assignment assignments = 3 [(gogoproto.jsontag) = "assignments,omitempty"];
+}
+
+// PrincipalMetadata defines identifiable metadata for User or Access List.
+message PrincipalMetadata {
+  // Name is a resource metadata name of the principal (User or an Access List).
+  string name = 1 [(gogoproto.jsontag) = "name,omitempty"];
+  // FriendlyName is a friendly Teleport resource name of the principal (User or an Access List).
+  // For Access List, title is used as FriendlyName.
+  // User may have a same value for Name and FriendlyName field.
+  string friendly_name = 2 [(gogoproto.jsontag) = "friendly_name,omitempty"];
+  // ExternalID of the principal. E.g. AWS IAM Identity Center principal ID.
+  string external_id = 3 [(gogoproto.jsontag) = "external_id,omitempty"];
+  //  PrincipalID specifies User or Access List.
+  string principal_type = 4 [(gogoproto.jsontag) = "principal_type,omitempty"];
 }

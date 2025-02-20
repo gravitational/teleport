@@ -2495,3 +2495,7 @@ func (m *AWSICResourceSync) TrimToMaxSize(maxSize int) AuditEvent {
 	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
 	return out
 }
+
+func (m *AWSICAccountAssignment) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}

@@ -711,6 +711,10 @@ const (
 	// AWSICResourceSyncFailureCode is the AWS Identity Center resource
 	// sync attempt failure code.
 	AWSICResourceSyncFailureCode = "TAIC001E"
+	// AWSICAccountAssignmentCreateCode is the AWS Identity Center account assignment create event code.
+	AWSICAccountAssignmentCreateCode = "TAIC002I"
+	// AWSICAccountAssignmentDeleteCode is the AWS Identity Center account assignment delete event code.
+	AWSICAccountAssignmentDeleteCode = "TAIC003I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
