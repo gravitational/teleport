@@ -2627,6 +2627,29 @@ func TestKubeCredentialsLock(t *testing.T) {
 		_, err = authServer.UpsertKubernetesServer(context.Background(), kubeServer)
 		require.NoError(t, err)
 
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			found, _, err := authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(rwl types.ResourceWithLabels) (bool, error) {
+				if rwl.GetKind() != types.KindKubeServer {
+					return false, nil
+				}
+
+				ks, ok := rwl.(types.KubeServer)
+				if !ok {
+					return false, nil
+				}
+
+				return ks.GetCluster().GetName() == kubeCluster.GetName(), nil
+			}, &proto.ListUnifiedResourcesRequest{
+				Kinds:  []string{types.KindKubeServer},
+				SortBy: types.SortBy{Field: services.SortByName},
+				Limit:  1,
+			})
+
+			assert.NoError(t, err)
+			assert.Len(t, found, 1)
+
+		}, 10*time.Second, 100*time.Millisecond)
+
 		var ssoCalls atomic.Int32
 		mockSSOLogin := mockSSOLogin(authServer, alice)
 		mockSSOLoginWithCountCalls := func(ctx context.Context, connectorID string, keyRing *client.KeyRing, protocol string) (*authclient.SSHLoginResponse, error) {
