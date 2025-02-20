@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport/api/defaults"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -80,6 +81,10 @@ func (s *Server) updateDiscoveryConfigStatus(discoveryConfigNames ...string) {
 		// Merge AWS EKS clusters (auto discovery) status
 		discoveryConfigStatus = s.awsEKSResourcesStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
 
+		// Ensure the error message is truncated to the maximum allowed size.
+		// Too large error messages will cause failures when clients (which use the default MaxCallRecvMsgSize of 4MB) try to read DiscoveryConfigs.
+		discoveryConfigStatus.ErrorMessage = truncateErrorMessage(discoveryConfigStatus)
+
 		ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 		defer cancel()
 
@@ -88,9 +93,23 @@ func (s *Server) updateDiscoveryConfigStatus(discoveryConfigNames ...string) {
 		case trace.IsNotImplemented(err):
 			s.Log.WarnContext(ctx, "UpdateDiscoveryConfigStatus method is not implemented in Auth Server. Please upgrade it to a recent version.")
 		case err != nil:
-			s.Log.InfoContext(ctx, "Error updating discovery config status", "discovery_config_name", discoveryConfigName, "error", err)
+			s.Log.WarnContext(ctx, "Error updating discovery config status", "discovery_config_name", discoveryConfigName, "error", err)
 		}
 	}
+}
+
+func truncateErrorMessage(discoveryConfigStatus discoveryconfig.Status) *string {
+	if discoveryConfigStatus.ErrorMessage == nil {
+		return nil
+	}
+
+	if len(*discoveryConfigStatus.ErrorMessage) <= defaults.DefaultMaxErrorMessageSize {
+		return discoveryConfigStatus.ErrorMessage
+	}
+
+	newErrorMessage := (*discoveryConfigStatus.ErrorMessage)[:defaults.DefaultMaxErrorMessageSize]
+
+	return &newErrorMessage
 }
 
 // tagSyncStatus contains all the status for both AWS and Azure fetchers grouped by DiscoveryConfig.
