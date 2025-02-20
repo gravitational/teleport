@@ -20,8 +20,35 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services/local"
 )
+
+func TestUsersUpstream(t *testing.T) {
+	bk, err := memory.New(memory.Config{
+		Context: context.Background(),
+		Mirror:  true,
+	})
+	require.NoError(t, err)
+
+	identityService, err := local.NewIdentityService(bk)
+	require.NoError(t, err)
+
+	upstream := userUpstream{UsersService: identityService}
+
+	user, err := types.NewUser("bob")
+	require.NoError(t, err)
+	upstream.UpsertUser(context.Background(), user)
+
+	users, err := upstream.getAll(context.Background(), false)
+	require.NoError(t, err)
+	require.Len(t, users, 1)
+	require.Empty(t, cmp.Diff([]types.User{user}, users))
+}
 
 // TestUsers tests caching of users
 func TestUsers(t *testing.T) {
