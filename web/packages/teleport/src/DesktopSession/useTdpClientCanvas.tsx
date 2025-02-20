@@ -280,14 +280,9 @@ export default function useTdpClientCanvas(props: Props) {
     e.preventDefault();
   };
 
-  const windowOnResize = debounce(
-    (cli: TdpClient) => {
-      const spec = getDisplaySize();
-      cli.resize(spec);
-    },
-    250,
-    { trailing: true }
-  );
+  const onResize = (e: { height: number; width: number }) => {
+    tdpClient.resize(e);
+  };
 
   const sendLocalClipboardToRemote = async (cli: TdpClient) => {
     if (await sysClipboardGuard(clipboardSharingState, 'read')) {
@@ -324,7 +319,7 @@ export default function useTdpClientCanvas(props: Props) {
     canvasOnMouseUp,
     canvasOnMouseWheelScroll,
     canvasOnContextMenu,
-    windowOnResize,
+    onResize,
   };
 }
 
