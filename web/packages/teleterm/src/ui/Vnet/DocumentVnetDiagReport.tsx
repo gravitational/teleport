@@ -101,7 +101,7 @@ export function DocumentVnetDiagReport(props: {
                 kind="danger"
                 details={<P2>{networkStackAttempt.error}</P2>}
               >
-                Network details could not be determined.
+                Network details could not be determined
               </Alert>
             </>
           )}
@@ -153,13 +153,13 @@ const CheckAttempt = ({
     <Stack gap={2} width="100%">
       {!displayDetails ? (
         <Alert kind="danger">
-          Cannot display the result from an unsupported check {reportOneof}.
+          Cannot display the result from an unsupported check {reportOneof}
         </Alert>
       ) : (
         <>
           {checkAttempt.status === diag.CheckAttemptStatus.ERROR && (
             <Alert kind="danger" details={<P2>{checkAttempt.error}</P2>}>
-              Failed to {displayDetails.errorTitle}.
+              Failed to {displayDetails.errorTitle}
             </Alert>
           )}
 
