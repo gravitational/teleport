@@ -77,33 +77,18 @@ TCTL_SKELETON_stage_build = tctldev
 # APPLE_PASSWORD are set in the environment.
 SHOULD_NOTARIZE = $(if $(and $(APPLE_USERNAME),$(APPLE_PASSWORD)),true)
 
-# NOTARIZE_BINARIES signs and notarizes $(BINARIES).
-# It will not run the command if $APPLE_USERNAME or $APPLE_PASSWORD are empty.
-NOTARIZE_BINARIES = $(if $(SHOULD_NOTARIZE),$(notarize_binaries_cmd),$(not_notarizing_cmd))
-
-not_notarizing_cmd = echo Not notarizing binaries. APPLE_USERNAME or APPLE_PASSWORD not set.
-
 notary_dir = $(BUILDDIR)/notarize
 notary_file = $(BUILDDIR)/notarize.zip
 
+MAC_TOOLING_FLAGS = $(if $(SHOULD_NOTARIZE),,--dry-run)
+MAC_TOOLING = go run github.com/gravitational/shared-workflows/tools/mac-distribution@v0.0.0-6ccb84857204dc45982619285b64cdc41b66b615
+MAC_TOOLING_CMD = $(MAC_TOOLING) $(MAC_TOOLING_FLAGS)
+
+NOTARIZE_BINARIES = $(notarize_binaries_cmd)
+
 define notarize_binaries_cmd
-	codesign \
-		--sign '$(DEVELOPER_ID_APPLICATION)' \
-		--force \
-		--verbose \
-		--timestamp \
-		--options runtime \
-		$(BINARIES)
-	rm -rf $(notary_dir)
-	mkdir $(notary_dir)
-	ditto $(BINARIES) $(notary_dir)
-	ditto -c -k $(notary_dir) $(notary_file)
-	xcrun notarytool submit $(notary_file) \
-		--team-id="$(TEAMID)" \
-		--apple-id="$(APPLE_USERNAME)" \
-		--password="$(APPLE_PASSWORD)" \
-		--wait
-	rm -rf $(notary_dir) $(notary_file)
+	@echo Notarizing binaries
+	$(MAC_TOOLING_CMD) notarize $(BINARIES)
 endef
 
 NOTARIZE_TSH_APP = $(if $(SHOULD_NOTARIZE),$(notarize_tsh_app),$(not_notarizing_cmd))

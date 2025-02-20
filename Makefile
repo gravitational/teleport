@@ -434,14 +434,14 @@ tsh-app: TSH_APP_BUNDLE = $(BUILDDIR)/tsh.app
 tsh-app: TSH_APP_ENTITLEMENTS = build.assets/macos/$(TSH_SKELETON)/$(TSH_SKELETON).entitlements
 tsh-app:
 	cp -rf "build.assets/macos/$(TSH_SKELETON)/tsh.app/" "$(TSH_APP_BUNDLE)/"
-	mac-distribution package-app --retry 2 --entitlements "$(TSH_APP_ENTITLEMENTS)" "$(BUILDDIR)/tsh" "$(TSH_APP_BUNDLE)"
+	$(MAC_TOOLING_CMD) package-app --retry 2 --entitlements "$(TSH_APP_ENTITLEMENTS)" "$(BUILDDIR)/tsh" "$(TSH_APP_BUNDLE)"
 
 .PHONY: tctl-app
 tctl-app: TCTL_APP_BUNDLE = $(BUILDDIR)/tctl.app
 tctl-app: TCTL_APP_ENTITLEMENTS = build.assets/macos/$(TCTL_SKELETON)/$(TCTL_SKELETON).entitlements
 tctl-app:
 	cp -rf "build.assets/macos/$(TCTL_SKELETON)/tctl.app/" "$(TCTL_APP_BUNDLE)/"
-	mac-distribution package-app --entitlements "$(TCTL_APP_ENTITLEMENTS)" "$(BUILDDIR)/tctl" "$(TCTL_APP_BUNDLE)"
+	$(MAC_TOOLING_CMD) package-app --entitlements "$(TCTL_APP_ENTITLEMENTS)" "$(BUILDDIR)/tctl" "$(TCTL_APP_BUNDLE)"
 
 #
 # BPF support (IF ENABLED)
