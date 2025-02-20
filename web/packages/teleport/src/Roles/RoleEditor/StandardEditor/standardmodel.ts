@@ -1277,9 +1277,7 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
       case 'git_server':
         const orgs = optionsToStrings(res.organizations);
         if (orgs.length > 0) {
-          role.spec.allow.github_permissions = [
-            { orgs },
-          ];
+          role.spec.allow.github_permissions = [{ orgs }];
         }
         break;
 
