@@ -33,13 +33,13 @@ import type { ClientScreenSpec, PngFrame } from 'teleport/lib/tdp/codec';
 
 export interface TdpClientCanvasRef {
   setPointer(pointer: Pointer): void;
+  renderPngFrame(frame: PngFrame): void;
+  renderBitmapFrame(frame: BitmapFrame): void;
 }
 
 const TdpClientCanvas = forwardRef<TdpClientCanvasRef, Props>((props, ref) => {
   const {
     client,
-    clientOnPngFrame,
-    clientOnBmpFrame,
     clientOnClientScreenSpec,
     onKeyDown,
     onKeyUp,
@@ -55,8 +55,12 @@ const TdpClientCanvas = forwardRef<TdpClientCanvasRef, Props>((props, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useImperativeHandle(ref, () => {
+    const renderPngFrame = makePngFrameRenderer(canvasRef.current);
+    const renderBimapFrame = makeBitmapFrameRenderer(canvasRef.current);
     return {
       setPointer: pointer => setPointer(canvasRef.current, pointer),
+      renderPngFrame: frame => renderPngFrame(frame),
+      renderBitmapFrame: frame => renderBimapFrame(frame),
     };
   }, []);
 
@@ -73,68 +77,6 @@ const TdpClientCanvas = forwardRef<TdpClientCanvasRef, Props>((props, ref) => {
       canvas.focus();
     }
   }, []);
-
-  useEffect(() => {
-    if (client && clientOnPngFrame) {
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-
-      // Buffered rendering logic
-      var pngBuffer: PngFrame[] = [];
-      const renderBuffer = () => {
-        if (pngBuffer.length) {
-          for (let i = 0; i < pngBuffer.length; i++) {
-            clientOnPngFrame(ctx, pngBuffer[i]);
-          }
-          pngBuffer = [];
-        }
-        requestAnimationFrame(renderBuffer);
-      };
-      requestAnimationFrame(renderBuffer);
-
-      const pushToPngBuffer = (pngFrame: PngFrame) => {
-        pngBuffer.push(pngFrame);
-      };
-
-      client.on(TdpClientEvent.TDP_PNG_FRAME, pushToPngBuffer);
-
-      return () => {
-        client.removeListener(TdpClientEvent.TDP_PNG_FRAME, pushToPngBuffer);
-      };
-    }
-  }, [client, clientOnPngFrame]);
-
-  useEffect(() => {
-    if (client && clientOnBmpFrame) {
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-
-      // Buffered rendering logic
-      var bitmapBuffer: BitmapFrame[] = [];
-      const renderBuffer = () => {
-        if (bitmapBuffer.length) {
-          for (let i = 0; i < bitmapBuffer.length; i++) {
-            if (bitmapBuffer[i].image_data.data.length != 0) {
-              clientOnBmpFrame(ctx, bitmapBuffer[i]);
-            }
-          }
-          bitmapBuffer = [];
-        }
-        requestAnimationFrame(renderBuffer);
-      };
-      requestAnimationFrame(renderBuffer);
-
-      const pushToBitmapBuffer = (bmpFrame: BitmapFrame) => {
-        bitmapBuffer.push(bmpFrame);
-      };
-
-      client.on(TdpClientEvent.TDP_BMP_FRAME, pushToBitmapBuffer);
-
-      return () => {
-        client.removeListener(TdpClientEvent.TDP_BMP_FRAME, pushToBitmapBuffer);
-      };
-    }
-  }, [client, clientOnBmpFrame]);
 
   useEffect(() => {
     if (client && clientOnClientScreenSpec) {
@@ -221,14 +163,6 @@ const TdpClientCanvas = forwardRef<TdpClientCanvasRef, Props>((props, ref) => {
 
 export type Props = {
   client: TdpClient;
-  clientOnPngFrame?: (
-    ctx: CanvasRenderingContext2D,
-    pngFrame: PngFrame
-  ) => void;
-  clientOnBmpFrame?: (
-    ctx: CanvasRenderingContext2D,
-    pngFrame: BitmapFrame
-  ) => void;
   clientOnClientScreenSpec?: (
     cli: TdpClient,
     canvas: HTMLCanvasElement,
@@ -284,6 +218,53 @@ function setPointer(canvas: HTMLCanvasElement, pointer: Pointer): void {
     cursor = resized;
   }
   canvas.style.cursor = `url(${cursor.toDataURL()}) ${pointer.hotspot_x} ${pointer.hotspot_y}, auto`;
+}
+
+function makePngFrameRenderer(
+  canvas: HTMLCanvasElement
+): (frame: PngFrame) => void {
+  const ctx = canvas.getContext('2d');
+
+  // Buffered rendering logic
+  let pngBuffer: PngFrame[] = [];
+
+  const renderBuffer = () => {
+    if (pngBuffer.length) {
+      for (let i = 0; i < pngBuffer.length; i++) {
+        const pngFrame = pngBuffer[i];
+        ctx.drawImage(pngFrame.data, pngFrame.left, pngFrame.top);
+      }
+      pngBuffer = [];
+    }
+    requestAnimationFrame(renderBuffer);
+  };
+  requestAnimationFrame(renderBuffer);
+
+  return frame => pngBuffer.push(frame);
+}
+
+function makeBitmapFrameRenderer(
+  canvas: HTMLCanvasElement
+): (frame: BitmapFrame) => void {
+  const ctx = canvas.getContext('2d');
+
+  // Buffered rendering logic
+  let bitmapBuffer: BitmapFrame[] = [];
+  const renderBuffer = () => {
+    if (bitmapBuffer.length) {
+      for (let i = 0; i < bitmapBuffer.length; i++) {
+        if (bitmapBuffer[i].image_data.data.length != 0) {
+          const bmpFrame = bitmapBuffer[i];
+          ctx.putImageData(bmpFrame.image_data, bmpFrame.left, bmpFrame.top);
+        }
+      }
+      bitmapBuffer = [];
+    }
+    requestAnimationFrame(renderBuffer);
+  };
+  requestAnimationFrame(renderBuffer);
+
+  return frame => bitmapBuffer.push(frame);
 }
 
 export default memo(TdpClientCanvas);

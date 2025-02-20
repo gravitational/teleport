@@ -17,20 +17,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import { NotificationItem } from 'shared/components/Notification';
 import { Attempt } from 'shared/hooks/useAttemptNext';
-import { debounce } from 'shared/utils/highbar';
 
 import cfg from 'teleport/config';
 import { ButtonState, ScrollAxis, TdpClient } from 'teleport/lib/tdp';
-import type { BitmapFrame } from 'teleport/lib/tdp/client';
-import {
-  ClientScreenSpec,
-  ClipboardData,
-  PngFrame,
-} from 'teleport/lib/tdp/codec';
+import { ClientScreenSpec, ClipboardData } from 'teleport/lib/tdp/codec';
 import { Sha256Digest } from 'teleport/lib/util';
 import { getHostName } from 'teleport/services/api';
 
@@ -105,32 +99,15 @@ export default function useTdpClientCanvas(props: Props) {
     );
   };
 
-  // Default TdpClientEvent.TDP_PNG_FRAME handler (buffered)
-  const clientOnPngFrame = (
-    ctx: CanvasRenderingContext2D,
-    pngFrame: PngFrame
-  ) => {
+  const setInitialTdpConnectionSucceeded = useCallback(() => {
     // The first image fragment we see signals a successful TDP connection.
     if (!initialTdpConnectionSucceeded.current) {
-      syncCanvas(ctx.canvas, getDisplaySize());
+      // TODO(gzdunek): Verify if this is needed.
+      // syncCanvas(ctx.canvas, getDisplaySize());
       setTdpConnection({ status: 'success' });
       initialTdpConnectionSucceeded.current = true;
     }
-    ctx.drawImage(pngFrame.data, pngFrame.left, pngFrame.top);
-  };
-
-  // Default TdpClientEvent.TDP_BMP_FRAME handler (buffered)
-  const clientOnBitmapFrame = (
-    ctx: CanvasRenderingContext2D,
-    bmpFrame: BitmapFrame
-  ) => {
-    // The first image fragment we see signals a successful TDP connection.
-    if (!initialTdpConnectionSucceeded.current) {
-      setTdpConnection({ status: 'success' });
-      initialTdpConnectionSucceeded.current = true;
-    }
-    ctx.putImageData(bmpFrame.image_data, bmpFrame.left, bmpFrame.top);
-  };
+  }, [setTdpConnection]);
 
   // Default TdpClientEvent.TDP_CLIENT_SCREEN_SPEC handler.
   const clientOnClientScreenSpec = (
@@ -302,8 +279,7 @@ export default function useTdpClientCanvas(props: Props) {
   return {
     tdpClient,
     clientScreenSpecToRequest: getDisplaySize(),
-    clientOnPngFrame,
-    clientOnBitmapFrame,
+    setInitialTdpConnectionSucceeded,
     clientOnClientScreenSpec,
     clientOnTdpError,
     clientOnClipboardData,
