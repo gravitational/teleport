@@ -1044,12 +1044,11 @@ func (p *userParser) parse(event backend.Event) (types.Resource, error) {
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}
 
-		return &types.ResourceHeader{
+		return &types.UserV2{
 			Kind:    types.KindUser,
 			Version: types.V2,
 			Metadata: types.Metadata{
-				Name:      strings.TrimPrefix(name, backend.SeparatorString),
-				Namespace: apidefaults.Namespace,
+				Name: strings.TrimPrefix(name, backend.SeparatorString),
 			},
 		}, nil
 	case types.OpPut:

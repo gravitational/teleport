@@ -154,6 +154,7 @@ type collections struct {
 
 	staticTokens    *collection[types.StaticTokens, *singletonStore[types.StaticTokens], *staticTokensUpstream]
 	certAuthorities *collection[types.CertAuthority, *resourceStore[types.CertAuthority], *caUpstream]
+	users           *collection[types.User, *resourceStore[types.User], *userUpstream]
 }
 
 func setupCollections(c Config, watches []types.WatchKind) (*collections, error) {
@@ -181,6 +182,14 @@ func setupCollections(c Config, watches []types.WatchKind) (*collections, error)
 
 			out.certAuthorities = collect
 			out.byKind[resourceKind] = out.certAuthorities
+		case types.KindUser:
+			collect, err := newUserCollection(c.Users, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.users = collect
+			out.byKind[resourceKind] = out.users
 		}
 	}
 

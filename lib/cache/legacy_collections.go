@@ -153,7 +153,6 @@ type legacyCollections struct {
 	snowflakeSessions                  collectionReader[snowflakeSessionGetter]
 	tokens                             collectionReader[tokenGetter]
 	uiConfigs                          collectionReader[uiConfigGetter]
-	users                              collectionReader[userGetter]
 	userGroups                         collectionReader[userGroupGetter]
 	userLoginStates                    collectionReader[services.UserLoginStatesGetter]
 	webSessions                        collectionReader[webSessionGetter]
@@ -258,15 +257,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.uiConfigs
-		case types.KindUser:
-			if c.Users == nil {
-				return nil, trace.BadParameter("missing parameter Users")
-			}
-			collections.users = &genericCollection[types.User, userGetter, userExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.users
 		case types.KindRole:
 			if c.Access == nil {
 				return nil, trace.BadParameter("missing parameter Access")
@@ -1039,119 +1029,6 @@ type nodeGetter interface {
 }
 
 var _ executor[types.Server, nodeGetter] = nodeExecutor{}
-
-type certAuthorityExecutor struct {
-	// extracted from watch.Filter, to avoid rebuilding on every event
-	filter types.CertAuthorityFilter
-}
-
-// delete implements executor[types.CertAuthority]
-func (certAuthorityExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	err := cache.trustCache.DeleteCertAuthority(ctx, types.CertAuthID{
-		Type:       types.CertAuthType(resource.GetSubKind()),
-		DomainName: resource.GetName(),
-	})
-	return trace.Wrap(err)
-}
-
-// deleteAll implements executor[types.CertAuthority]
-func (certAuthorityExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	for _, caType := range types.CertAuthTypes {
-		if err := cache.trustCache.DeleteAllCertAuthorities(caType); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
-// getAll implements executor[types.CertAuthority]
-func (e certAuthorityExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.CertAuthority, error) {
-	var authorities []types.CertAuthority
-	for _, caType := range types.CertAuthTypes {
-		cas, err := cache.Trust.GetCertAuthorities(ctx, caType, loadSecrets)
-		// if caType was added in this major version we might get a BadParameter
-		// error if we're connecting to an older upstream that doesn't know about it
-		if err != nil {
-			if !(types.IsUnsupportedAuthorityErr(err) && caType.NewlyAdded()) {
-				return nil, trace.Wrap(err)
-			}
-			continue
-		}
-
-		// this can be removed once we get the ability to fetch CAs with a filter,
-		// but it should be harmless, and it could be kept as additional safety
-		if !e.filter.IsEmpty() {
-			filtered := cas[:0]
-			for _, ca := range cas {
-				if e.filter.Match(ca) {
-					filtered = append(filtered, ca)
-				}
-			}
-			cas = filtered
-		}
-
-		authorities = append(authorities, cas...)
-	}
-
-	return authorities, nil
-}
-
-// upsert implements executor[types.CertAuthority]
-func (e certAuthorityExecutor) upsert(ctx context.Context, cache *Cache, value types.CertAuthority) error {
-	if !e.filter.Match(value) {
-		return nil
-	}
-
-	return cache.trustCache.UpsertCertAuthority(ctx, value)
-}
-
-func (certAuthorityExecutor) isSingleton() bool { return false }
-
-func (certAuthorityExecutor) getReader(cache *Cache, cacheOK bool) services.AuthorityGetter {
-	if cacheOK {
-		return cache.trustCache
-	}
-	return cache.Config.Trust
-}
-
-var _ executor[types.CertAuthority, services.AuthorityGetter] = certAuthorityExecutor{}
-
-type staticTokensExecutor struct{}
-
-func (staticTokensExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.StaticTokens, error) {
-	token, err := cache.ClusterConfig.GetStaticTokens()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return []types.StaticTokens{token}, nil
-}
-
-func (staticTokensExecutor) upsert(ctx context.Context, cache *Cache, resource types.StaticTokens) error {
-	return cache.clusterConfigCache.SetStaticTokens(resource)
-}
-
-func (staticTokensExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.clusterConfigCache.DeleteStaticTokens()
-}
-
-func (staticTokensExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.clusterConfigCache.DeleteStaticTokens()
-}
-
-func (staticTokensExecutor) isSingleton() bool { return true }
-
-func (staticTokensExecutor) getReader(cache *Cache, cacheOK bool) staticTokensGetter {
-	if cacheOK {
-		return cache.clusterConfigCache
-	}
-	return cache.Config.ClusterConfig
-}
-
-type staticTokensGetter interface {
-	GetStaticTokens() (types.StaticTokens, error)
-}
-
-var _ executor[types.StaticTokens, staticTokensGetter] = staticTokensExecutor{}
 
 type provisionTokenExecutor struct{}
 
