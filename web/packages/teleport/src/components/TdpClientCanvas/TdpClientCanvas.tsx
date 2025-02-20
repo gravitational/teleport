@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { memo, useEffect, useRef, type CSSProperties } from 'react';
+import React, { memo, useEffect, useRef, type CSSProperties } from 'react';
 
 import { DebouncedFunc } from 'shared/utils/highbar';
 
@@ -30,14 +30,14 @@ function TdpClientCanvas(props: Props) {
     clientOnPngFrame,
     clientOnBmpFrame,
     clientOnClientScreenSpec,
-    canvasOnKeyDown,
-    canvasOnKeyUp,
-    canvasOnFocusOut,
-    canvasOnMouseMove,
-    canvasOnMouseDown,
-    canvasOnMouseUp,
-    canvasOnMouseWheelScroll,
-    canvasOnContextMenu,
+    onKeyDown,
+    onKeyUp,
+    onBlur,
+    onMouseMove,
+    onMouseDown,
+    onMouseUp,
+    onMouseWheel,
+    onContextMenu,
     windowOnResize,
     style,
     updatePointer,
@@ -186,121 +186,6 @@ function TdpClientCanvas(props: Props) {
   }, [client, clientOnClientScreenSpec]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    const _oncontextmenu = canvasOnContextMenu;
-    if (canvasOnContextMenu) {
-      canvas.oncontextmenu = _oncontextmenu;
-    }
-
-    return () => {
-      if (canvasOnContextMenu)
-        canvas.removeEventListener('contextmenu', _oncontextmenu);
-    };
-  }, [canvasOnContextMenu]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const _onmousemove = (e: MouseEvent) => {
-      canvasOnMouseMove(client, canvas, e);
-    };
-    if (canvasOnMouseMove) {
-      canvas.onmousemove = _onmousemove;
-    }
-
-    return () => {
-      if (canvasOnMouseMove) {
-        canvas.removeEventListener('mousemove', _onmousemove);
-      }
-    };
-  }, [client, canvasOnMouseMove]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const _onmousedown = (e: MouseEvent) => {
-      canvasOnMouseDown(client, e);
-    };
-    if (canvasOnMouseDown) {
-      canvas.onmousedown = _onmousedown;
-    }
-
-    return () => {
-      if (canvasOnMouseDown)
-        canvas.removeEventListener('mousedown', _onmousedown);
-    };
-  }, [client, canvasOnMouseDown]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const _onmouseup = (e: MouseEvent) => {
-      canvasOnMouseUp(client, e);
-    };
-    if (canvasOnMouseUp) {
-      canvas.onmouseup = _onmouseup;
-    }
-
-    return () => {
-      if (canvasOnMouseUp) canvas.removeEventListener('mouseup', _onmouseup);
-    };
-  }, [client, canvasOnMouseUp]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const _onwheel = (e: WheelEvent) => {
-      canvasOnMouseWheelScroll(client, e);
-    };
-    if (canvasOnMouseWheelScroll) {
-      canvas.onwheel = _onwheel;
-    }
-
-    return () => {
-      if (canvasOnMouseWheelScroll)
-        canvas.removeEventListener('wheel', _onwheel);
-    };
-  }, [client, canvasOnMouseWheelScroll]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const _onkeydown = (e: KeyboardEvent) => {
-      canvasOnKeyDown(client, e);
-    };
-    if (canvasOnKeyDown) {
-      canvas.onkeydown = _onkeydown;
-    }
-
-    return () => {
-      if (canvasOnKeyDown) canvas.removeEventListener('keydown', _onkeydown);
-    };
-  }, [client, canvasOnKeyDown]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const _onkeyup = (e: KeyboardEvent) => {
-      canvasOnKeyUp(client, e);
-    };
-    if (canvasOnKeyUp) {
-      canvas.onkeyup = _onkeyup;
-    }
-
-    return () => {
-      if (canvasOnKeyUp) canvas.removeEventListener('keyup', _onkeyup);
-    };
-  }, [client, canvasOnKeyUp]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const _onfocusout = () => {
-      canvasOnFocusOut(client);
-    };
-    if (canvasOnFocusOut) {
-      canvas.addEventListener('focusout', _onfocusout);
-    }
-
-    return () => {
-      if (canvasOnFocusOut) canvas.removeEventListener('focusout', _onfocusout);
-    };
-  }, [client, canvasOnFocusOut]);
-
-  useEffect(() => {
     if (client && windowOnResize) {
       const _onresize = () => windowOnResize(client);
       window.addEventListener('resize', _onresize);
@@ -326,7 +211,30 @@ function TdpClientCanvas(props: Props) {
     }
   }, [client]);
 
-  return <canvas style={{ ...style }} ref={canvasRef} />;
+  // Wheel events must be registered on a ref because React's onWheel
+  // uses a passive listener, so handlers are not able to call of e.preventDefault() on it.
+  useEffect(() => {
+    if (!onMouseWheel) {
+      return;
+    }
+    const canvas = canvasRef.current;
+    canvas.addEventListener('wheel', onMouseWheel);
+    return () => canvas.removeEventListener('wheel', onMouseWheel);
+  }, [onMouseWheel]);
+
+  return (
+    <canvas
+      onKeyDown={onKeyDown}
+      onKeyUp={onKeyUp}
+      onMouseDown={onMouseDown}
+      onMouseUp={onMouseUp}
+      onContextMenu={onContextMenu}
+      onBlur={onBlur}
+      onMouseMove={onMouseMove}
+      style={{ ...style }}
+      ref={canvasRef}
+    />
+  );
 }
 
 export type Props = {
@@ -344,18 +252,14 @@ export type Props = {
     canvas: HTMLCanvasElement,
     spec: ClientScreenSpec
   ) => void;
-  canvasOnKeyDown?: (cli: TdpClient, e: KeyboardEvent) => void;
-  canvasOnKeyUp?: (cli: TdpClient, e: KeyboardEvent) => void;
-  canvasOnFocusOut?: (cli: TdpClient) => void;
-  canvasOnMouseMove?: (
-    cli: TdpClient,
-    canvas: HTMLCanvasElement,
-    e: MouseEvent
-  ) => void;
-  canvasOnMouseDown?: (cli: TdpClient, e: MouseEvent) => void;
-  canvasOnMouseUp?: (cli: TdpClient, e: MouseEvent) => void;
-  canvasOnMouseWheelScroll?: (cli: TdpClient, e: WheelEvent) => void;
-  canvasOnContextMenu?: () => boolean;
+  onKeyDown?(e: React.KeyboardEvent): void;
+  onKeyUp?(e: React.KeyboardEvent): void;
+  onBlur?(e: React.FocusEvent): void;
+  onMouseMove?(e: React.MouseEvent): void;
+  onMouseDown?(e: React.MouseEvent): void;
+  onMouseUp?(e: React.MouseEvent): void;
+  onMouseWheel?(e: WheelEvent): void;
+  onContextMenu?(e: React.MouseEvent): void;
   windowOnResize?: DebouncedFunc<(cli: TdpClient) => void>;
   style?: CSSProperties;
   updatePointer?: boolean;

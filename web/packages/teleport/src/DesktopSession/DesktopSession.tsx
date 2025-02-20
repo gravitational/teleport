@@ -241,14 +241,14 @@ export function DesktopSession(props: State) {
         clientOnPngFrame={clientOnPngFrame}
         clientOnBmpFrame={clientOnBitmapFrame}
         clientOnClientScreenSpec={clientOnClientScreenSpec}
-        canvasOnKeyDown={canvasOnKeyDown}
-        canvasOnKeyUp={canvasOnKeyUp}
-        canvasOnFocusOut={canvasOnFocusOut}
-        canvasOnMouseMove={canvasOnMouseMove}
-        canvasOnMouseDown={canvasOnMouseDown}
-        canvasOnMouseUp={canvasOnMouseUp}
-        canvasOnMouseWheelScroll={canvasOnMouseWheelScroll}
-        canvasOnContextMenu={canvasOnContextMenu}
+        onKeyDown={canvasOnKeyDown}
+        onKeyUp={canvasOnKeyUp}
+        onBlur={canvasOnFocusOut}
+        onMouseMove={canvasOnMouseMove}
+        onMouseDown={canvasOnMouseDown}
+        onMouseUp={canvasOnMouseUp}
+        onMouseWheel={canvasOnMouseWheelScroll}
+        onContextMenu={canvasOnContextMenu}
         windowOnResize={windowOnResize}
         updatePointer={true}
       />
