@@ -28,7 +28,8 @@ import {
 } from 'react';
 
 import { BackgroundItemStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
-import { Attempt, useAsync } from 'shared/hooks/useAsync';
+import { Report } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
+import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 
 import { isTshdRpcError } from 'teleterm/services/tshd';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -53,7 +54,9 @@ export type VnetContext = {
   stopAttempt: Attempt<void>;
   listDNSZones: () => Promise<[string[], Error]>;
   listDNSZonesAttempt: Attempt<string[]>;
-  runDiagnostics: () => Promise<[void, Error]>;
+  runDiagnostics: () => Promise<[Report, Error]>;
+  diagnosticsAttempt: Attempt<Report>;
+  resetDiagnosticsAttempt: () => void;
 };
 
 export type VnetStatus =
@@ -102,10 +105,15 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
     }, [vnet, setAppState, appCtx])
   );
 
-  const [, runDiagnostics] = useAsync(
-    useCallback(async () => {
-      await vnet.runDiagnostics({});
-    }, [vnet])
+  const [diagnosticsAttempt, runDiagnostics, setDiagnosticsAttempt] = useAsync(
+    useCallback(
+      () => vnet.runDiagnostics({}).then(({ response }) => response.report),
+      [vnet]
+    )
+  );
+  const resetDiagnosticsAttempt = useCallback(
+    () => setDiagnosticsAttempt(makeEmptyAttempt()),
+    [setDiagnosticsAttempt]
   );
 
   const [stopAttempt, stop] = useAsync(
@@ -184,6 +192,8 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
         listDNSZones,
         listDNSZonesAttempt,
         runDiagnostics,
+        diagnosticsAttempt,
+        resetDiagnosticsAttempt,
       }}
     >
       {props.children}
