@@ -2052,6 +2052,20 @@ export const formatters: Formatters = {
       return message;
     },
   },
+  [eventCodes.AWSIC_ACCOUNT_ASSIGNMENT_CREATE]: {
+    type: 'aws_identity_center.account_assignment.create',
+    desc: 'AWS IAM Identity Center Account Assignment Created',
+    format: ({ principal_metadata }) => {
+      return `Account assignment for ${deduceAwsIcPrincipal(principal_metadata.principal_type)} [${principal_metadata.name}] has been created`;
+    },
+  },
+  [eventCodes.AWSIC_ACCOUNT_ASSIGNMENT_DELETE]: {
+    type: 'aws_identity_center.account_assignment.delete',
+    desc: 'AWS IAM Identity Center Account Assignment Deleted',
+    format: ({ principal_metadata }) => {
+      return `Account assignment for ${deduceAwsIcPrincipal(principal_metadata.principal_type)} [${principal_metadata.name}] has been deleted`;
+    },
+  },
 };
 
 const unknownFormatter = {
@@ -2110,4 +2124,8 @@ function contactTypeStr(type: number): string {
     default:
       return `Unknown type: ${type}`;
   }
+}
+
+function deduceAwsIcPrincipal(principalType: string): string {
+  return principalType === 'PRINCIPAL_TYPE_USER' ? 'user' : 'access list';
 }

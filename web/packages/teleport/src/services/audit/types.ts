@@ -315,6 +315,8 @@ export const eventCodes = {
   STABLE_UNIX_USER_CREATE: 'TSUU001I',
   AWS_IC_RESOURCE_SYNC_SUCCESS: 'TAIC001I',
   AWS_IC_RESOURCE_SYNC_FAILURE: 'TAIC001E',
+  AWSIC_ACCOUNT_ASSIGNMENT_CREATE: 'TAIC002I',
+  AWSIC_ACCOUNT_ASSIGNMENT_DELETE: 'TAIC003I',
 } as const;
 
 /**
@@ -1803,6 +1805,12 @@ export type RawEvents = {
   [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: RawEventAwsIcResourceSync<
     typeof eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE
   >;
+  [eventCodes.AWSIC_ACCOUNT_ASSIGNMENT_CREATE]: RawEventAwsIcAccountAssignment<
+    typeof eventCodes.AWSIC_ACCOUNT_ASSIGNMENT_CREATE
+  >;
+  [eventCodes.AWSIC_ACCOUNT_ASSIGNMENT_DELETE]: RawEventAwsIcAccountAssignment<
+    typeof eventCodes.AWSIC_ACCOUNT_ASSIGNMENT_DELETE
+  >;
 };
 
 /**
@@ -2017,6 +2025,23 @@ type RawEventAwsIcResourceSync<T extends EventCode> = RawEvent<
     status: boolean;
     /* message contains user message for both success and failed status */
     message: string;
+  }
+>;
+
+/**
+ * RawEventAwsIcAccountAssignment extends RawEvent with fields
+ * present in the AWS Identity Center account assignment event.
+ */
+type RawEventAwsIcAccountAssignment<T extends EventCode> = RawEvent<
+  T,
+  {
+    principal_metadata: {
+      name: string;
+      friendly_name: string;
+      external_id: string;
+      principal_type: string;
+    };
+    principal_assignments: { account_id: string; permission_set_arn: string }[];
   }
 >;
 

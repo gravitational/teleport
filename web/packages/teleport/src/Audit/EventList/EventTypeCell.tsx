@@ -296,6 +296,8 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.STABLE_UNIX_USER_CREATE]: Icons.Info,
   [eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS]: Icons.AmazonAws,
   [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: Icons.Warning,
+  [eventCodes.AWSIC_ACCOUNT_ASSIGNMENT_CREATE_CREATE]: Icons.AmazonAws,
+  [eventCodes.AWSIC_ACCOUNT_ASSIGNMENT_CREATE_DELETE]: Icons.AmazonAws,
 };
 
 export default function renderTypeCell(event: Event) {
