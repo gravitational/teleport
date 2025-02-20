@@ -140,7 +140,7 @@ The details behind those vars are described below.
 Packaging Connect on Windows requires wintun.dll, which VNet uses to create a
 virtual network interface.
 A zip file containing the DLL can be downloaded from https://www.wintun.net/builds/wintun-0.14.1.zip
-Extract the zip file and then pass the path the wintun.dll to electron-builder
+Extract the zip file and then pass the path to wintun.dll to `pnpm package-term`
 with the `CONNECT_WINTUN_DLL_PATH` environment variable.
 
 #### tsh.app
