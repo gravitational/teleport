@@ -1516,62 +1516,46 @@ func (a *Server) runPeriodicOperations() {
 				}()
 			case heartbeatCheckKey:
 				go func() {
-					req := &proto.ListUnifiedResourcesRequest{Kinds: []string{types.KindNode}, SortBy: types.SortBy{Field: types.ResourceKind}}
-
-					for {
-						_, next, err := a.UnifiedResourceCache.IterateUnifiedResources(a.closeCtx,
-							func(rwl types.ResourceWithLabels) (bool, error) {
-								srv, ok := rwl.(types.Server)
-								if !ok {
-									return false, nil
-								}
-								if services.NodeHasMissedKeepAlives(srv) {
-									heartbeatsMissedByAuth.Inc()
-								}
-
-								if srv.GetSubKind() != types.SubKindOpenSSHNode {
-									return false, nil
-								}
-								// TODO(tross) DELETE in v20.0.0 - all invalid hostnames should have been sanitized by then.
-								if !validServerHostname(srv.GetHostname()) {
-									logger := a.logger.With("server", srv.GetName(), "hostname", srv.GetHostname())
-
-									logger.DebugContext(a.closeCtx, "sanitizing invalid static SSH server hostname")
-									// Any existing static hosts will not have their
-									// hostname sanitized since they don't heartbeat.
-									if err := sanitizeHostname(srv); err != nil {
-										logger.WarnContext(a.closeCtx, "failed to sanitize static SSH server hostname", "error", err)
-										return false, nil
-									}
-
-									if _, err := a.Services.UpdateNode(a.closeCtx, srv); err != nil && !trace.IsCompareFailed(err) {
-										logger.WarnContext(a.closeCtx, "failed to update SSH server hostname", "error", err)
-									}
-								} else if oldHostname, ok := srv.GetLabel(replacedHostnameLabel); ok && validServerHostname(oldHostname) {
-									// If the hostname has been replaced by a sanitized version, revert it back to the original
-									// if the original is valid under the most recent rules.
-									logger := a.logger.With("server", srv.GetName(), "old_hostname", oldHostname, "sanitized_hostname", srv.GetHostname())
-									if err := restoreSanitizedHostname(srv); err != nil {
-										logger.WarnContext(a.closeCtx, "failed to restore sanitized static SSH server hostname", "error", err)
-										return false, nil
-									}
-									if _, err := a.Services.UpdateNode(a.closeCtx, srv); err != nil && !trace.IsCompareFailed(err) {
-										log.Warnf("Failed to update node hostname: %v", err)
-									}
-								}
-
-								return false, nil
-							},
-							req,
-						)
+					for srv, err := range a.UnifiedResourceCache.Nodes(a.closeCtx, services.UnifiedResourcesIterateParams{}) {
 						if err != nil {
-							log.Errorf("Failed to load nodes for heartbeat metric calculation: %v", err)
+							a.logger.ErrorContext(a.closeCtx, "Failed to load nodes for heartbeat metric calculation", "error", err)
 							return
 						}
 
-						req.StartKey = next
-						if req.StartKey == "" {
-							break
+						if services.NodeHasMissedKeepAlives(srv) {
+							heartbeatsMissedByAuth.Inc()
+						}
+
+						if srv.GetSubKind() != types.SubKindOpenSSHNode {
+							continue
+						}
+
+						// TODO(tross) DELETE in v20.0.0 - all invalid hostnames should have been sanitized by then.
+						if !validServerHostname(srv.GetHostname()) {
+							logger := a.logger.With("server", srv.GetName(), "hostname", srv.GetHostname())
+
+							logger.DebugContext(a.closeCtx, "sanitizing invalid static SSH server hostname")
+							// Any existing static hosts will not have their
+							// hostname sanitized since they don't heartbeat.
+							if err := sanitizeHostname(srv); err != nil {
+								logger.WarnContext(a.closeCtx, "failed to sanitize static SSH server hostname", "error", err)
+								continue
+							}
+
+							if _, err := a.Services.UpdateNode(a.closeCtx, srv); err != nil && !trace.IsCompareFailed(err) {
+								logger.WarnContext(a.closeCtx, "failed to update SSH server hostname", "error", err)
+							}
+						} else if oldHostname, ok := srv.GetLabel(replacedHostnameLabel); ok && validServerHostname(oldHostname) {
+							// If the hostname has been replaced by a sanitized version, revert it back to the original
+							// if the original is valid under the most recent rules.
+							logger := a.logger.With("server", srv.GetName(), "old_hostname", oldHostname, "sanitized_hostname", srv.GetHostname())
+							if err := restoreSanitizedHostname(srv); err != nil {
+								logger.WarnContext(a.closeCtx, "failed to restore sanitized static SSH server hostname", "error", err)
+								continue
+							}
+							if _, err := a.Services.UpdateNode(a.closeCtx, srv); err != nil && !trace.IsCompareFailed(err) {
+								logger.WarnContext(a.closeCtx, "Failed to update node hostname", "error", err)
+							}
 						}
 					}
 				}()
@@ -3310,27 +3294,18 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	// If the certificate is targeting a trusted Teleport cluster, it is the
 	// responsibility of the cluster to ensure its existence.
 	if req.routeToCluster == clusterName && req.kubernetesCluster != "" {
-		found, _, err := a.UnifiedResourceCache.IterateUnifiedResources(a.closeCtx, func(rwl types.ResourceWithLabels) (bool, error) {
-			if rwl.GetKind() != types.KindKubeServer {
-				return false, nil
+		var found bool
+		for ks, err := range a.UnifiedResourceCache.KubernetesServers(a.closeCtx, services.UnifiedResourcesIterateParams{}) {
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
 
-			ks, ok := rwl.(types.KubeServer)
-			if !ok {
-				return false, nil
+			if ks.GetCluster().GetName() == req.kubernetesCluster {
+				found = true
+				break
 			}
-
-			return ks.GetCluster().GetName() == req.kubernetesCluster, nil
-		}, &proto.ListUnifiedResourcesRequest{
-			Kinds:  []string{types.KindKubeServer},
-			SortBy: types.SortBy{Field: services.SortByName},
-			Limit:  1,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
 		}
-
-		if len(found) == 0 {
+		if !found {
 			return nil, trace.BadParameter("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'", req.kubernetesCluster)
 		}
 	}
