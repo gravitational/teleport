@@ -784,13 +784,28 @@ func TestGitHubIntegration(t *testing.T) {
 	})
 
 	t.Run("delete", func(t *testing.T) {
+		githubServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
+			Integration:  integrationName,
+			Organization: orgName,
+		})
+		require.NoError(t, err)
+		_, err = proxy.auth.AuthServer.AuthServer.CreateGitServer(ctx, githubServer)
+		require.NoError(t, err)
+
 		endpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations", integrationName)
-		t.Run("success", func(t *testing.T) {
+		t.Run("failed because existing git server ", func(t *testing.T) {
 			_, err := authPack.clt.Delete(ctx, endpoint)
+			require.Error(t, err)
+		})
+
+		t.Run("success with associated resources param", func(t *testing.T) {
+			_, err := authPack.clt.Delete(ctx, endpoint+"?associatedresources=true")
 			require.NoError(t, err)
 
 			_, err = authPack.clt.Get(ctx, endpoint, nil)
 			require.Error(t, err)
+			require.True(t, trace.IsNotFound(err))
+			_, err = proxy.auth.AuthServer.AuthServer.GetGitServer(ctx, githubServer.GetName())
 			require.True(t, trace.IsNotFound(err))
 		})
 

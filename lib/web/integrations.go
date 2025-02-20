@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/usertasks"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/integrations/access/msteams"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -212,8 +213,17 @@ func (h *Handler) integrationsDelete(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	if err := clt.DeleteIntegration(r.Context(), integrationName); err != nil {
-		return nil, trace.Wrap(err)
+	if deleteAssociatedResources, _ := apiutils.ParseBool(r.URL.Query().Get("associatedresources")); deleteAssociatedResources {
+		if _, err := clt.IntegrationsClient().DeleteIntegration(r.Context(), &integrationv1.DeleteIntegrationRequest{
+			Name:                      integrationName,
+			DeleteAssociatedResources: true,
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := clt.DeleteIntegration(r.Context(), integrationName); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return OK(), nil
