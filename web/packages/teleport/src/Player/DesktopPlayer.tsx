@@ -16,17 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 
 import { Alert, Box, Flex, Indicator } from 'design';
 
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
+import { TdpClientCanvasRef } from 'teleport/components/TdpClientCanvas/TdpClientCanvas';
 import cfg from 'teleport/config';
 import { formatDisplayTime, StatusEnum } from 'teleport/lib/player';
 import { PlayerClient, TdpClient, TdpClientEvent } from 'teleport/lib/tdp';
-import type { BitmapFrame } from 'teleport/lib/tdp/client';
-import type { ClientScreenSpec, PngFrame } from 'teleport/lib/tdp/codec';
+import type { ClientScreenSpec } from 'teleport/lib/tdp/codec';
 import { getHostName } from 'teleport/services/api';
 
 import ProgressBar from './ProgressBar';
@@ -57,8 +57,6 @@ export const DesktopPlayer = ({
     time,
     canvasSizeIsSet,
 
-    clientOnPngFrame,
-    clientOnBitmapFrame,
     clientOnClientScreenSpec,
     clientOnWsClose,
     clientOnTdpError,
@@ -67,6 +65,7 @@ export const DesktopPlayer = ({
     sid,
     clusterId,
   });
+  const tdpClientCanvasRef = useRef<TdpClientCanvasRef>(null);
 
   useEffect(() => {
     if (playerClient && clientOnTdpError) {
@@ -102,6 +101,35 @@ export const DesktopPlayer = ({
       };
     }
   }, [playerClient, clientOnWsClose]);
+
+  useEffect(() => {
+    if (!playerClient) {
+      return;
+    }
+    const renderPngFrame = (frame: PngFrame) =>
+      tdpClientCanvasRef.current?.renderPngFrame(frame);
+    playerClient.addListener(TdpClientEvent.TDP_PNG_FRAME, renderPngFrame);
+
+    return () => {
+      playerClient.removeListener(TdpClientEvent.TDP_PNG_FRAME, renderPngFrame);
+    };
+  }, [playerClient]);
+
+  useEffect(() => {
+    if (!playerClient) {
+      return;
+    }
+    const renderBitmapFrame = (frame: BitmapFrame) =>
+      tdpClientCanvasRef.current?.renderBitmapFrame(frame);
+    playerClient.addListener(TdpClientEvent.TDP_BMP_FRAME, renderBitmapFrame);
+
+    return () => {
+      playerClient.removeListener(
+        TdpClientEvent.TDP_BMP_FRAME,
+        renderBitmapFrame
+      );
+    };
+  }, [playerClient]);
 
   // Call connect after all listeners have been registered
   useEffect(() => {
@@ -140,9 +168,8 @@ export const DesktopPlayer = ({
 
       <StyledContainer>
         <TdpClientCanvas
+          ref={tdpClientCanvasRef}
           client={playerClient}
-          clientOnPngFrame={clientOnPngFrame}
-          clientOnBmpFrame={clientOnBitmapFrame}
           clientOnClientScreenSpec={clientOnClientScreenSpec}
           style={{
             ...canvasStyle,
@@ -171,20 +198,6 @@ export const DesktopPlayer = ({
       </StyledContainer>
     </StyledPlayer>
   );
-};
-
-const clientOnPngFrame = (
-  ctx: CanvasRenderingContext2D,
-  pngFrame: PngFrame
-) => {
-  ctx.drawImage(pngFrame.data, pngFrame.left, pngFrame.top);
-};
-
-const clientOnBitmapFrame = (
-  ctx: CanvasRenderingContext2D,
-  bmpFrame: BitmapFrame
-) => {
-  ctx.putImageData(bmpFrame.image_data, bmpFrame.left, bmpFrame.top);
 };
 
 const useDesktopPlayer = ({ clusterId, sid }) => {
@@ -259,8 +272,6 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     statusText,
     canvasSizeIsSet,
 
-    clientOnPngFrame,
-    clientOnBitmapFrame,
     clientOnClientScreenSpec,
     clientOnWsClose,
     clientOnTdpError,

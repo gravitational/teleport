@@ -32,6 +32,8 @@ import AuthnDialog from 'teleport/components/AuthnDialog';
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import { TdpClientCanvasRef } from 'teleport/components/TdpClientCanvas/TdpClientCanvas';
 import { TdpClientEvent } from 'teleport/lib/tdp';
+import { BitmapFrame } from 'teleport/lib/tdp/client';
+import { PngFrame } from 'teleport/lib/tdp/codec';
 import type { MfaState } from 'teleport/lib/useMfa';
 
 import TopBar from './TopBar';
@@ -63,8 +65,7 @@ export function DesktopSession(props: State) {
     hostname,
     directorySharingState,
     setDirectorySharingState,
-    clientOnPngFrame,
-    clientOnBitmapFrame,
+    setInitialTdpConnectionSucceeded,
     clientOnClientScreenSpec,
     clientOnClipboardData,
     clientOnTdpError,
@@ -214,6 +215,36 @@ export function DesktopSession(props: State) {
     };
   }, [client]);
 
+  useEffect(() => {
+    if (!client) {
+      return;
+    }
+    const renderFrame = (frame: PngFrame) => {
+      setInitialTdpConnectionSucceeded();
+      tdpClientCanvasRef.current?.renderPngFrame(frame);
+    };
+    client.addListener(TdpClientEvent.TDP_PNG_FRAME, renderFrame);
+
+    return () => {
+      client.removeListener(TdpClientEvent.TDP_PNG_FRAME, renderFrame);
+    };
+  }, [client, setInitialTdpConnectionSucceeded]);
+
+  useEffect(() => {
+    if (!client) {
+      return;
+    }
+    const renderFrame = (frame: BitmapFrame) => {
+      setInitialTdpConnectionSucceeded();
+      tdpClientCanvasRef.current?.renderBitmapFrame(frame);
+    };
+    client.addListener(TdpClientEvent.TDP_BMP_FRAME, renderFrame);
+
+    return () => {
+      client.removeListener(TdpClientEvent.TDP_BMP_FRAME, renderFrame);
+    };
+  }, [client, setInitialTdpConnectionSucceeded]);
+
   return (
     <Flex flexDirection="column">
       <TopBar
@@ -249,12 +280,11 @@ export function DesktopSession(props: State) {
       {screenState.screen === 'processing' && <Processing />}
 
       <TdpClientCanvas
+        ref={tdpClientCanvasRef}
         style={{
           display: screenState.canvasState.shouldDisplay ? 'flex' : 'none',
         }}
         client={client}
-        clientOnPngFrame={clientOnPngFrame}
-        clientOnBmpFrame={clientOnBitmapFrame}
         clientOnClientScreenSpec={clientOnClientScreenSpec}
         onKeyDown={canvasOnKeyDown}
         onKeyUp={canvasOnKeyUp}
