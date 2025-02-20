@@ -58,8 +58,8 @@ const (
 type SystemdService struct {
 	// ServiceName specifies the systemd service name.
 	ServiceName string
-	// PIDPath is a path to a file containing the service's PID.
-	PIDPath string
+	// PIDFile is a path to a file containing the service's PID.
+	PIDFile string
 	// Ready is a readiness checker.
 	Ready ReadyChecker
 	// Log contains a logger.
@@ -98,7 +98,7 @@ func (s SystemdService) Reload(ctx context.Context) error {
 
 	// Get initial PID for crash monitoring.
 
-	initPID, err := readInt(s.PIDPath)
+	initPID, err := readInt(s.PIDFile)
 	if errors.Is(err, os.ErrNotExist) {
 		s.Log.InfoContext(ctx, "No existing process detected. Skipping crash monitoring.", unitKey, s.ServiceName)
 	} else if err != nil {
@@ -182,7 +182,7 @@ func (s SystemdService) monitorPID(ctx context.Context, initPID int, tickC <-cha
 	pidC := make(chan int)
 	var g errgroup.Group
 	g.Go(func() error {
-		return tickFile(ctx, s.PIDPath, pidC, tickC)
+		return tickFile(ctx, s.PIDFile, pidC, tickC)
 	})
 	stablePID, err := s.waitForStablePID(ctx, minRunningIntervalsBeforeStable, maxCrashesBeforeFailure,
 		initPID, pidC, func(pid int) error {
@@ -375,7 +375,7 @@ func (s SystemdService) Enable(ctx context.Context, now bool) error {
 	if now {
 		args = append(args, "--now")
 	}
-	code := s.systemctl(ctx, slog.LevelInfo, args...)
+	code := s.systemctl(ctx, slog.LevelError, args...)
 	if code != 0 {
 		return trace.Errorf("unable to enable systemd service")
 	}
@@ -392,7 +392,7 @@ func (s SystemdService) Disable(ctx context.Context, now bool) error {
 	if now {
 		args = append(args, "--now")
 	}
-	code := s.systemctl(ctx, slog.LevelInfo, args...)
+	code := s.systemctl(ctx, slog.LevelError, args...)
 	if code != 0 {
 		return trace.Errorf("unable to disable systemd service")
 	}
@@ -480,7 +480,7 @@ func (s SystemdService) systemctl(ctx context.Context, errLevel slog.Level, args
 		return code
 	}
 	if code >= 0 {
-		s.Log.Log(ctx, errLevel, "Error running systemctl.",
+		s.Log.Log(ctx, errLevel, "Non-zero exit code or error running systemctl.",
 			"args", args, "code", code)
 		return code
 	}

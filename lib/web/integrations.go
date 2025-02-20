@@ -277,8 +277,8 @@ func (h *Handler) integrationStats(w http.ResponseWriter, r *http.Request, p htt
 	return summary, nil
 }
 
-type userTasksByIntegrationLister interface {
-	ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertasksv1.UserTask, string, error)
+type userTasksLister interface {
+	ListUserTasks(ctx context.Context, pageSize int64, nextToken string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error)
 }
 
 type collectIntegrationStatsRequest struct {
@@ -287,7 +287,7 @@ type collectIntegrationStatsRequest struct {
 	discoveryConfigLister discoveryConfigLister
 	databaseGetter        databaseGetter
 	awsOIDCClient         deployedDatabaseServiceLister
-	userTasksClient       userTasksByIntegrationLister
+	userTasksClient       userTasksLister
 }
 
 func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsRequest) (*ui.IntegrationWithSummary, error) {
@@ -301,7 +301,8 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 
 	var nextPage string
 	for {
-		userTasks, nextToken, err := req.userTasksClient.ListUserTasksByIntegration(ctx, 0, nextPage, req.integration.GetName())
+		filters := &usertasksv1.ListUserTasksFilters{Integration: req.integration.GetName()}
+		userTasks, nextToken, err := req.userTasksClient.ListUserTasks(ctx, 0, nextPage, filters)
 		if err != nil {
 			return nil, err
 		}

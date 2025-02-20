@@ -19,29 +19,28 @@ In this guide, you will use the `tsh` tool to issue a SPIFFE SVID.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-## Step 1/2. Using `tsh` to issue a SPIFFE SVID
+## Step 1/2. Using `tsh` to issue a SPIFFE X509 SVID
 
 First, determine where you wish to write the SPIFFE SVID. If you wish to write
 these into a directory, you must first create it. In our example, we will write
 the SVID to a directory called `svid`.
 
-Next, determine what SPIFFE ID you wish to issue the SVID for. In our example,
-this will be a SPIFFE ID with a path of `/my-svc`.
+Next, determine which workload identity resource you'll use to issue the X509
+SVID. In our example, we'll use a workload identity called
+`my-workload-identity`.
 
-Issue the SVID specifying the output directory using `--out` and the SPIFFE ID
-path as the first argument:
+Issue the SVID specifying the output directory using `--output` and the name of
+the workload identity resource using `--name-selector`:
 
 ```sh
-$ tsh svid issue --out ./svid /my-svc
+$ tsh workload-identity issue-x509 --output ./svid --name-selector my-workload-identity
 ```
 
 Additionally, flags can be used to further customize the SVID:
 
-| `flag`       | Description                                                                                                         |
-|--------------|---------------------------------------------------------------------------------------------------------------------|
-| `--dns-san`  | Adds a DNS SAN to the resulting X509 SVID.                                                                          |
-| `--ip-san`   | Adds an IP SAN to the resulting X509 SVID.                                                                          |
-| `--svid-ttl` | Sets the Time To Live for the resulting X509 SVID. Specify duration using `s`, `m` and `h`, e.g `12h` for 12 hours. |
+| `flag`             | Description                                                                                                         |
+|--------------------|---------------------------------------------------------------------------------------------------------------------|
+| `--credential-ttl` | Sets the Time To Live for the resulting X509 SVID. Specify duration using `s`, `m` and `h`, e.g `12h` for 12 hours. |
 
 ### Using headless authentication to issue a SVID on a remote host
 
@@ -58,9 +57,12 @@ To use headless authentication, we provide the `--headless` flag, and must
 also specify the `--proxy` and `--user` flags:
 
 ```sh
-$ tsh --proxy=example.teleport.sh --user=example --headless svid issue \
+$ tsh --proxy=example.teleport.sh \
+  --user example \
+  --headless \
+  workload-identity issue-x509 \
   --output . \
-  /foo
+  --name-selector my-workload-identity
 ```
 
 ## Step 2/2. Using the output SVID

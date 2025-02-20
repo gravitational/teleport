@@ -42,35 +42,6 @@ export default {
 
 const rootClusterUri = '/clusters/foo';
 
-export function Story() {
-  const appContext = new MockAppContext();
-  prepareAppContext(appContext);
-  appContext.clustersService.setState(draft => {
-    const rootCluster1 = makeRootCluster({
-      uri: rootClusterUri,
-      name: 'teleport.example.sh',
-      proxyHost: 'teleport.example.sh:443',
-    });
-    const rootCluster2 = makeRootCluster({
-      uri: '/clusters/bar',
-      name: 'bar.example.com',
-      proxyHost: 'bar.example.com:3080',
-    });
-    draft.clusters.set(rootCluster1.uri, rootCluster1);
-    draft.clusters.set(rootCluster2.uri, rootCluster2);
-  });
-
-  return (
-    <AppContextProvider value={appContext}>
-      <ConnectionsContextProvider>
-        <VnetContextProvider>
-          <Connections />
-        </VnetContextProvider>
-      </ConnectionsContextProvider>
-    </AppContextProvider>
-  );
-}
-
 export function MultipleClusters() {
   const appContext = new MockAppContext();
   prepareAppContext(appContext);
@@ -98,6 +69,29 @@ export function MultipleClusters() {
       clusterName: 'bar.example.com',
     },
   ];
+
+  return (
+    <AppContextProvider value={appContext}>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
+    </AppContextProvider>
+  );
+}
+
+export function SingleCluster() {
+  const appContext = new MockAppContext();
+  prepareAppContext(appContext);
+  appContext.clustersService.setState(draft => {
+    const rootCluster1 = makeRootCluster({
+      uri: rootClusterUri,
+      name: 'teleport.example.sh',
+      proxyHost: 'teleport.example.sh:443',
+    });
+    draft.clusters.set(rootCluster1.uri, rootCluster1);
+  });
 
   return (
     <AppContextProvider value={appContext}>
