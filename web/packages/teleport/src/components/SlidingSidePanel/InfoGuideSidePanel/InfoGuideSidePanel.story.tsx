@@ -21,7 +21,7 @@ import { useState } from 'react';
 import { Box } from 'design';
 import { Info } from 'design/Alert';
 
-import { DevInfo, LongContent, Providers } from '../storyHelpers';
+import { DevInfo, LongContent, TopBar } from '../storyHelpers';
 import {
   InfoGuideSidePanel as Component,
   InfoGuideWrapper,
@@ -34,7 +34,7 @@ export default {
 export const InfoGuideSidePanel = () => {
   const [show, setShow] = useState(false);
   return (
-    <Providers>
+    <TopBar>
       {/* this Box wrapper is just for demo purposes */}
       <Box mt={10} ml={3}>
         <DevInfo />
@@ -45,6 +45,6 @@ export const InfoGuideSidePanel = () => {
       <Component isVisible={show} onClose={() => setShow(false)}>
         <LongContent />
       </Component>
-    </Providers>
+    </TopBar>
   );
 };
