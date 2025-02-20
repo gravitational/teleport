@@ -103,7 +103,7 @@ func (s *resourceStore[T]) delete(t T) error {
 func (s *resourceStore[T]) get(index, key string) (T, error) {
 	t, ok := s.cache.Get(index, key)
 	if !ok {
-		return t, trace.NotFound("no value for resource of type %v", reflect.TypeOf((*T)(nil)).Elem())
+		return t, trace.NotFound("no value for key %q in index %q", key, index)
 	}
 
 	return t, nil
