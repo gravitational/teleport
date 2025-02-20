@@ -16,7 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { memo, useEffect, useRef, type CSSProperties } from 'react';
+import React, {
+  forwardRef,
+  memo,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  type CSSProperties,
+} from 'react';
 
 import { debounce } from 'shared/utils/highbar';
 
@@ -24,7 +31,11 @@ import { TdpClient, TdpClientEvent } from 'teleport/lib/tdp';
 import { BitmapFrame } from 'teleport/lib/tdp/client';
 import type { ClientScreenSpec, PngFrame } from 'teleport/lib/tdp/codec';
 
-function TdpClientCanvas(props: Props) {
+export interface TdpClientCanvasRef {
+  setPointer(pointer: Pointer): void;
+}
+
+const TdpClientCanvas = forwardRef<TdpClientCanvasRef, Props>((props, ref) => {
   const {
     client,
     clientOnPngFrame,
@@ -40,9 +51,14 @@ function TdpClientCanvas(props: Props) {
     onContextMenu,
     onResize,
     style,
-    updatePointer,
   } = props;
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useImperativeHandle(ref, () => {
+    return {
+      setPointer: pointer => setPointer(canvasRef.current, pointer),
+    };
+  }, []);
 
   useEffect(() => {
     // Empty dependency array ensures this runs only once after initial render.
@@ -87,51 +103,6 @@ function TdpClientCanvas(props: Props) {
       };
     }
   }, [client, clientOnPngFrame]);
-
-  useEffect(() => {
-    if (client && updatePointer) {
-      const canvas = canvasRef.current;
-      const updatePointer = (pointer: {
-        data: ImageData | boolean;
-        hotspot_x?: number;
-        hotspot_y?: number;
-      }) => {
-        if (typeof pointer.data === 'boolean') {
-          canvas.style.cursor = pointer.data ? 'default' : 'none';
-          return;
-        }
-        let cursor = document.createElement('canvas');
-        cursor.width = pointer.data.width;
-        cursor.height = pointer.data.height;
-        cursor
-          .getContext('2d', { colorSpace: pointer.data.colorSpace })
-          .putImageData(pointer.data, 0, 0);
-        if (pointer.data.width > 32 || pointer.data.height > 32) {
-          // scale the cursor down to at most 32px - max size fully supported by browsers
-          const resized = document.createElement('canvas');
-          let scale = Math.min(32 / cursor.width, 32 / cursor.height);
-          resized.width = cursor.width * scale;
-          resized.height = cursor.height * scale;
-
-          let context = resized.getContext('2d', {
-            colorSpace: pointer.data.colorSpace,
-          });
-          context.scale(scale, scale);
-          context.drawImage(cursor, 0, 0);
-          cursor = resized;
-        }
-        canvas.style.cursor = `url(${cursor.toDataURL()}) ${
-          pointer.hotspot_x
-        } ${pointer.hotspot_y}, auto`;
-      };
-
-      client.addListener(TdpClientEvent.POINTER, updatePointer);
-
-      return () => {
-        client.removeListener(TdpClientEvent.POINTER, updatePointer);
-      };
-    }
-  }, [client, updatePointer]);
 
   useEffect(() => {
     if (client && clientOnBmpFrame) {
@@ -246,7 +217,7 @@ function TdpClientCanvas(props: Props) {
       ref={canvasRef}
     />
   );
-}
+});
 
 export type Props = {
   client: TdpClient;
@@ -279,7 +250,40 @@ export type Props = {
    */
   onResize?(e: { width: number; height: number }): void;
   style?: CSSProperties;
-  updatePointer?: boolean;
 };
+
+interface Pointer {
+  data: ImageData | boolean;
+  hotspot_x?: number;
+  hotspot_y?: number;
+}
+
+function setPointer(canvas: HTMLCanvasElement, pointer: Pointer): void {
+  if (typeof pointer.data === 'boolean') {
+    canvas.style.cursor = pointer.data ? 'default' : 'none';
+    return;
+  }
+  let cursor = document.createElement('canvas');
+  cursor.width = pointer.data.width;
+  cursor.height = pointer.data.height;
+  cursor
+    .getContext('2d', { colorSpace: pointer.data.colorSpace })
+    .putImageData(pointer.data, 0, 0);
+  if (pointer.data.width > 32 || pointer.data.height > 32) {
+    // scale the cursor down to at most 32px - max size fully supported by browsers
+    const resized = document.createElement('canvas');
+    const scale = Math.min(32 / cursor.width, 32 / cursor.height);
+    resized.width = cursor.width * scale;
+    resized.height = cursor.height * scale;
+
+    const context = resized.getContext('2d', {
+      colorSpace: pointer.data.colorSpace,
+    });
+    context.scale(scale, scale);
+    context.drawImage(cursor, 0, 0);
+    cursor = resized;
+  }
+  canvas.style.cursor = `url(${cursor.toDataURL()}) ${pointer.hotspot_x} ${pointer.hotspot_y}, auto`;
+}
 
 export default memo(TdpClientCanvas);
