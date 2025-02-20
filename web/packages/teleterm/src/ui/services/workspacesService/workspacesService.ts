@@ -492,7 +492,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       const documents = workspace?.documents || [];
 
       for (const doc of documents) {
-        if (doc?.kind === 'doc.vnet_diag_report' && doc?.report?.createdAt) {
+        if (doc.kind === 'doc.vnet_diag_report' && doc.report?.createdAt) {
           // Timestamps use BigInt, which currently isn't serializable to JSON.
           // TODO(ravicious): Once we upgrade to Node.js >= 21, deal with serializing BigInt
           // in the function `stringify` of fileStorage, using a combination of these two approaches:
