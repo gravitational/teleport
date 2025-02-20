@@ -35,6 +35,14 @@ export const getReportFilename = (report: diag.Report) => {
   return `vnet_diag_report_${sanitizedCreatedAt}.txt`;
 };
 
+/**
+ * reportToText serializes the report into text that can be shared by the user. It was written
+ * primarily with Zendesk and Slack in mind. As of February 2025, Slack doesn't support Markdown
+ * tables, but Zendesk does.
+ *
+ * Still, the text should be light on Markdown as the user might post it to a platform that
+ * doesn't support Markdown. For example, we should refrain from using <details>.
+ */
 export function reportToText(report: diag.Report): string {
   const createdAt = Timestamp.toDate(report.createdAt);
   const localCreatedAt = displayDateTime(createdAt);
