@@ -80,8 +80,8 @@ SHOULD_NOTARIZE = $(if $(and $(APPLE_USERNAME),$(APPLE_PASSWORD)),true)
 notary_dir = $(BUILDDIR)/notarize
 notary_file = $(BUILDDIR)/notarize.zip
 
-MAC_TOOLING_FLAGS = $(if $(SHOULD_NOTARIZE),,--dry-run)
-MAC_TOOLING = go run github.com/gravitational/shared-workflows/tools/mac-distribution@v0.0.0-6ccb84857204dc45982619285b64cdc41b66b615
+MAC_TOOLING_FLAGS = --retry 2 $(if $(SHOULD_NOTARIZE),,--dry-run)
+MAC_TOOLING = go run github.com/gravitational/shared-workflows/tools/mac-distribution@v0.0.0
 MAC_TOOLING_CMD = $(MAC_TOOLING) $(MAC_TOOLING_FLAGS)
 
 NOTARIZE_BINARIES = $(notarize_binaries_cmd)
