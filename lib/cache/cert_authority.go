@@ -55,7 +55,7 @@ func newCertAuthorityCollection(t services.Trust, w types.WatchKind) (*collectio
 				},
 			}
 		},
-		getAll: func(ctx context.Context, loadSecrets bool) ([]types.CertAuthority, error) {
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.CertAuthority, error) {
 			var authorities []types.CertAuthority
 			for _, caType := range types.CertAuthTypes {
 				cas, err := t.GetCertAuthorities(ctx, caType, loadSecrets)

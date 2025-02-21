@@ -40,7 +40,7 @@ func newUserCollection(u services.UsersService, w types.WatchKind) (*collection[
 				return u.GetName()
 			},
 		}),
-		getAll: func(ctx context.Context, loadSecrets bool) ([]types.User, error) {
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.User, error) {
 			return u.GetUsers(ctx, loadSecrets)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.User {
