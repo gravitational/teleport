@@ -96,7 +96,6 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 
 	switch opts.InstallOptions.AutoupdateStyle {
 	case NoAutoupdate:
-		// aaa
 	case PackageManagerAutoupdate:
 		// Note: This is a cloud-specific repo. We could use the new stable/rolling
 		// repo in non-cloud case, but the script has never support enabling autoupdates

@@ -372,7 +372,7 @@ func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request
 		joinMethod:     r.URL.Query().Get("method"),
 	}
 
-	script, err := h.getJoinScript(r.Context(), settings, h.GetProxyClient())
+	script, err := h.getJoinScript(r.Context(), settings)
 	if err != nil {
 		h.logger.InfoContext(r.Context(), "Failed to return the node install script", "error", err)
 		w.Write(scripts.ErrorBashScript)
@@ -419,7 +419,7 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 		appURI:         uri,
 	}
 
-	script, err := h.getJoinScript(r.Context(), settings, h.GetProxyClient())
+	script, err := h.getJoinScript(r.Context(), settings)
 	if err != nil {
 		h.logger.InfoContext(r.Context(), "Failed to return the app install script", "error", err)
 		w.Write(scripts.ErrorBashScript)
@@ -443,7 +443,7 @@ func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Req
 		databaseInstallMode: true,
 	}
 
-	script, err := h.getJoinScript(r.Context(), settings, h.GetProxyClient())
+	script, err := h.getJoinScript(r.Context(), settings)
 	if err != nil {
 		h.logger.InfoContext(r.Context(), "Failed to return the database install script", "error", err)
 		w.Write(scripts.ErrorBashScript)
@@ -487,7 +487,7 @@ func (h *Handler) getDiscoveryJoinScriptHandle(w http.ResponseWriter, r *http.Re
 		discoveryGroup:       discoveryGroup,
 	}
 
-	script, err := h.getJoinScript(r.Context(), settings, h.GetProxyClient())
+	script, err := h.getJoinScript(r.Context(), settings)
 	if err != nil {
 		h.logger.InfoContext(r.Context(), "Failed to return the discovery install script", "error", err)
 		w.Write(scripts.ErrorBashScript)
@@ -503,7 +503,7 @@ func (h *Handler) getDiscoveryJoinScriptHandle(w http.ResponseWriter, r *http.Re
 	return nil, nil
 }
 
-func (h *Handler) getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter) (string, error) {
+func (h *Handler) getJoinScript(ctx context.Context, settings scriptSettings) (string, error) {
 	joinMethod := types.JoinMethod(settings.joinMethod)
 	switch joinMethod {
 	case types.JoinMethodUnspecified, types.JoinMethodToken:
@@ -515,9 +515,11 @@ func (h *Handler) getJoinScript(ctx context.Context, settings scriptSettings, m 
 		return "", trace.BadParameter("join method %q is not supported via script", settings.joinMethod)
 	}
 
+	clt := h.GetProxyClient()
+
 	// The provided token can be attacker controlled, so we must validate
 	// it with the backend before using it to generate the script.
-	token, err := m.GetToken(ctx, settings.token)
+	token, err := clt.GetToken(ctx, settings.token)
 	if err != nil {
 		return "", trace.BadParameter("invalid token")
 	}
@@ -525,7 +527,7 @@ func (h *Handler) getJoinScript(ctx context.Context, settings scriptSettings, m 
 	// TODO(hugoShaka): hit the local accesspoint which has a cache instead of asking the auth every time.
 
 	// Get the CA pin hashes of the cluster to join.
-	localCAResponse, err := m.GetClusterCACert(ctx)
+	localCAResponse, err := clt.GetClusterCACert(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -650,12 +652,4 @@ func isSameAzureRuleSet(r1, r2 []*types.ProvisionTokenSpecV2Azure_Rule) bool {
 	sortAzureRules(r1)
 	sortAzureRules(r2)
 	return reflect.DeepEqual(r1, r2)
-}
-
-type nodeAPIGetter interface {
-	// GetToken looks up a provisioning token.
-	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
-
-	// GetClusterCACert returns the CAs for the local cluster without signing keys.
-	GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertResponse, error)
 }
