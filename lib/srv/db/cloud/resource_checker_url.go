@@ -94,6 +94,7 @@ func convIsEndpoint(isEndpoint isEndpointFunc) checkDatabaseFunc {
 func (c *urlChecker) Check(ctx context.Context, database types.Database) error {
 	checkersByDatabaseType := map[string]checkDatabaseFunc{
 		types.DatabaseTypeRDS:                c.checkAWS(c.checkRDS, convIsEndpoint(apiawsutils.IsRDSEndpoint)),
+		types.DatabaseTypeRDSOracle:          c.checkAWS(c.checkRDS, convIsEndpoint(apiawsutils.IsRDSEndpoint)),
 		types.DatabaseTypeRDSProxy:           c.checkAWS(c.checkRDSProxy, convIsEndpoint(apiawsutils.IsRDSEndpoint)),
 		types.DatabaseTypeRedshift:           c.checkAWS(c.checkRedshift, convIsEndpoint(apiawsutils.IsRedshiftEndpoint)),
 		types.DatabaseTypeRedshiftServerless: c.checkAWS(c.checkRedshiftServerless, convIsEndpoint(apiawsutils.IsRedshiftServerlessEndpoint)),
