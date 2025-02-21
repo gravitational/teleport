@@ -1,3 +1,19 @@
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package utils
 
 import (
@@ -11,7 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBatchReadChanneWaitsForFirstMessage(t *testing.T) {
+func TestBatchReadChannelWaitsForFirstMessage(t *testing.T) {
 	// ctx is a context that will cancel at the end of the test. Any spawned
 	// goroutines must exit when this context expires
 	ctx, cancel := context.WithCancel(context.Background())
@@ -88,9 +104,19 @@ func TestBatchReadChannelDetectsClose(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name      string
-		msgCount  int
-		closer    func(*producer)
+		name     string
+		msgCount int
+
+		// closer is a function that performs some action that should cause the
+		// message reader to stop, wither by closing the channel, cancelling the
+		// context or by some other as-yet-undefined mechanism
+		closer func(*producer)
+
+		// tolerance defines how many messages we are allowed to miss before the
+		// test fails. In tests where we cancel the context to end the test we
+		// may miss the last few messages if the cancellation is detected before
+		// the final messages are read, so we allow those tests to miss some
+		// messages.
 		tolerance int
 	}{
 		{
@@ -157,7 +183,7 @@ func TestBatchReadChannelDetectsClose(t *testing.T) {
 				test.closer(&p)
 			}()
 
-			// WHEN I run a n asynchronous consumer process that logs all the
+			// WHEN I run an asynchronous consumer process that logs all the
 			// messages until it receives a close signal via a non-OK read
 			var msgCount atomic.Int32
 			var closeDetected atomic.Bool
@@ -179,14 +205,12 @@ func TestBatchReadChannelDetectsClose(t *testing.T) {
 			// close signal was detected.
 			require.EventuallyWithT(t,
 				func(c *assert.CollectT) {
-					if !assert.True(c, closeDetected.Load()) {
-						return
-					}
+					require.True(c, closeDetected.Load())
 
 					// in cases where we cancel the context, we may miss the last
 					// few messages if the cancellation is detected before the
 					// final messages are read, hence the tolerance
-					assert.GreaterOrEqual(t, msgCount.Load(), int32(test.msgCount-test.tolerance))
+					require.GreaterOrEqual(t, msgCount.Load(), int32(test.msgCount-test.tolerance))
 				},
 				5*time.Second,
 				10*time.Millisecond)
