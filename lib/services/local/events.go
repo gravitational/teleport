@@ -440,14 +440,13 @@ func (p *certAuthorityParser) parse(event backend.Event) (types.Resource, error)
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}
 
-		return &types.CertAuthorityV2{
+		return &types.ResourceHeader{
 			Kind:    types.KindCertAuthority,
+			SubKind: components[1],
 			Version: types.V2,
 			Metadata: types.Metadata{
-				Name: components[2],
-			},
-			Spec: types.CertAuthoritySpecV2{
-				Type: types.CertAuthType(components[1]),
+				Name:      components[2],
+				Namespace: apidefaults.Namespace,
 			},
 		}, nil
 	case types.OpPut:
@@ -1044,11 +1043,12 @@ func (p *userParser) parse(event backend.Event) (types.Resource, error) {
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}
 
-		return &types.UserV2{
+		return &types.ResourceHeader{
 			Kind:    types.KindUser,
 			Version: types.V2,
 			Metadata: types.Metadata{
-				Name: strings.TrimPrefix(name, backend.SeparatorString),
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
 			},
 		}, nil
 	case types.OpPut:

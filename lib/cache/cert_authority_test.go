@@ -29,28 +29,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
 )
-
-func TestCertAuthorityUpstream(t *testing.T) {
-	bk, err := memory.New(memory.Config{
-		Context: context.Background(),
-		Mirror:  true,
-	})
-	require.NoError(t, err)
-
-	trustService := local.NewCAService(bk)
-	upstream := caUpstream{Trust: trustService}
-
-	ca := suite.NewTestCA(types.UserCA, "example.com")
-	require.NoError(t, trustService.UpsertCertAuthority(context.Background(), ca))
-
-	cas, err := upstream.getAll(context.Background(), false)
-	require.NoError(t, err)
-	require.Len(t, cas, 1)
-	require.Empty(t, cmp.Diff([]types.CertAuthority{ca.WithoutSecrets().(types.CertAuthority)}, cas))
-}
 
 // TestCA tests certificate authorities
 func TestCA(t *testing.T) {

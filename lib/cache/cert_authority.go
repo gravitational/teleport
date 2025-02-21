@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/sortcache"
 )
 
-func newCertAuthorityCollection(t services.Trust, w types.WatchKind) (*collection[types.CertAuthority, *resourceStore[types.CertAuthority], *caUpstream], error) {
+func newCertAuthorityCollection(t services.Trust, w types.WatchKind) (*collection[types.CertAuthority], error) {
 	if t == nil {
 		return nil, trace.BadParameter("missing parameter Trust")
 	}
@@ -35,55 +35,57 @@ func newCertAuthorityCollection(t services.Trust, w types.WatchKind) (*collectio
 	var filter types.CertAuthorityFilter
 	filter.FromMap(w.Filter)
 
-	return &collection[types.CertAuthority, *resourceStore[types.CertAuthority], *caUpstream]{
-		store: newResourceStoreWithFilter(
-			filter.Match,
-			map[string]func(types.CertAuthority) string{
-				"id": func(ca types.CertAuthority) string {
-					return string(ca.GetType()) + "/" + ca.GetID().DomainName
-				},
+	return &collection[types.CertAuthority]{
+		store: newResourceStore(map[string]func(types.CertAuthority) string{
+			"id": func(ca types.CertAuthority) string {
+				return string(ca.GetType()) + "/" + ca.GetID().DomainName
 			},
-		),
-		upstream: &caUpstream{Trust: t, filter: filter},
-		watch:    w,
-	}, nil
-}
-
-type caUpstream struct {
-	services.Trust
-	// extracted from watch.Filter, to avoid rebuilding on every event
-	filter types.CertAuthorityFilter
-}
-
-func (c caUpstream) getAll(ctx context.Context, loadSecrets bool) ([]types.CertAuthority, error) {
-	var authorities []types.CertAuthority
-	for _, caType := range types.CertAuthTypes {
-		cas, err := c.Trust.GetCertAuthorities(ctx, caType, loadSecrets)
-		// if caType was added in this major version we might get a BadParameter
-		// error if we're connecting to an older upstream that doesn't know about it
-		if err != nil {
-			if !(types.IsUnsupportedAuthorityErr(err) && caType.NewlyAdded()) {
-				return nil, trace.Wrap(err)
+		}),
+		watch:  w,
+		filter: filter.Match,
+		headerTransform: func(hdr *types.ResourceHeader) types.CertAuthority {
+			return &types.CertAuthorityV2{
+				Kind:    types.KindCertAuthority,
+				Version: types.V2,
+				Metadata: types.Metadata{
+					Name: hdr.Metadata.Name,
+				},
+				Spec: types.CertAuthoritySpecV2{
+					Type: types.CertAuthType(hdr.SubKind),
+				},
 			}
-			continue
-		}
-
-		// this can be removed once we get the ability to fetch CAs with a filter,
-		// but it should be harmless, and it could be kept as additional safety
-		if !c.filter.IsEmpty() {
-			filtered := cas[:0]
-			for _, ca := range cas {
-				if c.filter.Match(ca) {
-					filtered = append(filtered, ca)
+		},
+		getAll: func(ctx context.Context, loadSecrets bool) ([]types.CertAuthority, error) {
+			var authorities []types.CertAuthority
+			for _, caType := range types.CertAuthTypes {
+				cas, err := t.GetCertAuthorities(ctx, caType, loadSecrets)
+				// if caType was added in this major version we might get a BadParameter
+				// error if we're connecting to an older upstream that doesn't know about it
+				if err != nil {
+					if !(types.IsUnsupportedAuthorityErr(err) && caType.NewlyAdded()) {
+						return nil, trace.Wrap(err)
+					}
+					continue
 				}
+
+				// this can be removed once we get the ability to fetch CAs with a filter,
+				// but it should be harmless, and it could be kept as additional safety
+				if !filter.IsEmpty() {
+					filtered := cas[:0]
+					for _, ca := range cas {
+						if filter.Match(ca) {
+							filtered = append(filtered, ca)
+						}
+					}
+					cas = filtered
+				}
+
+				authorities = append(authorities, cas...)
 			}
-			cas = filtered
-		}
 
-		authorities = append(authorities, cas...)
-	}
-
-	return authorities, nil
+			return authorities, nil
+		},
+	}, nil
 }
 
 type getCertAuthorityCacheKey struct {
@@ -126,13 +128,13 @@ func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadS
 
 	// When signing keys are requested, always read from the upstream.
 	if loadSigningKeys {
-		ca, err := collection.upstream.GetCertAuthority(ctx, id, loadSigningKeys)
+		ca, err := c.Config.Trust.GetCertAuthority(ctx, id, loadSigningKeys)
 		return ca, err
 	}
 
 	// When no keys are requested, use the ca cache to reduce the upstream load.
 	cachedCA, err := utils.FnCacheGet(ctx, c.fnCache, getCertAuthorityCacheKey{id}, func(ctx context.Context) (types.CertAuthority, error) {
-		ca, err := collection.upstream.GetCertAuthority(ctx, id, loadSigningKeys)
+		ca, err := c.Config.Trust.GetCertAuthority(ctx, id, loadSigningKeys)
 		return ca, err
 	})
 	if err != nil {
@@ -162,7 +164,7 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 
 	if rg.ReadCache() {
 		var cas []types.CertAuthority
-		for ca := range collection.store.iterate("id", string(caType), sortcache.NextKey(string(caType))) {
+		for ca := range collection.store.resources("id", string(caType), sortcache.NextKey(string(caType))) {
 			if loadSigningKeys {
 				cas = append(cas, ca.Clone())
 			} else {
@@ -175,13 +177,13 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 
 	// When signing keys are requested, always read from the upstream.
 	if loadSigningKeys {
-		cas, err := collection.upstream.GetCertAuthorities(ctx, caType, loadSigningKeys)
+		cas, err := c.Config.Trust.GetCertAuthorities(ctx, caType, loadSigningKeys)
 		return cas, err
 	}
 
 	// When no keys are requested, use the ca cache to reduce the upstream load.
 	cachedCAs, err := utils.FnCacheGet(ctx, c.fnCache, getCertAuthoritiesCacheKey{caType}, func(ctx context.Context) ([]types.CertAuthority, error) {
-		cas, err := collection.upstream.GetCertAuthorities(ctx, caType, loadSigningKeys)
+		cas, err := c.Config.Trust.GetCertAuthorities(ctx, caType, loadSigningKeys)
 		return cas, trace.Wrap(err)
 	})
 	if err != nil || cachedCAs == nil {

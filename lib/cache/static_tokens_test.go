@@ -17,29 +17,22 @@
 package cache
 
 import (
-	"context"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/services/local"
 )
 
-func TestStaticTokensUpstream(t *testing.T) {
-	bk, err := memory.New(memory.Config{
-		Context: context.Background(),
-		Mirror:  true,
-	})
-	require.NoError(t, err)
+// TestTokens tests static tokens
+func TestStaticTokens(t *testing.T) {
+	t.Parallel()
 
-	configService, err := local.NewClusterConfigurationService(bk)
-	require.NoError(t, err)
-
-	upstream := staticTokensUpstream{ClusterConfiguration: configService}
+	p := newPackForAuth(t)
+	t.Cleanup(p.Close)
 
 	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{
@@ -52,11 +45,18 @@ func TestStaticTokensUpstream(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = configService.SetStaticTokens(staticTokens)
+	err = p.clusterConfigS.SetStaticTokens(staticTokens)
 	require.NoError(t, err)
 
-	tokens, err := upstream.getAll(context.Background(), false)
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for event")
+	}
+
+	out, err := p.cache.GetStaticTokens()
 	require.NoError(t, err)
-	require.Len(t, tokens, 1)
-	require.Empty(t, cmp.Diff([]types.StaticTokens{staticTokens}, tokens))
+	require.Empty(t, cmp.Diff(staticTokens, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
 }

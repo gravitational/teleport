@@ -25,52 +25,21 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// collection is responsible for managing a resource in the cache.
-type collection[T any, S store[T], U upstream[T]] struct {
-	upstream  U
-	store     S
-	watch     types.WatchKind
-	singleton bool
+// collection is responsible for managing a cached resource.
+type collection[T any] struct {
+	getAll          func(ctx context.Context, loadSecrets bool) ([]T, error)
+	store           *resourceStore[T]
+	watch           types.WatchKind
+	headerTransform func(hdr *types.ResourceHeader) T
+	filter          func(T) bool
+	singleton       bool
 }
 
-// upstream is responsible for seeding the cache with resources from
-// the auth server.
-type upstream[T any] interface {
-	getAll(ctx context.Context, loadSecrets bool) ([]T, error)
-}
-
-// store persists the cached resources locally in memory.
-type store[T any] interface {
-	// put will create or update a target resource in the cache.
-	put(t T) error
-	// delete removes a single entry from the cache.
-	delete(t T) error
-	// clear will delete all target resources of the type in the cache.
-	clear() error
-}
-
-type eventHandler interface {
-	// fetch fetches resources and returns a function which will apply said resources to the cache.
-	// fetch *must* not mutate cache state outside of the apply function.
-	// The provided cacheOK flag indicates whether this collection will be included in the cache generation that is
-	// being prepared. If cacheOK is false, fetch shouldn't fetch any resources, but the apply function that it
-	// returns must still delete resources from the backend.
-	fetch(ctx context.Context, cacheOK bool) (apply func(ctx context.Context) error, err error)
-	// onDelete will delete a single target resource from the cache. For
-	// singletons, this is usually an alias to clear.
-	onDelete(t types.Resource) error
-	// onUpdate will update a single target resource from the cache
-	onUpdate(t types.Resource) error
-	// watchKind returns a watch
-	// required for this collection
-	watchKind() types.WatchKind
-}
-
-func (c collection[_, _, _]) watchKind() types.WatchKind {
+func (c collection[_]) watchKind() types.WatchKind {
 	return c.watch
 }
 
-func (c *collection[T, _, _]) onDelete(r types.Resource) error {
+func (c *collection[T]) onDelete(r types.Resource) error {
 	switch t := r.(type) {
 	case types.Resource153Unwrapper:
 		unwrapped := t.Unwrap()
@@ -81,7 +50,11 @@ func (c *collection[T, _, _]) onDelete(r types.Resource) error {
 
 		return trace.Wrap(c.store.delete(tt))
 	case *types.ResourceHeader:
-		return trace.BadParameter("unable to convert types.ResourceHeader to %v", reflect.TypeOf((*T)(nil)).Elem())
+		if c.headerTransform == nil {
+			return trace.BadParameter("unable to convert types.ResourceHeader to %v", reflect.TypeOf((*T)(nil)).Elem())
+		}
+
+		return trace.Wrap(c.store.delete(c.headerTransform(t)))
 	case T:
 		return trace.Wrap(c.store.delete(t))
 	default:
@@ -89,7 +62,7 @@ func (c *collection[T, _, _]) onDelete(r types.Resource) error {
 	}
 }
 
-func (c *collection[T, _, _]) onUpdate(r types.Resource) error {
+func (c *collection[T]) onUpdate(r types.Resource) error {
 	switch t := r.(type) {
 	case types.Resource153Unwrapper:
 		unwrapped := t.Unwrap()
@@ -98,9 +71,17 @@ func (c *collection[T, _, _]) onUpdate(r types.Resource) error {
 			return trace.BadParameter("unexpected wrapped type %T (expected %v)", unwrapped, reflect.TypeOf((*T)(nil)).Elem())
 		}
 
+		if c.filter != nil && !c.filter(tt) {
+			return nil
+		}
+
 		c.store.put(tt)
 		return nil
 	case T:
+		if c.filter != nil && !c.filter(t) {
+			return nil
+		}
+
 		c.store.put(t)
 		return nil
 	default:
@@ -108,13 +89,13 @@ func (c *collection[T, _, _]) onUpdate(r types.Resource) error {
 	}
 }
 
-func (c collection[T, _, _]) fetch(ctx context.Context, cacheOK bool) (apply func(context.Context) error, err error) {
+func (c collection[T]) fetch(ctx context.Context, cacheOK bool) (apply func(context.Context) error, err error) {
 	// Singleton objects will only get deleted or updated, not both
 	deleteSingleton := false
 
 	var resources []T
 	if cacheOK {
-		resources, err = c.upstream.getAll(ctx, c.watch.LoadSecrets)
+		resources, err = c.getAll(ctx, c.watch.LoadSecrets)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
@@ -149,17 +130,34 @@ func (c collection[T, _, _]) fetch(ctx context.Context, cacheOK bool) (apply fun
 	}, nil
 }
 
-type collections struct {
-	byKind map[resourceKind]eventHandler
+type resourceHandler interface {
+	// fetch fetches resources and returns a function which will apply said resources to the cache.
+	// fetch *must* not mutate cache state outside of the apply function.
+	// The provided cacheOK flag indicates whether this collection will be included in the cache generation that is
+	// being prepared. If cacheOK is false, fetch shouldn't fetch any resources, but the apply function that it
+	// returns must still delete resources from the backend.
+	fetch(ctx context.Context, cacheOK bool) (apply func(ctx context.Context) error, err error)
+	// onDelete will delete a single target resource from the cache. For
+	// singletons, this is usually an alias to clear.
+	onDelete(t types.Resource) error
+	// onUpdate will update a single target resource from the cache
+	onUpdate(t types.Resource) error
+	// watchKind returns a watch
+	// required for this collection
+	watchKind() types.WatchKind
+}
 
-	staticTokens    *collection[types.StaticTokens, *singletonStore[types.StaticTokens], *staticTokensUpstream]
-	certAuthorities *collection[types.CertAuthority, *resourceStore[types.CertAuthority], *caUpstream]
-	users           *collection[types.User, *resourceStore[types.User], *userUpstream]
+type collections struct {
+	byKind map[resourceKind]resourceHandler
+
+	staticTokens    *collection[types.StaticTokens]
+	certAuthorities *collection[types.CertAuthority]
+	users           *collection[types.User]
 }
 
 func setupCollections(c Config, watches []types.WatchKind) (*collections, error) {
 	out := &collections{
-		byKind: make(map[resourceKind]eventHandler, 1),
+		byKind: make(map[resourceKind]resourceHandler, 1),
 	}
 
 	for _, watch := range watches {

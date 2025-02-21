@@ -25,29 +25,36 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-func newStaticTokensCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.StaticTokens, *singletonStore[types.StaticTokens], *staticTokensUpstream], error) {
+func newStaticTokensCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.StaticTokens], error) {
 	if c == nil {
 		return nil, trace.BadParameter("missing parameter ClusterConfig")
 	}
 
-	return &collection[types.StaticTokens, *singletonStore[types.StaticTokens], *staticTokensUpstream]{
-		store:    &singletonStore[types.StaticTokens]{},
-		upstream: &staticTokensUpstream{ClusterConfiguration: c},
-		watch:    w,
+	return &collection[types.StaticTokens]{
+		store: newResourceStore(map[string]func(types.StaticTokens) string{
+			"name": func(u types.StaticTokens) string {
+				return u.GetName()
+			},
+		}),
+		getAll: func(ctx context.Context, loadSecrets bool) ([]types.StaticTokens, error) {
+			token, err := c.GetStaticTokens()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return []types.StaticTokens{token}, nil
+		},
+		headerTransform: func(hdr *types.ResourceHeader) types.StaticTokens {
+			return &types.StaticTokensV2{
+				Kind:    types.KindStaticTokens,
+				Version: types.V2,
+				Metadata: types.Metadata{
+					Name: types.MetaNameStaticTokens,
+				},
+			}
+		},
+		watch: w,
 	}, nil
 
-}
-
-type staticTokensUpstream struct {
-	services.ClusterConfiguration
-}
-
-func (s staticTokensUpstream) getAll(ctx context.Context, loadSecrets bool) ([]types.StaticTokens, error) {
-	token, err := s.ClusterConfiguration.GetStaticTokens()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return []types.StaticTokens{token}, nil
 }
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
@@ -55,19 +62,17 @@ func (c *Cache) GetStaticTokens() (types.StaticTokens, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetStaticTokens")
 	defer span.End()
 
-	collection := c.collections.staticTokens
-
-	rg, err := acquireReadGuard(c, collection.watch)
+	rg, err := acquireReadGuard(c, c.collections.staticTokens.watch)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if rg.ReadCache() {
-		st, err := collection.store.get()
+		st, err := c.collections.staticTokens.store.get("name", types.MetaNameStaticTokens)
 		return st, trace.Wrap(err)
 	}
 
-	st, err := collection.upstream.GetStaticTokens()
+	st, err := c.Config.ClusterConfig.GetStaticTokens()
 	return st, trace.Wrap(err)
 }
