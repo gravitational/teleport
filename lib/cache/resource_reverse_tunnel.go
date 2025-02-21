@@ -25,12 +25,26 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+// GetReverseTunnels is a part of auth.Cache implementation
+// Deprecated: use ListReverseTunnels
+func (c *Cache) GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetReverseTunnels")
+	defer span.End()
+
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.reverseTunnels)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetReverseTunnels(ctx)
+}
+
 // ListReverseTunnels is a part of auth.Cache implementation
 func (c *Cache) ListReverseTunnels(ctx context.Context, pageSize int, pageToken string) ([]types.ReverseTunnel, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListReverseTunnels")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.legacyCacheCollections.reverseTunnels)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.reverseTunnels)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
