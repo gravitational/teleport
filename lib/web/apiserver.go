@@ -2270,7 +2270,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	// https://updates.releases.teleport.dev/v1/stable/cloud/version
 	installUpdater := automaticUpgrades(*ping.ServerFeatures)
 	if installUpdater {
-		repoChannel = stableCloudChannelRepo
+		repoChannel = automaticupgrades.DefaultCloudChannelName
 	}
 	azureClientID := r.URL.Query().Get("azure-client-id")
 
