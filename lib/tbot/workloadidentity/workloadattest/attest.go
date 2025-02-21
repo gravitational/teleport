@@ -36,16 +36,24 @@ type attestor[T any] interface {
 type Attestor struct {
 	log        *slog.Logger
 	kubernetes attestor[*workloadidentityv1pb.WorkloadAttrsKubernetes]
+	podman     attestor[*workloadidentityv1pb.WorkloadAttrsPodman]
 	unix       attestor[*workloadidentityv1pb.WorkloadAttrsUnix]
 }
 
 // Config is the configuration for Attestor
 type Config struct {
 	Kubernetes KubernetesAttestorConfig `yaml:"kubernetes"`
+	Podman     PodmanAttestorConfig     `yaml:"podman"`
 }
 
 func (c *Config) CheckAndSetDefaults() error {
-	return trace.Wrap(c.Kubernetes.CheckAndSetDefaults(), "validating kubernetes")
+	if err := c.Kubernetes.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating kubernetes")
+	}
+	if err := c.Podman.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating podman")
+	}
+	return nil
 }
 
 // NewAttestor returns an Attestor from the given config.
@@ -56,6 +64,9 @@ func NewAttestor(log *slog.Logger, cfg Config) (*Attestor, error) {
 	}
 	if cfg.Kubernetes.Enabled {
 		att.kubernetes = NewKubernetesAttestor(cfg.Kubernetes, log)
+	}
+	if cfg.Podman.Enabled {
+		att.podman = NewPodmanAttestor(cfg.Podman, log)
 	}
 	return att, nil
 }
@@ -79,6 +90,12 @@ func (a *Attestor) Attest(ctx context.Context, pid int) (*workloadidentityv1pb.W
 		attrs.Kubernetes, err = a.kubernetes.Attest(ctx, pid)
 		if err != nil {
 			a.log.WarnContext(ctx, "Failed to perform Kubernetes workload attestation", "error", err)
+		}
+	}
+	if a.podman != nil {
+		attrs.Podman, err = a.podman.Attest(ctx, pid)
+		if err != nil {
+			a.log.WarnContext(ctx, "Failed to perform Podman workload attestation", "error", err)
 		}
 	}
 
