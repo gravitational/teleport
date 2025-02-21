@@ -1013,7 +1013,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/integrations/:name/stats", h.WithClusterAuth(h.integrationStats))
 	h.GET("/webapi/sites/:site/integrations/:name/discoveryrules", h.WithClusterAuth(h.integrationDiscoveryRules))
 	h.GET("/webapi/sites/:site/integrations/:name/ca", h.WithClusterAuth(h.integrationsExportCA))
+	// TODO(kimlisa): DELETE IN 19.0 - Replaced by /v2 equivalent endpoint
 	h.DELETE("/webapi/sites/:site/integrations/:name_or_subkind", h.WithClusterAuth(h.integrationsDelete))
+	h.DELETE("/v2/webapi/sites/:site/integrations/:name_or_subkind", h.WithClusterAuth(h.integrationsDelete))
 
 	// GET the Microsoft Teams plugin app.zip file.
 	h.GET("/webapi/sites/:site/plugins/:plugin/files/msteams_app.zip", h.WithClusterAuth(h.integrationsMsTeamsAppZipGet))
