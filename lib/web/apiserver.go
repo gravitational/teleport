@@ -894,6 +894,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/tokens", h.WithAuth(h.getTokens))
 	h.DELETE("/webapi/tokens", h.WithAuth(h.deleteToken))
 
+	// install script, the ':token' wildcard is a hack to make the router happy and support
+	// the token-less route "/scripts/install.sh".
+	// h.installScriptHandle Will reject any unknown sub-route.
+	h.GET("/scripts/:token", h.WithHighLimiter(h.installScriptHandle))
+
 	// join scripts
 	h.GET("/scripts/:token/install-node.sh", h.WithLimiter(h.getNodeJoinScriptHandle))
 	h.GET("/scripts/:token/install-app.sh", h.WithLimiter(h.getAppJoinScriptHandle))
