@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useId, useState } from 'react';
 
-import { Alert, Box, ButtonPrimary, ButtonSecondary, Flex, P2 } from 'design';
+import { Alert, Box, ButtonSecondary, ButtonWarning, Flex, P2 } from 'design';
 import Dialog, {
   DialogContent,
   DialogHeader,
@@ -292,16 +292,16 @@ export const RoleEditor = ({
           </P2>
         </DialogContent>
         <Flex gap={3}>
-          <ButtonPrimary
+          <ButtonWarning block size="large" onClick={handleExit}>
+            Discard Changes and Close
+          </ButtonWarning>
+          <ButtonSecondary
             block
             size="large"
             autoFocus
             onClick={closeExitConfirmation}
           >
             Keep Editing
-          </ButtonPrimary>
-          <ButtonSecondary block size="large" onClick={handleExit}>
-            Discard Changes and Close
           </ButtonSecondary>
         </Flex>
       </Dialog>
