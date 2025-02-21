@@ -109,15 +109,6 @@ export default function useTdpClientCanvas(props: Props) {
     }
   }, [setTdpConnection]);
 
-  // Default TdpClientEvent.TDP_CLIENT_SCREEN_SPEC handler.
-  const clientOnClientScreenSpec = (
-    cli: TdpClient,
-    canvas: HTMLCanvasElement,
-    spec: ClientScreenSpec
-  ) => {
-    syncCanvas(canvas, spec);
-  };
-
   // Default TdpClientEvent.TDP_CLIPBOARD_DATA handler.
   const clientOnClipboardData = async (clipboardData: ClipboardData) => {
     if (
@@ -280,7 +271,6 @@ export default function useTdpClientCanvas(props: Props) {
     tdpClient,
     clientScreenSpecToRequest: getDisplaySize(),
     setInitialTdpConnectionSucceeded,
-    clientOnClientScreenSpec,
     clientOnTdpError,
     clientOnClipboardData,
     clientOnWsClose,

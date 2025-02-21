@@ -25,21 +25,13 @@ import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import { TdpClientCanvasRef } from 'teleport/components/TdpClientCanvas/TdpClientCanvas';
 import cfg from 'teleport/config';
 import { formatDisplayTime, StatusEnum } from 'teleport/lib/player';
-import { PlayerClient, TdpClient, TdpClientEvent } from 'teleport/lib/tdp';
+import { PlayerClient, TdpClientEvent } from 'teleport/lib/tdp';
 import type { ClientScreenSpec } from 'teleport/lib/tdp/codec';
 import { getHostName } from 'teleport/services/api';
 
 import ProgressBar from './ProgressBar';
 
 const reload = () => window.location.reload();
-const PROGRESS_BAR_ID = 'progressBarDesktop';
-
-// overflow: 'hidden' is needed to prevent the canvas from outgrowing the container due to some weird css flex idiosyncracy.
-// See https://gaurav5430.medium.com/css-flex-positioning-gotchas-child-expands-to-more-than-the-width-allowed-by-the-parent-799c37428dd6.
-const canvasStyle = {
-  alignSelf: 'center',
-  overflow: 'hidden',
-};
 
 export const DesktopPlayer = ({
   sid,
@@ -55,9 +47,7 @@ export const DesktopPlayer = ({
     playerStatus,
     statusText,
     time,
-    canvasSizeIsSet,
 
-    clientOnClientScreenSpec,
     clientOnWsClose,
     clientOnTdpError,
     clientOnTdpInfo,
@@ -131,6 +121,20 @@ export const DesktopPlayer = ({
     };
   }, [playerClient]);
 
+  useEffect(() => {
+    const setResolution = (spec: ClientScreenSpec) => {
+      tdpClientCanvasRef.current?.setResolution(spec);
+    };
+    playerClient.on(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, setResolution);
+
+    return () => {
+      playerClient.removeListener(
+        TdpClientEvent.TDP_CLIENT_SCREEN_SPEC,
+        setResolution
+      );
+    };
+  }, [playerClient]);
+
   // Call connect after all listeners have been registered
   useEffect(() => {
     if (playerClient) {
@@ -150,13 +154,6 @@ export const DesktopPlayer = ({
     ? durationMs // Force progress bar to 100% when playback is complete or errored.
     : time; // Otherwise, use the current time.
 
-  // Hide the canvas and progress bar until the canvas' size has been fully defined.
-  // This prevents visual glitches at pageload where the canvas starts out small and
-  // then suddenly expands to its full size (moving the progress bar down with it).
-  const canvasAndProgressBarDisplayStyle = canvasSizeIsSet
-    ? {} // Canvas size is set, let TdpClientCanvas and ProgressBar use their default display styles.
-    : { display: 'none' }; // Canvas size is not set, hide the canvas and progress bar.
-
   return (
     <StyledPlayer>
       {isError && <DesktopPlayerAlert my={4} children={statusText} />}
@@ -167,18 +164,9 @@ export const DesktopPlayer = ({
       )}
 
       <StyledContainer>
-        <TdpClientCanvas
-          ref={tdpClientCanvasRef}
-          client={playerClient}
-          clientOnClientScreenSpec={clientOnClientScreenSpec}
-          style={{
-            ...canvasStyle,
-            ...canvasAndProgressBarDisplayStyle,
-          }}
-        />
+        <TdpClientCanvas ref={tdpClientCanvasRef} />
 
         <ProgressBar
-          id={PROGRESS_BAR_ID}
           min={0}
           max={durationMs}
           current={t}
@@ -193,7 +181,6 @@ export const DesktopPlayer = ({
           }}
           onPlaySpeedChange={s => playerClient.setPlaySpeed(s)}
           toggle={() => playerClient.togglePlayPause()}
-          style={{ ...canvasAndProgressBarDisplayStyle }}
         />
       </StyledContainer>
     </StyledPlayer>
@@ -204,8 +191,6 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
   const [time, setTime] = useState(0);
   const [playerStatus, setPlayerStatus] = useState(StatusEnum.LOADING);
   const [statusText, setStatusText] = useState('');
-  // `canvasSizeIsSet` is used to track whether the canvas' size has been fully defined.
-  const [canvasSizeIsSet, setCanvasSizeIsSet] = useState(false);
 
   const playerClient = useMemo(() => {
     const url = cfg.api.desktopPlaybackWsAddr
@@ -231,34 +216,6 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     setStatusText(info);
   }, []);
 
-  const clientOnClientScreenSpec = useCallback(
-    (_cli: TdpClient, canvas: HTMLCanvasElement, spec: ClientScreenSpec) => {
-      const { width, height } = spec;
-
-      const styledPlayer = canvas.parentElement;
-      const progressBar = styledPlayer.children.namedItem(PROGRESS_BAR_ID);
-
-      const fullWidth = styledPlayer.clientWidth;
-      const fullHeight = styledPlayer.clientHeight - progressBar.clientHeight;
-      const originalAspectRatio = width / height;
-      const currentAspectRatio = fullWidth / fullHeight;
-
-      if (originalAspectRatio > currentAspectRatio) {
-        // Use the full width of the screen and scale the height.
-        canvas.style.height = `${(fullWidth * height) / width}px`;
-      } else if (originalAspectRatio < currentAspectRatio) {
-        // Use the full height of the screen and scale the width.
-        canvas.style.width = `${(fullHeight * width) / height}px`;
-      }
-
-      canvas.width = width;
-      canvas.height = height;
-
-      setCanvasSizeIsSet(true);
-    },
-    []
-  );
-
   useEffect(() => {
     return () => {
       playerClient.shutdown();
@@ -270,9 +227,7 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     playerClient,
     playerStatus,
     statusText,
-    canvasSizeIsSet,
 
-    clientOnClientScreenSpec,
     clientOnWsClose,
     clientOnTdpError,
     clientOnTdpInfo,
@@ -299,4 +254,5 @@ const StyledContainer = styled(Flex)`
   justify-content: center;
   width: 100%;
   height: 100%;
+  min-height: 0;
 `;
