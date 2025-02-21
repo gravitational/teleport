@@ -110,6 +110,11 @@ func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadS
 	if rg.ReadCache() {
 		ca, err := collection.store.get("id", string(id.Type)+"/"+id.DomainName)
 		if err != nil {
+			// release read lock early
+			rg.Release()
+
+			// fallback is sane because method is never used
+			// in construction of derivative caches.
 			if trace.IsNotFound(err) {
 				if ca, err := c.Config.Trust.GetCertAuthority(ctx, id, loadSigningKeys); err == nil {
 					return ca, nil
@@ -120,7 +125,7 @@ func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadS
 		}
 
 		if !loadSigningKeys {
-			return ca.Clone().WithoutSecrets().(types.CertAuthority), nil
+			return ca.WithoutSecrets().(types.CertAuthority), nil
 		}
 
 		return ca.Clone(), nil

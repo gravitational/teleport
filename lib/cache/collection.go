@@ -51,7 +51,7 @@ func (c *collection[T]) onDelete(r types.Resource) error {
 		return trace.Wrap(c.store.delete(tt))
 	case *types.ResourceHeader:
 		if c.headerTransform == nil {
-			return trace.BadParameter("unable to convert types.ResourceHeader to %v", reflect.TypeOf((*T)(nil)).Elem())
+			return trace.BadParameter("unable to convert types.ResourceHeader to %v (no transform specified, this is a bug)", reflect.TypeOf((*T)(nil)).Elem())
 		}
 
 		return trace.Wrap(c.store.delete(c.headerTransform(t)))
