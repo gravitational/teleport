@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -77,6 +78,9 @@ func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (typ
 
 	u, err := c.collections.users.store.get("name", name)
 	if err != nil {
+		// release read lock early
+		rg.Release()
+
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
 		if trace.IsNotFound(err) {
@@ -147,6 +151,12 @@ func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*
 		return resp, trace.Wrap(err)
 	}
 
+	// Adjust page size, so it can't be too large.
+	pageSize := int(req.PageSize)
+	if pageSize <= 0 || pageSize > apidefaults.DefaultChunkSize {
+		pageSize = apidefaults.DefaultChunkSize
+	}
+
 	var resp userspb.ListUsersResponse
 	for u := range c.collections.users.store.resources("name", req.PageToken, "") {
 		uv2, ok := u.(*types.UserV2)
@@ -158,7 +168,7 @@ func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*
 			continue
 		}
 
-		if len(resp.Users) == int(req.PageSize) {
+		if len(resp.Users) == pageSize {
 			key := backend.RangeEnd(backend.ExactKey(u.GetName())).String()
 			resp.NextPageToken = strings.Trim(key, string(backend.Separator))
 			break
