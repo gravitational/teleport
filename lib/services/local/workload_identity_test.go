@@ -353,3 +353,41 @@ func TestWorkloadIdentityService_UpdateWorkloadIdentity(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+func TestWorkloadIdentityParser(t *testing.T) {
+	parser := newWorkloadIdentityParser()
+	t.Run("delete", func(t *testing.T) {
+		event := backend.Event{
+			Type: types.OpDelete,
+			Item: backend.Item{
+				Key: backend.NewKey("workload_identity", "example"),
+			},
+		}
+		require.True(t, parser.match(event.Item.Key))
+		resource, err := parser.parse(event)
+		require.NoError(t, err)
+		require.Equal(t, "example", resource.GetMetadata().Name)
+	})
+	t.Run("put", func(t *testing.T) {
+		event := backend.Event{
+			Type: types.OpPut,
+			Item: backend.Item{
+				Key:   backend.NewKey("workload_identity", "example"),
+				Value: []byte(`{"kind":"workload_identity","version":"v1","metadata":{"name":"example"},"spec":{"spiffe":{"id":"/test"}}}`),
+			},
+		}
+		require.True(t, parser.match(event.Item.Key))
+		resource, err := parser.parse(event)
+		require.NoError(t, err)
+		require.Equal(t, "example", resource.GetMetadata().Name)
+	})
+	t.Run("does not match workload identity x509 revocation", func(t *testing.T) {
+		event := backend.Event{
+			Type: types.OpPut,
+			Item: backend.Item{
+				Key: backend.NewKey("workload_identity_x509_revocation", "example"),
+			},
+		}
+		require.False(t, parser.match(event.Item.Key))
+	})
+}
