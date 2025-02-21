@@ -99,11 +99,11 @@ describe('withGenericUnsupportedError', () => {
 
     expect(() =>
       withGenericUnsupportedError(pathNotFoundError, 'v2.0.0')
-    ).toThrow(/could not complete your request/i);
+    ).toThrow('Your proxy (v1.2.3-dev) may be behind');
 
     expect(() =>
       withGenericUnsupportedError(pathNotFoundError, 'v2.0.0')
-    ).toThrow(/v2.0.0/i);
+    ).toThrow('minimum required version (v2.0.0)');
   });
 
   test('legach path not found error throws custom error', async () => {
@@ -114,7 +114,7 @@ describe('withGenericUnsupportedError', () => {
 
     expect(() =>
       withGenericUnsupportedError(legacyPathNotFoundError, 'v2.0.0')
-    ).toThrow(/could not complete your request/i);
+    ).toThrow('Your proxy may be behind');
   });
 
   test('non path related 404 error rethrows same error', async () => {

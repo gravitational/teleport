@@ -39,9 +39,6 @@ export const ProxyRequiresUpgrade = 'Ensure all proxies are upgraded';
  *
  * Else, rethrows the same error.
  *
- * Starting v19.0, we can reliably use the error field "proxyVersion"
- * to let user know what old proxy version returned the error.
- *
  * @param supportedVersion the minimum version required for this
  * request to succeed eg: v17.3.0
  */
@@ -49,20 +46,26 @@ export function withGenericUnsupportedError(
   err: unknown,
   supportedVersion: string
 ) {
-  if (
-    err instanceof ApiError &&
-    err.response.status === 404 &&
-    (err.proxyVersion ||
-      // pre v17 this is the error message crafted as a result of no path
-      // found. DELETE IN 19.0
-      err.message == `${err.response.status} - ${err.response.url}`)
-  ) {
-    throw new Error(
-      'We could not complete your request. ' +
-        'Your proxy may be behind the minimum required version ' +
-        `(${supportedVersion}) to support this request. ` +
-        `${ProxyRequiresUpgrade} and try again.`
-    );
+  if (err instanceof ApiError && err.response.status === 404) {
+    if (err.proxyVersion) {
+      throw new Error(
+        'We could not complete your request. ' +
+          `Your proxy (${err.proxyVersion.string}) may be behind the ` +
+          `minimum required version (${supportedVersion}) to support ` +
+          `this request. ${ProxyRequiresUpgrade} and try again.`
+      );
+    }
+    // DELETE IN 19.0
+    // pre v17 this is the legacy error message crafted as a result
+    // of no path found.
+    if (err.message == `${err.response.status} - ${err.response.url}`) {
+      throw new Error(
+        'We could not complete your request. ' +
+          'Your proxy may be behind the minimum required version ' +
+          `(${supportedVersion}) to support this request. ` +
+          `${ProxyRequiresUpgrade} and try again.`
+      );
+    }
   }
   throw err;
 }
