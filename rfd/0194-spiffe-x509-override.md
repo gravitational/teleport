@@ -3,7 +3,7 @@ authors: Edoardo Spadolini (edoardo.spadolini@goteleport.com)
 state: draft
 ---
 
-# RFD 0194 - SPIFFE X.509 override for external PKI support
+# RFD 0194 - SPIFFE X.509 issuer override for external PKI support
 
 ## Required Approvers
 
@@ -12,7 +12,7 @@ state: draft
 
 ## What
 
-Teleport manages a certificate authority to issue SPIFFE credentials, consisting of one or more keys used for JWT-SVID issuance and one or more keys and self-signed CA X.509 certificates for X509-SVID issuance. This RFD proposes adding support for overriding the X.509 certificates used as issuers for X509-SVID and the X.509 certificates exported as part of the SPIFFE bundle through the Proxy Service endpoint and through the `tbot` Workload Identity services.
+Teleport manages a certificate authority to issue SPIFFE credentials, consisting of one or more keys used for JWT-SVID issuance and one or more keys and self-signed CA X.509 certificates for X509-SVID issuance. This RFD proposes adding support for overriding the X.509 certificates used as issuers for X509-SVID credentials.
 
 ## Why
 
@@ -45,24 +45,9 @@ spec:
         - base64 DER certificate
 ```
 
-The name `default` is significant, as all `workload_identity`s that don't specify an issuer override will use the one called `default` if it exists, but the cluster administrator can create more than one override, and each `workload_identity` can be configured to use a specific one, to allow for more than one external PKI. A new field will be added to `workload_identity` for this purpose:
+The name `default` will be the only allowed name for now, to allow supporting multiple independent overrides in the future, specified in each `workload_identity` (or maybe in a tunable at the SPIFFE "trust domain" level once that story is more fleshed out).
 
-```yaml
-kind: workload_identity
-version: v1
-metadata:
-  name: my-workload
-spec:
-  rules:
-    # ...
-  spiffe:
-    # ...
-    x509:
-      # ...
-      issuer_override: nondefault-override-name
-```
-
-During the X509-SVID issuance, if an override is specified (or if no override is specified and the `default` one exists) and the client signals support for using issuer overrides (`tbot` and `tsh` will be updated to always signal support, and to store the certificate chain appropriately), the Auth will search for an issuer certificate listed in the `.spec.overrides` list that has the same public key as the key selected by the Auth, and will use said certificate as the issuer for the new certificate in lieu of the internal X.509 self-signed certificate. The new certificate is returned to the client as usual, and the certificate chain associated to the issuer is included in the response.
+During the X509-SVID issuance, if the client signals support for using issuer overrides (`tbot` and `tsh` will be updated to always signal support, and to store the certificate chain appropriately), the Auth will search for an issuer certificate listed in the `.spec.overrides` list that has the same public key as the key selected by the Auth, and will use said certificate as the issuer for the new certificate in lieu of the internal X.509 self-signed certificate. The new certificate is returned to the client as usual, and the certificate chain associated to the issuer is included in the response.
 
 This format was chosen to allow for maximum flexibility in exchange for some potential duplication (it's likely that the issuer certificate will also be part of the certificate chain), as it makes it possible to have no certificate chain - for example, if the issuer certificates are alternate self-signed certificates, or if they are the very same self-signed certificates as in the X.509 CA, which allows for an alternate "override" that doesn't actually override anything, to avoid breaking workloads that were in place and haven't been updated to trust the new PKI.
 
@@ -74,13 +59,9 @@ TBD: how flexible should the CSR generation be? ACME wants subject and SANs to b
 
 ### API changes
 
-The new `workload_identity_x509_issuer_override` resource will be managed in the new `teleport.workloadidentity.v1.X509OverridesService` gRPC service in the auth, with the usual CRUD RPCs for Get, List, Create, Update, Upsert, Delete. Appropriate permissions should be granted to whoever or whatever needs to interact with issuer overrides, with kind `workload_identity_x509_issuer_override` and verbs `read`,`create`,`update`,`delete`. MFA for admin actions will be required for human users.
+The new `workload_identity_x509_issuer_override` resource will be managed in the new `teleport.workloadidentity.v1.X509OverridesService` gRPC service in the auth, with the usual CRUD RPCs for Get, List, Create, Update, Upsert, Delete. Interacting with issuer overrides will require assigning resource permissions with kind `workload_identity_x509_issuer_override` and verbs `read`,`list`,`create`,`update`,`delete` in the usual combinations (`read`+`list` for List, `create`+`update` for Upsert). MFA for admin actions will be required for human users.
 
-The `teleport.workloadidentity.v1.X509OverridesService/SignX509IssuerCSR` RPC will take the self-signed issuer certificate (in DER format) and will receive in response a CSR signed with its respective key. The initial implementation of this RPC will only support Teleport clusters where all Auth Service agents have access to all the keys in the SPIFFE certificate authority, but the API will be extended and/or replaced to support asynchronous operations - writing a request in the cluster state storage and letting the client poll for the request being filled.
-
-TBD: do we tie `SignX509IssuerCSR` to `create`+`update` permissions for `workload_identity_x509_issuer_override`? It seems like what you'd always want I think, but maybe there's a point to using a separate verb and pseudokind? On the other hand, the operation isn't particularly sensitive to begin with
-
-The `workload_identity` resource will have a new string field in `.spec.spiffe.x509.issuer_override` which will be ignored by Auth Services that wouldn't know how to use the overrides to begin with.
+The `teleport.workloadidentity.v1.X509OverridesService/SignX509IssuerCSR` RPC will take the self-signed issuer certificate (in DER format) and will receive in response a CSR signed with its respective key. The initial implementation of this RPC will only support Teleport clusters where all Auth Service agents have access to all the keys in the SPIFFE certificate authority, but the API will be extended and/or replaced to support asynchronous operations - writing a request in the cluster state storage and letting the client poll for the request being filled. The API will require `create` permissions for the `workload_identity_x509_issuer_override_csr` pseudo-kind.
 
 The `teleport.workloadidentity.v1.WorkloadIdentityIssuanceService/IssueWorkloadIdentity` and `IssueWorkloadIdentities` request and response messages will have additional fields:
 
@@ -89,52 +70,18 @@ The `teleport.workloadidentity.v1.WorkloadIdentityIssuanceService/IssueWorkloadI
 
 ### Client tooling
 
-TBD: `tctl workload-identity x509-issuer-override sign-x509-issuer-csr`? How should the user pass the original issuer in?
+For manual operations, a `tctl workload-identity x509-issuer-override sign-x509-issuer-csrs` command will fetch all X.509 issuers from the SPIFFE CA and will sign a CSR for each, outputting them to standard output as a sequence of PEM "CERTIFICATE REQUEST" blocks, and a `tctl workload-identity x509-issuer-override create chain1.pem [chain2.pem...]` command will create (or upsert, if `--force` is passed) an issuer override with the given certificate chains, whose first certificates must replace the SPIFFE CA X.509 issuers.
 
-TBD: do we want a command to check if an override is "healthy" (i.e. if it has one issuer for each issuer in the Teleport CA and if the issuers are not expired or about to expire)? do we need management beyond `tctl get`/`create`/`rm`/`edit`?
+A `tctl workload-identity x509-issuer-override status` command will fetch both CA and default override, and display a summary of the configured overrides and their expiration date, highlighting CA keys that are missing an override or overrides that are no longer necessary.
 
-TBD: a `tbot` service that can be configured to create and update an override (either `default` or custom) by issuing intermediate CAs through an external PKI service, updating the override resource when a new issuer appears in the `spiffe` CA (as a result of a rotation) or when the alternate issuers are about to expire;
+The intended automated way to set up and renew a certificate override will be through a `tbot` service with type `workload-identity-x509-issuer-override`, usable as both a long-running service and as a "oneshot" service. The service will be configured with credentials for a service that issues intermediate certificate authority certificates, and it will issue and renew overrides for each of the configured issuers in the SPIFFE CA.
 
-TBD: do people generally use IaC for certificate issuance? we can support the `workload_identity_x509_issuer_override` resource in IaC but that will likely only work for long-lived intermediate CAs issued by hand, not for anything that can follow rotations and cert expirations unless we also support the CSR generation somehow
+TBD: configuration for `workload-identity-x509-issuer-override` service
 
 ### Audit log
 
 WIP: new `workload_identity_x509_issuer_override.create` (`write`?)/`.delete` event with user metadata for who/what did it
 
-## Root override
+## Root override (out of scope)
 
-TBD: using an external PKI but letting Teleport distribute its roots to validators partially defeats the purpose of using an external PKI, since a compromised Teleport cluster can just lie to validators about which roots should be trusted, and distributing pins for the roots is about as onerous as distributing the roots in the first place - do we really need this?
-
-The SPIFFE bundle exported by Teleport from either the Proxy Service's https endpoint or by `tbot`'s various services currently includes all and only the trusted issuers in the `spiffe` certificate authority.
-
-We will introduce a new resource with kind `workload_identity_x509_root_override`:
-
-```yaml
-kind: workload_identity_x509_root_override
-version: v1
-metadata:
-  name: default
-spec:
-  roots:
-    - base64 DER certificate
-    - base64 DER certificate
-    - base64 DER certificate
-```
-
-When a `default` root override exists, or when the client is configured to use a specific override, the produced SPIFFE bundle will include the certificates specified in the override instead of the X.509 certificates listed as trusted in the `spiffe` certificate authority. If a gradual transition is needed while existing SPIFFE credentials are still being issued by the internal hierarchy, the internal issuers should be included in the override. Likewise, a no-op override can be created by listing all and only the internal hierarchy's certificates.
-
-### API changes
-
-The new `workload_identity_x509_root_override` resource will also be managed in the new `teleport.workloadidentity.v1.X509OverridesService` gRPC service, with the usual CRUD RPCs for Get, List, Create, Update, Upsert, Delete. Appropriate permissions should be granted to whoever or whatever needs to interact with root overrides, with kind `workload_identity_x509_root_override` and verbs `read`,`create`,`update`,`delete`. The `read` verb will be granted as part of implicit permissions, just like `read` on `cert_authority`. MFA for admin actions will be required for human users.
-
-For the MVP, the Get RPC will be used by the Proxy and by clients (`tbot`, `tsh`) when generating the SPIFFE bundle (which is currently done by reading the `spiffe` cert authority). In the future we could consider a dedicated RPC that returns the public material needed for a SPIFFE bundle all at once, taking into account any configured override.
-
-### Client tooling
-
-TBD: do we need anything other than general `tctl get`/`create`/`rm`/`edit` and IaC resource management?
-
-TBD: should the interactive CA rotation tool check and warn for overrides that include internal issuers as roots?
-
-### Audit log
-
-WIP: new `workload_identity_x509_root_override.create` (`write`?)/`.delete` event with user metadata for who/what did it
+In the future we could consider also overriding the roots exported as part of the SPIFFE trust bundle, either as part of cluster configuration or as an option in client tooling. The former option reduces the security benefits of the alternate PKI, since a misconfigured or malicious cluster will be able to change the roots of trust that validators will potentially be configured to follow, but the latter can be useful, especially when using `tbot`'s `workload-identity-api` service.
