@@ -36,7 +36,7 @@ func newStaticTokensCollection(c services.ClusterConfiguration, w types.WatchKin
 				return u.GetName()
 			},
 		}),
-		getAll: func(ctx context.Context, loadSecrets bool) ([]types.StaticTokens, error) {
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.StaticTokens, error) {
 			token, err := c.GetStaticTokens()
 			if err != nil {
 				return nil, trace.Wrap(err)
