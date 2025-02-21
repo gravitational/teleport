@@ -131,18 +131,6 @@ func New(cfg Config) (*ResourceMonitor, error) {
 	return &ResourceMonitor{Config: cfg}, nil
 }
 
-// SetEventHandler sets the event handler to call when the monitor encounters an
-// event of interest. As per the config, setting the handler to `nil` sets a
-// no-op handler. Calling SetEventHandler on a running resource monitor is
-// undefined behavior.
-func (rm *ResourceMonitor) SetEventHandler(h EventHandler) {
-	if h == nil {
-		rm.OnEvent = nilEventHandler
-		return
-	}
-	rm.OnEvent = h
-}
-
 // Watch starts the resource monitor watching for resource events. Will
 // automatically recreate the underlying watcher if it fails. Blocks until
 // the supplied context is canceled.

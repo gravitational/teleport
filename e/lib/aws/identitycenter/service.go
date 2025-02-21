@@ -9,6 +9,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -21,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -64,47 +66,6 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 
 	aclPredicate := makeAccessListAssignmentPredicate(config.RolesSvc)
 
-	provisioner, err := provisioning.NewService(provisioning.ServiceConfig{
-		DownstreamID:        IdentityCenterDownstreamID,
-		SCIMClient:          config.Provisioning.SCIMClient,
-		StateSvc:            config.Provisioning.StateSvc,
-		StateSvcCache:       config.Provisioning.StateSvcCache,
-		UsersCache:          config.Provisioning.UsersSvcCache,
-		AccessListsCache:    config.Provisioning.AccessListsSvcCache,
-		Locks:               config.Provisioning.LocksSvc,
-		EventsClient:        config.EventsClient,
-		UserPredicate:       config.UserPredicate,
-		AccessListPredicate: aclPredicate,
-		Logger:              config.Log.With(teleport.ComponentKey, eteleport.ComponentAWSICPrincipalProvisioner),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "creating provisioner")
-	}
-
-	resourceMonitor, err := monitor.New(monitor.Config{
-		AccessListsSvcCache: config.Provisioning.AccessListsSvcCache,
-		UsersSvcCache:       config.Provisioning.UsersSvcCache,
-		Events:              config.EventsClient,
-		Clock:               config.Clock,
-		Logger:              config.Log.With(teleport.ComponentKey, eteleport.ComponentAWSICResourceMonitor),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "creating resource monitor")
-	}
-
-	assignmentCalculator, err := calculator.New(calculator.Config{
-		AccessRequestsSvc:       config.AccessRequestsSvc,
-		Clock:                   config.Clock,
-		ExternalIDGetter:        provisioner,
-		PrincipalAssignmentsSvc: config.IdentityCenterDataSvc,
-		AccountAssignmentCache:  config.IdentityCenterDataSvcCache,
-		RolesGetter:             config.RolesSvc,
-		Logger:                  config.Log.With(teleport.ComponentKey, eteleport.ComponentAWSICAssignmentCalculator),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	assignmentProvisioner, err := icprov.NewAssignmentProvisioner(icprov.ProvisionerConfig{
 		Assignment: config.IdentityCenterDataSvc,
 		Log:        config.Log.With(teleport.ComponentKey, eteleport.ComponentAWSICAssignmentProvisioner),
@@ -122,6 +83,12 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 	// breathing space to keep queueing up PrincipalEvents for later processing
 	// without unduly blocking the Resource Monitor.
 	principalEventCh := make(chan *monitor.PrincipalEvent, config.EventBufferSize)
+	defer func() {
+		// Ensure the channel is closed if we return with error after this point
+		if err != nil {
+			close(principalEventCh)
+		}
+	}()
 
 	svc = &Service{
 		accessListSvc:              config.AccessListsSvc,
@@ -131,7 +98,6 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 		icSvc:                      config.IdentityCenterDataSvc,
 		icClient:                   config.ICClient,
 		log:                        config.Log,
-		provisioner:                provisioner,
 		rolesSvc:                   config.RolesSvc,
 		usersSvc:                   config.UsersSvc,
 		userMatchesPredicate:       config.UserPredicate,
@@ -141,13 +107,53 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 		importConfig:               config.ImportConfig,
 		pluginStatusSink:           config.PluginStatusSink,
 		pluginsService:             config.PluginsService,
-		resourceMonitor:            resourceMonitor,
 		principalEventCh:           principalEventCh,
-		assignmentCalculator:       assignmentCalculator,
 		assignmentProvisioner:      assignmentProvisioner,
 		emitter:                    config.Emitter,
 	}
-	resourceMonitor.SetEventHandler(svc.onResourceMonitorEvent)
+
+	svc.provisioner, err = provisioning.NewService(provisioning.ServiceConfig{
+		DownstreamID:           IdentityCenterDownstreamID,
+		SCIMClient:             config.Provisioning.SCIMClient,
+		StateSvc:               config.Provisioning.StateSvc,
+		StateSvcCache:          config.Provisioning.StateSvcCache,
+		UsersCache:             config.Provisioning.UsersSvcCache,
+		AccessListsCache:       config.Provisioning.AccessListsSvcCache,
+		Locks:                  config.Provisioning.LocksSvc,
+		EventsClient:           config.EventsClient,
+		UserPredicate:          config.UserPredicate,
+		AccessListPredicate:    aclPredicate,
+		OnPrincipalProvisioned: svc.onPrincipalProvisioned,
+		Logger:                 config.Log.With(teleport.ComponentKey, eteleport.ComponentAWSICPrincipalProvisioner),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating provisioner")
+	}
+
+	svc.assignmentCalculator, err = calculator.New(calculator.Config{
+		AccessRequestsSvc:       config.AccessRequestsSvc,
+		Clock:                   config.Clock,
+		ExternalIDGetter:        svc.provisioner,
+		PrincipalAssignmentsSvc: config.IdentityCenterDataSvc,
+		AccountAssignmentCache:  config.IdentityCenterDataSvcCache,
+		RolesGetter:             config.RolesSvc,
+		Logger:                  config.Log.With(teleport.ComponentKey, eteleport.ComponentAWSICAssignmentCalculator),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	svc.resourceMonitor, err = monitor.New(monitor.Config{
+		AccessListsSvcCache: config.Provisioning.AccessListsSvcCache,
+		UsersSvcCache:       config.Provisioning.UsersSvcCache,
+		Events:              config.EventsClient,
+		Clock:               config.Clock,
+		Logger:              config.Log.With(teleport.ComponentKey, eteleport.ComponentAWSICResourceMonitor),
+		OnEvent:             svc.onResourceMonitorEvent,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating resource monitor")
+	}
 
 	return svc, nil
 }
@@ -223,6 +229,50 @@ func (svc *Service) onResourceMonitorEvent(ctx context.Context, event *monitor.P
 		svc.log.ErrorContext(ctx,
 			"Unable to queue resource event. event dropped")
 	}
+}
+
+// onPrincipalProvisioned is invoked by the user & group provisioning subsystem
+// when it has (re-)provisioned a principal.
+func (svc *Service) onPrincipalProvisioned(ctx context.Context, principal *provisioningv1.PrincipalState) {
+	log := svc.log.With(
+		"principal_id", principal.GetMetadata().GetName())
+	log.Log(ctx, logutils.TraceLevel, "Handling SCIM provisioning event")
+
+	event := &monitor.PrincipalEvent{
+		Verb: monitor.VerbCalculate,
+	}
+	switch principal.GetSpec().GetPrincipalType() {
+	case provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER:
+		username := principal.GetSpec().GetPrincipalId()
+		user, err := svc.usersSvc.GetUser(ctx, username, false)
+		if err != nil {
+			log.ErrorContext(ctx,
+				"Failed looking up provisioned user",
+				"user", username,
+				"error", err.Error())
+			return
+		}
+		event.Principal = user
+
+	case provisioningv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST:
+		aclName := principal.GetSpec().GetPrincipalId()
+		acl, err := svc.accessListSvc.GetAccessList(ctx, aclName)
+		if err != nil {
+			log.ErrorContext(ctx,
+				"Failed looking up provisioned access list",
+				"access_list", aclName,
+				"error", err.Error())
+			return
+		}
+		event.Principal = acl
+
+	default:
+		log.ErrorContext(ctx,
+			"Unexpected principal type",
+			"principal_type", principal.GetSpec().GetPrincipalType())
+		return
+	}
+	svc.queueResourceEvent(ctx, event)
 }
 
 func (svc *Service) isTargetedResource(ctx context.Context, resource types.Resource) (bool, error) {

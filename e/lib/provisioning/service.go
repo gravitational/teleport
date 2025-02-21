@@ -286,10 +286,6 @@ func NewService(cfg ServiceConfig) (svc *Service, err error) {
 	return svc, nil
 }
 
-func (svc *Service) SetOnPrincipalProvisioned(fn EventHandler) {
-	svc.onPrincipalProvisioned = fn
-}
-
 // Run the provisioning service, blocking until it exits
 func (svc *Service) Run(ctx context.Context) (err error) {
 	svc.log.DebugContext(ctx, "Entering provisioning service")
@@ -299,9 +295,11 @@ func (svc *Service) Run(ctx context.Context) (err error) {
 	ctx, cancel = context.WithCancel(ctx)
 	defer cancel()
 
-	// An ExternalID update happens when a new downstream resource is provisioned
-	// via SCIM. We need to know about this for users so that any Access Lists
-	// they appear in will need need to be re-provisioned
+	// An ExternalID update happens when a principal is first provisioned
+	// downstream via SCIM and we learn what ID the downstream system has given
+	// it. We need to record this External ID value so that we can refer to
+	// principals in a way that the downstream system understands, for example
+	// when constructing SCIM group member lists.
 	//
 	// Note that we add the event handler to update here, rather than in the
 	// service constructor, because this is the first time we know which context
@@ -592,19 +590,52 @@ func (svc *Service) refreshProvisioningStates(ctx context.Context) error {
 	return nil
 }
 
+// GetExternalID looks up the External ID of the supplied principal, first trying
+// the cache and then proceeding to the primary data service if that fails.
+//
+// The reason for this fallback is that we sometimes need to pull the External ID
+// immediately after it gets discovered and is written to the principal's provisioning
+// state record, for example when an enclosing Identity Center integration wants to
+// create AWS Account Assignments for the recently-provisioned principal. This read is often
+// too early for the cache service to have been updated, so we get a lot of false
+// negatives that delay operations that depend on knowing a principal's external ID.
+//
+// To counter this, we fall back to the primary data service if the cache read fails
+// to produce an External ID.
 func (svc *Service) GetExternalID(ctx context.Context, principalID services.ProvisioningStateID) (ExternalID, error) {
-	principalState, err := svc.stateSvc.GetProvisioningState(ctx, svc.downstreamID, principalID)
-	if err != nil {
+	// first, try the cache. If the cache doesn't know the ExternalID, then fall
+	// back to the main data services
+	principalState, err := svc.stateSvcCache.GetProvisioningState(ctx, svc.downstreamID, principalID)
+	if trace.IsNotFound(err) {
+		// fall through to looking up in the primary data service
+	} else if err != nil {
 		return "", trace.Wrap(err, "looking up external ID for principal %q", principalID)
+	}
+
+	// Note that the buf-generated field getters automatically handle the case
+	// where principalState is nil because GetProvisioningState() returned Not Found.
+	extID := ExternalID(principalState.GetStatus().GetExternalId())
+	if extID != "" {
+		return extID, nil
+	}
+
+	// if we get to here, no External ID was recorded in the cache - try the promary data service instead.
+	principalState, err = svc.stateSvc.GetProvisioningState(ctx, svc.downstreamID, principalID)
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
 
 	return ExternalID(principalState.GetStatus().GetExternalId()), nil
 }
 
+// GetUserExternalID tries to look up a Teleport user's external ID in the
+// downstream system
 func (svc *Service) GetUserExternalID(ctx context.Context, username string) (ExternalID, error) {
 	return svc.GetExternalID(ctx, getIDForUserName(username))
 }
 
+// GetUserExternalID tries to look up a Teleport Access Lists's external group ID
+// in the downstream system
 func (svc *Service) GetAccessListExternalID(ctx context.Context, aclName string) (ExternalID, error) {
 	return svc.GetExternalID(ctx, getIDForAccessListName(aclName))
 }

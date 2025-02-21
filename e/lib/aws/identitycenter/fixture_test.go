@@ -6,8 +6,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	identitycentercommon "github.com/gravitational/teleport/e/lib/aws/identitycenter/common"
 	ictest "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 )
 
 // newTestService creates a new test instance from the supplied fixture.
@@ -33,7 +35,7 @@ func newTestService(t *testing.T, fixture *ictest.Fixture) *Service {
 		EventsClient:               fixture.Auth.Services,
 		IdentityCenterDataSvc:      fixture.Auth.Services,
 		IdentityCenterDataSvcCache: fixture.Auth.Cache,
-		Log:                        slog.Default().With("test", t.Name()),
+		Log:                        slog.Default().With("test", t.Name(), teleport.ComponentKey, eteleport.ComponentAWSIC),
 		RolesSvc:                   fixture.Auth.Services,
 		ImportConfig: ImportConfig{
 			AccessListDefaultOwners: []string{"user1", "user2"},

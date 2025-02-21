@@ -111,6 +111,30 @@ func NewFixture(t *testing.T, opts ...auth.ServerOption) *Fixture {
 	return fixture
 }
 
+type ICOption func(*types.PluginV1)
+
+func WithoutImport(plugin *types.PluginV1) {
+	details := plugin.Status.GetAwsIc()
+	if details == nil {
+		details = &types.PluginAWSICStatusV1{}
+		plugin.Status.Details = &types.PluginStatusV1_AwsIc{AwsIc: details}
+	}
+
+	details.GroupImportStatus = &types.AWSICGroupImportStatus{
+		StatusCode: types.AWSICGroupImportStatusCode_DONE,
+	}
+}
+
+func (f *Fixture) CreatePluginResource(t *testing.T, options ...ICOption) {
+	createPluginReq := NewPluginV1CreateRequest("test-oidc", "test-saml")
+
+	initialPlugin := types.NewPluginV1(createPluginReq.GetPlugin().GetMetadata(), createPluginReq.GetPlugin().Spec, nil)
+	for _, applyOption := range options {
+		applyOption(initialPlugin)
+	}
+	require.NoError(t, f.PluginService.CreatePlugin(context.Background(), initialPlugin))
+}
+
 // ICCreatedData defines resource names for each test resource type.
 type ICResource struct {
 	Accounts              []string
