@@ -12,10 +12,29 @@ import (
 
 func Test_validateCreateIntegrationRequest(t *testing.T) {
 	t.Parallel()
+
+	type samlConnectorDesc struct {
+		name string
+		sso  string
+	}
+
+	newSamlConnector := func(t *testing.T, desc samlConnectorDesc) *types.SAMLConnectorV2 {
+		t.Helper()
+		return &types.SAMLConnectorV2{
+			Metadata: types.Metadata{
+				Name: desc.name,
+			},
+			Spec: types.SAMLConnectorSpecV2{
+				SSO: desc.sso,
+			},
+		}
+	}
+
 	testCases := []struct {
-		name        string
-		req         *oktapb.CreateIntegrationRequest
-		expectedErr string
+		name          string
+		req           *oktapb.CreateIntegrationRequest
+		samlConnector types.SAMLConnector
+		expectedErr   string
 	}{
 		{
 			name: "invalid SSO metadata URL",
@@ -39,17 +58,28 @@ func Test_validateCreateIntegrationRequest(t *testing.T) {
 			expectedErr: "",
 		},
 		{
-			name:        "SSO metadata URL and Okta org URL empty",
-			req:         &oktapb.CreateIntegrationRequest{},
-			expectedErr: "", // this is no error, org URL may be extracted from an existing connector
-		},
-		{
 			name: "SSO metadata URL and Okta org URL have different hostnames",
 			req: &oktapb.CreateIntegrationRequest{
 				SsoMetadataUrl:      "example.com/sso",
 				OktaOrganizationUrl: "https://subdomain.example.com",
 			},
 			expectedErr: "SSO metadata URL and Okta org URL have different hostnames",
+		},
+		{
+			name: "SSO metadata URL and SAML connector SSO URL have different hostnames",
+			req: &oktapb.CreateIntegrationRequest{
+				OktaOrganizationUrl: "https://subdomain.example.com",
+			},
+			samlConnector: newSamlConnector(t, samlConnectorDesc{
+				name: "validate-create-integration-request-test-connector",
+				sso:  "https://doesn.not.match.example.com",
+			}),
+			expectedErr: `SAML connector "validate-create-integration-request-test-connector" SSO URL and Okta org URL have different hostnames`,
+		},
+		{
+			name:        "SSO metadata URL and Okta org URL empty",
+			req:         &oktapb.CreateIntegrationRequest{},
+			expectedErr: "Okta org URL or SSO metadata URL missing",
 		},
 		{
 			name: "API credentials are required when sync is enabled",
@@ -59,10 +89,22 @@ func Test_validateCreateIntegrationRequest(t *testing.T) {
 			},
 			expectedErr: "Okta API credentials are required for user sync",
 		},
+		{
+			name: "valid case with matching SSO metadata URL and Okta org URL and connector SSO URL",
+			req: &oktapb.CreateIntegrationRequest{
+				SsoMetadataUrl:      "the.same.example.com/metadata/saml",
+				OktaOrganizationUrl: "https://the.same.example.com",
+			},
+			samlConnector: newSamlConnector(t, samlConnectorDesc{
+				name: "validate-create-integration-request-test-connector",
+				sso:  "https://the.same.example.com/saml/sso",
+			}),
+			expectedErr: "",
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := validateCreateIntegrationRequest(tc.req)
+			err := validateCreateIntegrationRequest(tc.req, tc.samlConnector)
 			if tc.expectedErr == "" {
 				require.NoError(t, err)
 			} else {

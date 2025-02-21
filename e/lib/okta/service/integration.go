@@ -110,7 +110,16 @@ func (s *Service) CreateIntegration(ctx context.Context, req *oktapb.CreateInteg
 }
 
 func (s *Service) createIntegration(ctx context.Context, req *oktapb.CreateIntegrationRequest) (*oktapb.CreateIntegrationResponse, error) {
-	if err := validateCreateIntegrationRequest(req); err != nil {
+	samlConnectorName := getSAMLConnectorName(req)
+	samlConnector, err := s.getSAMLConnector(ctx, samlConnectorName)
+	if trace.IsNotFound(err) {
+		// Make sure it's nil for validation.
+		samlConnector = nil
+	} else if err != nil {
+		return nil, trace.Wrap(err, "fetching SAML connector %q", samlConnectorName)
+	}
+
+	if err := validateCreateIntegrationRequest(req, samlConnector); err != nil {
 		return nil, trace.Wrap(err, "create integration failed due to invalid request")
 	}
 	if req.GetApiCredentials() != nil {
@@ -123,7 +132,7 @@ func (s *Service) createIntegration(ctx context.Context, req *oktapb.CreateInteg
 		}
 	}
 
-	connectorInfo, err := s.getOrCreateSAMLConnector(ctx, req)
+	connectorInfo, err := s.ensureSAMLConnector(ctx, req, samlConnector)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to get or create SAML connector")
 	}

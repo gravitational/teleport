@@ -18,7 +18,6 @@ import (
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/okta/common/sso"
 	common "github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -587,19 +586,14 @@ func TestCreateOktaIntegrationFromLegacyConnector(t *testing.T) {
 	meta.Name = legacyConnectorName
 	connector.SetMetadata(meta)
 
-	orgURL, err := sso.ExtractOktaOrganizationFromURL(connector.GetSSO())
-	require.NoError(t, err)
-	require.NotEmpty(t, orgURL)
-
-	_, err = sut.Teleport.Process.GetAuthServer().CreateSAMLConnector(ctx, connector)
+	_, err := sut.Teleport.Process.GetAuthServer().CreateSAMLConnector(ctx, connector)
 	require.NoError(t, err)
 
 	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
 	resp, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-		ApiCredentials:      &oktav1.OktaAPICredentials{Auth: &oktav1.OktaAPICredentials_SswsBearerToken{SswsBearerToken: "token"}},
-		OktaOrganizationUrl: orgURL,
-		EnableUserSync:      true,
-		ReuseConnector:      legacyConnectorName,
+		ApiCredentials: &oktav1.OktaAPICredentials{Auth: &oktav1.OktaAPICredentials_SswsBearerToken{SswsBearerToken: "token"}},
+		EnableUserSync: true,
+		ReuseConnector: legacyConnectorName,
 	})
 	require.NoError(t, err)
 	require.Equal(t, resp.ConnectorInfo.OktaAppId, samlAPP.Id)

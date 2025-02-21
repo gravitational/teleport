@@ -13,18 +13,20 @@ import (
 
 // validateCreateIntegrationRequest checks update integration request invariants for the plugin to
 // be updated.
-func validateCreateIntegrationRequest(req *oktapb.CreateIntegrationRequest) error {
+func validateCreateIntegrationRequest(req *oktapb.CreateIntegrationRequest, samlConnector types.SAMLConnector) error {
 	var err error
+
 	if req.GetOktaOrganizationUrl() != "" {
 		req.OktaOrganizationUrl, err = validateAndSanitizeUrl(req.GetOktaOrganizationUrl())
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "invalid Okta org URL")
 		}
 	}
+	// Verify with or extract Okta org URL from SSO metadata URL.
 	if req.GetSsoMetadataUrl() != "" {
 		req.SsoMetadataUrl, err = validateAndSanitizeUrl(req.GetSsoMetadataUrl())
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "invalid connector SSO metadata URL")
 		}
 		if req.GetOktaOrganizationUrl() == "" {
 			req.OktaOrganizationUrl, err = sso.ExtractOktaOrganizationFromURL(req.GetSsoMetadataUrl())
@@ -37,6 +39,26 @@ func validateCreateIntegrationRequest(req *oktapb.CreateIntegrationRequest) erro
 		if !strings.HasPrefix(req.GetSsoMetadataUrl(), req.GetOktaOrganizationUrl()) {
 			return trace.BadParameter("SSO metadata URL and Okta org URL have different hostnames")
 		}
+	}
+	// Verify with or extract Okta org URL from SAML connector.
+	if samlConnector != nil {
+		ssoUrl, err := validateAndSanitizeUrl(samlConnector.GetSSO())
+		if err != nil {
+			return trace.Wrap(err, "connector %q has invalid SSO URL", samlConnector.GetName())
+		}
+		if req.GetOktaOrganizationUrl() == "" {
+			req.OktaOrganizationUrl, err = sso.ExtractOktaOrganizationFromURL(ssoUrl)
+			if err != nil {
+				return trace.Wrap(err, "invalid SSO URL in connector %q", samlConnector.GetName())
+			}
+		}
+		if !strings.HasPrefix(ssoUrl, req.GetOktaOrganizationUrl()) {
+			return trace.BadParameter("SAML connector %q SSO URL and Okta org URL have different hostnames", samlConnector.GetName())
+		}
+	}
+	// At this point Okta org URL must be known.
+	if req.GetOktaOrganizationUrl() == "" {
+		return trace.BadParameter("Okta org URL or SSO metadata URL missing")
 	}
 
 	if req.GetApiCredentials() == nil {
