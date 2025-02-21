@@ -334,7 +334,6 @@ func (s *WorkloadIdentityAPIService) FetchX509SVID(
 			FederatedBundles: bundleSet.EncodedX509Bundles(false),
 		}
 		if len(crlSet.LocalCRL) > 0 {
-			// TODO: Copy?
 			resp.Crl = [][]byte{crlSet.LocalCRL}
 		}
 
@@ -406,7 +405,6 @@ func (s *WorkloadIdentityAPIService) FetchX509Bundles(
 			Bundles: bundleSet.EncodedX509Bundles(true),
 		}
 		if len(crlSet.LocalCRL) > 0 {
-			// TODO: Copy?
 			resp.Crl = [][]byte{crlSet.LocalCRL}
 		}
 		err = srv.Send(resp)
