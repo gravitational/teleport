@@ -47,6 +47,19 @@ const (
 	UpdaterBinaryAutoupdate
 )
 
+func (style AutoupdateStyle) String() string {
+	switch style {
+	case PackageManagerAutoupdate:
+		return "package"
+	case UpdaterBinaryAutoupdate:
+		return "binary"
+	case NoAutoupdate:
+		return "none"
+	default:
+		return "unknown"
+	}
+}
+
 // InstallScriptOptions contains the Teleport installation options used to generate installation scripts.
 type InstallScriptOptions struct {
 	AutoupdateStyle AutoupdateStyle
@@ -66,6 +79,12 @@ type InstallScriptOptions struct {
 	// FIPS represents if the installed Teleport version should use Teleport
 	// binaries built for FIPS compliance.
 	FIPS bool
+	// Insecure disables TLS certificate verification on the teleport-update command.
+	// This is meant for testing purposes.
+	// This does not disable the TLS certificate verification when downloading
+	// the artifacts from the CDN.
+	// The agent install in insecure mode will not be able to automatically update.
+	Insecure bool
 }
 
 // Check validates that the minimal options are set.
@@ -116,13 +135,19 @@ func (o *InstallScriptOptions) oneOffParams() (params oneoff.OneOffScriptParams)
 		args = append(args, "--base-url", shsprintf.EscapeDefaultContext(o.CDNBaseURL))
 	}
 
+	successMessage := "Teleport successfully installed."
+	if o.Insecure {
+		args = append(args, "--insecure")
+		successMessage += " --insecure was used during installation, automatic updates will not work unless the Proxy Service exposes a trusted certificate."
+	}
+
 	return oneoff.OneOffScriptParams{
 		Entrypoint:      "teleport-update",
 		EntrypointArgs:  strings.Join(args, " "),
 		CDNBaseURL:      o.CDNBaseURL,
 		TeleportVersion: version,
 		TeleportFlavor:  o.TeleportFlavor,
-		SuccessMessage:  "Teleport successfully installed.",
+		SuccessMessage:  successMessage,
 		TeleportFIPS:    o.FIPS,
 	}
 }
