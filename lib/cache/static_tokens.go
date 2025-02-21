@@ -70,7 +70,7 @@ func (c *Cache) GetStaticTokens() (types.StaticTokens, error) {
 
 	if rg.ReadCache() {
 		st, err := c.collections.staticTokens.store.get("name", types.MetaNameStaticTokens)
-		return st, trace.Wrap(err)
+		return st.Clone(), trace.Wrap(err)
 	}
 
 	st, err := c.Config.ClusterConfig.GetStaticTokens()
