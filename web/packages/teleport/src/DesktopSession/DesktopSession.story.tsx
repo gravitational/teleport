@@ -61,7 +61,6 @@ const props: State = {
   onShareDirectory: () => {},
   onCtrlAltDel: () => {},
   setInitialTdpConnectionSucceeded: () => {},
-  clientOnClientScreenSpec: () => {},
   clientScreenSpecToRequest: { width: 0, height: 0 },
   clientOnTdpError: () => {},
   clientOnTdpInfo: () => {},

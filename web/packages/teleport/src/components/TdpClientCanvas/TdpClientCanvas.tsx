@@ -25,22 +25,25 @@ import React, {
   type CSSProperties,
 } from 'react';
 
+import { Logger } from 'design/logger';
 import { debounce } from 'shared/utils/highbar';
 
 import { TdpClient, TdpClientEvent } from 'teleport/lib/tdp';
 import { BitmapFrame } from 'teleport/lib/tdp/client';
-import type { ClientScreenSpec, PngFrame } from 'teleport/lib/tdp/codec';
+import type { PngFrame } from 'teleport/lib/tdp/codec';
+
+const logger = new Logger('TdpClientCanvas');
 
 export interface TdpClientCanvasRef {
   setPointer(pointer: Pointer): void;
   renderPngFrame(frame: PngFrame): void;
   renderBitmapFrame(frame: BitmapFrame): void;
+  setResolution(resolution: { width: number; height: number }): void;
 }
 
 const TdpClientCanvas = forwardRef<TdpClientCanvasRef, Props>((props, ref) => {
   const {
     client,
-    clientOnClientScreenSpec,
     onKeyDown,
     onKeyUp,
     onBlur,
@@ -61,6 +64,12 @@ const TdpClientCanvas = forwardRef<TdpClientCanvasRef, Props>((props, ref) => {
       setPointer: pointer => setPointer(canvasRef.current, pointer),
       renderPngFrame: frame => renderPngFrame(frame),
       renderBitmapFrame: frame => renderBimapFrame(frame),
+      setResolution: ({ width, height }) => {
+        const canvas = canvasRef.current;
+        canvas.width = width;
+        canvas.height = height;
+        logger.debug(`Canvas resolution set to ${width}x${height}.`);
+      },
     };
   }, []);
 
@@ -77,26 +86,6 @@ const TdpClientCanvas = forwardRef<TdpClientCanvasRef, Props>((props, ref) => {
       canvas.focus();
     }
   }, []);
-
-  useEffect(() => {
-    if (client && clientOnClientScreenSpec) {
-      const canvas = canvasRef.current;
-      const _clientOnClientScreenSpec = (spec: ClientScreenSpec) => {
-        clientOnClientScreenSpec(client, canvas, spec);
-      };
-      client.on(
-        TdpClientEvent.TDP_CLIENT_SCREEN_SPEC,
-        _clientOnClientScreenSpec
-      );
-
-      return () => {
-        client.removeListener(
-          TdpClientEvent.TDP_CLIENT_SCREEN_SPEC,
-          _clientOnClientScreenSpec
-        );
-      };
-    }
-  }, [client, clientOnClientScreenSpec]);
 
   useEffect(() => {
     if (!onResize) {
@@ -155,7 +144,18 @@ const TdpClientCanvas = forwardRef<TdpClientCanvasRef, Props>((props, ref) => {
       onContextMenu={onContextMenu}
       onBlur={onBlur}
       onMouseMove={onMouseMove}
-      style={{ ...style }}
+      style={{
+        height: '100%',
+        width: '100%',
+        minHeight: 0,
+        minWidth: 0,
+        // Maintains the original proportions of the canvas content.
+        // Ensures the rendered content does not exceed its native resolution.
+        // If the resolution is higher than the available window size,
+        // the content is automatically scaled down to fit.
+        objectFit: 'scale-down',
+        ...style,
+      }}
       ref={canvasRef}
     />
   );
@@ -163,11 +163,6 @@ const TdpClientCanvas = forwardRef<TdpClientCanvasRef, Props>((props, ref) => {
 
 export type Props = {
   client: TdpClient;
-  clientOnClientScreenSpec?: (
-    cli: TdpClient,
-    canvas: HTMLCanvasElement,
-    spec: ClientScreenSpec
-  ) => void;
   onKeyDown?(e: React.KeyboardEvent): void;
   onKeyUp?(e: React.KeyboardEvent): void;
   onBlur?(e: React.FocusEvent): void;

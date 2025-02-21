@@ -66,7 +66,6 @@ export function DesktopSession(props: State) {
     directorySharingState,
     setDirectorySharingState,
     setInitialTdpConnectionSucceeded,
-    clientOnClientScreenSpec,
     clientOnClipboardData,
     clientOnTdpError,
     clientOnTdpWarning,
@@ -245,8 +244,31 @@ export function DesktopSession(props: State) {
     };
   }, [client, setInitialTdpConnectionSucceeded]);
 
+  useEffect(() => {
+    if (!client) {
+      return;
+    }
+    const setResolution = tdpClientCanvasRef.current?.setResolution;
+    client.addListener(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, setResolution);
+
+    return () => {
+      client.removeListener(
+        TdpClientEvent.TDP_CLIENT_SCREEN_SPEC,
+        setResolution
+      );
+    };
+  }, [client]);
+
   return (
-    <Flex flexDirection="column">
+    <Flex
+      flexDirection="column"
+      css={`
+        // Fill the window.
+        position: absolute;
+        width: 100%;
+        height: 100%;
+      `}
+    >
       <TopBar
         onDisconnect={() => {
           setClipboardSharingState(prevState => ({
@@ -285,7 +307,6 @@ export function DesktopSession(props: State) {
           display: screenState.canvasState.shouldDisplay ? 'flex' : 'none',
         }}
         client={client}
-        clientOnClientScreenSpec={clientOnClientScreenSpec}
         onKeyDown={canvasOnKeyDown}
         onKeyUp={canvasOnKeyUp}
         onBlur={canvasOnFocusOut}
