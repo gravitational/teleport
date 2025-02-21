@@ -26,11 +26,6 @@ import (
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 )
 
-// Depending on your cluster setup we have 2 installers:
-//   - LegacyDefaultInstaller which uses oneoff.sh to download teleport and run "teleport install".
-//     Teleport install does package-based installations.
-//   -
-
 // LegacyDefaultInstaller represents the default installer script provided by teleport.
 var (
 	// LegacyDefaultInstaller uses oneoff.sh to download the Teleport tarball and run `teleport install`.
