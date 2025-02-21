@@ -57,39 +57,40 @@ func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (typ
 	_, span := c.Tracer.Start(ctx, "cache/GetUser")
 	defer span.End()
 
+	collection := c.collections.users
+
 	if withSecrets { // cache never tracks user secrets
-		return c.Config.Users.GetUser(ctx, name, withSecrets)
+		return collection.upstream.GetUser(ctx, name, withSecrets)
 	}
 
-	user, err := readCachedResource(
-		ctx,
-		c,
-		c.collections.users,
-		func(ctx context.Context, store *resourceStore[types.User]) (types.User, error) {
-			u, err := store.get("name", name)
-			if err != nil {
-				// fallback is sane because method is never used
-				// in construction of derivative caches.
-				if trace.IsNotFound(err) {
-					if user, err := c.Config.Users.GetUser(ctx, name, withSecrets); err == nil {
-						return user, nil
-					}
-				}
-				return nil, trace.Wrap(err)
+	rg, err := acquireReadGuard(c, collection.watch)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	if !rg.ReadCache() {
+		user, err := collection.upstream.GetUser(ctx, name, withSecrets)
+		return user, trace.Wrap(err)
+	}
+
+	u, err := collection.store.get("name", name)
+	if err != nil {
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if trace.IsNotFound(err) {
+			if user, err := c.Config.Users.GetUser(ctx, name, withSecrets); err == nil {
+				return user, nil
 			}
+		}
+		return nil, trace.Wrap(err)
+	}
 
-			if withSecrets {
-				return u.Clone(), nil
-			}
+	if withSecrets {
+		return u.Clone(), nil
+	}
 
-			return u.WithoutSecrets().(types.User), nil
-		},
-		func(ctx context.Context, upstream *userUpstream) (types.User, error) {
-			user, err := upstream.GetUser(ctx, name, withSecrets)
-			return user, trace.Wrap(err)
-		})
-
-	return user, trace.Wrap(err)
+	return u.WithoutSecrets().(types.User), nil
 }
 
 // GetUsers is a part of auth.Cache implementation
@@ -97,32 +98,33 @@ func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, e
 	_, span := c.Tracer.Start(ctx, "cache/GetUsers")
 	defer span.End()
 
+	collection := c.collections.users
+
 	if withSecrets { // cache never tracks user secrets
-		return c.Users.GetUsers(ctx, withSecrets)
+		return collection.upstream.GetUsers(ctx, withSecrets)
 	}
 
-	users, err := readCachedResource(
-		ctx,
-		c,
-		c.collections.users,
-		func(_ context.Context, store *resourceStore[types.User]) ([]types.User, error) {
-			var users []types.User
-			for u := range store.iterate("name", "", "") {
-				if withSecrets {
-					users = append(users, u.Clone())
-				} else {
-					users = append(users, u.WithoutSecrets().(types.User))
-				}
-			}
+	rg, err := acquireReadGuard(c, collection.watch)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
 
-			return users, nil
-		},
-		func(ctx context.Context, upstream *userUpstream) ([]types.User, error) {
-			users, err := upstream.GetUsers(ctx, withSecrets)
-			return users, trace.Wrap(err)
-		})
+	if !rg.ReadCache() {
+		users, err := collection.upstream.GetUsers(ctx, withSecrets)
+		return users, trace.Wrap(err)
+	}
 
-	return users, trace.Wrap(err)
+	var users []types.User
+	for u := range collection.store.iterate("name", "", "") {
+		if withSecrets {
+			users = append(users, u.Clone())
+		} else {
+			users = append(users, u.WithoutSecrets().(types.User))
+		}
+	}
+
+	return users, nil
 }
 
 // ListUsers returns a page of users.
@@ -130,45 +132,46 @@ func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*
 	_, span := c.Tracer.Start(ctx, "cache/ListUsers")
 	defer span.End()
 
+	collection := c.collections.users
+
 	if req.WithSecrets { // cache never tracks user secrets
-		rsp, err := c.Users.ListUsers(ctx, req)
+		rsp, err := collection.upstream.ListUsers(ctx, req)
 		return rsp, trace.Wrap(err)
 	}
 
-	users, err := readCachedResource(
-		ctx,
-		c,
-		c.collections.users,
-		func(_ context.Context, store *resourceStore[types.User]) (*userspb.ListUsersResponse, error) {
-			var resp userspb.ListUsersResponse
-			for u := range store.iterate("name", req.PageToken, "") {
-				uv2, ok := u.(*types.UserV2)
-				if !ok {
-					continue
-				}
+	rg, err := acquireReadGuard(c, collection.watch)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
 
-				if req.Filter != nil && !req.Filter.Match(uv2) {
-					continue
-				}
+	if !rg.ReadCache() {
+		resp, err := collection.upstream.ListUsers(ctx, req)
+		return resp, trace.Wrap(err)
+	}
 
-				if len(resp.Users) == int(req.PageSize) {
-					key := backend.RangeEnd(backend.ExactKey(u.GetName())).String()
-					resp.NextPageToken = strings.Trim(key, string(backend.Separator))
-					break
-				}
+	var resp userspb.ListUsersResponse
+	for u := range collection.store.iterate("name", req.PageToken, "") {
+		uv2, ok := u.(*types.UserV2)
+		if !ok {
+			continue
+		}
 
-				if req.WithSecrets {
-					resp.Users = append(resp.Users, u.Clone().(*types.UserV2))
-				} else {
-					resp.Users = append(resp.Users, u.WithoutSecrets().(*types.UserV2))
-				}
-			}
-			return &resp, nil
-		},
-		func(ctx context.Context, upstream *userUpstream) (*userspb.ListUsersResponse, error) {
-			resp, err := upstream.ListUsers(ctx, req)
-			return resp, trace.Wrap(err)
-		})
+		if req.Filter != nil && !req.Filter.Match(uv2) {
+			continue
+		}
 
-	return users, trace.Wrap(err)
+		if len(resp.Users) == int(req.PageSize) {
+			key := backend.RangeEnd(backend.ExactKey(u.GetName())).String()
+			resp.NextPageToken = strings.Trim(key, string(backend.Separator))
+			break
+		}
+
+		if req.WithSecrets {
+			resp.Users = append(resp.Users, u.Clone().(*types.UserV2))
+		} else {
+			resp.Users = append(resp.Users, u.WithoutSecrets().(*types.UserV2))
+		}
+	}
+	return &resp, nil
 }
