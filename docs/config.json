@@ -457,6 +457,11 @@
       "permanent": true
     },
     {
+      "source": "/enterprise/sso/",
+      "destination": "/admin-guides/access-controls/sso/",
+      "permanent": true
+    },
+    {
       "source": "/access-controls/access-request-plugins/",
       "destination": "/admin-guides/access-controls/access-request-plugins/",
       "permanent": true
