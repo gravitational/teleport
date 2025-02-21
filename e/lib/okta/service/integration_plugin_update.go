@@ -90,6 +90,7 @@ func (s *Service) updatePluginCredentials(ctx context.Context, req *oktapb.Updat
 		if err := s.upsertOauthClientID(ctx, req.GetApiCredentials().GetOauthId(), staticCreds, staticCredsRef.Labels); err != nil {
 			return trace.Wrap(err)
 		}
+		pluginV1.Spec.GetOkta().CredentialsInfo.HasSsmToken = false
 		pluginV1.Spec.GetOkta().CredentialsInfo.HasOauthCredentials = true
 	}
 	if req.GetApiCredentials().GetSswsBearerToken() != "" {
@@ -154,11 +155,6 @@ func (s *Service) upsertSCIMCreds(ctx context.Context, scimToken string, creds [
 	return nil
 }
 
-func hasOauthPurpose(resLabels types.ResourceWithLabels) bool {
-	v, ok := resLabels.GetLabel(common.CredPurposeLabel)
-	return ok && v == common.CredPurposeOktaOauth || v == ""
-}
-
 func selectCredsByLabelsFilter(creds []types.PluginStaticCredentials, fn func(types.ResourceWithLabels) bool) (*types.PluginStaticCredentialsV1, error) {
 	for _, cred := range creds {
 		if !fn(cred) {
@@ -173,8 +169,13 @@ func selectCredsByLabelsFilter(creds []types.PluginStaticCredentials, fn func(ty
 	return nil, trace.NotFound("no credentials found")
 }
 
+func isSyncCredential(resLabels types.ResourceWithLabels) bool {
+	v, ok := resLabels.GetLabel(common.CredPurposeLabel)
+	return ok && v == common.CredPurposeOktaOauth || v == common.CredPurposeOktaAuth || v == ""
+}
+
 func (s *Service) upsertOauthClientID(ctx context.Context, clientID string, creds []types.PluginStaticCredentials, labels map[string]string) error {
-	item, err := selectCredsByLabelsFilter(creds, hasOauthPurpose)
+	item, err := selectCredsByLabelsFilter(creds, isSyncCredential)
 	switch {
 	case err == nil:
 		if _, err := s.credsBackend.UpdatePluginStaticCredentials(ctx, item); err != nil {
