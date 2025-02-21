@@ -1249,38 +1249,13 @@ func TestRecovery(t *testing.T) {
 	require.Empty(t, cmp.Diff(ca2, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
-// TestTokens tests static and dynamic tokens
-func TestTokens(t *testing.T) {
+// TestTokens tests dynamic tokens
+func TestDynamocTokens(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
-
-	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
-		StaticTokens: []types.ProvisionTokenV1{
-			{
-				Token:   "static1",
-				Roles:   types.SystemRoles{types.RoleAuth, types.RoleNode},
-				Expires: time.Now().UTC().Add(time.Hour),
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	err = p.clusterConfigS.SetStaticTokens(staticTokens)
-	require.NoError(t, err)
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err := p.cache.GetStaticTokens()
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(staticTokens, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	expires := time.Now().Add(10 * time.Hour).Truncate(time.Second).UTC()
 	token, err := types.NewProvisionToken("token", types.SystemRoles{types.RoleAuth, types.RoleNode}, expires)

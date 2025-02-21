@@ -28,28 +28,31 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-func newUserCollection(u services.UsersService, w types.WatchKind) (*collection[types.User, *resourceStore[types.User], *userUpstream], error) {
+func newUserCollection(u services.UsersService, w types.WatchKind) (*collection[types.User], error) {
 	if u == nil {
 		return nil, trace.BadParameter("missing parameter UsersService")
 	}
 
-	return &collection[types.User, *resourceStore[types.User], *userUpstream]{
+	return &collection[types.User]{
 		store: newResourceStore(map[string]func(types.User) string{
 			"name": func(u types.User) string {
 				return u.GetName()
 			},
 		}),
-		upstream: &userUpstream{UsersService: u},
-		watch:    w,
+		getAll: func(ctx context.Context, loadSecrets bool) ([]types.User, error) {
+			return u.GetUsers(ctx, loadSecrets)
+		},
+		headerTransform: func(hdr *types.ResourceHeader) types.User {
+			return &types.UserV2{
+				Kind:    types.KindUser,
+				Version: types.V2,
+				Metadata: types.Metadata{
+					Name: hdr.Metadata.Name,
+				},
+			}
+		},
+		watch: w,
 	}, nil
-}
-
-type userUpstream struct {
-	services.UsersService
-}
-
-func (c userUpstream) getAll(ctx context.Context, loadSecrets bool) ([]types.User, error) {
-	return c.UsersService.GetUsers(ctx, loadSecrets)
 }
 
 // GetUser is a part of auth.Cache implementation.
@@ -57,24 +60,22 @@ func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (typ
 	_, span := c.Tracer.Start(ctx, "cache/GetUser")
 	defer span.End()
 
-	collection := c.collections.users
-
 	if withSecrets { // cache never tracks user secrets
-		return collection.upstream.GetUser(ctx, name, withSecrets)
+		return c.Config.Users.GetUser(ctx, name, withSecrets)
 	}
 
-	rg, err := acquireReadGuard(c, collection.watch)
+	rg, err := acquireReadGuard(c, c.collections.users.watch)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		user, err := collection.upstream.GetUser(ctx, name, withSecrets)
+		user, err := c.Config.Users.GetUser(ctx, name, withSecrets)
 		return user, trace.Wrap(err)
 	}
 
-	u, err := collection.store.get("name", name)
+	u, err := c.collections.users.store.get("name", name)
 	if err != nil {
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
@@ -98,25 +99,23 @@ func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, e
 	_, span := c.Tracer.Start(ctx, "cache/GetUsers")
 	defer span.End()
 
-	collection := c.collections.users
-
 	if withSecrets { // cache never tracks user secrets
-		return collection.upstream.GetUsers(ctx, withSecrets)
+		return c.Config.Users.GetUsers(ctx, withSecrets)
 	}
 
-	rg, err := acquireReadGuard(c, collection.watch)
+	rg, err := acquireReadGuard(c, c.collections.users.watch)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		users, err := collection.upstream.GetUsers(ctx, withSecrets)
+		users, err := c.Config.Users.GetUsers(ctx, withSecrets)
 		return users, trace.Wrap(err)
 	}
 
 	var users []types.User
-	for u := range collection.store.iterate("name", "", "") {
+	for u := range c.collections.users.store.resources("name", "", "") {
 		if withSecrets {
 			users = append(users, u.Clone())
 		} else {
@@ -132,26 +131,24 @@ func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*
 	_, span := c.Tracer.Start(ctx, "cache/ListUsers")
 	defer span.End()
 
-	collection := c.collections.users
-
 	if req.WithSecrets { // cache never tracks user secrets
-		rsp, err := collection.upstream.ListUsers(ctx, req)
+		rsp, err := c.Config.Users.ListUsers(ctx, req)
 		return rsp, trace.Wrap(err)
 	}
 
-	rg, err := acquireReadGuard(c, collection.watch)
+	rg, err := acquireReadGuard(c, c.collections.users.watch)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		resp, err := collection.upstream.ListUsers(ctx, req)
+		resp, err := c.Config.Users.ListUsers(ctx, req)
 		return resp, trace.Wrap(err)
 	}
 
 	var resp userspb.ListUsersResponse
-	for u := range collection.store.iterate("name", req.PageToken, "") {
+	for u := range c.collections.users.store.resources("name", req.PageToken, "") {
 		uv2, ok := u.(*types.UserV2)
 		if !ok {
 			continue
