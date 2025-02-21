@@ -189,7 +189,7 @@ func TestBotWorkloadIdentityAPI(t *testing.T) {
 	require.Len(t, resp.Crl, 1)
 	crl, err := x509.ParseRevocationList(resp.Crl[0])
 	require.NoError(t, err)
-	require.Len(t, crl.RevokedCertificateEntries, 0)
+	require.Empty(t, crl.RevokedCertificateEntries)
 	tb, ok := set.Get(svid.ID.TrustDomain())
 	require.True(t, ok)
 	require.NoError(t, crl.CheckSignatureFrom(tb.X509Authorities()[0]))
