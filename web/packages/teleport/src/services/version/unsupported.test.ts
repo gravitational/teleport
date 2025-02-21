@@ -20,8 +20,13 @@ import { renderHook } from '@testing-library/react';
 
 import { app } from 'teleport/Discover/AwsMangementConsole/fixtures';
 
+import { ApiError } from '../api/parseError';
 import { integrationService } from '../integrations';
-import { ProxyRequiresUpgrade, useV1Fallback } from './unsupported';
+import {
+  ProxyRequiresUpgrade,
+  useV1Fallback,
+  withGenericUnsupportedError,
+} from './unsupported';
 
 afterEach(() => {
   jest.resetAllMocks();
@@ -76,4 +81,50 @@ test('with upgrade proxy error, without labels, runs fallback', async () => {
 
   expect(resp).toEqual(app);
   expect(integrationService.createAwsAppAccess).toHaveBeenCalledTimes(1);
+});
+
+describe('withGenericUnsupportedError', () => {
+  test('path not found error with proxy version throws custom error', async () => {
+    const pathNotFoundError = new ApiError({
+      message: '',
+      response: { status: 404 } as Response,
+      proxyVersion: {
+        major: 1,
+        minor: 2,
+        patch: 3,
+        preRelease: 'dev',
+        string: 'v1.2.3-dev',
+      },
+    });
+
+    expect(() =>
+      withGenericUnsupportedError(pathNotFoundError, 'v2.0.0')
+    ).toThrow(/could not complete your request/i);
+
+    expect(() =>
+      withGenericUnsupportedError(pathNotFoundError, 'v2.0.0')
+    ).toThrow(/v2.0.0/i);
+  });
+
+  test('legach path not found error throws custom error', async () => {
+    const legacyPathNotFoundError = new ApiError({
+      message: `404 - https://llama`,
+      response: { status: 404, url: 'https://llama' } as Response,
+    });
+
+    expect(() =>
+      withGenericUnsupportedError(legacyPathNotFoundError, 'v2.0.0')
+    ).toThrow(/could not complete your request/i);
+  });
+
+  test('non path related 404 error rethrows same error', async () => {
+    const resourceNotFoundError = new ApiError({
+      message: `same error`,
+      response: { status: 404 } as Response,
+    });
+
+    expect(() =>
+      withGenericUnsupportedError(resourceNotFoundError, 'v2.0.0')
+    ).toThrow('same error');
+  });
 });

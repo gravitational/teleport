@@ -985,3 +985,15 @@ export type ExportedIntegrationCaResponse = {
   tls: TlsKey[];
   jwt: JwtKey[];
 };
+
+export type IntegrationDeleteRequest = {
+  name: string;
+  clusterId: string;
+  /**
+   * If true, will delete any associated resources
+   * tied to the integration.
+   *
+   * Not all integration kinds supports resource cleanup.
+   */
+  associatedResources?: boolean;
+};
