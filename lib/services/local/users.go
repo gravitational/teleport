@@ -563,12 +563,15 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 
 		item.Revision = currentWithoutSecrets.GetRevision()
 
-		if _, err = s.Backend.ConditionalUpdate(ctx, item); err != nil {
+		lease, err := s.Backend.ConditionalUpdate(ctx, item)
+		if err != nil {
 			if trace.IsCompareFailed(err) {
 				continue
 			}
 			return trace.Wrap(err)
 		}
+		new.SetRevision(lease.Revision)
+		new.SetWeakestDevice(newWithoutSecrets.GetWeakestDevice())
 
 		if auth := new.GetLocalAuth(); auth != nil {
 			if err = s.upsertLocalAuthSecrets(ctx, new.GetName(), *auth); err != nil {
