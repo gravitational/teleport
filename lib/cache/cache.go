@@ -594,28 +594,28 @@ func readLegacyListResourcesCache(cache *Cache, resourceType string) (legacyRead
 	return legacyReadCache(cache, types.WatchKind{Kind: resourceType}, getResourceReader)
 }
 
-// readCachedResource acquires the cache read lock and calls the appropriate function for read operations
-// based on the cache health.
-func readCachedResource[T any, S store[T], U upstream[T], R any](ctx context.Context, cache *Cache, collect *collection[T, S, U], cacheRead func(context.Context, S) (R, error), upstreamRead func(context.Context, U) (R, error)) (R, error) {
+// acquireReadGuard provides a readGuard that may be used to determine how
+// a cache read should operate. The returned guard *must* be released to prevent deadlocks.
+func acquireReadGuard(cache *Cache, kind types.WatchKind) (readGuard, error) {
 	if cache.closed.Load() {
-		var r R
-		return r, trace.Errorf("cache is closed")
+		return readGuard{}, trace.Errorf("cache is closed")
 	}
-
 	cache.rw.RLock()
+
 	if cache.ok {
-		kind := collect.watchKind()
 		if _, kindOK := cache.confirmedKinds[resourceKind{kind: kind.Kind, subkind: kind.SubKind}]; kindOK {
-			defer cache.rw.RUnlock()
-			r, err := cacheRead(ctx, collect.store)
-			return r, trace.Wrap(err)
+			return readGuard{
+				cacheRead: true,
+				release:   cache.rw.RUnlock,
+			}, nil
 		}
 	}
 
 	cache.rw.RUnlock()
-
-	r, err := upstreamRead(ctx, collect.upstream)
-	return r, trace.Wrap(err)
+	return readGuard{
+		cacheRead: false,
+		release:   nil,
+	}, nil
 }
 
 // legacyReadCache acquires the cache read lock and uses getReader() to select the appropriate target for read operations
@@ -662,6 +662,28 @@ func (r *legacyReadGuard[R]) Release() {
 // IsCacheRead checks if this readGuard holds a cache reference.
 func (r *legacyReadGuard[R]) IsCacheRead() bool {
 	return r.release != nil
+}
+
+type readGuard struct {
+	cacheRead bool
+	once      sync.Once
+	release   func()
+}
+
+func (r *readGuard) ReadCache() bool {
+	return r.cacheRead
+}
+
+// Release releases the read lock if it is held.  This method
+// can be called multiple times.
+func (r *readGuard) Release() {
+	r.once.Do(func() {
+		if r.release == nil {
+			return
+		}
+
+		r.release()
+	})
 }
 
 // Config defines cache configuration parameters

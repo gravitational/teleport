@@ -42,9 +42,6 @@ func newCertAuthorityCollection(t services.Trust, w types.WatchKind) (*collectio
 				"id": func(ca types.CertAuthority) string {
 					return string(ca.GetType()) + "/" + ca.GetID().DomainName
 				},
-				"type": func(ca types.CertAuthority) string {
-					return string(ca.GetType())
-				},
 			},
 		),
 		upstream: &caUpstream{Trust: t, filter: filter},
@@ -101,47 +98,47 @@ func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadS
 	ctx, span := c.Tracer.Start(ctx, "cache/GetCertAuthority")
 	defer span.End()
 
-	ca, err := readCachedResource(
-		ctx,
-		c,
-		c.collections.certAuthorities,
-		func(ctx context.Context, store *resourceStore[types.CertAuthority]) (types.CertAuthority, error) {
-			ca, err := store.get("id", string(id.Type)+"/"+id.DomainName)
-			if err != nil {
-				if trace.IsNotFound(err) {
-					if ca, err := c.Config.Trust.GetCertAuthority(ctx, id, loadSigningKeys); err == nil {
-						return ca, nil
-					}
+	collection := c.collections.certAuthorities
+	rg, err := acquireReadGuard(c, collection.watch)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	if rg.ReadCache() {
+		ca, err := collection.store.get("id", string(id.Type)+"/"+id.DomainName)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				if ca, err := c.Config.Trust.GetCertAuthority(ctx, id, loadSigningKeys); err == nil {
+					return ca, nil
 				}
-
-				return nil, trace.Wrap(err)
 			}
 
-			if !loadSigningKeys {
-				return ca.Clone().WithoutSecrets().(types.CertAuthority), nil
-			}
+			return nil, trace.Wrap(err)
+		}
 
-			return ca.Clone(), nil
-		},
-		func(ctx context.Context, upstream *caUpstream) (types.CertAuthority, error) {
-			// When signing keys are requested, always read from the upstream.
-			if loadSigningKeys {
-				ca, err := upstream.GetCertAuthority(ctx, id, loadSigningKeys)
-				return ca, err
-			}
+		if !loadSigningKeys {
+			return ca.Clone().WithoutSecrets().(types.CertAuthority), nil
+		}
 
-			// When no keys are requested, use the ca cache to reduce the upstream load.
-			cachedCA, err := utils.FnCacheGet(ctx, c.fnCache, getCertAuthorityCacheKey{id}, func(ctx context.Context) (types.CertAuthority, error) {
-				ca, err := upstream.GetCertAuthority(ctx, id, loadSigningKeys)
-				return ca, err
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return cachedCA.Clone(), nil
-		},
-	)
-	return ca, trace.Wrap(err)
+		return ca.Clone(), nil
+	}
+
+	// When signing keys are requested, always read from the upstream.
+	if loadSigningKeys {
+		ca, err := collection.upstream.GetCertAuthority(ctx, id, loadSigningKeys)
+		return ca, err
+	}
+
+	// When no keys are requested, use the ca cache to reduce the upstream load.
+	cachedCA, err := utils.FnCacheGet(ctx, c.fnCache, getCertAuthorityCacheKey{id}, func(ctx context.Context) (types.CertAuthority, error) {
+		ca, err := collection.upstream.GetCertAuthority(ctx, id, loadSigningKeys)
+		return ca, err
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cachedCA.Clone(), nil
 }
 
 type getCertAuthoritiesCacheKey struct {
@@ -156,42 +153,43 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 	ctx, span := c.Tracer.Start(ctx, "cache/GetCertAuthorities")
 	defer span.End()
 
-	st, err := readCachedResource(
-		ctx,
-		c,
-		c.collections.certAuthorities,
-		func(ctx context.Context, store *resourceStore[types.CertAuthority]) ([]types.CertAuthority, error) {
-			var cas []types.CertAuthority
-			for ca := range store.iterate("type", string(caType), sortcache.NextKey(string(caType))) {
-				if loadSigningKeys {
-					cas = append(cas, ca.Clone())
-				} else {
-					cas = append(cas, ca.Clone().WithoutSecrets().(types.CertAuthority))
-				}
-			}
+	collection := c.collections.certAuthorities
+	rg, err := acquireReadGuard(c, collection.watch)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
 
-			return cas, nil
-		},
-		func(ctx context.Context, upstream *caUpstream) ([]types.CertAuthority, error) {
-			// When signing keys are requested, always read from the upstream.
+	if rg.ReadCache() {
+		var cas []types.CertAuthority
+		for ca := range collection.store.iterate("id", string(caType), sortcache.NextKey(string(caType))) {
 			if loadSigningKeys {
-				cas, err := upstream.GetCertAuthorities(ctx, caType, loadSigningKeys)
-				return cas, err
-			}
-			// When no keys are requested, use the ca cache to reduce the upstream load.
-			cachedCAs, err := utils.FnCacheGet(ctx, c.fnCache, getCertAuthoritiesCacheKey{caType}, func(ctx context.Context) ([]types.CertAuthority, error) {
-				cas, err := upstream.GetCertAuthorities(ctx, caType, loadSigningKeys)
-				return cas, trace.Wrap(err)
-			})
-			if err != nil || cachedCAs == nil {
-				return nil, trace.Wrap(err)
-			}
-			cas := make([]types.CertAuthority, 0, len(cachedCAs))
-			for _, ca := range cachedCAs {
 				cas = append(cas, ca.Clone())
+			} else {
+				cas = append(cas, ca.WithoutSecrets().(types.CertAuthority))
 			}
-			return cas, nil
-		},
-	)
-	return st, trace.Wrap(err)
+		}
+
+		return cas, nil
+	}
+
+	// When signing keys are requested, always read from the upstream.
+	if loadSigningKeys {
+		cas, err := collection.upstream.GetCertAuthorities(ctx, caType, loadSigningKeys)
+		return cas, err
+	}
+
+	// When no keys are requested, use the ca cache to reduce the upstream load.
+	cachedCAs, err := utils.FnCacheGet(ctx, c.fnCache, getCertAuthoritiesCacheKey{caType}, func(ctx context.Context) ([]types.CertAuthority, error) {
+		cas, err := collection.upstream.GetCertAuthorities(ctx, caType, loadSigningKeys)
+		return cas, trace.Wrap(err)
+	})
+	if err != nil || cachedCAs == nil {
+		return nil, trace.Wrap(err)
+	}
+	cas := make([]types.CertAuthority, 0, len(cachedCAs))
+	for _, ca := range cachedCAs {
+		cas = append(cas, ca.Clone())
+	}
+	return cas, nil
 }
