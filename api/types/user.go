@@ -279,10 +279,6 @@ func (u *UserV2) Clone() User {
 
 // WithoutSecrets returns an instance of resource without secrets.
 func (u *UserV2) WithoutSecrets() Resource {
-	if u.Spec.LocalAuth == nil {
-		return u
-	}
-
 	u2 := utils.CloneProtoMsg(u)
 	u2.Spec.LocalAuth = nil
 	return u2
