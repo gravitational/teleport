@@ -70,6 +70,12 @@ export class MockMainProcessClient implements MainProcessClient {
     });
   }
 
+  saveTextToFile() {
+    return Promise.resolve({
+      canceled: false,
+    });
+  }
+
   fileStorage = createMockFileStorage();
 
   removeKubeConfig(): Promise<void> {

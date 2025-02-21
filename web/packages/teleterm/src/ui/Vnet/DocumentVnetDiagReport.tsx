@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useCallback, useRef } from 'react';
 import styled from 'styled-components';
 
 import { Button, Alert as DesignAlert, Flex, H1, Link, Stack } from 'design';
@@ -31,13 +32,20 @@ import {
 } from 'design/Icon';
 import { P1, P2 } from 'design/Text/Text';
 import { HoverTooltip } from 'design/Tooltip';
+import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import * as diag from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
+import { useAsync } from 'shared/hooks/useAsync';
 import { pluralize } from 'shared/utils/text';
 
 import { reportOneOfIsRouteConflictReport } from 'teleterm/helpers';
+import { getReportFilename, reportToText } from 'teleterm/services/vnet/diag';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import type * as docTypes from 'teleterm/ui/services/workspacesService';
+
+import { useVnetContext } from './vnetContext';
 
 export function DocumentVnetDiagReport(props: {
   visible: boolean;
@@ -47,6 +55,74 @@ export function DocumentVnetDiagReport(props: {
   const { networkStackAttempt } = report;
   const { networkStack } = networkStackAttempt;
   const createdAt = displayDateTime(Timestamp.toDate(report.createdAt));
+  const { notificationsService, mainProcessClient } = useAppContext();
+  const { getDisabledDiagnosticsReason, runDiagnostics } = useVnetContext();
+  const { documentsService } = useWorkspaceContext();
+
+  // Re-wrap runDiagnostics into another attempt. This has multiple benefits:
+  // 1) It captures the result of just this one manual run of diagnostics.
+  // 2) It automatically clears any auxiliary state between runs.
+  // 3) Running diagnostics from the VNet panel has no effect on any specific tab, but re-running
+  //    diagnostics from the tab affects the VNet panel.
+  const [manualDiagnosticsAttempt, manualRunDiagnostics] = useAsync(
+    useCallback(async () => {
+      const [report, error] = await runDiagnostics();
+      if (error) {
+        throw error;
+      }
+      return report;
+    }, [runDiagnostics])
+  );
+  const runDiagnosticsAndReplaceReport = async () => {
+    const [report, error] = await manualRunDiagnostics();
+    if (error) {
+      return;
+    }
+    documentsService.update(props.doc.uri, { report });
+  };
+
+  const disabledDiagnosticsReason = getDisabledDiagnosticsReason(
+    manualDiagnosticsAttempt
+  );
+
+  const previousClipboardNotificationIdRef = useRef('');
+  const copyReportToClipboard = async () => {
+    notificationsService.removeNotification(
+      previousClipboardNotificationIdRef.current
+    );
+    const text = reportToText(report);
+    await copyToClipboard(text);
+    previousClipboardNotificationIdRef.current =
+      notificationsService.notifyInfo('Copied the report to the clipboard.');
+  };
+
+  const previousSaveToFileNotificationIdRef = useRef('');
+  const saveReportToFile = async () => {
+    notificationsService.removeNotification(
+      previousSaveToFileNotificationIdRef.current
+    );
+
+    const text = reportToText(report);
+    let result: Awaited<ReturnType<typeof mainProcessClient.saveTextToFile>>;
+    try {
+      result = await mainProcessClient.saveTextToFile({
+        text,
+        defaultBasename: getReportFilename(report),
+      });
+    } catch (error) {
+      previousSaveToFileNotificationIdRef.current =
+        notificationsService.notifyError({
+          title: 'Could not save the report to a file.',
+          description: error?.message,
+        });
+      return;
+    }
+
+    if (!result.canceled) {
+      previousSaveToFileNotificationIdRef.current =
+        notificationsService.notifyInfo('Saved the report to a file.');
+    }
+  };
 
   return (
     <Document visible={props.visible}>
@@ -73,26 +149,43 @@ export function DocumentVnetDiagReport(props: {
             <H1>VNet Diagnostic Report</H1>
 
             <Flex gap={2}>
-              {/* TODO(ravicious): Implement buttons. */}
-              <HoverTooltip tipContent="Run Diagnostics Again">
-                <Button intent="neutral" p={1}>
+              <HoverTooltip
+                tipContent={
+                  disabledDiagnosticsReason || 'Run Diagnostics Again'
+                }
+              >
+                <Button
+                  intent="neutral"
+                  p={1}
+                  disabled={!!disabledDiagnosticsReason}
+                  onClick={runDiagnosticsAndReplaceReport}
+                >
                   <Refresh size="medium" />
                 </Button>
               </HoverTooltip>
 
               <HoverTooltip tipContent="Copy Report to Clipboard">
-                <Button intent="neutral" p={1}>
+                <Button intent="neutral" p={1} onClick={copyReportToClipboard}>
                   <Copy size="medium" />
                 </Button>
               </HoverTooltip>
 
               <HoverTooltip tipContent="Save Report to File">
-                <Button intent="neutral" p={1}>
+                <Button intent="neutral" p={1} onClick={saveReportToFile}>
                   <Download size="medium" />
                 </Button>
               </HoverTooltip>
             </Flex>
           </Flex>
+
+          {manualDiagnosticsAttempt.status === 'error' && (
+            <Alert
+              kind="danger"
+              details={<P2>{manualDiagnosticsAttempt.statusText}</P2>}
+            >
+              Encountered an error while re-running diagnostics.
+            </Alert>
+          )}
 
           {networkStackAttempt.status === diag.CheckAttemptStatus.ERROR && (
             <>
