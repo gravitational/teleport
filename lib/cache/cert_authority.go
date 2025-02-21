@@ -36,7 +36,7 @@ func newCertAuthorityCollection(t services.Trust, w types.WatchKind) (*collectio
 	filter.FromMap(w.Filter)
 
 	return &collection[types.CertAuthority]{
-		store: newResourceStore(map[string]func(types.CertAuthority) string{
+		store: newStore(map[string]func(types.CertAuthority) string{
 			"id": func(ca types.CertAuthority) string {
 				return string(ca.GetType()) + "/" + ca.GetID().DomainName
 			},

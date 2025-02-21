@@ -35,7 +35,7 @@ func newUserCollection(u services.UsersService, w types.WatchKind) (*collection[
 	}
 
 	return &collection[types.User]{
-		store: newResourceStore(map[string]func(types.User) string{
+		store: newStore(map[string]func(types.User) string{
 			"name": func(u types.User) string {
 				return u.GetName()
 			},

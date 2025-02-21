@@ -24,13 +24,16 @@ import (
 	"github.com/gravitational/teleport/lib/utils/sortcache"
 )
 
-type resourceStore[T any] struct {
+// store persists cached resources directly in memory.
+type store[T any] struct {
 	cache   *sortcache.SortCache[T]
 	indexes map[string]func(T) string
 }
 
-func newResourceStore[T any](indexes map[string]func(T) string) *resourceStore[T] {
-	return &resourceStore[T]{
+// newStore creates a store that will index the resource
+// based on the provided indexes.
+func newStore[T any](indexes map[string]func(T) string) *store[T] {
+	return &store[T]{
 		indexes: indexes,
 		cache: sortcache.New(sortcache.Config[T]{
 			Indexes: indexes,
@@ -38,17 +41,20 @@ func newResourceStore[T any](indexes map[string]func(T) string) *resourceStore[T
 	}
 }
 
-func (s *resourceStore[T]) clear() error {
+// clear removes all items from the store.
+func (s *store[T]) clear() error {
 	s.cache.Clear()
 	return nil
 }
 
-func (s *resourceStore[T]) put(t T) error {
+// put adds a new item, or updates an existing item.
+func (s *store[T]) put(t T) error {
 	s.cache.Put(t)
 	return nil
 }
 
-func (s *resourceStore[T]) delete(t T) error {
+// delete removes the provided item if any of the indexes match.
+func (s *store[T]) delete(t T) error {
 	for idx, transform := range s.indexes {
 		s.cache.Delete(idx, transform(t))
 	}
@@ -56,7 +62,12 @@ func (s *resourceStore[T]) delete(t T) error {
 	return nil
 }
 
-func (s *resourceStore[T]) get(index, key string) (T, error) {
+// get returns the item matching the provided index and item,
+// or a [trace.NotFoundError] if no match was found.
+//
+// It is the responsibility of the caller to clone the resource
+// before propogating it further.
+func (s *store[T]) get(index, key string) (T, error) {
 	t, ok := s.cache.Get(index, key)
 	if !ok {
 		return t, trace.NotFound("no value for key %q in index %q", key, index)
@@ -65,6 +76,11 @@ func (s *resourceStore[T]) get(index, key string) (T, error) {
 	return t, nil
 }
 
-func (s *resourceStore[T]) resources(index string, start string, stop string) iter.Seq[T] {
+// resources returns an iterator over all items in the provided range
+// for the given index in ascending order.
+//
+// It is the responsibility of the caller to clone the resource
+// before propagating it further.
+func (s *store[T]) resources(index, start, stop string) iter.Seq[T] {
 	return s.cache.Ascend(index, start, stop)
 }

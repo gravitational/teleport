@@ -28,7 +28,7 @@ import (
 // collection is responsible for managing a cached resource.
 type collection[T any] struct {
 	getAll          func(ctx context.Context, loadSecrets bool) ([]T, error)
-	store           *resourceStore[T]
+	store           *store[T]
 	watch           types.WatchKind
 	headerTransform func(hdr *types.ResourceHeader) T
 	filter          func(T) bool

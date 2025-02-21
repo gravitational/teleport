@@ -31,7 +31,7 @@ func newStaticTokensCollection(c services.ClusterConfiguration, w types.WatchKin
 	}
 
 	return &collection[types.StaticTokens]{
-		store: newResourceStore(map[string]func(types.StaticTokens) string{
+		store: newStore(map[string]func(types.StaticTokens) string{
 			"name": func(u types.StaticTokens) string {
 				return u.GetName()
 			},
