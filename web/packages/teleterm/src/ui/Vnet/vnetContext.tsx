@@ -57,6 +57,16 @@ export type VnetContext = {
   runDiagnostics: () => Promise<[Report, Error]>;
   diagnosticsAttempt: Attempt<Report>;
   resetDiagnosticsAttempt: () => void;
+  /**
+   * Calculates whether the button for running diagnostics should be disabled. If it should be
+   * disabled, it returns a reason for this, otherwise it returns a falsy value.
+   *
+   * Accepts an attempt as an arg to accommodate for places that run diagnostics periodically
+   * vs manually.
+   */
+  getDisabledDiagnosticsReason: (
+    runDiagnosticsAttempt: Attempt<Report>
+  ) => string;
 };
 
 export type VnetStatus =
@@ -134,6 +144,22 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
     )
   );
 
+  /**
+   * Calculates whether the button for running diagnostics should be disabled. If it should be
+   * disabled, it returns a reason for this, otherwise it returns a falsy value.
+   *
+   * Accepts an attempt as an arg to accommodate for places that run diagnostics periodically
+   * vs manually.
+   */
+  const getDisabledDiagnosticsReason = useCallback(
+    (runDiagnosticsAttempt: Attempt<Report>) =>
+      status.value !== 'running'
+        ? 'VNet must be running to run diagnostics'
+        : runDiagnosticsAttempt.status === 'processing'
+          ? 'Generating diagnostic report…'
+          : '',
+    [status.value]
+  );
   useEffect(() => {
     const handleAutoStart = async () => {
       if (
@@ -194,6 +220,7 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
         runDiagnostics,
         diagnosticsAttempt,
         resetDiagnosticsAttempt,
+        getDisabledDiagnosticsReason,
       }}
     >
       {props.children}
