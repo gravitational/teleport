@@ -355,6 +355,7 @@ func TestWorkloadIdentityService_UpdateWorkloadIdentity(t *testing.T) {
 }
 
 func TestWorkloadIdentityParser(t *testing.T) {
+	t.Parallel()
 	parser := newWorkloadIdentityParser()
 	t.Run("delete", func(t *testing.T) {
 		event := backend.Event{
