@@ -434,7 +434,7 @@ tsh-app: TSH_APP_BUNDLE = $(BUILDDIR)/tsh.app
 tsh-app: TSH_APP_ENTITLEMENTS = build.assets/macos/$(TSH_SKELETON)/$(TSH_SKELETON).entitlements
 tsh-app:
 	cp -rf "build.assets/macos/$(TSH_SKELETON)/tsh.app/" "$(TSH_APP_BUNDLE)/"
-	$(MAC_TOOLING_CMD) package-app --retry 2 --entitlements "$(TSH_APP_ENTITLEMENTS)" "$(BUILDDIR)/tsh" "$(TSH_APP_BUNDLE)"
+	$(MAC_TOOLING_CMD) package-app --entitlements "$(TSH_APP_ENTITLEMENTS)" "$(BUILDDIR)/tsh" "$(TSH_APP_BUNDLE)"
 
 .PHONY: tctl-app
 tctl-app: TCTL_APP_BUNDLE = $(BUILDDIR)/tctl.app
@@ -1675,13 +1675,13 @@ pkg: | $(RELEASE_DIR) $(BUILDDIR)/tsh.app $(BUILDDIR)/tctl.app
 	mkdir -p $(BUILDDIR)/
 
 	@echo Building tsh-$(VERSION).pkg
-	mac-distribution package-pkg --bundle-id $(TSH_BUNDLEID) --version $(VERSION) --install-location=/usr/local/bin $(BUILDDIR)/tsh.app $(BUILDDIR)/tsh-$(VERSION).pkg
+	$(MAC_TOOLING_CMD) package-pkg --bundle-id $(TSH_BUNDLEID) --version $(VERSION) --install-location=/usr/local/bin $(BUILDDIR)/tsh.app $(BUILDDIR)/tsh-$(VERSION).pkg
 
 	@echo Building tctl-$(VERSION).pkg
-	mac-distribution package-pkg --bundle-id $(TCTL_BUNDLEID) --version $(VERSION) --install-location=/usr/local/bin $(BUILDDIR)/tctl.app $(BUILDDIR)/tctl-$(VERSION).pkg
+	$(MAC_TOOLING) package-pkg --bundle-id $(TCTL_BUNDLEID) --version $(VERSION) --install-location=/usr/local/bin $(BUILDDIR)/tctl.app $(BUILDDIR)/tctl-$(VERSION).pkg
 
 	@echo Building teleport-bin-$(VERSION).pkg
-	mac-distribution package-pkg --bundle-id $(TELEPORT_BUNDLEID) --version $(VERSION) --install-location=/usr/local/bin $(BUILDDIR)/teleport $(BUILDDIR)/teleport-bin-$(VERSION).pkg
+	$(MAC_TOOLING) package-pkg --bundle-id $(TELEPORT_BUNDLEID) --version $(VERSION) --install-location=/usr/local/bin $(BUILDDIR)/teleport $(BUILDDIR)/teleport-bin-$(VERSION).pkg
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	# runtime is currently ignored on OS X
