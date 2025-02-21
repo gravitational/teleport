@@ -163,7 +163,7 @@ func (h *Plugin) getExternalAuditStorageBootstrapScript(w http.ResponseWriter, r
 		return nil, trace.Wrap(err)
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
-		TeleportArgs:   strings.Join(cliArgs, " "),
+		EntrypointArgs: strings.Join(cliArgs, " "),
 		SuccessMessage: "Success! You can now go back to the browser to complete the External Audit Storage setup.",
 	})
 	if err != nil {
