@@ -71,14 +71,14 @@ cluster to Teleport.
   metadata:
     name: my-cluster
     region: us-east-1
-    version: "1.23"
+    version: "1.32"
 
   iam:
     withOIDC: true
 
   addons:
   - name: aws-ebs-csi-driver
-    version: v1.11.4-eksbuild.1
+    version: v1.39.0-eksbuild.1
     attachPolicyARNs:
     - arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
 
@@ -196,11 +196,10 @@ chart.
      </TabItem>
    </Tabs>
 
-1. Install the `teleport-cluster` Helm chart using the values file you wrote:
+1. Install the `teleport-cluster` Helm chart using the values file you created:
 
    ```code
    $ helm install teleport-cluster teleport/teleport-cluster \
-     --create-namespace \
      --version (=teleport.version=) \
      --values teleport-cluster-values.yaml
    ```
@@ -288,10 +287,9 @@ In this section, we will  create a local user who has access to Kubernetes group
 `system:masters` via the Teleport role `member`. This user also has the built-in
 `access` and `editor` roles for administrative privileges.
 
-Paste the following role specification into a file called `member.yaml`:
+1. Paste the following role specification into a file called `member.yaml`:
 
-(!docs/pages/includes/kubernetes-access/member-role.mdx!)
-
+   (!docs/pages/includes/kubernetes-access/member-role.mdx!)
 
 1. Create the role:
 
