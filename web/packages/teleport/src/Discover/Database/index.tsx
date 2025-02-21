@@ -33,7 +33,12 @@ import {
   DatabaseLocation,
   ResourceSpec,
 } from 'teleport/Discover/SelectResource';
-import { AwsAccount, Finished, ResourceKind } from 'teleport/Discover/Shared';
+import {
+  AwsAccount,
+  Finished,
+  Overview,
+  ResourceKind,
+} from 'teleport/Discover/Shared';
 import { DiscoverEvent } from 'teleport/services/userEvent';
 
 import { ConfigureDiscoveryService } from '../Shared/ConfigureDiscoveryService';
@@ -134,6 +139,11 @@ export const DatabaseResource: ResourceViewConfig<ResourceSpec> = {
     }
 
     return [
+      {
+        title: 'Overview',
+        component: Overview,
+        eventName: DiscoverEvent.Overview,
+      },
       {
         title: 'Configure Resource',
         views: configureResourceViews,
