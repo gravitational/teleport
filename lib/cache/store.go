@@ -18,59 +18,19 @@ package cache
 
 import (
 	"iter"
-	"reflect"
-	"sync/atomic"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/utils/sortcache"
 )
 
-type singletonStore[T any] struct {
-	t atomic.Pointer[T]
-}
-
-func (s *singletonStore[T]) clear() error {
-	s.t.Store(nil)
-	return nil
-}
-
-func (s *singletonStore[T]) put(t T) error {
-	old := s.t.Load()
-	if !s.t.CompareAndSwap(old, &t) {
-		return trace.CompareFailed("concurrent update occurred")
-	}
-
-	return nil
-}
-
-func (s *singletonStore[T]) delete(T) error {
-	return s.clear()
-}
-
-func (s *singletonStore[T]) get() (T, error) {
-	item := s.t.Load()
-	if item == nil {
-		var t T
-		return t, trace.NotFound("no value for singleton of type %v", reflect.TypeOf((*T)(nil)).Elem())
-	}
-
-	return *item, nil
-}
-
 type resourceStore[T any] struct {
-	filter  func(T) bool
 	cache   *sortcache.SortCache[T]
 	indexes map[string]func(T) string
 }
 
 func newResourceStore[T any](indexes map[string]func(T) string) *resourceStore[T] {
-	return newResourceStoreWithFilter(nil, indexes)
-}
-
-func newResourceStoreWithFilter[T any](filter func(T) bool, indexes map[string]func(T) string) *resourceStore[T] {
 	return &resourceStore[T]{
-		filter:  filter,
 		indexes: indexes,
 		cache: sortcache.New(sortcache.Config[T]{
 			Indexes: indexes,
@@ -84,10 +44,6 @@ func (s *resourceStore[T]) clear() error {
 }
 
 func (s *resourceStore[T]) put(t T) error {
-	if s.filter != nil && !s.filter(t) {
-		return nil
-	}
-
 	s.cache.Put(t)
 	return nil
 }
@@ -109,6 +65,6 @@ func (s *resourceStore[T]) get(index, key string) (T, error) {
 	return t, nil
 }
 
-func (s *resourceStore[T]) iterate(index string, start string, stop string) iter.Seq[T] {
+func (s *resourceStore[T]) resources(index string, start string, stop string) iter.Seq[T] {
 	return s.cache.Ascend(index, start, stop)
 }
