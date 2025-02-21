@@ -53,7 +53,7 @@ to bootstrap your Active Directory domain for use with Teleport. At a high level
 
 1. Create a restrictive service account named `Teleport Service Account` with the SAM account name `svc-teleport` and create the necessary LDAP containers.
 1. Prevent the service account from performing interactive logins by creating and linking a Group Policy Object (GPO) named `Block teleport-svc Interactive Login`.
-1. Configure a GPO named `Teleport Zero Trust Access Policy` to allow Teleport connections, including:
+1. Configure a GPO named `Zero Trust Access Policy` to allow Teleport connections, including:
    - Importing the Teleport CA certificate.
    - Configuring firewall rules.
    - Allowing remote RDP connections.
