@@ -43,7 +43,7 @@ export function useIntegrationOperation() {
     return integrationService.deleteIntegration({
       name: operation.item.name,
       clusterId,
-      associatedResources: opt.deleteAssociatedResources,
+      deleteAssociatedResources: opt.deleteAssociatedResources,
     });
   }
 

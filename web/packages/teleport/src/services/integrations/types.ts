@@ -995,5 +995,5 @@ export type IntegrationDeleteRequest = {
    *
    * Not all integration kinds supports resource cleanup.
    */
-  associatedResources?: boolean;
+  deleteAssociatedResources?: boolean;
 };

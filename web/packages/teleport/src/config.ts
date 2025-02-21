@@ -1113,14 +1113,17 @@ const cfg = {
   },
 
   getDeleteIntegrationUrlV2(req: IntegrationDeleteRequest) {
-    const path = cfg.api.integration.deleteV2
+    // Not using generatePath here because it doesn't work
+    // when a dynamic path and a query param is next to each other.
+    // eg: some/path/:name?queryParmKey=queryParamValue it will
+    // remove the required ? in the path.
+    return cfg.api.integration.deleteV2
       .replace(':clusterId', req.clusterId)
       .replace(':name', req.name)
       .replace(
         ':associatedresources',
-        req.associatedResources ? 'true' : 'false'
+        req.deleteAssociatedResources ? 'true' : 'false'
       );
-    return generatePath(path, req);
   },
 
   getIntegrationStatsUrl(name: string) {
