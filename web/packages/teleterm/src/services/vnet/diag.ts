@@ -52,8 +52,7 @@ export function reportToText(report: diag.Report): string {
 
   return `VNet Diagnostic Report
 
-Created at (local): ${localCreatedAt}
-Created at (UTC): ${utcCreatedAt}
+Created at: ${localCreatedAt} (${utcCreatedAt})
 ${networkStack}
 
 ${checkReports}\n`;
