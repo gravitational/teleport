@@ -20,6 +20,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gravitational/trace"
+
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -30,26 +33,90 @@ func TestUsers(t *testing.T) {
 	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
-	testResources(t, p, testFuncs[types.User]{
-		newResource: func(name string) (types.User, error) {
-			return types.NewUser("bob")
-		},
-		create: func(ctx context.Context, user types.User) error {
-			_, err := p.usersS.UpsertUser(ctx, user)
-			return err
-		},
-		list: func(ctx context.Context) ([]types.User, error) {
-			return p.usersS.GetUsers(ctx, false)
-		},
-		cacheList: func(ctx context.Context) ([]types.User, error) {
-			return p.cache.GetUsers(ctx, false)
-		},
-		update: func(ctx context.Context, user types.User) error {
-			_, err := p.usersS.UpdateUser(ctx, user)
-			return err
-		},
-		deleteAll: func(ctx context.Context) error {
-			return p.usersS.DeleteAllUsers(ctx)
-		},
+	t.Run("GetUsers", func(t *testing.T) {
+		testResources(t, p, testFuncs[types.User]{
+			newResource: func(name string) (types.User, error) {
+				return types.NewUser("bob")
+			},
+			create: func(ctx context.Context, user types.User) error {
+				_, err := p.usersS.UpsertUser(ctx, user)
+				return err
+			},
+			list: func(ctx context.Context) ([]types.User, error) {
+				return p.usersS.GetUsers(ctx, false)
+			},
+			cacheList: func(ctx context.Context) ([]types.User, error) {
+				return p.cache.GetUsers(ctx, false)
+			},
+			update: func(ctx context.Context, user types.User) error {
+				_, err := p.usersS.UpdateUser(ctx, user)
+				return err
+			},
+			deleteAll: func(ctx context.Context) error {
+				return p.usersS.DeleteAllUsers(ctx)
+			},
+		})
 	})
+
+	t.Run("ListUsers", func(t *testing.T) {
+		testResources(t, p, testFuncs[types.User]{
+			newResource: func(name string) (types.User, error) {
+				return types.NewUser("bob")
+			},
+			create: func(ctx context.Context, user types.User) error {
+				_, err := p.usersS.UpsertUser(ctx, user)
+				return err
+			},
+			list: func(ctx context.Context) ([]types.User, error) {
+				var out []types.User
+				req := &userspb.ListUsersRequest{}
+				for {
+					resp, err := p.usersS.ListUsers(ctx, req)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+
+					for _, u := range resp.Users {
+						out = append(out, u)
+					}
+
+					req.PageToken = resp.NextPageToken
+					if resp.NextPageToken == "" {
+						break
+					}
+				}
+
+				return out, nil
+			},
+			cacheList: func(ctx context.Context) ([]types.User, error) {
+				var out []types.User
+				req := &userspb.ListUsersRequest{}
+				for {
+					resp, err := p.cache.ListUsers(ctx, req)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+
+					for _, u := range resp.Users {
+						out = append(out, u)
+					}
+
+					req.PageToken = resp.NextPageToken
+					if resp.NextPageToken == "" {
+						break
+					}
+				}
+
+				return out, nil
+			},
+			update: func(ctx context.Context, user types.User) error {
+				_, err := p.usersS.UpdateUser(ctx, user)
+				return err
+			},
+			deleteAll: func(ctx context.Context) error {
+				return p.usersS.DeleteAllUsers(ctx)
+			},
+		})
+	})
+
 }
