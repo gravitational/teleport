@@ -3788,6 +3788,38 @@ export const events = [
     total_permission_sets: 3,
     total_user_groups: 5,
   },
+  {
+    code: 'TAIC002I',
+    event: 'aws_identity_center.account_assignment.create',
+    assignments: [
+      {
+        account_id: '1169xxxxx55',
+        permission_set_arn:
+          'arn:aws:sso:::permissionSet/ssoins-88xxxxxd26a/ps-25bexxxxx32d5',
+      },
+    ],
+    principal_metadata: {
+      external_id: '3c5da558-50a1-7060-2745-595d7b86f143',
+      name: '3c5da558-50a1-7060-2745-595d7b86f143',
+      principal_type: 'PRINCIPAL_TYPE_ACCESS_LIST',
+    },
+  },
+  {
+    code: 'TAIC003I',
+    event: 'aws_identity_center.account_assignment.delete',
+    assignments: [
+      {
+        account_id: '1169xxxxx55',
+        permission_set_arn:
+          'arn:aws:sso:::permissionSet/ssoins-88xxxxxd26a/ps-25beafxxxxxd5',
+      },
+    ],
+    principal_metadata: {
+      external_id: '3c5da558-50a1-7060-2745-595d7b86f143',
+      name: 'alice',
+      principal_type: 'PRINCIPAL_TYPE_USER',
+    },
+  },
 ].map(makeEvent);
 
 // Do not add new events to this array, add it to `events` list.

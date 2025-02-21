@@ -880,6 +880,12 @@ const (
 	AWSICResourceSyncSuccessEvent = "aws_identity_center.resource_sync.success"
 	// AWSICResourceSyncFailureEvent is emitted when AWS Identity Center resources sync failed.
 	AWSICResourceSyncFailureEvent = "aws_identity_center.resource_sync.failed"
+	// AWSICAccountAssignmentCreateEvent is emitted when an account assignment is
+	// created in the AWS Identity Center.
+	AWSICAccountAssignmentCreateEvent = "aws_identity_center.account_assignment.create"
+	// AWSICAccountAssignmentDeleteEvent is emitted when an account assignment is
+	// deleted from the AWS Identity Center.
+	AWSICAccountAssignmentDeleteEvent = "aws_identity_center.account_assignment.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add
