@@ -51,17 +51,18 @@ type collections struct {
 	staticTokens    *collection[types.StaticTokens]
 	certAuthorities *collection[types.CertAuthority]
 	users           *collection[types.User]
+	nodes           *collection[types.Server]
 }
 
 // setupCollections ensures that the appropriate [collection] is
 // initialized for all provided [types.WatcKind]s. An error is
 // returned if a [types.WatchKind] has no associated [collection].
-func setupCollections(c Config, watches []types.WatchKind) (*collections, error) {
+func setupCollections(c Config) (*collections, error) {
 	out := &collections{
 		byKind: make(map[resourceKind]collectionHandler, 1),
 	}
 
-	for _, watch := range watches {
+	for _, watch := range c.Watches {
 		resourceKind := resourceKindFromWatchKind(watch)
 
 		switch watch.Kind {
@@ -89,6 +90,14 @@ func setupCollections(c Config, watches []types.WatchKind) (*collections, error)
 
 			out.users = collect
 			out.byKind[resourceKind] = out.users
+		case types.KindNode:
+			collect, err := newNodeCollection(c.Presence, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.nodes = collect
+			out.byKind[resourceKind] = out.nodes
 		}
 	}
 

@@ -1089,7 +1089,7 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	collections, err := setupCollections(config, config.Watches)
+	collections, err := setupCollections(config)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -2174,64 +2174,6 @@ func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 		}
 	}
 	return role, err
-}
-
-// GetNode finds and returns a node by name and namespace.
-func (c *Cache) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetNode")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.nodes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetNode(ctx, namespace, name)
-}
-
-type getNodesCacheKey struct {
-	namespace string
-}
-
-var _ map[getNodesCacheKey]struct{} // compile-time hashability check
-
-// GetNodes is a part of auth.Cache implementation
-func (c *Cache) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetNodes")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.nodes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	if !rg.IsCacheRead() {
-		nodes, err := c.getNodesWithTTLCache(ctx, rg.reader, namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return nodes, nil
-	}
-
-	return rg.reader.GetNodes(ctx, namespace)
-}
-
-// getNodesWithTTLCache implements TTL-based caching for the GetNodes endpoint.  All nodes that will be returned from the caching layer
-// must be cloned to avoid concurrent modification.
-func (c *Cache) getNodesWithTTLCache(ctx context.Context, svc nodeGetter, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	cachedNodes, err := utils.FnCacheGet(ctx, c.fnCache, getNodesCacheKey{namespace}, func(ctx context.Context) ([]types.Server, error) {
-		nodes, err := svc.GetNodes(ctx, namespace)
-		return nodes, err
-	})
-
-	// Nodes returned from the TTL caching layer
-	// must be cloned to avoid concurrent modification.
-	clonedNodes := make([]types.Server, 0, len(cachedNodes))
-	for _, node := range cachedNodes {
-		clonedNodes = append(clonedNodes, node.DeepCopy())
-	}
-	return clonedNodes, trace.Wrap(err)
 }
 
 // GetAuthServers returns a list of registered servers
@@ -3435,50 +3377,38 @@ func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesReques
 	ctx, span := c.Tracer.Start(ctx, "cache/ListResources")
 	defer span.End()
 
-	rg, err := readLegacyListResourcesCache(c, req.ResourceType)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	// Cache is not healthy, but right now, only `Node` kind has an
-	// implementation that falls back to TTL cache.
-	if !rg.IsCacheRead() {
-		switch req.ResourceType {
-		case types.KindNode:
-			cachedNodes, err := c.getNodesWithTTLCache(ctx, c.Config.Presence, req.Namespace)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			servers := types.Servers(cachedNodes)
-			// Since TTLCaching falls back to retrieving all resources upfront, we also support
-			// sorting.
-			if err := servers.SortByCustom(req.SortBy); err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			params := local.FakePaginateParams{
-				ResourceType:   req.ResourceType,
-				Limit:          req.Limit,
-				Labels:         req.Labels,
-				SearchKeywords: req.SearchKeywords,
-				StartKey:       req.StartKey,
-			}
-
-			if req.PredicateExpression != "" {
-				expression, err := services.NewResourceExpression(req.PredicateExpression)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				params.PredicateExpression = expression
-			}
-
-			return local.FakePaginate(servers.AsResources(), params)
+	switch req.ResourceType {
+	case types.KindNode:
+		nodes, next, err := c.listNodes(ctx, listNodesRequest{
+			Limit:               req.Limit,
+			StartKey:            req.StartKey,
+			Labels:              req.Labels,
+			PredicateExpression: req.PredicateExpression,
+			SearchKeywords:      req.SearchKeywords,
+			SortBy:              req.SortBy,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-	}
 
-	return rg.reader.ListResources(ctx, req)
+		resp := types.ListResourcesResponse{
+			Resources: make([]types.ResourceWithLabels, 0, len(nodes)),
+			NextKey:   next,
+		}
+
+		for _, n := range nodes {
+			resp.Resources = append(resp.Resources, n)
+		}
+
+		return &resp, nil
+	default:
+		rg, err := readLegacyListResourcesCache(c, req.ResourceType)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer rg.Release()
+		return rg.reader.ListResources(ctx, req)
+	}
 }
 
 // GetAccessGraphSettings gets AccessGraphSettings from the backend.

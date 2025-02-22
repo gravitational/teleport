@@ -118,7 +118,6 @@ type legacyCollections struct {
 	accessListMembers                  collectionReader[accessListMembersGetter]
 	accessListReviews                  collectionReader[accessListReviewsGetter]
 	apps                               collectionReader[services.AppGetter]
-	nodes                              collectionReader[nodeGetter]
 	tunnelConnections                  collectionReader[tunnelConnectionGetter]
 	appSessions                        collectionReader[appSessionGetter]
 	appServers                         collectionReader[appServerGetter]
@@ -266,15 +265,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.roles
-		case types.KindNode:
-			if c.Presence == nil {
-				return nil, trace.BadParameter("missing parameter Presence")
-			}
-			collections.nodes = &genericCollection[types.Server, nodeGetter, nodeExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.nodes
 		case types.KindProxy:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -994,41 +984,6 @@ type authServerGetter interface {
 }
 
 var _ executor[types.Server, authServerGetter] = authServerExecutor{}
-
-type nodeExecutor struct{}
-
-func (nodeExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Server, error) {
-	return cache.Presence.GetNodes(ctx, apidefaults.Namespace)
-}
-
-func (nodeExecutor) upsert(ctx context.Context, cache *Cache, resource types.Server) error {
-	_, err := cache.presenceCache.UpsertNode(ctx, resource)
-	return trace.Wrap(err)
-}
-
-func (nodeExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.presenceCache.DeleteAllNodes(ctx, apidefaults.Namespace)
-}
-
-func (nodeExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteNode(ctx, resource.GetMetadata().Namespace, resource.GetName())
-}
-
-func (nodeExecutor) isSingleton() bool { return false }
-
-func (nodeExecutor) getReader(cache *Cache, cacheOK bool) nodeGetter {
-	if cacheOK {
-		return cache.presenceCache
-	}
-	return cache.Config.Presence
-}
-
-type nodeGetter interface {
-	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
-	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
-}
-
-var _ executor[types.Server, nodeGetter] = nodeExecutor{}
 
 type provisionTokenExecutor struct{}
 
