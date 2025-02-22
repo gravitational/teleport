@@ -941,6 +941,7 @@
     "teleporters",
     "teleportgithubconnector",
     "teleportinfra",
+    "teleporthostname",
     "teleportopensshserverv",
     "teleportproxy",
     "teleportrolesv",
