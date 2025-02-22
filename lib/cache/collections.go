@@ -56,12 +56,12 @@ type collections struct {
 // setupCollections ensures that the appropriate [collection] is
 // initialized for all provided [types.WatcKind]s. An error is
 // returned if a [types.WatchKind] has no associated [collection].
-func setupCollections(c Config, watches []types.WatchKind) (*collections, error) {
+func setupCollections(c Config) (*collections, error) {
 	out := &collections{
 		byKind: make(map[resourceKind]collectionHandler, 1),
 	}
 
-	for _, watch := range watches {
+	for _, watch := range c.Watches {
 		resourceKind := resourceKindFromWatchKind(watch)
 
 		switch watch.Kind {
