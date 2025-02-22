@@ -1089,7 +1089,7 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	collections, err := setupCollections(config, config.Watches)
+	collections, err := setupCollections(config)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
