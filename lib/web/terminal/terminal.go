@@ -418,6 +418,10 @@ func (t *WSStream) Close() error {
 type Stream struct {
 	*WSStream
 
+	// mu guards session creation and stream closure.
+	mu sync.Mutex
+	// closed is set to true after the stream is closed.
+	closed bool
 	// sshSession holds the "shell" SSH channel to the node.
 	sshSession    *tracessh.Session
 	sessionReadyC chan struct{}
@@ -587,12 +591,23 @@ func (t *Stream) handleFileTransferRequest(ctx context.Context, envelope Envelop
 	}
 }
 
-func (t *Stream) SessionCreated(s *tracessh.Session) {
+func (t *Stream) SessionCreated(s *tracessh.Session) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.closed {
+		close(t.sessionReadyC)
+		return trace.BadParameter("websocket was closed before the ssh session was ready")
+	}
+
 	t.sshSession = s
 	close(t.sessionReadyC)
+	return nil
 }
 
 func (t *Stream) Close() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.closed = true
 	if t.sshSession != nil {
 		return trace.NewAggregate(t.sshSession.Close(), t.WSStream.Close())
 	} else {
