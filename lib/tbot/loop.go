@@ -26,8 +26,38 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport/api/utils/retryutils"
+)
+
+var (
+	loopIterationsCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "tbot_task_iterations",
+			Help: "Number of task iteration attempts, not counting retries",
+		}, []string{"name"},
+	)
+	loopIterationsSuccessCounter = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "tbot_task_iterations_successful",
+			Help:    "Histogram of task iterations that ultimately succeeded, bucketed by number of retries before success",
+			Buckets: []float64{0, 1, 2, 3, 4, 5},
+		}, []string{"name"},
+	)
+	loopIterationsFailureCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "tbot_task_iterations_failed",
+			Help: "Number of task iterations that ultimately failed, not counting retries",
+		}, []string{"name"},
+	)
+	loopIterationTime = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "tbot_task_iteration_duration_seconds",
+			Help:    "Time between beginning and ultimate end of one task iteration regardless of outcome, including all retries",
+			Buckets: prometheus.ExponentialBuckets(0.1, 1.75, 6),
+		}, []string{"name"},
+	)
 )
 
 type runOnIntervalConfig struct {
@@ -49,8 +79,6 @@ type runOnIntervalConfig struct {
 // runOnInterval runs a function on a given interval, with retries and jitter.
 //
 // TODO(noah): Emit Prometheus metrics for:
-// - Success/Failure of attempts
-// - Time taken to execute attempt
 // - Time of next attempt
 func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
 	switch {
@@ -87,6 +115,9 @@ func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
 		}
 		firstRun = false
 
+		loopIterationsCounter.WithLabelValues(cfg.name).Inc()
+		startTime := time.Now()
+
 		var err error
 		for attempt := 1; attempt <= cfg.retryLimit; attempt++ {
 			log.InfoContext(
@@ -97,6 +128,7 @@ func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
 			)
 			err = cfg.f(ctx)
 			if err == nil {
+				loopIterationsSuccessCounter.WithLabelValues(cfg.name).Observe(float64(attempt - 1))
 				break
 			}
 
@@ -114,12 +146,20 @@ func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
 				)
 				select {
 				case <-ctx.Done():
+					// Note: will discard metric update for this loop. It
+					// probably won't be collected if we're shutting down,
+					// anyway.
 					return nil
 				case <-cfg.clock.After(backoffTime):
 				}
 			}
 		}
+
+		loopIterationTime.WithLabelValues(cfg.name).Observe(time.Since(startTime).Seconds())
+
 		if err != nil {
+			loopIterationsFailureCounter.WithLabelValues(cfg.name).Inc()
+
 			if cfg.exitOnRetryExhausted {
 				log.ErrorContext(
 					ctx,
