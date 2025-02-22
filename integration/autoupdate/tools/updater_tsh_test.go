@@ -143,4 +143,7 @@ func TestAliasLoginWithUpdater(t *testing.T) {
 	matches := pattern.FindStringSubmatch(string(out))
 	require.Len(t, matches, 2)
 	require.Equal(t, testVersions[1], matches[1])
+
+	// Verifies that version commands shows version re-executed from.
+	require.Contains(t, string(out), fmt.Sprintf("Re-executed from version: %s", testVersions[0]))
 }
