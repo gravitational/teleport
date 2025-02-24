@@ -57,7 +57,7 @@ JOIN_METHOD_FLAG=""
 [ -n "$JOIN_METHOD" ] && JOIN_METHOD_FLAG="--join-method ${JOIN_METHOD}"
 
 # inject labels into the configuration
-LABELS='{{.labels}}'
+LABELS="{{.labels}}"
 LABELS_FLAG=()
 [ -n "$LABELS" ] && LABELS_FLAG=(--labels "${LABELS}")
 
@@ -478,6 +478,10 @@ app_service:
   - name: "${APP_NAME}"
     uri: "${APP_URI}"
     public_addr: ${APP_PUBLIC_ADDR}
+EOF
+
+    # Quoting the EOF heredoc indicates to shell to treat this as a literal string and does not try to interpolate or execute anything.
+    cat << "EOF" >> ${TELEPORT_CONFIG_PATH}
     labels:{{range $index, $line := .appServerResourceLabels}}
       {{$line -}}
 {{end}}
@@ -512,6 +516,10 @@ proxy_service:
 db_service:
   enabled: "yes"
   resources:
+EOF
+
+    # Quoting the EOF heredoc indicates to shell to treat this as a literal string and does not try to interpolate or execute anything.
+    cat << "EOF" >> ${TELEPORT_CONFIG_PATH}
     - labels:{{range $index, $line := .db_service_resource_labels}}
         {{$line -}}
 {{end}}
