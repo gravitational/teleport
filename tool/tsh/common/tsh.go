@@ -1265,6 +1265,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	vnetAdminSetupCommand := newVnetAdminSetupCommand(app)
 	vnetDaemonCommand := newVnetDaemonCommand(app)
 	vnetServiceCommand := newVnetServiceCommand(app)
+	vnetInstallServiceCommand := newVnetInstallServiceCommand(app)
+	vnetUninstallServiceCommand := newVnetUninstallServiceCommand(app)
 
 	gitCmd := newGitCommands(app)
 
@@ -1652,6 +1654,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = vnetDaemonCommand.run(&cf)
 	case vnetServiceCommand.FullCommand():
 		err = vnetServiceCommand.run(&cf)
+	case vnetInstallServiceCommand.FullCommand():
+		err = vnetInstallServiceCommand.run(&cf)
+	case vnetUninstallServiceCommand.FullCommand():
+		err = vnetUninstallServiceCommand.run(&cf)
 	case gitCmd.list.FullCommand():
 		err = gitCmd.list.run(&cf)
 	case gitCmd.login.FullCommand():

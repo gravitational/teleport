@@ -19,22 +19,21 @@
 import { Link as InternalLink } from 'react-router-dom';
 import styled from 'styled-components';
 
-import { ButtonBorder, Card, Flex, H2, ResourceIcon } from 'design';
+import { ButtonSecondary, Card, Flex, H2, ResourceIcon } from 'design';
 
 import cfg from 'teleport/config';
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 
 export function EnrollCard({ resource }: { resource: AwsResource }) {
-  // todo (michellescripts) update enroll design once ready
   return (
     <Enroll data-testid={`${resource}-enroll`}>
       <Flex flexDirection="column" gap={4}>
-        <Flex alignItems="center" mb={2}>
+        <Flex alignItems="center">
           <ResourceIcon name={resource} mr={2} width="32px" height="32px" />
           <H2>{resource.toUpperCase()}</H2>
         </Flex>
-        <ButtonBorder
-          size="large"
+        <ButtonSecondary
+          width="136px"
           as={InternalLink}
           to={{
             pathname: cfg.routes.discover,
@@ -42,7 +41,7 @@ export function EnrollCard({ resource }: { resource: AwsResource }) {
           }}
         >
           Enroll {resource.toUpperCase()}
-        </ButtonBorder>
+        </ButtonSecondary>
       </Flex>
     </Enroll>
   );
@@ -51,7 +50,7 @@ export function EnrollCard({ resource }: { resource: AwsResource }) {
 const Enroll = styled(Card)`
   width: 33%;
   background-color: ${props => props.theme.colors.levels.surface};
-  padding: 12px;
+  padding: ${props => props.theme.space[3]}px;
   border-radius: ${props => props.theme.radii[2]}px;
   border: ${props => `1px solid ${props.theme.colors.levels.surface}`};
 
