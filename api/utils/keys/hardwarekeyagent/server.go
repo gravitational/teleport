@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// hardwarekeyagent provides an agent implementation of [hardwarekey.Service],
+// used to share service state across process boundaries.
 package hardwarekeyagent
 
 import (
