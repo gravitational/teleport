@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -93,6 +94,8 @@ type CloudConfig struct {
 	AWSConfigProvider awsconfig.Provider
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
+	// Logger is the slog.Logger.
+	Logger *slog.Logger
 }
 
 // CheckAndSetDefaults validates the config.
@@ -102,6 +105,9 @@ func (c *CloudConfig) CheckAndSetDefaults() error {
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
+	}
+	if c.Logger == nil {
+		return trace.BadParameter("missing logger")
 	}
 	return nil
 }
@@ -206,6 +212,7 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 	//
 	// https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html
 	if temporarySession {
+		c.cfg.Logger.DebugContext(ctx, "Temporary session")
 		assumeRole.Duration = duration
 	}
 

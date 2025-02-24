@@ -153,6 +153,7 @@ func (c *ConnectionsHandlerConfig) CheckAndSetDefaults() error {
 		cloud, err := NewCloud(CloudConfig{
 			Clock:             c.Clock,
 			AWSConfigProvider: c.AWSConfigProvider,
+			Logger:            c.Logger,
 		})
 		if err != nil {
 			return trace.Wrap(err)

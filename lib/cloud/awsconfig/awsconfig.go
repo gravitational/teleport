@@ -81,9 +81,9 @@ type AssumeRole struct {
 	// Tags is a list of STS session tags to pass when assuming the role.
 	// https://docs.aws.amazon.com/IAM/latest/UserGuide/id_session-tags.html
 	Tags map[string]string `json:"tags,omitempty"`
-	// Duration is the expirity duration of the generated credentials. Empty
+	// Duration is the expiry duration of the generated credentials. Empty
 	// value will use the AWS SDK default expiration time.
-	Duration time.Duration `json:"duraiton,omitempty"`
+	Duration time.Duration `json:"duration,omitempty"`
 }
 
 // options is a struct of additional options for assuming an AWS role

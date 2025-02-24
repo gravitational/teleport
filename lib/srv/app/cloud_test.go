@@ -20,6 +20,7 @@ package app
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/tlsca"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func TestIsSessionUsingTemporaryCredentials(t *testing.T) {
@@ -151,6 +153,7 @@ func TestCloudGetFederationDuration(t *testing.T) {
 			c, err := NewCloud(CloudConfig{
 				AWSConfigProvider: &mocks.AWSConfigProvider{},
 				Clock:             clockwork.NewFakeClockAt(now),
+				Logger:            slog.New(logutils.DiscardHandler{}),
 			})
 			require.NoError(t, err)
 
@@ -243,6 +246,7 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 				AWSConfigProvider: &mocks.AWSConfigProvider{
 					STSClient: &mocks.STSClient{},
 				},
+				Logger: slog.New(logutils.DiscardHandler{}),
 			})
 			require.NoError(t, err)
 
