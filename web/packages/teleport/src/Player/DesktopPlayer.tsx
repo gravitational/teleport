@@ -135,16 +135,6 @@ export const DesktopPlayer = ({
     };
   }, [playerClient]);
 
-  // Call connect after all listeners have been registered
-  useEffect(() => {
-    if (playerClient) {
-      playerClient.connect();
-      return () => {
-        playerClient.shutdown();
-      };
-    }
-  }, [playerClient]);
-
   const isError = playerStatus === StatusEnum.ERROR || statusText !== '';
   const isLoading = playerStatus === StatusEnum.LOADING;
   const isPlaying = playerStatus === StatusEnum.PLAYING;
@@ -217,6 +207,10 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
   }, []);
 
   useEffect(() => {
+    if (!playerClient) {
+      return;
+    }
+    void playerClient.connect();
     return () => {
       playerClient.shutdown();
     };
