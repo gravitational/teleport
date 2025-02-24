@@ -248,6 +248,18 @@ export function DesktopSession(props: State) {
     if (!client) {
       return;
     }
+    const clear = () => tdpClientCanvasRef.current?.clear();
+    client.addListener(TdpClientEvent.RESET, clear);
+
+    return () => {
+      client.removeListener(TdpClientEvent.RESET, clear);
+    };
+  }, [client]);
+
+  useEffect(() => {
+    if (!client) {
+      return;
+    }
     const setResolution = tdpClientCanvasRef.current?.setResolution;
     client.addListener(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, setResolution);
 
@@ -306,7 +318,6 @@ export function DesktopSession(props: State) {
         style={{
           display: screenState.canvasState.shouldDisplay ? 'flex' : 'none',
         }}
-        client={client}
         onKeyDown={canvasOnKeyDown}
         onKeyUp={canvasOnKeyUp}
         onBlur={canvasOnFocusOut}

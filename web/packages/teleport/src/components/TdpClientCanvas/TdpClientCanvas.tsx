@@ -28,7 +28,6 @@ import React, {
 import { Logger } from 'design/logger';
 import { debounce } from 'shared/utils/highbar';
 
-import { TdpClient, TdpClientEvent } from 'teleport/lib/tdp';
 import { BitmapFrame } from 'teleport/lib/tdp/client';
 import type { PngFrame } from 'teleport/lib/tdp/codec';
 
@@ -39,11 +38,11 @@ export interface TdpClientCanvasRef {
   renderPngFrame(frame: PngFrame): void;
   renderBitmapFrame(frame: BitmapFrame): void;
   setResolution(resolution: { width: number; height: number }): void;
+  clear(): void;
 }
 
 const TdpClientCanvas = forwardRef<TdpClientCanvasRef, Props>((props, ref) => {
   const {
-    client,
     onKeyDown,
     onKeyUp,
     onBlur,
@@ -69,6 +68,10 @@ const TdpClientCanvas = forwardRef<TdpClientCanvasRef, Props>((props, ref) => {
         canvas.width = width;
         canvas.height = height;
         logger.debug(`Canvas resolution set to ${width}x${height}.`);
+      },
+      clear: () => {
+        const canvas = canvasRef.current;
+        canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
       },
     };
   }, []);
@@ -109,21 +112,6 @@ const TdpClientCanvas = forwardRef<TdpClientCanvasRef, Props>((props, ref) => {
     };
   }, [onResize]);
 
-  useEffect(() => {
-    if (client) {
-      const canvas = canvasRef.current;
-      const _clearCanvas = () => {
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-      };
-      client.on(TdpClientEvent.RESET, _clearCanvas);
-
-      return () => {
-        client.removeListener(TdpClientEvent.RESET, _clearCanvas);
-      };
-    }
-  }, [client]);
-
   // Wheel events must be registered on a ref because React's onWheel
   // uses a passive listener, so handlers are not able to call of e.preventDefault() on it.
   useEffect(() => {
@@ -162,7 +150,6 @@ const TdpClientCanvas = forwardRef<TdpClientCanvasRef, Props>((props, ref) => {
 });
 
 export type Props = {
-  client: TdpClient;
   onKeyDown?(e: React.KeyboardEvent): void;
   onKeyUp?(e: React.KeyboardEvent): void;
   onBlur?(e: React.FocusEvent): void;
