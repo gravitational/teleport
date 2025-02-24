@@ -17,6 +17,7 @@
 package tbot
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"crypto"
@@ -28,6 +29,7 @@ import (
 	awsspiffe "github.com/spiffe/aws-spiffe-workload-helper"
 	"github.com/spiffe/aws-spiffe-workload-helper/vendoredaws"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
+	"gopkg.in/ini.v1"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -60,12 +62,11 @@ func (s *WorkloadIdentityAWSRAService) OneShot(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "requesting SVID")
 	}
-	err = s.exchangeSVID(ctx, res, privateKey)
+	creds, err := s.exchangeSVID(ctx, res, privateKey)
 	if err != nil {
 		return trace.Wrap(err, "exchanging SVID via Roles Anywhere")
 	}
-
-	return s.render(ctx)
+	return s.render(ctx, creds)
 }
 
 // exchangeSVID will exchange the X.509 SVID for AWS credentials using the
@@ -184,6 +185,35 @@ func (s *WorkloadIdentityAWSRAService) requestSVID(
 	return x509Credential, privateKey, nil
 }
 
-func (s *WorkloadIdentityAWSRAService) render(ctx context.Context) error {
+// render will write the AWS credentials to the AWS CLI configuration file.
+// See https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html
+func (s *WorkloadIdentityAWSRAService) render(
+	ctx context.Context, creds *vendoredaws.CredentialProcessOutput,
+) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"WorkloadIdentityAWSRAService/render",
+	)
+	defer span.End()
 
+	// TODO(noah): Perhaps offer mode where we read in and modify existing file.
+	f := ini.Empty()
+	// "default" is the name of the section that the AWS CLI will use by
+	// default.
+	sec := f.Section("default")
+	sec.Key("aws_secret_access_key").SetValue(creds.SecretAccessKey)
+	sec.Key("aws_access_key_id").SetValue(creds.AccessKeyId)
+	sec.Key("aws_session_token").SetValue(creds.SessionToken)
+
+	b := &bytes.Buffer{}
+	_, err := f.WriteTo(b)
+	if err != nil {
+		return trace.Wrap(err, "writing credentials to buffer")
+	}
+
+	err = s.cfg.Destination.Write(ctx, "aws_credentials", b.Bytes())
+	if err != nil {
+		return trace.Wrap(err, "writing credentials to destination")
+	}
+	return nil
 }
