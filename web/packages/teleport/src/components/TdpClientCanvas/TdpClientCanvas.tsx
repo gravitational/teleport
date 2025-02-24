@@ -39,6 +39,7 @@ export interface TdpClientCanvasRef {
   renderBitmapFrame(frame: BitmapFrame): void;
   setResolution(resolution: { width: number; height: number }): void;
   clear(): void;
+  focus(): void;
 }
 
 const TdpClientCanvas = forwardRef<TdpClientCanvasRef, Props>((props, ref) => {
@@ -73,21 +74,8 @@ const TdpClientCanvas = forwardRef<TdpClientCanvasRef, Props>((props, ref) => {
         const canvas = canvasRef.current;
         canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
       },
+      focus: () => canvasRef.current.focus(),
     };
-  }, []);
-
-  useEffect(() => {
-    // Empty dependency array ensures this runs only once after initial render.
-    // This code will run after the component has been mounted and the canvasRef has been assigned.
-    const canvas = canvasRef.current;
-    if (canvas) {
-      // Make the canvas a focusable keyboard listener
-      // https://stackoverflow.com/a/51267699/6277051
-      // https://stackoverflow.com/a/16492878/6277051
-      canvas.tabIndex = -1;
-      canvas.style.outline = 'none';
-      canvas.focus();
-    }
   }, []);
 
   useEffect(() => {
@@ -125,6 +113,9 @@ const TdpClientCanvas = forwardRef<TdpClientCanvasRef, Props>((props, ref) => {
 
   return (
     <canvas
+      // Make the canvas a focusable keyboard listener
+      // https://stackoverflow.com/a/51267699/6277051
+      tabIndex={-1}
       onKeyDown={onKeyDown}
       onKeyUp={onKeyUp}
       onMouseDown={onMouseDown}
@@ -133,6 +124,7 @@ const TdpClientCanvas = forwardRef<TdpClientCanvasRef, Props>((props, ref) => {
       onBlur={onBlur}
       onMouseMove={onMouseMove}
       style={{
+        outline: 'none',
         height: '100%',
         width: '100%',
         minHeight: 0,
