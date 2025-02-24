@@ -173,7 +173,7 @@ func TestBotWorkloadIdentityAPI(t *testing.T) {
 
 	// Check CRL is delivered - we have to manually craft the client for this
 	// since the current go-spiffe SDK doesn't support this.
-	// TODO(noah): I'll raise some changes upstream to add CSR field support to
+	// TODO(noah): I'll raise some changes upstream to add CRL field support to
 	// the go-spiffe SDK, and then we can remove this code.
 	conn, err := grpc.NewClient(
 		listenAddr.String(),
