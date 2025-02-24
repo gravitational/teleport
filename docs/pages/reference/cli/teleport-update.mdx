@@ -281,3 +281,61 @@ This command is executed automatically when the Teleport package is removed, and
 | -i, --install-suffix | Suffix for creating an agent installation outside of the default $PATH. Note: this changes the default data directory. |
 | --[no-]insecure      | Insecure mode disables certificate verification. Do not use in production.                                             |
 
+## teleport-update status
+
+Display status about an updater-managed installation of Teleport.
+Use `-i` to select the installation.
+
+### Flags
+
+| Flag                 | Description                                                                                                            |
+|----------------------|------------------------------------------------------------------------------------------------------------------------|
+| -d, --[no-]debug     | Verbose logging to stdout.                                                                                             |
+| --log-format         | Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.                                       |
+| -i, --install-suffix | Suffix for creating an agent installation outside of the default $PATH. Note: this changes the default data directory. |
+| --[no-]insecure      | Insecure mode disables certificate verification. Do not use in production.                                             |
+
+### Examples
+
+**Example showing the status.**
+
+```code
+$ teleport-update status
+proxy: example.teleport.sh
+path: /usr/local/bin
+enabled: true
+pinned: false
+active:
+    version: 17.2.1
+    flags: [Enterprise]
+backup:
+    version: 16.4.7
+    flags: [Enterprise]
+target:
+    version: 17.2.1
+    flags: [Enterprise]
+in_window: false
+jitter: 1m0s
+```
+
+## teleport-update uninstall
+
+Uninstall the updater-managed installation of Teleport. If the Teleport package is installed, it is restored as the primary installation.
+
+### Flags
+
+| Flag                 | Description                                                                                                            |
+|----------------------|------------------------------------------------------------------------------------------------------------------------|
+| -d, --[no-]debug     | Verbose logging to stdout.                                                                                             |
+| --log-format         | Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.                                       |
+| -i, --install-suffix | Suffix for creating an agent installation outside of the default $PATH. Note: this changes the default data directory. |
+| --[no-]insecure      | Insecure mode disables certificate verification. Do not use in production.                                             |
+| -f, --[no-]force     | Force complete uninstallation of Teleport, even if there is no packaged version of Teleport to revert to.              |
+
+### Examples
+
+**Example for reverting back to system package.**
+
+```code
+$ sudo teleport-update uninstall
+```
