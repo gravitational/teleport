@@ -21,6 +21,7 @@ package expression_test
 import (
 	"testing"
 
+	traitv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/expression"
 	"github.com/stretchr/testify/require"
@@ -96,6 +97,20 @@ func TestTemplate_Success(t *testing.T) {
 			attrs:  &workloadidentityv1.Attrs{},
 			output: "1234",
 		},
+		"user traits": {
+			tmpl: `{{user.traits.skill}}`,
+			attrs: &workloadidentityv1.Attrs{
+				User: &workloadidentityv1.UserAttrs{
+					Traits: []*traitv1.Trait{
+						{
+							Key:    "skill",
+							Values: []string{"coffee-drinker"},
+						},
+					},
+				},
+			},
+			output: "coffee-drinker",
+		},
 	}
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
@@ -125,4 +140,21 @@ func TestTemplate_ParseError(t *testing.T) {
 			require.ErrorContains(t, err, tc.err)
 		})
 	}
+}
+
+func TestTemplate_MultipleTraitValues(t *testing.T) {
+	tmpl, err := expression.NewTemplate(`{{user.traits.skills}}`)
+	require.NoError(t, err)
+
+	_, err = tmpl.Render(&workloadidentityv1.Attrs{
+		User: &workloadidentityv1.UserAttrs{
+			Traits: []*traitv1.Trait{
+				{
+					Key:    "skills",
+					Values: []string{"sword-fighting", "sonnet-writing"},
+				},
+			},
+		},
+	})
+	require.ErrorContains(t, err, "multiple values")
 }

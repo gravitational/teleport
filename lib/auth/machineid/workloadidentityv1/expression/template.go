@@ -80,7 +80,7 @@ func NewTemplate(tmpl string) (*Template, error) {
 		}
 
 		// Parse the expression using the typical/predicate library.
-		expr, err := expressionParser.Parse(text)
+		expr, err := templateExpressionParser.Parse(text)
 		if err != nil {
 			return nil, trace.Wrap(err, "parsing expression [%d:%d]: %s", start+2, end-2, text)
 		}

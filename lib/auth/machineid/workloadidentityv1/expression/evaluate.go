@@ -25,7 +25,7 @@ import (
 
 // Evaluate the given boolean expression against the given attributes.
 func Evaluate(expr string, attrs *workloadidentityv1.Attrs) (bool, error) {
-	e, err := expressionParser.Parse(expr)
+	e, err := booleanExpressionParser.Parse(expr)
 	if err != nil {
 		return false, trace.Wrap(err, "parsing expression: %s", expr)
 	}

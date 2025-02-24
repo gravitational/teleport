@@ -21,6 +21,7 @@ package expression_test
 import (
 	"testing"
 
+	traitv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/expression"
 	"github.com/stretchr/testify/require"
@@ -66,4 +67,22 @@ func TestEvaluate(t *testing.T) {
 	// Non-string expression.
 	_, err = expression.Evaluate(`"chunky bacon"`, &workloadidentityv1.Attrs{})
 	require.ErrorContains(t, err, "expression evaluated to string instead of boolean")
+}
+
+func TestEvaluate_Traits(t *testing.T) {
+	result, err := expression.Evaluate(
+		`user.traits.logins.contains("root")`,
+		&workloadidentityv1.Attrs{
+			User: &workloadidentityv1.UserAttrs{
+				Traits: []*traitv1.Trait{
+					{
+						Key:    "logins",
+						Values: []string{"root", "alice", "bob"},
+					},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.True(t, result)
 }
