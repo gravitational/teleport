@@ -9,8 +9,8 @@
           "slug": "/"
         },
         {
-           "title": "Get Started",
-           "slug": "/get-started/"
+          "title": "Get Started",
+          "slug": "/get-started/"
         },
         {
           "title": "Core Concepts",
@@ -35,7 +35,7 @@
             {
               "title": "Upgrading Reference",
               "slug": "/upgrading/upgrading-reference/"
-	        },
+            },
             {
               "title": "Client Tool Automatic Updates",
               "slug": "/upgrading/client-tools-autoupdate/"
@@ -55,10 +55,10 @@
           "title": "Upcoming Releases",
           "slug": "/upcoming-releases/"
         },
-	{
-	  "title": "Cloud IP Addresses",
-	  "slug": "/ips/"
-	},
+        {
+          "title": "Cloud IP Addresses",
+          "slug": "/ips/"
+        },
         {
           "title": "Changelog",
           "slug": "/changelog/"
@@ -66,10 +66,10 @@
       ]
     },
     {
-    	"icon": "wrench",
-    	"title": "Admin Guides",
-    	"entries": [],
-    	"generateFrom": "admin-guides"
+      "icon": "wrench",
+      "title": "Admin Guides",
+      "entries": [],
+      "generateFrom": "admin-guides"
     },
     {
       "icon": "connect",
@@ -296,7 +296,7 @@
     {
       "source": "/enroll-resources/workload-identity/workload-attestation/",
       "destination": "/reference/workload-identity/workload-identity-api-and-workload-attestation/",
-       "permanent": true
+      "permanent": true
     },
     {
       "source": "/access-controls/guides/role-templates/",
@@ -304,7 +304,6 @@
       "permanent": true
     },
     {
-
       "source": "/enterprise/sso/",
       "destination": "/admin-guides/access-controls/sso/",
       "permanent": true
@@ -377,6 +376,16 @@
     {
       "source": "/access-controls/access-request-plugins/",
       "destination": "/admin-guides/access-controls/access-request-plugins/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/reference/",
+      "destination": "/enroll-resources/auto-discovery/aws-iam/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/reference/aws-iam/",
+      "destination": "/enroll-resources/auto-discovery/aws-iam/",
       "permanent": true
     }
   ]
