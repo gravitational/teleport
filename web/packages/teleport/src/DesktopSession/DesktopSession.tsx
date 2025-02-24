@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Box, ButtonPrimary, ButtonSecondary, Flex, Indicator } from 'design';
 import { Info } from 'design/Alert';
@@ -33,7 +33,7 @@ import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import { TdpClientCanvasRef } from 'teleport/components/TdpClientCanvas/TdpClientCanvas';
 import { TdpClientEvent } from 'teleport/lib/tdp';
 import { BitmapFrame } from 'teleport/lib/tdp/client';
-import { PngFrame } from 'teleport/lib/tdp/codec';
+import { ClientScreenSpec, PngFrame } from 'teleport/lib/tdp/codec';
 import type { MfaState } from 'teleport/lib/useMfa';
 
 import TopBar from './TopBar';
@@ -214,12 +214,24 @@ export function DesktopSession(props: State) {
     };
   }, [client]);
 
+  const onInitialTdpConnectionSucceeded = useCallback(() => {
+    setInitialTdpConnectionSucceeded(() => {
+      // TODO(gzdunek): This callback is a temporary fix for focusing the canvas.
+      // Focus the canvas once we start rendering frames.
+      // The timeout it a small hack, we should verify
+      // what is the earliest moment we can focus the canvas.
+      setTimeout(() => {
+        tdpClientCanvasRef.current?.focus();
+      }, 100);
+    });
+  }, [setInitialTdpConnectionSucceeded]);
+
   useEffect(() => {
     if (!client) {
       return;
     }
     const renderFrame = (frame: PngFrame) => {
-      setInitialTdpConnectionSucceeded();
+      onInitialTdpConnectionSucceeded();
       tdpClientCanvasRef.current?.renderPngFrame(frame);
     };
     client.addListener(TdpClientEvent.TDP_PNG_FRAME, renderFrame);
@@ -227,14 +239,14 @@ export function DesktopSession(props: State) {
     return () => {
       client.removeListener(TdpClientEvent.TDP_PNG_FRAME, renderFrame);
     };
-  }, [client, setInitialTdpConnectionSucceeded]);
+  }, [client, onInitialTdpConnectionSucceeded]);
 
   useEffect(() => {
     if (!client) {
       return;
     }
     const renderFrame = (frame: BitmapFrame) => {
-      setInitialTdpConnectionSucceeded();
+      onInitialTdpConnectionSucceeded();
       tdpClientCanvasRef.current?.renderBitmapFrame(frame);
     };
     client.addListener(TdpClientEvent.TDP_BMP_FRAME, renderFrame);
@@ -242,7 +254,7 @@ export function DesktopSession(props: State) {
     return () => {
       client.removeListener(TdpClientEvent.TDP_BMP_FRAME, renderFrame);
     };
-  }, [client, setInitialTdpConnectionSucceeded]);
+  }, [client, onInitialTdpConnectionSucceeded]);
 
   useEffect(() => {
     if (!client) {

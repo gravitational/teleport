@@ -83,13 +83,17 @@ export default function useTdpClientCanvas(props: Props) {
     setTdpClient(new TdpClient(addr));
   }, [clusterId, username, desktopName]);
 
-  const setInitialTdpConnectionSucceeded = useCallback(() => {
-    // The first image fragment we see signals a successful TDP connection.
-    if (!initialTdpConnectionSucceeded.current) {
-      setTdpConnection({ status: 'success' });
-      initialTdpConnectionSucceeded.current = true;
-    }
-  }, [setTdpConnection]);
+  const setInitialTdpConnectionSucceeded = useCallback(
+    (callback: () => void) => {
+      // The first image fragment we see signals a successful TDP connection.
+      if (!initialTdpConnectionSucceeded.current) {
+        callback();
+        setTdpConnection({ status: 'success' });
+        initialTdpConnectionSucceeded.current = true;
+      }
+    },
+    [setTdpConnection]
+  );
 
   // Default TdpClientEvent.TDP_CLIPBOARD_DATA handler.
   const clientOnClipboardData = async (clipboardData: ClipboardData) => {
