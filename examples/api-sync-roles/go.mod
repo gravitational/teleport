@@ -2,8 +2,6 @@ module sync-roles
 
 go 1.23.0
 
-toolchain go1.24.0
-
 require (
 	github.com/gravitational/teleport/api v0.0.0-20240220221413-126de63e7e40
 	github.com/gravitational/trace v1.3.1
