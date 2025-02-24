@@ -44,7 +44,7 @@ spec:
 +   # - 'per-session': MFA is required for every session.
 +   # - 'multi-session': Allows reuse of a MFA for multiple sessions. Currently only
 +   #    supported for `tsh db exec` command with WebAuthn as the second factor.
-+   requie_session_mfa_mode: "multi-session"
++   require_session_mfa_mode: "multi-session"
   allow:
     db_labels:
       'env': 'dev'
@@ -131,7 +131,7 @@ spec:
 +   # - 'per-session': MFA is required for every session.
 +   # - 'multi-session': Allows reuse of a MFA for multiple sessions. Currently only
 +   #    supported for `tsh db exec` command with WebAuthn as the second factor.
-+   requie_session_mfa_mode: "multi-session"
++   require_session_mfa_mode: "multi-session"
 ```
 
 Mode defaults to `per-session` if not set. If a resource matches a role set with
@@ -157,13 +157,13 @@ WebAuthn).
 The MFA response will be checked upon auth call of `GenerateUserCerts` where
 user requests a TLS user cert with database route. New logic is added to
 `GenerateUserCerts` where the new scope with reuse is allowed only if the role
-set matching the requested database has `roleset.option.requie_session_mfa_mode`
+set matching the requested database has `roleset.option.require_session_mfa_mode`
 option set to `multi-session`.
 
 The new scope cannot be used for `GenerateUserCerts` for non-database targets.
 And if the MFA response is validated with existing non-reusable `SCOPE_SESSION`,
 the action should be allowed regardless of
-`roleset.option.requie_session_mfa_mode`.
+`roleset.option.require_session_mfa_mode`.
 
 Here is a quick matrix:
 
@@ -213,8 +213,8 @@ Some other details:
 - `tsh db exec --exec-config` to support a config file which allows specifying
   different flags like `--db-user`, `--db-name`, `--exec-query` per target
   database or per search.
-- `tsh db exec --exec-command` to support custom command template like `$ tsh
-  db exec --exec-command "bash -c './myscript {{.DB_SERVICE}} {{.DB_USER}}
+- `tsh db exec --exec-command` to support custom command template like `tsh
+  db exec --exec-command "bash -c './my_script.sh {{.DB_SERVICE}} {{.DB_USER}}
   {{.DB_NAME}} {{.DB_LOCAL_PORT}}'"`. An env var `TSH_UNSTABLE_DB_EXEC_COMMAND`
   can be supported for the initial MVP.
 
