@@ -72,8 +72,11 @@ func CopyFromBoolOption(diags diag.Diagnostics, tf attr.Value, o **apitypes.Bool
 		diags.AddError("Error reading from Terraform object", fmt.Sprintf("Can not convert %T to types.Bool", tf))
 		return
 	}
-	value := apitypes.BoolOption{Value: v.Value}
-	*o = &value
+
+	if !v.Null && !v.Unknown {
+		value := apitypes.BoolOption{Value: v.Value}
+		*o = &value
+	}
 }
 
 func CopyToBoolOption(diags diag.Diagnostics, o *apitypes.BoolOption, t attr.Type, v attr.Value) attr.Value {
@@ -87,6 +90,7 @@ func CopyToBoolOption(diags diag.Diagnostics, o *apitypes.BoolOption, t attr.Typ
 		return value
 	}
 
+	value.Null = false
 	value.Value = o.Value
 
 	return value
