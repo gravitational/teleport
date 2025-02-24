@@ -2427,7 +2427,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		servers = filterByNameOrDiscoveredName(servers, rc.ref.Name, altNameFn)
 		if len(servers) == 0 {
-			return nil, trace.NotFound("kubernetes server %q not found", rc.ref.Name)
+			return nil, trace.NotFound("Kubernetes server %q not found", rc.ref.Name)
 		}
 		return &kubeServerCollection{servers: servers}, nil
 
@@ -2492,7 +2492,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		clusters = filterByNameOrDiscoveredName(clusters, rc.ref.Name)
 		if len(clusters) == 0 {
-			return nil, trace.NotFound("kubernetes cluster %q not found", rc.ref.Name)
+			return nil, trace.NotFound("Kubernetes cluster %q not found", rc.ref.Name)
 		}
 		return &kubeClusterCollection{clusters: clusters}, nil
 	case types.KindCrownJewel:
