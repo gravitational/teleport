@@ -40,18 +40,18 @@ metadata:
 spec:
   options:
     require_session_mfa: true
-+    # Defaults to 'per-session'. Valid values are:
-+    # - 'per-session': MFA is required for every session.
-+    # - 'multi-session': Allows reuse of a MFA for multiple sessions. Currently only
-+    #    supported for `tsh db exec` command with WebAuthn as the second factor.
-+    requie_session_mfa_mode: "multi-session"
++   # Defaults to 'per-session'. Valid values are:
++   # - 'per-session': MFA is required for every session.
++   # - 'multi-session': Allows reuse of a MFA for multiple sessions. Currently only
++   #    supported for `tsh db exec` command with WebAuthn as the second factor.
++   requie_session_mfa_mode: "multi-session"
   allow:
     db_labels:
       'env': 'dev'
     db_users: ["mysql"]
 ```
 
-I would like to execute a query on multiple databases:
+I would like to execute the same query on multiple databases:
 ```bash
 $ tsh db exec --db-user mysql --exec-query "select @@hostname" mysql-db1 mysql-db2
 MFA is required to execute database sessions
@@ -67,7 +67,7 @@ Executing command for 'mysql-db2':
 mysql-db2-hostname
 ```
 
-I would like to search databases by labels and run the sql scripts in parallel:
+I would like to search databases by labels and run the sql script in parallel:
 ```bash
 $ tsh db exec --search-by-labels env=dev --db-user mysql --exec-query "source my_script.sql" --log-dir exec-logs --max-connections 3
 Found 5 databases:
@@ -105,16 +105,18 @@ sequenceDiagram
     participant tsh
     participant Teleport
     
-    user -> tsh: tsh db exec
-    tsh -> Teleport: CreateAuthenticateChallengeRequest<br/>Scope: SCOPE_DATABASE_MULTI_SESSION<br/>Reuse: true
-    Teleport -> tsh: challenge
-    tsh -> user: prompt
-    user -> tsh: tap
-    tsh -> Teleport: WebAuthn login
-    Teleport -> tsh: MFA Response
+    user ->> tsh: tsh db exec
+    tsh ->> Teleport: CreateAuthenticateChallengeRequest<br/>Scope: SCOPE_DATABASE_MULTI_SESSION<br/>Reuse: true
+    Teleport ->> tsh: challenge
+    tsh ->> user: prompt
+    user ->> tsh: tap
+    tsh ->> Teleport: WebAuthn login
+    Teleport ->> tsh: MFA Response
     loop
-        tsh -> Teleport: GenerateUserCerts with MFA response
-        Teleport -> tsh: User cert with database route
+        tsh ->> Teleport: GenerateUserCerts with MFA response
+        Teleport ->> tsh: User cert with database route
+        tsh <<->> Teleport: database connection with TLS routing
+        tsh ->> user: output
     end
 ```
 
@@ -125,11 +127,11 @@ version: v7
 spec:
   options:
     require_session_mfa: true
-+    # Defaults to 'per-session'. Valid values are:
-+    # - 'per-session': MFA is required for every session.
-+    # - 'multi-session': Allows reuse of a MFA for multiple sessions. Currently only
-+    #    supported for `tsh db exec` command with WebAuthn as the second factor.
-+    requie_session_mfa_mode: "multi-session"
++   # Defaults to 'per-session'. Valid values are:
++   # - 'per-session': MFA is required for every session.
++   # - 'multi-session': Allows reuse of a MFA for multiple sessions. Currently only
++   #    supported for `tsh db exec` command with WebAuthn as the second factor.
++   requie_session_mfa_mode: "multi-session"
 ```
 
 Mode defaults to `per-session` if not set. If a resource matches a role set with
