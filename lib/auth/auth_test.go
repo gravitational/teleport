@@ -739,6 +739,16 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	_, err = s.a.UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
 
+	// Wait for cache propagation of the kubernetes resources before proceeding with the tests.
+	require.Eventually(t, func() bool {
+		for ks := range s.a.UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
+			if ks.GetCluster().GetName() == kubeCluster.GetName() {
+				return true
+			}
+		}
+		return false
+	}, 10*time.Second, 100*time.Millisecond)
+
 	// Login specifying a valid kube cluster. It should appear in the TLS cert.
 	resp, err = s.a.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
