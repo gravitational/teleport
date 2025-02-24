@@ -330,6 +330,11 @@ func testQueryRange(t *testing.T, newBackend Constructor) {
 	require.NoError(t, err)
 	RequireItems(t, []backend.Item{c1, c2}, result.Items)
 
+	// item at the end of the range
+	result, err = uut.GetRange(ctx, prefix("/prefix/c/c1"), prefix("/prefix/c/c2"), backend.NoLimit)
+	require.NoError(t, err)
+	RequireItems(t, []backend.Item{c1, c2}, result.Items)
+
 	// pagination
 	result, err = uut.GetRange(ctx, prefix("/prefix"), backend.RangeEnd(prefix("/prefix")), 2)
 	require.NoError(t, err)
