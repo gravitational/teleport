@@ -24,7 +24,7 @@ import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
 import { ButtonState, ScrollAxis, TdpClient } from 'teleport/lib/tdp';
-import { ClientScreenSpec, ClipboardData } from 'teleport/lib/tdp/codec';
+import { ClipboardData } from 'teleport/lib/tdp/codec';
 import { Sha256Digest } from 'teleport/lib/util';
 import { getHostName } from 'teleport/services/api';
 
@@ -83,27 +83,9 @@ export default function useTdpClientCanvas(props: Props) {
     setTdpClient(new TdpClient(addr));
   }, [clusterId, username, desktopName]);
 
-  /**
-   * Synchronize the canvas resolution and display size with the
-   * given ClientScreenSpec.
-   */
-  const syncCanvas = (canvas: HTMLCanvasElement, spec: ClientScreenSpec) => {
-    const { width, height } = spec;
-    canvas.width = width;
-    canvas.height = height;
-    console.debug(`set canvas.width x canvas.height to ${width} x ${height}`);
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
-    console.debug(
-      `set canvas.style.width x canvas.style.height to ${width} x ${height}`
-    );
-  };
-
   const setInitialTdpConnectionSucceeded = useCallback(() => {
     // The first image fragment we see signals a successful TDP connection.
     if (!initialTdpConnectionSucceeded.current) {
-      // TODO(gzdunek): Verify if this is needed.
-      // syncCanvas(ctx.canvas, getDisplaySize());
       setTdpConnection({ status: 'success' });
       initialTdpConnectionSucceeded.current = true;
     }
