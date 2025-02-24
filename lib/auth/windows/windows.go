@@ -53,12 +53,11 @@ type certRequest struct {
 	keyDER      []byte
 }
 
-func createUsersExtension(groups []string, ad bool) (pkix.Extension, error) {
+func createUsersExtension(groups []string) (pkix.Extension, error) {
 	value, err := json.Marshal(struct {
 		CreateUser bool     `json:"createUser"`
 		Groups     []string `json:"groups"`
-		AD         bool     `json:"ad"`
-	}{true, groups, ad})
+	}{true, groups})
 	if err != nil {
 		return pkix.Extension{}, trace.Wrap(err)
 	}
@@ -101,11 +100,18 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	}
 
 	if req.CreateUser {
-		createUser, err := createUsersExtension(req.Groups, req.AD)
+		createUser, err := createUsersExtension(req.Groups)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		csr.ExtraExtensions = append(csr.ExtraExtensions, createUser)
+	}
+
+	if req.AD {
+		csr.ExtraExtensions = append(csr.ExtraExtensions, pkix.Extension{
+			Id:    tlsca.ADStatusOID,
+			Value: []byte("AD"),
+		})
 	}
 
 	if req.ActiveDirectorySID != "" {
@@ -195,7 +201,9 @@ type GenerateCredentialsRequest struct {
 	// CRL Distribution Point (CDP). CDPs are required in user certificates
 	// for RDP, but they can be omitted for certs that are used for LDAP binds.
 	OmitCDP bool
-	AD     bool
+
+	// AD is true if we're connection to AD-joined desktop
+	AD bool
 }
 
 // GenerateWindowsDesktopCredentials generates a private key / certificate pair for the given
