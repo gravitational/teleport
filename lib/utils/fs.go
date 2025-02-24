@@ -433,7 +433,7 @@ func CopyFile(src, dest string, perm os.FileMode) (err error) {
 		return trace.ConvertSystemError(err)
 	}
 	defer func() {
-		err = trace.Wrap(destFile.Close())
+		err = trace.NewAggregate(err, trace.Wrap(destFile.Close()))
 	}()
 	_, err = destFile.ReadFrom(srcFile)
 	if err != nil {
