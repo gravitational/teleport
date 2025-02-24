@@ -243,6 +243,10 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 			return nil, trace.Wrap(err)
 		}
 
+		if agentKey, err := NewHardwareKeyAgentKey(keyRef, keyPEM); err == nil {
+			return agentKey, nil
+		}
+
 		priv, err := GetYubiKeyPrivateKey(keyRef, appliedOpts.CustomHardwareKeyPrompt)
 		return priv, trace.Wrap(err, "parsing YubiKey private key")
 	case OpenSSHPrivateKeyType:

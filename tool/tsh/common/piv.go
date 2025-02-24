@@ -21,7 +21,7 @@ package common
 import (
 	"github.com/alecthomas/kingpin/v2"
 
-	"github.com/gravitational/teleport/lib/teleterm/hardwarekeyagent"
+	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 type pivCommands struct {
@@ -48,6 +48,6 @@ func newPIVAgentCommand(parent *kingpin.CmdClause) *pivAgentCommand {
 }
 
 func (c *pivAgentCommand) run(cf *CLIConf) error {
-	s := hardwarekeyagent.NewService(hardwarekeyagent.ServiceConfig{})
+	s := keys.NewService(keys.ServiceConfig{})
 	return s.RunServer(cf.Context)
 }

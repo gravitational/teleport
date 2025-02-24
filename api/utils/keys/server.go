@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package hardwarekeyagent
+package keys
 
 import (
 	"context"
@@ -27,7 +27,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	hardwarekeyagentv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/hardwarekeyagent/v1"
 )
 
@@ -43,12 +42,12 @@ func (s *Service) RunServer(ctx context.Context) error {
 
 	grpcServer := grpc.NewServer(
 		grpc.Creds(insecure.NewCredentials()),
-		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
+		// grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
 	)
 	hardwarekeyagentv1.RegisterHardwareKeyAgentServiceServer(grpcServer, s)
 
 	keyAgentDir := filepath.Join(os.TempDir(), dirName)
-	if err := os.Mkdir(keyAgentDir, 0o600); err != nil {
+	if err := os.Mkdir(keyAgentDir, 0o700); err != nil {
 		return trace.Wrap(err)
 	}
 	defer os.RemoveAll(keyAgentDir)

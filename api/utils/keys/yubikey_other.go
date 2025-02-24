@@ -28,7 +28,7 @@ func getOrGenerateYubiKeyPrivateKey(ctx context.Context, policy PrivateKeyPolicy
 	return nil, trace.Wrap(errPIVUnavailable)
 }
 
-func getYubiKeyPrivateKey(_ *yubiKeyPrivateKeyRef, _ HardwareKeyPrompt) (*PrivateKey, error) {
+func getYubiKeyPrivateKey(_ *YubiKeyPrivateKeyRef, _ HardwareKeyPrompt) (*PrivateKey, error) {
 	return nil, trace.Wrap(errPIVUnavailable)
 }
 

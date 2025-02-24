@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package hardwarekeyagent
+package keys
 
 import (
 	"context"
@@ -24,7 +24,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/utils/keys"
 	hardwarekeyagentv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/hardwarekeyagent/v1"
 )
 
@@ -38,7 +37,7 @@ type Service struct {
 // ServiceConfig is configuration for a hardware key agent Service.
 type ServiceConfig struct {
 	// HardwareKeyPrompt is a hardware key prompt to use during signature requests, when necessary.
-	HardwareKeyPrompt keys.HardwareKeyPrompt
+	HardwareKeyPrompt HardwareKeyPrompt
 }
 
 func NewService(config ServiceConfig) *Service {
@@ -52,7 +51,7 @@ func (s *Service) Sign(_ context.Context, req *hardwarekeyagentv1.SignRequest) (
 		return nil, trace.Wrap(err)
 	}
 
-	key, err := keys.GetYubiKeyPrivateKey(&keys.YubiKeyPrivateKeyRef{
+	key, err := GetYubiKeyPrivateKey(&YubiKeyPrivateKeyRef{
 		SerialNumber: req.KeyRef.SerialNumber,
 		SlotKey:      slotKey,
 	}, s.c.HardwareKeyPrompt)
@@ -96,7 +95,7 @@ func (s *Service) GetAttestation(ctx context.Context, req *hardwarekeyagentv1.Ge
 		return nil, trace.Wrap(err)
 	}
 
-	key, err := keys.GetYubiKeyPrivateKey(&keys.YubiKeyPrivateKeyRef{
+	key, err := GetYubiKeyPrivateKey(&YubiKeyPrivateKeyRef{
 		SerialNumber: req.KeyRef.SerialNumber,
 		SlotKey:      slotKey,
 	}, s.c.HardwareKeyPrompt)
@@ -119,6 +118,21 @@ func pivSlotProtoToUint(pivSlot hardwarekeyagentv1.PIVSlot) (uint32, error) {
 		return 0x9d, nil
 	case hardwarekeyagentv1.PIVSlot_PIV_SLOT_9E:
 		return 0x9e, nil
+	default:
+		return 0, trace.BadParameter("unknown piv slot for proto enum %d", pivSlot)
+	}
+}
+
+func PIVSlotUintToProto(pivSlot uint32) (hardwarekeyagentv1.PIVSlot, error) {
+	switch pivSlot {
+	case 0x9a:
+		return hardwarekeyagentv1.PIVSlot_PIV_SLOT_9A, nil
+	case 0x9c:
+		return hardwarekeyagentv1.PIVSlot_PIV_SLOT_9C, nil
+	case 0x9d:
+		return hardwarekeyagentv1.PIVSlot_PIV_SLOT_9D, nil
+	case 0x9e:
+		return hardwarekeyagentv1.PIVSlot_PIV_SLOT_9E, nil
 	default:
 		return 0, trace.BadParameter("unknown piv slot for proto enum %d", pivSlot)
 	}
