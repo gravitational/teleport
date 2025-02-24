@@ -268,7 +268,6 @@ export const RoleEditor = ({
                   <StandardEditor
                     originalRole={originalRole}
                     onSave={object => handleSave({ object })}
-                    onCancel={confirmExit}
                     standardEditorModel={standardModel}
                     isProcessing={isProcessing}
                     dispatch={dispatch}
@@ -283,7 +282,6 @@ export const RoleEditor = ({
                   onChange={setYamlModel}
                   onSave={async yaml => void (await handleSave({ yaml }))}
                   isProcessing={isProcessing}
-                  onCancel={confirmExit}
                   originalRole={originalRole}
                   onPreview={roleTesterEnabled ? handleYamlPreview : undefined}
                 />
