@@ -34,9 +34,9 @@ import (
 // from valid "X-Forwarded-Host" header and extracting aws-service and
 // aws-region from the authorization header.
 func resolveEndpoint(r *http.Request, authHeader string) (*common.AWSResolvedEndpoint, error) {
-	forwardedHost, headErr := libutils.GetSingleHeader(r.Header, "X-Forwarded-Host")
-	if headErr != nil || !awsapiutils.IsAWSEndpoint(forwardedHost) {
-		return nil, trace.BadParameter("proxied requests must include X-Forwarded-Host header with an AWS service endpoint")
+	forwardedHost, err := libutils.GetSingleHeader(r.Header, "X-Forwarded-Host")
+	if err != nil {
+		return nil, trace.BadParameter("proxied requests must include X-Forwarded-Host header")
 	}
 
 	if !awsapiutils.IsAWSEndpoint(forwardedHost) {
