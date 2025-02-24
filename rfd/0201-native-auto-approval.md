@@ -137,7 +137,7 @@ spec:
   states:
     - approved
   condition: >
-    contains_any(access_request.spec.roles, set("cloud-dev")) &&
+    contains_all(set("cloud-dev"), access_request.spec.roles) &&
     contains_any(user.traits["level"], set("L1", "L2")) &&
     contains_any(user.traits["team"], set("Cloud")) &&
     contains_any(user.traits["location"], set("Seattle"))
@@ -182,6 +182,11 @@ user traits, such as, "level", "team", "location", etc...  These traits can then
 be used to identity whether a user is on-call, or if the user is pre-approved
 for the access request.
 
+The AMR conditions now also support the `contains_all(list, items)` operator.
+This operator returns true if `list` contains an exact match for all elements of
+`items`. This operator allows users to configure a more restrictive condition
+for automatic approvals.
+
 Additionally, the `spec.states` field will now be utilized to support an
 `approved` state. If the AMR contains `spec.states.approved`, this indicates
 that the AR should be automatically approved.
@@ -200,7 +205,7 @@ spec:
   states:
     - approved
   condition: >
-    contains_any(access_request.spec.roles, set("cloud-dev")) &&
+    contains_all(set("cloud-dev"), access_request.spec.roles) &&
     contains_any(user.traits["level"], set("L1")) &&
     contains_any(user.traits["team"], set("Cloud")) &&
     contains_any(user.traits["location"], set("Seattle"))
