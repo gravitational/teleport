@@ -29,12 +29,14 @@ import { IntegrationAwsOidc } from 'teleport/services/integrations';
 export function AwsOidcTitle({
   integration,
   resource,
+  tasks,
 }: {
   integration: IntegrationAwsOidc;
   resource?: AwsResource;
+  tasks?: boolean;
 }) {
   const { status, labelKind } = getStatusAndLabel(integration);
-  const content = getContent({ resource, integration });
+  const content = getContent(integration, resource, tasks);
 
   return (
     <Flex alignItems="center" data-testid="aws-oidc-title">
@@ -46,24 +48,18 @@ export function AwsOidcTitle({
       <Text bold fontSize={6} mx={2}>
         {content.content}
       </Text>
-      <Label kind={labelKind} aria-label="status" px={3} ml={3}>
+      <Label kind={labelKind} aria-label="status" px={3}>
         {status}
       </Label>
     </Flex>
   );
 }
 
-function getContent({
-  resource,
-  integration,
-}: {
-  resource: AwsResource;
-  integration: IntegrationAwsOidc;
-}): {
-  to: string;
-  helper: string;
-  content: string;
-} {
+function getContent(
+  integration: IntegrationAwsOidc,
+  resource?: AwsResource,
+  tasks?: boolean
+): { to: string; helper: string; content: string } {
   if (resource) {
     return {
       to: cfg.getIntegrationStatusRoute(integration.kind, integration.name),
@@ -71,6 +67,15 @@ function getContent({
       content: resource.toUpperCase(),
     };
   }
+
+  if (tasks) {
+    return {
+      to: cfg.getIntegrationStatusRoute(integration.kind, integration.name),
+      helper: 'Back to integration',
+      content: 'Pending Tasks',
+    };
+  }
+
   return {
     to: cfg.routes.integrations,
     helper: 'Back to integrations',

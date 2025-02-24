@@ -20,9 +20,10 @@ import {
   makeAppGateway,
   makeDatabaseGateway,
   makeKubeGateway,
-  makeRootCluster,
   makeServer,
+  rootClusterUri,
 } from 'teleterm/services/tshd/testHelpers';
+import { makeReport } from 'teleterm/services/vnet/testHelpers';
 
 import {
   DocumentAccessRequests,
@@ -34,6 +35,7 @@ import {
   DocumentGatewayKube,
   DocumentPtySession,
   DocumentTshNodeWithServerId,
+  DocumentVnetDiagReport,
 } from './types';
 
 export function makeDocumentCluster(
@@ -43,7 +45,7 @@ export function makeDocumentCluster(
     kind: 'doc.cluster',
     uri: '/docs/cluster',
     title: 'teleport-ent.asteroid.earth',
-    clusterUri: makeRootCluster().uri,
+    clusterUri: rootClusterUri,
     queryParams: {
       sort: {
         fieldName: 'name',
@@ -169,7 +171,7 @@ export function makeDocumentAccessRequests(
     kind: 'doc.access_requests',
     uri: '/docs/access_requests',
     title: 'Access Requests',
-    clusterUri: makeRootCluster().uri,
+    clusterUri: rootClusterUri,
     state: 'browsing',
     requestId: '1231',
     ...props,
@@ -182,7 +184,7 @@ export function makeDocumentConnectMyComputer(
   return {
     kind: 'doc.connect_my_computer',
     uri: '/docs/connect-my-computer',
-    rootClusterUri: makeRootCluster().uri,
+    rootClusterUri,
     status: '',
     title: 'Connect My Computer',
     ...props,
@@ -196,13 +198,26 @@ export function makeDocumentAuthorizeWebSession(
     kind: 'doc.authorize_web_session',
     uri: '/docs/authorize-web-session',
     title: 'Authorize Web Session',
-    rootClusterUri: makeRootCluster().uri,
+    rootClusterUri,
     webSessionRequest: {
       id: '123',
       username: 'alice',
       token: 'secret-token',
       redirectUri: '',
     },
+    ...props,
+  };
+}
+
+export function makeDocumentVnetDiagReport(
+  props?: Partial<DocumentVnetDiagReport>
+): DocumentVnetDiagReport {
+  return {
+    kind: 'doc.vnet_diag_report',
+    uri: '/docs/vnet-diag-report',
+    title: 'VNet Diagnostics Report',
+    rootClusterUri,
+    report: makeReport(),
     ...props,
   };
 }

@@ -19,3 +19,4 @@ RUN --mount=type=bind,target=/ctx dpkg-deb -R /ctx/$TELEPORT_DEB_FILE_NAME /opt/
 FROM $BASE_IMAGE
 COPY --from=teleport /opt/staging/opt/teleport/system/bin/tbot /usr/local/bin/tbot
 ENTRYPOINT ["/usr/local/bin/tbot"]
+CMD ["start"]

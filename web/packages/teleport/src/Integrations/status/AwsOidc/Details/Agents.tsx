@@ -54,7 +54,7 @@ export function Agents() {
     fetchServices();
   }, [regionFilter]);
 
-  if (servicesAttempt.status == 'processing') {
+  if (servicesAttempt.status === 'processing') {
     return (
       <Box textAlign="center" mt={4}>
         <Indicator />
@@ -64,7 +64,7 @@ export function Agents() {
 
   return (
     <>
-      {servicesAttempt.status == 'error' && (
+      {servicesAttempt.status === 'error' && (
         <Danger>{servicesAttempt.statusText}</Danger>
       )}
       <MultiselectMenu

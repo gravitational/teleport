@@ -19,7 +19,9 @@
 package config
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -590,6 +592,16 @@ func ReadConfigFromFile(filePath string, manualMigration bool) (*BotConfig, erro
 
 	defer f.Close()
 	return ReadConfig(f, manualMigration)
+}
+
+// ReadConfigFromBase64String reads and parses a YAML config from a base64 encoded string.
+func ReadConfigFromBase64String(b64Str string, manualMigration bool) (*BotConfig, error) {
+	data, err := base64.StdEncoding.DecodeString(b64Str)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to decode base64 encoded config")
+	}
+	r := bytes.NewReader(data)
+	return ReadConfig(r, manualMigration)
 }
 
 type Version string

@@ -2068,6 +2068,14 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Workload identity %q has been deleted\n", rc.ref.Name)
+	case types.KindWorkloadIdentityX509Revocation:
+		if _, err := client.WorkloadIdentityRevocationServiceClient().DeleteWorkloadIdentityX509Revocation(
+			ctx, &workloadidentityv1pb.DeleteWorkloadIdentityX509RevocationRequest{
+				Name: rc.ref.Name,
+			}); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Workload identity X509 revocation %q has been deleted\n", rc.ref.Name)
 	case types.KindStaticHostUser:
 		if err := client.StaticHostUserClient().DeleteStaticHostUser(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -3039,7 +3047,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		var tasks []*usertasksv1.UserTask
 		nextToken := ""
 		for {
-			resp, token, err := userTasksClient.ListUserTasks(ctx, 0 /* default size */, nextToken)
+			resp, token, err := userTasksClient.ListUserTasks(ctx, 0 /* default size */, nextToken, &usertasksv1.ListUserTasksFilters{})
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -3237,6 +3245,40 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &workloadIdentityCollection{items: resources}, nil
+	case types.KindWorkloadIdentityX509Revocation:
+		if rc.ref.Name != "" {
+			resource, err := client.
+				WorkloadIdentityRevocationServiceClient().
+				GetWorkloadIdentityX509Revocation(ctx, &workloadidentityv1pb.GetWorkloadIdentityX509RevocationRequest{
+					Name: rc.ref.Name,
+				})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &workloadIdentityX509RevocationCollection{items: []*workloadidentityv1pb.WorkloadIdentityX509Revocation{resource}}, nil
+		}
+
+		var resources []*workloadidentityv1pb.WorkloadIdentityX509Revocation
+		pageToken := ""
+		for {
+			resp, err := client.
+				WorkloadIdentityRevocationServiceClient().
+				ListWorkloadIdentityX509Revocations(ctx, &workloadidentityv1pb.ListWorkloadIdentityX509RevocationsRequest{
+					PageToken: pageToken,
+				})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			resources = append(resources, resp.WorkloadIdentityX509Revocations...)
+
+			if resp.NextPageToken == "" {
+				break
+			}
+			pageToken = resp.NextPageToken
+		}
+
+		return &workloadIdentityX509RevocationCollection{items: resources}, nil
 	case types.KindBotInstance:
 		if rc.ref.Name != "" && rc.ref.SubKind != "" {
 			// Gets a specific bot instance, e.g. bot_instance/<bot name>/<instance id>
