@@ -33,7 +33,7 @@ during a maintenance window or when the agent is unhealthy.
 
 ### Version 2 update logic
 
-In managed updates version 2, the Teleport cluster itself drives the updates by
+In Managed Updates version 2, the Teleport cluster itself drives the updates by
 telling to the agent if it should update or not. Centralizing the update decision
 offers more control over the rollout. As the Teleport cluster sees every agent,
 it can more complex decisions such as gradually rolling out an update, or
@@ -45,7 +45,7 @@ to the last working version in an attempt to restore connectivity.
 
 ### Version 1 update logic
 
-In managed updates version 1, the updater drives the update, Teleport is only
+In Managed Updates version 1, the updater drives the update, Teleport is only
 responsible for providing it the version schedule.
 
 When a maintenance schedule is available, the updater will honour it. However, if
@@ -99,8 +99,8 @@ proxy.
 ### Teleport Cloud
 
 If you are using Teleport Cloud the target version is managed for you.
-In managed updates version 1, you can configure the maintenance window.
-In managed updates version 2, you can configure custom update schedules and
+In Managed Updates version 1, you can configure the maintenance window.
+In Managed Updates version 2, you can configure custom update schedules and
 control when and in which order agents are updated.
 
 ### Self-hosted Teleport

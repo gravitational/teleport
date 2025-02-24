@@ -13,10 +13,10 @@ The primary commands for `teleport-update` are as follows:
 |----------------------------------|----------------------------------------------------------------------------------------|
 | `teleport-update help`           | Output guidance for using commands with `teleport-update`.                             |
 | `teleport-update version`        | Output the current version of the `teleport-update` binary.                            |
-| `teleport-update enable`         | Install the version of Teleport advertised by the cluster and enable managed updates.  |
+| `teleport-update enable`         | Install the version of Teleport advertised by the cluster and enable Managed Updates.  |
 | `teleport-update disable`        | Disable auto-updates without removing Teleport. Disables all requests.                 |
 | `teleport-update pin`            | Install the version of Teleport advertised by the cluster and stay on that version.    |
-| `teleport-update unpin`          | Allow the installed version of Teleport to be updated, if managed updates are enabled. |                                                                              |
+| `teleport-update unpin`          | Allow the installed version of Teleport to be updated, if Managed Updates are enabled. |                                                                              |
 | `teleport-update update`         | Update Teleport to the version advertised by the cluster.                              |                                                                              |
 | `teleport-update link-package`   | Restore the system-packaged (apt/yum) version of Teleport to /usr/local/bin.           |                                                                              |
 | `teleport-update unlink-package` | Remove the system-packaged (apt/yum) version of Teleport from /usr/local/bin.          |                                                                              |
@@ -25,13 +25,13 @@ The primary commands for `teleport-update` are as follows:
 
 ## teleport-update enable
 
-Enables agent managed updates and performs an initial installation of the Teleport agent.
+Enables agent Managed Updates and performs an initial installation of the Teleport agent.
 This command also creates a systemd timer that periodically runs the update subcommand.
 
 If Teleport is already installed, `enable` will update to the cluster-advertised version
-and ensure managed updates are enabled.
+and ensure Managed Updates are enabled.
 
-Existing package-based installations will be converted to managed updates automatically.
+Existing package-based installations will be converted to Managed Updates automatically.
 Existing tarball-based, static installations may require `--overwrite`.
 (A clear error will let you know if this is the case.)
 
@@ -64,7 +64,7 @@ To change these flags, run `enable` again with the new flags.
 
 **Example for a new installation.**
 
-Install Teleport with managed updates enabled on a fresh system.
+Install Teleport with Managed Updates enabled on a fresh system.
 
 ```code
 # create /etc/teleport.yaml
@@ -74,8 +74,8 @@ $ sudo systemctl enable teleport --now
 
 **Example for an existing installation.**
 
-Install Teleport with managed updates enabled on a system with a running Teleport version.
-Package-based installations will be converted to managed updates automatically.
+Install Teleport with Managed Updates enabled on a system with a running Teleport version.
+Package-based installations will be converted to Managed Updates automatically.
 
 ```code
 $ teleport-update enable
@@ -83,7 +83,7 @@ $ teleport-update enable
 
 **Example with a custom installation suffix.**
 
-Install Teleport with managed updates enabled to an isolated path.
+Install Teleport with Managed Updates enabled to an isolated path.
 This will not interfere with package-based installations.
 Multiple installations with separate suffixes may operate individually and independently against separate clusters.
 
@@ -96,7 +96,7 @@ $ export PATH=/opt/teleport/mycluster/bin:$PATH
 
 ## teleport-update disable
 
-Disable managed updates for the installed agent.
+Disable Managed Updates for the installed agent.
 This command does not remove or change the active installation of Teleport.
 
 Unlike `pin`, this command will not touch the current installation, and version lookup requests will stop entirely.
@@ -112,9 +112,9 @@ Unlike `pin`, this command will not touch the current installation, and version 
 
 ### Examples
 
-**Example for disabling managed updates.**
+**Example for disabling Managed Updates.**
 
-Disable managed updates for the current agent.
+Disable Managed Updates for the current agent.
 
 ```code
 $ sudo teleport-update disable
@@ -169,7 +169,7 @@ $ sudo systemctl enable teleport --now
 
 Install the cluster-advertised Teleport version on a system with a running Teleport agent, but lock the version
 in-place.
-Package-based installations will be converted to managed updates automatically.
+Package-based installations will be converted to Managed Updates automatically.
 
 ```code
 $ sudo teleport-update pin
@@ -191,9 +191,9 @@ This command does not immediately remove or change the active installation of Te
 
 ### Examples
 
-**Example for unpinning managed updates to allow the cluster-advertised version to be installed.**
+**Example for unpinning Managed Updates to allow the cluster-advertised version to be installed.**
 
-Unpin managed updates for the current agent.
+Unpin Managed Updates for the current agent.
 
 ```code
 $ sudo teleport-update unpin
@@ -230,7 +230,7 @@ $ sudo teleport-update update --now
 
 ## teleport-update link-package
 
-Link the system installation of Teleport from the Teleport package, if managed updates is disabled.
+Link the system installation of Teleport from the Teleport package, if Managed Updates are disabled.
 
 This command is used to link the system package installation by:
 - Creating symbolic links from `/opt/teleport/system/bin/*` into `/usr/local/bin/`.
