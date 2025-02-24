@@ -972,17 +972,17 @@ func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client *authcl
 	if err := client.CreateKubernetesCluster(ctx, cluster); err != nil {
 		if trace.IsAlreadyExists(err) {
 			if !rc.force {
-				return trace.AlreadyExists("kubernetes cluster %q already exists", cluster.GetName())
+				return trace.AlreadyExists("Kubernetes cluster %q already exists", cluster.GetName())
 			}
 			if err := client.UpdateKubernetesCluster(ctx, cluster); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("kubernetes cluster %q has been updated\n", cluster.GetName())
+			fmt.Printf("Kubernetes cluster %q has been updated\n", cluster.GetName())
 			return nil
 		}
 		return trace.Wrap(err)
 	}
-	fmt.Printf("kubernetes cluster %q has been created\n", cluster.GetName())
+	fmt.Printf("Kubernetes cluster %q has been created\n", cluster.GetName())
 	return nil
 }
 
@@ -1732,7 +1732,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		resDesc := "kubernetes cluster"
+		resDesc := "Kubernetes cluster"
 		clusters = filterByNameOrDiscoveredName(clusters, rc.ref.Name)
 		name, err := getOneResourceNameToDelete(clusters, rc.ref, resDesc)
 		if err != nil {
@@ -1803,7 +1803,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		resDesc := "kubernetes server"
+		resDesc := "Kubernetes server"
 		servers = filterByNameOrDiscoveredName(servers, rc.ref.Name)
 		name, err := getOneResourceNameToDelete(servers, rc.ref, resDesc)
 		if err != nil {
