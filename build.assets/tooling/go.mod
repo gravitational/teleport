@@ -2,8 +2,6 @@ module github.com/gravitational/teleport/build.assets/tooling
 
 go 1.23.0
 
-toolchain go1.24.0
-
 require (
 	github.com/Masterminds/sprig/v3 v3.2.3
 	github.com/alecthomas/kingpin/v2 v2.3.2 // replaced

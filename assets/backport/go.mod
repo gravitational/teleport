@@ -2,8 +2,6 @@ module github.com/teleport/assets/backport
 
 go 1.23.0
 
-toolchain go1.24.0
-
 require (
 	github.com/google/go-github/v41 v41.0.0
 	github.com/gravitational/trace v1.3.1
