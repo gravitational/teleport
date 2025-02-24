@@ -18,7 +18,7 @@ Teleport today supports per-session MFA for enhanced security. However, when a
 user needs to run queries on multiple database hosts simultaneously, they have
 to perform a tap for every connection.
 
-A relaxed mode of per-session MFA will be introduced so that a MFA challenge is
+A relaxed mode of per-session MFA will be introduced so that an MFA challenge is
 still required for connecting to target databases but the MFA response can be
 reused for a short period of time without the need to prompt the user again in
 that period.
@@ -67,8 +67,7 @@ Executing command for 'mysql-db2':
 mysql-db2-hostname
 ```
 
-I would like to search databases by labels, run the sql scripts in parallel, and
-record the outputs to a directory:
+I would like to search databases by labels and run the sql scripts in parallel:
 ```bash
 $ tsh db exec --search-by-labels env=dev --db-user mysql --exec-query "source my_script.sql" --log-dir exec-logs --max-connections 3
 Found 5 databases:
@@ -132,6 +131,7 @@ spec:
 +    #    supported for `tsh db exec` command with WebAuthn as the second factor.
 +    requie_session_mfa_mode: "multi-session"
 ```
+
 Mode defaults to `per-session` if not set. If a resource matches a role set with
 some roles on `per-session` but others on `multi-session`, the stricter mode
 `per-session` should be applied.
@@ -181,15 +181,18 @@ General flow of the command:
 - Fetch roles and use access checker to determine MFA requirement.
 - For each database:
   - Prompt MFA if necessary.
-  - Starts a local proxy in tunnel mode for this database.
+  - Starts a local proxy in tunnel mode for this database (regardless of cluster
+    proxy listener mode).
   - Craft a command for `os.exec`. The command is not interactive (e.g. does not
-    take in `stdin` input). Outputs are printed to `stdout` unless `--log-dir`
+    take in `stdin` for input). Outputs are printed to `stdout` unless `--log-dir`
     is specified.
   - Execute the command.
  
 The command supports searching database by specifying one the following flags:
-- `--search`: List of comma separated search keywords or phrases enclosed in quotations, e.g. `--search=foo,bar`
-- `--search-by-labels`: List of comma separated labels to filter by labels, e.g. `key1=value1,key2=value2`
+- `--search`: List of comma separated search keywords or phrases enclosed in
+  quotations, e.g. `--search=foo,bar`.
+- `--search-by-labels`: List of comma separated labels to filter by labels, e.g.
+  `key1=value1,key2=value2`.
 - `--search-by-query`: Query by predicate language enclosed in single quotes.
 
 The command presents the search results then asks user to confirm before
@@ -199,7 +202,7 @@ Some other details:
 - If the multi-session MFA response is expired, the command should ask for MFA
   again.
 - For MVP implementation, only PostgreSQL and MySQL databases will be supported.
-- A warning will be printed if the target databases have different protocols
+  And a warning will be printed if the target databases have different protocols
   (e.g. `postgres` vs `mysql`).
 - For databases that require per-session MFA, a prompt will still be presented
   per database.
@@ -210,9 +213,27 @@ Some other details:
   database or per search.
 - `tsh db exec --exec-command` to support custom command template like `$ tsh
   db exec --exec-command "bash -c './myscript {{.DB_SERVICE}} {{.DB_USER}}
-  {{.DB_LOCAL_PORT}}'"`. An env var `TSH_UNSTABLE_DB_EXEC_COMMAND` can be
-  supported for the initial MVP.
+  {{.DB_NAME}} {{.DB_LOCAL_PORT}}'"`. An env var `TSH_UNSTABLE_DB_EXEC_COMMAND`
+  can be supported for the initial MVP.
 
 ### Security
 
-TODO
+There is no change regarding security for existing users, unless their Teleport
+admins set the `multi-session` mode in the role option.
+
+Since the mode is configured at the role level, the mode will only be applied to
+the resources that matches the role (e.g. `role.allow.db_labels`). And if
+another role matching the resource has the stricter mode `per-session`, the
+stricter mode will be applied.
+
+The negative implications of the `multi-session` is the same as outlined in [RFD
+155 Scoped Webauthn
+Credentials](https://github.com/gravitational/teleport/blob/master/rfd/0155-scoped-webauthn-credentials.md):
+
+1. The webauthn credential's scope is provided by the client
+2. Reuse is requested by the client
+3. Reuse is permitted for the action - server enforced
+4. The expiration of the credentials - server enforced (5 minutes)
+
+However, the new scope `SCOPE_DATABASE_MULTI_SESSION` will be limited to only
+database sessions.
