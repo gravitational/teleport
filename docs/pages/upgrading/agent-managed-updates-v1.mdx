@@ -1,34 +1,39 @@
 ---
 title: Teleport Managed Agent Updates (v1)
-description: Describes how to set up managed agent updates using the original updater.
+description: Describes how to set up Teleport Managed Agent Updates v1.
 ---
 
 <Notice type="warning">
-This document describes the original (v1) Teleport Agent updater, which is
-currently supported but will be deprecated after the new (v2) updater is released.
+This document describes the Managed Updates v1 Teleport Agent updater, which is
+currently supported but will be deprecated after the [Managed update v2 updater
+](./agent-managed-updates.mdx) is generally available.
 </Notice>
 
-The original updater uses a script called `teleport-upgrade` that is provided by
+The Managed Updates v1 updater uses a script called `teleport-upgrade` that is provided by
 the `teleport-ent-updater` package and configured by the `cluster_maintenance_config`
 Teleport resource. The new updater uses a binary called `teleport-update` that is
 provided by the `teleport` package and configured by the `autoupdate_version` and
 `autoupdate_config`. The original updater and resource are described in this document.
 
-Please consider using the new updater, which will be distributed with
-all versions of Teleport and provides a safer, simpler, more flexible, and more reliable
-update experience compared to the original updater.
+Managed updates v1 only support Enterprise versions of Teleport.
 
-The new `teleport-update` updater is backwards compatible with the
-`cluster_maintenance_config` resource, and the old `teleport-upgrade` script
-is forwards compatible with the `autoupdate_` resources.
+Please consider using [Managed Updates for Agents (v2)](./agent-managed-updates.mdx),
+as its updater provides a safer, simpler, more flexible, compatible, and reliable
+update experience compared to Managed Updates v1.
+
+<Admonition type="note" label="Compatibility between managed updates v1 and v2">
+Managed updates v2 are backwards compatible with the
+`cluster_maintenance_config` resource. The Managed Updates v1 `teleport-upgrade` script
+is forwards compatible with the `autoupdate_config` and `autoupdate_version` resources.
 Agents connected to the same cluster may use either resource.
-If the `autoupdate_ ` resources are present, `cluster_maintenance_config` is ignored.
-This allows for a safe, non-breaking, incremental migration to the new update system.
-Users of cloud-hosted Teleport Enterprise will be migrated to the new set of resources
-in the first half of 2025 and should plan to migrate their agents to `teleport-update`.
 
-For details about the new updater, see
-[Managed Updates for Agents (v2)](./agent-managed-updates.mdx).
+If the `autoupdate_*` resources are configured, they take precedence over
+`cluster_maintenance_config`. This allows for a safe, non-breaking, incremental
+migration between managed updates v1 and v2.
+
+Users of cloud-hosted Teleport Enterprise will be migrated to managed updates v2
+in the first half of 2025 and should plan to migrate their agents to `teleport-update`.
+</Admonition>
 
 On cloud-hosted Teleport Enterprise accounts, users must set up managed agent
 updates to ensure that the version of Teleport running on agents remains
@@ -249,7 +254,7 @@ If you changed the agent user to run as non-root, create
 ```code
 $ sudo mkdir -p /etc/teleport-upgrade.d/
 $ sudo touch /etc/teleport-upgrade.d/schedule
-$ sudo chown <your-teleport-user> /etc/teleport-upgrade.d/schedule
+$ sudo chown your-teleport-user /etc/teleport-upgrade.d/schedule
 ```
 
 </Details>
