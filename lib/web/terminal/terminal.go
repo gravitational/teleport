@@ -602,6 +602,9 @@ func (t *Stream) SessionCreated(s *tracessh.Session) error {
 func (t *Stream) Close() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	if t.closed {
+		return nil
+	}
 	t.closed = true
 	if t.sshSession != nil {
 		return trace.NewAggregate(t.sshSession.Close(), t.WSStream.Close())

@@ -2047,7 +2047,7 @@ func TestTerminal(t *testing.T) {
 			})
 
 			require.NoError(t, err)
-			t.Cleanup(func() { require.True(t, utils.IsOKNetworkError(term.Close())) })
+			t.Cleanup(func() { require.NoError(t, term.Close()) })
 
 			// Send a command and validate the output
 			validateTerminal(t, term)
