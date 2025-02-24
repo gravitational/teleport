@@ -2481,3 +2481,17 @@ func (m *GitCommand) TrimToMaxSize(_ int) AuditEvent {
 func (m *StableUNIXUserCreate) TrimToMaxSize(int) AuditEvent {
 	return m
 }
+
+func (m *AWSICResourceSync) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+	out := utils.CloneProtoMsg(m)
+	out.Status = Status{}
+	maxSize = adjustedMaxSize(out, maxSize)
+	customFieldsCount := m.Status.nonEmptyStrs()
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	return out
+}

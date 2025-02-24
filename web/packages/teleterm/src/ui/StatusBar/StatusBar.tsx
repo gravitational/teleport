@@ -16,17 +16,37 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Fragment } from 'react';
+import { Fragment, useCallback } from 'react';
+import { useTheme } from 'styled-components';
 
-import { Flex, Text } from 'design';
+import { ButtonPrimary, Flex, Text } from 'design';
 import { ChevronRight } from 'design/Icon';
+
+import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import { getAssumedRequests } from 'teleterm/ui/services/clusters';
+import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
 import { AccessRequestCheckoutButton } from './AccessRequestCheckoutButton';
 import { ShareFeedback } from './ShareFeedback';
 import { useActiveDocumentClusterBreadcrumbs } from './useActiveDocumentClusterBreadcrumbs';
 
-export function StatusBar() {
+export function StatusBar(props: { onAssumedRolesClick(): void }) {
   const breadcrumbs = useActiveDocumentClusterBreadcrumbs();
+  const theme = useTheme();
+  const rootClusterUri = useStoreSelector(
+    'workspacesService',
+    useCallback(store => store.rootClusterUri, [])
+  );
+  const assumedRoles = Object.values(
+    useStoreSelector(
+      'clustersService',
+      useCallback(
+        state => getAssumedRequests(state, rootClusterUri),
+        [rootClusterUri]
+      )
+    )
+  );
+  const assumedRolesText = assumedRoles.flatMap(r => r.roles).join(', ');
 
   return (
     <Flex
@@ -38,7 +58,7 @@ export function StatusBar() {
       alignItems="center"
       justifyContent="space-between"
       px={2}
-      gap={2}
+      gap={3}
       color="text.slightlyMuted"
       overflow="hidden"
     >
@@ -46,7 +66,6 @@ export function StatusBar() {
         css={`
           // If the breadcrumbs are wider than the available space,
           // allow scrolling them horizontally, but do not show the scrollbar.
-          width: 100%;
           overflow: scroll;
 
           &::-webkit-scrollbar {
@@ -79,7 +98,38 @@ export function StatusBar() {
         )}
       </Flex>
 
-      <Flex gap={2} alignItems="center">
+      <Flex
+        gap={1}
+        alignItems="center"
+        justifyContent="flex-end"
+        css={`
+          // Allows the content to shrink.
+          min-width: 0;
+        `}
+      >
+        {!!assumedRoles.length && (
+          <ButtonPrimary
+            css={`
+              min-width: 40px;
+            `}
+            gap={2}
+            title={assumedRolesText}
+            size="small"
+            onClick={props.onAssumedRolesClick}
+          >
+            <ConnectionStatusIndicator
+              status="on"
+              activeStatusColor={theme.colors.text.primaryInverse}
+            />
+            <Text
+              css={`
+                white-space: nowrap;
+              `}
+            >
+              {assumedRolesText}
+            </Text>
+          </ButtonPrimary>
+        )}
         <AccessRequestCheckoutButton />
         <ShareFeedback />
       </Flex>

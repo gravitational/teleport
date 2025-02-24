@@ -29,9 +29,11 @@ import { Integration } from 'teleport/services/integrations';
 export function AwsOidcHeader({
   integration,
   resource,
+  tasks = false,
 }: {
   integration: Integration;
   resource?: AwsResource;
+  tasks?: boolean;
 }) {
   const divider = (
     <Text typography="body3" color="text.slightlyMuted">
@@ -48,6 +50,7 @@ export function AwsOidcHeader({
       pl={5}
       py={1}
       gap={1}
+      my={2}
       data-testid="aws-oidc-header"
     >
       <HoverTooltip position="bottom" tipContent="Back to Integrations">
@@ -61,7 +64,7 @@ export function AwsOidcHeader({
           <Plugs size="small" />
         </ButtonText>
       </HoverTooltip>
-      {!resource ? (
+      {!resource && !tasks ? (
         <>
           {divider}
           <Text typography="body3" color="text.slightlyMuted">
@@ -81,9 +84,21 @@ export function AwsOidcHeader({
           >
             {integration.name}
           </ButtonText>
+        </>
+      )}
+      {resource && (
+        <>
           {divider}
           <Text typography="body3" color="text.slightlyMuted" ml={2}>
             {resource.toUpperCase()}
+          </Text>
+        </>
+      )}
+      {tasks && (
+        <>
+          {divider}
+          <Text typography="body3" color="text.slightlyMuted" ml={2}>
+            Pending Tasks
           </Text>
         </>
       )}

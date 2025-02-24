@@ -26,6 +26,8 @@ import { mergeRefs } from 'shared/libs/mergeRefs';
 
 import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
+import { DiagnosticsAlert } from './DiagnosticsAlert';
+import { textSpacing } from './sliderStep';
 import { VnetSliderStepHeader } from './VnetConnectionItem';
 import { useVnetContext } from './vnetContext';
 
@@ -93,11 +95,11 @@ export const VnetSliderStep = (props: StepComponentProps) => {
       </Flex>
 
       {status.value === 'running' && <DnsZones />}
+
+      <DiagnosticsAlert />
     </Box>
   );
 };
-
-const textSpacing = 1;
 
 const ErrorText = (props: PropsWithChildren) => (
   <Text>
@@ -121,12 +123,15 @@ const DnsZones = () => {
   );
   const dnsZonesRefreshRequestedRef = useRef(false);
 
-  useEffect(function refreshListOnOpen() {
-    if (!dnsZonesRefreshRequestedRef.current) {
-      dnsZonesRefreshRequestedRef.current = true;
-      listDNSZones();
-    }
-  }, []);
+  useEffect(
+    function refreshListOnOpen() {
+      if (!dnsZonesRefreshRequestedRef.current) {
+        dnsZonesRefreshRequestedRef.current = true;
+        listDNSZones();
+      }
+    },
+    [listDNSZones]
+  );
 
   if (listDNSZonesAttempt.status === 'error') {
     return (

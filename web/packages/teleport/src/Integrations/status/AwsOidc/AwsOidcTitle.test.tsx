@@ -74,3 +74,20 @@ test('renders without resource', () => {
     within(screen.getByLabelText('status')).getByText('Running')
   ).toBeInTheDocument();
 });
+
+test('renders tasks', () => {
+  render(
+    <MemoryRouter>
+      <AwsOidcTitle integration={testIntegration} tasks={true} />
+    </MemoryRouter>
+  );
+
+  expect(screen.getByRole('link', { name: 'back' })).toHaveAttribute(
+    'href',
+    '/web/integrations/status/aws-oidc/some-name'
+  );
+  expect(screen.getByText('Pending Tasks')).toBeInTheDocument();
+  expect(
+    within(screen.getByLabelText('status')).getByText('Running')
+  ).toBeInTheDocument();
+});

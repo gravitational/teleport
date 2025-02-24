@@ -1,14 +1,6 @@
 module github.com/gravitational/teleport/integrations/terraform
 
-go 1.23.6
-
-toolchain go1.24.0
-
-// Doc generation tooling
-require github.com/hashicorp/terraform-plugin-docs v0.0.0 // replaced
-
-// using our own fork
-replace github.com/hashicorp/terraform-plugin-docs => github.com/gravitational/terraform-plugin-docs v0.19.5-0.20240627183239-7e7e22a2c1f6
+go 1.24.0
 
 // TF provider dependencies
 require (
@@ -228,6 +220,7 @@ require (
 	github.com/hashicorp/logutils v1.0.0 // indirect
 	github.com/hashicorp/terraform-exec v0.21.0 // indirect
 	github.com/hashicorp/terraform-json v0.22.1 // indirect
+	github.com/hashicorp/terraform-plugin-docs v0.0.0-00010101000000-000000000000 // indirect
 	github.com/hashicorp/terraform-registry-address v0.2.1 // indirect
 	github.com/hashicorp/terraform-svchost v0.1.1 // indirect
 	github.com/hashicorp/yamux v0.0.0-20181012175058-2f1d1f20f75d // indirect
@@ -421,3 +414,9 @@ replace (
 
 // TODO(codingllama): Remove once no dependencies import stats/opentelemetry.
 exclude google.golang.org/grpc/stats/opentelemetry v0.0.0-20241028142157-ada6787961b3
+
+// Doc generation tooling.
+// (using our fork of github.com/hashicorp/terraform-plugin-docs)
+tool github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
+
+replace github.com/hashicorp/terraform-plugin-docs => github.com/gravitational/terraform-plugin-docs v0.19.5-0.20240627183239-7e7e22a2c1f6

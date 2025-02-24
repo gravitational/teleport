@@ -21,6 +21,7 @@ package integrationv1
 import (
 	"cmp"
 	"context"
+	"os"
 	"testing"
 
 	"github.com/google/uuid"
@@ -42,7 +43,13 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 func TestIntegrationCRUD(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
@@ -549,6 +556,108 @@ func TestIntegrationCRUD(t *testing.T) {
 			},
 			ErrAssertion: noError,
 		},
+		{
+			Name: "cannot delete github integration with existing git server",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbDelete},
+				}}},
+			},
+			Setup: func(t *testing.T, igName string) {
+				t.Helper()
+
+				ig, err := newGitHubIntegration(igName, "", "")
+				require.NoError(t, err)
+				_, err = localClient.CreateIntegration(ctx, ig)
+				require.NoError(t, err)
+				_, err = localClient.CreateGitServer(ctx, mustMakeGitHubServer(t, ig))
+				require.NoError(t, err)
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{
+					Name: igName,
+				})
+				return err
+			},
+			ErrAssertion: trace.IsBadParameter,
+		},
+		{
+			Name: "no access to delete github integration with associated resources",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbDelete},
+				}}},
+			},
+			Setup: func(t *testing.T, igName string) {
+				t.Helper()
+
+				ig, err := newGitHubIntegration(igName, "", "")
+				require.NoError(t, err)
+				_, err = localClient.CreateIntegration(ctx, ig)
+				require.NoError(t, err)
+				_, err = localClient.CreateGitServer(ctx, mustMakeGitHubServer(t, ig))
+				require.NoError(t, err)
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{
+					Name:                      igName,
+					DeleteAssociatedResources: true,
+				})
+				return err
+			},
+			ErrAssertion: trace.IsAccessDenied,
+		},
+		{
+			Name: "delete github integration with associated resources",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{
+					{
+						Resources: []string{types.KindIntegration},
+						Verbs:     []string{types.VerbDelete},
+					},
+					{
+						Resources: []string{types.KindGitServer},
+						Verbs:     []string{types.VerbDelete, types.VerbList},
+					},
+				}},
+			},
+			Setup: func(t *testing.T, igName string) {
+				t.Helper()
+
+				ig, err := newGitHubIntegration(igName, "", "")
+				require.NoError(t, err)
+				_, err = localClient.CreateIntegration(ctx, ig)
+				require.NoError(t, err)
+				_, err = localClient.CreateGitServer(ctx, mustMakeGitHubServer(t, ig))
+				require.NoError(t, err)
+
+				anotherIg, err := newGitHubIntegration(igName+igName, "", "")
+				require.NoError(t, err)
+				_, err = localClient.CreateIntegration(ctx, anotherIg)
+				require.NoError(t, err)
+				_, err = localClient.CreateGitServer(ctx, mustMakeGitHubServer(t, anotherIg))
+				require.NoError(t, err)
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{
+					Name:                      igName,
+					DeleteAssociatedResources: true,
+				})
+				return err
+			},
+			Validate: func(t *testing.T, igName string) {
+				t.Helper()
+				// Validate git server associated with the integration is
+				// removed and other git server is intact.
+				_, err := localClient.GetGitServer(context.Background(), igName)
+				require.True(t, trace.IsNotFound(err))
+				_, err = localClient.GetGitServer(context.Background(), igName+igName)
+				require.NoError(t, err)
+			},
+			ErrAssertion: noError,
+		},
 
 		// Delete all
 		{
@@ -582,7 +691,7 @@ func TestIntegrationCRUD(t *testing.T) {
 			}
 
 			err := tc.Test(localCtx, resourceSvc, igName)
-			require.True(t, tc.ErrAssertion(err), err)
+			require.True(t, tc.ErrAssertion(err), trace.DebugReport(err))
 
 			// Extra validation
 			if tc.Validate != nil {
@@ -628,6 +737,7 @@ type localClient interface {
 	DeletePlugin(ctx context.Context, name string) error
 	services.PluginStaticCredentials
 	services.Integrations
+	services.GitServers
 }
 
 type testClient struct {
@@ -676,6 +786,8 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		LockGetter: accessService,
 	})
 	require.NoError(t, err)
+	gitServerService, err := local.NewGitServerService(backend)
+	require.NoError(t, err)
 
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: clusterName,
@@ -692,9 +804,11 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 	backendSvc := struct {
 		services.Integrations
 		services.PluginStaticCredentials
+		services.GitServers
 	}{
 		Integrations:            localResourceService,
 		PluginStaticCredentials: localCredService,
+		GitServers:              gitServerService,
 	}
 
 	cacheResourceService, err := local.NewIntegrationsService(backend, local.WithIntegrationsServiceCacheMode(true))
@@ -728,6 +842,7 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		*local.IntegrationsService
 		*local.PluginsService
 		*local.PluginStaticCredentialsService
+		*local.GitServerService
 	}{
 		AccessService:                  roleSvc,
 		IdentityService:                userSvc,
@@ -735,6 +850,7 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		IntegrationsService:            localResourceService,
 		PluginsService:                 pluginSvc,
 		PluginStaticCredentialsService: localCredService,
+		GitServerService:               gitServerService,
 	}, resourceSvc
 }
 
@@ -856,4 +972,16 @@ func mustFindGitHubCredentials(t *testing.T, localClient Backend, igName, wantId
 	}
 	assert.True(t, seenSSHCA)
 	assert.True(t, seenOAuth)
+}
+
+func mustMakeGitHubServer(t *testing.T, ig types.Integration) types.Server {
+	t.Helper()
+	require.NotNil(t, ig.GetGitHubIntegrationSpec())
+	server, err := types.NewGitHubServer(types.GitHubServerMetadata{
+		Organization: ig.GetGitHubIntegrationSpec().Organization,
+		Integration:  ig.GetName(),
+	})
+	require.NoError(t, err)
+	server.SetName(ig.GetName())
+	return server
 }
