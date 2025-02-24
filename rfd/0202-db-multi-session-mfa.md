@@ -176,13 +176,32 @@ Here is a quick matrix:
 | `per-session`      | `SCOPE_DATABASE_MULTI_SESSION` | Database         | Denied |
 | `per-session`      | `SCOPE_DATABASE_MULTI_SESSION` | Non-Database     | Denied |
 
+MFA requirement check is also updated to indicate whether the client can get
+away with reusing the MFA response.
+```diff
+// IsMFARequiredResponse is a response for MFA requirement check.
+message IsMFARequiredResponse {
+// Required is a simplified view over [MFARequired].
+bool Required = 1;
+// MFARequired informs whether MFA is required to access the corresponding
+// resource.
+MFARequired MFARequired = 2;
++// AllowReuse indicates whether an MFA challenge response can be used
++// to authenticate the user more than once until the challenge expires.
++bool allow_reuse = 3;
+}
+```
+
 ### The `tsh db exec` command
 
 General flow of the command:
 - Fetch databases (either specified directly or through search).
-- Fetch roles and use access checker to determine MFA requirement.
 - For each database:
-  - Prompt MFA if necessary.
+  - Prompt MFA:
+    - If `per-session` MFA is required.
+    - Or, if first time requesting MFA for `multi-session` or shared `multi-session`
+      response is expired.
+    - No MFA if not required.
   - Starts a local proxy in tunnel mode for this database (regardless of cluster
     proxy listener mode).
   - Craft a command for `os.exec`. The command is not interactive (e.g. does not
@@ -201,15 +220,13 @@ The command presents the search results then asks user to confirm before
 proceeding. `--skip-confirm` can be used to skip the confirmation.
 
 Some other details:
-- If the multi-session MFA response is expired, the command should ask for MFA
-  again.
 - For MVP implementation, only PostgreSQL and MySQL databases will be supported.
   And a warning will be printed if the target databases have different protocols
   (e.g. `postgres` vs `mysql`).
 - For databases that require per-session MFA, a prompt will still be presented
   per database.
  
-#### Possible enhancements for `tsh db exec`
+#### Possible future enhancements for `tsh db exec`
 - `tsh db exec --exec-config` to support a config file which allows specifying
   different flags like `--db-user`, `--db-name`, `--exec-query` per target
   database or per search.
