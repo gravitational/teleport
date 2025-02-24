@@ -1,0 +1,11 @@
+type: workload-identity-aws-ra
+selector:
+  name: my-workload-identity
+destination:
+  type: memory
+credential_ttl: 1m0s
+renewal_interval: 30s
+role_arn: arn:aws:iam::123456789012:role/example-role
+profile_arn: arn:aws:rolesanywhere:us-east-1:123456789012:profile/0000000-0000-0000-0000-00000000000
+trust_anchor_arn: arn:aws:rolesanywhere:us-east-1:123456789012:trust-anchor/0000000-0000-0000-0000-000000000000
+region: us-east-1
