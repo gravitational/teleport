@@ -2,8 +2,6 @@ module github.com/gravitational/teleport/api
 
 go 1.23.0
 
-toolchain go1.24.0
-
 require (
 	github.com/coreos/go-semver v0.3.1
 	github.com/go-piv/piv-go v1.11.0
