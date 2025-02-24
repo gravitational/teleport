@@ -33,10 +33,10 @@ $ tar -xf  teleport-connect-(=teleport.version=)-linux-*.tar.gz
 Download and run the installer `.exe` file. It will install and open Teleport Connect without
 further user input.
 
-The installer requires Administrator privileges and if you run the installer as
-a regular user it will automatically prompt for admin rights.
-If you run the installer as an administrator (start cmd.exe with "Run as administrator")
-then the prompt will not be necessary.
+The installer requires administrator privileges in order to set up a Windows
+service used by the [VNet](#connecting-to-tcp-apps-with-vnet) feature.
+If you run the installer as a regular user it will automatically create a UAC
+(User Account Control) prompt for the necessary permissions.
 
 Repeat the process with newer versions to upgrade.
 
@@ -182,11 +182,13 @@ authentication data, you will have to log in to the Web UI before accessing an a
 Alternatively, you can look for the application in the search bar and press `Enter` to launch it in
 the browser.
 
-### Connecting to TCP apps with VNet on macOS and Windows
+### Connecting to TCP apps with VNet
 
-VNet is a virtual network emulation tool available in Teleport Connect. It enables any program on
-your computer to connect to TCP applications protected by Teleport, with no extra changes required
-to the program itself. It removes the need to manually create tunnels for TCP applications.
+VNet is a virtual network emulation tool available in Teleport Connect on macOS
+and Windows. It enables any program on your computer to connect to TCP
+applications protected by Teleport, with no extra changes required
+to the program itself. It removes the need to manually create tunnels for TCP
+applications.
 
 This is the recommended way of connecting to TCP apps.
 
