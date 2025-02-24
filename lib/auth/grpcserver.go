@@ -4515,6 +4515,21 @@ func (g *GRPCServer) DeleteUIConfig(ctx context.Context, _ *emptypb.Empty) (*emp
 	return &emptypb.Empty{}, nil
 }
 
+func (g *GRPCServer) defaultInstaller(ctx context.Context) (*types.InstallerV1, error) {
+	var defaultInstaller *types.InstallerV1
+
+	_, err := g.AuthServer.GetAutoUpdateAgentRollout(ctx)
+	switch {
+	case trace.IsNotFound(err):
+		defaultInstaller = installer.LegacyDefaultInstaller
+	case err != nil:
+		return nil, trace.Wrap(err, "failed to get query autoupdate state to build installer")
+	default:
+		defaultInstaller = installer.NewDefaultInstaller
+	}
+	return defaultInstaller, nil
+}
+
 // GetInstaller retrieves the installer script resource
 func (g *GRPCServer) GetInstaller(ctx context.Context, req *types.ResourceRequest) (*types.InstallerV1, error) {
 	auth, err := g.authenticate(ctx)
@@ -4526,15 +4541,7 @@ func (g *GRPCServer) GetInstaller(ctx context.Context, req *types.ResourceReques
 		if trace.IsNotFound(err) {
 			switch req.Name {
 			case installers.InstallerScriptName:
-				_, err = auth.authServer.GetAutoUpdateAgentRollout(ctx)
-				switch {
-				case trace.IsNotFound(err):
-					return installer.LegacyDefaultInstaller, nil
-				case err != nil:
-					return nil, trace.Wrap(err, "failed to get query autoupdate state to build installer")
-				default:
-					return installer.NewDefaultInstaller, nil
-				}
+				return g.defaultInstaller(ctx)
 			case installers.InstallerScriptNameAgentless:
 				return installers.DefaultAgentlessInstaller, nil
 			}
@@ -4560,15 +4567,9 @@ func (g *GRPCServer) GetInstallers(ctx context.Context, _ *emptypb.Empty) (*type
 	}
 	var installersV1 []*types.InstallerV1
 
-	var defaultInstaller *types.InstallerV1
-	_, err = auth.authServer.GetAutoUpdateAgentRollout(ctx)
-	switch {
-	case trace.IsNotFound(err):
-		defaultInstaller = installer.LegacyDefaultInstaller
-	case err != nil:
-		return nil, trace.Wrap(err, "failed to get query autoupdate state to build installer")
-	default:
-		defaultInstaller = installer.NewDefaultInstaller
+	defaultInstaller, err := g.defaultInstaller(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	defaultInstallers := map[string]*types.InstallerV1{

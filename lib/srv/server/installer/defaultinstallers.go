@@ -35,20 +35,23 @@ var (
 	// NewDefaultInstaller installs Teleport by calling the standard "/scripts/install.sh" route on the proxy.
 	// After successfully installing Teleport, it will invoke the same `teleport install`
 	// command as the LegacyDefaultInstaller which will only take care of configuring Teleport.
-	NewDefaultInstaller = types.MustNewInstallerV1(installers.InstallerScriptName, execGenericInstallScript+configureTeleport)
+	NewDefaultInstaller = types.MustNewInstallerV1(
+		installers.InstallerScriptName,
+		strings.Join(
+			[]string{scriptShebangAndSetOptions, execGenericInstallScript, configureTeleport},
+			"\n\n",
+		),
+	)
 
-	execGenericInstallScript = `#!/bin/bash
-set -euo pipefail
-
+	scriptShebangAndSetOptions = `#!/bin/bash
+set -euo pipefail`
+	execGenericInstallScript = `
 INSTALL_SCRIPT_URL="https://{{.PublicProxyAddr}}/scripts/install.sh"
 
 echo "Offloading the installation part to the generic Teleport install script hosted at: $INSTALL_SCRIPT_URL"
 
-curl "$INSTALL_SCRIPT_URL" | sudo bash
-`
-	configureTeleport = `#!/bin/bash
-set -euo pipefail
-
+curl "$INSTALL_SCRIPT_URL" | sudo bash`
+	configureTeleport = `
 echo "Configuring the Teleport agent"
 
 set +x
