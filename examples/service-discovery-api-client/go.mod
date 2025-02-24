@@ -2,8 +2,6 @@ module register-app-service
 
 go 1.23.0
 
-toolchain go1.24.0
-
 require (
 	github.com/docker/docker v26.1.5+incompatible
 	github.com/gravitational/teleport/api v0.0.0-20240220221413-126de63e7e40
