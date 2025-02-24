@@ -179,6 +179,7 @@ type testServiceOpt func(*Config)
 
 func withUserSyncEnabled(cfg *Config) {
 	cfg.SyncSettings.SyncUsers = true
+	cfg.SyncSettings.UserSyncSource = string(types.OktaUserSyncSourceSamlApp)
 }
 
 func withOktaAppID(appID string) testServiceOpt {

@@ -110,7 +110,7 @@ func TestPluginEnrolmentFullIntegration(t *testing.T) {
 				SsoConnectorId:       "okta-integration",
 				AppId:                resp.GetConnectorInfo().GetOktaAppId(),
 				SyncUsers:            true,
-				UserSyncSource:       "unknown", // TODO(kopiczko) to be implemented
+				UserSyncSource:       "saml_app",
 				DisableSyncAppGroups: false,
 				SyncAccessLists:      true,
 				DefaultOwners:        []string{"alice-admin"},
@@ -184,7 +184,7 @@ func TestPluginEnrolmentSSOMetadataURL(t *testing.T) {
 			SsoConnectorId:       "okta-integration",
 			AppId:                resp.GetConnectorInfo().GetOktaAppId(),
 			SyncUsers:            true,
-			UserSyncSource:       "unknown", // TODO(kopiczko) to be implemented
+			UserSyncSource:       "saml_app",
 			DisableSyncAppGroups: false,
 			SyncAccessLists:      true,
 			DefaultOwners:        []string{"alice-admin"},
@@ -279,7 +279,7 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 			OrgUrl: "https://trial-1234567.okta.com",
 			SyncSettings: &types.PluginOktaSyncSettings{
 				SsoConnectorId:       "okta",
-				UserSyncSource:       "unknown", // TODO(kopiczko) to be implemented
+				UserSyncSource:       "saml_app",
 				DisableSyncAppGroups: true,
 			},
 			CredentialsInfo: &types.PluginOktaCredentialsInfo{
@@ -317,7 +317,7 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 			SyncSettings: &types.PluginOktaSyncSettings{
 				SsoConnectorId:       "okta",
 				SyncUsers:            true,
-				UserSyncSource:       "unknown", // TODO(kopiczko) to be implemented
+				UserSyncSource:       "saml_app",
 				DisableSyncAppGroups: true,
 				AppId:                samlApp.Id,
 			},
@@ -364,7 +364,7 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 			SyncSettings: &types.PluginOktaSyncSettings{
 				SsoConnectorId:       "okta",
 				SyncUsers:            true,
-				UserSyncSource:       "unknown", // TODO(kopiczko) to be implemented
+				UserSyncSource:       "saml_app",
 				DisableSyncAppGroups: false,
 				AppId:                samlApp.Id,
 			},
@@ -412,7 +412,7 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 			SyncSettings: &types.PluginOktaSyncSettings{
 				SsoConnectorId:       "okta",
 				SyncUsers:            true,
-				UserSyncSource:       "unknown", // TODO(kopiczko) to be implemented
+				UserSyncSource:       "saml_app",
 				DisableSyncAppGroups: false,
 				SyncAccessLists:      true,
 				DefaultOwners:        []string{"alice-admin"},
@@ -454,7 +454,7 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 			SyncSettings: &types.PluginOktaSyncSettings{
 				SsoConnectorId:       "okta",
 				SyncUsers:            true,
-				UserSyncSource:       "unknown", // TODO(kopiczko) to be implemented
+				UserSyncSource:       "saml_app",
 				DisableSyncAppGroups: false,
 				SyncAccessLists:      true,
 				GroupFilters:         []string{oktaInfra.Groups[0].Profile.Name},
@@ -560,17 +560,19 @@ func TestEnrolmentPartialStepsFromLegacyConnector(t *testing.T) {
 
 	ctx := context.Background()
 	oktaApiClientMock := newMockOktaAPIClient()
+	samlAPP := createOktaSAMLAPP(t, ctx, oktaApiClientMock, "trial-1234567_teleportsamlconnectorapp_1")
+
 	sut := common.InitSUT(t,
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithUser(t, "alice-admin", "editor"),
 	)
+	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
+	pluginClient := pluginsv1.NewPluginServiceClient(sut.GetAuthServiceGRPCConn(t, "alice-admin"))
 
 	// Create a legacy SAML connector that doesn't have any label
 	// The Legacy SAML connector is created manually by a user following
 	// the OKTA SSO integration guide.
 	connector := mustUnmarshalSAMLConnector(t, idp.SAMLConnector)
-	// The SAML app must exist in okta and have the matching Okta label.
-	samlAPP := createOktaSAMLAPP(t, ctx, oktaApiClientMock, "trial-1234567_teleportsamlconnectorapp_1")
 
 	meta := connector.GetMetadata()
 	meta.Labels = map[string]string{}
@@ -579,9 +581,6 @@ func TestEnrolmentPartialStepsFromLegacyConnector(t *testing.T) {
 
 	_, err := sut.Teleport.Process.GetAuthServer().CreateSAMLConnector(ctx, connector)
 	require.NoError(t, err)
-
-	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
-	pluginClient := pluginsv1.NewPluginServiceClient(sut.GetAuthServiceGRPCConn(t, "alice-admin"))
 
 	t.Run("enroll okta integration with user sync and legacy credentials", func(t *testing.T) {
 		resp, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
@@ -600,7 +599,7 @@ func TestEnrolmentPartialStepsFromLegacyConnector(t *testing.T) {
 				SsoConnectorId:       legacyConnectorName,
 				AppId:                samlAPP.Id,
 				SyncUsers:            true,
-				UserSyncSource:       "unknown", // TODO(kopiczko) to be updated with https://github.com/gravitational/teleport.e/pull/6061
+				UserSyncSource:       "saml_app",
 				DisableSyncAppGroups: true,
 			},
 			CredentialsInfo: &types.PluginOktaCredentialsInfo{
@@ -625,7 +624,44 @@ func TestEnrolmentPartialStepsFromLegacyConnector(t *testing.T) {
 				SsoConnectorId:       legacyConnectorName,
 				AppId:                samlAPP.Id,
 				SyncUsers:            true,
-				UserSyncSource:       "unknown", // TODO(kopiczko) to be updated with https://github.com/gravitational/teleport.e/pull/6061
+				UserSyncSource:       "saml_app",
+				DisableSyncAppGroups: true,
+			},
+			CredentialsInfo: &types.PluginOktaCredentialsInfo{
+				HasOauthCredentials: true,
+			},
+		}
+		require.Equal(t, expectedOktaPluginSettings, oktaPlugin.Spec.GetOkta())
+	})
+
+	t.Run("fall back to org user source while updating legacy plugins", func(t *testing.T) {
+		// Now let's pretend this is a legacy plugin by unsetting and app ID.
+		oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{Name: types.PluginTypeOkta})
+		require.NoError(t, err)
+		oktaPlugin.Spec.GetOkta().GetSyncSettings().UserSyncSource = ""
+		oktaPlugin.Spec.GetOkta().GetSyncSettings().AppId = ""
+		oktaPlugin, err = pluginClient.UpdatePlugin(ctx, &pluginsv1.UpdatePluginRequest{Plugin: oktaPlugin})
+		require.NoError(t, err)
+		require.Equal(t, "unknown", oktaPlugin.Spec.GetOkta().GetSyncSettings().UserSyncSource)
+		require.Equal(t, "", oktaPlugin.Spec.GetOkta().GetSyncSettings().AppId)
+
+		// Now updating integration should populate back the app ID and set user sync source to
+		// "org" (because app ID was not set).
+
+		_, err = oktaClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
+			EnableUserSync: true,
+		})
+		require.NoError(t, err)
+
+		oktaPlugin, err = pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{Name: types.PluginTypeOkta})
+		require.NoError(t, err)
+		expectedOktaPluginSettings := &types.PluginOktaSettings{
+			OrgUrl: "https://trial-1234567.okta.com",
+			SyncSettings: &types.PluginOktaSyncSettings{
+				SsoConnectorId:       legacyConnectorName,
+				AppId:                samlAPP.Id,
+				SyncUsers:            true,
+				UserSyncSource:       "org",
 				DisableSyncAppGroups: true,
 			},
 			CredentialsInfo: &types.PluginOktaCredentialsInfo{

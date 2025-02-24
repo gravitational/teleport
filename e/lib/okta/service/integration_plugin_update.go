@@ -13,17 +13,30 @@ import (
 )
 
 func (s *Service) updatePluginOktaSpec(ctx context.Context, req *oktapb.UpdateIntegrationRequest, plugin *types.PluginV1) error {
-	pluginSpec := plugin.Spec.GetOkta()
-	pluginSpec.SyncSettings.SyncUsers = req.GetEnableUserSync()
-	pluginSpec.SyncSettings.DisableSyncAppGroups = !req.GetEnableAppGroupSync()
-	pluginSpec.SyncSettings.SyncAccessLists = req.GetEnableAccessListSync()
-	pluginSpec.SyncSettings.GroupFilters = req.GetAccessListSettings().GetGroupFilters()
-	pluginSpec.SyncSettings.AppFilters = req.GetAccessListSettings().GetAppFilters()
-	pluginSpec.SyncSettings.DefaultOwners = req.GetAccessListSettings().GetDefaultOwner()
-	if pluginSpec.SyncSettings.AppId == "" {
-		s.tryUpdateOktaAppID(ctx, req, pluginSpec, plugin)
+	oktaSpec := plugin.Spec.GetOkta()
+
+	// Make sure we don't change the users' sync source for users in legacy plugins.
+	if oktaSpec.SyncSettings.SyncUsers && oktaSpec.SyncSettings.AppId == "" {
+		if oktaSpec.SyncSettings.GetUserSyncSource().IsUnknown() {
+			oktaSpec.SyncSettings.SetUserSyncSource(types.OktaUserSyncSourceOrg)
+		}
 	}
-	plugin.Spec.Settings = &types.PluginSpecV1_Okta{Okta: pluginSpec}
+	if req.GetEnableUserSync() {
+		if oktaSpec.SyncSettings.GetUserSyncSource().IsUnknown() {
+			oktaSpec.SyncSettings.SetUserSyncSource(types.OktaUserSyncSourceSamlApp)
+		}
+	}
+
+	oktaSpec.SyncSettings.SyncUsers = req.GetEnableUserSync()
+	oktaSpec.SyncSettings.DisableSyncAppGroups = !req.GetEnableAppGroupSync()
+	oktaSpec.SyncSettings.SyncAccessLists = req.GetEnableAccessListSync()
+	oktaSpec.SyncSettings.GroupFilters = req.GetAccessListSettings().GetGroupFilters()
+	oktaSpec.SyncSettings.AppFilters = req.GetAccessListSettings().GetAppFilters()
+	oktaSpec.SyncSettings.DefaultOwners = req.GetAccessListSettings().GetDefaultOwner()
+	if oktaSpec.SyncSettings.AppId == "" {
+		s.tryUpdateOktaAppID(ctx, req, oktaSpec, plugin)
+	}
+	plugin.Spec.Settings = &types.PluginSpecV1_Okta{Okta: oktaSpec}
 	return nil
 }
 

@@ -320,7 +320,7 @@ func TestOktaPluginUpdate(t *testing.T) {
 			DisableSyncAppGroups:     true,
 			DisableBidirectionalSync: false,
 			SsoConnectorId:           common.OktaSSOConnectorName,
-			UserSyncSource:           string(types.OktaUserSyncSourceUnknown),
+			UserSyncSource:           string(types.OktaUserSyncSourceSamlApp),
 		},
 		CredentialsInfo: &types.PluginOktaCredentialsInfo{
 			HasOauthCredentials: true,

@@ -599,7 +599,10 @@ func (s *Service) syncUsers(ctx context.Context) (err error) {
 	}
 
 	var oktaUsers map[string]types.User
-	if s.oktaSAMLAppID != "" {
+	if s.userSyncSource == types.OktaUserSyncSourceSamlApp {
+		if s.oktaSAMLAppID == "" {
+			return trace.Errorf("user sync source = %q, but Okta SAML app ID is empty", s.userSyncSource)
+		}
 		s.logger.DebugContext(ctx, "Fetching app users", "app_id", s.oktaSAMLAppID)
 		convertUser := func(oktaUser *okta.AppUser) (types.User, error) {
 			return ConvertAppUser(oktaUser, s.clock, s.ssoConnectorID, s.orgURL)

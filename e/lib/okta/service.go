@@ -181,8 +181,13 @@ func (c *Config) CheckAndSetDefaults() error {
 		// Default to running 5 backend tasks per second.
 		c.BackendTasksPerSecond = 5
 	}
-	if c.SyncSettings.SyncUsers && c.SyncSettings.SsoConnectorId == "" {
-		return trace.BadParameter("Okta SSO Connector ID must be set if user sync is enabled")
+	if c.SyncSettings.SyncUsers {
+		if c.SyncSettings.SsoConnectorId == "" {
+			return trace.BadParameter("user sync is enabled, but Okta SSO Connector is missing")
+		}
+		if c.SyncSettings.AppId == "" && c.SyncSettings.GetUserSyncSource() == types.OktaUserSyncSourceSamlApp {
+			return trace.BadParameter("user sync with Okta SAML app as a source is enabled, but app ID is missing")
+		}
 	}
 
 	if c.SyncSettings.SyncAccessLists {
@@ -328,6 +333,10 @@ type Service struct {
 	// the legacy method of polling the whole Okta organization.
 	oktaSAMLAppID string
 
+	// userSyncSource indicates the source of truth of the Okta users. It can be either
+	// connector SAML app or the whole Okta organization.
+	userSyncSource types.OktaUserSyncSource
+
 	// connectorService is the SAML connector service.
 	connectorService sso.SAMLConnectorService
 
@@ -391,6 +400,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator api.OktaCl
 		stopCh:                  make(chan struct{}, 1),
 		ssoConnectorID:          config.SyncSettings.SsoConnectorId,
 		oktaSAMLAppID:           config.SyncSettings.AppId,
+		userSyncSource:          config.SyncSettings.GetUserSyncSource(),
 		disableOktaAppGroupSync: config.SyncSettings.DisableSyncAppGroups,
 		serviceStatus: serviceStatus{
 			sink:    config.PluginStatusSink,

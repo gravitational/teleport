@@ -172,11 +172,13 @@ func (s *Service) createIntegration(ctx context.Context, req *oktapb.CreateInteg
 
 func newOktaPlugin(req *oktapb.CreateIntegrationRequest, connectorInfo *sso.SAMLConnectorInfo, creds []*types.PluginStaticCredentialsV1) (*types.PluginV1, error) {
 	credsInfo := buildCredentialsInfo(creds)
+
 	oktaSettings := &types.PluginOktaSettings{
 		CredentialsInfo: credsInfo,
 		OrgUrl:          connectorInfo.OktaOrg,
 		SyncSettings: &types.PluginOktaSyncSettings{
 			SyncUsers:            req.GetEnableUserSync(),
+			UserSyncSource:       string(types.OktaUserSyncSourceSamlApp),
 			SyncAccessLists:      req.GetEnableAccessListSync(),
 			DisableSyncAppGroups: !req.GetEnableAppGroupSync(),
 			SsoConnectorId:       connectorInfo.Connector.GetName(),
