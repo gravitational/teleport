@@ -46,6 +46,7 @@ test('renders ec2 impacts', async () => {
       instances: {
         'i-016e32a5882f5ee81': {
           instance_id: 'i-016e32a5882f5ee81',
+          resourceUrl: '',
           name: undefined,
           invocationUrl: undefined,
           discoveryConfig: undefined,
@@ -54,6 +55,7 @@ test('renders ec2 impacts', async () => {
         },
         'i-065818031835365cc': {
           instance_id: 'i-065818031835365cc',
+          resourceUrl: '',
           name: 'aws-test',
           invocationUrl: undefined,
           discoveryConfig: undefined,
@@ -103,12 +105,14 @@ test('renders eks impacts', async () => {
       clusters: {
         'i-016e32a5882f5ee81': {
           name: 'i-016e32a5882f5ee81',
+          resourceUrl: '',
           discoveryConfig: undefined,
           discoveryGroup: undefined,
           syncTime: undefined,
         },
         'i-065818031835365cc': {
           name: 'i-065818031835365cc',
+          resourceUrl: '',
           discoveryConfig: undefined,
           discoveryGroup: undefined,
           syncTime: undefined,
@@ -151,6 +155,7 @@ test('renders rds impacts', async () => {
       databases: {
         'i-016e32a5882f5ee81': {
           name: 'i-016e32a5882f5ee81',
+          resourceUrl: '',
           isCluster: undefined,
           engine: undefined,
           discoveryConfig: undefined,
@@ -159,6 +164,7 @@ test('renders rds impacts', async () => {
         },
         'i-065818031835365cc': {
           name: 'i-065818031835365cc',
+          resourceUrl: '',
           isCluster: undefined,
           engine: undefined,
           discoveryConfig: undefined,
