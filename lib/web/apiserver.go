@@ -3105,7 +3105,7 @@ func (h *Handler) getUserGroupLookup(ctx context.Context, clt apiclient.GetResou
 // clusterUnifiedResourcesGet returns a list of resources for a given cluster site. This includes all resources available to be displayed in the web ui
 // such as Nodes, Apps, Desktops, etc etc
 func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	clt, err := sctx.GetUserClient(request.Context(), site)
+	// clt, err := sctx.GetUserClient(request.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
