@@ -6,7 +6,7 @@ description: Describes how to set up Teleport Managed Agent Updates v2.
 <Notice type="warning">
 This document describes the Managed Updates v2 updater, which is currently in beta.
 
-For managed updates v1 instructions, see
+For Managed Updates v1 instructions, see
 [Managed Updates for Agents (v1)](./agent-managed-updates-v1.mdx).
 </Notice>
 
@@ -14,7 +14,7 @@ Managed updates v2 use a binary called `teleport-update` which is distributed in
 all Teleport packages, alongside Teleport. The updates are configured by the
 `autoupdate_version` and `autoupdate_config` resources.
 
-This document cover how to use `teleport-update` and the `autoupdate_*`
+This document covers how to use `teleport-update` and the `autoupdate_*`
 resources to manage your agent updates from Teleport.
 
 `teleport-update` supports:
@@ -24,24 +24,24 @@ resources to manage your agent updates from Teleport.
 - amd64 and arm64 CPU architectures
 - systemd-based OSes, regardless of the package manager used
 
-<Admonition type="note" label="Compatibility between managed updates v1 and v2">
+<Admonition type="note" title="Compatibility between Managed Updates v1 and v2">
 Managed updates v2 are backwards compatible with the
 `cluster_maintenance_config` resource. The Managed Updates v1 `teleport-upgrade` script
 is forwards compatible with the `autoupdate_config` and `autoupdate_version` resources.
-Agents connected to the same cluster may use either resource.
+Agents connected to the same cluster should all update to the same version.
 
-If the `autoupdate_*` resources are configured, they take precedence over
+If the `autoupdate_version` resource is configured, it takes precedence over
 `cluster_maintenance_config`. This allows for a safe, non-breaking, incremental
-migration between managed updates v1 and v2.
+migration between Managed Updates v1 and v2.
 
-Users of cloud-hosted Teleport Enterprise will be migrated to managed updates v2
+Users of cloud-hosted Teleport Enterprise will be migrated to Managed Updates v2
 in the first half of 2025 and should plan to migrate their agents to `teleport-update`.
 </Admonition>
 
 ## How it works
 
-When managed updates are enabled, a Teleport updater runs alongside
-each Teleport agent. The updater communicates with the Teleport Proxy Service to
+When Managed Updates are enabled, a Teleport updater is installed alongside
+each new Teleport agent. The updater communicates with the Teleport Proxy Service to
 determine when an update is available and if it should perform the update now.
 
 Each agent belongs to an update group. The update schedule specifies when each
@@ -49,25 +49,27 @@ group is updated. The schedule is stored in the `autoupdate_config` resource and
 can be edited via `tctl`.
 
 For Linux server-based installations, `teleport-update` command configures
-managed updates locally on the server.
+Managed Updates locally on the server.
 
 For Kubernetes-based installations, the `teleport-kube-agent` Helm chart
 deploys a controller that automatically updates the main Teleport container.
 
+Existing agents must be manually enrolled into Managed Updates.
+
 ## Prerequisites
 
 - A Teleport cluster. If you do not have one, [sign
-  up](https://goteleport.com/signup) for a free trial or consult the [Update
-  Reference](upgrading-reference.mdx) to read about manual updates.
+  up](https://goteleport.com/signup) for a free trial or consult the
+  [Teleport Installation](../installation.mdx) page.
 - Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
   which describes the sequence in which to upgrade components in your cluster.
-- Teleport agents that are not yet enrolled in managed updates.
+- Teleport agents that are not yet enrolled in Managed Updates.
 - (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Quick setup for existing connected Linux servers
 
-Users can enable managed updates on Linux servers that are already connected
+Users can enable Managed Updates v2 on Linux servers that are already connected
 with a single command:
 
 ```code
@@ -106,7 +108,7 @@ fastest way to onboard new Linux servers. However, you may also use
 `teleport-update` by itself to set up a Teleport agent manually.
 
 Users can create a new installation of Teleport using any version of the
-`teleport-update` binary. First, download copy of the [Teleport tarball] from
+`teleport-update` binary. First, download copy of the Teleport tarball from
 the downloads page. Next, invoke `teleport-update` to install the correct version
 for your cluster.
 
@@ -126,7 +128,7 @@ $ sudo systemctl enable teleport --now
 
 ## Configuring managed agent updates
 
-Managed agent updates are configured via two teleport resources:
+Managed agent updates are configured via two Teleport resources:
 - `autoupdate_config` which controls the update schedule
 - `autoupdate_version` which controls the desired version
 
@@ -138,7 +140,7 @@ Cloud-hosted Teleport users can configure the `autoupdate_config`, the
 automatically during the first chosen maintenance window that is at least 36
 hours after the cluster version is updated.
 
-To configure managed updates in your cluster, you must have access to
+To configure Managed Updates in your cluster, you must have access to
 the `autoupdate_config` and `autoupdate_version` resources. By default,
 the `editor` role can modify both resources.
 
@@ -225,9 +227,9 @@ The time-based strategy does not support the `wait_days` option.
 
 To add agents to groups, run `teleport-update enable --group group-name`.
 You may execute `teleport-update enable` repeatedly to change the group
-(or other managed update settings).
+(or other Managed Update settings).
 
-<Admonition type="info" label="Cloud-hosting schedule constraints">
+<Admonition type="info" title="Cloud-hosting schedule constraints">
 For cloud-hosted Teleport Enterprise, the `days` are not configurable for most
 customers, and the `start_hour` is defaulted to your selected maintenance window.
 
@@ -239,7 +241,7 @@ compatible with the Teleport cluster's version.
 
 ### Setting the version (self-hosted only)
 
-For cloud-hosted Teleport Enterprise, managed updates are enabled by default.
+For cloud-hosted Teleport Enterprise, Managed Updates are enabled by default.
 The `autoupdate_version` resource is managed for you and cannot be edited.
 This ensures your agents are always up-to-date and running the best version
 for your Teleport cluster.
@@ -266,7 +268,7 @@ according to the update schedule specified in the `autoupdate_config`.
 The `schedule` may be changed from `regular` to `immediate` to force all
 agents to update to the `target_version` immediately.
 
-The `mode` is used to enable, disable, or suspend managed updates.
+The `mode` is used to enable, disable, or suspend Managed Updates.
 The `mode` may be set in both `autoupdate_version` or `autoupdate_config`,
 such that `disabled` overrides `suspended`, which overrides `enabled` on either
 side. The `mode` being specified in two places is useful when
@@ -277,7 +279,7 @@ Run the following command to create or update the resource:
 ```code
 $ tctl create autoupdate_version.yaml
 ```
-## Migrating agents on Linux servers to managed updates
+## Migrating agents on Linux servers to Managed Updates
 
 ### Finding unmanaged agents
 
@@ -293,8 +295,8 @@ Server ID                            Hostname      Services Version Upgrader
 ...
 ```
 
-Use the `--upgrader=unit` flag to list agents that are using managed updates v1
-and should be updated to managed updates v2:
+Use the `--upgrader=unit` flag to list agents that are using Managed Updates v1
+and should be updated to Managed Updates v2:
 
 ```code
 $ tctl inventory ls --upgrader=unit
@@ -304,7 +306,7 @@ Server ID                            Hostname      Services Version Upgrader
 ...
 ```
 
-Agents enrolled into managed updates v2 can be queried with the
+Agents enrolled into Managed Updates v2 can be queried with the
 `--upgrader=binary` flag.
 
 ### Enrolling unmanaged agents
@@ -319,7 +321,7 @@ Agents enrolled into managed updates v2 can be queried with the
    ```
 
 1. Run `teleport-update enable` on each agent you would like
-   to enroll into managed updates v2:
+   to enroll into Managed Updates v2:
 
    ```code
    $ sudo teleport-update enable
@@ -331,7 +333,7 @@ Agents enrolled into managed updates v2 can be queried with the
    $ teleport version
    ```
 
-1. Remove the managed updates v1 updater if present:
+1. Remove the Managed Updates v1 updater if present:
 
    <Tabs>
    <TabItem label="DEB">
@@ -362,11 +364,11 @@ $ sudo chown your-teleport-user /etc/teleport-upgrade.d/schedule
 ```
 
 While `teleport-update` does not read this file, `teleport` will warn if it
-cannot disable the managed update v1 updater using this file.
+cannot disable the Managed Update v1 updater using this file.
 
 </Details>
 
-## Enroll Kubernetes agents in managed updates
+## Enroll Kubernetes agents in Managed Updates
 
 This section assumes that the name of your `teleport-kube-agent` release is
 `teleport-agent`, and that you have installed it in the `teleport` namespace.
@@ -467,7 +469,7 @@ until the next reconciliation, you can trigger an event.
    $ kubectl -n <Var name="teleport" /> annotate statefulset/<Var name="teleport-agent" /> 'debug.teleport.dev/trigger-event=1'
    ```
 
-1. To suspend managed updates for an agent, annotate the agent deployment
+1. To suspend Managed Updates for an agent, annotate the agent deployment
    with `teleport.dev/skipreconcile: "true"`, either by setting the
    `annotations.deployment` value in Helm, or by patching the deployment
    directly with `kubectl`.
