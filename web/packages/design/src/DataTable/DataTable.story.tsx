@@ -18,9 +18,9 @@
 
 import { useState } from 'react';
 
-import { TableProps } from './types';
-import Table from './Table';
 import { ClickableLabelCell, DateCell, LabelCell } from './Cells';
+import Table from './Table';
+import { TableProps } from './types';
 
 export default {
   title: 'Design/DataTable',
@@ -138,10 +138,6 @@ export function DefaultAndClickableLabels() {
   );
 }
 
-function sortTagsByLength(a: DummyDataType['tags'], b: DummyDataType['tags']) {
-  return a.length - b.length;
-}
-
 const getDefaultProps = (): TableProps<DummyDataType> => ({
   data: data,
   emptyText: 'No Dummy Data Found',
@@ -166,7 +162,7 @@ const getDefaultProps = (): TableProps<DummyDataType> => ({
       headerText: 'Labels',
       render: row => <LabelCell data={row.tags} />,
       isSortable: true,
-      onSort: sortTagsByLength,
+      onSort: (a, b) => a.tags.length - b.tags.length,
     },
     { key: 'bool', headerText: 'Boolean', isSortable: true },
   ],
@@ -194,7 +190,7 @@ const getDefaultIsoProps = (): TableProps<DummyDataISOStringType> => ({
       headerText: 'Labels',
       render: row => <LabelCell data={row.tags} />,
       isSortable: true,
-      onSort: sortTagsByLength,
+      onSort: (a, b) => a.tags.length - b.tags.length,
     },
     { key: 'bool', headerText: 'Boolean', isSortable: true },
   ],

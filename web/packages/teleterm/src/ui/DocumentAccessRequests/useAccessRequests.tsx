@@ -16,105 +16,68 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect } from 'react';
-
-import useAttempt from 'shared/hooks/useAttemptNext';
-
-import {
-  makeAccessRequest,
-  AccessRequest,
-} from 'shared/services/accessRequests';
-
-import { RequestFlags } from 'shared/components/AccessRequests/ReviewRequests';
+import { useEffect } from 'react';
 
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
-
-import * as types from 'teleterm/ui/services/workspacesService';
+import { AccessRequest as TshdAccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
+import { LoggedInUser } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { RequestFlags } from 'shared/components/AccessRequests/ReviewRequests';
+import { mapAttempt } from 'shared/hooks/useAsync';
 import {
-  AssumedRequest,
-  LoggedInUser,
-  AccessRequest as TshdAccessRequest,
-} from 'teleterm/services/tshd/types';
+  AccessRequest,
+  makeAccessRequest,
+} from 'shared/services/accessRequests';
 
+import { useAccessRequestsContext } from 'teleterm/ui/AccessRequests/AccessRequestsContext';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
+import * as types from 'teleterm/ui/services/workspacesService';
 
 export default function useAccessRequests(doc: types.DocumentAccessRequests) {
   const ctx = useAppContext();
   ctx.clustersService.useState();
 
-  const {
-    localClusterUri: clusterUri,
-    rootClusterUri,
-    documentsService,
-  } = useWorkspaceContext();
+  const { rootClusterUri, documentsService } = useWorkspaceContext();
+  const { fetchRequestsAttempt, fetchRequests } = useAccessRequestsContext();
 
   const assumed = ctx.clustersService.getAssumedRequests(rootClusterUri);
   const loggedInUser = useWorkspaceLoggedInUser();
-  const [accessRequests, setAccessRequests] = useState<AccessRequest[]>();
-  const { attempt, setAttempt } = useAttempt('');
 
   function goBack() {
-    documentsService.update(doc.uri, {
-      title: `Access Requests`,
+    const updatedDoc = documentsService.createAccessRequestDocument({
+      clusterUri: rootClusterUri,
       state: 'browsing',
-      requestId: '',
     });
+    updatedDoc.uri = doc.uri;
+    documentsService.update(doc.uri, updatedDoc);
   }
 
   function onViewRequest(requestId: string) {
-    documentsService.update(doc.uri, {
-      title: `Request: ${requestId}`,
+    const updatedDoc = documentsService.createAccessRequestDocument({
+      clusterUri: rootClusterUri,
       state: 'reviewing',
       requestId,
     });
+    updatedDoc.uri = doc.uri;
+    documentsService.update(doc.uri, updatedDoc);
   }
 
-  const getRequests = async () => {
-    try {
-      const response = await retryWithRelogin(ctx, clusterUri, async () => {
-        const { response } = await ctx.tshd.getAccessRequests({ clusterUri });
-        return response.requests;
-      });
-      setAttempt({ status: 'success' });
-      // transform tshd access request to the webui access request and add flags
-      const requests = response.map(r => makeUiAccessRequest(r));
-      setAccessRequests(requests);
-    } catch (err) {
-      setAttempt({
-        status: 'failed',
-        statusText: err.message,
-      });
-    }
-  };
-
   useEffect(() => {
-    // only fetch when visitng RequestList
+    // Only fetch when visiting RequestList.
     if (doc.state === 'browsing') {
-      getRequests();
+      void fetchRequests();
     }
-  }, [doc.state, clusterUri]);
-
-  useEffect(() => {
-    // if assumed object changes, we update which roles have been assumed in the table
-    // this is mostly for using "Switchback" since that state is held outside this component
-    setAccessRequests(prevState =>
-      prevState?.map(r => ({
-        ...r,
-        isAssumed: assumed[r.id],
-      }))
-    );
-  }, [assumed]);
+  }, [doc.state]);
 
   return {
     ctx,
-    attempt,
-    accessRequests,
+    attempt: mapAttempt(fetchRequestsAttempt, requests =>
+      requests.map(makeUiAccessRequest)
+    ),
     onViewRequest,
     doc,
-    getRequests,
+    getRequests: fetchRequests,
     getFlags: (accessRequest: AccessRequest) =>
       makeFlags(accessRequest, assumed, loggedInUser),
     goBack,
@@ -149,7 +112,7 @@ export function makeUiAccessRequest(request: TshdAccessRequest) {
 // TODO(gzdunek): Replace with a function from `DocumentAccessRequests/useReviewAccessRequest`.
 export function makeFlags(
   request: AccessRequest,
-  assumed: Record<string, AssumedRequest>,
+  assumed: Record<string, TshdAccessRequest>,
   loggedInUser: LoggedInUser
 ): RequestFlags {
   const ownRequest = request.user === loggedInUser?.name;

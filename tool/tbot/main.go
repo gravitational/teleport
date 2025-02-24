@@ -117,29 +117,41 @@ func Run(args []string, stdout io.Writer) error {
 		}),
 
 		// `start` and `configure` commands
-		cli.NewLegacyCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
-		cli.NewLegacyCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout)),
+		cli.NewLegacyCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewLegacyCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 
-		cli.NewIdentityCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
-		cli.NewIdentityCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout)),
+		cli.NewIdentityCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewIdentityCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 
-		cli.NewDatabaseCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
-		cli.NewDatabaseCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout)),
+		cli.NewDatabaseCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewDatabaseCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 
-		cli.NewKubernetesCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
-		cli.NewKubernetesCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout)),
+		cli.NewKubernetesCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewKubernetesCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 
-		cli.NewApplicationCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
-		cli.NewApplicationCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout)),
+		cli.NewKubernetesV2Command(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewKubernetesV2Command(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 
-		cli.NewApplicationTunnelCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
-		cli.NewApplicationTunnelCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout)),
+		cli.NewApplicationCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewApplicationCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 
-		cli.NewDatabaseTunnelCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
-		cli.NewDatabaseTunnelCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout)),
+		cli.NewApplicationTunnelCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewApplicationTunnelCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 
-		cli.NewSPIFFESVIDCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
-		cli.NewSPIFFESVIDCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout)),
+		cli.NewDatabaseTunnelCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewDatabaseTunnelCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+
+		cli.NewSPIFFESVIDCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewSPIFFESVIDCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+
+		cli.NewWorkloadIdentityX509Command(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewWorkloadIdentityX509Command(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+
+		cli.NewWorkloadIdentityAPICommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewWorkloadIdentityAPICommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+
+		cli.NewWorkloadIdentityJWTCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewWorkloadIdentityJWTCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 	)
 
 	// Initialize legacy-style commands. These are simple enough to not really

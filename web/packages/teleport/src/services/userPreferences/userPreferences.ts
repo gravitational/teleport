@@ -16,26 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ClusterUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/cluster_preferences_pb';
+import { DiscoverResourcePreferences } from 'gen-proto-ts/teleport/userpreferences/v1/discover_resource_preferences_pb';
+import { OnboardUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
+import { SideNavDrawerMode } from 'gen-proto-ts/teleport/userpreferences/v1/sidenav_preferences_pb';
+import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 import {
+  AvailableResourceMode,
   DefaultTab,
   LabelsViewMode,
   UnifiedResourcePreferences,
   ViewMode,
-  AvailableResourceMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
-
-import { ClusterUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/cluster_preferences_pb';
-
-import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
-
-import { OnboardUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
-
-import { getPrefersDark } from 'teleport/ThemeProvider';
 
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
+import { getPrefersDark } from 'teleport/ThemeProvider';
 
 interface BackendClusterUserPreferences {
   pinnedResources?: string[];
@@ -43,9 +40,11 @@ interface BackendClusterUserPreferences {
 
 export interface BackendUserPreferences {
   theme: Theme;
+  sideNavDrawerMode: SideNavDrawerMode;
   onboard?: OnboardUserPreferences;
   clusterPreferences?: BackendClusterUserPreferences;
   unifiedResourcePreferences?: UnifiedResourcePreferences;
+  discoverResourcePreferences?: DiscoverResourcePreferences;
 }
 
 export async function getUserPreferences(): Promise<UserPreferences> {
@@ -101,6 +100,8 @@ export function makeDefaultUserPreferences(): UserPreferences {
       availableResourceMode: AvailableResourceMode.ALL,
     },
     clusterPreferences: makeDefaultUserClusterPreferences(),
+    sideNavDrawerMode: SideNavDrawerMode.COLLAPSED,
+    discoverResourcePreferences: {},
   };
 }
 

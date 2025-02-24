@@ -21,6 +21,12 @@ External Audit Storage is based on Teleport's
 available on Teleport Enterprise Cloud clusters running Teleport v14.2.1 or
 above.
 
+<Admonition type="notice">
+On Teleport Enterprise (Cloud), External Audit
+Storage is not currently supported for users who have Access Monitoring enabled.
+This functionality will be enabled in a future Teleport release.  
+</Admonition>
+
 ## Prerequisites
 
 1. A Teleport Enterprise Cloud account. If you do not have one, [sign
@@ -154,7 +160,7 @@ recordings will be stored in your S3 bucket, and they will *not* be stored in
 the Teleport Cloud infrastructure.
 
 If you currently use the
-[Event Handler](export-audit-events.mdx) plugin to export
+[Event Handler](export-audit-events/export-audit-events.mdx) plugin to export
 events, it will follow the switch from the old to new backends and new events
 will continue to be exported. Only events emitted after the transition to
 External Audit Storage will be visible in the Teleport UI or accessible to

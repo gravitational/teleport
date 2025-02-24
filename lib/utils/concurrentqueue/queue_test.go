@@ -19,7 +19,7 @@
 package concurrentqueue
 
 import (
-	"math/rand"
+	"math/rand/v2"
 	"testing"
 	"time"
 
@@ -35,7 +35,7 @@ func TestOrdering(t *testing.T) {
 	q := New(func(v int) int {
 		// introduce a short random delay to ensure that work
 		// completes out of order.
-		time.Sleep(time.Duration(rand.Int63n(int64(time.Millisecond * 12))))
+		time.Sleep(rand.N(time.Millisecond * 12))
 		return v
 	}, Workers(10))
 	t.Cleanup(func() { require.NoError(t, q.Close()) })

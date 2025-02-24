@@ -19,16 +19,17 @@
 import React, { useState } from 'react';
 
 import { Flex, Link } from 'design';
-import Table, { Cell } from 'design/DataTable';
 import { Danger } from 'design/Alert';
 import { CheckboxInput } from 'design/Checkbox';
+import Table, { Cell } from 'design/DataTable';
 import { FetchStatus } from 'design/DataTable/types';
-import { ToolTipInfo } from 'shared/components/ToolTip';
-
+import { IconTooltip } from 'design/Tooltip';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import { SecurityGroup } from 'teleport/services/integrations';
-import { SecurityGroupRule } from 'teleport/services/integrations';
+import {
+  SecurityGroup,
+  SecurityGroupRule,
+} from 'teleport/services/integrations';
 
 import { SecurityGroupRulesDialog } from './SecurityGroupRulesDialog';
 
@@ -67,7 +68,7 @@ export const SecurityGroupPicker = ({
     useState<ViewRulesSelection>();
 
   function onCloseRulesDialog() {
-    setViewRulesSelection(null);
+    setViewRulesSelection(undefined);
   }
 
   if (attempt.status === 'failed') {
@@ -160,20 +161,20 @@ export const SecurityGroupPicker = ({
                   altKey: 'tooltip',
                   headerText: '',
                   render: (sg: SecurityGroupWithRecommendation) => {
-                    if (sg.recommended) {
+                    if (sg.recommended && sg.tips?.length) {
                       return (
                         <Cell>
-                          <ToolTipInfo>
+                          <IconTooltip>
                             <ul>
                               {sg.tips.map((tip, index) => (
                                 <li key={index}>{tip}</li>
                               ))}
                             </ul>
-                          </ToolTipInfo>
+                          </IconTooltip>
                         </Cell>
                       );
                     }
-                    return null;
+                    return <Cell />;
                   },
                 },
               ]

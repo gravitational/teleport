@@ -72,7 +72,9 @@ import "C"
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
+	"log/slog"
 	"os"
 	"runtime/cgo"
 	"sync"
@@ -80,8 +82,8 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
@@ -93,19 +95,20 @@ func init() {
 	var rustLogLevel string
 
 	// initialize the Rust logger by setting $RUST_LOG based
-	// on the logrus log level
+	// on the slog log level
 	// (unless RUST_LOG is already explicitly set, then we
 	// assume the user knows what they want)
 	rl := os.Getenv("RUST_LOG")
 	if rl == "" {
-		switch l := logrus.GetLevel(); l {
-		case logrus.TraceLevel:
+		ctx := context.Background()
+		switch {
+		case slog.Default().Enabled(ctx, logutils.TraceLevel):
 			rustLogLevel = "trace"
-		case logrus.DebugLevel:
+		case slog.Default().Enabled(ctx, slog.LevelDebug):
 			rustLogLevel = "debug"
-		case logrus.InfoLevel:
+		case slog.Default().Enabled(ctx, slog.LevelInfo):
 			rustLogLevel = "info"
-		case logrus.WarnLevel:
+		case slog.Default().Enabled(ctx, slog.LevelWarn):
 			rustLogLevel = "warn"
 		default:
 			rustLogLevel = "error"
@@ -118,7 +121,7 @@ func init() {
 		os.Setenv("RUST_LOG", rustLogLevel)
 	}
 
-	C.init()
+	C.rdpclient_init_log()
 }
 
 // Client is the RDP client.
@@ -232,7 +235,7 @@ func (c *Client) readClientUsername() error {
 		}
 		u, ok := msg.(tdp.ClientUsername)
 		if !ok {
-			c.cfg.Logger.DebugContext(context.Background(), fmt.Sprintf("Expected ClientUsername message, got %T", msg))
+			c.cfg.Logger.DebugContext(context.Background(), "Received unexpected ClientUsername message", "message_type", logutils.TypeAttr(msg))
 			continue
 		}
 		c.cfg.Logger.DebugContext(context.Background(), "Got RDP username", "username", u.Username)
@@ -291,6 +294,12 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	// [username] need only be valid for the duration of
+	// C.client_run. It is copied on the Rust side and
+	// thus can be freed here.
+	username := C.CString(c.username)
+	defer C.free(unsafe.Pointer(username))
+
 	// [addr] need only be valid for the duration of
 	// C.client_run. It is copied on the Rust side and
 	// thus can be freed here.
@@ -323,11 +332,25 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 		return trace.BadParameter("user key was nil")
 	}
 
+	hostID, err := uuid.Parse(c.cfg.HostID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	nextHostID := hostID[:]
+	cHostID := [4]C.uint32_t{}
+	for i := 0; i < len(cHostID); i++ {
+		const uint32Len = 4
+		cHostID[i] = (C.uint32_t)(binary.LittleEndian.Uint32(nextHostID[:uint32Len]))
+		nextHostID = nextHostID[uint32Len:]
+	}
+
 	res := C.client_run(
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
 			ad:               C.bool(c.cfg.AD),
 			nla:              C.bool(c.cfg.NLA),
+			go_username:      username,
 			go_addr:          addr,
 			go_computer_name: computerName,
 			go_kdc_addr:      kdcAddr,
@@ -342,6 +365,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
 			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
+			client_id:               cHostID,
 		},
 	)
 
@@ -743,6 +767,106 @@ func toClient(handle C.uintptr_t) (value *Client, err error) {
 	return cgo.Handle(handle).Value().(*Client), nil
 }
 
+//export cgo_read_rdp_license
+func cgo_read_rdp_license(handle C.uintptr_t, req *C.CGOLicenseRequest, data_out **C.uint8_t, len_out *C.size_t) C.CGOErrCode {
+	*data_out = nil
+	*len_out = 0
+
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+
+	issuer := C.GoString(req.issuer)
+	company := C.GoString(req.company)
+	productID := C.GoString(req.product_id)
+
+	license, err := client.readRDPLicense(context.Background(), types.RDPLicenseKey{
+		Version:   uint32(req.version),
+		Issuer:    issuer,
+		Company:   company,
+		ProductID: productID,
+	})
+	if trace.IsNotFound(err) {
+		return C.ErrCodeNotFound
+	} else if err != nil {
+		return C.ErrCodeFailure
+	}
+
+	// in this case, we expect the caller to use cgo_free_rdp_license
+	// when the data is no longer needed
+	*data_out = (*C.uint8_t)(C.CBytes(license))
+	*len_out = C.size_t(len(license))
+	return C.ErrCodeSuccess
+}
+
+//export cgo_free_rdp_license
+func cgo_free_rdp_license(p *C.uint8_t) {
+	C.free(unsafe.Pointer(p))
+}
+
+//export cgo_write_rdp_license
+func cgo_write_rdp_license(handle C.uintptr_t, req *C.CGOLicenseRequest, data *C.uint8_t, length C.size_t) C.CGOErrCode {
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+
+	issuer := C.GoString(req.issuer)
+	company := C.GoString(req.company)
+	productID := C.GoString(req.product_id)
+
+	licenseData := C.GoBytes(unsafe.Pointer(data), C.int(length))
+
+	err = client.writeRDPLicense(context.Background(), types.RDPLicenseKey{
+		Version:   uint32(req.version),
+		Issuer:    issuer,
+		Company:   company,
+		ProductID: productID,
+	}, licenseData)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+
+	return C.ErrCodeSuccess
+}
+
+func (c *Client) readRDPLicense(ctx context.Context, key types.RDPLicenseKey) ([]byte, error) {
+	log := c.cfg.Logger.With(
+		"issuer", key.Issuer,
+		"company", key.Company,
+		"version", key.Version,
+		"product", key.ProductID,
+	)
+
+	license, err := c.cfg.LicenseStore.ReadRDPLicense(ctx, &key)
+	switch {
+	case trace.IsNotFound(err):
+		log.InfoContext(ctx, "existing RDP license not found")
+	case err != nil:
+		log.ErrorContext(ctx, "could not look up existing RDP license", "error", err)
+	case len(license) > 0:
+		log.InfoContext(ctx, "found existing RDP license")
+	}
+
+	return license, trace.Wrap(err)
+}
+
+func (c *Client) writeRDPLicense(ctx context.Context, key types.RDPLicenseKey, license []byte) error {
+	log := c.cfg.Logger.With(
+		"issuer", key.Issuer,
+		"company", key.Company,
+		"version", key.Version,
+		"product", key.ProductID,
+	)
+	log.InfoContext(ctx, "writing RDP license to storage")
+	err := c.cfg.LicenseStore.WriteRDPLicense(ctx, &key, license)
+	if err != nil {
+		log.ErrorContext(ctx, "could not write RDP license", "error", err)
+	}
+	return trace.Wrap(err)
+}
+
 //export cgo_handle_fastpath_pdu
 func cgo_handle_fastpath_pdu(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) C.CGOErrCode {
 	goData := asRustBackedSlice(data, int(length))
@@ -1042,7 +1166,6 @@ func (c *Client) sharedDirectoryMoveRequest(req tdp.SharedDirectoryMoveRequest) 
 		return C.ErrCodeFailure
 	}
 	return C.ErrCodeSuccess
-
 }
 
 //export cgo_tdp_sd_truncate_request
@@ -1069,7 +1192,6 @@ func (c *Client) sharedDirectoryTruncateRequest(req tdp.SharedDirectoryTruncateR
 		return C.ErrCodeFailure
 	}
 	return C.ErrCodeSuccess
-
 }
 
 // GetClientLastActive returns the time of the last recorded activity.

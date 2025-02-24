@@ -27,6 +27,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/proxy/peer/internal"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -51,7 +52,7 @@ func newClientCredentials(peerID, peerAddr string, log *slog.Logger, creds crede
 }
 
 // ClientHandshake performs the TLS handshake and then verifies that the
-// server is a Proxy and that it's UUID matches the expected id of the peer.
+// server is a Proxy and that its UUID matches the expected id of the peer.
 func (c *clientCredentials) ClientHandshake(ctx context.Context, laddr string, conn net.Conn) (_ net.Conn, _ credentials.AuthInfo, err error) {
 	conn, authInfo, err := c.TransportCredentials.ClientHandshake(ctx, laddr, conn)
 	if err != nil {
@@ -74,14 +75,12 @@ func (c *clientCredentials) ClientHandshake(ctx context.Context, laddr string, c
 	}
 
 	if err := validatePeer(c.peerID, identity); err != nil {
-		c.log.ErrorContext(ctx, duplicatePeerMsg, "peer_addr", c.peerAddr, "peer_id", c.peerID)
+		internal.LogDuplicatePeer(ctx, c.log, slog.LevelError, "peer_addr", c.peerAddr, "peer_id", c.peerID)
 		return nil, nil, trace.Wrap(err)
 	}
 
 	return conn, authInfo, nil
 }
-
-const duplicatePeerMsg = "Detected multiple Proxy Peers with the same public address when connecting to a Proxy which can lead to inconsistent state and problems establishing sessions. For best results ensure that `peer_public_addr` is unique per proxy and not a load balancer."
 
 // getIdentity returns a [tlsca.Identity] that is created from the certificate
 // presented during the TLS handshake.
@@ -121,5 +120,5 @@ func validatePeer(peerID string, identity *tlsca.Identity) error {
 		return nil
 	}
 
-	return trace.AccessDenied("connected to unexpected proxy")
+	return trace.Wrap(internal.WrongProxyError{})
 }

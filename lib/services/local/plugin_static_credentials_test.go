@@ -88,6 +88,11 @@ func TestPluginStaticCredentialsCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
+	// Fetch all.
+	all, err := service.GetAllPluginStaticCredentials(ctx)
+	require.NoError(t, err)
+	require.Len(t, all, 2)
+
 	// Try to fetch a static credential that doesn't exist.
 	_, err = service.GetPluginStaticCredentials(ctx, "doesnotexist")
 	require.True(t, trace.IsNotFound(err))
@@ -132,4 +137,17 @@ func TestPluginStaticCredentialsCRUD(t *testing.T) {
 	// Try to delete a static credential that doesn't exist.
 	err = service.DeletePluginStaticCredentials(ctx, "doesnotexist")
 	require.True(t, trace.IsNotFound(err))
+
+	// Upsert.
+	_, err = service.UpsertPluginStaticCredentials(ctx, cred1)
+	require.NoError(t, err)
+	_, err = service.GetPluginStaticCredentials(ctx, cred1.GetName())
+	require.NoError(t, err)
+
+	// Delete all.
+	err = service.DeleteAllPluginStaticCredentials(ctx)
+	require.NoError(t, err)
+	all, err = service.GetAllPluginStaticCredentials(ctx)
+	require.NoError(t, err)
+	require.Empty(t, all)
 }

@@ -22,6 +22,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestMakeLabels(t *testing.T) {
@@ -141,4 +143,18 @@ func TestMakeLabels(t *testing.T) {
 			require.Equal(t, tc.expected, labels)
 		})
 	}
+}
+
+func TestTransformCommandLabels(t *testing.T) {
+	commandLabels := map[string]types.CommandLabel{
+		"label1": &types.CommandLabelV2{
+			Result: "value1",
+		},
+	}
+	labels := TransformCommandLabels(commandLabels)
+	expected := map[string]string{
+		"label1": "value1",
+	}
+
+	require.Equal(t, expected, labels)
 }

@@ -22,7 +22,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/rand"
+	"log/slog"
+	"math/rand/v2"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -32,6 +33,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -43,6 +46,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -123,7 +127,9 @@ func TestSearchSessionEvensBySessionID(t *testing.T) {
 // TestCheckpointOutsideOfWindow tests if [Log] doesn't panic
 // if checkpoint date is outside of the window [fromUTC,toUTC].
 func TestCheckpointOutsideOfWindow(t *testing.T) {
-	tt := &Log{}
+	tt := &Log{
+		logger: slog.With(teleport.ComponentKey, teleport.ComponentDynamoDB),
+	}
 
 	key := checkpointKey{
 		Date: "2022-10-02",
@@ -315,15 +321,28 @@ func TestEmitAuditEventForLargeEvents(t *testing.T) {
 		assert.Len(t, result, 1)
 	}, 10*time.Second, 500*time.Millisecond)
 
-	appReqEvent := &apievents.AppSessionRequest{
-		Metadata: apievents.Metadata{
-			Time: tt.suite.Clock.Now().UTC(),
-			Type: events.AppSessionRequestEvent,
+	appReqEvent := &testAuditEvent{
+		AppSessionRequest: apievents.AppSessionRequest{
+			Metadata: apievents.Metadata{
+				Time: tt.suite.Clock.Now().UTC(),
+				Type: events.AppSessionRequestEvent,
+			},
+			Path: strings.Repeat("A", maxItemSize),
 		},
-		Path: strings.Repeat("A", maxItemSize),
 	}
 	err = tt.suite.Log.EmitAuditEvent(ctx, appReqEvent)
 	require.ErrorContains(t, err, "ValidationException: Item size has exceeded the maximum allowed size")
+}
+
+// testAuditEvent wraps an existing AuditEvent, but overrides
+// the TrimToMaxSize to be a noop so that functionality can
+// be tested if an event exceeds the size limits.
+type testAuditEvent struct {
+	apievents.AppSessionRequest
+}
+
+func (t *testAuditEvent) TrimToMaxSize(maxSizeBytes int) apievents.AuditEvent {
+	return t
 }
 
 func TestConfig_SetFromURL(t *testing.T) {
@@ -581,34 +600,99 @@ func generateEvent(sessionID session.ID, index int64, query string) apievents.Au
 	}
 }
 
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
 func randStringAlpha(n int) string {
-	b := make([]rune, n)
+	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	b := make([]byte, n)
 	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+		b[i] = letters[rand.N(len(letters))]
 	}
 	return string(b)
 }
 
-func TestCustomEndpoint(t *testing.T) {
-	ctx := context.Background()
-	t.Setenv("AWS_ACCESS_KEY", "llama")
-	t.Setenv("AWS_SECRET_KEY", "alpaca")
+func TestEndpoints(t *testing.T) {
+	// Don't t.Parallel(), uses t.Setenv and modules.SetTestModules.
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusTeapot)
-	})
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
+	tests := []struct {
+		name          string
+		fips          bool
+		envVarValue   string // value for the _DISABLE_FIPS environment variable
+		wantFIPSError bool
+	}{
+		{
+			name:          "fips",
+			fips:          true,
+			wantFIPSError: true,
+		},
+		{
+			name:          "fips with env skip",
+			fips:          true,
+			envVarValue:   "yes",
+			wantFIPSError: false,
+		},
+		{
+			name:          "without fips",
+			wantFIPSError: false,
+		},
+	}
 
-	b, err := New(ctx, Config{
-		Tablename:    "teleport-test",
-		UIDGenerator: utils.NewFakeUID(),
-		Endpoint:     srv.URL,
-	})
-	assert.Error(t, err)
-	assert.Nil(t, b)
-	require.ErrorContains(t, err, fmt.Sprintf("StatusCode: %d", http.StatusTeapot))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("TELEPORT_UNSTABLE_DISABLE_AWS_FIPS", tt.envVarValue)
+
+			fips := types.ClusterAuditConfigSpecV2_FIPS_DISABLED
+			if tt.fips {
+				fips = types.ClusterAuditConfigSpecV2_FIPS_ENABLED
+				modules.SetTestModules(t, &modules.TestModules{
+					FIPS: true,
+				})
+			}
+
+			mux := http.NewServeMux()
+			mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusTeapot)
+			}))
+
+			server := httptest.NewServer(mux)
+			t.Cleanup(server.Close)
+
+			b, err := New(context.Background(), Config{
+				Region:       "us-west-1",
+				Tablename:    "teleport-test",
+				UIDGenerator: utils.NewFakeUID(),
+				// The prefix is intentionally removed to validate that a scheme
+				// is applied automatically. This validates backwards compatible behavior
+				// with existing configurations and the behavior change from aws-sdk-go to aws-sdk-go-v2.
+				Endpoint:        strings.TrimPrefix(server.URL, "http://"),
+				Insecure:        true,
+				UseFIPSEndpoint: fips,
+				CredentialsProvider: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+					return aws.Credentials{}, nil
+				}),
+			})
+			// FIPS mode should fail because it is a violation to enable FIPS
+			// while also setting a custom endpoint.
+			if tt.wantFIPSError {
+				assert.ErrorContains(t, err, "FIPS")
+				return
+			}
+
+			assert.ErrorContains(t, err, fmt.Sprintf("StatusCode: %d", http.StatusTeapot))
+			assert.Nil(t, b, "backend not nil")
+		})
+	}
+}
+
+func TestStartKeyBackCompat(t *testing.T) {
+	const (
+		oldStartKey = `{"date":"2023-04-27","iterator":{"CreatedAt":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":"1682583778","NS":null,"NULL":null,"S":null,"SS":null},"CreatedAtDate":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":null,"NS":null,"NULL":null,"S":"2023-04-27","SS":null},"EventIndex":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":"0","NS":null,"NULL":null,"S":null,"SS":null},"SessionID":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":null,"NS":null,"NULL":null,"S":"4bc51fd7-4f0c-47ee-b9a5-da621fbdbabb","SS":null}}}`
+		newStartKey = `{"date":"2023-04-27","iterator":"{\"CreatedAt\":1682583778,\"CreatedAtDate\":\"2023-04-27\",\"EventIndex\":0,\"SessionID\":\"4bc51fd7-4f0c-47ee-b9a5-da621fbdbabb\"}"}`
+	)
+
+	oldCP, err := getCheckpointFromStartKey(oldStartKey)
+	require.NoError(t, err)
+
+	newCP, err := getCheckpointFromStartKey(newStartKey)
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff(oldCP, newCP))
 }

@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/teleagent"
 )
 
@@ -123,7 +124,9 @@ type RemoteSite interface {
 	// but is resilient to auth server crashes
 	CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error)
 	// NodeWatcher returns the node watcher that maintains the node set for the site
-	NodeWatcher() (*services.NodeWatcher, error)
+	NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error)
+	// GitServerWatcher returns the Git server watcher for the site
+	GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error)
 	// GetTunnelsCount returns the amount of active inbound tunnels
 	// from the remote cluster
 	GetTunnelsCount() int

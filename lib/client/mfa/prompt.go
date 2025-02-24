@@ -21,15 +21,14 @@ package mfa
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
-	"github.com/gravitational/teleport/api/utils/prompt"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
@@ -44,29 +43,18 @@ type WebauthnLoginFunc func(
 	opts *wancli.LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error)
 
-// PromptConfig contains common mfa prompt config options.
+// PromptConfig contains common mfa prompt config options shared by
+// different implementations of [mfa.Prompt].
 type PromptConfig struct {
 	mfa.PromptConfig
 	// ProxyAddress is the address of the authenticating proxy. required.
 	ProxyAddress string
 	// WebauthnLoginFunc performs client-side Webauthn login.
 	WebauthnLoginFunc WebauthnLoginFunc
-	// AllowStdinHijack allows stdin hijack during MFA prompts.
-	// Stdin hijack provides a better login UX, but it can be difficult to reason
-	// about and is often a source of bugs.
-	// Do not set this options unless you deeply understand what you are doing.
-	// If false then only the strongest auth method is prompted.
-	AllowStdinHijack bool
 	// AuthenticatorAttachment specifies the desired authenticator attachment.
 	AuthenticatorAttachment wancli.AuthenticatorAttachment
-	// PreferOTP favors OTP challenges, if applicable.
-	// Takes precedence over AuthenticatorAttachment settings.
-	PreferOTP bool
 	// WebauthnSupported indicates whether Webauthn is supported.
 	WebauthnSupported bool
-	// StdinFunc allows tests to override prompt.Stdin().
-	// If nil prompt.Stdin() is used.
-	StdinFunc func() prompt.StdinReader
 }
 
 // NewPromptConfig returns a prompt config that will induce default behavior.
@@ -82,41 +70,6 @@ func NewPromptConfig(proxyAddr string, opts ...mfa.PromptOpt) *PromptConfig {
 	}
 
 	return cfg
-}
-
-// RunOpts are mfa prompt run options.
-type RunOpts struct {
-	PromptTOTP     bool
-	PromptWebauthn bool
-}
-
-// GetRunOptions gets mfa prompt run options by cross referencing the mfa challenge with prompt configuration.
-func (c PromptConfig) GetRunOptions(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (RunOpts, error) {
-	promptTOTP := chal.TOTP != nil
-	promptWebauthn := chal.WebauthnChallenge != nil
-
-	// Does the current platform support hardware MFA? Adjust accordingly.
-	switch {
-	case !promptTOTP && promptWebauthn && !c.WebauthnSupported:
-		return RunOpts{}, trace.BadParameter("hardware device MFA not supported by your platform, please register an OTP device")
-	case !c.WebauthnSupported:
-		// Do not prompt for hardware devices, it won't work.
-		promptWebauthn = false
-	}
-
-	// Tweak enabled/disabled methods according to opts.
-	switch {
-	case promptTOTP && c.PreferOTP:
-		promptWebauthn = false
-	case promptWebauthn && c.AuthenticatorAttachment != wancli.AttachmentAuto:
-		// Prefer Webauthn if an specific attachment was requested.
-		promptTOTP = false
-	case promptWebauthn && !c.AllowStdinHijack:
-		// Use strongest auth if hijack is not allowed.
-		promptTOTP = false
-	}
-
-	return RunOpts{promptTOTP, promptWebauthn}, nil
 }
 
 func (c PromptConfig) GetWebauthnOrigin() string {
@@ -162,9 +115,7 @@ func HandleMFAPromptGoroutines(ctx context.Context, startGoroutines func(context
 			// Surface error immediately.
 			return nil, trace.Wrap(resp.Err)
 		case err != nil:
-			log.
-				WithError(err).
-				Debug("MFA goroutine failed, continuing so other goroutines have a chance to succeed")
+			slog.DebugContext(ctx, "MFA goroutine failed, continuing so other goroutines have a chance to succeed", "error", err)
 			errs = append(errs, err)
 			// Continue to give the other authn goroutine a chance to succeed.
 			// If both have failed, this will exit the loop.

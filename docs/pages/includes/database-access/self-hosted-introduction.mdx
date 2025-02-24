@@ -5,14 +5,14 @@ system](../../enroll-resources/database-access/rbac.mdx).
 
 The Teleport Database Service proxies traffic from database clients to
 self-hosted databases in your infrastructure. Teleport maintains a certificate
-authority for database clients. You configure your database to trust the
+authority (CA) for database clients. You configure your database to trust the
 Teleport database client CA, and the Teleport Database Service presents
 certificates signed by this CA when proxying user traffic. With this setup,
 there is no need to store long-lived credentials for self-hosted databases.
 
 Meanwhile, the Teleport Database Service verifies self-hosted databases by
 checking their TLS certificates against either the Teleport database CA or a
-custom CA chosen by the user.
+custom CA used with the database.
 
 In this guide, you will:
 

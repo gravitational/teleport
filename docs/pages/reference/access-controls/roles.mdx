@@ -12,6 +12,7 @@ A Teleport role manages access by having two lists of rules: `allow` rules and
 
 - Nothing is allowed by default.
 - Deny rules get evaluated first and take priority.
+- Deny rules should be avoided on roles granted through Access Lists.
 
 You can use any of the following to manage Teleport roles and other dynamic
 resources:
@@ -22,14 +23,14 @@ resources:
 - [Custom API clients](../../admin-guides/api/rbac.mdx)
 
 To read more about managing dynamic resources, see the [Dynamic
-Resources](../../admin-guides/infrastructure-as-code.mdx) guide.
+Resources](../../admin-guides/infrastructure-as-code/infrastructure-as-code.mdx) guide.
 
 You can view all roles in your cluster on your local workstation by running the
 following commands:
 
 ```code
 # Log in to your cluster with tsh so you can use tctl from your local machine.
-$ tsh login --user=myuser --proxy=<Var name="mytenant.teleport.sh" />
+$ tsh login --user=myuser --proxy=example.teleport.sh
 $ tctl get roles
 ```
 
@@ -51,7 +52,7 @@ user:
 | - | - | - |
 | `max_session_ttl` | Max. time to live (TTL) of a user's SSH certificates | The shortest TTL wins |
 | `forward_agent` | Allow SSH agent forwarding | Logical "OR" i.e. if any role allows agent forwarding, it's allowed |
-| `port_forwarding` | Allow TCP port forwarding | Logical "OR" i.e. if any role allows port forwarding, it's allowed |
+| `ssh_port_forwarding` | Allow TCP port forwarding | Logical "AND" i.e. if any role denies port forwarding, it's denied |
 | `ssh_file_copy` | Allow SCP/SFTP | Logical "AND" i.e. if all roles allows file copying, it's allowed |
 | `client_idle_timeout` | Forcefully terminate active sessions after an idle interval | The shortest timeout value wins, i.e. the most restrictive value is selected |
 | `disconnect_expired_cert` | Forcefully terminate active sessions when a client certificate expires | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
@@ -68,10 +69,11 @@ user:
 | `max_kubernetes_connections` | Defines the maximum number of concurrent Kubernetes sessions per user | |
 | `record_session` |Defines the [Session recording mode](../monitoring/audit.mdx).|The strictest value takes precedence.|
 | `desktop_clipboard` | Allow clipboard sharing for desktop sessions | Logical "AND" i.e. evaluates to "yes" if all roles enable clipboard sharing |
+| `desktop_directory_sharing` | Allows sharing local workstation directory to remote desktop | Logical "AND" i.e. evaluates to "yes" if all roles enable directory sharing |
 | `pin_source_ip` | Enable source IP pinning for SSH certificates. | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
 | `cert_extensions` | Specifies extensions to be included in SSH certificates | |
 | `create_host_user_mode` | Allow users to be automatically created on a host |  Logical "AND" i.e. if all roles matching a server specify host user creation (`off`, `keep`, `insecure-drop`), it will evaluate to the option specified by all of the roles. If some roles specify both `insecure-drop` or `keep` it will evaluate to `keep`|
-| `create_db_user_mode` | Allow [database user auto provisioning](../../enroll-resources/database-access/auto-user-provisioning.mdx). Options: `off` (disable database user auto-provisioning), `keep` (disables the user at session end, removing the roles and locking it), and `best_effort_drop` (try to drop the user at session end, if it doesn't succeed, fallback to disabling it). | Logical "OR" i.e. if any role allows database user auto-provisioning, it's allowed |
+| `create_db_user_mode` | Allow [database user auto provisioning](../../enroll-resources/database-access/auto-user-provisioning/auto-user-provisioning.mdx). Options: `off` (disable database user auto-provisioning), `keep` (disables the user at session end, removing the roles and locking it), and `best_effort_drop` (try to drop the user at session end, if it doesn't succeed, fallback to disabling it). | Logical "OR" i.e. if any role allows database user auto-provisioning, it's allowed |
 
 ## Preset roles
 
@@ -85,7 +87,7 @@ There are currently five supported role versions: `v3`, `v4`, `v5`, `v6`, and `v
 
 `v4` and higher roles are completely backwards compatible with `v3`. The only difference
 lies in the default values which will be applied to the role if they are not explicitly set.
-Additionally, roles with version `v5` or higher are required to use [Moderated Sessions](../../admin-guides/access-controls/guides/moderated-sessions.mdx).
+Additionally, roles with version `v5` or higher are required to use [Moderated Sessions](../../admin-guides/access-controls/guides/joining-sessions.mdx).
 
 Label              | `v3` Default   | `v4` and higher Default
 ------------------ | -------------- | ---------------
@@ -186,13 +188,6 @@ spec:
 ```
 
 ### Label expressions
-
-<Admonition type="warning">
-Label expressions are available starting in Teleport version `13.1.1`.
-All components of your Teleport cluster must be upgraded to version `13.1.1`
-or newer before you will be able to use label expressions.
-This includes the Auth Service and **all** Teleport agents.
-</Admonition>
 
 Teleport roles also support matching resource labels with predicate expressions
 when you need to:
@@ -570,9 +565,9 @@ attribute or OIDC claim called `trait`.
 
 You can specify an external trait in dot syntax if it begins with a letter and
 contains only letters, numbers, and underscores. Otherwise, you must use bracket
-syntax to specify a trait. 
+syntax to specify a trait.
 
-When using Azure AD or ADFS as your IdP, you must use bracket notation, as these
+When using Microsoft Entra ID or ADFS as your IdP, you must use bracket notation, as these
 IdPs assign attribute keys to URLs such as the following:
 
 ```text

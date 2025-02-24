@@ -1976,11 +1976,6 @@ func TestLicenseFile(t *testing.T) {
 
 	cfg := servicecfg.MakeDefaultConfig()
 
-	// the license file should be empty by default, as we can only fill
-	// in the default (<datadir>/license.pem) after we know what the
-	// data dir is supposed to be
-	require.Empty(t, cfg.Auth.LicenseFile)
-
 	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("test%d", i), func(t *testing.T) {
 			fc := new(FileConfig)
@@ -1992,6 +1987,12 @@ func TestLicenseFile(t *testing.T) {
 			require.Equal(t, tc.result, cfg.Auth.LicenseFile)
 		})
 	}
+}
+
+func TestLicenseFileNoConfig(t *testing.T) {
+	cfg := servicecfg.MakeDefaultConfig()
+	require.NoError(t, Configure(new(CommandLineFlags), cfg, false /* legacy app flags */))
+	require.Equal(t, filepath.Join(defaults.DataDir, defaults.LicenseFile), cfg.Auth.LicenseFile)
 }
 
 // TestFIPS makes sure configuration is correctly updated/enforced when in
@@ -2385,8 +2386,8 @@ func TestWindowsDesktopService(t *testing.T) {
 func TestApps(t *testing.T) {
 	tests := []struct {
 		inConfigString string
-		inComment      string
-		outError       bool
+		name           string
+		outErr         require.ErrorAssertionFunc
 	}{
 		{
 			inConfigString: `
@@ -2401,8 +2402,8 @@ app_service:
   - labels:
       '*': '*'
 `,
-			inComment: "config is valid",
-			outError:  false,
+			name:   "app and wildcard resources",
+			outErr: require.NoError,
 		},
 		{
 			inConfigString: `
@@ -2413,8 +2414,8 @@ app_service:
       public_addr: "foo.example.com"
       uri: "http://127.0.0.1:8080"
 `,
-			inComment: "config is missing name",
-			outError:  true,
+			name:   "config is missing name",
+			outErr: require.Error,
 		},
 		{
 			inConfigString: `
@@ -2425,8 +2426,8 @@ app_service:
       name: foo
       uri: "http://127.0.0.1:8080"
 `,
-			inComment: "config is valid",
-			outError:  false,
+			name:   "app",
+			outErr: require.NoError,
 		},
 		{
 			inConfigString: `
@@ -2437,8 +2438,8 @@ app_service:
       name: foo
       public_addr: "foo.example.com"
 `,
-			inComment: "config is missing internal address",
-			outError:  true,
+			name:   "config is missing internal address",
+			outErr: require.Error,
 		},
 		{
 			inConfigString: `
@@ -2455,19 +2456,62 @@ app_service:
     aws:
       assume_role_arn: "arn:aws:iam::123456789012:role/AppAccess"
 `,
-			inComment: "assume_role_arn is not supported",
-			outError:  true,
+			name:   "assume_role_arn is not supported",
+			outErr: require.Error,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: foo
+      uri: "tcp://127.0.0.1"
+      tcp_ports:
+      - port: 1234
+      - port: 30000
+        end_port: 30768
+`,
+			name:   "TCP app with ports",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: foo
+      uri: "tcp://127.0.0.1"
+      tcp_ports:
+      - end_port: 30000
+`,
+			name:   "TCP app with only end port",
+			outErr: require.Error,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: foo
+      uri: "tcp://127.0.0.1"
+      tcp_ports:
+      - port: 78787
+`,
+			name:   "TCP app with port bigger than 65535",
+			outErr: require.Error,
 		},
 	}
 
 	for _, tt := range tests {
-		clf := CommandLineFlags{
-			ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
-		}
-		cfg := servicecfg.MakeDefaultConfig()
+		t.Run(tt.name, func(t *testing.T) {
+			clf := CommandLineFlags{
+				ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
+			}
+			cfg := servicecfg.MakeDefaultConfig()
 
-		err := Configure(&clf, cfg, false)
-		require.Equal(t, err != nil, tt.outError, tt.inComment)
+			err := Configure(&clf, cfg, false)
+			tt.outErr(t, err)
+		})
 	}
 }
 
@@ -2604,7 +2648,7 @@ func TestAppsCLF(t *testing.T) {
 			outApps:   nil,
 			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
-				require.ErrorContains(t, err, "application name \"-foo\" must be a valid DNS subdomain: https://goteleport.com/docs/application-access/guides/connecting-apps/#application-name")
+				require.ErrorContains(t, err, "application name \"-foo\" must be a valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name")
 			},
 		},
 		{
@@ -3670,9 +3714,9 @@ func TestAuthHostedPlugins(t *testing.T) {
 			applyErr: require.NoError,
 			assert: func(t *testing.T, p servicecfg.HostedPluginsConfig) {
 				require.True(t, p.Enabled)
-				require.NotNil(t, p.OAuthProviders.Slack)
-				require.Equal(t, "foo", p.OAuthProviders.Slack.ID)
-				require.Equal(t, "bar", p.OAuthProviders.Slack.Secret)
+				require.NotNil(t, p.OAuthProviders.SlackCredentials)
+				require.Equal(t, "foo", p.OAuthProviders.SlackCredentials.ClientID)
+				require.Equal(t, "bar", p.OAuthProviders.SlackCredentials.ClientSecret)
 			},
 		},
 	}
@@ -3913,7 +3957,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				},
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter(`okta_service is enabled but no api_endpoint is specified`))
+				require.ErrorIs(t, err, trace.BadParameter("okta_service is enabled but no api_endpoint is specified"))
 			},
 		},
 		{
@@ -3939,7 +3983,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				APIEndpoint: `http://`,
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter(`api_endpoint has no host`))
+				require.ErrorIs(t, err, trace.BadParameter("api_endpoint has no host"))
 			},
 		},
 		{
@@ -3952,7 +3996,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				APIEndpoint: `//hostname`,
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter(`api_endpoint has no scheme`))
+				require.ErrorIs(t, err, trace.BadParameter("api_endpoint has no scheme"))
 			},
 		},
 		{
@@ -3964,7 +4008,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				APIEndpoint: "https://test-endpoint",
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter(`okta_service is enabled but no api_token_path is specified`))
+				require.ErrorIs(t, err, trace.BadParameter("okta_service is enabled but no api_token_path is specified"))
 			},
 		},
 		{
@@ -3977,7 +4021,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				APITokenPath: "/non-existent/path",
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter(`error trying to find file %s`, i...))
+				require.ErrorIs(t, err, trace.BadParameter("error trying to find file %s", i...))
 			},
 		},
 		{
@@ -5159,8 +5203,10 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 				servicecfg.ApplyFIPSDefaults(cfg)
 			}
 			if tc.hsm {
-				cfg.Auth.KeyStore.AWSKMS.AWSAccount = "123456789012"
-				cfg.Auth.KeyStore.AWSKMS.AWSRegion = "us-west-2"
+				cfg.Auth.KeyStore.AWSKMS = &servicecfg.AWSKMSConfig{
+					AWSAccount: "123456789012",
+					AWSRegion:  "us-west-2",
+				}
 			} else {
 				cfg.Auth.KeyStore = servicecfg.KeystoreConfig{}
 			}

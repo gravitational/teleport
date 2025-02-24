@@ -16,16 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { ButtonPrimary, Text } from 'design';
-
 import { EmailSolid } from 'design/Icon';
 
 import Validation from '../../components/Validation';
-
 import { requiredEmailLike, requiredField } from '../Validation/rules';
-
 import FieldInput from './FieldInput';
 
 export default {

@@ -26,6 +26,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"os/user"
@@ -37,7 +38,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -226,7 +226,7 @@ func cleanupUsersAndGroups(users []string, groups []string) {
 		cmd := exec.Command("groupdel", group)
 		err := cmd.Run()
 		if err != nil {
-			log.Debugf("Error deleting group %s: %s", group, err)
+			slog.DebugContext(context.Background(), "Error deleting group", "group", group, "error", err)
 		}
 	}
 	for _, user := range users {
@@ -513,6 +513,116 @@ func TestRootHostUsers(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, expectedShell, userShells[namedShellUser])
 	})
+
+	t.Run("Test expiration removal", func(t *testing.T) {
+		expiredUser := "expired-user"
+		backendExpiredUser := "backend-expired-user"
+		t.Cleanup(func() { cleanupUsersAndGroups([]string{expiredUser, backendExpiredUser}, []string{"test-group"}) })
+
+		defaultBackend, err := srv.DefaultHostUsersBackend()
+		require.NoError(t, err)
+
+		backend := &hostUsersBackendWithExp{HostUsersBackend: defaultBackend}
+		users := srv.NewHostUsers(context.Background(), presence, "host_uuid", srv.WithHostUsersBackend(backend))
+
+		// Make sure the backend actually creates expired users
+		err = backend.CreateUser("backend-expired-user", nil, host.UserOpts{})
+		require.NoError(t, err)
+
+		hasExpirations, _, err := host.UserHasExpirations(backendExpiredUser)
+		require.NoError(t, err)
+		require.True(t, hasExpirations)
+
+		// Upsert a new user which should have the expirations removed
+		_, err = users.UpsertUser(expiredUser, services.HostUsersInfo{
+			Mode: services.HostUserModeKeep,
+		})
+		require.NoError(t, err)
+
+		hasExpirations, _, err = host.UserHasExpirations(expiredUser)
+		require.NoError(t, err)
+		require.False(t, hasExpirations)
+
+		// Expire existing user so we can test that updates also remove expirations
+		expireUser := func(username string) error {
+			chageBin, err := exec.LookPath("chage")
+			require.NoError(t, err)
+
+			cmd := exec.Command(chageBin, "-E", "1", "-I", "1", "-M", "1", username)
+			return cmd.Run()
+		}
+		require.NoError(t, expireUser(expiredUser))
+		hasExpirations, _, err = host.UserHasExpirations(expiredUser)
+		require.NoError(t, err)
+		require.True(t, hasExpirations)
+
+		// Update user without any changes
+		_, err = users.UpsertUser(expiredUser, services.HostUsersInfo{
+			Mode: services.HostUserModeKeep,
+		})
+		require.NoError(t, err)
+
+		hasExpirations, _, err = host.UserHasExpirations(expiredUser)
+		require.NoError(t, err)
+		require.False(t, hasExpirations)
+
+		// Reinstate expirations again
+		require.NoError(t, expireUser(expiredUser))
+		hasExpirations, _, err = host.UserHasExpirations(expiredUser)
+		require.NoError(t, err)
+		require.True(t, hasExpirations)
+
+		// Update user with changes
+		_, err = users.UpsertUser(expiredUser, services.HostUsersInfo{
+			Mode:   services.HostUserModeKeep,
+			Groups: []string{"test-group"},
+		})
+		require.NoError(t, err)
+
+		hasExpirations, _, err = host.UserHasExpirations(expiredUser)
+		require.NoError(t, err)
+		require.False(t, hasExpirations)
+	})
+
+	t.Run("Test migrate unmanaged user", func(t *testing.T) {
+		t.Cleanup(func() { cleanupUsersAndGroups([]string{testuser}, []string{types.TeleportKeepGroup}) })
+
+		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
+		_, err := host.UserAdd(testuser, nil, host.UserOpts{})
+		require.NoError(t, err)
+
+		closer, err := users.UpsertUser(testuser, services.HostUsersInfo{Mode: services.HostUserModeKeep, Groups: []string{types.TeleportKeepGroup}})
+		require.NoError(t, err)
+		require.Nil(t, closer)
+
+		u, err := user.Lookup(testuser)
+		require.NoError(t, err)
+
+		gids, err := u.GroupIds()
+		require.NoError(t, err)
+
+		keepGroup, err := user.LookupGroup(types.TeleportKeepGroup)
+		require.NoError(t, err)
+		require.Contains(t, gids, keepGroup.Gid)
+	})
+}
+
+type hostUsersBackendWithExp struct {
+	srv.HostUsersBackend
+}
+
+func (u *hostUsersBackendWithExp) CreateUser(name string, groups []string, opts host.UserOpts) error {
+	if err := u.HostUsersBackend.CreateUser(name, groups, opts); err != nil {
+		return trace.Wrap(err)
+	}
+
+	chageBin, err := exec.LookPath("chage")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cmd := exec.Command(chageBin, "-E", "1", "-I", "1", "-M", "1", name)
+	return cmd.Run()
 }
 
 func TestRootLoginAsHostUser(t *testing.T) {
@@ -527,7 +637,7 @@ func TestRootLoginAsHostUser(t *testing.T) {
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	})
 
 	// Create a user that can create a host user.
@@ -551,11 +661,13 @@ func TestRootLoginAsHostUser(t *testing.T) {
 		Roles:         []types.Role{role},
 	}
 
-	require.NoError(t, instance.Create(t, nil, true, nil))
+	require.NoError(t, instance.Create(t, nil, true))
 	require.NoError(t, instance.Start())
 	t.Cleanup(func() {
 		require.NoError(t, instance.StopAll())
 	})
+
+	instance.WaitForNodeCount(context.Background(), helpers.Site, 1)
 
 	tests := []struct {
 		name      string
@@ -625,10 +737,10 @@ func TestRootStaticHostUsers(t *testing.T) {
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	})
 
-	require.NoError(t, instance.Create(t, nil, false, nil))
+	require.NoError(t, instance.Create(t, nil, false))
 	require.NoError(t, instance.Start())
 	t.Cleanup(func() {
 		require.NoError(t, instance.StopAll())
@@ -639,6 +751,8 @@ func TestRootStaticHostUsers(t *testing.T) {
 	}
 	_, err = instance.StartNode(nodeCfg)
 	require.NoError(t, err)
+
+	instance.WaitForNodeCount(context.Background(), helpers.Site, 2)
 
 	// Create host user resources.
 	groups := []string{"foo", "bar"}

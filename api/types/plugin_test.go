@@ -855,8 +855,9 @@ func TestPluginEntraIDValidation(t *testing.T) {
 		return &PluginSpecV1_EntraId{
 			EntraId: &PluginEntraIDSettings{
 				SyncSettings: &PluginEntraIDSyncSettings{
-					DefaultOwners:  []string{"admin"},
-					SsoConnectorId: "myconnector",
+					DefaultOwners:     []string{"admin"},
+					SsoConnectorId:    "myconnector",
+					CredentialsSource: EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_OIDC,
 				},
 			},
 		}
@@ -1056,6 +1057,13 @@ func TestPluginAWSICSettings(t *testing.T) {
 			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.IntegrationName = "" },
 			assertErr:      requireNamedBadParameterError("integration name"),
 		}, {
+			name: "missing oidc integration is allowed with ambient creds",
+			mutateSettings: func(cfg *PluginAWSICSettings) {
+				cfg.IntegrationName = ""
+				cfg.CredentialsSource = AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_SYSTEM
+			},
+			assertErr: require.NoError,
+		}, {
 			name:           "missing instance region",
 			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.Region = "" },
 			assertErr:      requireNamedBadParameterError("region"),
@@ -1088,4 +1096,325 @@ func TestPluginAWSICSettings(t *testing.T) {
 			tc.assertErr(t, plugin.CheckAndSetDefaults())
 		})
 	}
+}
+
+func TestPluginEmailSettings(t *testing.T) {
+	defaultSettings := func() *PluginSpecV1_Email {
+		return &PluginSpecV1_Email{
+			Email: &PluginEmailSettings{
+				Sender:            "example-sender@goteleport.com",
+				FallbackRecipient: "example-recipient@goteleport.com",
+			},
+		}
+	}
+	validMailgunSpec := func() *PluginEmailSettings_MailgunSpec {
+		return &PluginEmailSettings_MailgunSpec{
+			MailgunSpec: &MailgunSpec{
+				Domain: "sandbox.mailgun.org",
+			},
+		}
+	}
+	validSMTPSpec := func() *PluginEmailSettings_SmtpSpec {
+		return &PluginEmailSettings_SmtpSpec{
+			SmtpSpec: &SMTPSpec{
+				Host:           "smtp.example.com",
+				Port:           587,
+				StartTlsPolicy: "mandatory",
+			},
+		}
+	}
+
+	testCases := []struct {
+		name           string
+		mutateSettings func(*PluginEmailSettings)
+		creds          *PluginCredentialsV1
+		assertErr      require.ErrorAssertionFunc
+	}{
+		{
+			name: "no email spec",
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "unknown email spec")
+			},
+		},
+		{
+			name: "(mailgun) no mailgun spec",
+			mutateSettings: func(s *PluginEmailSettings) {
+				s.Spec = &PluginEmailSettings_MailgunSpec{}
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "missing Mailgun Spec")
+			},
+		},
+		{
+			name: "(mailgun) no mailgun domain",
+			mutateSettings: func(s *PluginEmailSettings) {
+				s.Spec = &PluginEmailSettings_MailgunSpec{
+					MailgunSpec: &MailgunSpec{
+						Domain: "",
+					},
+				}
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "domain must be set")
+			},
+		},
+		{
+			name: "(mailgun) no credentials",
+			mutateSettings: func(s *PluginEmailSettings) {
+				s.Spec = validMailgunSpec()
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "must be used with the static credentials ref type")
+			},
+		},
+		{
+			name: "(mailgun) no credentials label",
+			mutateSettings: func(s *PluginEmailSettings) {
+				s.Spec = validMailgunSpec()
+			},
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					StaticCredentialsRef: &PluginStaticCredentialsRef{
+						Labels: map[string]string{},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "labels must be specified")
+			},
+		},
+		{
+			name: "(mailgun) valid settings",
+			mutateSettings: func(s *PluginEmailSettings) {
+				s.Spec = validMailgunSpec()
+			},
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					StaticCredentialsRef: &PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"label1": "value1",
+						},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "(smtp) no smtp spec",
+			mutateSettings: func(s *PluginEmailSettings) {
+				s.Spec = &PluginEmailSettings_SmtpSpec{}
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "missing SMTP Spec")
+			},
+		},
+		{
+			name: "(smtp) no smtp host",
+			mutateSettings: func(s *PluginEmailSettings) {
+				s.Spec = &PluginEmailSettings_SmtpSpec{
+					SmtpSpec: &SMTPSpec{},
+				}
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "host must be set")
+			},
+		},
+		{
+			name: "(smtp) no smtp port",
+			mutateSettings: func(s *PluginEmailSettings) {
+				s.Spec = &PluginEmailSettings_SmtpSpec{
+					SmtpSpec: &SMTPSpec{
+						Host: "smtp.example.com",
+					},
+				}
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "port must be set")
+			},
+		},
+		{
+			name: "(smtp) no start TLS policy",
+			mutateSettings: func(s *PluginEmailSettings) {
+				s.Spec = &PluginEmailSettings_SmtpSpec{
+					SmtpSpec: &SMTPSpec{
+						Host: "smtp.example.com",
+						Port: 587,
+					},
+				}
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "start TLS policy must be set")
+			},
+		},
+		{
+			name: "(smtp) no credentials",
+			mutateSettings: func(s *PluginEmailSettings) {
+				s.Spec = validSMTPSpec()
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "must be used with the static credentials ref type")
+			},
+		},
+		{
+			name: "(smtp) no credentials label",
+			mutateSettings: func(s *PluginEmailSettings) {
+				s.Spec = validSMTPSpec()
+			},
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "labels must be specified")
+			},
+		},
+		{
+			name: "(smtp) valid settings",
+			mutateSettings: func(s *PluginEmailSettings) {
+				s.Spec = validSMTPSpec()
+			},
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"label1": "value1",
+						},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "(smtp) change start TLS policy",
+			mutateSettings: func(s *PluginEmailSettings) {
+				s.Spec = &PluginEmailSettings_SmtpSpec{
+					SmtpSpec: &SMTPSpec{
+						Host:           "smtp.example.com",
+						Port:           587,
+						StartTlsPolicy: "opportunistic",
+					},
+				}
+			},
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"label1": "value1",
+						},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.NoError(t, err)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			settings := defaultSettings()
+			if tc.mutateSettings != nil {
+				tc.mutateSettings(settings.Email)
+			}
+
+			plugin := NewPluginV1(
+				Metadata{Name: "uut"},
+				PluginSpecV1{Settings: settings},
+				tc.creds)
+			tc.assertErr(t, plugin.CheckAndSetDefaults())
+		})
+	}
+}
+
+func TestNetIQPluginSettings(t *testing.T) {
+
+	validSettings := func() *PluginSpecV1_NetIq {
+		return &PluginSpecV1_NetIq{
+			NetIq: &PluginNetIQSettings{
+				OauthIssuerEndpoint: "https://example.com",
+				ApiEndpoint:         "https://example.com",
+			},
+		}
+	}
+	testCases := []struct {
+		name           string
+		mutateSettings func(*PluginSpecV1_NetIq)
+		assertErr      require.ErrorAssertionFunc
+	}{
+		{
+			name:           "valid",
+			mutateSettings: nil,
+			assertErr:      require.NoError,
+		},
+		{
+			name: "missing OauthIssuer",
+			mutateSettings: func(s *PluginSpecV1_NetIq) {
+				s.NetIq.OauthIssuerEndpoint = ""
+			},
+			assertErr: requireNamedBadParameterError("oauth_issuer"),
+		},
+		{
+			name: "missing ApiEndpoint",
+			mutateSettings: func(s *PluginSpecV1_NetIq) {
+				s.NetIq.ApiEndpoint = ""
+			},
+			assertErr: requireNamedBadParameterError("api_endpoint"),
+		},
+		{
+			name: "incorrect OauthIssuer",
+			mutateSettings: func(s *PluginSpecV1_NetIq) {
+				s.NetIq.OauthIssuerEndpoint = "invalidURL%%#"
+			},
+			assertErr: requireNamedBadParameterError("oauth_issuer"),
+		},
+		{
+			name: "missing ApiEndpoint",
+			mutateSettings: func(s *PluginSpecV1_NetIq) {
+				s.NetIq.ApiEndpoint = "invalidURL%%#"
+			},
+			assertErr: requireNamedBadParameterError("api_endpoint"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			settings := validSettings()
+			if tc.mutateSettings != nil {
+				tc.mutateSettings(settings)
+			}
+
+			plugin := NewPluginV1(
+				Metadata{Name: "uut"},
+				PluginSpecV1{Settings: settings},
+				&PluginCredentialsV1{
+					Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+						StaticCredentialsRef: &PluginStaticCredentialsRef{
+							Labels: map[string]string{
+								"label1": "value1",
+							},
+						},
+					},
+				})
+			tc.assertErr(t, plugin.CheckAndSetDefaults())
+		})
+	}
+
 }

@@ -27,7 +27,6 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/defaults"
 	"github.com/go-resty/resty/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -115,12 +114,20 @@ func (cfg *ClientConfig) CheckAndSetDefaults() error {
 
 // NewClient creates a new Opsgenie client for managing alerts.
 func NewClient(conf ClientConfig) (*Client, error) {
-	client := resty.NewWithClient(defaults.Config().HTTPClient)
-	client.SetTransport(&http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-	})
-	client.SetHeader("Authorization", "GenieKey "+conf.APIKey)
-	client.SetBaseURL(conf.APIEndpoint)
+	const (
+		maxConns      = 100
+		clientTimeout = 10 * time.Second
+	)
+
+	client := resty.NewWithClient(&http.Client{
+		Timeout: clientTimeout,
+		Transport: &http.Transport{
+			MaxConnsPerHost:     maxConns,
+			MaxIdleConnsPerHost: maxConns,
+			Proxy:               http.ProxyFromEnvironment,
+		}}).
+		SetHeader("Authorization", "GenieKey "+conf.APIKey).
+		SetBaseURL(conf.APIEndpoint)
 	return &Client{
 		client:       client,
 		ClientConfig: conf,
@@ -185,10 +192,10 @@ func (og Client) tryGetAlertRequestResult(ctx context.Context, reqID string) (Ge
 	for {
 		alertRequestResult, err := og.getAlertRequestResult(ctx, reqID)
 		if err == nil {
-			logger.Get(ctx).Debugf("Got alert request result: %+v", alertRequestResult)
+			logger.Get(ctx).DebugContext(ctx, "Got alert request result", "alert_id", alertRequestResult.Data.AlertID)
 			return alertRequestResult, nil
 		}
-		logger.Get(ctx).Debug("Failed to get alert request result:", err)
+		logger.Get(ctx).DebugContext(ctx, "Failed to get alert request result", "error", err)
 		if err := backoff.Do(ctx); err != nil {
 			return GetAlertRequestResult{}, trace.Wrap(err)
 		}
@@ -344,8 +351,10 @@ func (og Client) CheckHealth(ctx context.Context) error {
 			code = types.PluginStatusCode_OTHER_ERROR
 		}
 		if err := og.StatusSink.Emit(ctx, &types.PluginStatusV1{Code: code}); err != nil {
-			logger.Get(resp.Request.Context()).WithError(err).
-				WithField("code", resp.StatusCode()).Errorf("Error while emitting servicenow plugin status: %v", err)
+			logger.Get(resp.Request.Context()).ErrorContext(ctx, "Error while emitting servicenow plugin status",
+				"error", err,
+				"code", resp.StatusCode(),
+			)
 		}
 	}
 

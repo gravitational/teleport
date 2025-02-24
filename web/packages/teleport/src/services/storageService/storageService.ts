@@ -16,32 +16,36 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
-import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 import { OnboardUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
+import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
+import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 
-import { getPrefersDark } from 'teleport/ThemeProvider';
-import { BearerToken } from 'teleport/services/websession';
+import { RecentHistoryItem } from 'teleport/Navigation/RecentHistory';
 import { OnboardDiscover } from 'teleport/services/user';
 import {
   BackendUserPreferences,
   convertBackendUserPreferences,
   isBackendUserPreferences,
 } from 'teleport/services/userPreferences/userPreferences';
+import { BearerToken } from 'teleport/services/websession';
+import { getPrefersDark } from 'teleport/ThemeProvider';
+import type { RecommendFeature } from 'teleport/types';
 
 import { CloudUserInvites, KeysEnum, LocalStorageSurvey } from './types';
-
-import type { RecommendFeature } from 'teleport/types';
 
 // This is an array of local storage `KeysEnum` that are kept when a user logs out
 const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.THEME,
   KeysEnum.USER_PREFERENCES,
+  KeysEnum.ACCESS_LIST_PREFERENCES,
   KeysEnum.RECOMMEND_FEATURE,
   KeysEnum.LICENSE_ACKNOWLEDGED,
   KeysEnum.USERS_NOT_EQUAL_TO_MAU_ACKNOWLEDGED,
   KeysEnum.USE_NEW_ROLE_EDITOR,
+  KeysEnum.RECENT_HISTORY,
 ];
+
+const RECENT_HISTORY_MAX_LENGTH = 10;
 
 export const storageService = {
   clear() {
@@ -96,6 +100,23 @@ export const storageService = {
   getLastActive() {
     const time = Number(window.localStorage.getItem(KeysEnum.LAST_ACTIVE));
     return time ? time : 0;
+  },
+
+  setLoginTimeOnce() {
+    const existingTime = window.localStorage.getItem(KeysEnum.LOGIN_TIME);
+    // Only set the login time if it doesn't already exist.
+    if (!existingTime) {
+      window.localStorage.setItem(KeysEnum.LOGIN_TIME, `${Date.now()}`);
+    }
+  },
+
+  getLoginTime(): Date {
+    const time = Number(window.localStorage.getItem(KeysEnum.LOGIN_TIME));
+    return time && !Number.isNaN(time) ? new Date(time) : new Date(0);
+  },
+
+  clearLoginTime() {
+    window.localStorage.removeItem(KeysEnum.LOGIN_TIME);
   },
 
   // setOnboardDiscover persists states used to determine if a user should
@@ -244,6 +265,13 @@ export const storageService = {
     return this.getParsedJSONValue(KeysEnum.ACCESS_GRAPH_SQL_ENABLED, false);
   },
 
+  getAccessGraphRoleTesterEnabled(): boolean {
+    return this.getParsedJSONValue(
+      KeysEnum.ACCESS_GRAPH_ROLE_TESTER_ENABLED,
+      false
+    );
+  },
+
   getExternalAuditStorageCtaDisabled(): boolean {
     return this.getParsedJSONValue(
       KeysEnum.EXTERNAL_AUDIT_STORAGE_CTA_DISABLED,
@@ -259,10 +287,51 @@ export const storageService = {
   },
 
   getUseNewRoleEditor(): boolean {
-    return this.getParsedJSONValue(KeysEnum.USE_NEW_ROLE_EDITOR, false);
+    return this.getParsedJSONValue(KeysEnum.USE_NEW_ROLE_EDITOR, true);
   },
 
   getIsTopBarView(): boolean {
     return this.getParsedJSONValue(KeysEnum.USE_TOP_BAR, false);
+  },
+
+  getRecentHistory(): RecentHistoryItem[] {
+    return this.getParsedJSONValue(KeysEnum.RECENT_HISTORY, []);
+  },
+
+  addRecentHistoryItem(item: RecentHistoryItem): RecentHistoryItem[] {
+    const history = storageService.getRecentHistory();
+    const deduplicatedHistory = [...history];
+
+    // Remove a duplicate item if it exists.
+    const existingDuplicateIndex = history.findIndex(
+      historyItem => historyItem.route === item.route
+    );
+    if (existingDuplicateIndex !== -1) {
+      deduplicatedHistory.splice(existingDuplicateIndex, 1);
+    }
+
+    const newHistory = [item, ...deduplicatedHistory].slice(
+      0,
+      RECENT_HISTORY_MAX_LENGTH
+    );
+
+    window.localStorage.setItem(
+      KeysEnum.RECENT_HISTORY,
+      JSON.stringify(newHistory)
+    );
+
+    return newHistory;
+  },
+
+  removeRecentHistoryItem(route: string): RecentHistoryItem[] {
+    const history = storageService.getRecentHistory();
+    const newHistory = history.filter(item => item.route !== route);
+
+    window.localStorage.setItem(
+      KeysEnum.RECENT_HISTORY,
+      JSON.stringify(newHistory)
+    );
+
+    return newHistory;
   },
 };

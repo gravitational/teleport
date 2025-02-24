@@ -18,16 +18,19 @@
 
 import React, { useState } from 'react';
 import styled, { useTheme } from 'styled-components';
-import { style, color, ColorProps } from 'styled-system';
+import { color, ColorProps, style } from 'styled-system';
 
-import { space, SpaceProps, width, WidthProps } from '../system';
-import { Theme } from '../theme';
-import * as Icon from '../Icon';
-import Flex from '../Flex';
-import Text from '../Text';
+import { IconProps } from 'design/Icon/Icon';
+import { StatusIcon, StatusKind } from 'design/StatusIcon';
+
 import Box from '../Box';
-import { ButtonFill, ButtonIntent, Button } from '../Button';
+import { Button, ButtonFill, ButtonIntent } from '../Button';
 import ButtonIcon from '../ButtonIcon';
+import Flex from '../Flex';
+import * as Icon from '../Icon';
+import { space, SpaceProps, width, WidthProps } from '../system';
+import Text from '../Text';
+import { Theme } from '../theme';
 
 const linkColor = style({
   prop: 'linkColor',
@@ -35,7 +38,7 @@ const linkColor = style({
   key: 'colors',
 });
 
-type AlertKind =
+export type AlertKind =
   | 'neutral'
   | 'danger'
   | 'info'
@@ -45,7 +48,9 @@ type AlertKind =
   | 'outline-info'
   | 'outline-warn';
 
-const alertBorder = (props: ThemedAlertProps) => {
+const alertBorder = (
+  props: ThemedAlertProps
+): { borderColor: string; border?: string | number } => {
   const { kind, theme } = props;
   switch (kind) {
     case 'success':
@@ -72,12 +77,12 @@ const alertBorder = (props: ThemedAlertProps) => {
         border: theme.borders[1],
         borderColor: theme.colors.text.disabled,
       };
-    default:
-      kind satisfies never;
   }
 };
 
-const backgroundColor = (props: ThemedAlertProps) => {
+const backgroundColor = (
+  props: Pick<ThemedAlertProps, 'kind' | 'theme'>
+): { background: string } => {
   const { kind, theme } = props;
   switch (kind) {
     case 'success':
@@ -103,8 +108,6 @@ const backgroundColor = (props: ThemedAlertProps) => {
       return {
         background: theme.colors.interactive.tonal.neutral[0],
       };
-    default:
-      kind satisfies never;
   }
 };
 
@@ -113,7 +116,7 @@ interface Props<K> {
   /** Additional description to be displayed below the main content. */
   details?: React.ReactNode;
   /** Overrides the icon specified by {@link AlertProps.kind}. */
-  icon?: React.ComponentType<Icon.IconProps>;
+  icon?: React.ComponentType<IconProps>;
   /** If specified, causes the alert to display a primary action button. */
   primaryAction?: Action;
   /** If specified, causes the alert to display a secondary action button. */
@@ -123,6 +126,7 @@ interface Props<K> {
   children?: React.ReactNode;
   style?: React.CSSProperties;
   onDismiss?: () => void;
+  alignItems?: 'center' | 'flex-start';
 }
 
 /**
@@ -134,7 +138,7 @@ interface Props<K> {
 export interface Action {
   content: React.ReactNode;
   href?: string;
-  onClick?: () => void;
+  onClick?: (event: React.MouseEvent) => void;
 }
 
 export interface AlertProps
@@ -145,9 +149,13 @@ export interface AlertProps
   linkColor?: string;
 }
 
-interface ThemedAlertProps extends AlertProps {
+interface ThemedAlertProps extends AlertPropsWithRequiredKind {
   theme: Theme;
 }
+
+type WithRequired<T, K extends keyof T> = T & { [P in K]-?: T[P] };
+
+type AlertPropsWithRequiredKind = WithRequired<AlertProps, 'kind'>;
 
 /**
  * Displays an in-page alert. Component's children are displayed as the alert
@@ -171,6 +179,7 @@ export const Alert = ({
   dismissible,
   bg,
   onDismiss,
+  alignItems = 'center',
   ...otherProps
 }: AlertProps) => {
   const alertIconSize = kind === 'neutral' ? 'large' : 'small';
@@ -187,9 +196,14 @@ export const Alert = ({
 
   return (
     <OuterContainer bg={bg} kind={kind} {...otherProps}>
-      <InnerContainer kind={kind}>
+      <InnerContainer kind={kind} alignItems={alignItems}>
         <IconContainer kind={kind}>
-          <AlertIcon kind={kind} customIcon={icon} size={alertIconSize} />
+          <StatusIcon
+            kind={iconKind(kind)}
+            customIcon={icon}
+            size={alertIconSize}
+            color="inherit"
+          />
         </IconContainer>
         <Box
           flex="1"
@@ -217,7 +231,7 @@ export const Alert = ({
 };
 
 /** Renders a round border and allows background color customization. */
-const OuterContainer = styled.div<AlertProps>`
+const OuterContainer = styled.div<AlertPropsWithRequiredKind>`
   box-sizing: border-box;
   margin: 0 0 24px 0;
 
@@ -226,56 +240,29 @@ const OuterContainer = styled.div<AlertProps>`
 
   ${space}
   ${width}
-    ${alertBorder}
-    ${color}
-    a {
-    color: ${({ theme }) => theme.colors.light};
+  ${alertBorder}
+  ${color}
+  a {
+    // Using the same color as Link (theme.solid.interactive.solid.accent) looks bad in the BBLP
+    // theme, so instead let's default to the color of the text and decorate links only with an
+    // underline.
+    color: inherit;
     ${linkColor}
   }
 `;
 
 /** Renders a transparent color overlay. */
-const InnerContainer = styled.div<AlertProps>`
+const InnerContainer = styled.div<
+  Pick<WithRequired<AlertProps, 'kind' | 'alignItems'>, 'kind' | 'alignItems'>
+>`
   padding: 12px 16px;
   overflow: auto;
   word-break: break-word;
   display: flex;
-  align-items: center;
+  align-items: ${p => p.alignItems};
 
   ${backgroundColor}
 `;
-
-const AlertIcon = ({
-  kind,
-  customIcon: CustomIcon,
-  ...otherProps
-}: {
-  kind: AlertKind | BannerKind;
-  customIcon: React.ComponentType<Icon.IconProps>;
-} & Icon.IconProps) => {
-  const commonProps = { role: 'graphics-symbol', ...otherProps };
-  if (CustomIcon) {
-    return <CustomIcon {...commonProps} />;
-  }
-  switch (kind) {
-    case 'success':
-      return <Icon.Checks aria-label="Success" {...commonProps} />;
-    case 'danger':
-    case 'outline-danger':
-      return <Icon.WarningCircle aria-label="Danger" {...commonProps} />;
-    case 'info':
-    case 'outline-info':
-      return <Icon.Info aria-label="Info" {...commonProps} />;
-    case 'warning':
-    case 'outline-warn':
-      return <Icon.Warning aria-label="Warning" {...commonProps} />;
-    case 'neutral':
-    case 'primary':
-      return <Icon.Notification aria-label="Note" {...commonProps} />;
-    default:
-      kind satisfies never;
-  }
-};
 
 const iconContainerStyles = ({
   kind,
@@ -317,8 +304,6 @@ const iconContainerStyles = ({
         color: theme.colors.text.main,
         background: 'none',
       };
-    default:
-      kind satisfies never;
   }
 };
 
@@ -381,10 +366,16 @@ export const ActionButton = ({
   action: { href, content, onClick },
   fill,
   intent,
+  inputAlignment = false,
+  disabled = false,
+  title,
 }: {
   action: Action;
   fill?: ButtonFill;
   intent?: ButtonIntent;
+  inputAlignment?: boolean;
+  disabled?: boolean;
+  title?: string;
 }) =>
   href ? (
     <Button
@@ -394,11 +385,21 @@ export const ActionButton = ({
       fill={fill}
       intent={intent}
       onClick={onClick}
+      inputAlignment={inputAlignment}
+      disabled={disabled}
+      title={title}
     >
       {content}
     </Button>
   ) : (
-    <Button fill={fill} intent={intent} onClick={onClick}>
+    <Button
+      fill={fill}
+      intent={intent}
+      onClick={onClick}
+      inputAlignment={inputAlignment}
+      disabled={disabled}
+      title={title}
+    >
       {content}
     </Button>
   );
@@ -468,7 +469,12 @@ export const Banner = ({
       gap={3}
       alignItems="center"
     >
-      <AlertIcon kind={kind} customIcon={icon} size="large" color={iconColor} />
+      <StatusIcon
+        kind={iconKind(kind)}
+        customIcon={icon}
+        size="large"
+        color={iconColor}
+      />
       <Box flex="1">
         <Text typography="h3">{children}</Text>
         {details}
@@ -523,7 +529,20 @@ const bannerColors = (theme: Theme, kind: BannerKind) => {
         foregroundColor: theme.colors.interactive.solid.success.default,
         iconColor: theme.colors.interactive.solid.success.default,
       };
+  }
+};
+
+const iconKind = (kind: AlertKind | BannerKind): StatusKind => {
+  switch (kind) {
+    case 'outline-danger':
+      return 'danger';
+    case 'outline-warn':
+      return 'warning';
+    case 'outline-info':
+      return 'info';
+    case 'primary':
+      return 'neutral';
     default:
-      kind satisfies never;
+      return kind;
   }
 };

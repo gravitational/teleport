@@ -5,3 +5,5 @@ svids:
 attestors:
   kubernetes:
     enabled: false
+  podman:
+    enabled: false

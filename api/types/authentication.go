@@ -192,6 +192,11 @@ type AuthPreference interface {
 	// algorithm suite is incompatible with [params].
 	CheckSignatureAlgorithmSuite(SignatureAlgorithmSuiteParams) error
 
+	// GetStableUNIXUserConfig returns the stable UNIX user configuration.
+	GetStableUNIXUserConfig() *StableUNIXUserConfig
+	// SetStableUNIXUserConfig sets the stable UNIX user configuration.
+	SetStableUNIXUserConfig(*StableUNIXUserConfig)
+
 	// String represents a human readable version of authentication settings.
 	String() string
 
@@ -414,7 +419,7 @@ func (c *AuthPreferenceV2) SetConnectorName(cn string) {
 // GetU2F gets the U2F configuration settings.
 func (c *AuthPreferenceV2) GetU2F() (*U2F, error) {
 	if c.Spec.U2F == nil {
-		return nil, trace.NotFound("U2F is not configured in this cluster, please contact your administrator and ask them to follow https://goteleport.com/docs/access-controls/guides/u2f/")
+		return nil, trace.NotFound("U2F is not configured in this cluster")
 	}
 	return c.Spec.U2F, nil
 }
@@ -426,7 +431,7 @@ func (c *AuthPreferenceV2) SetU2F(u2f *U2F) {
 
 func (c *AuthPreferenceV2) GetWebauthn() (*Webauthn, error) {
 	if c.Spec.Webauthn == nil {
-		return nil, trace.NotFound("Webauthn is not configured in this cluster, please contact your administrator and ask them to follow https://goteleport.com/docs/access-controls/guides/webauthn/")
+		return nil, trace.NotFound("Webauthn is not configured in this cluster, please contact your administrator and ask them to follow https://goteleport.com/docs/admin-guides/access-controls/guides/webauthn/")
 	}
 	return c.Spec.Webauthn, nil
 }
@@ -621,6 +626,9 @@ type SignatureAlgorithmSuiteParams struct {
 // brand new cluster or after resetting the auth preference.
 func (c *AuthPreferenceV2) SetDefaultSignatureAlgorithmSuite(params SignatureAlgorithmSuiteParams) {
 	switch {
+	case c.Spec.SignatureAlgorithmSuite != SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED && c.Metadata.Labels[OriginLabel] != OriginDefaults:
+		// If the suite is set and it's not a default value, return.
+		return
 	case params.FIPS:
 		c.SetSignatureAlgorithmSuite(SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1)
 	case params.UsingHSMOrKMS || params.Cloud:
@@ -666,6 +674,19 @@ func (c *AuthPreferenceV2) CheckSignatureAlgorithmSuite(params SignatureAlgorith
 		return trace.Errorf("unhandled signature_algorithm_suite %q: this is a bug", c.GetSignatureAlgorithmSuite())
 	}
 	return nil
+}
+
+// GetStableUNIXUserConfig implements [AuthPreference].
+func (c *AuthPreferenceV2) GetStableUNIXUserConfig() *StableUNIXUserConfig {
+	if c == nil {
+		return nil
+	}
+	return c.Spec.StableUnixUserConfig
+}
+
+// SetStableUNIXUserConfig implements [AuthPreference].
+func (c *AuthPreferenceV2) SetStableUNIXUserConfig(cfg *StableUNIXUserConfig) {
+	c.Spec.StableUnixUserConfig = cfg
 }
 
 // CheckAndSetDefaults verifies the constraints for AuthPreference.
@@ -715,7 +736,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		const deprecationMessage = `` +
 			`Second Factor "u2f" is deprecated and marked for removal, using "webauthn" instead. ` +
 			`Please update your configuration to use WebAuthn. ` +
-			`Refer to https://goteleport.com/docs/access-controls/guides/webauthn/`
+			`Refer to https://goteleport.com/docs/admin-guides/access-controls/guides/webauthn/`
 		slog.WarnContext(context.Background(), deprecationMessage)
 		c.Spec.SecondFactor = constants.SecondFactorWebauthn
 	case "":

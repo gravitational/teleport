@@ -44,7 +44,7 @@ $ export OPERATOR_NAMESPACE="teleport-iac"
 </TabItem>
 <TabItem label="Terraform">
 
-A functional Teleport Terraform provider by following [the Terraform provider guide](../terraform-provider.mdx).
+A functional Teleport Terraform provider by following [the Terraform provider guide](../terraform-provider/terraform-provider.mdx).
 
 </TabItem>
 </Tabs>
@@ -364,10 +364,7 @@ created and granted the correct roles.
 <Tabs>
 <TabItem label="Via the UI">
 
-If you have UI access, connect to your Teleport cluster Web UI, open the
-management panel, and select the "Users" tab.
-
-![Screenshot of the web UI listing alice and bob users](../../../../img/management/check-users-web-ui.png)
+If you have UI access, connect to your Teleport cluster Web UI, select the "Users" tab.
 
 Two new users `alice` and `bob` should be present.
 
@@ -480,13 +477,13 @@ resource "teleport_user" "bob" {
 - Allow users with the `manager` role to grant access to production servers to
   some `engineers` via Access Lists. Manager will need to justify and review
   granted access periodically.
-  See [the AccessList documentation](../../access-controls/access-lists.mdx) for
+  See [the AccessList documentation](../../access-controls/access-lists/access-lists.mdx) for
   a high-level explanation of the feature,
   and [the AccessList IaC guide](access-list.mdx) for a step by step IaC
   AccessList setup.
 - Allow users with the `engineer` role to request temporary access to
   production, and have users with the `manager` role validate the requests.
-  See [the Access Requests documentation](../../access-controls/access-requests.mdx)
+  See [the Access Requests documentation](../../access-controls/access-requests/access-requests.mdx)
 - You can see all supported fields in the references
   of [the user resource](../../../reference/resources.mdx)
   and [the role resource](../../../reference/resources.mdx).

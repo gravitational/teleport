@@ -16,29 +16,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
-import { Text, Flex, Box, Indicator, ButtonSecondary, Subtitle3 } from 'design';
-import * as Icons from 'design/Icon';
+import { Box, ButtonSecondary, Flex, Indicator, Subtitle3, Text } from 'design';
 import { FetchStatus } from 'design/DataTable/types';
-import { HoverTooltip, ToolTipInfo } from 'shared/components/ToolTip';
+import * as Icons from 'design/Icon';
+import { P, P3 } from 'design/Text/Text';
+import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
 import { pluralize } from 'shared/utils/text';
-import { P, P3 } from 'design/Text/Text';
 
+import { DbMeta } from 'teleport/Discover/useDiscover';
 import {
   AwsRdsDatabase,
   integrationService,
   SecurityGroup,
   SecurityGroupRule,
 } from 'teleport/services/integrations';
-import { DbMeta } from 'teleport/Discover/useDiscover';
 
 import {
+  ButtonBlueText,
   SecurityGroupPicker,
   SecurityGroupWithRecommendation,
-  ButtonBlueText,
 } from '../../../Shared';
 
 type TableData = {
@@ -125,10 +125,10 @@ export const SelectSecurityGroups = ({
   return (
     <>
       <Flex alignItems="center" gap={1} mb={2}>
-        <Subtitle3>Select Security Groups</Subtitle3>
-        <ToolTipInfo>
+        <Subtitle3>Select ECS Security Groups</Subtitle3>
+        <IconTooltip>
           <Text>
-            Select security group(s) based on the following requirements:
+            Select ECS security group(s) based on the following requirements:
             <ul>
               <li>
                 The selected security group(s) must allow all outbound traffic
@@ -141,11 +141,11 @@ export const SelectSecurityGroups = ({
               </li>
             </ul>
           </Text>
-        </ToolTipInfo>
+        </IconTooltip>
       </Flex>
 
       <P mb={2}>
-        Select security groups to assign to the Fargate service that will be
+        Select ECS security groups to assign to the Fargate service that will be
         running the Teleport Database Service. If you don't select any security
         groups, the default one for the VPC will be used.
       </P>
@@ -201,20 +201,17 @@ export const SelectSecurityGroups = ({
 
 function withTips(
   securityGroups: SecurityGroup[],
-  db: AwsRdsDatabase
+  db?: AwsRdsDatabase
 ): SecurityGroupWithRecommendation[] {
-  if (!db || !securityGroups) {
-    // return early without trying to add tips if there's no selected db or
-    // security groups given.
-    return securityGroups;
-  }
+  // if db is undefined, which is possible in the auto-discovery flow, we can
+  // still recommend security groups that allow outbound internet access.
   const trustedGroups = getTrustedSecurityGroups(securityGroups, db);
   return securityGroups.map(group => {
     const isTrusted = trustedGroups.has(group.id);
     const isOutboundAllowed = allowsOutbound(group);
     return {
       ...group,
-      tips: getTips(db, isTrusted, isOutboundAllowed),
+      tips: getTips(isTrusted, isOutboundAllowed),
       // we recommend when either are true because security group rules are
       // additive, meaning they can select multiple groups for a combined effect
       // of satisfying the database inbound rules and the ECS task outbound
@@ -224,15 +221,11 @@ function withTips(
   });
 }
 
-function getTips(
-  db: AwsRdsDatabase,
-  isTrusted: boolean,
-  allowsOutbound: boolean
-): string[] {
+function getTips(isTrusted: boolean, allowsOutbound: boolean): string[] {
   const result: string[] = [];
   if (isTrusted) {
     result.push(
-      `The inbound rules of the database ${pluralize(db.securityGroups.length, 'security group')} allow traffic from this security group`
+      'The database security group inbound rules allow traffic from this security group'
     );
   }
   if (allowsOutbound) {
@@ -243,6 +236,9 @@ function getTips(
 
 function allowsOutbound(sg: SecurityGroup): boolean {
   return sg.outboundRules.some(rule => {
+    if (!rule) {
+      return false;
+    }
     const havePorts = allowsOutboundToPorts(rule);
     // this is a heuristic, because an exhaustive analysis is non-trivial.
     return havePorts && rule.cidrs.some(cidr => cidr.cidr === '0.0.0.0/0');
@@ -266,21 +262,24 @@ function allowsOutboundToPorts(rule: SecurityGroupRule): boolean {
 
 function getTrustedSecurityGroups(
   securityGroups: SecurityGroup[],
-  db: AwsRdsDatabase
+  db?: AwsRdsDatabase
 ): Set<string> {
+  const trustedGroups = new Set<string>();
+  if (!db || !db.securityGroups || !db.uri) {
+    return trustedGroups;
+  }
+
+  const dbPort = getPort(db);
   const securityGroupsById = new Map(
     securityGroups.map(group => [group.id, group])
   );
-
-  const dbPort = getPort(db);
-  const trustedGroups = new Set<string>();
   db.securityGroups.forEach(groupId => {
     const group = securityGroupsById.get(groupId);
     if (!group) {
       return;
     }
     group.inboundRules.forEach(rule => {
-      if (!rule.groups?.length) {
+      if (!rule.groups.length) {
         // we only care about rules that reference other security groups.
         return;
       }
@@ -288,7 +287,7 @@ function getTrustedSecurityGroups(
         // a group is only trusted if it is trusted for the relevant port.
         return;
       }
-      rule.groups?.forEach(({ groupId }) => {
+      rule.groups.forEach(({ groupId }) => {
         trustedGroups.add(groupId);
       });
     });

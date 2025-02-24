@@ -22,7 +22,7 @@ version as the cluster they are connecting to. Teleport servers are compatible
 with clients that are on the same major version or one major version older.
 Teleport servers do not support clients that are on a newer major version.
 
-See our [Upgrading](./upgrading.mdx) guide for more information.
+See our [Upgrading](upgrading/upgrading.mdx) guide for more information.
 
 
 ## Operating system support
@@ -96,7 +96,8 @@ First, assign environment variables based on your edition:
 
 The following commands show you how to determine the Teleport version to install
 by querying your Teleport Cloud account. This way, the Teleport installation has
-the same major version as the service that manages automatic updates:
+the same major version as the service that manages automatic updates. Assign
+<Var name="example.teleport.sh" /> to your Teleport cluster address:
 
 ```code
 $ TELEPORT_EDITION="cloud"
@@ -153,7 +154,7 @@ repositories.
    has the same major version as the service that conducts automatic updates:
 
    ```code
-   $ export TELEPORT_DOMAIN=<Var name="example.teleport.com" />
+   $ export TELEPORT_DOMAIN=<Var name="example.teleport.sh" />
    $ export TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/automaticupgrades/channel/stable/cloud/version | sed 's/v//')"
    $ export TELEPORT_PKG="teleport-ent-${TELEPORT_VERSION?} teleport-ent-updater"
    $ export TELEPORT_CHANNEL=stable/cloud
@@ -241,12 +242,13 @@ repositories.
    <TabItem label="apt">
 
    ```code
+   $ sudo mkdir -p /etc/apt/keyrings
    # Download the Teleport PGP public key
    $ sudo curl https://apt.releases.teleport.dev/gpg \
-   -o /usr/share/keyrings/teleport-archive-keyring.asc
+   -o /etc/apt/keyrings/teleport-archive-keyring.asc
    # Add the Teleport APT repository. You'll need to update this file for each
    # major release of Teleport.
-   $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
+   $ echo "deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc] \
    https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} \
    ${TELEPORT_CHANNEL?}" \
    | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
@@ -317,14 +319,15 @@ repositories.
    </TabItem>
    </Tabs>
 
-### TAR archives (self-hosted only)
+### Downloading packages and TAR archives (self-hosted only)
 
-For self-hosted deployments, Teleport maintains TAR archives for
+Teleport maintains TAR archives as well as DEB and RPM packages for
 Linux-compatible binaries at `https://cdn.teleport.dev`. This section explains
-the Teleport TAR archives and how to use them.
+how to install Teleport by manually downloading a release.
 
-It is not possible to install the automatic agent updater using TAR archives.
-Teleport Cloud customers must use the [one-line installation
+It is not possible to install the automatic agent updater using this method, so
+using packages and TAR archives is only available for users who self-hosted
+Teleport. Teleport Cloud customers must use the [one-line installation
 script](#one-line-installation-script) or manually install Teleport from a
 [package repository](#package-repositories) in order to install the updater.
 
@@ -354,38 +357,98 @@ script](#one-line-installation-script) or manually install Teleport from a
 
    The following architecture values are available:
 
-   - `amd64`
+   - `amd64` (`x86_84` if downloading an RPM package)
    - `arm64`
    - `arm`
-   - `386`
+   - `386` (`i386` if downloading a DEB or RPM package)
 
-1. Run the following commands to download the Teleport archive, unpack it, and
-   install binaries:
+1. Run the following commands to download a Teleport package or archive, unpack
+   it, and install binaries:
+
+   <Tabs>
+   <TabItem label="TAR">
 
    ```code
    $ curl https://cdn.teleport.dev/${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz.sha256
    # <checksum> <filename>
    $ curl -O https://cdn.teleport.dev/${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz
-   $ shasum -a 256 ${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz
-   # Verify that the checksums match
+   $ shasum --check -a 256 ${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz
    $ tar -xvf ${TELEPORT_PKG?}-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-bin.tar.gz
    $ cd ${TELEPORT_PKG?}
    $ sudo ./install
    ```
+   </TabItem>
+   <TabItem label="DEB">
+
+   ```code
+   $ curl https://cdn.teleport.dev/${TELEPORT_PKG?}_${TELEPORT_VERSION?}_${SYSTEM_ARCH?}.deb.sha256
+   # <checksum> <filename>
+   $ curl -O https://cdn.teleport.dev/${TELEPORT_PKG?}_${TELEPORT_VERSION?}_${SYSTEM_ARCH?}.deb
+   $ shasum --check -a 256 ${TELEPORT_PKG?}_${TELEPORT_VERSION?}_${SYSTEM_ARCH?}.deb
+   $ sudo dpkg -i ${TELEPORT_PKG?}_${TELEPORT_VERSION?}_${SYSTEM_ARCH?}.deb
+   ```
+
+   </TabItem>
+   <TabItem label="RPM">
+
+   ```code
+   $ curl https://cdn.teleport.dev/${TELEPORT_PKG?}-${TELEPORT_VERSION?}-1.${SYSTEM_ARCH?}.rpm.sha256
+   # <checksum> <filename>
+   $ curl -O https://cdn.teleport.dev/${TELEPORT_PKG?}-${TELEPORT_VERSION?}-1.${SYSTEM_ARCH?}.rpm
+   $ shasum --check -a 256 https://cdn.teleport.dev/${TELEPORT_PKG?}-${TELEPORT_VERSION?}-1.${SYSTEM_ARCH?}.rpm
+   # Or use yum localinstall, dnf localinstall etc.
+   $ sudo rpm -i https://cdn.teleport.dev/${TELEPORT_PKG?}-${TELEPORT_VERSION?}-1.${SYSTEM_ARCH?}.rpm
+   ```
+
+   </TabItem>
+   </Tabs>
 
    For FedRAMP/FIPS-compliant installations of Teleport Enterprise, package URLs
    are slightly different:
+
+   <Tabs>
+   <TabItem label="TAR">
 
    ```code
    $ curl https://cdn.teleport.dev/teleport-ent-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz.sha256
    # <checksum> <filename>
    $ curl -O https://cdn.teleport.dev/teleport-ent-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz
-   $ shasum -a 256 teleport-ent-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz
-   # Verify that the checksums match
+   $ shasum --check -a 256 teleport-ent-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz
    $ tar -xvf teleport-ent-v${TELEPORT_VERSION?}-linux-${SYSTEM_ARCH?}-fips-bin.tar.gz
    $ cd teleport-ent
    $ sudo ./install
    ```
+   </TabItem>
+   <TabItem label="DEB">
+
+   FIPS builds are only available for the `arm64` and `amd64` system
+   architectures.
+
+   ```code
+   $ curl https://cdn.teleport.dev/teleport-ent_${TELEPORT_VERSION}-fips_${SYSTEM_ARCH}.deb.sha256
+   # <checksum> <filename>
+   $ curl -O https://cdn.teleport.dev/teleport-ent_${TELEPORT_VERSION}-fips_${SYSTEM_ARCH}.deb
+   $ shasum --check -a 256 teleport-ent_${TELEPORT_VERSION}-fips_${SYSTEM_ARCH}.deb
+   $ sudo dpkg -i teleport-ent_${TELEPORT_VERSION}-fips_${SYSTEM_ARCH}.deb
+   ```
+
+   </TabItem>
+   <TabItem label="RPM">
+
+   FIPS builds are only available for the `arm64` and `x86_64` system
+   architectures.
+
+   ```code
+   $ curl https://cdn.teleport.dev/teleport-ent-${TELEPORT_VERSION?}-1-fips.${SYSTEM_ARCH?}.rpm.sha256
+   # <checksum> <filename>
+   $ curl -O https://cdn.teleport.dev/teleport-ent-${TELEPORT_VERSION?}-1-fips.${SYSTEM_ARCH?}.rpm
+   $ shasum --check -a 256 https://cdn.teleport.dev/teleport-ent-${TELEPORT_VERSION?}-1-fips.${SYSTEM_ARCH?}.rpm
+   # Or use yum localinstall, dnf localinstall etc.
+   $ sudo rpm -i https://cdn.teleport.dev/teleport-ent-${TELEPORT_VERSION?}-1-fips.${SYSTEM_ARCH?}.rpm
+   ```
+
+   </TabItem>
+   </Tabs>
 
 ### From your browser
 
@@ -750,15 +813,12 @@ Teleport AMIs are automatically published to all [non-opt-in AWS regions](https:
 
 ## Helm
 
-(!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
+Teleport maintains Helm charts for services and plugins, including self-hosted
+Auth Service and Proxy service deployments, Teleport Agents, the Event Handler,
+and Access Request plugins.
 
-There are two charts available to install. Please see our guide for using each
-chart.
-
-|Chart|Included Services|Values Reference|
-|-|-|-|
-|`teleport-cluster`|Auth Service<br/>Proxy Service<br/>Other Teleport services if using a custom configuration|[Reference](reference/helm-reference/teleport-cluster.mdx)
-|`teleport-kube-agent`|Kubernetes Service<br/>Application Service<br/>Database Service<br/>Discovery Service<br/>Jamf Service|[Reference](reference/helm-reference/teleport-kube-agent.mdx)|
+Consult the [Helm chart reference](reference/helm-reference/helm-reference.mdx)
+for documentation on all available Helm charts.
 
 ## macOS
 
@@ -780,7 +840,6 @@ You can download one of the following .pkg installers for macOS:
   |Link|Binaries|
   |-|-|
   |[`teleport-(=teleport.version=).pkg`](https://cdn.teleport.dev/teleport-(=teleport.version=).pkg)|`teleport`<br/>`tctl`<br/>`tsh`<br/>`tbot`<br/>`fdpass-teleport`|
-  |[`tsh-(=teleport.version=).pkg`](https://cdn.teleport.dev/tsh-(=teleport.version=).pkg)|`tsh`|
 
   You can also fetch an installer via the command line:
 
@@ -846,11 +905,11 @@ If you wish to uninstall Teleport at any time, see our documentation on [Uninsta
 ## Next steps
 
 Now that you know how to install Teleport, you can enable access to all of your
-infrastructure. Get started with:
+infrastructure. Get started with enrolling resources in your Teleport cluster:
 
-- [Server Access](enroll-resources/server-access/introduction.mdx)
-- [Kubernetes Access](enroll-resources/kubernetes-access/introduction.mdx)
-- [Database Access](enroll-resources/database-access/database-access.mdx)
-- [Application Access](enroll-resources/application-access/introduction.mdx)
-- [Desktop Access](enroll-resources/desktop-access/introduction.mdx)
+- [SSH servers](enroll-resources/server-access/introduction.mdx)
+- [Kubernetes clusters](enroll-resources/kubernetes-access/introduction.mdx)
+- [Databases](enroll-resources/database-access/database-access.mdx)
+- [Applications](enroll-resources/application-access/introduction.mdx)
+- [Remote desktops](enroll-resources/desktop-access/introduction.mdx)
 - [Machine ID](enroll-resources/machine-id/introduction.mdx)

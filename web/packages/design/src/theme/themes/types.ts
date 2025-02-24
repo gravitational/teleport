@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { fonts } from '../fonts';
+import { Fonts } from '../fonts';
 import { blueGrey } from '../palette';
 import typography, { fontSizes, fontWeights } from '../typography';
 
@@ -141,6 +141,7 @@ export type ThemeColors = {
 
   tooltip: {
     background: string;
+    inverseBackground: string;
   };
 
   progressBarColor: string;
@@ -208,6 +209,8 @@ export type ThemeColors = {
     brightBlue: string;
     brightMagenta: string;
     brightCyan: string;
+    searchMatch: string;
+    activeSearchMatch: string;
   };
 
   editor: {
@@ -321,7 +324,7 @@ export type SharedStyles = {
   borders: (string | number)[];
   typography: typeof typography;
   font: string;
-  fonts: typeof fonts;
+  fonts: Fonts;
   fontWeights: typeof fontWeights;
   fontSizes: typeof fontSizes;
   radii: (number | string)[];

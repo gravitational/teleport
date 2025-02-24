@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -71,12 +72,12 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	// Important: rdpclient currently only supports 2048-bit RSA keys.
 	// If you switch the key type here, update handle_general_authentication in
 	// rdp/rdpclient/src/piv.rs accordingly.
-	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	rsaKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// Also important: rdpclient expects the private key to be in PKCS1 format.
-	keyDER := x509.MarshalPKCS1PrivateKey(rsaKey)
+	keyDER := x509.MarshalPKCS1PrivateKey(rsaKey.(*rsa.PrivateKey))
 
 	// Generate the Windows-compatible certificate, see
 	// https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities

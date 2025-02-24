@@ -10,7 +10,7 @@ this way will have the `aws/` prefix. When the Teleport process starts, it fetch
 the instance metadata service and adds them as labels. The process will update the tags every hour, 
 so newly created or deleted tags will be reflected in the labels.
 
-If the tag `TeleportHostname` (case-sensitive) is present, its value will override the node's hostname.
+If the tag `TeleportHostname` is present, its value (must be lower case) will override the node's hostname.
 
 ```code
 $ tsh ls
@@ -27,8 +27,8 @@ fakehost.example.com 127.0.0.1:3022 env=example,hostname=ip-172-31-53-70,aws/Nam
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
-- One Teleport agent running on an Amazon EC2 instance. See
-  [our guides](../../../enroll-resources/agents/join-services-to-your-cluster.mdx) for how to set up Teleport agents.
+- One Teleport Agent running on an Amazon EC2 instance. See
+  [our guides](../../../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx) for how to set up Teleport Agents.
 
 ## Enable tags in instance metadata
 

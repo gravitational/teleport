@@ -18,11 +18,11 @@
 
 import { useState } from 'react';
 
-import { Option } from 'shared/components/Select';
 import {
   getPendingRequestDurationOptions,
   ReviewerOption,
 } from 'shared/components/AccessRequests/NewRequest';
+import { Option } from 'shared/components/Select';
 import { AccessRequest } from 'shared/services/accessRequests';
 
 import {
@@ -96,6 +96,16 @@ export function useSpecifiableFields() {
       startTime,
       dryRunResponse
     );
+  }
+
+  function reset() {
+    setDryRunResponse(null);
+    setResourceRequestRoles([]);
+    setSelectedResourceRequestRoles([]);
+    setSelectedReviewers([]);
+    setStartTime(null);
+    setMaxDuration(null);
+    setPendingRequestTtl(null);
   }
 
   function preselectPendingRequestTtlOption(
@@ -190,5 +200,6 @@ export function useSpecifiableFields() {
     startTime,
     onStartTimeChange,
     onDryRunChange,
+    reset,
   };
 }

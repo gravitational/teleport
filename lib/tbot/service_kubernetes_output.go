@@ -20,6 +20,7 @@ package tbot
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -32,7 +33,6 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -80,7 +80,7 @@ func (s *KubernetesOutputService) Run(ctx context.Context) error {
 	err := runOnInterval(ctx, runOnIntervalConfig{
 		name:       "output-renewal",
 		f:          s.generate,
-		interval:   s.botCfg.RenewalInterval,
+		interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
 		reloadCh:   reloadCh,
@@ -122,7 +122,7 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateTTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		nil,
 	)
 	if err != nil {
@@ -153,7 +153,7 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 		s.botAuthClient,
 		id,
 		roles,
-		s.botCfg.CertificateTTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		func(req *proto.UserCertsRequest) {
 			req.KubernetesCluster = kubeClusterName
 		},
@@ -392,7 +392,7 @@ func chooseOneKubeCluster(clusters []types.KubeCluster, name string) (types.Kube
 	return chooseOneResource(clusters, name, "kubernetes cluster")
 }
 
-func getKubeCluster(ctx context.Context, clt *authclient.Client, name string) (types.KubeCluster, error) {
+func getKubeCluster(ctx context.Context, clt apiclient.GetResourcesClient, name string) (types.KubeCluster, error) {
 	ctx, span := tracer.Start(ctx, "getKubeCluster")
 	defer span.End()
 
@@ -418,7 +418,7 @@ func getKubeCluster(ctx context.Context, clt *authclient.Client, name string) (t
 
 // selectKubeConnectionMethod determines the address and SNI that should be
 // put into the kubeconfig file.
-func selectKubeConnectionMethod(proxyPong *webclient.PingResponse) (
+func selectKubeConnectionMethod(proxyPong *proxyPingResponse) (
 	clusterAddr string, sni string, err error,
 ) {
 	// First we check for TLS routing. If this is enabled, we use the Proxy's
@@ -427,8 +427,11 @@ func selectKubeConnectionMethod(proxyPong *webclient.PingResponse) (
 	// Even if KubePublicAddr is specified, we still use the general
 	// PublicAddr when using TLS routing.
 	if proxyPong.Proxy.TLSRoutingEnabled {
-		addr := proxyPong.Proxy.SSH.PublicAddr
-		host, _, err := net.SplitHostPort(proxyPong.Proxy.SSH.PublicAddr)
+		addr, err := proxyPong.proxyWebAddr()
+		if err != nil {
+			return "", "", trace.Wrap(err)
+		}
+		host, _, err := net.SplitHostPort(addr)
 		if err != nil {
 			return "", "", trace.Wrap(err, "parsing proxy public_addr")
 		}

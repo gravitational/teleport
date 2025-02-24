@@ -31,6 +31,7 @@ import (
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/usertasks"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -53,6 +54,8 @@ func TestUserTask(t *testing.T) {
 		})
 	require.NoError(t, err)
 	pack := env.proxies[0].authPack(t, userWithRW, []types.Role{roleRWUserTask})
+	adminClient, err := env.server.NewClient(auth.TestAdmin())
+	require.NoError(t, err)
 
 	getAllEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "usertask")
 	singleItemEndpoint := func(name string) string {
@@ -90,7 +93,7 @@ func TestUserTask(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = env.proxies[0].auth.Auth().CreateUserTask(ctx, userTask)
+		_, err = adminClient.UserTasksServiceClient().CreateUserTask(ctx, userTask)
 		require.NoError(t, err)
 		userTaskForTest = userTask
 	}
@@ -139,6 +142,7 @@ func TestUserTask(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "OPEN", userTaskDetailResp.State)
 		require.NotEmpty(t, userTaskDetailResp.DiscoverEC2)
+		lastStateChangeT0 := userTaskDetailResp.LastStateChange
 
 		// Mark it as resolved.
 		_, err = pack.clt.PutJSON(ctx, updateStateEndpoint(userTaskName), ui.UpdateUserTaskStateRequest{
@@ -153,5 +157,66 @@ func TestUserTask(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, userTaskDetailResp.DiscoverEC2)
 		require.Equal(t, "RESOLVED", userTaskDetailResp.State)
+		// Its last changed state should be updated.
+		lastStateChangeT1 := userTaskDetailResp.LastStateChange
+		require.True(t, lastStateChangeT1.After(lastStateChangeT0), "last state change was not updated after changing the UserTask state")
+
+		t.Run("List open tasks by integration must not return the resolved task", func(t *testing.T) {
+			startKey := ""
+			var listedTasks []ui.UserTask
+			for {
+				// Add a small limit page to test iteration.
+				resp, err := pack.clt.Get(ctx, getAllEndpoint, url.Values{
+					"startKey":    []string{startKey},
+					"integration": []string{"my-integration"},
+					"state":       []string{"OPEN"},
+					"limit":       []string{"2"},
+				})
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.Code())
+
+				var listResponse ui.UserTasksListResponse
+				err = json.Unmarshal(resp.Bytes(), &listResponse)
+				require.NoError(t, err)
+				require.NotEmpty(t, listResponse.Items)
+				listedTasks = append(listedTasks, listResponse.Items...)
+
+				if listResponse.NextKey == "" {
+					break
+				}
+
+				startKey = listResponse.NextKey
+			}
+			expectedOpenTasks := len(issueTypes) - 1
+			require.Len(t, listedTasks, expectedOpenTasks)
+		})
+		t.Run("List resolved tasks by integration must return the resolved task", func(t *testing.T) {
+			startKey := ""
+			var listedTasks []ui.UserTask
+			for {
+				// Add a small limit page to test iteration.
+				resp, err := pack.clt.Get(ctx, getAllEndpoint, url.Values{
+					"startKey":    []string{startKey},
+					"integration": []string{"my-integration"},
+					"state":       []string{"RESOLVED"},
+					"limit":       []string{"2"},
+				})
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.Code())
+
+				var listResponse ui.UserTasksListResponse
+				err = json.Unmarshal(resp.Bytes(), &listResponse)
+				require.NoError(t, err)
+				require.NotEmpty(t, listResponse.Items)
+				listedTasks = append(listedTasks, listResponse.Items...)
+
+				if listResponse.NextKey == "" {
+					break
+				}
+
+				startKey = listResponse.NextKey
+			}
+			require.Len(t, listedTasks, 1)
+		})
 	})
 }

@@ -176,7 +176,7 @@ $ terraform apply ...
     Please check if you have the rights to create role, bot and token resources. You might need to re-log in for new rights to take effect.
     (tsh logout --proxy="mytenant.teleport.sh:443" --user="hugo.hervieux@goteleport.com")
     ```
-- run a one-shot tbot to retrieve certificates via the bot for the terraformn role
+- run a one-shot tbot to retrieve certificates via the bot for the terraform role
 - set the environment variable `TF_TELEPORT_IDENTITY_FILE_BASE64`
 - echo a user-friendly message containing the bot name and the certificate validity
 

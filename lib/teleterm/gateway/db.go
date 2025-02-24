@@ -54,7 +54,7 @@ func makeDatabaseGateway(cfg Config) (Database, error) {
 	}
 
 	middleware := &dbMiddleware{
-		log: d.cfg.Log,
+		logger: d.cfg.Logger,
 		onExpiredCert: func(ctx context.Context) (tls.Certificate, error) {
 			cert, err := d.cfg.OnExpiredCert(ctx, d)
 			return cert, trace.Wrap(err)

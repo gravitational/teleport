@@ -198,7 +198,7 @@ func (p *PluginDataService) updatePluginData(ctx context.Context, params types.P
 				return trace.Wrap(err)
 			}
 		} else {
-			if _, err := p.CompareAndSwap(ctx, *item, newItem); err != nil {
+			if _, err := p.ConditionalUpdate(ctx, newItem); err != nil {
 				if trace.IsCompareFailed(err) {
 					select {
 					case <-retry.After():

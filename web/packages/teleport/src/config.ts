@@ -17,13 +17,8 @@
  */
 
 import { generatePath } from 'react-router';
-import { mergeDeep } from 'shared/utils/highbar';
+
 import { IncludedResourceMode } from 'shared/components/UnifiedResources';
-
-import generateResourcePath from './generateResourcePath';
-
-import { defaultEntitlements } from './entitlement';
-
 import type {
   Auth2faType,
   AuthProvider,
@@ -31,25 +26,38 @@ import type {
   PreferredMfaType,
   PrimaryAuthType,
 } from 'shared/services';
+import { mergeDeep } from 'shared/utils/highbar';
 
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import type { SortType } from 'teleport/services/agents';
-import type { RecordingType } from 'teleport/services/recordings';
-import type { WebauthnAssertionResponse } from './services/auth';
-import type {
+import {
+  AwsOidcPolicyPreset,
+  IntegrationKind,
   PluginKind,
   Regions,
-  AwsOidcPolicyPreset,
-} from './services/integrations';
+} from 'teleport/services/integrations';
+import type { KubeResourceKind } from 'teleport/services/kube/types';
+import type { RecordingType } from 'teleport/services/recordings';
 import type { ParticipantMode } from 'teleport/services/session';
-import type { YamlSupportedResourceKind } from './services/yaml/types';
-import type { KubeResourceKind } from './services/kube/types';
+import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
+import { defaultEntitlements } from './entitlement';
+import generateResourcePath from './generateResourcePath';
+import type { MfaChallengeResponse } from './services/mfa';
+import { KindAuthConnectors } from './services/resources';
+
+export type Cfg = typeof cfg;
 const cfg = {
   /** @deprecated Use cfg.edition instead. */
   isEnterprise: false,
   edition: 'oss',
   isCloud: false,
   automaticUpgrades: false,
+  // TODO (avatus) this is a temporary escape hatch. Delete in v18
+  // The role diff visualizer can be disabled by setting TELEPORT_UNSTABLE_DISABLE_ROLE_VISUALIZER=true
+  // in the proxy service
+  isPolicyRoleVisualizerEnabled: true,
   automaticUpgradesTargetVersion: '',
   // isDashboard is used generally when we want to hide features that can't be hidden by RBAC in
   // the case of a self-hosted license tenant dashboard.
@@ -124,6 +132,8 @@ const cfg = {
     providers: [] as AuthProvider[],
     second_factor: 'off' as Auth2faType,
     authType: 'local' as AuthType,
+    /** defaultConnectorName is the name of the default connector from the cluster's auth preferences. This will empty if the auth type is "local" */
+    defaultConnectorName: '',
     preferredLocalMfa: '' as PreferredMfaType,
     // motd is the message of the day, displayed to users before login.
     motd: '',
@@ -156,6 +166,8 @@ const cfg = {
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',
+    manageCluster: '/web/clusters/:clusterId/manage',
+
     trustedClusters: '/web/trust',
     audit: '/web/cluster/:clusterId/audit',
     unifiedResources: '/web/cluster/:clusterId/resources',
@@ -174,6 +186,8 @@ const cfg = {
     consoleSession: '/web/cluster/:clusterId/console/session/:sid',
     kubeExec: '/web/cluster/:clusterId/console/kube/exec/:kubeId/',
     kubeExecSession: '/web/cluster/:clusterId/console/kube/exec/:sid',
+    dbConnect: '/web/cluster/:clusterId/console/db/connect/:serviceName',
+    dbSession: '/web/cluster/:clusterId/console/db/session/:sid',
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
     login: '/web/login',
     loginSuccess: '/web/msg/info/login_success',
@@ -191,18 +205,39 @@ const cfg = {
     kubernetes: '/web/cluster/:clusterId/kubernetes',
     headlessSso: `/web/headless/:requestId`,
     integrations: '/web/integrations',
-    integrationStatus: '/web/integrations/status/:type/:name',
-    integrationEnroll: '/web/integrations/new/:type?',
+    integrationStatus: '/web/integrations/status/:type/:name/:subPage?',
+    integrationTasks: '/web/integrations/status/:type/:name/tasks',
+    integrationStatusResources:
+      '/web/integrations/status/:type/:name/resources/:resourceKind',
+    integrationEnroll: '/web/integrations/new/:type?/:subPage?',
     locks: '/web/locks',
     newLock: '/web/locks/new',
     requests: '/web/requests/:requestId?',
 
     downloadCenter: '/web/downloads',
 
+    // sso routes
+    ssoConnector: {
+      /**
+       * create is the dedicated page for creating a new auth connector.
+       */
+      create: '/web/sso/new/:connectorType(github|oidc|saml)',
+      edit: '/web/sso/edit/:connectorType(github|oidc|saml)/:connectorName?',
+    },
+
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
     samlHandler: '/v1/webapi/saml/*',
     githubHandler: '/v1/webapi/github/*',
+
+    // Access Graph is part of enterprise, but we need to generate links in the audit log,
+    // which is in OSS.
+    accessGraph: {
+      crownJewelAccessPath: '/web/accessgraph/crownjewels/access/:id',
+    },
+
+    /** samlIdpSso is an exact path of the service provider initiated SAML SSO endpoint. */
+    samlIdpSso: '/enterprise/saml-idp/sso',
   },
 
   api: {
@@ -211,6 +246,7 @@ const cfg = {
     applicationsPath:
       '/v1/webapi/sites/:clusterId/apps?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     clustersPath: '/v1/webapi/sites',
+    clusterInfoPath: '/v1/webapi/sites/:clusterId/info',
     clusterAlertsPath: '/v1/webapi/sites/:clusterId/alerts',
     clusterEventsPath: `/v1/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?`,
     clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?`,
@@ -231,13 +267,17 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     nodesPathNoParams: '/v1/webapi/sites/:clusterId/nodes',
 
+    gitServer: {
+      createOrOverwrite: '/v1/webapi/sites/:clusterId/gitservers',
+      delete: '/v1/webapi/sites/:clusterId/gitservers/:name',
+    },
+
     databaseServicesPath: `/v1/webapi/sites/:clusterId/databaseservices`,
     databaseIamPolicyPath: `/v1/webapi/sites/:clusterId/databases/:database/iam/policy`,
     databasePath: `/v1/webapi/sites/:clusterId/databases/:database`,
     databasesPath: `/v1/webapi/sites/:clusterId/databases?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
 
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
-    desktopServicesPath: `/v1/webapi/sites/:clusterId/desktopservices?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
     desktopWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect/ws?username=:username',
@@ -248,9 +288,11 @@ const cfg = {
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect/ws?params=:params&traceparent=:traceparent',
     ttyKubeExecWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/kube/exec/ws?params=:params&traceparent=:traceparent',
+    ttyDbWsAddr: 'wss://:fqdn/v1/webapi/sites/:clusterId/db/exec/ws',
     ttyPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/ttyplayback/:sid?access_token=:token', // TODO(zmb3): get token out of URL
     activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
+    sessionDurationPath: '/v1/webapi/sites/:clusterId/sessionlength/:sid',
 
     kubernetesPath:
       '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
@@ -266,10 +308,15 @@ const cfg = {
     rolePath: '/v1/webapi/roles/:name?',
     presetRolesPath: '/v1/webapi/presetroles',
     githubConnectorsPath: '/v1/webapi/github/:name?',
+    githubConnectorPath: '/v1/webapi/github/connector/:name',
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
     connectMyComputerLoginsPath: '/v1/webapi/connectmycomputer/logins',
 
-    joinTokenPath: '/v1/webapi/token',
+    discoveryJoinToken: {
+      // TODO(kimlisa): DELETE IN 19.0 - replaced by /v2/webapi/token
+      create: '/v1/webapi/token',
+      createV2: '/v2/webapi/token',
+    },
     joinTokenYamlPath: '/v1/webapi/tokens/yaml',
     joinTokensPath: '/v1/webapi/tokens',
     dbScriptPath: '/scripts/:token/install-database.sh',
@@ -309,8 +356,25 @@ const cfg = {
 
     headlessLogin: '/v1/webapi/headless/:headless_authentication_id',
 
+    integrationCa: {
+      export: '/v1/webapi/sites/:clusterId/integrations/:name/ca',
+    },
+
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
+    integrationStatsPath:
+      '/v1/webapi/sites/:clusterId/integrations/:name/stats',
+    integrationRulesPath:
+      '/v1/webapi/sites/:clusterId/integrations/:name/discoveryrules?resourceType=:resourceType?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?&limit=:limit?&regions=:regions?',
+    awsOidcDatabaseServicesPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/listdeployeddatabaseservices?resourceType=:resourceType?&regions=:regions?',
+    userTaskListByIntegrationPath:
+      '/v1/webapi/sites/:clusterId/usertask?integration=:name?&state=:state?',
+    userTaskPath: '/v1/webapi/sites/:clusterId/usertask/:name',
+    resolveUserTaskPath: '/v1/webapi/sites/:clusterId/usertask/:name/state',
+
     thumbprintPath: '/v1/webapi/thumbprint',
+    pingAwsOidcIntegrationPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ping',
 
     awsConfigureIamScriptOidcIdpPath:
       '/v1/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName&policyPreset=:policyPreset?',
@@ -318,8 +382,6 @@ const cfg = {
       '/v1/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn&awsAccountID=:accountID',
     awsConfigureIamScriptListDatabasesPath:
       '/v1/webapi/scripts/integrations/configure/listdatabases-iam.sh?awsRegion=:region&role=:iamRoleName&awsAccountID=:accountID',
-    awsConfigureIamScriptEc2InstanceConnectPath:
-      '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:iamRoleName&awsAccountID=:accountID',
     awsConfigureIamEksScriptPath:
       '/v1/webapi/scripts/integrations/configure/eks-iam.sh?awsRegion=:region&role=:iamRoleName&awsAccountID=:accountID',
 
@@ -338,8 +400,12 @@ const cfg = {
     awsSubnetListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/subnets',
 
-    awsAppAccessPath:
-      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/aws-app-access',
+    awsAppAccess: {
+      create:
+        '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/aws-app-access',
+      createV2:
+        '/v2/webapi/sites/:clusterId/integrations/aws-oidc/:name/aws-app-access',
+    },
     awsConfigureIamAppAccessPath:
       '/v1/webapi/scripts/integrations/configure/aws-app-access-iam.sh?role=:iamRoleName&awsAccountID=:accountID',
 
@@ -348,16 +414,14 @@ const cfg = {
 
     eksClustersListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/eksclusters',
-    eksEnrollClustersPath:
-      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/enrolleksclusters',
 
-    ec2InstancesListPath:
-      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ec2',
-    ec2InstanceConnectEndpointsListPath:
-      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ec2ice',
-    // Returns a script that configures the required IAM permissions to enable the usage of EC2 Instance Connect Endpoint to access EC2 instances.
-    ec2InstanceConnectDeployPath:
-      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deployec2ice',
+    eks: {
+      // TODO(kimlisa): DELETE IN 19.0 - replaced by /v2/webapi/sites/:clusterId/integrations/aws-oidc/:name/enrolleksclusters
+      enroll:
+        '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/enrolleksclusters',
+      enrollV2:
+        '/v2/webapi/sites/:clusterId/integrations/aws-oidc/:name/enrolleksclusters',
+    },
 
     userGroupsListPath:
       '/v1/webapi/sites/:clusterId/user-groups?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
@@ -382,6 +446,11 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/lastseennotification',
     notificationStatePath: '/v1/webapi/sites/:clusterId/notificationstate',
 
+    msTeamsAppZipPath:
+      '/v1/webapi/sites/:clusterId/plugins/:plugin/files/msteams_app.zip',
+
+    defaultConnectorPath: '/v1/webapi/authconnector/default',
+
     yaml: {
       parse: '/v1/webapi/yaml/parse/:kind',
       stringify: '/v1/webapi/yaml/stringify/:kind',
@@ -405,6 +474,12 @@ const cfg = {
 
   getPlayableDatabaseProtocols() {
     return cfg.playable_db_protocols;
+  },
+
+  getClusterInfoPath(clusterId: string) {
+    return generatePath(cfg.api.clusterInfoPath, {
+      clusterId,
+    });
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -446,6 +521,10 @@ const cfg = {
 
   getAuth2faType() {
     return cfg.auth ? cfg.auth.second_factor : null;
+  },
+
+  getDefaultConnectorName() {
+    return cfg.auth ? cfg.auth.defaultConnectorName : '';
   },
 
   getPreferredMfaType() {
@@ -506,16 +585,59 @@ const cfg = {
     return generatePath(cfg.routes.audit, { clusterId });
   },
 
-  getIntegrationEnrollRoute(type?: string) {
-    return generatePath(cfg.routes.integrationEnroll, { type });
+  /**
+   * Generates a route for an Integration's enrolment page
+   *
+   * @param {string} [type] - The integration type (e.g. "okta", "aws-oidc")
+   * @param {string} [subPage] - Optional subpage within the enrollment flow (currently Okta-specific)
+   * @returns {string} Generated enrollment route
+   */
+  getIntegrationEnrollRoute(type?: string, subPage?: string) {
+    return generatePath(cfg.routes.integrationEnroll, { type, subPage });
   },
 
-  getIntegrationStatusRoute(type: PluginKind, name: string) {
-    return generatePath(cfg.routes.integrationStatus, { type, name });
+  /**
+   * Generates a route for an Integration's status page
+   *
+   * @param {PluginKind | IntegrationKind} type - The integration type (e.g. "okta", "aws-oidc")
+   * @param {string} name - The integration name
+   * @param {string} [subPage] - Optional subpage within the status view (currently Okta-specific)
+   * @returns {string} Generated status route
+   */
+  getIntegrationStatusRoute(
+    type: PluginKind | IntegrationKind,
+    name: string,
+    subPage?: string
+  ) {
+    return generatePath(cfg.routes.integrationStatus, { type, name, subPage });
+  },
+
+  getIntegrationStatusResourcesRoute(
+    type: PluginKind | IntegrationKind,
+    name: string,
+    resourceKind: AwsResource
+  ) {
+    return generatePath(cfg.routes.integrationStatusResources, {
+      type,
+      name,
+      resourceKind,
+    });
+  },
+
+  getIntegrationTasksRoute(type: PluginKind | IntegrationKind, name: string) {
+    return generatePath(cfg.routes.integrationTasks, { type, name });
+  },
+
+  getMsTeamsAppZipRoute(clusterId: string, plugin: string) {
+    return generatePath(cfg.api.msTeamsAppZipPath, { clusterId, plugin });
   },
 
   getNodesRoute(clusterId: string) {
     return generatePath(cfg.routes.nodes, { clusterId });
+  },
+
+  getManageClusterRoute(clusterId: string) {
+    return generatePath(cfg.routes.manageCluster, { clusterId });
   },
 
   getUnifiedResourcesRoute(clusterId: string) {
@@ -536,10 +658,6 @@ const cfg = {
 
   getJoinTokensUrl() {
     return cfg.api.joinTokensPath;
-  },
-
-  getJoinTokenUrl() {
-    return cfg.api.joinTokenPath;
   },
 
   getJoinTokenYamlUrl() {
@@ -626,6 +744,14 @@ const cfg = {
       desktopName,
       username,
     });
+  },
+
+  getDbConnectRoute(params: UrlDbConnectParams) {
+    return generatePath(cfg.routes.dbConnect, { ...params });
+  },
+
+  getDbSessionRoute({ clusterId, sid }: UrlParams) {
+    return generatePath(cfg.routes.dbSession, { clusterId, sid });
   },
 
   getKubeExecSessionRoute(
@@ -720,6 +846,20 @@ const cfg = {
     return generatePath(cfg.routes.kubernetes, { clusterId });
   },
 
+  getEditAuthConnectorRoute(
+    connectorType: KindAuthConnectors,
+    connectorName?: string
+  ) {
+    return generatePath(cfg.routes.ssoConnector.edit, {
+      connectorType,
+      connectorName,
+    });
+  },
+
+  getCreateAuthConnectorRoute(connectorType: KindAuthConnectors) {
+    return generatePath(cfg.routes.ssoConnector.create, { connectorType });
+  },
+
   getUsersUrl() {
     return cfg.api.usersPath;
   },
@@ -730,6 +870,10 @@ const cfg = {
 
   getActiveAndPendingSessionsUrl({ clusterId }: UrlParams) {
     return generatePath(cfg.api.activeAndPendingSessionsPath, { clusterId });
+  },
+
+  getSessionDurationUrl(clusterId: string, sid: string) {
+    return generatePath(cfg.api.sessionDurationPath, { clusterId, sid });
   },
 
   getUnifiedResourcesUrl(clusterId: string, params: UrlResourcesParams) {
@@ -748,6 +892,20 @@ const cfg = {
 
   getClusterNodesUrlNoParams(clusterId: string) {
     return generatePath(cfg.api.nodesPathNoParams, { clusterId });
+  },
+
+  getGitServerUrl(
+    params: { clusterId: string; name?: string },
+    action: 'createOrOverwrite' | 'delete'
+  ) {
+    if (action === 'createOrOverwrite') {
+      return generatePath(cfg.api.gitServer.createOrOverwrite, {
+        clusterId: params.clusterId,
+      });
+    }
+    if (action === 'delete') {
+      return generatePath(cfg.api.gitServer.delete, params);
+    }
   },
 
   getDatabaseServicesUrl(clusterId: string) {
@@ -821,13 +979,6 @@ const cfg = {
     });
   },
 
-  getDesktopServicesUrl(clusterId: string, params: UrlResourcesParams) {
-    return generateResourcePath(cfg.api.desktopServicesPath, {
-      clusterId,
-      ...params,
-    });
-  },
-
   getDesktopUrl(clusterId: string, desktopName: string) {
     return generatePath(cfg.api.desktopPath, { clusterId, desktopName });
   },
@@ -843,20 +994,25 @@ const cfg = {
     });
   },
 
-  getScpUrl({ webauthn, ...params }: UrlScpParams) {
+  getScpUrl({ mfaResponse, ...params }: UrlScpParams) {
     let path = generatePath(cfg.api.scp, {
       ...params,
     });
 
-    if (!webauthn) {
+    if (!mfaResponse) {
       return path;
     }
     // non-required MFA will mean this param is undefined and generatePath doesn't like undefined
     // or optional params. So we append it ourselves here. Its ok to be undefined when sent to the server
     // as the existence of this param is what will issue certs
-    return `${path}&webauthn=${JSON.stringify({
-      webauthnAssertionResponse: webauthn,
+
+    // TODO(Joerger): DELETE IN v19.0.0
+    // We include webauthn for backwards compatibility.
+    path = `${path}&webauthn=${JSON.stringify({
+      webauthnAssertionResponse: mfaResponse.webauthn_response,
     })}`;
+
+    return `${path}&mfaResponse=${JSON.stringify(mfaResponse)}`;
   },
 
   getRenewTokenUrl() {
@@ -865,6 +1021,10 @@ const cfg = {
 
   getGithubConnectorsUrl(name?: string) {
     return generatePath(cfg.api.githubConnectorsPath, { name });
+  },
+
+  getGithubConnectorUrl(name: string) {
+    return generatePath(cfg.api.githubConnectorPath, { name });
   },
 
   getTrustedClustersUrl(name?: string) {
@@ -929,10 +1089,91 @@ const cfg = {
     });
   },
 
+  getIntegrationCaUrl(clusterId: string, name: string) {
+    return generatePath(cfg.api.integrationCa.export, {
+      clusterId,
+      name,
+    });
+  },
+
   getIntegrationsUrl(integrationName?: string) {
     // Currently you can only create integrations at the root cluster.
     const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.integrationsPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getIntegrationStatsUrl(name: string) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.integrationStatsPath, {
+      clusterId,
+      name,
+    });
+  },
+
+  getIntegrationRulesUrl(
+    name: string,
+    resourceType: AwsResource,
+    regions?: string[]
+  ) {
+    const clusterId = cfg.proxyCluster;
+    return generateResourcePath(cfg.api.integrationRulesPath, {
+      clusterId,
+      name,
+      resourceType,
+      regions,
+    });
+  },
+
+  getAwsOidcDatabaseServices(
+    name: string,
+    resourceType: AwsResource,
+    regions: string[]
+  ) {
+    const clusterId = cfg.proxyCluster;
+    return generateResourcePath(cfg.api.awsOidcDatabaseServicesPath, {
+      clusterId,
+      name,
+      resourceType,
+      regions,
+    });
+  },
+
+  getIntegrationUserTasksListUrl(name: string, state: TaskState) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.userTaskListByIntegrationPath, {
+      clusterId,
+      name,
+      state,
+    });
+  },
+
+  getUserTaskUrl(name: string) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.userTaskPath, {
+      clusterId,
+      name,
+    });
+  },
+
+  getResolveUserTaskUrl(name: string) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.resolveUserTaskPath, {
+      clusterId,
+      name,
+    });
+  },
+
+  getPingAwsOidcIntegrationUrl({
+    integrationName,
+    clusterId,
+  }: {
+    integrationName: string;
+    clusterId: string;
+  }) {
+    return generatePath(cfg.api.pingAwsOidcIntegrationPath, {
       clusterId,
       name: integrationName,
     });
@@ -984,7 +1225,16 @@ const cfg = {
   getAwsAppAccessUrl(integrationName: string) {
     const clusterId = cfg.proxyCluster;
 
-    return generatePath(cfg.api.awsAppAccessPath, {
+    return generatePath(cfg.api.awsAppAccess.create, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getAwsAppAccessUrlV2(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.awsAppAccess.createV2, {
       clusterId,
       name: integrationName,
     });
@@ -1016,7 +1266,16 @@ const cfg = {
   getEnrollEksClusterUrl(integrationName: string): string {
     const clusterId = cfg.proxyCluster;
 
-    return generatePath(cfg.api.eksEnrollClustersPath, {
+    return generatePath(cfg.api.eks.enroll, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getEnrollEksClusterUrlV2(integrationName: string): string {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.eks.enrollV2, {
       clusterId,
       name: integrationName,
     });
@@ -1026,33 +1285,6 @@ const cfg = {
     const clusterId = cfg.proxyCluster;
 
     return generatePath(cfg.api.eksClustersListPath, {
-      clusterId,
-      name: integrationName,
-    });
-  },
-
-  getListEc2InstancesUrl(integrationName: string) {
-    const clusterId = cfg.proxyCluster;
-
-    return generatePath(cfg.api.ec2InstancesListPath, {
-      clusterId,
-      name: integrationName,
-    });
-  },
-
-  getListEc2InstanceConnectEndpointsUrl(integrationName: string) {
-    const clusterId = cfg.proxyCluster;
-
-    return generatePath(cfg.api.ec2InstanceConnectEndpointsListPath, {
-      clusterId,
-      name: integrationName,
-    });
-  },
-
-  getDeployEc2InstanceConnectEndpointUrl(integrationName: string) {
-    const clusterId = cfg.proxyCluster;
-
-    return generatePath(cfg.api.ec2InstanceConnectDeployPath, {
       clusterId,
       name: integrationName,
     });
@@ -1072,17 +1304,6 @@ const cfg = {
       clusterId,
       name: integrationName,
     });
-  },
-
-  getEc2InstanceConnectIAMConfigureScriptUrl(
-    params: UrlAwsConfigureIamScriptParams
-  ) {
-    return (
-      cfg.baseUrl +
-      generatePath(cfg.api.awsConfigureIamScriptEc2InstanceConnectPath, {
-        ...params,
-      })
-    );
   },
 
   getEksIamConfigureScriptUrl(params: UrlAwsConfigureIamScriptParams) {
@@ -1160,6 +1381,10 @@ const cfg = {
     return generatePath(cfg.api.notificationStatePath, { clusterId });
   },
 
+  getAccessGraphCrownJewelAccessPathUrl(id: string) {
+    return generatePath(cfg.routes.accessGraph.crownJewelAccessPath, { id });
+  },
+
   init(backendConfig = {}) {
     mergeDeep(this, backendConfig);
   },
@@ -1179,6 +1404,15 @@ export interface UrlAppParams {
   arn?: string;
 }
 
+export interface CreateAppSessionParams {
+  fqdn: string;
+  // This API requires cluster_name and public_addr with underscores.
+  cluster_name?: string;
+  public_addr?: string;
+  arn?: string;
+  mfaResponse?: MfaChallengeResponse;
+}
+
 export interface UrlScpParams {
   clusterId: string;
   serverId: string;
@@ -1187,7 +1421,7 @@ export interface UrlScpParams {
   filename: string;
   moderatedSessionId?: string;
   fileTransferRequestId?: string;
-  webauthn?: WebauthnAssertionResponse;
+  mfaResponse?: MfaChallengeResponse;
 }
 
 export interface UrlSshParams {
@@ -1201,6 +1435,11 @@ export interface UrlSshParams {
 export interface UrlKubeExecParams {
   clusterId: string;
   kubeId: string;
+}
+
+export interface UrlDbConnectParams {
+  clusterId: string;
+  serviceName: string;
 }
 
 export interface UrlSessionRecordingsParams {
@@ -1270,7 +1509,13 @@ export interface UrlKubeResourcesParams {
   searchAsRoles?: 'yes' | '';
   kubeNamespace?: string;
   kubeCluster: string;
-  kind: KubeResourceKind;
+  kind: Omit<KubeResourceKind, '*'>;
+}
+
+export interface UrlIntegrationParams {
+  name?: string;
+  resourceType?: string;
+  regions?: string[];
 }
 
 export interface UrlDeployServiceIamConfigureScriptParams {
@@ -1284,8 +1529,6 @@ export interface UrlDeployServiceIamConfigureScriptParams {
 export interface UrlAwsOidcConfigureIdp {
   integrationName: string;
   roleName: string;
-  s3Bucket?: string;
-  s3Prefix?: string;
   policyPreset?: AwsOidcPolicyPreset;
 }
 

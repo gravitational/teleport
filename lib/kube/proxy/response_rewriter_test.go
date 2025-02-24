@@ -121,7 +121,7 @@ func TestErrorRewriter(t *testing.T) {
 							"\"system:masters\" group.\nYour Teleport Roles [user:user] have " +
 							"given access to the \"system:masters\" group for the cluster " +
 							"\"gke-autopilot\".\nFor additional information and resolution, " +
-							"please visit https://goteleport.com/docs/kubernetes-access/troubleshooting/#unable-to-connect-to-gke-autopilot-clusters\n",
+							"please visit https://goteleport.com/docs/enroll-resources/kubernetes-access/troubleshooting/#unable-to-connect-to-gke-autopilot-clusters\n",
 						Reason: metav1.StatusReasonForbidden,
 						Code:   http.StatusForbidden,
 					},

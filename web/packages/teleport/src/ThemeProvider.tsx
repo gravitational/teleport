@@ -16,13 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect, ReactNode } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
+
+import { bblpTheme, darkTheme, lightTheme, Theme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
-import { bblpTheme, lightTheme, darkTheme, Theme } from 'design/theme';
 import { Theme as ThemePreference } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
 import cfg from 'teleport/config';
-import { storageService, KeysEnum } from 'teleport/services/storageService';
+import { KeysEnum, storageService } from 'teleport/services/storageService';
 
 const customThemes = {
   bblp: bblpTheme,

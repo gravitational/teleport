@@ -17,12 +17,14 @@ package msteams
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/accessmonitoring"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
@@ -40,34 +42,29 @@ const (
 	// initTimeout is used to bound execution time of health check and teleport version check.
 	initTimeout = time.Second * 10
 	// handlerTimeout is used to bound the execution time of watcher event handler.
-	handlerTimeout = time.Second * 5
+	handlerTimeout = time.Second * 15
 )
 
 // App contains global application state.
 type App struct {
 	conf Config
 
-	apiClient  teleport.Client
-	bot        *Bot
-	mainJob    lib.ServiceJob
-	watcherJob lib.ServiceJob
-	pd         *pd.CompareAndSwap[PluginData]
-
-	log *slog.Logger
+	apiClient             teleport.Client
+	bot                   *Bot
+	mainJob               lib.ServiceJob
+	watcherJob            lib.ServiceJob
+	pd                    *pd.CompareAndSwap[PluginData]
+	log                   *slog.Logger
+	accessMonitoringRules *accessmonitoring.RuleHandler
 
 	*lib.Process
 }
 
 // NewApp initializes a new teleport-msteams app and returns it.
 func NewApp(conf Config) (*App, error) {
-	log, err := conf.Log.NewSLogLogger()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	app := &App{
 		conf: conf,
-		log:  log.With("plugin", pluginName),
+		log:  slog.With("plugin", pluginName),
 	}
 
 	app.mainJob = lib.NewServiceJob(app.run)
@@ -85,13 +82,11 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	a.Process = lib.NewProcess(ctx)
-	a.watcherJob, err = a.newWatcherJob()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	a.SpawnCriticalJob(a.mainJob)
-	a.SpawnCriticalJob(a.watcherJob)
 
 	select {
 	case <-ctx.Done():
@@ -116,10 +111,14 @@ func (a *App) init(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, initTimeout)
 	defer cancel()
 
-	var err error
-	a.apiClient, err = common.GetTeleportClient(ctx, a.conf.Teleport)
-	if err != nil {
-		return trace.Wrap(err)
+	if a.conf.Client != nil {
+		a.apiClient = a.conf.Client
+	} else {
+		var err error
+		a.apiClient, err = common.GetTeleportClient(ctx, a.conf.Teleport)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	a.pd = pd.NewCAS(
@@ -140,10 +139,15 @@ func (a *App) init(ctx context.Context) error {
 		webProxyAddr = pong.ProxyPublicAddr
 	}
 
-	a.bot, err = NewBot(a.conf.MSAPI, pong.ClusterName, webProxyAddr, a.log)
+	a.bot, err = NewBot(&a.conf, pong.ClusterName, webProxyAddr, a.log)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	a.accessMonitoringRules = accessmonitoring.NewRuleHandler(accessmonitoring.RuleHandlerConfig{
+		Client:     a.apiClient,
+		PluginName: pluginName,
+	})
 
 	return a.initBot(ctx)
 }
@@ -161,6 +165,13 @@ func (a *App) initBot(ctx context.Context) error {
 	a.log.InfoContext(ctx, "MS Teams app found in org app store",
 		"name", teamsApp.DisplayName,
 		"id", teamsApp.ID)
+
+	if err := a.bot.CheckHealth(ctx); err != nil {
+
+		a.log.WarnContext(ctx, "MS Teams healthcheck failed",
+			"name", teamsApp.DisplayName,
+			"id", teamsApp.ID)
+	}
 
 	if !a.conf.Preload {
 		return nil
@@ -187,27 +198,51 @@ func (a *App) initBot(ctx context.Context) error {
 	return nil
 }
 
-// newWatcherJob creates WatcherJob
-func (a *App) newWatcherJob() (lib.ServiceJob, error) {
-	return watcherjob.NewJob(
+// run starts the main process
+func (a *App) run(ctx context.Context) error {
+	watchKinds := []types.WatchKind{
+		{Kind: types.KindAccessRequest},
+		{Kind: types.KindAccessMonitoringRule},
+	}
+	acceptedWatchKinds := make([]string, 0, len(watchKinds))
+	watcherJob, err := watcherjob.NewJobWithConfirmedWatchKinds(
 		a.apiClient,
 		watcherjob.Config{
-			Watch: types.Watch{
-				Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}},
-			},
+			Watch:            types.Watch{Kinds: watchKinds, AllowPartialSuccess: true},
 			EventFuncTimeout: handlerTimeout,
 		},
 		a.onWatcherEvent,
+		func(ws types.WatchStatus) {
+			for _, watchKind := range ws.GetKinds() {
+				acceptedWatchKinds = append(acceptedWatchKinds, watchKind.Kind)
+			}
+		},
 	)
-}
-
-// run starts the main process
-func (a *App) run(ctx context.Context) error {
-	ok, err := a.watcherJob.WaitReady(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	process := lib.MustGetProcess(ctx)
+	process.SpawnCriticalJob(watcherJob)
+
+	ok, err := watcherJob.WaitReady(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(acceptedWatchKinds) == 0 {
+		return trace.BadParameter("failed to initialize watcher for all the required resources: %+v",
+			watchKinds)
+	}
+	// Check if KindAccessMonitoringRule resources are being watched,
+	// the role the plugin is running as may not have access.
+	if slices.Contains(acceptedWatchKinds, types.KindAccessMonitoringRule) {
+		if err := a.accessMonitoringRules.InitAccessMonitoringRulesCache(ctx); err != nil {
+			return trace.Wrap(err, "initializing Access Monitoring Rule cache")
+		}
+	}
+
+	a.watcherJob = watcherJob
+	a.watcherJob.SetReady(ok)
 	if ok {
 		a.log.InfoContext(ctx, "Plugin is ready")
 	} else {
@@ -243,6 +278,10 @@ func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, err
 // onWatcherEvent called when an access request event is received
 func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 	kind := event.Resource.GetKind()
+	if kind == types.KindAccessMonitoringRule {
+		return trace.Wrap(a.accessMonitoringRules.HandleAccessMonitoringRule(ctx, event))
+	}
+
 	if kind != types.KindAccessRequest {
 		return trace.Errorf("unexpected kind %s", kind)
 	}
@@ -478,8 +517,12 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 	// We receive a set from GetRawRecipientsFor but we still might end up with duplicate channel names.
 	// This can happen if this set contains the channel `C` and the email for channel `C`.
 	recipientSet := stringset.New()
-
 	a.log.DebugContext(ctx, "Getting suggested reviewer recipients")
+	accessRuleRecipients := a.accessMonitoringRules.RawRecipientsFromAccessMonitoringRules(ctx, req)
+	if len(accessRuleRecipients) != 0 {
+		return accessRuleRecipients
+	}
+
 	var validEmailsSuggReviewers []string
 	for _, reviewer := range req.GetSuggestedReviewers() {
 		if !lib.IsEmail(reviewer) {
@@ -497,6 +540,5 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 			recipientSet.Add(recipient)
 		}
 	}
-
 	return recipientSet.ToSlice()
 }

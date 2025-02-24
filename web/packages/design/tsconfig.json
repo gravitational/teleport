@@ -1,0 +1,18 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "include": ["src", "@types", "../../../web/@types"],
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "../../../build.assets/.cache/ts/design",
+    "emitDeclarationOnly": true,
+    "declarationMap": true,
+    "strict": true,
+    "noImplicitReturns": true,
+    "paths": {
+      "design/*": ["web/packages/design/src/*"],
+      "design": ["web/packages/design/src/"],
+      "gen-proto-ts/*": ["gen/proto/ts/*"],
+    }
+
+  }
+}

@@ -95,18 +95,19 @@ $ teleport-upgrade force
    ```
    
 1. If you changed the agent user to run as non-root, create
-   `/etc/teleport-upgrade.d/schedule` and grant ownership to your Teleport user.
-   Otherwise, you can skip this step:
+   `/etc/teleport-upgrade.d/schedule` and grant ownership to your Teleport user,
+   assigning <Var name="your-teleport-user" /> to the name of your Teleport
+   user. Otherwise, you can skip this step:
    
-   ```code
-   $ sudo touch /etc/teleport-upgrade.d/schedule
-   $ sudo chown <Var name="your-teleport-user" /> /etc/teleport-upgrade.d/schedule
+   ```code 
+   $ sudo touch /etc/teleport-upgrade.d/schedule 
+   $ sudo chown <Var name="your-teleport-user" /> /etc/teleport-upgrade.d/schedule 
    ```
    
-1. Configure the upgrader to connect to your version server and subscribe to the
-   right release channel:
+   1. Configure the upgrader to connect to your version server and subscribe to
+   the right release channel:
    
-   ```code
+   ```code 
    $ echo "<Var name="teleport.example.com:443" />/v1/webapi/automaticupgrades/channel/default" | sudo tee /etc/teleport-upgrade.d/endpoint
    ```
 
@@ -181,7 +182,7 @@ Ensure that you are using the Teleport Enterprise edition of the `teleport-kube-
 chart. You should see the following when you query your `teleport-kube-agent` release:
 
 ```code
-$ helm -n <Var name="teleport" /> get values <Var name="teleport-agent" /> -o json | jq '.enterprise'
+$ helm -n "teleport" get values "teleport-agent" -o json | jq '.enterprise'
 true
 ```
 
@@ -257,10 +258,12 @@ self-hosted clusters, as well as all Teleport agents.
 ### Teleport agents
 
 1. Identify the latest compatible Teleport agent version by querying the
-   `webapi` endpoint of the Teleport Proxy Service:
+   `webapi` endpoint of the Teleport Proxy Service, replacing 
+   <Var name="teleport.example.com:443" /> with the host and port of your
+   Teleport account or Teleport Proxy Service:
 
    ```code
-   $ curl https://<Var name="teleport.example.com" />/webapi/automaticupgrades/channel/stable/cloud/version
+   $ curl https://<Var name="teleport.example.com:443" />/webapi/automaticupgrades/channel/stable/cloud/version
    v15.2.1
    ```
 
@@ -369,15 +372,15 @@ your `teleport-cluster` release is called `teleport-cluster`.
 1. Update the Teleport Helm chart repository so you can install the latest
    version of the `teleport-cluster` chart:
 
-    (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
+   (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
 1. Upgrade the `teleport-cluster` Helm release:
 
-    ```code
-    $ helm upgrade teleport-cluster teleport/teleport-cluster \
-      --version=<Var name="(=teleport.version=)" /> \
-      --values=values.yaml
-    ```
+   ```code
+   $ helm upgrade teleport-cluster teleport/teleport-cluster \
+     --version=<Var name="(=teleport.version=)" /> \
+     --values=values.yaml
+   ```
 
    The `teleport-cluster` Helm chart automatically waits for the previous
    version of the Proxy Service to stop responding to requests before running a
@@ -395,12 +398,12 @@ that your `teleport-kube-agent` release is called `teleport-agent`.
 1. Update the Teleport Helm chart repository so you can install the latest
    version of the `teleport-kube-agent` chart:
 
-      (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
+   (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
 1. Upgrade the Helm release:
 
    ```code
-   $ helm -n <Var name="teleport" /> upgrade teleport-agent teleport/teleport-kube-agent \
+   $ helm -n "teleport" upgrade teleport-agent teleport/teleport-kube-agent \
      --values=values.yaml \
      --version=<Var name="(=teleport.version=)" />
    ```

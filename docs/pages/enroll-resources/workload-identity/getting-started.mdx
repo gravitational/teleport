@@ -11,8 +11,9 @@ meaning that it can be used in place of other SPIFFE compatible identity
 providers.
 
 In this guide, you'll configure the RBAC necessary to allow a Bot to issue
-SPIFFE SVIDs and then configure `tbot` to expose a SPIFFE Workload API endpoint.
-You can then connect your workloads to this endpoint to receive SPIFFE SVIDs.
+workload identity credentials and then configure `tbot` to expose a SPIFFE
+Workload API endpoint. You can then connect your workloads to this endpoint to
+receive SPIFFE SVID-compatible workload identity credentials.
 
 ## Prerequisites
 
@@ -21,124 +22,143 @@ You can then connect your workloads to this endpoint to receive SPIFFE SVIDs.
 - (!docs/pages/includes/tctl.mdx!)
 - `tbot` must already be installed and configured on the host where the
   workloads which need to access Teleport Workload Identity will run. For more
-  information, see the [deployment guides](../machine-id/deployment.mdx).
+  information, see the [deployment guides](../machine-id/deployment/deployment.mdx).
 
-## Step 1/4. Configure RBAC
+## Step 1/4. Configure Workload Identity
 
-First, Teleport must be configured to allow the Bot to issue SPIFFE SVIDs.
-This is done by configuring a role to allow the issuance of SPIFFE SVIDs and
-then granting this role to the Bot.
+First, you will need to create a Workload Identity resource.
+
+This resource is the primary way that Teleport Workload Identity is configured.
+Each Workload Identity resource represents the configuration of an identity for a
+specific workload or a template to be used when representing the identity of a
+group of workloads. The Workload Identity resource specifies a number of key
+things, including:
+
+- The name of the Workload Identity, which will be needed when issuing it.
+- The SPIFFE ID that will be included in credentials issued for this
+  WorkloadIdentity.
+- Any rules around when this Workload Identity can be used to issue credentials.
 
 Before proceeding, you'll want to determine the SPIFFE ID path that your
 workload will use. In our example, we'll use `/svc/foo`. We provide more
 guidance on choosing a SPIFFE ID structure in the
 [Best Practices](./best-practices.mdx) guide.
 
-Create a new file named `spiffe-issuer-role.yaml`:
+Create a new file called `workload-identity.yaml`:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: example-workload-identity
+  labels:
+    example: getting-started
+spec:
+  spiffe:
+    id: /svc/foo
+```
+
+Replace:
+
+- `example-workload-identity` with a name that describes your use-case.
+- `/svc/foo` with the SPIFFE ID path you have decided on issuing.
+
+Use `tctl create -f ./workload-identity.yaml` to create the Workload Identity.
+
+Now, you'll need to create a role that will grant access to the Workload Identity
+that you have just created. As with other Teleport resources, access is granted
+by specifying label matchers on the role that will match the labels on the
+resource itself.
+
+In addition to granting access to the resource, we will also need to grant the
+ability to read and list the Workload Identity resource type.
+
+Create `workload-identity-issuer-role.yaml`:
 
 ```yaml
 kind: role
 version: v6
 metadata:
-  name: spiffe-issuer
+  name: example-workload-identity-issuer
 spec:
   allow:
-    spiffe:
-    - path: "/svc/foo"
+    workload_identity_labels:
+      example: ["getting-started"]
+    rules:
+    - resources:
+      - workload_identity
+      verbs:
+      - list
+      - read
 ```
 
-Replace:
-
-- `spiffe-issuer` with a name that describes your use-case.
-- `/svc/foo` with the SPIFFE ID path you have decided on issuing.
-
-Use `tctl create -f ./spiffe-issuer-role.yaml` to create the role.
+Use `tctl create -f ./workload-identity-issuer-role.yaml` to create the role.
 
 Now, use `tctl bots update` to add the role to the Bot. Replace `example-bot`
-with the name of the Bot you created in the deployment guide and `spiffe-issuer`
-with the name of the role you just created:
+with the name of the Bot you created in the deployment guide and
+`example-workload-identity-issuer` with the name of the role you just created:
 
 ```code
-$ tctl bots update example-bot --add-roles spiffe-issuer
+$ tctl bots update example-bot --add-roles example-workload-identity-issuer
 ```
 
-## Step 2/4. Configure `spiffe-workload-api` service in `tbot`
+### Configuring DNS SANs
+
+In some cases, you may wish to configure DNS SANs which should be included in
+the X509 certificates issued by the Workload API. This is useful in cases
+where the client may not be SPIFFE aware and will check the DNS SAN rather than
+the SPIFFE URI during the TLS handshake.
+
+Modify your `workload-identity.yaml` resource definition to include the
+`spec.spiffe.x509.dns_sans` field, replacing `example.com` with the DNS name you
+require:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: example-workload-identity
+  labels:
+    example: getting-started
+spec:
+  spiffe:
+    id: /svc/foo
+    x509:
+      dns_sans:
+      - example.com
+```
+
+Use `tctl create -f ./workload-identity.yaml` to update the WorkloadIdentity
+resource with your changes.
+
+## Step 2/4. Configure `workload-identity-api` service in `tbot`
 
 To set up a SPIFFE Workload API endpoint with `tbot`, we configure an instance
-of the `spiffe-workload-api` service.
+of the `workload-identity-api` service.
 
 First, determine where you wish this socket to be created. In our example,
 we'll use `/opt/machine-id/workload.sock`. You may wish to choose a directory
 that is only accessible by the processes that will need to connect to the
 Workload API.
 
-Modify your `tbot` configuration file to include the `spiffe-workload-api`
+Modify your `tbot` configuration file to include the `workload-identity-api`
 service:
 
 ```yaml
 services:
-- type: spiffe-workload-api
+- type: workload-identity-api
   listen: unix:///opt/machine-id/workload.sock
-  svids:
-  - path: /svc/foo
-    hint: my-hint
+  selector:
+    name: example-workload-identity
 ```
 
 Replace:
 
 - `/opt/machine-id/workload.sock` with the path to the socket you wish to create.
-- `/svc/foo` with the SPIFFE ID path you have decided on issuing.
-- `my-hint` with a hint that will be included with the SVID. This can help
-  workloads identify which SVID they should select if multiple are presented.
-  This field can be omitted if not required.
+- `example-workload-identity` with the name of the Workload Identity resource you
+  created earlier.
 
 Start or restart your `tbot` instance to apply the new configuration
-
-### Configuring DNS and IP SANs
-
-In some cases, you may wish to configure DNS and IP SANs which should be
-included in the SVIDs issued by the Workload API. This is useful in cases
-where the client may not be SPIFFE aware and will check the DNS SAN rather than
-the SPIFFE URI during the TLS handshake.
-
-These can be configured in the `spiffe-workload-api` service using the `sans`
-configuration block:
-
-```yaml
-services:
-- type: spiffe-workload-api
-  listen: unix:///opt/machine-id/workload.sock
-  svids:
-  - path: /svc/foo
-    hint: my-hint
-    sans:
-      dns:
-      - example.com
-      ip:
-      - 10.0.0.1
-```
-
-You will also need to modify the role to explicitly grant the Bot permission to
-request an SVID including a DNS or IP SAN. For example:
-
-```yaml
-kind: role
-version: v6
-metadata:
-  name: spiffe-issuer
-spec:
-  allow:
-    spiffe:
-    - path: "/svc/foo"
-      # Replace with the DNS SANs that you wish your Bot to be able to include
-      # in SVIDs.
-      dns_sans: ["example.com"]
-      # Replace with the IP SANs that you wish your Bot to be able to include
-      # in SVIDs. You can remove this if you do not wish to include IP SANs.
-      # IPs must be specified using CIDR notation, which allows you to specify
-      # a single IP or a range of IPs.
-      ip_sans: ["10.0.0.1/32"]
-```
 
 ### Configuring Unix Workload Attestation
 
@@ -154,25 +174,35 @@ three characteristics of the workload process:
 - `gid`: The primary GID of the user that the workload process is running as.
 - `pid`: The PID of the workload process.
 
-To configure Workload Attestation, you configure a set of rules for each SVID.
-Each rule is a list of characteristics, and all characteristics within the rule
-must match for that rule to pass. If you have multiple rules, any one rule can
-pass for the SVID to be issued.
+Within a Workload Identity, you can configure rules based on the attributes
+determined via workload attestation. Each rule contains a number of tests and
+all tests must pass for the rule to pass. At least one rule must pass for the
+Workload Identity to be allowed to issue a credential.
 
-For example, to configure an SVID to be issued only to workloads that are
-running as the user with ID 1000 or running as a user with a primary group ID
-of 50:
+For example, to configure a Workload Identity to be issued only to workloads that
+are running as the user with ID 1000 or running as a user with a primary group
+ID of 50:
 
 ```yaml
-services:
-- type: spiffe-workload-api
-  listen: unix:///opt/machine-id/workload.sock
-  svids:
-  - path: /svc/foo
-    hint: my-hint
-    rules:
-      - uid: 1000
-      - gid: 50
+kind: workload_identity
+version: v1
+metadata:
+  name: example-workload-identity
+  labels:
+    example: getting-started
+spec:
+  rules:
+    allow:
+    - conditions:
+      - attribute: workload.unix.uid
+        eq:
+          value: 1000
+    - conditions:
+      - attribute: workload.unix.gid
+        eq:
+          value: 50
+  spiffe:
+    id: /svc/foo
 ```
 
 ## Step 3/4. Testing the Workload API with `tbot spiffe-inspect`
@@ -194,7 +224,6 @@ INFO [TBOT]      Inspecting SPIFFE Workload API Endpoint unix:///opt/machine-id/
 INFO [TBOT]      Received X.509 SVID context from Workload API bundles_count:1 svids_count:1 tbot/spiffe.go:46
 SVIDS
 - spiffe://example.teleport.sh/svc/foo
-  - Hint: my-hint
   - Expiry: 2024-03-20 10:55:52 +0000 UTC
 Trust Bundles
 - example.teleport.sh
@@ -218,5 +247,7 @@ integrating SPIFFE with your workloads.
 Workload Identity.
 - [Best Practices](./best-practices.mdx): Best practices for using Workload
 Identity in Production.
+- Read the [Workload Identity reference](../../reference/workload-identity/workload-identity-resource.mdx)
+to explore the configuration of the Workload Identity resource.
 - Read the [configuration reference](../../reference/machine-id/configuration.mdx) to explore
-all the available configuration options.
+all the available configuration options for `tbot`.

@@ -20,19 +20,20 @@ package latency
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = logrus.WithField(teleport.ComponentKey, "latency")
+var logger = logutils.NewPackageLogger(teleport.ComponentKey, "latency")
 
 // Statistics contain latency measurements for both
 // legs of a proxied connection.
@@ -127,7 +128,7 @@ func (c *MonitorConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.InitialPingInterval <= 0 {
-		c.InitialReportInterval = fullJitter(500 * time.Millisecond)
+		c.InitialReportInterval = retryutils.FullJitter(500 * time.Millisecond)
 	}
 
 	if c.ReportInterval <= 0 {
@@ -135,7 +136,7 @@ func (c *MonitorConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.InitialReportInterval <= 0 {
-		c.InitialReportInterval = halfJitter(1500 * time.Millisecond)
+		c.InitialReportInterval = retryutils.HalfJitter(1500 * time.Millisecond)
 	}
 
 	if c.Clock == nil {
@@ -144,12 +145,6 @@ func (c *MonitorConfig) CheckAndSetDefaults() error {
 
 	return nil
 }
-
-var (
-	seventhJitter = retryutils.NewSeventhJitter()
-	fullJitter    = retryutils.NewFullJitter()
-	halfJitter    = retryutils.NewHalfJitter()
-)
 
 // NewMonitor creates an unstarted [Monitor] with the provided configuration. To
 // begin sampling connection latencies [Monitor.Run] must be called.
@@ -194,10 +189,10 @@ func (m *Monitor) Run(ctx context.Context) {
 	for {
 		select {
 		case <-m.reportTimer.Chan():
-			if err := m.reporter.Report(ctx, m.GetStats()); err != nil {
-				log.WithError(err).Warn("failed to report latency stats")
+			if err := m.reporter.Report(ctx, m.GetStats()); err != nil && !errors.Is(err, context.Canceled) {
+				logger.WarnContext(ctx, "failed to report latency stats", "error", err)
 			}
-			m.reportTimer.Reset(seventhJitter(m.reportInterval))
+			m.reportTimer.Reset(retryutils.SeventhJitter(m.reportInterval))
 		case <-ctx.Done():
 			return
 		}
@@ -211,12 +206,12 @@ func (m *Monitor) pingLoop(ctx context.Context, pinger Pinger, timer clockwork.T
 			return
 		case <-timer.Chan():
 			then := m.clock.Now()
-			if err := pinger.Ping(ctx); err != nil {
-				log.WithError(err).Warn("unexpected failure sending ping")
+			if err := pinger.Ping(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				logger.WarnContext(ctx, "unexpected failure sending ping", "error", err)
 			} else {
 				latency.Store(m.clock.Now().Sub(then).Milliseconds())
 			}
-			timer.Reset(seventhJitter(m.pingInterval))
+			timer.Reset(retryutils.SeventhJitter(m.pingInterval))
 		}
 	}
 }

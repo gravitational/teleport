@@ -340,7 +340,7 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 			require.NoError(t, auth.CreateToken(ctx, token))
 			tt.initReq.JoinRequest.Token = tt.name
 
-			_, err = auth.registerUsingTPMMethod(
+			_, err = auth.RegisterUsingTPMMethod(
 				ctx,
 				tt.initReq,
 				solver(t))

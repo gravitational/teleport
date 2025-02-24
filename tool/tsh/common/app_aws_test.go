@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
@@ -149,39 +148,6 @@ func TestAWS(t *testing.T) {
 		setCmdRunner(validateCmd),
 	)
 	require.NoError(t, err)
-
-	t.Run("aws ssm start-session", func(t *testing.T) {
-		// Validate --endpoint-url 127.0.0.1:<port> is added to the command.
-		validateCmd := func(cmd *exec.Cmd) error {
-			require.Len(t, cmd.Args, 9)
-			require.Equal(t, []string{"aws", "ssm", "--region", "us-west-1", "start-session", "--target", "target-id", "--endpoint-url"}, cmd.Args[:8])
-			require.Contains(t, cmd.Args[8], "127.0.0.1:")
-			return nil
-		}
-		err = Run(
-			context.Background(),
-			[]string{"aws", "ssm", "--region", "us-west-1", "start-session", "--target", "target-id"},
-			setHomePath(tmpHomePath),
-			setCmdRunner(validateCmd),
-		)
-		require.NoError(t, err)
-	})
-	t.Run("aws ecs execute-command", func(t *testing.T) {
-		// Validate --endpoint-url 127.0.0.1:<port> is added to the command.
-		validateCmd := func(cmd *exec.Cmd) error {
-			require.Len(t, cmd.Args, 13)
-			require.Equal(t, []string{"aws", "ecs", "execute-command", "--debug", "--cluster", "cluster-name", "--task", "task-name", "--command", "/bin/bash", "--interactive", "--endpoint-url"}, cmd.Args[:12])
-			require.Contains(t, cmd.Args[12], "127.0.0.1:")
-			return nil
-		}
-		err = Run(
-			context.Background(),
-			[]string{"aws", "ecs", "execute-command", "--debug", "--cluster", "cluster-name", "--task", "task-name", "--command", "/bin/bash", "--interactive"},
-			setHomePath(tmpHomePath),
-			setCmdRunner(validateCmd),
-		)
-		require.NoError(t, err)
-	})
 }
 
 // TestAWSConsoleLogins given a AWS console application, execute a app login
@@ -190,11 +156,7 @@ func TestAWS(t *testing.T) {
 func TestAWSConsoleLogins(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	isInsecure := lib.IsInsecureDevMode()
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() {
-		lib.SetInsecureDevMode(isInsecure)
-	})
+
 	tmpHomePath := t.TempDir()
 	connector := mockConnector(t)
 

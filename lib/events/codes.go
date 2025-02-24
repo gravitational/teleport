@@ -286,6 +286,8 @@ const (
 	ExecFailureCode = "T3002E"
 	// PortForwardCode is the port forward event code.
 	PortForwardCode = "T3003I"
+	// PortForwardStopCode is the port forward stop event code.
+	PortForwardStopCode = "T3003S"
 	// PortForwardFailureCode is the port forward failure event code.
 	PortForwardFailureCode = "T3003E"
 	// SCPDownloadCode is the file download event code.
@@ -320,45 +322,29 @@ const (
 	KubernetesClusterDeleteCode = "T3012I"
 
 	// The following codes correspond to SFTP file operations.
-	SFTPOpenCode            = "TS001I"
-	SFTPOpenFailureCode     = "TS001E"
-	SFTPCloseCode           = "TS002I"
-	SFTPCloseFailureCode    = "TS002E"
-	SFTPReadCode            = "TS003I"
-	SFTPReadFailureCode     = "TS003E"
-	SFTPWriteCode           = "TS004I"
-	SFTPWriteFailureCode    = "TS004E"
-	SFTPLstatCode           = "TS005I"
-	SFTPLstatFailureCode    = "TS005E"
-	SFTPFstatCode           = "TS006I"
-	SFTPFstatFailureCode    = "TS006E"
-	SFTPSetstatCode         = "TS007I"
-	SFTPSetstatFailureCode  = "TS007E"
-	SFTPFsetstatCode        = "TS008I"
-	SFTPFsetstatFailureCode = "TS008E"
-	SFTPOpendirCode         = "TS009I"
-	SFTPOpendirFailureCode  = "TS009E"
-	SFTPReaddirCode         = "TS010I"
-	SFTPReaddirFailureCode  = "TS010E"
-	SFTPRemoveCode          = "TS011I"
-	SFTPRemoveFailureCode   = "TS011E"
-	SFTPMkdirCode           = "TS012I"
-	SFTPMkdirFailureCode    = "TS012E"
-	SFTPRmdirCode           = "TS013I"
-	SFTPRmdirFailureCode    = "TS013E"
-	SFTPRealpathCode        = "TS014I"
-	SFTPRealpathFailureCode = "TS014E"
-	SFTPStatCode            = "TS015I"
-	SFTPStatFailureCode     = "TS015E"
-	SFTPRenameCode          = "TS016I"
-	SFTPRenameFailureCode   = "TS016E"
-	SFTPReadlinkCode        = "TS017I"
-	SFTPReadlinkFailureCode = "TS017E"
-	SFTPSymlinkCode         = "TS018I"
-	SFTPSymlinkFailureCode  = "TS018E"
-	SFTPLinkCode            = "TS019I"
-	SFTPLinkFailureCode     = "TS019E"
-	SFTPDisallowedCode      = "TS020E"
+	SFTPOpenCode           = "TS001I"
+	SFTPOpenFailureCode    = "TS001E"
+	SFTPSetstatCode        = "TS007I"
+	SFTPSetstatFailureCode = "TS007E"
+	SFTPOpendirCode        = "TS009I"
+	SFTPOpendirFailureCode = "TS009E"
+	SFTPReaddirCode        = "TS010I"
+	SFTPReaddirFailureCode = "TS010E"
+	SFTPRemoveCode         = "TS011I"
+	SFTPRemoveFailureCode  = "TS011E"
+	SFTPMkdirCode          = "TS012I"
+	SFTPMkdirFailureCode   = "TS012E"
+	SFTPRmdirCode          = "TS013I"
+	SFTPRmdirFailureCode   = "TS013E"
+	SFTPRenameCode         = "TS016I"
+	SFTPRenameFailureCode  = "TS016E"
+	SFTPSymlinkCode        = "TS018I"
+	SFTPSymlinkFailureCode = "TS018E"
+	SFTPLinkCode           = "TS019I"
+	SFTPLinkFailureCode    = "TS019E"
+	SFTPDisallowedCode     = "TS020E"
+	// SFTPSummaryCode is the SFTP summary code.
+	SFTPSummaryCode = "TS021I"
 
 	// SessionCommandCode is a session command code.
 	SessionCommandCode = "T4000I"
@@ -377,6 +363,8 @@ const (
 	AccessRequestDeleteCode = "T5003I"
 	// AccessRequestResourceSearchCode is the access request resource search code.
 	AccessRequestResourceSearchCode = "T5004I"
+	// AccessRequestExpireCode is the access request expires code.
+	AccessRequestExpireCode = "T5005I"
 
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"
@@ -595,6 +583,9 @@ const (
 	// AccessListMemberDeleteAllForAccessListFailureCode is the access list member delete failure code.
 	AccessListMemberDeleteAllForAccessListFailureCode = "TAL008E"
 
+	// UserLoginAccessListInvalidCode is the user login access list invalid code. This event is a warning that an access list is invalid and was not applied upon the user's login.
+	UserLoginAccessListInvalidCode = "TAL009W"
+
 	// SecReportsAuditQueryRunCode is used when a custom Security Reports Query is run.
 	SecReportsAuditQueryRunCode = "SRE001I"
 
@@ -671,6 +662,60 @@ const (
 	// UserTaskDeleteCode is the user task delete event code.
 	UserTaskDeleteCode = "UT003I"
 
+	// AutoUpdateConfigCreateCode is the auto update config create event code.
+	AutoUpdateConfigCreateCode = "AUC001I"
+	// AutoUpdateConfigUpdateCode is the auto update config update event code.
+	AutoUpdateConfigUpdateCode = "AUC002I"
+	// AutoUpdateConfigDeleteCode is the auto update config delete event code.
+	AutoUpdateConfigDeleteCode = "AUC003I"
+
+	// AutoUpdateVersionCreateCode is the auto update version create event code.
+	AutoUpdateVersionCreateCode = "AUV001I"
+	// AutoUpdateVersionUpdateCode is the auto update version update event code.
+	AutoUpdateVersionUpdateCode = "AUV002I"
+	// AutoUpdateVersionDeleteCode is the auto update version delete event code.
+	AutoUpdateVersionDeleteCode = "AUV003I"
+
+	// ContactCreateCode is the auto update version create event code.
+	ContactCreateCode = "TCTC001I"
+	// ContactDeleteCode is the auto update version delete event code.
+	ContactDeleteCode = "TCTC002I"
+
+	// WorkloadIdentityCreateCode is the workload identity create event code.
+	WorkloadIdentityCreateCode = "WID001I"
+	// WorkloadIdentityUpdateCode is the workload identity update event code.
+	WorkloadIdentityUpdateCode = "WID002I"
+	// WorkloadIdentityDeleteCode is the workload identity delete event code.
+	WorkloadIdentityDeleteCode = "WID003I"
+	// WorkloadIdentityX509RevocationCreateCode is the
+	// WorkloadIdentityX509Revocation create event code.
+	WorkloadIdentityX509RevocationCreateCode = "WID004I"
+	// WorkloadIdentityX509RevocationUpdateCode is the
+	// WorkloadIdentityX509Revocation update event code.
+	WorkloadIdentityX509RevocationUpdateCode = "WID005I"
+	// WorkloadIdentityX509RevocationDeleteCode is the
+	// WorkloadIdentityX509Revocation delete event code.
+	WorkloadIdentityX509RevocationDeleteCode = "WID006I"
+
+	// GitCommandCode is the git command event code
+	GitCommandCode = "TGIT001I"
+	// GitCommandFailureCode is the git command feature event code.
+	GitCommandFailureCode = "TGIT001E"
+
+	// StableUNIXUserCreateCode is the stable UNIX user create event code.
+	StableUNIXUserCreateCode = "TSUU001I"
+
+	// AWSICResourceSyncSuccessCode is the AWS Identity Center resource
+	// sync attempt success code.
+	AWSICResourceSyncSuccessCode = "TAIC001I"
+	// AWSICResourceSyncFailureCode is the AWS Identity Center resource
+	// sync attempt failure code.
+	AWSICResourceSyncFailureCode = "TAIC001E"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )
+
+// After defining an event code, make sure to keep
+// `web/packages/teleport/src/services/audit/types.ts` in sync and add an
+// entry in the `eventsMap` in `lib/events/events_test.go`.

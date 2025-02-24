@@ -16,26 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Alert, Box, Flex } from 'design';
-import React, { useState } from 'react';
-import { useAsync } from 'shared/hooks/useAsync';
+import { useCallback, useEffect, useId, useState } from 'react';
 
+import { Alert, Box, Flex } from 'design';
+import { Danger } from 'design/Alert';
+import Validation, { Validator } from 'shared/components/Validation';
+import { Attempt, useAsync } from 'shared/hooks/useAsync';
+
+import { CatchError } from 'teleport/components/CatchError';
+import cfg from 'teleport/config';
 import { Role, RoleWithYaml } from 'teleport/services/resources';
+import { storageService } from 'teleport/services/storageService';
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 import { yamlService } from 'teleport/services/yaml';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
-import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
+import { EditorHeader } from './EditorHeader';
+import { EditorTab } from './EditorTabs';
+import { unableToUpdatePreviewMessage } from './Shared';
+import { StandardEditor } from './StandardEditor/StandardEditor';
 import {
   roleEditorModelToRole,
-  newRole,
-  StandardEditorModel,
-  roleToRoleEditorModel as roleToRoleEditorModel,
-} from './standardmodel';
-import { YamlEditorModel } from './yamlmodel';
-import { EditorTab, EditorTabs } from './EditorTabs';
-import { EditorHeader } from './EditorHeader';
-import { StandardEditor } from './StandardEditor';
+  roleToRoleEditorModel,
+} from './StandardEditor/standardmodel';
+import { useStandardModel } from './StandardEditor/useStandardModel';
 import { YamlEditor } from './YamlEditor';
+import { YamlEditorModel } from './yamlmodel';
 
 export type RoleEditorProps = {
   /**
@@ -43,9 +49,13 @@ export type RoleEditorProps = {
    * `undefined` if the user is creating a new role.
    */
   originalRole?: RoleWithYaml;
+  /**
+   * An attempt to show the role diff component. Used to show an error state.
+   */
+  roleDiffAttempt?: Attempt<unknown>;
   onCancel?(): void;
   onSave?(r: Partial<RoleWithYaml>): Promise<void>;
-  onDelete?(): void;
+  onRoleUpdate?(r: Role): void;
 };
 
 /**
@@ -55,20 +65,27 @@ export type RoleEditorProps = {
  */
 export const RoleEditor = ({
   originalRole,
+  roleDiffAttempt,
   onCancel,
   onSave,
-  onDelete,
+  onRoleUpdate,
 }: RoleEditorProps) => {
-  const [standardModel, setStandardModel] = useState<StandardEditorModel>(
-    () => {
-      const role = originalRole?.object ?? newRole();
-      const roleModel = roleToRoleEditorModel(role, role);
-      return {
-        roleModel,
-        isDirty: !originalRole, // New role is dirty by default.
-      };
+  const roleTesterEnabled =
+    cfg.isPolicyEnabled && storageService.getAccessGraphRoleTesterEnabled();
+  const idPrefix = useId();
+  // These IDs are needed to connect accessibility attributes between the
+  // standard/YAML tab switcher and the switched panels.
+  const standardEditorId = `${idPrefix}-standard`;
+  const yamlEditorId = `${idPrefix}-yaml`;
+
+  const [standardModel, dispatch] = useStandardModel(originalRole?.object);
+
+  useEffect(() => {
+    const { roleModel, validationResult } = standardModel;
+    if (roleModel && validationResult?.isValid) {
+      onRoleUpdate?.(roleEditorModelToRole(roleModel));
     }
-  );
+  }, [standardModel, onRoleUpdate]);
 
   const [yamlModel, setYamlModel] = useState<YamlEditorModel>({
     content: originalRole?.yaml ?? '',
@@ -76,20 +93,40 @@ export const RoleEditor = ({
   });
 
   // Defaults to yaml editor if the role could not be parsed.
-  const [selectedEditorTab, setSelectedEditorTab] = useState<EditorTab>(() =>
-    standardModel.roleModel.requiresReset ? EditorTab.Yaml : EditorTab.Standard
-  );
+  const [selectedEditorTab, setSelectedEditorTab] = useState<EditorTab>(() => {
+    const { roleModel } = standardModel;
+    return roleModel === undefined || roleModel.requiresReset
+      ? EditorTab.Yaml
+      : EditorTab.Standard;
+  });
 
   // Converts YAML representation to a standard editor model.
   const [parseAttempt, parseYaml] = useAsync(async () => {
-    const parsedRole = await yamlService.parse<Role>(
-      YamlSupportedResourceKind.Role,
-      {
-        yaml: yamlModel.content,
-      }
-    );
-    return roleToRoleEditorModel(parsedRole, originalRole?.object);
+    try {
+      const parsedRole = await yamlModelToRole(yamlModel);
+      return roleToRoleEditorModel(parsedRole, originalRole?.object);
+    } catch (err) {
+      throw new Error('Unable to load role into the standard editor', {
+        cause: err,
+      });
+    }
   });
+
+  // The standard editor will automatically preview the changes based on state updates
+  // but the yaml editor needs to be told when to update (the preview button)
+  const [yamlPreviewAttempt, handleYamlPreview] = useAsync(
+    useCallback(async () => {
+      if (!onRoleUpdate) {
+        return;
+      }
+      try {
+        const newRole = await yamlModelToRole(yamlModel);
+        onRoleUpdate(newRole);
+      } catch (err) {
+        throw new Error(unableToUpdatePreviewMessage, { cause: err });
+      }
+    }, [onRoleUpdate, yamlModel])
+  );
 
   // Converts standard editor model to a YAML representation.
   const [yamlifyAttempt, yamlifyRole] = useAsync(
@@ -113,7 +150,23 @@ export const RoleEditor = ({
     yamlifyAttempt.status === 'processing' ||
     saveAttempt.status === 'processing';
 
-  async function onTabChange(activeIndex: EditorTab) {
+  async function onTabChange(activeIndex: EditorTab, validator: Validator) {
+    // The code below is not idempotent, so we need to protect ourselves from
+    // an accidental model replacement.
+    if (activeIndex === selectedEditorTab) return;
+
+    // Validate the model on tab switch, because the server-side yamlification
+    // requires model to be valid. However, if it's OK, we reset the validator.
+    // We don't want it to be validating at this point, since the user didn't
+    // attempt to submit the form.
+    if (
+      standardModel.roleModel !== undefined &&
+      !standardModel.roleModel?.requiresReset &&
+      !validator.validate()
+    )
+      return;
+    validator.reset();
+
     switch (activeIndex) {
       case EditorTab.Standard: {
         if (!yamlModel.content) {
@@ -124,14 +177,14 @@ export const RoleEditor = ({
         // Abort if there's an error. Don't switch the tab or set the model.
         if (err) return;
 
-        setStandardModel({
-          roleModel,
-          isDirty: yamlModel.isDirty,
+        dispatch({
+          type: 'set-role-model',
+          payload: roleModel,
         });
         break;
       }
       case EditorTab.Yaml: {
-        if (standardModel.roleModel.requiresReset) {
+        if (standardModel.roleModel?.requiresReset) {
           break;
         }
         const [content, err] = await yamlifyRole();
@@ -159,50 +212,87 @@ export const RoleEditor = ({
   }
 
   return (
-    <Flex flexDirection="column" flex="1">
-      <EditorHeader role={originalRole?.object} onDelete={onDelete} />
-      {saveAttempt.status === 'error' && (
-        <Alert mt={3} dismissible>
-          {saveAttempt.statusText}
-        </Alert>
+    <Validation>
+      {({ validator }) => (
+        <Flex flexDirection="column" flex="1">
+          <Box mt={3} mx={3}>
+            <EditorHeader
+              role={originalRole?.object}
+              selectedEditorTab={selectedEditorTab}
+              onEditorTabChange={index => onTabChange(index, validator)}
+              isProcessing={isProcessing}
+              standardEditorId={standardEditorId}
+              yamlEditorId={yamlEditorId}
+              onClose={onCancel}
+            />
+            <AttemptAlert attempt={saveAttempt} />
+            <AttemptAlert attempt={parseAttempt} />
+            <AttemptAlert attempt={yamlifyAttempt} />
+            <AttemptAlert attempt={yamlPreviewAttempt} />
+            <AttemptAlert attempt={roleDiffAttempt} />
+          </Box>
+          {selectedEditorTab === EditorTab.Standard && (
+            <Flex flexDirection="column" flex="1" id={standardEditorId}>
+              <CatchError fallbackFn={StandardEditorRenderingError}>
+                <StandardEditor
+                  originalRole={originalRole}
+                  onSave={object => handleSave({ object })}
+                  onCancel={handleCancel}
+                  standardEditorModel={standardModel}
+                  isProcessing={isProcessing}
+                  dispatch={dispatch}
+                />
+              </CatchError>
+            </Flex>
+          )}
+          {selectedEditorTab === EditorTab.Yaml && (
+            <Flex flexDirection="column" flex="1" id={yamlEditorId}>
+              <YamlEditor
+                yamlEditorModel={yamlModel}
+                onChange={setYamlModel}
+                onSave={async yaml => void (await handleSave({ yaml }))}
+                isProcessing={isProcessing}
+                onCancel={handleCancel}
+                originalRole={originalRole}
+                onPreview={roleTesterEnabled ? handleYamlPreview : undefined}
+              />
+            </Flex>
+          )}
+        </Flex>
       )}
-      {parseAttempt.status === 'error' && (
-        <Alert mt={3} dismissible>
-          {parseAttempt.statusText}
-        </Alert>
-      )}
-      {yamlifyAttempt.status === 'error' && (
-        <Alert mt={3} dismissible>
-          {yamlifyAttempt.statusText}
-        </Alert>
-      )}
-      <Box mb={3}>
-        <EditorTabs
-          onTabChange={onTabChange}
-          selectedEditorTab={selectedEditorTab}
-          isProcessing={isProcessing}
-        />
-      </Box>
-      {selectedEditorTab === EditorTab.Standard && (
-        <StandardEditor
-          originalRole={originalRole}
-          onSave={object => handleSave({ object })}
-          onCancel={handleCancel}
-          standardEditorModel={standardModel}
-          isProcessing={isProcessing}
-          onChange={setStandardModel}
-        />
-      )}
-      {selectedEditorTab === EditorTab.Yaml && (
-        <YamlEditor
-          yamlEditorModel={yamlModel}
-          onChange={setYamlModel}
-          onSave={async yaml => void (await handleSave({ yaml }))}
-          isProcessing={isProcessing}
-          onCancel={handleCancel}
-          originalRole={originalRole}
-        />
-      )}
-    </Flex>
+    </Validation>
   );
 };
+
+const yamlModelToRole = ({ content }: YamlEditorModel) =>
+  yamlService.parse<Role>(YamlSupportedResourceKind.Role, {
+    yaml: content,
+  });
+
+/** A custom  fallback component for {@link CatchError}. */
+const StandardEditorRenderingError = ({ error }: { error: Error }) => (
+  <Alert mx={3} details={error.message}>
+    Unable to render the standard editor. Please switch to the YAML editor
+    above.
+  </Alert>
+);
+
+/** Renders an alert if attempt is defined and has failed. */
+const AttemptAlert = ({ attempt }: { attempt?: Attempt<unknown> }) => {
+  if (attempt?.status !== 'error') return;
+  return attempt.error ? (
+    <ErrorAlert error={attempt.error} />
+  ) : (
+    <Danger mt={3} dismissible>
+      {attempt.statusText}
+    </Danger>
+  );
+};
+
+/** Renders an alert if there is an error. */
+const ErrorAlert = ({ error }: { error: Error }) =>
+  error && (
+    <Danger mt={3} dismissible details={error.cause?.toString()}>
+      {error.message}
+    </Danger>
+  );

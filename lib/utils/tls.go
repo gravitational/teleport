@@ -43,6 +43,11 @@ func SetupTLSConfig(config *tls.Config, cipherSuites []uint16) {
 		config.CipherSuites = cipherSuites
 	}
 
+	// pre-v17 Teleport uses a client ticket cache, which doesn't play well with
+	// verification (both client- and server-side) when using dynamic
+	// credentials and CAs (in v17+ Teleport)
+	config.SessionTicketsDisabled = true
+
 	config.MinVersion = tls.VersionTLS12
 }
 
@@ -143,17 +148,10 @@ type TLSConn interface {
 // cipherSuiteMapping is the mapping between Teleport formatted cipher
 // suites strings and uint16 IDs.
 var cipherSuiteMapping = map[string]uint16{
-	"tls-rsa-with-aes-128-cbc-sha":            tls.TLS_RSA_WITH_AES_128_CBC_SHA,
-	"tls-rsa-with-aes-256-cbc-sha":            tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-	"tls-rsa-with-aes-128-cbc-sha256":         tls.TLS_RSA_WITH_AES_128_CBC_SHA256,
-	"tls-rsa-with-aes-128-gcm-sha256":         tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
-	"tls-rsa-with-aes-256-gcm-sha384":         tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
 	"tls-ecdhe-ecdsa-with-aes-128-cbc-sha":    tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
 	"tls-ecdhe-ecdsa-with-aes-256-cbc-sha":    tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
 	"tls-ecdhe-rsa-with-aes-128-cbc-sha":      tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
 	"tls-ecdhe-rsa-with-aes-256-cbc-sha":      tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-	"tls-ecdhe-ecdsa-with-aes-128-cbc-sha256": tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
-	"tls-ecdhe-rsa-with-aes-128-cbc-sha256":   tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
 	"tls-ecdhe-rsa-with-aes-128-gcm-sha256":   tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 	"tls-ecdhe-ecdsa-with-aes-128-gcm-sha256": tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 	"tls-ecdhe-rsa-with-aes-256-gcm-sha384":   tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,

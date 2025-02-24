@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"errors"
+	"log/slog"
 	"net"
 	"net/http"
 	"sync"
@@ -32,7 +33,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -81,7 +81,7 @@ type KubeMiddleware struct {
 	// headless controls whether proxy is working in headless login mode.
 	headless bool
 
-	logger       logrus.FieldLogger
+	logger       *slog.Logger
 	closeContext context.Context
 
 	// isCertReissuingRunning is used to only ever have one concurrent cert reissuing session requiring user input.
@@ -97,7 +97,7 @@ type KubeMiddlewareConfig struct {
 	CertReissuer KubeCertReissuer
 	Headless     bool
 	Clock        clockwork.Clock
-	Logger       logrus.FieldLogger
+	Logger       *slog.Logger
 	CloseContext context.Context
 }
 
@@ -122,7 +122,7 @@ func (m *KubeMiddleware) CheckAndSetDefaults() error {
 		m.clock = clockwork.NewRealClock()
 	}
 	if m.logger == nil {
-		m.logger = logrus.WithField(teleport.ComponentKey, "local_proxy_kube")
+		m.logger = slog.With(teleport.ComponentKey, "local_proxy_kube")
 	}
 	if m.closeContext == nil {
 		return trace.BadParameter("missing close context")
@@ -140,12 +140,12 @@ func initKubeCodecs() serializer.CodecFactory {
 	return serializer.NewCodecFactory(kubeScheme)
 }
 
-func writeKubeError(rw http.ResponseWriter, kubeError *apierrors.StatusError, logger logrus.FieldLogger) {
+func writeKubeError(ctx context.Context, rw http.ResponseWriter, kubeError *apierrors.StatusError, logger *slog.Logger) {
 	kubeCodecs := initKubeCodecs()
 	status := kubeError.Status()
 	errorBytes, err := runtime.Encode(kubeCodecs.LegacyCodec(), &status)
 	if err != nil {
-		logger.Warnf("Failed to encode Kube status error: %v.", err)
+		logger.WarnContext(ctx, "Failed to encode Kube status error", "error", err)
 		trace.WriteError(rw, trace.Wrap(kubeError))
 	}
 
@@ -153,8 +153,16 @@ func writeKubeError(rw http.ResponseWriter, kubeError *apierrors.StatusError, lo
 	rw.WriteHeader(int(status.Code))
 
 	if _, err := rw.Write(errorBytes); err != nil {
-		logger.Warnf("Failed to write Kube error: %v.", err)
+		logger.WarnContext(ctx, "Failed to write Kube error", "error", err)
 	}
+}
+
+// ClearCerts clears the middleware certs.
+// It will try to reissue them when a new request comes in.
+func (m *KubeMiddleware) ClearCerts() {
+	m.certsMu.Lock()
+	defer m.certsMu.Unlock()
+	clear(m.certs)
 }
 
 // HandleRequest checks if middleware has valid certificate for this request and
@@ -162,7 +170,10 @@ func writeKubeError(rw http.ResponseWriter, kubeError *apierrors.StatusError, lo
 // so caller won't continue processing the request.
 func (m *KubeMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request) bool {
 	cert, err := m.getCertForRequest(req)
-	if err != nil {
+	// If the cert is cleared using m.ClearCerts(), it won't be found.
+	// This forces the middleware to issue a new cert on a new request.
+	// This is used in access requests in Connect where we want to refresh certs without closing the proxy.
+	if err != nil && !trace.IsNotFound(err) {
 		return false
 	}
 
@@ -170,7 +181,7 @@ func (m *KubeMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request
 	if err != nil {
 		// If user input is required we return an error that will try to get user attention to the local proxy
 		if errors.Is(err, ErrUserInputRequired) {
-			writeKubeError(rw, &apierrors.StatusError{
+			writeKubeError(req.Context(), rw, &apierrors.StatusError{
 				ErrStatus: metav1.Status{
 					TypeMeta: metav1.TypeMeta{
 						Kind:       "Status",
@@ -184,7 +195,7 @@ func (m *KubeMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request
 			}, m.logger)
 			return true
 		}
-		m.logger.WithError(err).Warnf("Failed to reissue certificate for server %v", req.TLS.ServerName)
+		m.logger.WarnContext(req.Context(), "Failed to reissue certificate for server", "server", req.TLS.ServerName)
 		trace.WriteError(rw, trace.Wrap(err))
 		return true
 	}
@@ -220,23 +231,38 @@ func (m *KubeMiddleware) OverwriteClientCerts(req *http.Request) ([]tls.Certific
 var ErrUserInputRequired = errors.New("user input required")
 
 // reissueCertIfExpired checks if provided certificate has expired and reissues it if needed and replaces in the middleware certs.
+// serverName has a form of <hex-encoded-kube-cluster>.<teleport-cluster>.
 func (m *KubeMiddleware) reissueCertIfExpired(ctx context.Context, cert tls.Certificate, serverName string) error {
-	x509Cert, err := utils.TLSCertLeaf(cert)
-	if err != nil {
-		return trace.Wrap(err)
+	needsReissue := false
+	if len(cert.Certificate) == 0 {
+		m.logger.InfoContext(ctx, "missing TLS certificate, attempting to reissue a new one")
+		needsReissue = true
+	} else {
+		x509Cert, err := utils.TLSCertLeaf(cert)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := utils.VerifyCertificateExpiry(x509Cert, m.clock); err != nil {
+			needsReissue = true
+		}
 	}
-	if err := utils.VerifyCertificateExpiry(x509Cert, m.clock); err == nil {
+	if !needsReissue {
 		return nil
 	}
 
 	if m.certReissuer == nil {
-		return trace.BadParameter("can't reissue expired proxy certificate - reissuer is not available")
+		return trace.BadParameter("can't reissue proxy certificate - reissuer is not available")
 	}
-
-	// If certificate has expired we try to reissue it.
-	identity, err := tlsca.FromSubject(x509Cert.Subject, x509Cert.NotAfter)
+	teleportCluster := common.TeleportClusterFromKubeLocalProxySNI(serverName)
+	if teleportCluster == "" {
+		return trace.BadParameter("can't reissue proxy certificate - teleport cluster is empty")
+	}
+	kubeCluster, err := common.KubeClusterFromKubeLocalProxySNI(serverName)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "can't reissue proxy certificate - kube cluster name is invalid")
+	}
+	if kubeCluster == "" {
+		return trace.BadParameter("can't reissue proxy certificate - kube cluster is empty")
 	}
 
 	errCh := make(chan error, 1)
@@ -247,11 +273,7 @@ func (m *KubeMiddleware) reissueCertIfExpired(ctx context.Context, cert tls.Cert
 		go func() {
 			defer m.isCertReissuingRunning.Store(false)
 
-			cluster := identity.TeleportCluster
-			if identity.RouteToCluster != "" {
-				cluster = identity.RouteToCluster
-			}
-			newCert, err := m.certReissuer(m.closeContext, cluster, identity.KubernetesCluster)
+			newCert, err := m.certReissuer(m.closeContext, teleportCluster, kubeCluster)
 			if err == nil {
 				m.certsMu.Lock()
 				m.certs[serverName] = newCert

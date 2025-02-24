@@ -69,7 +69,7 @@ following components:
 
 The Teleport Auth Service runs a certificate authority that issues a host
 certificate to an agent when it joins the cluster for the first time. Read [Join
-Services to your Teleport Cluster](../../enroll-resources/agents/join-services-to-your-cluster.mdx)
+Services to your Teleport Cluster](../../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx)
 for the available methods you can use to join an agent to your Teleport cluster.
 
 All agents in a Teleport cluster keep the Auth Service updated on their status
@@ -133,7 +133,7 @@ In direct mode, SSH Service instances act like OpenSSH servers that only accept
 client SSH certificates. Users can connect to SSH servers through the Teleport
 Proxy Service as a jump-host or directly:
 
-![Standard Mode](../../../img/architecture/ssh-direct-mode@1.2x.svg)
+![Standard Mode](../../../img/architecture/ssh-direct-mode@1.2x.png)
 
 Direct mode is designed for legacy use cases and only supports self-hosted
 Teleport clusters. We recommend joining agents through the Teleport Proxy
@@ -172,21 +172,21 @@ To learn more about the mechanism an agent uses to authenticate to an
 infrastructure resource, read the guide to enrolling that resource in your
 Teleport cluster:
 
-- [Applications](../../enroll-resources/application-access/guides.mdx)
-- [Cloud provider APIs](../../enroll-resources/application-access/cloud-apis.mdx)
-- [Databases](../../enroll-resources/database-access/guides.mdx)
-- [Kubernetes clusters](../../enroll-resources/kubernetes-access/register-clusters.mdx)
+- [Applications](../../enroll-resources/application-access/guides/guides.mdx)
+- [Cloud provider APIs](../../enroll-resources/application-access/cloud-apis/cloud-apis.mdx)
+- [Databases](../../enroll-resources/database-access/guides/guides.mdx)
+- [Kubernetes clusters](../../enroll-resources/kubernetes-access/register-clusters/register-clusters.mdx)
 - [Linux hosts with Teleport](../../enroll-resources/server-access/getting-started.mdx)
-- [OpenSSH servers](../../enroll-resources/server-access/openssh.mdx)
+- [OpenSSH servers](../../enroll-resources/server-access/openssh/openssh.mdx)
 - [Windows desktops](../../enroll-resources/desktop-access/getting-started.mdx)
 
-## Clients to agents
+## Clients to Agents
 
-Client tools authenticate to Teleport agent by presenting certificates signed by
-a Teleport certificate authority, forwarding traffic to the agent through an SSH
-reverse tunnel established between the Teleport Proxy Service and the agent.
+Client tools authenticate to Teleport Agents by presenting certificates signed by
+a Teleport certificate authority, forwarding traffic to the Agent through an SSH
+reverse tunnel established between the Teleport Proxy Service and the Agent.
 Clients need to retrieve a certificate, then connect to an infrastructure
-resource through the agent.
+resource through the Agent.
 
 ### Credentials for Teleport clients
 
@@ -275,5 +275,5 @@ Reference](../monitoring/audit.mdx).
 
 ## Further reading
 
-- For instructions on deploying agents, see the [Teleport agent
+- For instructions on deploying agents, see the [Teleport Agent
   guides](../../enroll-resources/agents/introduction.mdx).

@@ -300,7 +300,7 @@ method](#aws-iam-role-iam) or [ephemeral secret tokens](#ephemeral-tokens).
 
 ### Azure managed identity: `azure`
 
-The Azure join method is available to any Teleport process running in an 
+The Azure join method is available to any Teleport process running in an
 Azure Virtual Machine. Support for joining a cluster with the Proxy Service
 behind a layer 7 load balancer or reverse proxy is available in Teleport 13.0+.
 
@@ -438,4 +438,28 @@ Support for self-hosted Terraform Enterprise requires Teleport Enterprise.
 
 <Admonition type="note" title="See Also">
 - [Run the Teleport Terraform Provider on Terraform Cloud](../admin-guides/infrastructure-as-code/terraform-provider/terraform-cloud.mdx)
+</Admonition>
+
+### Bitbucket Pipelines: `bitbucket`
+
+This join method is used to authenticate using Bitbucket's support for OpenID
+Connect, and is typically used to allow either Machine ID's `tbot` or the
+Teleport Terraform provider to authenticate to Teleport without use of shared
+secrets.
+
+(!docs/pages/includes/provision-token/bitbucket-spec.mdx!)
+
+<Admonition type="note" title="See Also">
+- [Deploying Machine ID on Bitbucket Pipelines](../enroll-resources/machine-id/deployment/bitbucket.mdx)
+</Admonition>
+
+### Oracle Cloud: `oracle`
+
+The Oracle join method is available to any Teleport process running on an Oracle
+Cloud Compute instance.
+
+(!docs/pages/includes/provision-token/oracle-spec.mdx!)
+
+<Admonition type="note" title="See Also">
+- How to [Join Services with Oracle Cloud](../enroll-resources/agents/join-services-to-your-cluster/oracle.mdx).
 </Admonition>

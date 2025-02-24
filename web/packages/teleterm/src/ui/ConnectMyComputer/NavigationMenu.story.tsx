@@ -16,23 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useRef, useLayoutEffect } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 
-import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
 import { AgentProcessState } from 'teleterm/mainProcess/types';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 
-import { NavigationMenu } from './NavigationMenu';
 import { ConnectMyComputerContextProvider } from './connectMyComputerContext';
+import { NavigationMenu } from './NavigationMenu';
 
 export default {
   title: 'Teleterm/ConnectMyComputer/NavigationMenu',
 };
 
-export function AgenNotConfigured() {
+export function AgentNotConfigured() {
   return (
     <ShowState
       agentProcessState={{ status: 'not-started' }}
@@ -161,16 +161,7 @@ function ShowState({
   const cluster = makeRootCluster({
     proxyVersion: '17.0.0',
   });
-  appContext.clustersService.state.clusters.set(cluster.uri, cluster);
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = cluster.uri;
-    draftState.workspaces[cluster.uri] = {
-      localClusterUri: cluster.uri,
-      documents: [],
-      location: undefined,
-      accessRequests: undefined,
-    };
-  });
+  appContext.addRootCluster(cluster);
 
   appContext.mainProcessClient.getAgentState = () => agentProcessState;
   appContext.connectMyComputerService.isAgentConfigFileCreated =

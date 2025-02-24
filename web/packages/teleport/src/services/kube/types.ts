@@ -17,6 +17,7 @@
  */
 
 import { ResourceLabel } from 'teleport/services/agents';
+
 export interface Kube {
   kind: 'kube_cluster';
   name: string;
@@ -27,11 +28,13 @@ export interface Kube {
 }
 
 /**
- * Add kind consts as we go.
- * Supported kube subresources:
+ * Only the web UI supported kinds are defined.
+ * All supported backend kube subresources:
  * https://github.com/gravitational/teleport/blob/c86f46db17fe149240e30fa0748621239e36c72a/api/types/constants.go#L1233
+ *
+ * Wildcard means any of the kube subresources.
  */
-export type KubeResourceKind = 'namespace';
+export type KubeResourceKind = 'namespace' | '*';
 
 /**
  * Refers to kube_cluster's subresources like namespaces, pods, etc

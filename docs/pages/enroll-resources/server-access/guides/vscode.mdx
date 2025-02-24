@@ -60,10 +60,12 @@ $ tsh.exe config | out-file .ssh\config -encoding utf8 -append
 </TabItem>
 </Tabs>
 
-You should be able to connect to the desired node using following command, replacing `user` with the username you would like to assume on the node.
+You should be able to connect to the desired node using following command,
+replacing <Var name="user" /> with the username you would like to assume on the
+node and <Var name="example-node" /> with the node name:
 
 ```code
-$ ssh user@<Var name="example-node" description="An SSH node in your Teleport cluster"/>.<Var name="teleport.example.com"/>
+$ ssh <Var name="user" />@<Var name="example-node" description="An SSH node in your Teleport cluster"/>.<Var name="teleport.example.com"/>
 ```
 
 <Details scopeOnly={true} scope={["cloud"]} title="Teleport Cloud">
@@ -151,14 +153,14 @@ The Window Indicator in the bottom left highlights the currently connected remot
 
 It's possible to remotely develop on any OpenSSH host joined to a Teleport
 cluster so long as its host OS is supported by VS Code. Refer to the
-[OpenSSH guide](../openssh.mdx) to configure the remote host to authenticate via
+[OpenSSH guide](../openssh/openssh.mdx) to configure the remote host to authenticate via
 Teleport certificates, after which the procedure outlined above can be used to
 connect to the host in VS Code.
 
 ### Using OpenSSH clients
 
 This guide makes use of `tsh config`; refer to the
-[dedicated guide](../openssh.mdx) for additional information.
+[dedicated guide](../openssh/openssh.mdx) for additional information.
 
 ## Further reading
 - [VS Code Remote Development](https://code.visualstudio.com/docs/remote/remote-overview)

@@ -23,12 +23,14 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	accesslistv1conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
@@ -117,6 +119,30 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		case *provisioningv1.PrincipalState:
 			out.Resource = &proto.Event_ProvisioningPrincipalState{
 				ProvisioningPrincipalState: r,
+			}
+		case *autoupdate.AutoUpdateAgentRollout:
+			out.Resource = &proto.Event_AutoUpdateAgentRollout{
+				AutoUpdateAgentRollout: r,
+			}
+		case *identitycenterv1.Account:
+			out.Resource = &proto.Event_IdentityCenterAccount{
+				IdentityCenterAccount: r,
+			}
+		case *identitycenterv1.PrincipalAssignment:
+			out.Resource = &proto.Event_IdentityCenterPrincipalAssignment{
+				IdentityCenterPrincipalAssignment: r,
+			}
+		case *identitycenterv1.AccountAssignment:
+			out.Resource = &proto.Event_IdentityCenterAccountAssignment{
+				IdentityCenterAccountAssignment: r,
+			}
+		case *workloadidentityv1pb.WorkloadIdentity:
+			out.Resource = &proto.Event_WorkloadIdentity{
+				WorkloadIdentity: r,
+			}
+		case *workloadidentityv1pb.WorkloadIdentityX509Revocation:
+			out.Resource = &proto.Event_WorkloadIdentityX509Revocation{
+				WorkloadIdentityX509Revocation: r,
 			}
 		default:
 			return nil, trace.BadParameter("resource type %T is not supported", r)
@@ -254,6 +280,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_WindowsDesktop{
 			WindowsDesktop: r,
 		}
+	case *types.DynamicWindowsDesktopV1:
+		out.Resource = &proto.Event_DynamicWindowsDesktop{
+			DynamicWindowsDesktop: r,
+		}
 	case *types.InstallerV1:
 		out.Resource = &proto.Event_Installer{
 			Installer: r,
@@ -321,6 +351,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case *accesslist.Review:
 		out.Resource = &proto.Event_AccessListReview{
 			AccessListReview: accesslistv1conv.ToReviewProto(r),
+		}
+	case *types.PluginStaticCredentialsV1:
+		out.Resource = &proto.Event_PluginStaticCredentials{
+			PluginStaticCredentials: r,
 		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
@@ -442,6 +476,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetWindowsDesktop(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetDynamicWindowsDesktop(); r != nil {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetKubernetesServer(); r != nil {
@@ -567,10 +604,31 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetAutoUpdateVersion(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
+	} else if r := in.GetAutoUpdateAgentRollout(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
 	} else if r := in.GetUserTask(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetProvisioningPrincipalState(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetIdentityCenterAccount(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetIdentityCenterPrincipalAssignment(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetIdentityCenterAccountAssignment(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetPluginStaticCredentials(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetWorkloadIdentity(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetWorkloadIdentityX509Revocation(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else {

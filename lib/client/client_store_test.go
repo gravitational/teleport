@@ -44,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -54,16 +54,19 @@ type testAuthority struct {
 	keygen       *testauthority.Keygen
 	tlsCA        *tlsca.CertAuthority
 	trustedCerts authclient.TrustedCerts
+	clock        clockwork.Clock
 }
 
 func newTestAuthority(t *testing.T) testAuthority {
 	tlsCA, trustedCerts, err := newSelfSignedCA(CAPriv, "localhost")
 	require.NoError(t, err)
 
+	clock := clockwork.NewFakeClock()
 	return testAuthority{
-		keygen:       testauthority.New(),
+		keygen:       testauthority.NewWithClock(clock),
 		tlsCA:        tlsCA,
 		trustedCerts: trustedCerts,
+		clock:        clock,
 	}
 }
 
@@ -84,7 +87,6 @@ func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeEx
 		ttl = -ttl
 	}
 
-	clock := clockwork.NewRealClock()
 	identity := tlsca.Identity{
 		Username: idx.Username,
 		Groups:   []string{"groups"},
@@ -92,24 +94,28 @@ func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeEx
 	subject, err := identity.Subject()
 	require.NoError(t, err)
 	tlsCert, err := s.tlsCA.GenerateCertificate(tlsca.CertificateRequest{
-		Clock:     clock,
+		Clock:     s.clock,
 		PublicKey: tlsKey.Public(),
 		Subject:   subject,
-		NotAfter:  clock.Now().UTC().Add(ttl),
+		NotAfter:  s.clock.Now().UTC().Add(ttl),
 	})
 	require.NoError(t, err)
 
 	caSigner, err := ssh.ParsePrivateKey(CAPriv)
 	require.NoError(t, err)
 
-	cert, err := s.keygen.GenerateUserCert(services.UserCertParams{
-		CASigner:              caSigner,
-		PublicUserKey:         sshPriv.MarshalSSHPublicKey(),
-		Username:              idx.Username,
-		AllowedLogins:         allowedLogins,
-		TTL:                   ttl,
-		PermitAgentForwarding: false,
-		PermitPortForwarding:  true,
+	cert, err := s.keygen.GenerateUserCert(sshca.UserCertificateRequest{
+		CASigner:      caSigner,
+		PublicUserKey: sshPriv.MarshalSSHPublicKey(),
+		TTL:           ttl,
+		Identity: sshca.Identity{
+			Username:              idx.Username,
+			Principals:            allowedLogins,
+			PermitAgentForwarding: false,
+			PermitPortForwarding:  true,
+			GitHubUserID:          "1234567",
+			GitHubUsername:        "github-username",
+		},
 	})
 	require.NoError(t, err)
 
@@ -304,13 +310,15 @@ func TestProxySSHConfig(t *testing.T) {
 		caSigner, err := ssh.ParsePrivateKey(CAPriv)
 		require.NoError(t, err)
 
-		hostCert, err := auth.keygen.GenerateHostCert(services.HostCertParams{
+		hostCert, err := auth.keygen.GenerateHostCert(sshca.HostCertificateRequest{
 			CASigner:      caSigner,
 			PublicHostKey: hostPub,
 			HostID:        "127.0.0.1",
 			NodeName:      "127.0.0.1",
-			ClusterName:   "host-cluster-name",
-			Role:          types.RoleNode,
+			Identity: sshca.Identity{
+				ClusterName: "host-cluster-name",
+				SystemRole:  types.RoleNode,
+			},
 		})
 		require.NoError(t, err)
 

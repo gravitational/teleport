@@ -16,39 +16,57 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { getResourceUri } from 'teleterm/ui/services/workspacesService';
+import { ComponentType, useCallback } from 'react';
+
+import { IconProps } from 'design/Icon/Icon';
+
+import {
+  getResourceUri,
+  getStaticNameAndIcon,
+} from 'teleterm/ui/services/workspacesService';
 import { routing } from 'teleterm/ui/uri';
 
-export function useActiveDocumentClusterBreadcrumbs(): string {
-  const ctx = useAppContext();
-  ctx.workspacesService.useState();
-  ctx.clustersService.useState();
+import { useStoreSelector } from '../hooks/useStoreSelector';
 
-  const activeDocument = ctx.workspacesService
-    .getActiveWorkspaceDocumentService()
-    ?.getActive();
+interface Breadcrumb {
+  name: string;
+  Icon?: ComponentType<IconProps>;
+}
 
-  if (!activeDocument) {
+export function useActiveDocumentClusterBreadcrumbs(): Breadcrumb[] {
+  const activeDocument = useStoreSelector(
+    'workspacesService',
+    useCallback(state => {
+      const workspace = state.workspaces[state.rootClusterUri];
+      return workspace?.documents.find(d => d.uri === workspace?.location);
+    }, [])
+  );
+  const resourceUri = activeDocument && getResourceUri(activeDocument);
+  const staticNameAndIcon =
+    activeDocument && getStaticNameAndIcon(activeDocument);
+  const clusterUri = resourceUri && routing.ensureClusterUri(resourceUri);
+  const rootClusterUri =
+    resourceUri && routing.ensureRootClusterUri(resourceUri);
+
+  const cluster = useStoreSelector(
+    'clustersService',
+    useCallback(state => state.clusters.get(clusterUri), [clusterUri])
+  );
+  const rootCluster = useStoreSelector(
+    'clustersService',
+    useCallback(state => state.clusters.get(rootClusterUri), [rootClusterUri])
+  );
+
+  if (!cluster || !rootCluster || !staticNameAndIcon) {
     return;
   }
 
-  const resourceUri = getResourceUri(activeDocument);
-  if (!resourceUri) {
-    return;
-  }
-
-  const clusterUri = routing.ensureClusterUri(resourceUri);
-  const rootClusterUri = routing.ensureRootClusterUri(resourceUri);
-
-  const rootCluster = ctx.clustersService.findCluster(rootClusterUri);
-  const leafCluster =
-    clusterUri === rootClusterUri
-      ? undefined
-      : ctx.clustersService.findCluster(clusterUri);
-
-  return [rootCluster, leafCluster]
-    .filter(Boolean)
-    .map(c => c.name)
-    .join(' > ');
+  return [
+    { name: rootCluster.name },
+    clusterUri !== rootClusterUri && { name: cluster.name },
+    {
+      name: staticNameAndIcon.name,
+      Icon: staticNameAndIcon.Icon,
+    },
+  ].filter(Boolean);
 }

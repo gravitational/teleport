@@ -15,17 +15,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { Box, Flex, Input, Text, Mark, H3, Subtitle3 } from 'design';
 import styled from 'styled-components';
 
-import { ToolTipInfo } from 'shared/components/ToolTip';
-
-import React from 'react';
-
+import { Box, Flex, H3, Input, Mark, Subtitle3, Text } from 'design';
 import { P } from 'design/Text/Text';
+import { IconTooltip } from 'design/Tooltip';
 
-import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { Tabs } from 'teleport/components/Tabs';
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 
 const discoveryGroupToolTip = `Discovery group name is used to group discovered resources into different sets. \
 This parameter is used to prevent Discovery Agents watching different sets of cloud resources from \
@@ -71,7 +68,7 @@ discovery_service:
               Auto-enrolling requires you to configure a{' '}
               <Mark>Discovery Service</Mark>
             </Text>
-            <ToolTipInfo children={discoveryServiceToolTip} />
+            <IconTooltip children={discoveryServiceToolTip} />
           </Flex>
           <br />
         </>
@@ -100,7 +97,7 @@ discovery_service:
             <H3>Step 2</H3>
             <Subtitle3>
               Define a Discovery Group name{' '}
-              <ToolTipInfo children={discoveryGroupToolTip} />
+              <IconTooltip children={discoveryGroupToolTip} />
             </Subtitle3>
           </header>
         </Flex>

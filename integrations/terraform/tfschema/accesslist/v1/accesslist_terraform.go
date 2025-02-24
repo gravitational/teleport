@@ -245,6 +245,11 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
+						"membership_kind": {
+							Description: "membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
 						"name": {
 							Description: "name is the username of the owner.",
 							Optional:    true,
@@ -568,6 +573,23 @@ func CopyAccessListFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 																t = string(v.Value)
 															}
 															obj.Description = t
+														}
+													}
+												}
+												{
+													a, ok := tf.Attrs["membership_kind"]
+													if !ok {
+														diags.Append(attrReadMissingDiag{"AccessList.spec.owners.membership_kind"})
+													} else {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"AccessList.spec.owners.membership_kind", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+														} else {
+															var t github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.MembershipKind
+															if !v.Null && !v.Unknown {
+																t = github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.MembershipKind(v.Value)
+															}
+															obj.MembershipKind = t
 														}
 													}
 												}
@@ -1597,6 +1619,28 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 													v.Value = string(obj.Description)
 													v.Unknown = false
 													tf.Attrs["description"] = v
+												}
+											}
+											{
+												t, ok := tf.AttrTypes["membership_kind"]
+												if !ok {
+													diags.Append(attrWriteMissingDiag{"AccessList.spec.owners.membership_kind"})
+												} else {
+													v, ok := tf.Attrs["membership_kind"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+													if !ok {
+														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+														if err != nil {
+															diags.Append(attrWriteGeneralError{"AccessList.spec.owners.membership_kind", err})
+														}
+														v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+														if !ok {
+															diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.owners.membership_kind", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+														}
+														v.Null = int64(obj.MembershipKind) == 0
+													}
+													v.Value = int64(obj.MembershipKind)
+													v.Unknown = false
+													tf.Attrs["membership_kind"] = v
 												}
 											}
 										}

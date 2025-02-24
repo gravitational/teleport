@@ -71,7 +71,7 @@ type AWSMetadata struct {
 func MakeServer(clusterName string, server types.Server, logins []string, requiresRequest bool) Server {
 	serverLabels := server.GetStaticLabels()
 	serverCmdLabels := server.GetCmdLabels()
-	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(serverLabels, transformCommandLabels(serverCmdLabels))
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(serverLabels, ui.TransformCommandLabels(serverCmdLabels))
 
 	uiServer := Server{
 		Kind:            server.GetKind(),
@@ -103,12 +103,14 @@ func MakeServer(clusterName string, server types.Server, logins []string, requir
 
 // EKSCluster represents and EKS cluster, analog of awsoidc.EKSCluster, but used by web ui.
 type EKSCluster struct {
-	Name       string     `json:"name"`
-	Region     string     `json:"region"`
-	Arn        string     `json:"arn"`
-	Labels     []ui.Label `json:"labels"`
-	JoinLabels []ui.Label `json:"joinLabels"`
-	Status     string     `json:"status"`
+	Name                 string     `json:"name"`
+	Region               string     `json:"region"`
+	Arn                  string     `json:"arn"`
+	Labels               []ui.Label `json:"labels"`
+	JoinLabels           []ui.Label `json:"joinLabels"`
+	Status               string     `json:"status"`
+	EndpointPublicAccess bool       `json:"endpointPublicAccess"`
+	AuthenticationMode   string     `json:"authenticationMode"`
 }
 
 // KubeCluster describes a kube cluster.
@@ -131,7 +133,7 @@ type KubeCluster struct {
 func MakeKubeCluster(cluster types.KubeCluster, accessChecker services.AccessChecker, requiresRequest bool) KubeCluster {
 	staticLabels := cluster.GetStaticLabels()
 	dynamicLabels := cluster.GetDynamicLabels()
-	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(staticLabels, transformCommandLabels(dynamicLabels))
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(staticLabels, ui.TransformCommandLabels(dynamicLabels))
 	kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
 	return KubeCluster{
 		Kind:            cluster.GetKind(),
@@ -149,12 +151,14 @@ func MakeEKSClusters(clusters []*integrationv1.EKSCluster) []EKSCluster {
 
 	for _, cluster := range clusters {
 		uiEKSClusters = append(uiEKSClusters, EKSCluster{
-			Name:       cluster.Name,
-			Region:     cluster.Region,
-			Arn:        cluster.Arn,
-			Labels:     ui.MakeLabelsWithoutInternalPrefixes(cluster.Labels),
-			JoinLabels: ui.MakeLabelsWithoutInternalPrefixes(cluster.JoinLabels),
-			Status:     cluster.Status,
+			Name:                 cluster.Name,
+			Region:               cluster.Region,
+			Arn:                  cluster.Arn,
+			Labels:               ui.MakeLabelsWithoutInternalPrefixes(cluster.Labels),
+			JoinLabels:           ui.MakeLabelsWithoutInternalPrefixes(cluster.JoinLabels),
+			Status:               cluster.Status,
+			EndpointPublicAccess: cluster.EndpointPublicAccess,
+			AuthenticationMode:   cluster.AuthenticationMode,
 		})
 	}
 	return uiEKSClusters
@@ -166,7 +170,7 @@ func MakeKubeClusters(clusters []types.KubeCluster, accessChecker services.Acces
 	for _, cluster := range clusters {
 		staticLabels := cluster.GetStaticLabels()
 		dynamicLabels := cluster.GetDynamicLabels()
-		uiLabels := ui.MakeLabelsWithoutInternalPrefixes(staticLabels, transformCommandLabels(dynamicLabels))
+		uiLabels := ui.MakeLabelsWithoutInternalPrefixes(staticLabels, ui.TransformCommandLabels(dynamicLabels))
 
 		kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
 
@@ -302,6 +306,9 @@ type Database struct {
 	AWS *AWS `json:"aws,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
+	// SupportsInteractive is a flag to indicate the database supports
+	// interactive sessions using database REPLs.
+	SupportsInteractive bool `json:"supports_interactive,omitempty"`
 }
 
 // AWS contains AWS specific fields.
@@ -318,22 +325,35 @@ const (
 	LabelStatus = "status"
 )
 
+// DatabaseInteractiveChecker is used to check if the database supports
+// interactive sessions using database REPLs.
+type DatabaseInteractiveChecker interface {
+	IsSupported(protocol string) bool
+}
+
 // MakeDatabase creates database objects.
-func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRequest bool) Database {
+func MakeDatabase(database types.Database, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker, requiresRequest bool) Database {
+	dbNames := accessChecker.EnumerateDatabaseNames(database)
+	var dbUsers []string
+	if res, err := accessChecker.EnumerateDatabaseUsers(database); err == nil {
+		dbUsers = res.Allowed()
+	}
+
 	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(database.GetAllLabels())
 
 	db := Database{
-		Kind:            database.GetKind(),
-		Name:            database.GetName(),
-		Desc:            database.GetDescription(),
-		Protocol:        database.GetProtocol(),
-		Type:            database.GetType(),
-		Labels:          uiLabels,
-		DatabaseUsers:   dbUsers,
-		DatabaseNames:   dbNames,
-		Hostname:        stripProtocolAndPort(database.GetURI()),
-		URI:             database.GetURI(),
-		RequiresRequest: requiresRequest,
+		Kind:                database.GetKind(),
+		Name:                database.GetName(),
+		Desc:                database.GetDescription(),
+		Protocol:            database.GetProtocol(),
+		Type:                database.GetType(),
+		Labels:              uiLabels,
+		DatabaseUsers:       dbUsers,
+		DatabaseNames:       dbNames.Allowed(),
+		Hostname:            stripProtocolAndPort(database.GetURI()),
+		URI:                 database.GetURI(),
+		RequiresRequest:     requiresRequest,
+		SupportsInteractive: interactiveChecker.IsSupported(database.GetProtocol()),
 	}
 
 	if database.IsAWSHosted() {
@@ -351,10 +371,10 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRe
 }
 
 // MakeDatabases creates database objects.
-func MakeDatabases(databases []*types.DatabaseV3, dbUsers, dbNames []string) []Database {
+func MakeDatabases(databases []*types.DatabaseV3, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker) []Database {
 	uiServers := make([]Database, 0, len(databases))
 	for _, database := range databases {
-		db := MakeDatabase(database, dbUsers, dbNames, false /* requiresRequest */)
+		db := MakeDatabase(database, accessChecker, interactiveChecker, false /* requiresRequest */)
 		uiServers = append(uiServers, db)
 	}
 

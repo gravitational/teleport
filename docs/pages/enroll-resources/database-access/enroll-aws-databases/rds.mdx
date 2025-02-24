@@ -204,13 +204,16 @@ Token                            Type Labels Expiry Time (UTC)
 Create a Helm values file called `values.yaml`, assigning <Var name="token" />
 to the value of the join token you retrieved above, <Var
 name="example.teleport.sh:443" /> to the host **and port** of your Teleport
-Proxy Service, and <Var name="endpoint:port" /> to the host **and port** of your RDS
-database (e.g., `myrds.us-east-1.rds.amazonaws.com:5432`):
+Proxy Service, and <Var name="endpoint:port" /> to the host **and port** of your
+RDS database (e.g., `myrds.us-east-1.rds.amazonaws.com:5432`). Assign <Var
+name="aws-account" /> to your AWS account ID. Set `enterprise` to false if you
+are using Teleport Community Edition:
 
-```var
+```yaml
 authToken: <Var name="token" />
 proxyAddr: <Var name="example.teleport.sh:443" />
 roles: db
+enterprise: true
 databases:
 - name: example
   uri: "<Var name="endpoint:port" />"
@@ -222,11 +225,24 @@ annotations:
     eks.amazonaws.com/role-arn: arn:aws:iam::<Var name="aws-account" />:role/teleport-rds-role
 ```
 
+Get the version of Teleport to install. If you have automatic agent updates enabled in your cluster, query the latest Teleport version that is compatible with the updater:
+
+```code
+$ TELEPORT_VERSION="$(curl https://<Var name="example.teleport.sh:443" />/v1/webapi/automaticupgrades/channel/default/version | sed 's/v//')"
+```
+
+Otherwise, get the version of your Teleport cluster:
+
+```code
+$ TELEPORT_VERSION="$(curl https://<Var name="example.teleport.sh:443" />/v1/webapi/ping | jq -r '.server_version')"
+```
+
+
 Install the Helm chart for Teleport agent services, `teleport-kube-agent`:
 
 ```code
 $ helm -n teleport-agent install teleport-kube-agent teleport/teleport-kube-agent \
-  --values values.yaml --create-namespace
+  --values values.yaml --create-namespace --version $TELEPORT_VERSION
 ```
 
 Make sure that the Teleport agent pod is running. You should see one
@@ -295,6 +311,8 @@ Retrieve credentials for the database and connect to it as the `alice` user:
 $ tsh db connect --db-user=alice --db-name=postgres rds-example
 ```
 
+(!docs/pages/includes/database-access/pg-access-webui.mdx!)
+
 <Admonition type="note" title="Note">
   The appropriate database command-line client (`psql`, `mysql`, `mariadb`) should be
   available in `PATH` in order to be able to connect.
@@ -319,5 +337,5 @@ $ tsh db logout rds-example
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
-- Set up [automatic database user provisioning](../auto-user-provisioning.mdx).
+- Set up [automatic database user provisioning](../auto-user-provisioning/auto-user-provisioning.mdx).
 

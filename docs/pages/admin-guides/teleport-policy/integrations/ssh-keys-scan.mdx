@@ -4,20 +4,16 @@ description: Describes how to enable SSH Key Scanning using Teleport Policy and 
 ---
 
 With Teleport Policy's Access Graph, you can gain insights on how SSH keys are used within your environment. By scanning
-all SSH authorized keys present on your servers and SSH Private Keys present on company managed laptops, Teleport Policy can
+all SSH authorized keys present on your servers and SSH private keys present on company managed laptops, Teleport Policy can
 provide a visual representation of the access patterns and help you enhance the security of your environment.
 
 This functionality gives you insights into the following areas:
 
-- Which servers have SSH Authorized Keys that could be used to bypass Teleport?
-- Which users have SSH Private Keys that grant access to SSH servers?
-- Which laptops have unprotected SSH Private Keys?
+- Which servers have SSH authorized keys that could be used to bypass Teleport?
+- Which users have SSH private keys that grant access to SSH servers?
+- Which laptops have unprotected SSH private keys?
 
-Access Graph is a feature of the [Teleport Policy](https://goteleport.com/platform/policy/) product
-available to Teleport Enterprise edition customers.
-
-After logging in to the Teleport UI, navigate to the Management tab. If enabled, Access Graph options can be found
-under the Permission Management section.
+(!docs/pages/includes/policy/access-graph.mdx!)
 
 ## How it works
 
@@ -26,9 +22,9 @@ Teleport and Teleport Policy's Access Graph synchronize various resources, inclu
 These resources are then visualized using the graph representation detailed in the
 [Access Graph page](../teleport-policy.mdx).
 
-### Importing SSH Authorized Keys
+### Importing SSH authorized keys
 
-Teleport-protected servers running the Teleport SSH Service continuously scan for SSH Authorized Keys present on the server.
+Teleport-protected servers running the Teleport SSH Service continuously scan for SSH authorized keys present on the server.
 The public fingerprint of these keys is sent to the Teleport Auth Service, which then pushes them to the Access Graph.
 Together with the key fingerprint, the Teleport-protected server also sends the following metadata:
 
@@ -40,13 +36,13 @@ Together with the key fingerprint, the Teleport-protected server also sends the 
 By default, Teleport scans the `$HOME/.ssh/authorized_keys` and `$HOME/.ssh/authorized_keys2` files for authorized keys.
 Here, `$HOME` refers to the home directory of each user on the system, whether they are local or LDAP managed users.
 
-### Importing User's SSH Private Keys
+### Importing User's SSH private keys
 
 Teleport's `tsh` CLI tool can scan users' laptops for SSH private keys.
-It goes through the specified directories, defaulting to `/Users` on macOS, `/home` on Linux, and `C:\Users` on Windows, 
+It goes through the specified directories, defaulting to `/Users` on macOS, `/home` on Linux, and `C:\Users` on Windows,
 by peeking into files to identify SSH private keys.
 
-The `tsh` tool authenticates with the Teleport cluster through the [Device Trust](../../access-controls/device-trust.mdx) feature,
+The `tsh` tool authenticates with the Teleport cluster through the [Device Trust](../../access-controls/device-trust/device-trust.mdx) feature,
 which guarantees that only enrolled devices can submit private keys to the cluster. By utilizing the device's Secure
 Enclave or TPM private key, it confirms that the device is the same one that was enrolled, enabling Teleport to trust
 and accept the private key reports without requiring further authentication or credentials thus allowing scanning operations
@@ -70,21 +66,22 @@ It also never sends the private key path or any other sensitive information.
 ## Prerequisites
 
 - A running Teleport Enterprise cluster v15.4.16/v16.2.0 or later.
-- For self-hosted clusters, an updated `license.pem` with Teleport Policy enabled.
-- For self-hosted clusters, a running Access Graph node v1.22.0 or later.
-Check [Access Graph page](../teleport-policy.mdx) for details on
-how to set up Access Graph.
-- For self-hosted clusters, the node running the Access Graph service must be reachable
-from Teleport Auth Service.
+- Teleport Policy enabled for your account.
 - A Linux/macOS server running the Teleport SSH Service.
-- Devices enrolled in the [Teleport Device Trust feature](../../access-controls/device-trust.mdx).
+- Devices enrolled in the [Teleport Device Trust feature](../../access-controls/device-trust/device-trust.mdx).
 - For Jamf Pro integration, devices must be enrolled in Jamf Pro and have the signed `tsh` binary installed.
+- For self-hosted clusters:
+  - Ensure that an up-to-date `license.pem` is used in the Auth Service configuration.
+  - A running Access Graph node v1.22.0 or later.
+Check the [Teleport Policy page](../teleport-policy.mdx) for details on
+how to set up Access Graph.
+  - The node running the Access Graph service must be reachable from the Teleport Auth Service.
 
 ## Step 1/3. Enable SSH Key Scanning
 
-To enable SSH Key Scanning, you need to configure the Teleport cluster to scan for SSH Authorized Keys.
+To enable SSH Key Scanning, you need to configure the Teleport cluster to scan for SSH authorized keys.
 
-To enable the SSH Key Scanning feature, edit the Teleport Access Graph configuration file: 
+To enable the SSH Key Scanning feature, edit the Teleport Access Graph configuration file:
 
 ```code
 $ tctl edit access_graph_settings
@@ -102,30 +99,30 @@ version: v1
 ```
 
 Save the changes and exit the editor. The Teleport cluster will now start informing the Teleport-protected servers to scan for
-SSH Authorized Keys. This process may take a few minutes to complete.
+SSH authorized keys. This process may take a few minutes to complete.
 
-After a few minutes, you can navigate to the Access Graph page in the Teleport UI to view the imported SSH Authorized Keys
+After a few minutes, you can navigate to the Access Graph page in the Teleport UI to view the imported SSH authorized keys
 and local users.
 
-## Step 2/3. Scan for SSH Private Keys
+## Step 2/3. Scan for SSH private keys
 
-On devices enrolled in the Teleport, you can use the `tsh` CLI tool to scan for SSH Private Keys. Check [Device Trust](../../access-controls/device-trust.mdx)
+On devices enrolled in the Teleport, you can use the `tsh` CLI tool to scan for SSH private keys. Check [Device Trust](../../access-controls/device-trust/device-trust.mdx)
 for details on how to enroll devices in Teleport, specially if you are using Jamf Pro.
 
-To scan for SSH Private Keys, run the following command from any enrolled device:
+To scan for SSH private keys, run the following command from any enrolled device:
 
 ```code
 $ tsh scan keys --proxy=<Var name="teleport.example.com" /> --dirs=<Var name="/dir1,/dir2" />
 ```
 
-The `tsh` tool will scan the specified directories and subdirectories for SSH Private Keys and send the public key
+The `tsh` tool will scan the specified directories and subdirectories for SSH private keys and send the public key
 fingerprints to the Teleport cluster. The Teleport cluster will then import the keys and display them in the Access Graph.
 
 `tsh scan keys` supports the following flags:
 
 - `--proxy`: The Teleport Proxy address to connect to.
 - `--insecure`: Skip proxy's TLS certificate verification.
-- `--dirs`: A comma-separated list of directories to scan for SSH Private Keys. The default directories are `/Users` on macOS,
+- `--dirs`: A comma-separated list of directories to scan for SSH private keys. The default directories are `/Users` on macOS,
   `/home` on Linux, and `C:\\Users` on Windows.
 - `--skip-paths`: A comma-separated list of paths to skip during the scan. It supports glob patterns to match multiple paths.
   like `--skip-paths="/Users/*/Library/*,/home/*/Library/*"`.
@@ -136,7 +133,7 @@ output is the only place where the private key paths are displayed. The paths ar
 
 ## Step 3/3. View Access Graph
 
-Once the SSH Authorized Keys and Private Keys have been imported, you can view them on the Access Graph page.
+Once the SSH authorized keys and private keys have been imported, you can view them on the Access Graph page.
 Users whose devices have private keys will see direct paths to the servers they can access.
 
 The access paths shown include the following relationships:
@@ -151,11 +148,33 @@ Insecure paths are also visible in a user's access paths. To view them, click on
 from the context menu. This will show the Teleport permissions granted to the user, the resources they can access,
 and any detected insecure paths.
 
+### Access Graph: Dedicated `ssh_keys` SQL View
+
+Starting in version **v1.25.0**, Access Graph introduces a dedicated `ssh_keys` SQL view for managing SSH access paths.
+This view excludes access paths granted through Teleport and focuses on:
+- Displaying identified access paths between identities and SSH nodes.
+- Listing existing SSH authorized keys configured for nodes, even if `tsh scan keys` fails to detect matching SSH private keys.
+
+Below are a few example queries demonstrating how the `ssh_keys` view can be useful for identifying potential backdoors.
+
+- List all SSH access paths for Teleport SSH nodes and users:
+  ```sql
+  SELECT * FROM ssh_keys;
+  ```
+- View insecure access paths and SSH authorized keys for a specific node:
+  ```sql
+  SELECT * FROM ssh_keys WHERE resource='RESOURCE_NAME';
+  ```
+- View insecure access paths and SSH authorized keys for a subset of nodes using labels:
+  ```sql
+  SELECT * FROM ssh_keys WHERE resource_labels @> '{"env": "dev"}';
+  ```
+
 
 ## Jamf Pro Integration
 
 If you are using Jamf Pro to manage your devices, you can integrate it with Teleport to automate the device enrollment
-process and periodically scan for SSH Private Keys. Check the [Jamf Pro Integration](../../access-controls/device-trust/jamf-integration.mdx)
+process and periodically scan for SSH private keys. Check the [Jamf Pro Integration](../../access-controls/device-trust/jamf-integration.mdx)
 page for details on how to set up the device enrollment and scanning process.
 
 On your Jamf Pro page navigate to Settings > Scripts and create a new script command that runs the `tsh scan keys` command
@@ -177,7 +196,7 @@ given that the command may consume system resources during the scan.
     to the devices using the same policy or a separate policy.
 </Notice>
 
-Once the policy is created, the devices will start scanning for SSH Private Keys and sending the fingerprints to the Teleport
+Once the policy is created, the devices will start scanning for SSH private keys and sending the fingerprints to the Teleport
 Cluster. The keys will be imported and displayed in the Access Graph.
 
 ## Troubleshooting
@@ -185,7 +204,7 @@ Cluster. The keys will be imported and displayed in the Access Graph.
 ### `"device not enrolled"` error
 
 If you see the `device not enrolled` error when running the `tsh scan keys` command, it means that the device is not enrolled
-in the Teleport Device Trust feature. Check the [Device Trust](../../access-controls/device-trust.mdx) page for details on how to enroll devices
+in the Teleport Device Trust feature. Check the [Device Trust](../../access-controls/device-trust/device-trust.mdx) page for details on how to enroll devices
 in Teleport.
 
 ### `"binary missing signature or entitlements"` error

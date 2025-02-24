@@ -16,16 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { Flex } from 'design';
 import { PageIndicatorText } from 'design/DataTable/Pager/PageIndicatorText';
 
 import { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
 
+import { SearchPanel } from './ServersideSearchPanel';
 import useServersideSearchPanel, {
   HookProps,
 } from './useServerSideSearchPanel';
-import { SearchPanel } from './ServersideSearchPanel';
 
 interface ComponentProps {
   pageIndicators: PageIndicators;

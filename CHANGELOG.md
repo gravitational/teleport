@@ -1,5 +1,24 @@
 # Changelog
 
+## 18.0.0 (xx/xx/xx)
+
+### Breaking changes
+
+#### TLS Cipher Suites
+
+TLS cipher suites with known security issues can no longer be manually
+configured in the Teleport YAML configuration file.
+If you do not explicitly configure any of the listed TLS cipher suites, you are
+not affected by this change.
+Teleport 18 removes support for:
+- `tls-rsa-with-aes-128-cbc-sha`
+- `tls-rsa-with-aes-256-cbc-sha`
+- `tls-rsa-with-aes-128-cbc-sha256`
+- `tls-rsa-with-aes-128-gcm-sha256`
+- `tls-rsa-with-aes-256-gcm-sha384`
+- `tls-ecdhe-ecdsa-with-aes-128-cbc-sha256`
+- `tls-ecdhe-rsa-with-aes-128-cbc-sha256`
+
 ## 16.0.0 (xx/xx/xx)
 
 ### Breaking changes
@@ -37,10 +56,10 @@ more details.
 
 #### Default keyboard shortcuts in Teleport Connect have been changed
 
-On Windows and Linux, some of the default shortcuts conflicted with the default bash or nano shortcuts 
+On Windows and Linux, some of the default shortcuts conflicted with the default bash or nano shortcuts
 (e.g. Ctrl + E, Ctrl + K).
 On those platforms, the default shortcuts have been changed to a combination of Ctrl + Shift + *.
-We also updated the shortcut to open a new terminal on macOS to Control + Shift + \`.  
+We also updated the shortcut to open a new terminal on macOS to Control + Shift + \`.
 See [configuration](docs/pages/connect-your-client/teleport-connect.mdx#configuration)
 for the current list of shortcuts.
 
@@ -152,8 +171,8 @@ or use PAM.
 
 #### Remove restricted sessions for SSH
 
-The restricted session feature for SSH has been deprecated since Teleport 14 and 
-has been removed in Teleport 15. We recommend implementing network restrictions 
+The restricted session feature for SSH has been deprecated since Teleport 14 and
+has been removed in Teleport 15. We recommend implementing network restrictions
 outside of Teleport (iptables, security groups, etc).
 
 #### Packages no longer published to legacy Debian and RPM repos
@@ -200,7 +219,7 @@ throughout the remainder of these releases' lifecycle.
 
 ##### Helm cluster chart FIPS mode changes
 
-The teleport-cluster chart no longer uses versionOverride and extraArgs to set FIPS mode. 
+The teleport-cluster chart no longer uses versionOverride and extraArgs to set FIPS mode.
 
 Instead, you should use the following values file configuration:
 ```
@@ -277,7 +296,7 @@ used with the legacy AMIs has been removed.
 Due to the new separate operator deployment, the operator is deployed by a subchart.
 This causes the following breaking changes:
 - `installCRDs` has been replaced by `operator.installCRDs`
-- `teleportVersionOverride` does not set the operator version anymore, you must 
+- `teleportVersionOverride` does not set the operator version anymore, you must
   use `operator.teleportVersionOverride` to override the operator version.
 
 Note: version overrides are dangerous and not recommended. Each chart version
@@ -290,7 +309,7 @@ The chart configures this for you since v12, unless you disabled `rbac` creation
 
 ##### Helm cluster chart FIPS mode changes
 
-The teleport-cluster chart no longer uses versionOverride and extraArgs to set FIPS mode. 
+The teleport-cluster chart no longer uses versionOverride and extraArgs to set FIPS mode.
 
 Instead, you should use the following values file configuration:
 
@@ -340,7 +359,7 @@ Teleport 14 brings the following new major features and improvements:
 - Support for TLS routing in Terraform deployment examples
 - Discord and ServiceNow hosted plugins
 - Limited passwordless access for local Windows users in Teleport Community
-  Edition 
+  Edition
 - Machine ID: Kubernetes Secret destination
 
 In addition, this release includes several changes that affect existing
@@ -386,7 +405,7 @@ applications in Kubernetes clusters. When connected to a Kubernetes cluster (or
 deployed as a Helm chart), the Teleport Discovery Service will automatically find
 and enroll web applications with your Teleport cluster.
 
-See documentation [here](docs/pages/enroll-resources/auto-discovery/kubernetes-applications.mdx).
+See documentation [here](docs/pages/enroll-resources/auto-discovery/kubernetes-applications/kubernetes-applications.mdx).
 
 #### Extended Kubernetes per-resource RBAC
 
@@ -413,7 +432,7 @@ audit logging support.
 
 See documentation on how to configure it in the [Oracle guide](docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/oracle-self-hosted.mdx).
 
-#### Limited passwordless access for local Windows users in Teleport Community Edition 
+#### Limited passwordless access for local Windows users in Teleport Community Edition
 
 In Teleport 14, access to Windows desktops with local Windows users has been
 extended to Community Edition. Teleport will permit users to register and
@@ -627,7 +646,7 @@ outputs:
 is recommended that you migrate to v2 as soon as possible to benefit from new
 Machine ID features.
 
-For more details and guidance on how to upgrade to v2, see [docs](docs/pages/reference/machine-id/v14-upgrade-guide.mdx).
+For more details and guidance on how to upgrade to v2, see [docs](https://github.com/gravitational/teleport/blob/branch/v14/docs/pages/reference/machine-id/v14-upgrade-guide.mdx).
 
 ## 13.0.1 (05/xx/23)
 
@@ -1212,9 +1231,6 @@ The “teleport-cluster” Helm chart underwent significant refactoring in Telep
 deployments and the new “scratch” chart mode makes it easier to provide a custom
 Teleport config.
 
-“Custom” mode users should follow the [migration
-guide](docs/pages/admin-guides/deploy-a-cluster/helm-deployments/migration-v12.mdx).
-
 ### Dropped support for SHA1 in Teleport-protected servers
 
 Newer OpenSSH clients connecting to Teleport 12 clusters no longer need the
@@ -1237,10 +1253,7 @@ Teleport 12 before upgrading.
 
 #### Helm charts
 
-The teleport-cluster Helm chart underwent significant changes in Teleport 12. To
-upgrade from an older version of the Helm chart deployed in “custom” mode,
-follow
-the [migration guide](docs/pages/admin-guides/deploy-a-cluster/helm-deployments/migration-v12.mdx).
+The teleport-cluster Helm chart underwent significant changes in Teleport 12.
 
 Additionally, PSPs are removed from the chart when installing on Kubernetes 1.23
 and higher to account for the deprecation/removal of PSPs by Kubernetes.
@@ -1909,7 +1922,7 @@ is more than one major version behind them. You can use the `--skip-version-chec
 bypass the version check.
 
 Take a look at component compatibility guarantees in the
-[documentation](docs/pages/upgrading.mdx).
+[documentation](docs/pages/upgrading/upgrading.mdx).
 
 #### HTTP_PROXY for reverse tunnels
 
@@ -1947,7 +1960,7 @@ sessions remains deny-by-default but now only `join_sessions` statements are
 checked for session join RBAC.
 
 See the [Moderated Sessions
-guide](docs/pages/admin-guides/access-controls/guides/moderated-sessions.mdx) for more
+guide](docs/pages/admin-guides/access-controls/guides/joining-sessions.mdx) for more
 details.
 
 #### GitHub connectors
@@ -2406,7 +2419,7 @@ With Moderated Sessions, Teleport administrators can define policies that allow
 users to invite other users to participate in SSH or Kubernetes sessions as
 observers, moderators or peers.
 
-[Moderated Sessions guide](docs/pages/admin-guides/access-controls/guides/moderated-sessions.mdx)
+[Moderated Sessions guide](docs/pages/admin-guides/access-controls/guides/joining-sessions.mdx)
 
 ### Breaking Changes
 
@@ -2898,7 +2911,7 @@ if err = clt.CreateAccessRequest(ctx, accessRequest); err != nil {
 
 ### Upgrade Notes
 
-Please follow our [standard upgrade procedure](docs/pages/admin-guides/management/admin.mdx) to upgrade your cluster.
+Please follow our [standard upgrade procedure](docs/pages/admin-guides/management/admin/admin.mdx) to upgrade your cluster.
 
 Note, for clusters using GitHub SSO and Trusted Clusters, when upgrading SSO users will lose connectivity to leaf clusters. Local users will not be affected.
 
@@ -3149,7 +3162,7 @@ Other updates:
 
 * We now provide local user management via `https://[cluster-url]/web/users`, providing the ability to edit, reset and delete local users.
 * Teleport Node & App Install scripts. This is currently an Enterprise-only feature that provides customers with an 'auto-magic' installer script. Enterprise customers can enable this feature by modifying the 'token' resource. See note above.
-* We've added a Waiting Room for customers using Access Workflows. [Docs](docs/pages/admin-guides/access-controls/access-request-plugins.mdx)
+* We've added a Waiting Room for customers using Access Workflows. [Docs](docs/pages/admin-guides/access-controls/access-request-plugins/access-request-plugins.mdx)
 
 ##### Signed RPM and Releases
 
@@ -3183,7 +3196,7 @@ We've added an [API Guide](docs/pages/admin-guides/api/api.mdx) to simply develo
 
 #### Upgrade Notes
 
-Please follow our [standard upgrade procedure](./docs/pages/upgrading.mdx).
+Please follow our [standard upgrade procedure](docs/pages/upgrading/upgrading.mdx).
 
 * Optional: Consider updating `https_key_file` & `https_cert_file` to our new `https_keypairs:` format.
 * Optional: Consider migrating Kubernetes access from `proxy_service` to `kubernetes_service` after the upgrade.
@@ -3291,7 +3304,7 @@ auth_service:
     #     EXPERIMENTAL *-sync modes: proxy and node send logs directly to S3 or other
     #     storage without storing the records on disk at all. This mode will kill a
     #     connection if network connectivity is lost.
-    #     NOTE: These experimental modes require all Teleport Auth Service instances, 
+    #     NOTE: These experimental modes require all Teleport Auth Service instances,
     #     Proxy Service instances, and nodes to be running Teleport 4.4.
     #
     #     "node-sync" : sessions recording will be streamed from node -> auth -> storage
@@ -3327,7 +3340,7 @@ auth_service:
 #### Upgrade Notes
 
 Please follow our [standard upgrade
-procedure](docs/pages/upgrading.mdx).
+procedure](docs/pages/upgrading/upgrading.mdx).
 
 ## 4.3.9
 
@@ -3412,7 +3425,7 @@ Teleport's Web UI now exposes Teleport’s Audit log, letting auditors and admin
 
 ##### Teleport Plugins
 
-Teleport 4.3 introduces four new plugins that work out of the box with [Approval Workflow](docs/pages/admin-guides/access-controls/access-request-plugins.mdx). These plugins allow you to automatically support role escalation with commonly used third party services. The built-in plugins are listed below.
+Teleport 4.3 introduces four new plugins that work out of the box with [Approval Workflow](docs/pages/admin-guides/access-controls/access-request-plugins/access-request-plugins.mdx). These plugins allow you to automatically support role escalation with commonly used third party services. The built-in plugins are listed below.
 
 *   [PagerDuty](docs/pages/admin-guides/access-controls/access-request-plugins/ssh-approval-pagerduty.mdx)
 *   [Jira](docs/pages/admin-guides/access-controls/access-request-plugins/ssh-approval-jira.mdx)
@@ -3448,7 +3461,7 @@ Teleport 4.3 introduces four new plugins that work out of the box with [Approval
 #### Upgrade Notes
 
 Always follow the [recommended upgrade
-procedure](./docs/pages/upgrading.mdx) to upgrade to this version.
+procedure](docs/pages/upgrading/upgrading.mdx) to upgrade to this version.
 
 ##### New Signing Algorithm
 
@@ -3489,7 +3502,7 @@ permissions](./docs/pages/enroll-resources/kubernetes-access/controls.mdx).
 The [etcd backend](docs/pages/reference/backends.mdx#etcd) now correctly uses
 the “prefix” config value when storing data. Upgrading from 4.2 to 4.3 will
 migrate the data as needed at startup. Make sure you follow our Teleport
-[upgrade guidance](docs/pages/upgrading.mdx).
+[upgrade guidance](docs/pages/upgrading/upgrading.mdx).
 
 **Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](docs/pages/admin-guides/management/operations/backup-restore.mdx) into the downgraded cluster.**
 
@@ -3612,7 +3625,7 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 ### Improvements
 
 * Alpha: Enhanced Session Recording lets you know what's really happening during a Teleport Session. [#2948](https://github.com/gravitational/teleport/issues/2948)
-* Alpha: Workflows API lets admins escalate RBAC roles in response to user requests. [Read the docs](docs/pages/admin-guides/access-controls/access-requests.mdx). [#3006](https://github.com/gravitational/teleport/issues/3006)
+* Alpha: Workflows API lets admins escalate RBAC roles in response to user requests. [Read the docs](docs/pages/admin-guides/access-controls/access-requests/access-requests.mdx). [#3006](https://github.com/gravitational/teleport/issues/3006)
 * Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](docs/pages/admin-guides/deploy-a-cluster/deployments/gcp.mdx). [#2821](https://github.com/gravitational/teleport/pull/2821)
 * Remote tctl execution is now possible. [Read the docs](./docs/pages/reference/cli/tctl.mdx). [#1525](https://github.com/gravitational/teleport/issues/1525) [#2991](https://github.com/gravitational/teleport/issues/2991)
 
@@ -3868,7 +3881,7 @@ The lists of improvements and bug fixes above mention only the significant chang
 
 ### Upgrading
 
-Teleport 4.0 is backwards compatible with Teleport 3.2 and later. [Follow the recommended upgrade procedure to upgrade to this version.](docs/pages/upgrading.mdx)
+Teleport 4.0 is backwards compatible with Teleport 3.2 and later. [Follow the recommended upgrade procedure to upgrade to this version.](docs/pages/upgrading/upgrading.mdx)
 
 Note that due to substantial changes between Teleport 3.2 and 4.0, we recommend creating a backup of the backend datastore (DynamoDB, etcd, or dir) before upgrading a cluster to Teleport 4.0 to allow downgrades.
 
@@ -4136,7 +4149,7 @@ on Github for more.
 #### Upgrading to 3.0
 
 Follow the [recommended upgrade
-procedure](docs/pages/upgrading.mdx) to upgrade to this
+procedure](docs/pages/upgrading/upgrading.mdx) to upgrade to this
 version.
 
 **WARNING:** if you are using Teleport with the etcd back-end, make sure your
@@ -4242,7 +4255,7 @@ As always, this release contains several bug fixes. The full list can be seen [h
 #### Upgrading
 
 Follow the [recommended upgrade
-procedure](docs/pages/upgrading.mdx) to upgrade to this
+procedure](docs/pages/upgrading/upgrading.mdx) to upgrade to this
 version.
 
 ## 2.6.9
@@ -4372,7 +4385,7 @@ You can see the full list of 2.6.0 changes [here](https://github.com/gravitation
 #### Upgrading
 
 Follow the [recommended upgrade
-procedure](docs/pages/upgrading.mdx) to upgrade to this
+procedure](docs/pages/upgrading/upgrading.mdx) to upgrade to this
 version.
 
 ## 2.5.7
@@ -4459,7 +4472,7 @@ release, which includes:
 
 * The Teleport daemon now implements built-in connection draining which allows
   zero-downtime upgrades.  [See
-  documentation](docs/pages/upgrading.mdx).
+  documentation](docs/pages/upgrading/upgrading.mdx).
 
 * Dynamic join tokens for new nodes can now be explicitly set via `tctl node add --token`.
   This allows Teleport admins to use an external mechanism for generating

@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -78,6 +79,7 @@ func NewGCPWatcher(ctx context.Context, fetchersFn func() []Fetcher, opts ...Opt
 		fetchersFn:    fetchersFn,
 		ctx:           cancelCtx,
 		cancel:        cancelFn,
+		clock:         clockwork.NewRealClock(),
 		pollInterval:  time.Minute,
 		triggerFetchC: make(<-chan struct{}),
 		InstancesC:    make(chan Instances),
@@ -91,14 +93,15 @@ func NewGCPWatcher(ctx context.Context, fetchersFn func() []Fetcher, opts ...Opt
 }
 
 // MatchersToGCPInstanceFetchers converts a list of GCP GCE Matchers into a list of GCP GCE Fetchers.
-func MatchersToGCPInstanceFetchers(matchers []types.GCPMatcher, gcpClient gcp.InstancesClient, projectsClient gcp.ProjectsClient) []Fetcher {
+func MatchersToGCPInstanceFetchers(matchers []types.GCPMatcher, gcpClient gcp.InstancesClient, projectsClient gcp.ProjectsClient, discoveryConfigName string) []Fetcher {
 	fetchers := make([]Fetcher, 0, len(matchers))
 
 	for _, matcher := range matchers {
 		fetchers = append(fetchers, newGCPInstanceFetcher(gcpFetcherConfig{
-			Matcher:        matcher,
-			GCPClient:      gcpClient,
-			projectsClient: projectsClient,
+			Matcher:             matcher,
+			GCPClient:           gcpClient,
+			projectsClient:      projectsClient,
+			DiscoveryConfigName: discoveryConfigName,
 		}))
 	}
 
@@ -106,30 +109,36 @@ func MatchersToGCPInstanceFetchers(matchers []types.GCPMatcher, gcpClient gcp.In
 }
 
 type gcpFetcherConfig struct {
-	Matcher        types.GCPMatcher
-	GCPClient      gcp.InstancesClient
-	projectsClient gcp.ProjectsClient
+	Matcher             types.GCPMatcher
+	GCPClient           gcp.InstancesClient
+	projectsClient      gcp.ProjectsClient
+	DiscoveryConfigName string
+	Integration         string
 }
 
 type gcpInstanceFetcher struct {
-	GCP             gcp.InstancesClient
-	ProjectIDs      []string
-	Zones           []string
-	ProjectID       string
-	ServiceAccounts []string
-	Labels          types.Labels
-	Parameters      map[string]string
-	projectsClient  gcp.ProjectsClient
+	GCP                 gcp.InstancesClient
+	ProjectIDs          []string
+	Zones               []string
+	ProjectID           string
+	ServiceAccounts     []string
+	Labels              types.Labels
+	Parameters          map[string]string
+	projectsClient      gcp.ProjectsClient
+	DiscoveryConfigName string
+	Integration         string
 }
 
 func newGCPInstanceFetcher(cfg gcpFetcherConfig) *gcpInstanceFetcher {
 	fetcher := &gcpInstanceFetcher{
-		GCP:             cfg.GCPClient,
-		Zones:           cfg.Matcher.Locations,
-		ProjectIDs:      cfg.Matcher.ProjectIDs,
-		ServiceAccounts: cfg.Matcher.ServiceAccounts,
-		Labels:          cfg.Matcher.GetLabels(),
-		projectsClient:  cfg.projectsClient,
+		GCP:                 cfg.GCPClient,
+		Zones:               cfg.Matcher.Locations,
+		ProjectIDs:          cfg.Matcher.ProjectIDs,
+		ServiceAccounts:     cfg.Matcher.ServiceAccounts,
+		Labels:              cfg.Matcher.GetLabels(),
+		projectsClient:      cfg.projectsClient,
+		Integration:         cfg.Integration,
+		DiscoveryConfigName: cfg.DiscoveryConfigName,
 	}
 	if cfg.Matcher.Params != nil {
 		fetcher.Parameters = map[string]string{
@@ -143,6 +152,16 @@ func newGCPInstanceFetcher(cfg gcpFetcherConfig) *gcpInstanceFetcher {
 
 func (*gcpInstanceFetcher) GetMatchingInstances(_ []types.Server, _ bool) ([]Instances, error) {
 	return nil, trace.NotImplemented("not implemented for gcp fetchers")
+}
+
+func (f *gcpInstanceFetcher) GetDiscoveryConfigName() string {
+	return f.DiscoveryConfigName
+}
+
+// IntegrationName identifies the integration name whose credentials were used to fetch the resources.
+// Might be empty when the fetcher is using ambient credentials.
+func (f *gcpInstanceFetcher) IntegrationName() string {
+	return f.Integration
 }
 
 // GetInstances fetches all GCP virtual machines matching configured filters.

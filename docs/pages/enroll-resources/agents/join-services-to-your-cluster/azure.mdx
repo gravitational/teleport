@@ -12,7 +12,7 @@ Azure Virtual Machine. Support for joining a cluster with the Proxy Service
 behind a layer 7 load balancer or reverse proxy is available in Teleport 13.0+.
 
 For other methods of joining a Teleport process to a cluster, see [Joining
-Teleport Services to a Cluster](../join-services-to-your-cluster.mdx).
+Teleport Services to a Cluster](join-services-to-your-cluster.mdx).
 
 ## Prerequisites
 
@@ -24,7 +24,7 @@ Teleport Services to a Cluster](../join-services-to-your-cluster.mdx).
   assigned to it with permission to read virtual machine info.
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/4. Set up a Managed Identity
+## Step 1/5. Set up a Managed Identity
 
 Every virtual machine hosting a Teleport process using the Azure method to join
 your Teleport cluster needs a Managed Identity assigned to it. The identity
@@ -33,7 +33,7 @@ look up the virtual machine. No other permissions are required.
 
 (!docs/pages/includes/server-access/azure-join-managed-identity.mdx!)
 
-## Step 2/4. Create the Azure joining token
+## Step 2/5. Create the Azure joining token
 
 Under the hood, Teleport processes will prove that they are running in your
 Azure subscription by sending a signed attested data document and access token
@@ -54,7 +54,13 @@ Run the following command to create the token:
 $ tctl create -f token.yaml
 ```
 
-## Step 3/4. Configure your Teleport process
+## Step 3/5 Install Teleport
+
+Install Teleport on your Azure Linux VM.
+
+(!docs/pages/includes/install-linux.mdx!)
+
+## Step 4/5. Configure your Teleport process
 
 The Azure join method can be used for Teleport processes running the SSH, Proxy,
 Kubernetes, Application, Database, or Desktop Service.
@@ -82,7 +88,7 @@ proxy_service:
   enabled: no
 ```
 
-## Step 4/4. Launch your Teleport process
+## Step 5/5. Launch your Teleport process
 
 Start Teleport on the Azure VM.
 

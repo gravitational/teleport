@@ -1,5 +1,6 @@
 ---
 title: Reference for the teleport_access_list Terraform data-source
+sidebar_label: access_list
 description: This page describes the supported values of the teleport_access_list data-source of the Teleport Terraform provider.
 ---
 
@@ -113,6 +114,7 @@ Optional:
 Optional:
 
 - `description` (String) description is the plaintext description of the owner and why they are an owner.
+- `membership_kind` (Number) membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
 - `name` (String) name is the username of the owner.
 
 

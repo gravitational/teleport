@@ -21,6 +21,8 @@ $ tctl create -f installer-manager.yaml
 # role 'installer-manager' has been created
 ```
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 The preset `editor` role has the required permissions by default.
 
 To customize the default installer script, execute the following command on
@@ -39,6 +41,7 @@ Multiple `installer` resources can exist and be specified in the
 
 ```yaml
 discovery_service:
+  # ...
   {{ matcher }}:
     - types: {{ matchTypes }}
       tags:

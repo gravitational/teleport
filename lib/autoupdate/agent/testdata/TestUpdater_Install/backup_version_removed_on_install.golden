@@ -1,0 +1,12 @@
+version: v1
+kind: update_config
+spec:
+    proxy: localhost
+    path: /usr/local/bin
+    enabled: false
+    pinned: false
+status:
+    active:
+        version: 16.3.0
+    backup:
+        version: old-version

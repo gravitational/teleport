@@ -71,7 +71,7 @@ func unmarshalResource153(data []byte, opts ...services.MarshalOption) (*testRes
 
 	var r testResource153
 	if err := utils.FastUnmarshal(data, &r); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 
 	if r.Metadata == nil {
@@ -180,7 +180,7 @@ func TestGenericWrapperCRUD(t *testing.T) {
 
 	// Update a resource.
 	r1.Metadata.Labels = map[string]string{"newlabel": "newvalue"}
-	r1, err = service.UpdateResource(ctx, r1)
+	r1, err = service.UnconditionalUpdateResource(ctx, r1)
 	require.NoError(t, err)
 	r, err = service.GetResource(ctx, r1.GetMetadata().GetName())
 	require.NoError(t, err)
@@ -198,7 +198,7 @@ func TestGenericWrapperCRUD(t *testing.T) {
 
 	// Update a resource that doesn't exist.
 	doesNotExist := newTestResource153("doesnotexist")
-	_, err = service.UpdateResource(ctx, doesNotExist)
+	_, err = service.UnconditionalUpdateResource(ctx, doesNotExist)
 	require.True(t, trace.IsNotFound(err))
 
 	// Delete a resource.

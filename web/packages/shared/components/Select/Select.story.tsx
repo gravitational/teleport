@@ -17,6 +17,7 @@
  */
 
 import { useState } from 'react';
+
 import { Box, Flex, H3, H4 } from 'design';
 
 import Select, { Option } from '../Select';
@@ -144,6 +145,7 @@ export function Selects() {
             options={options}
             placeholder="Click to select a role"
             isMulti={true}
+            isClearable={true}
           />
         </Flex>
         <Flex flex="1" flexDirection="column" gap={3} mt={3}>
@@ -162,6 +164,7 @@ export function Selects() {
             options={options}
             placeholder="Click to select a role"
             isMulti={true}
+            isClearable={true}
           />
         </Flex>
         <Flex flex="1" flexDirection="column" gap={3} mt={3}>
@@ -180,6 +183,7 @@ export function Selects() {
             options={options}
             placeholder="Click to select a role"
             isMulti={true}
+            isClearable={true}
           />
         </Flex>
       </Flex>

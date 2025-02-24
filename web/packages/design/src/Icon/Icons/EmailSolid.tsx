@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function EmailSolid({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const EmailSolid = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-emailsolid"
       {...otherProps}
+      ref={ref}
     >
       <path
         fillRule="evenodd"
@@ -64,5 +65,5 @@ export function EmailSolid({ size = 24, color, ...otherProps }: IconProps) {
         d="M3 4.5C2.58579 4.5 2.25 4.83579 2.25 5.25V18C2.25 18.3978 2.40804 18.7794 2.68934 19.0607C2.97065 19.342 3.35218 19.5 3.75 19.5H20.25C20.6478 19.5 21.0294 19.342 21.3107 19.0607C21.592 18.7794 21.75 18.3978 21.75 18V5.25C21.75 4.83579 21.4142 4.5 21 4.5H3ZM3.75 6.9551V18H20.25V6.95502L12.5068 14.053C12.22 14.3158 11.7799 14.3158 11.4932 14.053L3.75 6.9551ZM19.072 6H4.92792L12 12.4827L19.072 6Z"
       />
     </Icon>
-  );
-}
+  )
+);

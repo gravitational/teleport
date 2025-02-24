@@ -21,7 +21,8 @@ import (
 	"html/template"
 	"io"
 	"os"
-	"path"
+	"path/filepath"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -45,11 +46,16 @@ var (
 	zipFiles = []string{"manifest.json", "outline.png", "color.png"}
 )
 
-// payload represents template payload
-type payload struct {
-	AppID      string
-	AppSecret  string
-	TenantID   string
+// ConfigTemplatePayload represents template payloads used to generate config files
+// used by the Microsoft Teams plugin.
+type ConfigTemplatePayload struct {
+	// AppID is the Microsoft application ID.
+	AppID string
+	// AppSecret is the Microsoft application secret.
+	AppSecret string
+	// TenantID is the Microsoft Azure tenant ID.
+	TenantID string
+	// TeamsAppID is the Microsoft Teams application ID.
 	TeamsAppID string
 }
 
@@ -57,7 +63,7 @@ type payload struct {
 func Configure(targetDir, appID, appSecret, tenantID string) error {
 	var step byte = 1
 
-	p := payload{
+	p := ConfigTemplatePayload{
 		AppID:      appID,
 		AppSecret:  appSecret,
 		TenantID:   tenantID,
@@ -79,69 +85,24 @@ func Configure(targetDir, appID, appSecret, tenantID string) error {
 
 	printStep(&step, "Created target directory: %s", targetDir)
 
-	if err := renderTemplateTo(confTpl, p, path.Join(targetDir, "teleport-msteams.toml")); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := renderTemplateTo(manifestTpl, p, path.Join(targetDir, "manifest.json")); err != nil {
-		return trace.Wrap(err)
-	}
-
-	printStep(&step, "Generated configuration files")
-
-	a, err := assets.ReadDir("_tpl")
+	configWriter, err := os.Create(filepath.Join(targetDir, "teleport-msteams.toml"))
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	for _, d := range a {
-		in, err := assets.Open(path.Join("_tpl", d.Name()))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer in.Close()
-
-		out, err := os.Create(path.Join(targetDir, d.Name()))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer out.Close()
-
-		_, err = io.Copy(out, in)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	defer configWriter.Close()
+	if err := renderTemplateTo(configWriter, confTpl, p); err != nil {
+		return trace.Wrap(err)
 	}
 
-	printStep(&step, "Copied assets")
-
-	z, err := os.Create(path.Join(targetDir, "app.zip"))
+	appZipFile, err := os.Create(filepath.Join(targetDir, "app.zip"))
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer z.Close()
+	defer appZipFile.Close()
 
-	w := zip.NewWriter(z)
-	defer w.Close()
+	WriteAppZipTo(appZipFile, p)
 
-	for _, n := range zipFiles {
-		in, err := os.Open(path.Join(targetDir, n))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer in.Close()
-
-		out, err := w.Create(n)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		_, err = io.Copy(out, in)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	printStep(&step, "Created app.zip")
-
+	printStep(&step, "Created %v", appZipFile.Name())
 	fmt.Println()
 	fmt.Printf("TeamsAppID: %v\n", p.TeamsAppID)
 	fmt.Println()
@@ -149,6 +110,52 @@ func Configure(targetDir, appID, appSecret, tenantID string) error {
 	fmt.Println()
 	fmt.Println(guideURL)
 
+	return nil
+}
+
+// WriteAppZipTo creates the manifest.json from the template using the provided payload, then writes the app.zip to the provided writer including the needed assets.
+func WriteAppZipTo(zipWriter io.Writer, p ConfigTemplatePayload) error {
+	w := zip.NewWriter(zipWriter)
+	defer w.Close()
+
+	manifestWriter, err := w.Create("manifest.json")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := renderTemplateTo(manifestWriter, manifestTpl, p); err != nil {
+		return trace.Wrap(err)
+	}
+
+	copyAssets(w)
+	return nil
+}
+
+func copyAssets(zipWriter *zip.Writer) error {
+	a, err := assets.ReadDir("_tpl")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, d := range a {
+		if !slices.Contains(zipFiles, d.Name()) {
+			continue
+		}
+		in, err := assets.Open(filepath.Join("_tpl", d.Name()))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer in.Close()
+
+		out, err := zipWriter.Create(d.Name())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		_, err = io.Copy(out, in)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
 }
 
@@ -160,17 +167,11 @@ func printStep(step *byte, message string, args ...interface{}) {
 }
 
 // renderTemplateTo renders template from a string and writes file to targetPath
-func renderTemplateTo(content string, payload interface{}, targetPath string) error {
+func renderTemplateTo(w io.Writer, content string, payload interface{}) error {
 	tpl, err := template.New("template").Parse(content)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	w, err := os.Create(targetPath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer w.Close()
 
 	err = tpl.ExecuteTemplate(w, "template", payload)
 	if err != nil {

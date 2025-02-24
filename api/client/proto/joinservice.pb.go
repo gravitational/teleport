@@ -27,7 +27,8 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
-// TODO(nklaassen): Document me.
+// RegisterUsingIAMMethodRequest is a request for registration via the IAM join
+// method.
 type RegisterUsingIAMMethodRequest struct {
 	// RegisterUsingTokenRequest holds registration parameters common to all
 	// join methods.
@@ -775,6 +776,248 @@ func (m *TPMEncryptedCredential) GetSecret() []byte {
 	return nil
 }
 
+// OracleSignedRequest holds the headers and payload for a signed request to
+// the Oracle API.
+type OracleSignedRequest struct {
+	// Headers is the signed headers for a request to the Oracle authorizeClient
+	// endpoint.
+	Headers map[string]string `protobuf:"bytes,1,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// PayloadHeaders is the signed headers that are the payload to the authorizeClient
+	// request signified by Headers.
+	PayloadHeaders       map[string]string `protobuf:"bytes,2,rep,name=payload_headers,json=payloadHeaders,proto3" json:"payload_headers,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
+	XXX_unrecognized     []byte            `json:"-"`
+	XXX_sizecache        int32             `json:"-"`
+}
+
+func (m *OracleSignedRequest) Reset()         { *m = OracleSignedRequest{} }
+func (m *OracleSignedRequest) String() string { return proto.CompactTextString(m) }
+func (*OracleSignedRequest) ProtoMessage()    {}
+func (*OracleSignedRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d7e760ce923b836e, []int{10}
+}
+func (m *OracleSignedRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *OracleSignedRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_OracleSignedRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *OracleSignedRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_OracleSignedRequest.Merge(m, src)
+}
+func (m *OracleSignedRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *OracleSignedRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_OracleSignedRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_OracleSignedRequest proto.InternalMessageInfo
+
+func (m *OracleSignedRequest) GetHeaders() map[string]string {
+	if m != nil {
+		return m.Headers
+	}
+	return nil
+}
+
+func (m *OracleSignedRequest) GetPayloadHeaders() map[string]string {
+	if m != nil {
+		return m.PayloadHeaders
+	}
+	return nil
+}
+
+// RegisterUsingOracleMethodRequest is the request for registration via the
+// Oracle join method.
+type RegisterUsingOracleMethodRequest struct {
+	// Types that are valid to be assigned to Request:
+	//	*RegisterUsingOracleMethodRequest_RegisterUsingTokenRequest
+	//	*RegisterUsingOracleMethodRequest_OracleRequest
+	Request              isRegisterUsingOracleMethodRequest_Request `protobuf_oneof:"request"`
+	XXX_NoUnkeyedLiteral struct{}                                   `json:"-"`
+	XXX_unrecognized     []byte                                     `json:"-"`
+	XXX_sizecache        int32                                      `json:"-"`
+}
+
+func (m *RegisterUsingOracleMethodRequest) Reset()         { *m = RegisterUsingOracleMethodRequest{} }
+func (m *RegisterUsingOracleMethodRequest) String() string { return proto.CompactTextString(m) }
+func (*RegisterUsingOracleMethodRequest) ProtoMessage()    {}
+func (*RegisterUsingOracleMethodRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d7e760ce923b836e, []int{11}
+}
+func (m *RegisterUsingOracleMethodRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RegisterUsingOracleMethodRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RegisterUsingOracleMethodRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RegisterUsingOracleMethodRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RegisterUsingOracleMethodRequest.Merge(m, src)
+}
+func (m *RegisterUsingOracleMethodRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *RegisterUsingOracleMethodRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_RegisterUsingOracleMethodRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RegisterUsingOracleMethodRequest proto.InternalMessageInfo
+
+type isRegisterUsingOracleMethodRequest_Request interface {
+	isRegisterUsingOracleMethodRequest_Request()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type RegisterUsingOracleMethodRequest_RegisterUsingTokenRequest struct {
+	RegisterUsingTokenRequest *types.RegisterUsingTokenRequest `protobuf:"bytes,1,opt,name=register_using_token_request,json=registerUsingTokenRequest,proto3,oneof" json:"register_using_token_request,omitempty"`
+}
+type RegisterUsingOracleMethodRequest_OracleRequest struct {
+	OracleRequest *OracleSignedRequest `protobuf:"bytes,2,opt,name=oracle_request,json=oracleRequest,proto3,oneof" json:"oracle_request,omitempty"`
+}
+
+func (*RegisterUsingOracleMethodRequest_RegisterUsingTokenRequest) isRegisterUsingOracleMethodRequest_Request() {
+}
+func (*RegisterUsingOracleMethodRequest_OracleRequest) isRegisterUsingOracleMethodRequest_Request() {}
+
+func (m *RegisterUsingOracleMethodRequest) GetRequest() isRegisterUsingOracleMethodRequest_Request {
+	if m != nil {
+		return m.Request
+	}
+	return nil
+}
+
+func (m *RegisterUsingOracleMethodRequest) GetRegisterUsingTokenRequest() *types.RegisterUsingTokenRequest {
+	if x, ok := m.GetRequest().(*RegisterUsingOracleMethodRequest_RegisterUsingTokenRequest); ok {
+		return x.RegisterUsingTokenRequest
+	}
+	return nil
+}
+
+func (m *RegisterUsingOracleMethodRequest) GetOracleRequest() *OracleSignedRequest {
+	if x, ok := m.GetRequest().(*RegisterUsingOracleMethodRequest_OracleRequest); ok {
+		return x.OracleRequest
+	}
+	return nil
+}
+
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*RegisterUsingOracleMethodRequest) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
+		(*RegisterUsingOracleMethodRequest_RegisterUsingTokenRequest)(nil),
+		(*RegisterUsingOracleMethodRequest_OracleRequest)(nil),
+	}
+}
+
+// RegisterUsingOracleMethodResponse is a stream response and will contain either
+// a Challenge or signed Certs to join the cluster.
+type RegisterUsingOracleMethodResponse struct {
+	// Types that are valid to be assigned to Response:
+	//	*RegisterUsingOracleMethodResponse_Challenge
+	//	*RegisterUsingOracleMethodResponse_Certs
+	Response             isRegisterUsingOracleMethodResponse_Response `protobuf_oneof:"response"`
+	XXX_NoUnkeyedLiteral struct{}                                     `json:"-"`
+	XXX_unrecognized     []byte                                       `json:"-"`
+	XXX_sizecache        int32                                        `json:"-"`
+}
+
+func (m *RegisterUsingOracleMethodResponse) Reset()         { *m = RegisterUsingOracleMethodResponse{} }
+func (m *RegisterUsingOracleMethodResponse) String() string { return proto.CompactTextString(m) }
+func (*RegisterUsingOracleMethodResponse) ProtoMessage()    {}
+func (*RegisterUsingOracleMethodResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d7e760ce923b836e, []int{12}
+}
+func (m *RegisterUsingOracleMethodResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RegisterUsingOracleMethodResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RegisterUsingOracleMethodResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RegisterUsingOracleMethodResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RegisterUsingOracleMethodResponse.Merge(m, src)
+}
+func (m *RegisterUsingOracleMethodResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *RegisterUsingOracleMethodResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_RegisterUsingOracleMethodResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RegisterUsingOracleMethodResponse proto.InternalMessageInfo
+
+type isRegisterUsingOracleMethodResponse_Response interface {
+	isRegisterUsingOracleMethodResponse_Response()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type RegisterUsingOracleMethodResponse_Challenge struct {
+	Challenge string `protobuf:"bytes,1,opt,name=challenge,proto3,oneof" json:"challenge,omitempty"`
+}
+type RegisterUsingOracleMethodResponse_Certs struct {
+	Certs *Certs `protobuf:"bytes,2,opt,name=certs,proto3,oneof" json:"certs,omitempty"`
+}
+
+func (*RegisterUsingOracleMethodResponse_Challenge) isRegisterUsingOracleMethodResponse_Response() {}
+func (*RegisterUsingOracleMethodResponse_Certs) isRegisterUsingOracleMethodResponse_Response()     {}
+
+func (m *RegisterUsingOracleMethodResponse) GetResponse() isRegisterUsingOracleMethodResponse_Response {
+	if m != nil {
+		return m.Response
+	}
+	return nil
+}
+
+func (m *RegisterUsingOracleMethodResponse) GetChallenge() string {
+	if x, ok := m.GetResponse().(*RegisterUsingOracleMethodResponse_Challenge); ok {
+		return x.Challenge
+	}
+	return ""
+}
+
+func (m *RegisterUsingOracleMethodResponse) GetCerts() *Certs {
+	if x, ok := m.GetResponse().(*RegisterUsingOracleMethodResponse_Certs); ok {
+		return x.Certs
+	}
+	return nil
+}
+
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*RegisterUsingOracleMethodResponse) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
+		(*RegisterUsingOracleMethodResponse_Challenge)(nil),
+		(*RegisterUsingOracleMethodResponse_Certs)(nil),
+	}
+}
+
 func init() {
 	proto.RegisterType((*RegisterUsingIAMMethodRequest)(nil), "proto.RegisterUsingIAMMethodRequest")
 	proto.RegisterType((*RegisterUsingIAMMethodResponse)(nil), "proto.RegisterUsingIAMMethodResponse")
@@ -786,6 +1029,11 @@ func init() {
 	proto.RegisterType((*RegisterUsingTPMMethodResponse)(nil), "proto.RegisterUsingTPMMethodResponse")
 	proto.RegisterType((*TPMAttestationParameters)(nil), "proto.TPMAttestationParameters")
 	proto.RegisterType((*TPMEncryptedCredential)(nil), "proto.TPMEncryptedCredential")
+	proto.RegisterType((*OracleSignedRequest)(nil), "proto.OracleSignedRequest")
+	proto.RegisterMapType((map[string]string)(nil), "proto.OracleSignedRequest.HeadersEntry")
+	proto.RegisterMapType((map[string]string)(nil), "proto.OracleSignedRequest.PayloadHeadersEntry")
+	proto.RegisterType((*RegisterUsingOracleMethodRequest)(nil), "proto.RegisterUsingOracleMethodRequest")
+	proto.RegisterType((*RegisterUsingOracleMethodResponse)(nil), "proto.RegisterUsingOracleMethodResponse")
 }
 
 func init() {
@@ -793,56 +1041,69 @@ func init() {
 }
 
 var fileDescriptor_d7e760ce923b836e = []byte{
-	// 783 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x55, 0xc1, 0x6e, 0xdb, 0x46,
-	0x10, 0x15, 0x5d, 0x5b, 0xae, 0x47, 0x6a, 0x6b, 0x2d, 0x0a, 0x57, 0x16, 0x6c, 0x59, 0x66, 0xdd,
-	0x5a, 0x45, 0x51, 0xc9, 0x50, 0x7f, 0xa0, 0x92, 0x6a, 0x40, 0x6e, 0xe3, 0xc0, 0xa0, 0x9d, 0x43,
-	0x72, 0x21, 0x56, 0xd4, 0x40, 0xde, 0x88, 0x26, 0x99, 0xdd, 0x95, 0x01, 0xe5, 0x67, 0xf2, 0x05,
-	0xb9, 0xe5, 0x23, 0x72, 0x08, 0x82, 0x1c, 0xf2, 0x01, 0x81, 0xff, 0x21, 0xf7, 0x80, 0xbb, 0x4b,
-	0x89, 0xa2, 0x25, 0x3b, 0x01, 0x82, 0x5c, 0x48, 0xec, 0xcc, 0xdb, 0x99, 0x79, 0x6f, 0x66, 0x77,
-	0xa1, 0x21, 0xd1, 0xc7, 0x28, 0xe4, 0xb2, 0xe9, 0xe3, 0x90, 0x7a, 0x93, 0xa6, 0xe7, 0x33, 0x0c,
-	0x64, 0x33, 0xe2, 0xa1, 0x0c, 0x9b, 0x4f, 0x43, 0x16, 0x08, 0xe4, 0xd7, 0xcc, 0xc3, 0x86, 0xb2,
-	0x90, 0x35, 0xf5, 0xab, 0xd4, 0xef, 0xdc, 0xe6, 0x21, 0x97, 0x42, 0x6f, 0xa8, 0xec, 0x67, 0x91,
-	0x72, 0x12, 0xa1, 0xd0, 0x5f, 0x0d, 0xb1, 0x5f, 0x59, 0xb0, 0xeb, 0xe0, 0x90, 0x09, 0x89, 0xfc,
-	0x91, 0x60, 0xc1, 0xf0, 0xa4, 0x7d, 0x7a, 0x8a, 0xf2, 0x32, 0x1c, 0x38, 0xf8, 0x6c, 0x8c, 0x42,
-	0x12, 0x0a, 0x3b, 0xdc, 0x00, 0xdc, 0x71, 0x8c, 0x70, 0x65, 0x38, 0xc2, 0xc0, 0xe5, 0xda, 0x5f,
-	0xb6, 0x6a, 0x56, 0xbd, 0xd0, 0xaa, 0x35, 0x74, 0xd4, 0xb9, 0x58, 0x17, 0x31, 0xd0, 0xc4, 0x71,
-	0xb6, 0xf9, 0x32, 0x17, 0x39, 0x82, 0x9f, 0x85, 0x14, 0x2e, 0x1b, 0x60, 0x20, 0x99, 0x9c, 0x4c,
-	0x43, 0xaf, 0xd4, 0xac, 0x7a, 0xd1, 0x21, 0x42, 0x8a, 0x13, 0xe3, 0x32, 0x3b, 0xec, 0x3e, 0x54,
-	0x97, 0x55, 0x2d, 0xa2, 0x30, 0x10, 0x48, 0x76, 0x60, 0xc3, 0xbb, 0xa4, 0xbe, 0x8f, 0xc1, 0x10,
-	0x55, 0x8d, 0x1b, 0xce, 0xcc, 0x40, 0x6c, 0x58, 0x53, 0x42, 0xa9, 0x14, 0x85, 0x56, 0x51, 0xab,
-	0xd1, 0xe8, 0xc6, 0x36, 0x47, 0xbb, 0xec, 0x37, 0x16, 0xec, 0xcd, 0x25, 0x69, 0x3f, 0x1f, 0x73,
-	0xfc, 0xe6, 0xe2, 0xfc, 0x0a, 0x3f, 0x50, 0x29, 0x51, 0x48, 0x1c, 0xb8, 0x03, 0x2a, 0xa9, 0x51,
-	0xa5, 0x98, 0x18, 0xff, 0xa5, 0x92, 0x92, 0x7d, 0x28, 0x52, 0xcf, 0x43, 0x21, 0x74, 0xfe, 0xf2,
-	0x77, 0x8a, 0x70, 0x41, 0xdb, 0x54, 0x38, 0x7b, 0x00, 0xb5, 0xe5, 0x6c, 0xbe, 0x9a, 0x68, 0xc7,
-	0x70, 0x38, 0xcf, 0xf2, 0xcc, 0x34, 0xa6, 0x9b, 0x84, 0x99, 0x26, 0xab, 0xc0, 0xf7, 0x22, 0xf4,
-	0xc7, 0x92, 0x85, 0x81, 0xca, 0x55, 0x74, 0xa6, 0x6b, 0xfb, 0xa3, 0x05, 0x07, 0x8b, 0xe3, 0x9c,
-	0x04, 0x4c, 0x32, 0xea, 0x27, 0xea, 0x74, 0xa1, 0x18, 0x1f, 0x94, 0x2f, 0x16, 0xbc, 0x10, 0xef,
-	0x4a, 0x82, 0x6c, 0xc3, 0x3a, 0x8e, 0xdc, 0x98, 0x80, 0x16, 0xb7, 0x97, 0x73, 0xf2, 0x38, 0x8a,
-	0x79, 0x91, 0x5f, 0x20, 0x8f, 0x23, 0x77, 0x84, 0x13, 0x25, 0x69, 0xec, 0x59, 0xc3, 0xd1, 0xff,
-	0x38, 0x21, 0x0f, 0x81, 0xe8, 0x0e, 0xd0, 0xb8, 0x60, 0x37, 0xa2, 0x9c, 0x5e, 0x89, 0xf2, 0xaa,
-	0x4a, 0xbf, 0x67, 0x94, 0xb9, 0x38, 0x3b, 0x6d, 0xcf, 0x30, 0x67, 0x31, 0x04, 0x25, 0x72, 0xe1,
-	0x94, 0x68, 0xc6, 0x2c, 0x3a, 0xab, 0xb0, 0x82, 0x23, 0xfb, 0x6d, 0xf6, 0x38, 0x4e, 0x79, 0x27,
-	0xb5, 0xb6, 0x61, 0x95, 0x05, 0x2c, 0x21, 0xfa, 0xa7, 0xc9, 0xf4, 0x39, 0x5a, 0xf5, 0x72, 0x8e,
-	0xda, 0x4a, 0x5c, 0x20, 0xd3, 0xa6, 0xba, 0xdc, 0xb4, 0xc3, 0x34, 0xb5, 0x71, 0x67, 0xc0, 0x5b,
-	0x4d, 0xec, 0xe5, 0x9c, 0x92, 0x97, 0x35, 0x76, 0x36, 0x60, 0x3d, 0xa2, 0x13, 0x3f, 0xa4, 0x03,
-	0xfb, 0x85, 0x95, 0x39, 0xa9, 0x29, 0x42, 0x66, 0x0e, 0x1e, 0x40, 0x29, 0x5d, 0x4e, 0xba, 0x8f,
-	0xbb, 0x33, 0x21, 0x8f, 0x03, 0x8f, 0x4f, 0x22, 0x89, 0x83, 0x2e, 0x47, 0x75, 0x19, 0x50, 0xbf,
-	0x97, 0x73, 0x36, 0x53, 0xc9, 0xb5, 0x3e, 0x07, 0x77, 0x0c, 0x69, 0xdc, 0x3d, 0xe5, 0x4c, 0x57,
-	0xf8, 0xd2, 0x82, 0xf2, 0xb2, 0x46, 0x91, 0x2d, 0xc8, 0x47, 0xe3, 0xbe, 0xcf, 0x3c, 0x33, 0xa1,
-	0x66, 0x45, 0xf6, 0xa0, 0xe0, 0x71, 0xa4, 0x12, 0xd3, 0x47, 0x12, 0xb4, 0x49, 0x1d, 0xc8, 0xbf,
-	0x80, 0x18, 0x40, 0xaa, 0xd5, 0x7a, 0x86, 0x9c, 0x92, 0xf6, 0xa4, 0x32, 0x92, 0x3f, 0x60, 0xd3,
-	0xc0, 0x05, 0x1b, 0x06, 0x54, 0x8e, 0x39, 0xaa, 0x59, 0x2a, 0x3a, 0x3f, 0x69, 0xfb, 0x79, 0x62,
-	0xb6, 0x1f, 0xc3, 0xd6, 0x62, 0x39, 0xc8, 0x21, 0xc4, 0x60, 0xb3, 0x72, 0xfb, 0x7e, 0xd8, 0x37,
-	0x55, 0xff, 0x38, 0x33, 0x77, 0xfc, 0xb0, 0x1f, 0xb3, 0x12, 0xe8, 0x71, 0x4c, 0x6e, 0x58, 0xb3,
-	0x6a, 0xbd, 0x5f, 0x81, 0xc2, 0x7f, 0x21, 0x0b, 0xce, 0xf5, 0xb3, 0x43, 0x18, 0x6c, 0x2d, 0xbe,
-	0x65, 0xc9, 0xc1, 0xa2, 0x31, 0xc9, 0x3e, 0x1d, 0x95, 0xdf, 0xee, 0x41, 0xe9, 0x01, 0xa8, 0x5b,
-	0x47, 0x16, 0x09, 0xa1, 0xbc, 0xec, 0x76, 0x22, 0xbf, 0x2f, 0x0a, 0x73, 0xfb, 0x32, 0xae, 0x1c,
-	0xde, 0x8b, 0x4b, 0x25, 0xcc, 0x72, 0x9b, 0xce, 0xe5, 0x62, 0x6e, 0xd9, 0x73, 0xb8, 0x98, 0xdb,
-	0xad, 0xe1, 0x8e, 0x53, 0x75, 0xfe, 0x79, 0x7d, 0x53, 0xb5, 0xde, 0xdd, 0x54, 0xad, 0x0f, 0x37,
-	0x55, 0xeb, 0x49, 0x6b, 0xc8, 0xe4, 0xe5, 0xb8, 0xdf, 0xf0, 0xc2, 0xab, 0xe6, 0x90, 0xd3, 0x6b,
-	0xa6, 0x47, 0x80, 0xfa, 0xcd, 0xe9, 0x6b, 0x4d, 0x23, 0x36, 0xf7, 0xa8, 0xf7, 0xf3, 0xea, 0xf7,
-	0xf7, 0xa7, 0x00, 0x00, 0x00, 0xff, 0xff, 0xfa, 0x5a, 0x2e, 0x2f, 0x32, 0x08, 0x00, 0x00,
+	// 983 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x56, 0xcd, 0x6e, 0x23, 0x45,
+	0x10, 0xf6, 0x38, 0x7f, 0x9b, 0xb2, 0x37, 0x9b, 0xf4, 0xae, 0x82, 0x33, 0xda, 0x75, 0x9c, 0x21,
+	0x10, 0x23, 0x84, 0xbd, 0x32, 0x17, 0xb4, 0x27, 0x1c, 0x6f, 0x24, 0x07, 0x08, 0x44, 0xb3, 0x8b,
+	0x10, 0x5c, 0x46, 0xed, 0x71, 0xc9, 0x69, 0x3c, 0x3b, 0x33, 0x74, 0xb7, 0x23, 0x99, 0x87, 0xe0,
+	0x15, 0x78, 0x02, 0x24, 0x0e, 0x3c, 0x04, 0x07, 0x84, 0xb8, 0x71, 0x45, 0x79, 0x07, 0xee, 0x68,
+	0xba, 0x7b, 0x9c, 0xf1, 0x78, 0xec, 0xec, 0x4a, 0x2b, 0x2e, 0x1e, 0x77, 0x75, 0x55, 0x7d, 0x5d,
+	0x5f, 0xfd, 0x74, 0x43, 0x4b, 0x62, 0x80, 0x71, 0xc4, 0x65, 0x3b, 0xc0, 0x11, 0xf5, 0xa7, 0x6d,
+	0x3f, 0x60, 0x18, 0xca, 0x76, 0xcc, 0x23, 0x19, 0xb5, 0xbf, 0x8f, 0x58, 0x28, 0x90, 0x5f, 0x33,
+	0x1f, 0x5b, 0x4a, 0x42, 0x36, 0xd4, 0xc7, 0x6e, 0xae, 0x34, 0xf3, 0x91, 0x4b, 0xa1, 0x0d, 0xec,
+	0xa3, 0xbc, 0xa6, 0x9c, 0xc6, 0x28, 0xf4, 0xaf, 0x56, 0x71, 0x7e, 0xb3, 0xe0, 0x89, 0x8b, 0x23,
+	0x26, 0x24, 0xf2, 0xaf, 0x05, 0x0b, 0x47, 0xe7, 0xdd, 0x8b, 0x0b, 0x94, 0x57, 0xd1, 0xd0, 0xc5,
+	0x1f, 0x26, 0x28, 0x24, 0xa1, 0xf0, 0x98, 0x1b, 0x05, 0x6f, 0x92, 0x68, 0x78, 0x32, 0x1a, 0x63,
+	0xe8, 0x71, 0xbd, 0x5f, 0xb3, 0x1a, 0x56, 0xb3, 0xd2, 0x69, 0xb4, 0xb4, 0xd7, 0x39, 0x5f, 0x2f,
+	0x13, 0x45, 0xe3, 0xc7, 0x3d, 0xe0, 0xcb, 0xb6, 0xc8, 0x53, 0x78, 0x24, 0xa4, 0xf0, 0xd8, 0x10,
+	0x43, 0xc9, 0xe4, 0x74, 0xe6, 0xba, 0xdc, 0xb0, 0x9a, 0x55, 0x97, 0x08, 0x29, 0xce, 0xcd, 0x96,
+	0xb1, 0x70, 0x06, 0x50, 0x5f, 0x76, 0x6a, 0x11, 0x47, 0xa1, 0x40, 0xf2, 0x18, 0xb6, 0xfd, 0x2b,
+	0x1a, 0x04, 0x18, 0x8e, 0x50, 0x9d, 0x71, 0xdb, 0xbd, 0x15, 0x10, 0x07, 0x36, 0x14, 0x51, 0x0a,
+	0xa2, 0xd2, 0xa9, 0x6a, 0x36, 0x5a, 0xbd, 0x44, 0xe6, 0xea, 0x2d, 0xe7, 0x0f, 0x0b, 0x0e, 0xe7,
+	0x40, 0xba, 0x3f, 0x4e, 0x38, 0xfe, 0xef, 0xe4, 0xbc, 0x0b, 0xf7, 0xa9, 0x94, 0x28, 0x24, 0x0e,
+	0xbd, 0x21, 0x95, 0xd4, 0xb0, 0x52, 0x4d, 0x85, 0xcf, 0xa9, 0xa4, 0xe4, 0x08, 0xaa, 0xd4, 0xf7,
+	0x51, 0x08, 0x8d, 0x5f, 0x5b, 0x53, 0x01, 0x57, 0xb4, 0x4c, 0xb9, 0x73, 0x86, 0xd0, 0x58, 0x1e,
+	0xcd, 0x5b, 0x23, 0xed, 0x0c, 0x4e, 0xe6, 0xa3, 0xbc, 0x34, 0x89, 0xe9, 0xa5, 0x6e, 0x66, 0x60,
+	0x36, 0xdc, 0x13, 0x51, 0x30, 0x91, 0x2c, 0x0a, 0x15, 0x56, 0xd5, 0x9d, 0xad, 0x9d, 0x7f, 0x2d,
+	0x38, 0x2e, 0xf6, 0x73, 0x1e, 0x32, 0xc9, 0x68, 0x90, 0xb2, 0xd3, 0x83, 0x6a, 0xd2, 0x28, 0x6f,
+	0x4c, 0x78, 0x25, 0xb1, 0x4a, 0x9d, 0x1c, 0xc0, 0x16, 0x8e, 0xbd, 0x24, 0x00, 0x4d, 0x6e, 0xbf,
+	0xe4, 0x6e, 0xe2, 0x38, 0x89, 0x8b, 0xbc, 0x03, 0x9b, 0x38, 0xf6, 0xc6, 0x38, 0x55, 0x94, 0x26,
+	0x3b, 0x1b, 0x38, 0xfe, 0x1c, 0xa7, 0xe4, 0x4b, 0x20, 0x3a, 0x03, 0x34, 0x39, 0xb0, 0x17, 0x53,
+	0x4e, 0x5f, 0x89, 0xda, 0xba, 0x82, 0x3f, 0x34, 0xcc, 0xbc, 0xbc, 0xbc, 0xe8, 0xde, 0xea, 0x5c,
+	0x26, 0x2a, 0x28, 0x91, 0x0b, 0x77, 0x8f, 0xe6, 0xc4, 0xe2, 0x74, 0x1d, 0xca, 0x38, 0x76, 0xfe,
+	0xcc, 0xb7, 0xe3, 0x2c, 0xee, 0xf4, 0xac, 0x5d, 0x58, 0x67, 0x21, 0x4b, 0x03, 0xfd, 0xd0, 0x20,
+	0xbd, 0x0e, 0x57, 0xfd, 0x92, 0xab, 0x4c, 0x89, 0x07, 0x64, 0x96, 0x54, 0x8f, 0x9b, 0x74, 0x98,
+	0xa4, 0xb6, 0x56, 0x3a, 0x5c, 0x48, 0x62, 0xbf, 0xe4, 0xee, 0xf9, 0x79, 0xe1, 0xe9, 0x36, 0x6c,
+	0xc5, 0x74, 0x1a, 0x44, 0x74, 0xe8, 0xfc, 0x6c, 0xe5, 0x3a, 0x35, 0x13, 0x90, 0xa9, 0x83, 0x2f,
+	0x60, 0x2f, 0x7b, 0x9c, 0x6c, 0x1e, 0x9f, 0xdc, 0x12, 0x79, 0x16, 0xfa, 0x7c, 0x1a, 0x4b, 0x1c,
+	0xf6, 0x38, 0xaa, 0x61, 0x40, 0x83, 0x7e, 0xc9, 0xdd, 0xcd, 0x80, 0x6b, 0x7e, 0x8e, 0x57, 0x14,
+	0x69, 0x92, 0x3d, 0xb5, 0x99, 0x3d, 0xe1, 0x2f, 0x16, 0xd4, 0x96, 0x25, 0x8a, 0xec, 0xc3, 0x66,
+	0x3c, 0x19, 0x04, 0xcc, 0x37, 0x15, 0x6a, 0x56, 0xe4, 0x10, 0x2a, 0x3e, 0x47, 0x2a, 0x31, 0xdb,
+	0x92, 0xa0, 0x45, 0xaa, 0x21, 0x3f, 0x02, 0x62, 0x14, 0x32, 0xa9, 0xd6, 0x35, 0xe4, 0xee, 0xe9,
+	0x9d, 0x0c, 0x22, 0xf9, 0x00, 0x76, 0x8d, 0xba, 0x60, 0xa3, 0x90, 0xca, 0x09, 0x47, 0x55, 0x4b,
+	0x55, 0xf7, 0x81, 0x96, 0xbf, 0x48, 0xc5, 0xce, 0xb7, 0xb0, 0x5f, 0x4c, 0x07, 0x39, 0x81, 0x44,
+	0xd9, 0xac, 0xbc, 0x41, 0x10, 0x0d, 0xcc, 0xa9, 0x77, 0x6e, 0xc5, 0xa7, 0x41, 0x34, 0x48, 0xa2,
+	0x12, 0xe8, 0x73, 0x4c, 0x27, 0xac, 0x59, 0x39, 0xbf, 0x96, 0xe1, 0xe1, 0x57, 0x9c, 0xfa, 0x81,
+	0x82, 0xc3, 0x4c, 0xcd, 0x6d, 0x5d, 0x21, 0x1d, 0x22, 0x17, 0x35, 0xab, 0xb1, 0xd6, 0xac, 0x74,
+	0x4e, 0x0c, 0xab, 0x05, 0xca, 0xad, 0xbe, 0xd6, 0x3c, 0x0b, 0x25, 0x9f, 0xba, 0xa9, 0x1d, 0xf9,
+	0x06, 0x1e, 0x18, 0xc2, 0xbd, 0xd4, 0x55, 0x59, 0xb9, 0x6a, 0xad, 0x70, 0x75, 0xa9, 0x2d, 0xe6,
+	0x3c, 0xee, 0xc4, 0x73, 0x42, 0xfb, 0x19, 0x54, 0xb3, 0xfb, 0x64, 0x17, 0xd6, 0x92, 0x6e, 0xd5,
+	0xc3, 0x2b, 0xf9, 0x4b, 0x1e, 0xc1, 0xc6, 0x35, 0x0d, 0x26, 0xba, 0xc2, 0xb7, 0x5d, 0xbd, 0x78,
+	0x56, 0xfe, 0xc4, 0xb2, 0xbb, 0xf0, 0xb0, 0x00, 0xe2, 0x4d, 0x5c, 0x38, 0x7f, 0x5b, 0xb9, 0xb1,
+	0xaa, 0xe3, 0x98, 0xef, 0x59, 0xff, 0xed, 0xdc, 0x12, 0xfd, 0xd2, 0xaa, 0x7b, 0xa2, 0x07, 0x3b,
+	0x91, 0xc2, 0x9e, 0xbb, 0x3e, 0x2b, 0x1d, 0x7b, 0x39, 0xc1, 0xfd, 0x92, 0x7b, 0x5f, 0xdb, 0x18,
+	0x41, 0xd2, 0x17, 0xc6, 0xda, 0x99, 0xc0, 0xd1, 0x8a, 0xc0, 0x4c, 0xef, 0xd6, 0x17, 0x2e, 0x8c,
+	0x7e, 0x29, 0x7b, 0x65, 0xbc, 0x5e, 0x37, 0x02, 0xdc, 0x4b, 0xc7, 0x50, 0xe7, 0xa7, 0x75, 0xa8,
+	0x7c, 0x16, 0xb1, 0xf0, 0x85, 0x7e, 0xfa, 0x10, 0x06, 0xfb, 0xc5, 0x37, 0x3d, 0x39, 0x2e, 0x1a,
+	0x55, 0xf9, 0xe7, 0x8b, 0xfd, 0xde, 0x1d, 0x5a, 0x1a, 0xb6, 0x69, 0x3d, 0xb5, 0x48, 0x04, 0xb5,
+	0x65, 0x37, 0x24, 0x79, 0xbf, 0xc8, 0xcd, 0xe2, 0x83, 0xc0, 0x3e, 0xb9, 0x53, 0x2f, 0x03, 0x98,
+	0x8f, 0x6d, 0x36, 0x1b, 0x8b, 0x63, 0xcb, 0xdf, 0x05, 0xc5, 0xb1, 0x2d, 0x0c, 0x58, 0x05, 0xc5,
+	0xe1, 0x60, 0x69, 0x36, 0x49, 0xe1, 0xa1, 0x0b, 0x0a, 0xd9, 0x6e, 0xde, 0xad, 0x98, 0xc1, 0x7c,
+	0x0e, 0x64, 0xb1, 0x96, 0xc9, 0x9d, 0x65, 0x6e, 0xcf, 0x55, 0xc9, 0xe9, 0xa7, 0xbf, 0xdf, 0xd4,
+	0xad, 0xbf, 0x6e, 0xea, 0xd6, 0x3f, 0x37, 0x75, 0xeb, 0xbb, 0xce, 0x88, 0xc9, 0xab, 0xc9, 0xa0,
+	0xe5, 0x47, 0xaf, 0xda, 0x23, 0x4e, 0xaf, 0x99, 0x1e, 0xa0, 0x34, 0x68, 0xcf, 0xde, 0xba, 0x34,
+	0x66, 0x73, 0x4f, 0xe2, 0xc1, 0xa6, 0xfa, 0x7c, 0xfc, 0x5f, 0x00, 0x00, 0x00, 0xff, 0xff, 0x9b,
+	0x47, 0xf1, 0x87, 0x70, 0x0b, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -866,6 +1127,12 @@ type JoinServiceClient interface {
 	// RegisterUsingTPMMethod allows registration of a new agent or Bot to the
 	// cluster using a known TPM.
 	RegisterUsingTPMMethod(ctx context.Context, opts ...grpc.CallOption) (JoinService_RegisterUsingTPMMethodClient, error)
+	// RegisterUsingOracleMethod allows registration of a new node to the cluster
+	// using the Oracle join method.
+	RegisterUsingOracleMethod(ctx context.Context, opts ...grpc.CallOption) (JoinService_RegisterUsingOracleMethodClient, error)
+	// RegisterUsingToken is used to register a new node to the cluster using one
+	// of the legacy join methods which do not yet have their own gRPC method.
+	RegisterUsingToken(ctx context.Context, in *types.RegisterUsingTokenRequest, opts ...grpc.CallOption) (*Certs, error)
 }
 
 type joinServiceClient struct {
@@ -969,6 +1236,46 @@ func (x *joinServiceRegisterUsingTPMMethodClient) Recv() (*RegisterUsingTPMMetho
 	return m, nil
 }
 
+func (c *joinServiceClient) RegisterUsingOracleMethod(ctx context.Context, opts ...grpc.CallOption) (JoinService_RegisterUsingOracleMethodClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_JoinService_serviceDesc.Streams[3], "/proto.JoinService/RegisterUsingOracleMethod", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &joinServiceRegisterUsingOracleMethodClient{stream}
+	return x, nil
+}
+
+type JoinService_RegisterUsingOracleMethodClient interface {
+	Send(*RegisterUsingOracleMethodRequest) error
+	Recv() (*RegisterUsingOracleMethodResponse, error)
+	grpc.ClientStream
+}
+
+type joinServiceRegisterUsingOracleMethodClient struct {
+	grpc.ClientStream
+}
+
+func (x *joinServiceRegisterUsingOracleMethodClient) Send(m *RegisterUsingOracleMethodRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *joinServiceRegisterUsingOracleMethodClient) Recv() (*RegisterUsingOracleMethodResponse, error) {
+	m := new(RegisterUsingOracleMethodResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *joinServiceClient) RegisterUsingToken(ctx context.Context, in *types.RegisterUsingTokenRequest, opts ...grpc.CallOption) (*Certs, error) {
+	out := new(Certs)
+	err := c.cc.Invoke(ctx, "/proto.JoinService/RegisterUsingToken", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // JoinServiceServer is the server API for JoinService service.
 type JoinServiceServer interface {
 	// RegisterUsingIAMMethod is used to register a new node to the cluster using
@@ -980,6 +1287,12 @@ type JoinServiceServer interface {
 	// RegisterUsingTPMMethod allows registration of a new agent or Bot to the
 	// cluster using a known TPM.
 	RegisterUsingTPMMethod(JoinService_RegisterUsingTPMMethodServer) error
+	// RegisterUsingOracleMethod allows registration of a new node to the cluster
+	// using the Oracle join method.
+	RegisterUsingOracleMethod(JoinService_RegisterUsingOracleMethodServer) error
+	// RegisterUsingToken is used to register a new node to the cluster using one
+	// of the legacy join methods which do not yet have their own gRPC method.
+	RegisterUsingToken(context.Context, *types.RegisterUsingTokenRequest) (*Certs, error)
 }
 
 // UnimplementedJoinServiceServer can be embedded to have forward compatible implementations.
@@ -994,6 +1307,12 @@ func (*UnimplementedJoinServiceServer) RegisterUsingAzureMethod(srv JoinService_
 }
 func (*UnimplementedJoinServiceServer) RegisterUsingTPMMethod(srv JoinService_RegisterUsingTPMMethodServer) error {
 	return status.Errorf(codes.Unimplemented, "method RegisterUsingTPMMethod not implemented")
+}
+func (*UnimplementedJoinServiceServer) RegisterUsingOracleMethod(srv JoinService_RegisterUsingOracleMethodServer) error {
+	return status.Errorf(codes.Unimplemented, "method RegisterUsingOracleMethod not implemented")
+}
+func (*UnimplementedJoinServiceServer) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*Certs, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RegisterUsingToken not implemented")
 }
 
 func RegisterJoinServiceServer(s *grpc.Server, srv JoinServiceServer) {
@@ -1078,10 +1397,59 @@ func (x *joinServiceRegisterUsingTPMMethodServer) Recv() (*RegisterUsingTPMMetho
 	return m, nil
 }
 
+func _JoinService_RegisterUsingOracleMethod_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(JoinServiceServer).RegisterUsingOracleMethod(&joinServiceRegisterUsingOracleMethodServer{stream})
+}
+
+type JoinService_RegisterUsingOracleMethodServer interface {
+	Send(*RegisterUsingOracleMethodResponse) error
+	Recv() (*RegisterUsingOracleMethodRequest, error)
+	grpc.ServerStream
+}
+
+type joinServiceRegisterUsingOracleMethodServer struct {
+	grpc.ServerStream
+}
+
+func (x *joinServiceRegisterUsingOracleMethodServer) Send(m *RegisterUsingOracleMethodResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *joinServiceRegisterUsingOracleMethodServer) Recv() (*RegisterUsingOracleMethodRequest, error) {
+	m := new(RegisterUsingOracleMethodRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func _JoinService_RegisterUsingToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(types.RegisterUsingTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(JoinServiceServer).RegisterUsingToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.JoinService/RegisterUsingToken",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(JoinServiceServer).RegisterUsingToken(ctx, req.(*types.RegisterUsingTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _JoinService_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "proto.JoinService",
 	HandlerType: (*JoinServiceServer)(nil),
-	Methods:     []grpc.MethodDesc{},
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "RegisterUsingToken",
+			Handler:    _JoinService_RegisterUsingToken_Handler,
+		},
+	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "RegisterUsingIAMMethod",
@@ -1098,6 +1466,12 @@ var _JoinService_serviceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "RegisterUsingTPMMethod",
 			Handler:       _JoinService_RegisterUsingTPMMethod_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "RegisterUsingOracleMethod",
+			Handler:       _JoinService_RegisterUsingOracleMethod_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},
@@ -1674,6 +2048,220 @@ func (m *TPMEncryptedCredential) MarshalToSizedBuffer(dAtA []byte) (int, error) 
 	return len(dAtA) - i, nil
 }
 
+func (m *OracleSignedRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *OracleSignedRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *OracleSignedRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.PayloadHeaders) > 0 {
+		for k := range m.PayloadHeaders {
+			v := m.PayloadHeaders[k]
+			baseI := i
+			i -= len(v)
+			copy(dAtA[i:], v)
+			i = encodeVarintJoinservice(dAtA, i, uint64(len(v)))
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintJoinservice(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintJoinservice(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x12
+		}
+	}
+	if len(m.Headers) > 0 {
+		for k := range m.Headers {
+			v := m.Headers[k]
+			baseI := i
+			i -= len(v)
+			copy(dAtA[i:], v)
+			i = encodeVarintJoinservice(dAtA, i, uint64(len(v)))
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintJoinservice(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintJoinservice(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *RegisterUsingOracleMethodRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RegisterUsingOracleMethodRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RegisterUsingOracleMethodRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Request != nil {
+		{
+			size := m.Request.Size()
+			i -= size
+			if _, err := m.Request.MarshalTo(dAtA[i:]); err != nil {
+				return 0, err
+			}
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *RegisterUsingOracleMethodRequest_RegisterUsingTokenRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RegisterUsingOracleMethodRequest_RegisterUsingTokenRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.RegisterUsingTokenRequest != nil {
+		{
+			size, err := m.RegisterUsingTokenRequest.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintJoinservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+func (m *RegisterUsingOracleMethodRequest_OracleRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RegisterUsingOracleMethodRequest_OracleRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.OracleRequest != nil {
+		{
+			size, err := m.OracleRequest.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintJoinservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	return len(dAtA) - i, nil
+}
+func (m *RegisterUsingOracleMethodResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RegisterUsingOracleMethodResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RegisterUsingOracleMethodResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Response != nil {
+		{
+			size := m.Response.Size()
+			i -= size
+			if _, err := m.Response.MarshalTo(dAtA[i:]); err != nil {
+				return 0, err
+			}
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *RegisterUsingOracleMethodResponse_Challenge) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RegisterUsingOracleMethodResponse_Challenge) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	i -= len(m.Challenge)
+	copy(dAtA[i:], m.Challenge)
+	i = encodeVarintJoinservice(dAtA, i, uint64(len(m.Challenge)))
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+func (m *RegisterUsingOracleMethodResponse_Certs) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RegisterUsingOracleMethodResponse_Certs) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Certs != nil {
+		{
+			size, err := m.Certs.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintJoinservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	return len(dAtA) - i, nil
+}
 func encodeVarintJoinservice(dAtA []byte, offset int, v uint64) int {
 	offset -= sovJoinservice(v)
 	base := offset
@@ -1954,6 +2542,111 @@ func (m *TPMEncryptedCredential) Size() (n int) {
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *OracleSignedRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Headers) > 0 {
+		for k, v := range m.Headers {
+			_ = k
+			_ = v
+			mapEntrySize := 1 + len(k) + sovJoinservice(uint64(len(k))) + 1 + len(v) + sovJoinservice(uint64(len(v)))
+			n += mapEntrySize + 1 + sovJoinservice(uint64(mapEntrySize))
+		}
+	}
+	if len(m.PayloadHeaders) > 0 {
+		for k, v := range m.PayloadHeaders {
+			_ = k
+			_ = v
+			mapEntrySize := 1 + len(k) + sovJoinservice(uint64(len(k))) + 1 + len(v) + sovJoinservice(uint64(len(v)))
+			n += mapEntrySize + 1 + sovJoinservice(uint64(mapEntrySize))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *RegisterUsingOracleMethodRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Request != nil {
+		n += m.Request.Size()
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *RegisterUsingOracleMethodRequest_RegisterUsingTokenRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.RegisterUsingTokenRequest != nil {
+		l = m.RegisterUsingTokenRequest.Size()
+		n += 1 + l + sovJoinservice(uint64(l))
+	}
+	return n
+}
+func (m *RegisterUsingOracleMethodRequest_OracleRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.OracleRequest != nil {
+		l = m.OracleRequest.Size()
+		n += 1 + l + sovJoinservice(uint64(l))
+	}
+	return n
+}
+func (m *RegisterUsingOracleMethodResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Response != nil {
+		n += m.Response.Size()
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *RegisterUsingOracleMethodResponse_Challenge) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Challenge)
+	n += 1 + l + sovJoinservice(uint64(l))
+	return n
+}
+func (m *RegisterUsingOracleMethodResponse_Certs) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Certs != nil {
+		l = m.Certs.Size()
+		n += 1 + l + sovJoinservice(uint64(l))
 	}
 	return n
 }
@@ -3275,6 +3968,550 @@ func (m *TPMEncryptedCredential) Unmarshal(dAtA []byte) error {
 			if m.Secret == nil {
 				m.Secret = []byte{}
 			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipJoinservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *OracleSignedRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowJoinservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: OracleSignedRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: OracleSignedRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Headers", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Headers == nil {
+				m.Headers = make(map[string]string)
+			}
+			var mapkey string
+			var mapvalue string
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowJoinservice
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowJoinservice
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthJoinservice
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthJoinservice
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var stringLenmapvalue uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowJoinservice
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapvalue |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapvalue := int(stringLenmapvalue)
+					if intStringLenmapvalue < 0 {
+						return ErrInvalidLengthJoinservice
+					}
+					postStringIndexmapvalue := iNdEx + intStringLenmapvalue
+					if postStringIndexmapvalue < 0 {
+						return ErrInvalidLengthJoinservice
+					}
+					if postStringIndexmapvalue > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvalue = string(dAtA[iNdEx:postStringIndexmapvalue])
+					iNdEx = postStringIndexmapvalue
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipJoinservice(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
+						return ErrInvalidLengthJoinservice
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.Headers[mapkey] = mapvalue
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PayloadHeaders", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.PayloadHeaders == nil {
+				m.PayloadHeaders = make(map[string]string)
+			}
+			var mapkey string
+			var mapvalue string
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowJoinservice
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowJoinservice
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthJoinservice
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthJoinservice
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var stringLenmapvalue uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowJoinservice
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapvalue |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapvalue := int(stringLenmapvalue)
+					if intStringLenmapvalue < 0 {
+						return ErrInvalidLengthJoinservice
+					}
+					postStringIndexmapvalue := iNdEx + intStringLenmapvalue
+					if postStringIndexmapvalue < 0 {
+						return ErrInvalidLengthJoinservice
+					}
+					if postStringIndexmapvalue > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvalue = string(dAtA[iNdEx:postStringIndexmapvalue])
+					iNdEx = postStringIndexmapvalue
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipJoinservice(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
+						return ErrInvalidLengthJoinservice
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.PayloadHeaders[mapkey] = mapvalue
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipJoinservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RegisterUsingOracleMethodRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowJoinservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RegisterUsingOracleMethodRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RegisterUsingOracleMethodRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RegisterUsingTokenRequest", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &types.RegisterUsingTokenRequest{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Request = &RegisterUsingOracleMethodRequest_RegisterUsingTokenRequest{v}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field OracleRequest", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &OracleSignedRequest{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Request = &RegisterUsingOracleMethodRequest_OracleRequest{v}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipJoinservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RegisterUsingOracleMethodResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowJoinservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RegisterUsingOracleMethodResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RegisterUsingOracleMethodResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Challenge", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Response = &RegisterUsingOracleMethodResponse_Challenge{string(dAtA[iNdEx:postIndex])}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Certs", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &Certs{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Response = &RegisterUsingOracleMethodResponse_Certs{v}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

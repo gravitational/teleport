@@ -16,6 +16,7 @@ jobs:
       has_go: ${{ steps.changes.outputs.has_go }}
       has_rust: ${{ steps.changes.outputs.has_rust }}
       has_proto: ${{ steps.changes.outputs.has_proto }}
+      has_rfd: ${{ steps.changes.outputs.has_rfd }}
     steps:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
@@ -26,6 +27,10 @@ jobs:
           base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
           ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
           filters: |
+            has_rfd:
+              - '.github/workflows/lint.yaml'
+              - 'rfd/**.md'
+              - 'rfd/cspell.json'
             has_go:
               - '.github/workflows/lint.yaml'
               - '**.go'
@@ -63,7 +68,6 @@ jobs:
               - 'docs/pages/admin-guides/**'
               - 'docs/pages/enroll-resources/**'
               - 'docs/pages/reference/operator-resources/**'
-              - 'docs/pages/reference/terraform-provider.mdx'
               - 'docs/pages/reference/terraform-provider/**'
               - 'examples/chart/teleport-cluster/charts/teleport-operator/operator-crds'
 
@@ -89,7 +93,7 @@ jobs:
           find . -path ./e -prune -o -name go.mod -print | while read f; do
             echo "checking $f"
             pushd $(dirname "$f") > /dev/null;
-            go mod tidy -diff;
+            go mod tidy -diff || (echo "Run 'make go-mod-tidy-all' to resolve" && exit 1);
             popd > /dev/null;
           done
 
@@ -104,41 +108,41 @@ jobs:
       # Run various golangci-lint checks.
       # TODO(codingllama): Using go.work could save a bunch of repetition here.
       - name: golangci-lint (api)
-        uses: golangci/golangci-lint-action@aaa42aa0628b4ae2578232a66b541047968fac86 # v6.1.0
+        uses: golangci/golangci-lint-action@ec5d18412c0aeab7936cb16880d708ba2a64e1ae # v6.2.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: api
           args: --out-format=colored-line-number
           skip-cache: true
       - name: golangci-lint (teleport)
-        uses: golangci/golangci-lint-action@aaa42aa0628b4ae2578232a66b541047968fac86 # v6.1.0
+        uses: golangci/golangci-lint-action@ec5d18412c0aeab7936cb16880d708ba2a64e1ae # v6.2.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --out-format=colored-line-number --build-tags libfido2,piv
           skip-cache: true
       - name: golangci-lint (assets/backport)
-        uses: golangci/golangci-lint-action@aaa42aa0628b4ae2578232a66b541047968fac86 # v6.1.0
+        uses: golangci/golangci-lint-action@ec5d18412c0aeab7936cb16880d708ba2a64e1ae # v6.2.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: assets/backport
           args: --out-format=colored-line-number
           skip-cache: true
       - name: golangci-lint (build.assets/tooling)
-        uses: golangci/golangci-lint-action@aaa42aa0628b4ae2578232a66b541047968fac86 # v6.1.0
+        uses: golangci/golangci-lint-action@ec5d18412c0aeab7936cb16880d708ba2a64e1ae # v6.2.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: build.assets/tooling
           args: --out-format=colored-line-number
           skip-cache: true
       - name: golangci-lint (integrations/terraform)
-        uses: golangci/golangci-lint-action@aaa42aa0628b4ae2578232a66b541047968fac86 # v6.1.0
+        uses: golangci/golangci-lint-action@ec5d18412c0aeab7936cb16880d708ba2a64e1ae # v6.2.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: integrations/terraform
           args: --out-format=colored-line-number
           skip-cache: true
       - name: golangci-lint (integrations/event-handler)
-        uses: golangci/golangci-lint-action@aaa42aa0628b4ae2578232a66b541047968fac86 # v6.1.0
+        uses: golangci/golangci-lint-action@ec5d18412c0aeab7936cb16880d708ba2a64e1ae # v6.2.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: integrations/event-handler
@@ -204,7 +208,7 @@ jobs:
       - name: Print linter versions
         run: |
           echo "BUF_VERSION=$BUF_VERSION"
-      - uses: bufbuild/buf-setup-action@62ee92603c244ad0da98bab36a834a999a5329e6 # v1.43.0
+      - uses: bufbuild/buf-setup-action@a47c93e0b1648d5651a065437926377d060baa99 # v1.50.0
         with:
           github_token: ${{ github.token }}
           version: ${{ env.BUF_VERSION }}
@@ -231,4 +235,26 @@ jobs:
       - name: Check if Terraform resources are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         # The protoc-gen-terraform version must match the version in integrations/terraform/Makefile
-        run: git config --global --add safe.directory $(realpath .) && go install github.com/gravitational/protoc-gen-terraform@c91cc3ef4d7d0046c36cb96b1cd337e466c61225 && make terraform-resources-up-to-date
+        run: git config --global --add safe.directory $(realpath .) && go install github.com/gravitational/protoc-gen-terraform/v3@v3.0.2 && make terraform-resources-up-to-date
+
+  lint-rfd:
+    name: Lint (RFD)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_rfd == 'true' }}
+    runs-on: ubuntu-22.04
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport17
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check spelling
+        run: pnpm cspell -c ./rfd/cspell.json rfd

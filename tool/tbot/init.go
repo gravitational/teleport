@@ -121,7 +121,7 @@ func testACL(directory string, ownerUser *user.User, opts *botfs.ACLOptions) err
 	}()
 
 	//nolint:staticcheck // staticcheck doesn't like nop implementations in fs_other.go
-	if err := botfs.ConfigureACL(testFile, ownerUser, opts); err != nil {
+	if err := botfs.ConfigureLegacyACL(testFile, ownerUser, opts); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -211,8 +211,18 @@ func ensurePermissions(
 		return trace.Wrap(err)
 	}
 
+	uid, err := strconv.Atoi(params.ownerUser.Uid)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	gid, err := strconv.Atoi(params.ownerGroup.Gid)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Correct ownership.
-	ownedByDesiredOwner, err := botfs.IsOwnedBy(stat, params.ownerUser)
+	ownedByDesiredOwner, err := botfs.IsOwnedBy(stat, uid)
 	if err != nil {
 		log.DebugContext(ctx, "Could not determine file ownership", "path", path, "error", err)
 
@@ -225,16 +235,6 @@ func ensurePermissions(
 		// If we're not running as root, this will probably fail.
 		if currentUser.Uid != RootUID && runtime.GOOS != constants.WindowsOS {
 			log.WarnContext(ctx, "Not running as root, ownership change is likely to fail")
-		}
-
-		uid, err := strconv.Atoi(params.ownerUser.Uid)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		gid, err := strconv.Atoi(params.ownerGroup.Gid)
-		if err != nil {
-			return trace.Wrap(err)
 		}
 
 		if verboseLogging {
@@ -259,7 +259,7 @@ func ensurePermissions(
 		// are incorrect.
 
 		//nolint:staticcheck // staticcheck doesn't like nop implementations in fs_other.go
-		err = botfs.VerifyACL(path, params.aclOptions)
+		err = botfs.VerifyLegacyACL(path, params.aclOptions)
 		//nolint:staticcheck // staticcheck doesn't like nop implementations in fs_other.go
 		if err != nil && (currentUser.Uid == RootUID || currentUser.Uid == params.ownerUser.Uid) {
 			if verboseLogging {
@@ -271,7 +271,7 @@ func ensurePermissions(
 				)
 			}
 
-			return trace.Wrap(botfs.ConfigureACL(path, params.ownerUser, params.aclOptions))
+			return trace.Wrap(botfs.ConfigureLegacyACL(path, params.ownerUser, params.aclOptions))
 		} else if err != nil {
 			log.ErrorContext(
 				ctx,
@@ -451,7 +451,7 @@ func onInit(globals *cli.GlobalArgs, init *cli.InitCommand) error {
 			}
 		}
 		if target == nil {
-			return trace.NotFound("Could not find specified destination %q", init.InitDir)
+			return trace.NotFound("Initial directory %q must match a destination directory from the configuration file or --destination-dir parameter", init.InitDir)
 		}
 	}
 

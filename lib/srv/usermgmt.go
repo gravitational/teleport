@@ -42,27 +42,54 @@ import (
 	"github.com/gravitational/teleport/lib/utils/host"
 )
 
-// NewHostUsers initialize a new HostUsers object
-func NewHostUsers(ctx context.Context, storage services.PresenceInternal, uuid string) HostUsers {
-	//nolint:staticcheck // SA4023. False positive on macOS.
-	backend, err := newHostUsersBackend()
-	switch {
-	case trace.IsNotImplemented(err), trace.IsNotFound(err):
-		slog.DebugContext(ctx, "Skipping host user management", "error", err)
-		return nil
-	case err != nil: //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
-		slog.WarnContext(ctx, "Error making new HostUsersBackend", "error", err)
-		return nil
+type HostUsersOpt = func(hostUsers *HostUserManagement)
+
+// WithHostUsersBackend injects a custom backend to be used within HostUserManagement
+func WithHostUsersBackend(backend HostUsersBackend) HostUsersOpt {
+	return func(hostUsers *HostUserManagement) {
+		hostUsers.backend = backend
 	}
+}
+
+// DefaultHostUsersBackend returns the default HostUsersBackend for the host operating system
+func DefaultHostUsersBackend() (HostUsersBackend, error) {
+	return newHostUsersBackend()
+}
+
+// NewHostUsers initialize a new HostUsers object
+func NewHostUsers(ctx context.Context, storage services.PresenceInternal, uuid string, opts ...HostUsersOpt) HostUsers {
+	// handle fields that must be specified or aren't configurable
 	cancelCtx, cancelFunc := context.WithCancel(ctx)
-	return &HostUserManagement{
+	hostUsers := &HostUserManagement{
 		log:       slog.With(teleport.ComponentKey, teleport.ComponentHostUsers),
-		backend:   backend,
 		ctx:       cancelCtx,
 		cancel:    cancelFunc,
 		storage:   storage,
 		userGrace: time.Second * 30,
 	}
+
+	// set configurable fields that don't have to be specified
+	for _, opt := range opts {
+		opt(hostUsers)
+	}
+
+	// set default values for required fields that don't have to be specified
+	if hostUsers.backend == nil {
+		//nolint:staticcheck // SA4023. False positive on macOS.
+		backend, err := newHostUsersBackend()
+		switch {
+		case trace.IsNotImplemented(err), trace.IsNotFound(err):
+			slog.DebugContext(ctx, "Skipping host user management", "error", err)
+			return nil
+		case err != nil: //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
+			slog.WarnContext(ctx, "Error making new HostUsersBackend", "error", err)
+			return nil
+		}
+
+		hostUsers.backend = backend
+	}
+
+	return hostUsers
 }
 
 func NewHostSudoers(uuid string) HostSudoers {
@@ -70,7 +97,7 @@ func NewHostSudoers(uuid string) HostSudoers {
 	backend, err := newHostSudoersBackend(uuid)
 	switch {
 	case trace.IsNotImplemented(err):
-		slog.DebugContext(context.Background(), "Skipping host sudoers management", "error", err)
+		slog.DebugContext(context.Background(), "Skipping host sudoers management", "error", err.Error())
 		return nil
 	case err != nil: //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
 		slog.DebugContext(context.Background(), "Error making new HostSudoersBackend", "error", err)
@@ -113,7 +140,10 @@ type HostUsersBackend interface {
 	// CreateHomeDirectory creates the users home directory and copies in /etc/skel
 	CreateHomeDirectory(userHome string, uid, gid string) error
 	// GetDefaultHomeDirectory returns the default home directory path for the given user
-	GetDefaultHomeDirectory(user string) (string, error)
+	GetDefaultHomeDirectory(name string) (string, error)
+	// RemoveExpirations removes any sort of password or account expiration from the user
+	// that may have been placed by password policies.
+	RemoveExpirations(name string) error
 }
 
 type userCloser struct {
@@ -436,6 +466,7 @@ func (u *HostUserManagement) UpsertUser(name string, ui services.HostUsersInfo) 
 		}
 	}
 
+	defer u.backend.RemoveExpirations(name)
 	if hostUser == nil {
 		if err := u.createUser(name, ui); err != nil {
 			return nil, trace.Wrap(err)
@@ -450,8 +481,11 @@ func (u *HostUserManagement) UpsertUser(name string, ui services.HostUsersInfo) 
 		}
 	}
 
+	// attempt to remove password expirations from managed users if they've been added
 	return closer, nil
 }
+
+const userLeaseDuration = time.Second * 20
 
 func (u *HostUserManagement) doWithUserLock(f func(types.SemaphoreLease) error) error {
 	lock, err := services.AcquireSemaphoreWithRetry(u.ctx,
@@ -461,7 +495,7 @@ func (u *HostUserManagement) doWithUserLock(f func(types.SemaphoreLease) error) 
 				SemaphoreKind: types.SemaphoreKindHostUserModification,
 				SemaphoreName: "host_user_modification",
 				MaxLeases:     1,
-				Expires:       time.Now().Add(time.Second * 20),
+				Expires:       time.Now().Add(userLeaseDuration),
 			},
 			Retry: retryutils.LinearConfig{
 				Step: time.Second * 5,
@@ -524,26 +558,35 @@ func (u *HostUserManagement) DeleteAllUsers() error {
 		return trace.Wrap(err)
 	}
 	var errs []error
-	for _, name := range users {
-		lt, err := u.storage.GetHostUserInteractionTime(u.ctx, name)
-		if err != nil {
-			u.log.DebugContext(u.ctx, "Failed to find user login time", "host_username", name, "error", err)
-			continue
-		}
-		u.doWithUserLock(func(l types.SemaphoreLease) error {
+	u.doWithUserLock(func(l types.SemaphoreLease) error {
+		for _, name := range users {
+			if time.Until(l.Expires) < userLeaseDuration/2 {
+				l.Expires = time.Now().Add(userLeaseDuration / 2)
+				if err := u.storage.KeepAliveSemaphoreLease(u.ctx, l); err != nil {
+					u.log.DebugContext(u.ctx, "Failed to keep alive host user lease", "error", err)
+				}
+			}
+
+			lt, err := u.storage.GetHostUserInteractionTime(u.ctx, name)
+			if err != nil {
+				u.log.DebugContext(u.ctx, "Failed to find user login time", "host_username", name, "error", err)
+				continue
+			}
+
 			if time.Since(lt) < u.userGrace {
 				// small grace period in order to avoid deleting users
 				// in-between them starting their SSH session and
 				// entering the shell
-				return nil
+				continue
 			}
-			errs = append(errs, u.DeleteUser(name, teleportGroup.Gid))
 
-			l.Expires = time.Now().Add(time.Second * 10)
-			u.storage.KeepAliveSemaphoreLease(u.ctx, l)
-			return nil
-		})
-	}
+			if err := u.DeleteUser(name, teleportGroup.Gid); err != nil {
+				errs = append(errs, err)
+			}
+		}
+
+		return nil
+	})
 	return trace.NewAggregate(errs...)
 }
 
@@ -657,6 +700,7 @@ func (u *HostUserManagement) getHostUser(username string) (*HostUser, error) {
 	return &HostUser{
 		Name:   username,
 		UID:    usr.Uid,
+		GID:    usr.Gid,
 		Home:   usr.HomeDir,
 		Groups: groups,
 	}, trace.NewAggregate(groupErrs...)

@@ -16,18 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { GitServer } from 'web/packages/teleport/src/services/gitServers';
+
+import type { Platform } from 'design/platform';
 import { IncludedResourceMode } from 'shared/components/UnifiedResources';
 
 import { App } from 'teleport/services/apps';
 import { Database } from 'teleport/services/databases';
-import { Node } from 'teleport/services/nodes';
-import { Kube } from 'teleport/services/kube';
 import { Desktop } from 'teleport/services/desktops';
+import { Kube } from 'teleport/services/kube';
+import { Node } from 'teleport/services/nodes';
+import { UserGroup } from 'teleport/services/userGroups';
 
-import { UserGroup } from '../userGroups';
-
-import type { MfaAuthnResponse } from '../mfa';
-import type { Platform } from 'design/platform';
+import type { MfaChallengeResponse } from '../mfa';
 
 export type UnifiedResource =
   | App
@@ -35,7 +36,8 @@ export type UnifiedResource =
   | Node
   | Kube
   | Desktop
-  | UserGroup;
+  | UserGroup
+  | GitServer;
 
 export type UnifiedResourceKind = UnifiedResource['kind'];
 
@@ -88,7 +90,9 @@ export type ResourceIdKind =
   | 'kube_cluster'
   | 'user_group'
   | 'windows_desktop'
-  | 'saml_idp_service_provider';
+  | 'saml_idp_service_provider'
+  | 'aws_ic_account_assignment'
+  | 'git_server';
 
 export type AccessRequestScope =
   | 'my_requests'
@@ -142,7 +146,7 @@ export type ConnectionDiagnosticRequest = {
   sshNodeSetupMethod?: 'script' | 'connect_my_computer'; // `json:"ssh_node_setup_method"`
   kubeImpersonation?: KubeImpersonation; // `json:"kubernetes_impersonation"`
   dbTester?: DatabaseTester;
-  mfaAuthnResponse?: MfaAuthnResponse;
+  mfaAuthnResponse?: MfaChallengeResponse;
 };
 
 export type KubeImpersonation = {

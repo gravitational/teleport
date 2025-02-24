@@ -19,6 +19,7 @@
 package cli
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -31,23 +32,23 @@ import (
 // `tbot configure kubernetes`.
 type KubernetesCommand struct {
 	*sharedStartArgs
+	*sharedDestinationArgs
 	*genericMutatorHandler
 
-	Destination       string
 	KubernetesCluster string
 	DisableExecPlugin bool
 }
 
 // NewKubernetesCommand initializes the command and flags for kubernetes outputs
 // and returns a struct to contain the parse result.
-func NewKubernetesCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *KubernetesCommand {
-	cmd := parentCmd.Command("kubernetes", "Starts with a kubernetes output").Alias("k8s")
+func NewKubernetesCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *KubernetesCommand {
+	cmd := parentCmd.Command("kubernetes", fmt.Sprintf("%s tbot with a Kubernetes output.", mode)).Alias("k8s")
 
 	c := &KubernetesCommand{}
 	c.sharedStartArgs = newSharedStartArgs(cmd)
+	c.sharedDestinationArgs = newSharedDestinationArgs(cmd)
 	c.genericMutatorHandler = newGenericMutatorHandler(cmd, c, action)
 
-	cmd.Flag("destination", "A destination URI, such as file:///foo/bar").Required().StringVar(&c.Destination)
 	cmd.Flag("kubernetes-cluster", "The name of the Kubernetes cluster in Teleport for which to fetch credentials").Required().StringVar(&c.KubernetesCluster)
 	cmd.Flag("disable-exec-plugin", "If set, disables the exec plugin. This allows credentials to be used without the `tbot` binary.").BoolVar(&c.DisableExecPlugin)
 
@@ -61,7 +62,7 @@ func (c *KubernetesCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) e
 		return trace.Wrap(err)
 	}
 
-	dest, err := config.DestinationFromURI(c.Destination)
+	dest, err := c.BuildDestination()
 	if err != nil {
 		return trace.Wrap(err)
 	}

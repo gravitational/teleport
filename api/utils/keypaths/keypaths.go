@@ -32,8 +32,8 @@ const (
 	sshDirSuffix = "-ssh"
 	// fileNameKnownHosts is a file where known hosts are stored.
 	fileNameKnownHosts = "known_hosts"
-	// fileExtTLSCertLegacy is the legacy suffix/extension of a file where a TLS cert is stored.
-	fileExtTLSCertLegacy = "-x509.pem"
+	// FileExtTLSCertLegacy is the legacy suffix/extension of a file where a TLS cert is stored.
+	FileExtTLSCertLegacy = "-x509.pem"
 	// FileExtTLSCert is the suffix/extension of a file where a TLS cert is stored.
 	FileExtTLSCert = ".crt"
 	// FileExtKubeCred is the suffix/extension of a file where a kubernetes
@@ -186,6 +186,14 @@ func UserTLSKeyPath(baseDir, proxy, username string) string {
 // <baseDir>/keys/<proxy>/<username>.crt
 func TLSCertPath(baseDir, proxy, username string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+FileExtTLSCert)
+}
+
+// TLSCertPathLegacy returns the legacy path used in Teleport 16.x and older to the
+// users's TLS certificate for the given proxy.
+//
+// <baseDir>/keys/<proxy>/<username>-x509.pem
+func TLSCertPathLegacy(baseDir, proxy, username string) string {
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+FileExtTLSCertLegacy)
 }
 
 // PublicKeyPath returns the path to the users's public key
@@ -376,14 +384,6 @@ func IsProfileKubeConfigPath(path string) (bool, error) {
 // <identity-file-dir>/<path>-cert.pub
 func IdentitySSHCertPath(path string) string {
 	return path + fileExtSSHCert
-}
-
-// TrimCertPathSuffix returns the given path with any cert suffix/extension trimmed off.
-func TrimCertPathSuffix(path string) string {
-	trimmedPath := strings.TrimSuffix(path, fileExtTLSCertLegacy)
-	trimmedPath = strings.TrimSuffix(trimmedPath, FileExtTLSCert)
-	trimmedPath = strings.TrimSuffix(trimmedPath, fileExtSSHCert)
-	return trimmedPath
 }
 
 // TrimKeyPathSuffix returns the given path with any key suffix/extension trimmed off.

@@ -16,23 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { MemoryRouter } from 'react-router';
 import { delay, http, HttpResponse } from 'msw';
+import { MemoryRouter } from 'react-router';
+
 import { Info } from 'design/Alert';
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import { ResourceKind } from 'teleport/Discover/Shared';
 import {
-  DiscoverProvider,
   DiscoverContextState,
+  DiscoverProvider,
 } from 'teleport/Discover/useDiscover';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
-import { ResourceKind } from 'teleport/Discover/Shared';
 import { DiscoverEventResource } from 'teleport/services/userEvent';
 
 import { CreateAppAccess } from './CreateAppAccess';
@@ -45,7 +45,7 @@ export const Success = () => <Component />;
 Success.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.awsAppAccessPath, () =>
+      http.post(cfg.api.awsAppAccess.createV2, () =>
         HttpResponse.json({ name: 'app-1' })
       ),
     ],
@@ -59,7 +59,10 @@ export const Loading = () => {
 Loading.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.awsAppAccessPath, async () => await delay('infinite')),
+      http.post(
+        cfg.api.awsAppAccess.createV2,
+        async () => await delay('infinite')
+      ),
     ],
   },
 };
@@ -68,7 +71,7 @@ export const Failed = () => <Component />;
 Failed.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.awsAppAccessPath, () =>
+      http.post(cfg.api.awsAppAccess.createV2, () =>
         HttpResponse.json(
           {
             message: 'Some kind of error message',

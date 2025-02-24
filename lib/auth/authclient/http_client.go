@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
@@ -41,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // HTTPClientConfig contains configuration for an HTTP client.
@@ -334,25 +332,6 @@ func (c *HTTPClient) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &re, nil
-}
-
-// RegisterUsingToken calls the auth service API to register a new node using a registration token
-// which was previously issued via CreateToken/UpsertToken.
-func (c *HTTPClient) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := c.PostJSON(ctx, c.Endpoint("tokens", "register"), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var certs proto.Certs
-	if err := json.Unmarshal(out.Bytes(), &certs); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &certs, nil
 }
 
 type upsertTunnelConnectionRawReq struct {
@@ -815,47 +794,6 @@ func (c *HTTPClient) ValidateGithubAuthCallback(ctx context.Context, q url.Value
 		response.HostSigners[i] = ca
 	}
 	return &response, nil
-}
-
-// GetNamespaces returns a list of namespaces
-func (c *HTTPClient) GetNamespaces() ([]types.Namespace, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("namespaces"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var re []types.Namespace
-	if err := utils.FastUnmarshal(out.Bytes(), &re); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return re, nil
-}
-
-// GetNamespace returns namespace by name
-func (c *HTTPClient) GetNamespace(name string) (*types.Namespace, error) {
-	if name == "" {
-		return nil, trace.BadParameter("missing namespace name")
-	}
-	out, err := c.Get(context.TODO(), c.Endpoint("namespaces", name), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalNamespace(out.Bytes())
-}
-
-type upsertNamespaceReq struct {
-	Namespace types.Namespace `json:"namespace"`
-}
-
-// UpsertNamespace upserts namespace
-func (c *HTTPClient) UpsertNamespace(ns types.Namespace) error {
-	_, err := c.PostJSON(context.TODO(), c.Endpoint("namespaces"), upsertNamespaceReq{Namespace: ns})
-	return trace.Wrap(err)
-}
-
-// DeleteNamespace deletes namespace by name
-func (c *HTTPClient) DeleteNamespace(name string) error {
-	_, err := c.Delete(context.TODO(), c.Endpoint("namespaces", name))
-	return trace.Wrap(err)
 }
 
 // GetClusterName returns a cluster name

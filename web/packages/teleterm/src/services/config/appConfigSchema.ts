@@ -160,6 +160,9 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
     'keymap.terminalPaste': shortcutSchema
       .default(defaultKeymap['terminalPaste'])
       .describe(getShortcutDesc('paste text in the terminal')),
+    'keymap.terminalSearch': shortcutSchema
+      .default(defaultKeymap['terminalSearch'])
+      .describe(getShortcutDesc('search for text in the terminal')),
     'keymap.previousTab': shortcutSchema
       .default(defaultKeymap['previousTab'])
       .describe(getShortcutDesc('go to the previous tab')),
@@ -203,6 +206,7 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
           "'no' never attempts to add them, 'yes' always attempts to add them, " +
           "'only' always attempts to add the keys to the agent but it does not save them on disk."
       ),
+    'unstable.vnetDiag': z.boolean().default(false),
   });
 };
 
@@ -226,7 +230,8 @@ export type KeyboardShortcutAction =
   | 'openClusters'
   | 'openProfiles'
   | 'terminalCopy'
-  | 'terminalPaste';
+  | 'terminalPaste'
+  | 'terminalSearch';
 
 const getDefaultKeymap = (
   platform: Platform
@@ -254,6 +259,7 @@ const getDefaultKeymap = (
         openProfiles: 'Ctrl+Shift+I',
         terminalCopy: 'Ctrl+Shift+C',
         terminalPaste: 'Ctrl+Shift+V',
+        terminalSearch: 'Ctrl+Shift+F',
       };
     case 'linux':
       return {
@@ -277,6 +283,7 @@ const getDefaultKeymap = (
         openProfiles: 'Ctrl+Shift+I',
         terminalCopy: 'Ctrl+Shift+C',
         terminalPaste: 'Ctrl+Shift+V',
+        terminalSearch: 'Ctrl+Shift+F',
       };
     case 'darwin':
       return {
@@ -300,6 +307,7 @@ const getDefaultKeymap = (
         openProfiles: 'Command+I',
         terminalCopy: 'Command+C',
         terminalPaste: 'Command+V',
+        terminalSearch: 'Command+F',
       };
   }
 };

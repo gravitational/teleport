@@ -19,6 +19,8 @@ package services
 import (
 	"context"
 
+	"google.golang.org/protobuf/types/known/emptypb"
+
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
@@ -33,12 +35,16 @@ type DownstreamID string
 // disambiguated by a DownstreamID when queried or updated.
 type ProvisioningStateID string
 
-// DownstreamProvisioningStates defines an interface for managing principal
-// provisioning state records scoped by a target downstream receiver.
-type DownstreamProvisioningStates interface {
+type DownstreamProvisioningStateGetter interface {
 	// GetProvisioningState fetches a single provisioning state record for a given
 	// downstream and principal,
 	GetProvisioningState(context.Context, DownstreamID, ProvisioningStateID) (*provisioningv1.PrincipalState, error)
+}
+
+// DownstreamProvisioningStates defines an interface for managing principal
+// provisioning state records scoped by a target downstream receiver.
+type DownstreamProvisioningStates interface {
+	DownstreamProvisioningStateGetter
 
 	// ListProvisioningStates lists all provisioning state records for a given
 	// downstream receiver.
@@ -65,7 +71,7 @@ type DownstreamProvisioningStates interface {
 
 	// DeleteDownstreamProvisioningStates deletes *all* provisioning records for
 	// a given downstream
-	DeleteDownstreamProvisioningStates(context.Context, DownstreamID) error
+	DeleteDownstreamProvisioningStates(context.Context, *provisioningv1.DeleteDownstreamProvisioningStatesRequest) (*emptypb.Empty, error)
 }
 
 // ProvisioningStates defines an interface for managing a Provisioning Principal

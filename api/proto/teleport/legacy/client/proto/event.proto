@@ -23,6 +23,7 @@ import "teleport/clusterconfig/v1/access_graph_settings.proto";
 import "teleport/crownjewel/v1/crownjewel.proto";
 import "teleport/dbobject/v1/dbobject.proto";
 import "teleport/discoveryconfig/v1/discoveryconfig.proto";
+import "teleport/identitycenter/v1/identitycenter.proto";
 import "teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/machineid/v1/bot_instance.proto";
@@ -33,6 +34,8 @@ import "teleport/secreports/v1/secreports.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 import "teleport/userprovisioning/v2/statichostuser.proto";
 import "teleport/usertasks/v1/user_tasks.proto";
+import "teleport/workloadidentity/v1/resource.proto";
+import "teleport/workloadidentity/v1/revocation_resource.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
 
@@ -195,5 +198,21 @@ message Event {
     // ProvisioningPrincipalState is a resource for tracking the provisioning of
     // users and groups into downstream systems.
     teleport.provisioning.v1.PrincipalState ProvisioningPrincipalState = 70;
+    // AutoUpdateVersion is a resource for controlling the autoupdate agent rollout.
+    teleport.autoupdate.v1.AutoUpdateAgentRollout AutoUpdateAgentRollout = 71;
+    // IdentityCenterAccount is a resource for tracking Identity Center accounts
+    teleport.identitycenter.v1.Account IdentityCenterAccount = 72;
+    // IdentityCenterPrincipalAssignment is a resource for tracking the AWS
+    // Permission Sets assigned to a Teleport user or AAccess List
+    teleport.identitycenter.v1.PrincipalAssignment IdentityCenterPrincipalAssignment = 73;
+    // IdentityCenterAccountlAssignment is a resource representing a potential
+    // Permission Set grant on a specific AWS account.
+    teleport.identitycenter.v1.AccountAssignment IdentityCenterAccountAssignment = 74;
+    // PluginStaticCredentials is filled in PluginStaticCredentials related events
+    types.PluginStaticCredentialsV1 PluginStaticCredentials = 75;
+    // WorkloadIdentity is a resource for workload identity.
+    teleport.workloadidentity.v1.WorkloadIdentity WorkloadIdentity = 76;
+    // WorkloadIdentityX509Revocation is a resource for workload identity x509 revocation.
+    teleport.workloadidentity.v1.WorkloadIdentityX509Revocation WorkloadIdentityX509Revocation = 77;
   }
 }

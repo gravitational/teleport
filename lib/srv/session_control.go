@@ -21,12 +21,12 @@ package srv
 import (
 	"context"
 	"io"
+	"log/slog"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 )
 
 var userSessionLimitHitCount = prometheus.NewCounter(
@@ -75,7 +76,7 @@ type SessionControllerConfig struct {
 	// have different flows
 	Component string
 	// Logger is used to emit log entries
-	Logger *logrus.Entry
+	Logger *slog.Logger
 	// TracerProvider creates a tracer so that spans may be emitted
 	TracerProvider oteltrace.TracerProvider
 	// ServerID is the UUID of the server
@@ -114,7 +115,7 @@ func (c *SessionControllerConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = logrus.WithField(teleport.ComponentKey, "SessionCtrl")
+		c.Logger = slog.With(teleport.ComponentKey, "SessionCtrl")
 	}
 
 	if c.Clock == nil {
@@ -166,24 +167,19 @@ func WebSessionController(controller *SessionController) func(ctx context.Contex
 			return ctx, trace.Wrap(err)
 		}
 
-		unmappedRoles, err := services.ExtractRolesFromCert(sshCert)
-		if err != nil {
-			return ctx, trace.Wrap(err)
-		}
-
-		accessRequestIDs, err := ParseAccessRequestIDs(sshCert.Extensions[teleport.CertExtensionTeleportActiveRequests])
+		unmappedIdentity, err := sshca.DecodeIdentity(sshCert)
 		if err != nil {
 			return ctx, trace.Wrap(err)
 		}
 
 		identity := IdentityContext{
-			AccessChecker:  accessChecker,
-			TeleportUser:   sctx.GetUser(),
-			Login:          login,
-			Certificate:    sshCert,
-			UnmappedRoles:  unmappedRoles,
-			ActiveRequests: accessRequestIDs,
-			Impersonator:   sshCert.Extensions[teleport.CertExtensionImpersonator],
+			UnmappedIdentity: unmappedIdentity,
+			AccessChecker:    accessChecker,
+			TeleportUser:     sctx.GetUser(),
+			Login:            login,
+			UnmappedRoles:    unmappedIdentity.Roles,
+			ActiveRequests:   unmappedIdentity.ActiveRequests,
+			Impersonator:     unmappedIdentity.Impersonator,
 		}
 		ctx, err = controller.AcquireSessionContext(ctx, identity, localAddr, remoteAddr)
 		return ctx, trace.Wrap(err)
@@ -221,12 +217,11 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 
 	// Check that the required private key policy, defined by roles and auth pref,
 	// is met by this Identity's ssh certificate.
-	identityPolicy := keys.PrivateKeyPolicy(identity.Certificate.Extensions[teleport.CertExtensionPrivateKeyPolicy])
 	requiredPolicy, err := identity.AccessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !requiredPolicy.IsSatisfiedBy(identityPolicy) {
+	if !requiredPolicy.IsSatisfiedBy(identity.UnmappedIdentity.PrivateKeyPolicy) {
 		return ctx, keys.NewPrivateKeyPolicyError(requiredPolicy)
 	}
 
@@ -236,7 +231,7 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 	}
 
 	// Device Trust: authorize device extensions.
-	if err := dtauthz.VerifySSHUser(authPref.GetDeviceTrust(), identity.Certificate); err != nil {
+	if err := dtauthz.VerifySSHUser(ctx, authPref.GetDeviceTrust(), identity.UnmappedIdentity); err != nil {
 		return ctx, trace.Wrap(err)
 	}
 
@@ -342,6 +337,6 @@ func (s *SessionController) emitRejection(ctx context.Context, userMetadata apie
 		Reason:  reason,
 		Maximum: max,
 	}); err != nil {
-		s.cfg.Logger.WithError(err).Warn("Failed to emit session reject event.")
+		s.cfg.Logger.WarnContext(ctx, "Failed to emit session reject event", "error", err)
 	}
 }

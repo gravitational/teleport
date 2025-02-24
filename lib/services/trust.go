@@ -83,6 +83,26 @@ type Trust interface {
 // auth server for some local operations.
 type TrustInternal interface {
 	Trust
+
+	// CreateTrustedCluster atomically creates a new trusted cluster along with associated resources.
+	CreateTrustedCluster(context.Context, types.TrustedCluster, []types.CertAuthority) (revision string, err error)
+
+	// UpdateTrustedCluster atomically updates a trusted cluster along with associated resources.
+	UpdateTrustedCluster(context.Context, types.TrustedCluster, []types.CertAuthority) (revision string, err error)
+
+	// DeleteTrustedClusterInternal atomically deletes a trusted cluster along with associated resources.
+	DeleteTrustedClusterInternal(context.Context, string, []types.CertAuthID) error
+
+	// CreateRemoteCluster atomically creates a new remote cluster along with associated resources.
+	CreateRemoteClusterInternal(context.Context, types.RemoteCluster, []types.CertAuthority) (revision string, err error)
+
+	// DeleteRemotClusterInternal atomically deletes a remote cluster along with associated resources.
+	DeleteRemoteClusterInternal(context.Context, string, []types.CertAuthID) error
+
+	// GetInactiveCertAuthority returns inactive certificate authority by given id. Parameter loadSigningKeys
+	// controls if signing keys are loaded.
+	GetInactiveCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error)
+
 	// CreateCertAuthorities creates multiple cert authorities atomically.
 	CreateCertAuthorities(context.Context, ...types.CertAuthority) (revision string, err error)
 

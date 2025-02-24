@@ -158,8 +158,8 @@ func (u *UploadCompleter) Serve(ctx context.Context) error {
 	periodic := interval.New(interval.Config{
 		Clock:         u.cfg.Clock,
 		Duration:      u.cfg.CheckPeriod,
-		FirstDuration: utils.HalfJitter(u.cfg.CheckPeriod),
-		Jitter:        retryutils.NewSeventhJitter(),
+		FirstDuration: retryutils.HalfJitter(u.cfg.CheckPeriod),
+		Jitter:        retryutils.SeventhJitter,
 	})
 	defer periodic.Stop()
 	u.log.InfoContext(ctx, "upload completer starting", "check_interval", u.cfg.CheckPeriod.String())
@@ -271,7 +271,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 			continue
 		}
 
-		log.DebugContext(ctx, "foud upload with parts", "part_count", len(parts))
+		log.DebugContext(ctx, "found upload with parts", "part_count", len(parts))
 
 		if err := u.cfg.Uploader.CompleteUpload(ctx, upload, parts); trace.IsNotFound(err) {
 			log.DebugContext(ctx, "Upload not found, moving on to next upload", "error", err)

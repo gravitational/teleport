@@ -16,33 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { act, fireEvent, render, screen } from 'design/utils/testing';
 
-import { render, fireEvent, screen } from 'design/utils/testing';
+import Validator, { Result, useValidation, Validation } from './Validation';
 
-import Logger from '../../libs/logger';
-
-import Validator, { Validation, useValidation } from './Validation';
-
-jest.mock('../../libs/logger', () => {
-  const mockLogger = {
-    error: jest.fn(),
-    warn: jest.fn(),
-  };
-
-  return {
-    create: () => mockLogger,
-  };
+afterEach(() => {
+  jest.restoreAllMocks();
 });
 
-test('methods of Validator: sub, unsub, validate', () => {
+test('methods of Validator: addRuleCallback, removeRuleCallback, validate', () => {
   const mockCb1 = jest.fn();
   const mockCb2 = jest.fn();
   const validator = new Validator();
 
   // test suscribe
-  validator.subscribe(mockCb1);
-  validator.subscribe(mockCb2);
+  validator.addRuleCallback(mockCb1);
+  validator.addRuleCallback(mockCb2);
 
   // test validate runs all subscribed cb's
   expect(validator.validate()).toBe(true);
@@ -51,42 +40,42 @@ test('methods of Validator: sub, unsub, validate', () => {
   jest.clearAllMocks();
 
   // test unsubscribe method removes correct cb
-  validator.unsubscribe(mockCb2);
+  validator.removeRuleCallback(mockCb2);
   expect(validator.validate()).toBe(true);
   expect(mockCb1).toHaveBeenCalledTimes(1);
   expect(mockCb2).toHaveBeenCalledTimes(0);
 });
 
 test('methods of Validator: addResult, reset', () => {
+  const consoleError = jest.spyOn(console, 'error').mockImplementation();
   const validator = new Validator();
 
   // test addResult for nil object
   const result = null;
   validator.addResult(result);
-  expect(Logger.create().error).toHaveBeenCalledTimes(1);
+  expect(consoleError).toHaveBeenCalledTimes(1);
 
   // test addResult for boolean
   validator.addResult(true);
-  expect(validator.valid).toBe(false);
+  expect(validator.state.valid).toBe(false);
 
   // test addResult with incorrect object
-  let resultObj = {};
-  validator.addResult(resultObj);
-  expect(validator.valid).toBe(false);
+  validator.addResult({} as Result);
+  expect(validator.state.valid).toBe(false);
 
   // test addResult with correct object with "valid" prop from prior test set to false
-  resultObj = { valid: true };
+  let resultObj = { valid: true };
   validator.addResult(resultObj);
-  expect(validator.valid).toBe(false);
+  expect(validator.state.valid).toBe(false);
 
   // test reset
   validator.reset();
-  expect(validator.valid).toBe(true);
-  expect(validator.validating).toBe(false);
+  expect(validator.state.valid).toBe(true);
+  expect(validator.state.validating).toBe(false);
 
   // test addResult with correct object with "valid" prop reset to true
   validator.addResult(resultObj);
-  expect(validator.valid).toBe(true);
+  expect(validator.state.valid).toBe(true);
 });
 
 test('trigger validation via useValidation hook', () => {
@@ -102,7 +91,7 @@ test('trigger validation via useValidation hook', () => {
     </Validation>
   );
   fireEvent.click(screen.getByRole('button'));
-  expect(validator.validating).toBe(true);
+  expect(validator.state.validating).toBe(true);
 });
 
 test('trigger validation via render function', () => {
@@ -122,5 +111,56 @@ test('trigger validation via render function', () => {
     </Validation>
   );
   fireEvent.click(screen.getByRole('button'));
-  expect(validator.validating).toBe(true);
+  expect(validator.state.validating).toBe(true);
+});
+
+test('rendering validation result via useValidation hook', () => {
+  let validator: Validator;
+  const TestComponent = () => {
+    validator = useValidation();
+    return (
+      <>
+        <div>Validating: {String(validator.state.validating)}</div>
+        <div>Valid: {String(validator.state.valid)}</div>
+      </>
+    );
+  };
+  render(
+    <Validation>
+      <TestComponent />
+    </Validation>
+  );
+  validator.addRuleCallback(() => validator.addResult({ valid: false }));
+
+  expect(screen.getByText('Validating: false')).toBeInTheDocument();
+  expect(screen.getByText('Valid: true')).toBeInTheDocument();
+
+  act(() => validator.validate());
+  expect(screen.getByText('Validating: true')).toBeInTheDocument();
+  expect(screen.getByText('Valid: false')).toBeInTheDocument();
+});
+
+test('rendering validation result via render function', () => {
+  let validator: Validator;
+  render(
+    <Validation>
+      {props => {
+        validator = props.validator;
+        return (
+          <>
+            <div>Validating: {String(validator.state.validating)}</div>
+            <div>Valid: {String(validator.state.valid)}</div>
+          </>
+        );
+      }}
+    </Validation>
+  );
+  validator.addRuleCallback(() => validator.addResult({ valid: false }));
+
+  expect(screen.getByText('Validating: false')).toBeInTheDocument();
+  expect(screen.getByText('Valid: true')).toBeInTheDocument();
+
+  act(() => validator.validate());
+  expect(screen.getByText('Validating: true')).toBeInTheDocument();
+  expect(screen.getByText('Valid: false')).toBeInTheDocument();
 });

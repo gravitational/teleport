@@ -64,25 +64,6 @@ Set the `TELEPORT_REPORTING_HTTPS_PROXY` and `TELEPORT_REPORTING_HTTP_PROXY`
 environment variables to your proxy address. That will apply as the HTTP connect
 proxy setting overriding `HTTPS_PROXY` and `HTTP_PROXY` just for outbound usage reporting.
 
-### Validating usage reports
-
-The system that Teleport uses for submitting usage reports is independent of the
-system that Teleport uses for submitting audit events. 
-
-Teleport processes submit audit events to the Teleport Auth Service, which
-stores them on its audit event backend for retrieval by Teleport API clients. In
-contrast, usage reports are aggregated on a submission service that runs either
-on self-hosted Teleport infrastructure or Teleport Cloud, depending on the
-user's plan. The submission service persists usage reports in the case of a
-submission failure. After a successful submission, the submission service
-deletes the reports.
-
-It is not possible for Teleport users to independently validate usage event
-data, as there is no way to set up a third-party usage event destination or
-retrieve usage events from a Teleport backend. Reach out to
-support@goteleport.com if you have questions about usage reporting on your
-Teleport account.
-
 ## Billing metrics
 
 Teleport uses the anonymized usage data described in the previous section to
@@ -96,16 +77,16 @@ calculate two types of billing metrics:
 <Admonition type="note">
 
 This will be displayed only for those on usage-based plans. Users will need permission to read the billing resource.
+
 </Admonition>
 
+1. Go to https://teleport.sh/ and enter your tenant name.
+1. Sign in using your administrator credentials.
+1. Click on your username at the top right to expand the dropdown menu.
+1. Click on "Billing Summary".
+1. Usage data for the current billing cycle will be displayed. Example:
 
-  1. Go to https://teleport.sh/ and enter your tenant name.
-  1. Sign in using your administrator credentials.
-  1. Click on "Access Management" at the top.
-  1. Click on "Summary" under "Usage and Billing" at the left-hand side.
-  1. Usage data for the current billing cycle will be displayed. Example:
-  
-  ![Billing Cycle](../img/webui_billing_cycle.png)
+![Billing Cycle](../img/webui_billing_cycle.png)
 
 ### Monthly Active Users
 
@@ -125,7 +106,7 @@ provider, as user activity.
 
 Note: when configured to perform single-sign-on against an external identity
 provider, Teleport creates temporary user records that are valid for the
-duration of the SSO session. As a result, the *Users* page in Teleport's web UI
+duration of the SSO session. As a result, the _Users_ page in Teleport's web UI
 will only show users who have recently logged in and is not a true
 representation of all active users over the last month.
 
@@ -144,6 +125,11 @@ to compute a daily TPR. Then we average the daily TPR over a monthly period,
 which starts on the subscription start date and ends on each monthly anniversary
 thereafter.
 
+If you recreate a single resource more than once an hour, this will affect the
+hourly average. For example, if you were to create then delete 10 servers three
+times in one hour, Teleport would display 10 servers at any given time. However,
+for the entire hour, Teleport would report 30 protected servers.
+
 ## Usage measurement for billing
 
 We aggregate all counts of the billing metrics on a monthly basis starting on
@@ -155,3 +141,49 @@ Subscription, also known as a high water mark calculation.
 
 Reach out to sales@goteleport.com if you have questions about the
 commercial editions of Teleport.
+
+## Troubleshooting usage and billing
+
+Teleport aggregates usage reports on a submission service that runs either on
+self-hosted Teleport infrastructure or Teleport Cloud, depending on the user's
+plan. The submission service persists usage reports in the case of a submission
+failure, and deletes the reports after a successful submission. It is not
+possible to set up a third-party destination for usage events to independently
+verify usage event data.
+
+If you are using Teleport Enterprise (Cloud), your usage data is accurate as
+long as Teleport-managed reporting infrastructure works as expected (check the
+[status page](https://status.teleport.sh/) for any incidents). On self-hosted
+Teleport Enterprise clusters, some conditions can interfere with data reporting.
+This section describes some scenarios that can lead to inaccurate data on
+self-hosted clusters.
+
+If you suspect that any of these scenarios describe your Teleport cluster, or
+your usage data appears inaccurate, reach out to support@goteleport.com.
+
+### Multiple Teleport clusters
+
+In versions older than v14.3.1, Teleport does not de-duplicate users as expected
+across multiple Teleport clusters that belong to the same account. If you are
+running multiple Teleport clusters with affected versions, the count of active
+users may be higher than expected.
+
+### Unexpected license differences
+
+When distributing copies of your Teleport Enterprise (Self-Hosted) license
+across Auth Service instances, you must not download a license multiple times
+from your Teleport account. Instead, you must download a license once and copy
+that license across Auth Service instances. Otherwise, the Teleport usage
+reporting infrastructure will identify multiple licenses and misrepresent your
+usage numbers.
+
+### SSO users
+
+In Teleport, single sign-on (SSO) users are
+[ephemeral](reference/user-types.mdx#temporary-users). Teleport deletes an SSO user
+when its session expires. To count the number of SSO users in your cluster, you
+can examine Teleport audit events for unique SSO users that have authenticated
+to Teleport during a given time period. The Teleport documentation includes
+[how-to guides](./admin-guides/management/export-audit-events/export-audit-events.mdx) for
+exporting audit events to common log management solutions so you can identify
+users that have authenticated using an SSO provider.

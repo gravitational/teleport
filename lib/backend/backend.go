@@ -67,7 +67,8 @@ type Backend interface {
 	// Get returns a single item or not found error
 	Get(ctx context.Context, key Key) (*Item, error)
 
-	// GetRange returns query range
+	// GetRange returns the items between the start and end keys, including both
+	// (if present).
 	GetRange(ctx context.Context, startKey, endKey Key, limit int) (*GetResult, error)
 
 	// Delete deletes item by key, returns NotFound error

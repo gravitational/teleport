@@ -19,6 +19,7 @@
 package db
 
 import (
+	"context"
 	"slices"
 	"testing"
 
@@ -30,7 +31,7 @@ import (
 )
 
 func TestSQLManagedServerFetcher(t *testing.T) {
-	logger := utils.NewLoggerForTests()
+	logger := utils.NewSlogLoggerForTests()
 	fetcher := &azureManagedSQLServerFetcher{}
 
 	t.Run("NewDatabaseFromServer", func(t *testing.T) {
@@ -46,7 +47,7 @@ func TestSQLManagedServerFetcher(t *testing.T) {
 		// For available states, it should return a parsed database.
 		for _, state := range availableStates {
 			t.Run(string(state), func(t *testing.T) {
-				require.NotNil(t, fetcher.NewDatabaseFromServer(makeManagedSQLInstance(state), logger), "expected to have a database, but got nil")
+				require.NotNil(t, fetcher.NewDatabaseFromServer(context.Background(), makeManagedSQLInstance(state), logger), "expected to have a database, but got nil")
 			})
 		}
 
@@ -58,13 +59,14 @@ func TestSQLManagedServerFetcher(t *testing.T) {
 			}
 
 			t.Run(string(state), func(t *testing.T) {
-				require.Nil(t, fetcher.NewDatabaseFromServer(makeManagedSQLInstance(state), logger), "expected to have nil, but got a database")
+				require.Nil(t, fetcher.NewDatabaseFromServer(context.Background(), makeManagedSQLInstance(state), logger), "expected to have nil, but got a database")
 			})
 		}
 
 		t.Run("RandomState", func(t *testing.T) {
 			require.NotNil(t,
 				fetcher.NewDatabaseFromServer(
+					context.Background(),
 					makeManagedSQLInstance("RandomState"),
 					logger,
 				),

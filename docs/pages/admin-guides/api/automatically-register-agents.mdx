@@ -7,7 +7,7 @@ You can use Teleport's API to automatically register resources in your
 infrastructure with your Teleport cluster.
 
 Teleport already supports the automatic discovery of [Kubernetes
-clusters](../../enroll-resources/auto-discovery/kubernetes.mdx) in AWS, Azure, and
+clusters](../../enroll-resources/auto-discovery/kubernetes/kubernetes.mdx) in AWS, Azure, and
 Google Cloud, as well as
 [servers](../../enroll-resources/auto-discovery/servers/ec2-discovery.mdx) on
 Amazon EC2.  To support other resources and cloud providers, you can use the API
@@ -120,6 +120,8 @@ $ tctl create -f register-apps.yaml
 role 'register-apps' has been created
 user "register-apps" has been created
 ```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
 
 ### Enable impersonation of the client application
 

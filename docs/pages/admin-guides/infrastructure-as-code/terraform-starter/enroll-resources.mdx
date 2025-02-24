@@ -5,7 +5,7 @@ description: Explains how to deploy a pool of Teleport Agents so you can apply d
 ---
 
 *This guide is Part One of the Teleport Terraform starter guide. Read the
-[overview](../terraform-starter.mdx) for the scope and purpose of the Terraform
+[overview](terraform-starter.mdx) for the scope and purpose of the Terraform
 starter guide.*
 
 This guide shows you how to use Terraform to enroll infrastructure resources
@@ -25,7 +25,7 @@ Agents](../../../enroll-resources/agents/introduction.mdx).
 
 There are several methods you can use to join a Teleport Agent to your cluster,
 which we discuss in the [Joining Services to your
-Cluster](../../../enroll-resources/agents/join-services-to-your-cluster.mdx) guide. In this guide, we will use
+Cluster](../../../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx) guide. In this guide, we will use
 the **join token** method, where the operator stores a secure token on the Auth
 Service, and an Agent presents the token in order to join a cluster.
 
@@ -358,7 +358,7 @@ provider "aws" {
 }
 
 provider "teleport" {
-  # Update addr to point to your Teleport Enterprise (managed) tenant URL's host:port
+  # Update addr to point to your Teleport Enterprise (Cloud) tenant URL's host:port
   addr               = PROXY_SERVICE_ADDRESS
 }
 ```
@@ -393,7 +393,7 @@ provider "google" {
 }
 
 provider "teleport" {
-  # Update addr to point to your Teleport Enterprise (managed) tenant URL's host:port
+  # Update addr to point to your Teleport Enterprise (Cloud) tenant URL's host:port
   addr               = PROXY_SERVICE_ADDRESS
 }
 ```
@@ -623,7 +623,7 @@ edit your Terraform module to:
 1. **Change the userdata script** to enable additional Agent services additional
    infrastructure resources for your Agents to proxy.
 1. **Deploy dynamic resources:** Consult the [Terraform provider
-   reference](../../../reference/terraform-provider.mdx) for Terraform resources
-   that you can apply in order to enroll dynamic resources in your
-   infrastructure.
+   reference](../../../reference/terraform-provider/terraform-provider.mdx) for
+   Terraform resources that you can apply in order to enroll dynamic resources
+   in your infrastructure.
 

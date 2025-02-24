@@ -132,10 +132,9 @@ Teleport, you must configure these yourself:
      Service domain, e.g., `*.teleport.example.com`, with the domain name of the
      Teleport Proxy Service.
 
-1. Ensure that your system provisionings TLS certificates for
-   Teleport-registered applications. The method to use depends on how you
-   originally set up TLS for your self-hosted Teleport deployment, and is
-   outside the scope of this guide. 
+1. Ensure that your system provisions TLS certificates for Teleport-registered
+   applications. The method to use depends on how you originally set up TLS for
+   your self-hosted Teleport deployment, and is outside the scope of this guide. 
 
    In general, the same system that provisions TLS certificates signed for the
    web address of the Proxy Service (e.g., `teleport.example.com`) must also
@@ -164,6 +163,8 @@ Teleport, you must configure these yourself:
    ```code
    $ tctl users add --roles=demo-app-access appuser
    ```
+
+   (!docs/pages/includes/create-role-using-web.mdx!)
 
    When `appuser` attempts to access the application you enrolled earlier
    through the Teleport Web UI, the the Teleport Proxy Service forwards the
@@ -464,6 +465,14 @@ route.
     # Indicates how long (in seconds) the results of a preflight request can be cached.
     max_age: 3600
 ```
+<Admonition type="warning">
+
+Teleport requires that credentials are sent with every request to your applications. This is
+necessary so that Teleport can determine whether you have an authenticated session, allowing it to
+properly verify and route your requests. Please ensure that your client fetch requests include
+`credentials: include`, even if your backend application doesn't require credentials.
+
+</Admonition>
 
 ## View applications in Teleport
 

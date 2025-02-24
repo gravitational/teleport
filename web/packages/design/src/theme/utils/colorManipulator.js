@@ -104,7 +104,7 @@ export function rgbToHex(color) {
  * Note: Does not support rgb % values.
  *
  * @param {string} color - CSS color, i.e. one of: #nnn, #nnnnnn, rgb(), rgba(), hsl(), hsla()
- * @returns {object} - A MUI color object: {type: string, values: number[]}
+ * @returns {{type: string, values: number[]}} - A MUI color object: {type: string, values: number[]}
  */
 export function decomposeColor(color) {
   if (color.charAt(0) === '#') {

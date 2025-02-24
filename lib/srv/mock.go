@@ -29,7 +29,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -46,8 +45,10 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *ServerContext {
@@ -55,6 +56,9 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 	require.NoError(t, err)
 
 	cert, err := apisshutils.ParseCertificate([]byte(fixtures.UserCertificateStandard))
+	require.NoError(t, err)
+
+	ident, err := sshca.DecodeIdentity(cert)
 	require.NoError(t, err)
 
 	sshConn := &mockSSHConn{}
@@ -67,7 +71,7 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 	clusterName := "localhost"
 	_, connCtx := sshutils.NewConnectionContext(ctx, nil, &ssh.ServerConn{Conn: sshConn})
 	scx := &ServerContext{
-		Entry:                  logrus.NewEntry(logrus.StandardLogger()),
+		Logger:                 utils.NewSlogLoggerForTests(),
 		ConnectionContext:      connCtx,
 		env:                    make(map[string]string),
 		SessionRecordingConfig: recConfig,
@@ -76,9 +80,9 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 		srv:                    srv,
 		sessionID:              rsession.NewID(),
 		Identity: IdentityContext{
-			Login:        usr.Username,
-			TeleportUser: "teleportUser",
-			Certificate:  cert,
+			UnmappedIdentity: ident,
+			Login:            usr.Username,
+			TeleportUser:     "teleportUser",
 			// roles do not actually exist in mock backend, just need a non-nil
 			// access checker to avoid panic
 			AccessChecker: services.NewAccessCheckerWithRoleSet(
@@ -160,7 +164,7 @@ type mockServer struct {
 	datadir   string
 	auth      *auth.Server
 	component string
-	clock     clockwork.FakeClock
+	clock     clocki.FakeClock
 	bpf       bpf.BPF
 }
 
@@ -245,7 +249,12 @@ func (m *mockServer) GetInfo() types.Server {
 }
 
 func (m *mockServer) TargetMetadata() apievents.ServerMetadata {
-	return apievents.ServerMetadata{}
+	return apievents.ServerMetadata{
+		ServerID:        "123",
+		ForwardedBy:     "abc",
+		ServerHostname:  "testHost",
+		ServerNamespace: "testNamespace",
+	}
 }
 
 // UseTunnel used to determine if this node has connected to this cluster

@@ -187,6 +187,52 @@ export const apps = [
     ],
     clusterId: 'one',
   },
+  {
+    name: 'aws-iam-ic-account-1',
+    uri: 'https://console.aws.amazon.com',
+    publicAddr: 'console.aws.amazon.com',
+    subKind: 'aws-ic-account',
+    labels: [{ name: 'teleport.dev/origin', value: 'aws-identity-center' }],
+    description: 'This is an AWS IAM Identity Center account',
+    awsConsole: false,
+    permissionSets: [
+      {
+        name: 'Admin perm set',
+        arn: 'arn:aws:sso:::permissionSet/Admin',
+        display: 'Admin',
+      },
+      {
+        name: 'ReadOnly perm set',
+        arn: 'arn:aws:sso:::permissionSet/ReadOnly',
+        display: 'ReadOnly',
+      },
+    ],
+    clusterId: 'one',
+    fqdn: 'https://console.aws.amazon.com',
+  },
+  {
+    name: 'aws-iam-ic-account-2',
+    uri: 'https://console.aws.amazon.com',
+    publicAddr: 'console.aws.amazon.com',
+    subKind: 'aws-ic-account',
+    labels: [{ name: 'teleport.dev/origin', value: 'aws-identity-center' }],
+    description: 'This is an AWS IAM Identity Center account',
+    awsConsole: false,
+    permissionSets: [
+      {
+        name: 'Admin perm set',
+        arn: 'arn:aws:sso:::permissionSet/Admin',
+        display: 'Admin',
+      },
+      {
+        name: 'ReadOnly perm set',
+        arn: 'arn:aws:sso:::permissionSet/ReadOnly',
+        display: 'ReadOnly',
+      },
+    ],
+    clusterId: 'one',
+    fqdn: 'https://console.aws.amazon.com',
+  },
 ].map(makeApp);
 
 export const moreApps = [

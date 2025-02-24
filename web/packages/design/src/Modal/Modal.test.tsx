@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 
-import { render, fireEvent } from 'design/utils/testing';
+import { fireEvent, render } from 'design/utils/testing';
 
-import Modal from './Modal';
+import Modal, { ModalProps } from './Modal';
 
-const renderModal = props => {
+const renderModal = (props: Omit<ModalProps, 'open'>) => {
   return render(
     <Modal open={true} {...props}>
       <div>Hello</div>
@@ -36,128 +36,144 @@ const escapeKey = {
   key: 'Escape',
 };
 
-describe('design/Modal', () => {
-  it('respects open prop set to false', () => {
-    render(
-      <Modal open={false}>
-        <div>Hello</div>
-      </Modal>
-    );
+test('respects open prop set to false', () => {
+  render(
+    <Modal open={false}>
+      <div>Hello</div>
+    </Modal>
+  );
 
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+test('respects onBackdropClick prop', () => {
+  const mockFn = jest.fn();
+
+  renderModal({
+    onBackdropClick: mockFn,
   });
 
-  it('respects onBackdropClick prop', () => {
-    const mockFn = jest.fn();
+  // handlebackdropClick
+  fireEvent.click(screen.getByTestId('backdrop'));
+  expect(mockFn).toHaveBeenCalled();
+});
 
-    renderModal({
-      onBackdropClick: mockFn,
-    });
+test('respects onEscapeKeyDown props', () => {
+  const mockFn = jest.fn();
 
-    // handlebackdropClick
-    fireEvent.click(screen.getByTestId('backdrop'));
-    expect(mockFn).toHaveBeenCalled();
+  const { container } = renderModal({
+    onEscapeKeyDown: mockFn,
   });
 
-  it('respects onEscapeKeyDown props', () => {
-    const mockFn = jest.fn();
+  // handleDocumentKeyDown
+  fireEvent.keyDown(container, escapeKey);
+  expect(mockFn).toHaveBeenCalled();
+});
 
-    const { container } = renderModal({
-      onEscapeKeyDown: mockFn,
-    });
+test('respects onClose prop', () => {
+  const mockFn = jest.fn();
 
-    // handleDocumentKeyDown
-    fireEvent.keyDown(container, escapeKey);
-    expect(mockFn).toHaveBeenCalled();
+  const { container } = renderModal({
+    onClose: mockFn,
   });
 
-  it('respects onClose prop', () => {
-    const mockFn = jest.fn();
+  // handlebackdropClick
+  fireEvent.click(screen.getByTestId('backdrop'));
+  expect(mockFn).toHaveBeenCalled();
 
-    const { container } = renderModal({
-      onClose: mockFn,
-    });
+  // handleDocumentKeyDown
+  fireEvent.keyDown(container, escapeKey);
+  expect(mockFn).toHaveBeenCalled();
+});
 
-    // handlebackdropClick
-    fireEvent.click(screen.getByTestId('backdrop'));
-    expect(mockFn).toHaveBeenCalled();
-
-    // handleDocumentKeyDown
-    fireEvent.keyDown(container, escapeKey);
-    expect(mockFn).toHaveBeenCalled();
+test('respects hideBackDrop prop', () => {
+  renderModal({
+    hideBackdrop: true,
   });
 
-  it('respects hideBackDrop prop', () => {
-    renderModal({
-      hideBackdrop: true,
-    });
+  expect(screen.queryByTestId('backdrop')).not.toBeInTheDocument();
+});
 
-    expect(screen.queryByTestId('backdrop')).not.toBeInTheDocument();
+test('respects disableBackdropClick prop', () => {
+  const mockFn = jest.fn();
+  renderModal({
+    disableBackdropClick: true,
+    onClose: mockFn,
   });
 
-  it('respects disableBackdropClick prop', () => {
-    const mockFn = jest.fn();
-    renderModal({
-      disableBackdropClick: true,
-      onClose: mockFn,
-    });
+  // handleBackdropClick
+  fireEvent.click(screen.getByTestId('backdrop'));
+  expect(mockFn).not.toHaveBeenCalled();
+});
 
-    // handleBackdropClick
-    fireEvent.click(screen.getByTestId('backdrop'));
-    expect(mockFn).not.toHaveBeenCalled();
+test('respects disableEscapeKeyDown prop', () => {
+  const mockFn = jest.fn();
+  const { container } = renderModal({
+    disableEscapeKeyDown: true,
+    onClose: mockFn,
   });
 
-  it('respects disableEscapeKeyDown prop', () => {
-    const mockFn = jest.fn();
-    const { container } = renderModal({
-      disableEscapeKeyDown: true,
-      onClose: mockFn,
-    });
+  // handleDocumentKeyDown
+  fireEvent.keyDown(container, escapeKey);
+  expect(mockFn).not.toHaveBeenCalled();
+});
 
-    // handleDocumentKeyDown
-    fireEvent.keyDown(container, escapeKey);
-    expect(mockFn).not.toHaveBeenCalled();
+test('unmount cleans up event listeners and closes modal', () => {
+  const mockFn = jest.fn();
+  const { container, unmount } = renderModal({
+    onEscapeKeyDown: mockFn,
   });
 
-  test('unmount cleans up event listeners and closes modal', () => {
-    const mockFn = jest.fn();
-    const { container, unmount } = renderModal({
-      onEscapeKeyDown: mockFn,
-    });
+  unmount();
 
-    unmount();
+  expect(screen.queryByTestId('Modal')).not.toBeInTheDocument();
 
-    expect(screen.queryByTestId('Modal')).not.toBeInTheDocument();
+  fireEvent.keyDown(container, escapeKey);
+  expect(mockFn).not.toHaveBeenCalled();
+});
 
-    fireEvent.keyDown(container, escapeKey);
-    expect(mockFn).not.toHaveBeenCalled();
+test('respects backdropProps prop invisible', () => {
+  renderModal({
+    BackdropProps: { invisible: true },
   });
 
-  test('respects backdropProps prop invisible', () => {
-    renderModal({
-      BackdropProps: { invisible: true },
-    });
-
-    expect(screen.getByTestId('backdrop')).toHaveStyle({
-      'background-color': 'transparent',
-    });
+  expect(screen.getByTestId('backdrop')).toHaveStyle({
+    'background-color': 'transparent',
   });
+});
 
-  it('restores focus on close', async () => {
-    const user = userEvent.setup();
-    render(<ToggleableModal />);
-    const toggleModalButton = screen.getByRole('button', { name: 'Toggle' });
+test('restores focus on close', async () => {
+  const user = userEvent.setup();
+  render(<ToggleableModal />);
+  const toggleModalButton = screen.getByRole('button', { name: 'Toggle' });
 
-    await user.click(toggleModalButton);
-    // Type in the input inside the modal to shift focus into another element.
-    const input = screen.getByLabelText('Input in modal');
-    await user.type(input, 'a');
+  await user.click(toggleModalButton);
+  // Type in the input inside the modal to shift focus into another element.
+  const input = screen.getByLabelText('Input in modal');
+  await user.type(input, 'a');
 
-    const closeModal = screen.getByRole('button', { name: 'Close modal' });
-    await user.click(closeModal);
+  const closeModal = screen.getByRole('button', { name: 'Close modal' });
+  await user.click(closeModal);
 
-    expect(toggleModalButton).toHaveFocus();
-  });
+  expect(toggleModalButton).toHaveFocus();
+});
+
+test('closing dialog when attachCustomKeyEventHandler is set only hides it with DOM', async () => {
+  const { rerender } = render(
+    <Modal open={true} keepInDOMAfterClose>
+      <div>Hello</div>
+    </Modal>
+  );
+
+  expect(screen.getByText('Hello')).toBeVisible();
+
+  rerender(
+    <Modal open={false} keepInDOMAfterClose>
+      <div>Hello</div>
+    </Modal>
+  );
+
+  expect(screen.getByText('Hello')).not.toBeVisible();
 });
 
 const ToggleableModal = () => {

@@ -33,7 +33,6 @@ import (
 	apiv1 "cloud.google.com/go/firestore/apiv1/admin"
 	"cloud.google.com/go/firestore/apiv1/admin/adminpb"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
@@ -42,12 +41,12 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -437,8 +436,8 @@ func New(ctx context.Context, params backend.Params, options Options) (*Backend,
 	go func() {
 		migrationInterval := interval.New(interval.Config{
 			Duration:      time.Hour * 12,
-			FirstDuration: utils.FullJitter(time.Minute * 5),
-			Jitter:        retryutils.NewSeventhJitter(),
+			FirstDuration: retryutils.FullJitter(time.Minute * 5),
+			Jitter:        retryutils.SeventhJitter,
 			Clock:         b.clock,
 		})
 		defer migrationInterval.Stop()
@@ -1098,7 +1097,7 @@ func (b *Backend) deleteDocuments(docs []*firestore.DocumentSnapshot) error {
 }
 
 // ConvertGRPCError converts gRPC errors
-func ConvertGRPCError(err error, args ...interface{}) error {
+func ConvertGRPCError(err error) error {
 	if err == nil {
 		return nil
 	}
@@ -1108,15 +1107,15 @@ func ConvertGRPCError(err error, args ...interface{}) error {
 	case codes.DeadlineExceeded:
 		return context.DeadlineExceeded
 	case codes.FailedPrecondition:
-		return trace.BadParameter(err.Error(), args...)
+		return trace.BadParameter("%s", err)
 	case codes.NotFound:
-		return trace.NotFound(err.Error(), args...)
+		return trace.NotFound("%s", err)
 	case codes.AlreadyExists:
-		return trace.AlreadyExists(err.Error(), args...)
+		return trace.AlreadyExists("%s", err)
 	case codes.OK:
 		return nil
 	default:
-		return trace.Wrap(err, args...)
+		return trace.Wrap(err)
 	}
 }
 

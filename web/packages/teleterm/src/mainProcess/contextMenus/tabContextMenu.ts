@@ -17,18 +17,18 @@
  */
 
 import {
+  dialog,
   ipcMain,
   ipcRenderer,
   Menu,
   MenuItemConstructorOptions,
-  dialog,
 } from 'electron';
 
+import { makeCustomShellFromPath, Shell } from 'teleterm/mainProcess/shell';
 import { ConfigService } from 'teleterm/services/config';
-import { Shell, makeCustomShellFromPath } from 'teleterm/mainProcess/shell';
 import {
-  Document,
   canDocChangeShell,
+  Document,
 } from 'teleterm/ui/services/workspacesService';
 
 import {

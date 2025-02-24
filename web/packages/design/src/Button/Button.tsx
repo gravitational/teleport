@@ -19,21 +19,20 @@
 import React from 'react';
 import styled, { CSSObject } from 'styled-components';
 
-import { shouldForwardProp as defaultValidatorFn } from 'design/ThemeProvider';
-
 import {
-  space,
-  width,
-  height,
   alignSelf,
-  gap,
-  SpaceProps,
-  WidthProps,
-  HeightProps,
   AlignSelfProps,
+  gap,
   GapProps,
+  height,
+  HeightProps,
+  space,
+  SpaceProps,
+  width,
+  WidthProps,
 } from 'design/system';
 import { Theme } from 'design/theme/themes/types';
+import { shouldForwardProp as defaultValidatorFn } from 'design/ThemeProvider';
 
 export type ButtonProps<E extends React.ElementType> =
   React.ComponentPropsWithoutRef<E> &
@@ -116,6 +115,9 @@ Button.displayName = 'Button';
 
 export type ThemedButtonProps<E extends React.ElementType> = ButtonProps<E> & {
   theme: Theme;
+  fill: ButtonFill;
+  intent: ButtonIntent;
+  size: ButtonSize;
 };
 
 const themedStyles = <E extends React.ElementType>(
@@ -344,8 +346,6 @@ const buttonPalette = <E extends React.ElementType>({
           },
         };
       }
-    default:
-      fill satisfies never;
   }
 };
 
@@ -364,7 +364,7 @@ const horizontalPadding = <E extends React.ElementType>(
   return 32;
 };
 
-const size = <E extends React.ElementType>(props: ButtonProps<E>) => {
+const size = <E extends React.ElementType>(props: ThemedButtonProps<E>) => {
   const borderWidth = 1.5;
   const hp = horizontalPadding(props);
   const commonStyles = {
@@ -404,25 +404,23 @@ const size = <E extends React.ElementType>(props: ButtonProps<E>) => {
         lineHeight: '16px',
         letterSpacing: '0.15px',
       };
-    default:
-      props.size satisfies never;
   }
 };
 
-const block = props =>
+const block = (props: { block?: boolean }) =>
   props.block
     ? {
         width: '100%',
       }
     : null;
 
-const textTransform = props =>
+const textTransform = (props: { textTransform?: string }) =>
   props.textTransform ? { textTransform: props.textTransform } : null;
 
 const StyledButton = styled.button.withConfig({
   shouldForwardProp: (prop, target) =>
     !['compact'].includes(prop) && defaultValidatorFn(prop, target),
-})`
+})<{ fill: ButtonFill; size: ButtonSize; intent: ButtonIntent }>`
   line-height: 1.5;
   margin: 0;
   display: inline-flex;

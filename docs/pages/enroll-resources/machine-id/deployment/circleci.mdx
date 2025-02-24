@@ -135,7 +135,7 @@ workflows:
     jobs:
       - write-run-log:
           context:
-            - <Var name="teleport-access"/>
+            - teleport-access
 ```
 
 `TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
@@ -163,7 +163,7 @@ resources in your Teleport cluster that your CI/CD needs to interact with.
 
 ## Further steps
 
-- Follow the [access guides](../access-guides.mdx) to finish configuring `tbot` for
+- Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
   your environment.
 - Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
   all the available configuration options.

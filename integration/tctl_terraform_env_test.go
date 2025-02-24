@@ -32,6 +32,7 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -51,7 +52,9 @@ import (
 // TestTCTLTerraformCommand_ProxyJoin validates that the command `tctl terraform env` can run against a Teleport Proxy
 // service and generates valid credentials Terraform can use to connect to Teleport.
 func TestTCTLTerraformCommand_ProxyJoin(t *testing.T) {
+	// test is not Parallel because of the metrics black hole
 	testDir := t.TempDir()
+	prometheus.DefaultRegisterer = metricRegistryBlackHole{}
 
 	// Test setup: creating a teleport instance running auth and proxy
 	clusterName := "root.example.com"
@@ -59,7 +62,7 @@ func TestTCTLTerraformCommand_ProxyJoin(t *testing.T) {
 		ClusterName: clusterName,
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	}
 	cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)
@@ -103,7 +106,7 @@ func TestTCTLTerraformCommand_ProxyJoin(t *testing.T) {
 	tctlCommand := common.TerraformCommand{}
 
 	app := kingpin.New("test", "test")
-	tctlCommand.Initialize(app, tctlCfg)
+	tctlCommand.Initialize(app, nil, tctlCfg)
 	_, err = app.Parse([]string{"terraform", "env"})
 	require.NoError(t, err)
 	// Create io buffer writer
@@ -125,8 +128,9 @@ func TestTCTLTerraformCommand_ProxyJoin(t *testing.T) {
 // TestTCTLTerraformCommand_AuthJoin validates that the command `tctl terraform env` can run against a Teleport Auth
 // service and generates valid credentials Terraform can use to connect to Teleport.
 func TestTCTLTerraformCommand_AuthJoin(t *testing.T) {
-	t.Parallel()
+	// test is not Parallel because of the metrics black hole
 	testDir := t.TempDir()
+	prometheus.DefaultRegisterer = metricRegistryBlackHole{}
 
 	// Test setup: creating a teleport instance running auth and proxy
 	clusterName := "root.example.com"
@@ -134,7 +138,7 @@ func TestTCTLTerraformCommand_AuthJoin(t *testing.T) {
 		ClusterName: clusterName,
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	}
 	cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)
@@ -176,7 +180,7 @@ func TestTCTLTerraformCommand_AuthJoin(t *testing.T) {
 	tctlCommand := common.TerraformCommand{}
 
 	app := kingpin.New("test", "test")
-	tctlCommand.Initialize(app, tctlCfg)
+	tctlCommand.Initialize(app, nil, tctlCfg)
 	_, err = app.Parse([]string{"terraform", "env"})
 	require.NoError(t, err)
 	// Create io buffer writer
@@ -347,4 +351,21 @@ func connectWithCredentialsFromVars(t *testing.T, vars map[string]string, clt *a
 	require.NoError(t, err)
 	_, err = botClt.Ping(ctx)
 	require.NoError(t, err)
+}
+
+// metricRegistryBlackHole is a fake prometheus.Registerer that accepts every metric and do nothing.
+// This is a workaround for different teleport component using the global registry but registering incompatible metrics.
+// Those issues can surface during integration tests starting Teleport auth, proxy, and tbot.
+// The long-term fix is to have every component use its own registry instead of the global one.
+type metricRegistryBlackHole struct {
+}
+
+func (m metricRegistryBlackHole) Register(_ prometheus.Collector) error {
+	return nil
+}
+
+func (m metricRegistryBlackHole) MustRegister(_ ...prometheus.Collector) {}
+
+func (m metricRegistryBlackHole) Unregister(_ prometheus.Collector) bool {
+	return true
 }

@@ -18,24 +18,31 @@
 
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router';
-import { Validator } from 'shared/components/Validation';
-import { useAsync } from 'shared/hooks/useAsync';
 
+import { Validator } from 'shared/components/Validation';
+import {
+  makeErrorAttempt,
+  makeProcessingAttempt,
+  useAsync,
+} from 'shared/hooks/useAsync';
+
+import cfg from 'teleport/config';
 import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
+import { ApiError } from 'teleport/services/api/parseError';
+import {
+  AwsOidcPolicyPreset,
+  IntegrationAwsOidc,
+  IntegrationCreateRequest,
+  IntegrationKind,
+  integrationService,
+} from 'teleport/services/integrations';
 import {
   IntegrationEnrollEvent,
   IntegrationEnrollEventData,
   IntegrationEnrollKind,
   userEventService,
 } from 'teleport/services/userEvent';
-import cfg from 'teleport/config';
-import {
-  Integration,
-  IntegrationCreateRequest,
-  IntegrationKind,
-  integrationService,
-  AwsOidcPolicyPreset,
-} from 'teleport/services/integrations';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 type integrationConfig = {
   name: string;
@@ -52,7 +59,9 @@ export function useAwsOidcIntegration() {
     }
   );
   const [scriptUrl, setScriptUrl] = useState('');
-  const [createdIntegration, setCreatedIntegration] = useState<Integration>();
+  const [createdIntegration, setCreatedIntegration] =
+    useState<IntegrationAwsOidc>();
+  const { clusterId } = useStickyClusterId();
 
   const location = useLocation<DiscoverUrlLocationState>();
 
@@ -80,17 +89,46 @@ export function useAwsOidcIntegration() {
     });
   }
 
-  const [createIntegrationAttempt, runCreateIntegration] = useAsync(
-    async (req: IntegrationCreateRequest) => {
-      const resp = await integrationService.createIntegration(req);
-      setCreatedIntegration(resp);
-      return resp;
-    }
-  );
+  const [
+    createIntegrationAttempt,
+    runCreateIntegration,
+    setCreateIntegrationAttempt,
+  ] = useAsync(async (req: IntegrationCreateRequest) => {
+    const resp = await integrationService.createIntegration(req);
+    setCreatedIntegration(resp);
+    return resp;
+  });
 
   async function handleOnCreate(validator: Validator) {
     if (!validator.validate()) {
       return;
+    }
+    setCreateIntegrationAttempt(makeProcessingAttempt());
+
+    try {
+      await integrationService.pingAwsOidcIntegration(
+        {
+          integrationName: integrationConfig.name,
+          clusterId,
+        },
+        { roleArn: integrationConfig.roleArn }
+      );
+    } catch (err) {
+      // DELETE IN v18.0
+      // Ignore not found error and just allow it to create which
+      // is how it used to work before anyways.
+      //
+      // If this request went to an older proxy, that didn't set the
+      // the integrationName empty if roleArn isn't empty, then the backend
+      // will never be able to successfully health check b/c it expects
+      // integration to exist first before creating.
+      const isNotFoundErr =
+        err instanceof ApiError && err.response.status === 404;
+
+      if (!isNotFoundErr) {
+        setCreateIntegrationAttempt(makeErrorAttempt(err));
+        return;
+      }
     }
 
     const [, err] = await runCreateIntegration({

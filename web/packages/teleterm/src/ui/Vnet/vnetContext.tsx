@@ -17,22 +17,24 @@
  */
 
 import {
+  createContext,
   FC,
   PropsWithChildren,
-  createContext,
-  useContext,
-  useState,
   useCallback,
-  useMemo,
+  useContext,
   useEffect,
+  useMemo,
+  useState,
 } from 'react';
-import { useAsync, Attempt } from 'shared/hooks/useAsync';
-import { BackgroundItemStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 
+import { BackgroundItemStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
+import { Report } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
+import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
+
+import { isTshdRpcError } from 'teleterm/services/tshd';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { usePersistedState } from 'teleterm/ui/hooks/usePersistedState';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
-import { isTshdRpcError } from 'teleterm/services/tshd';
 import { IAppContext } from 'teleterm/ui/types';
 
 /**
@@ -52,6 +54,19 @@ export type VnetContext = {
   stopAttempt: Attempt<void>;
   listDNSZones: () => Promise<[string[], Error]>;
   listDNSZonesAttempt: Attempt<string[]>;
+  runDiagnostics: () => Promise<[Report, Error]>;
+  diagnosticsAttempt: Attempt<Report>;
+  resetDiagnosticsAttempt: () => void;
+  /**
+   * Calculates whether the button for running diagnostics should be disabled. If it should be
+   * disabled, it returns a reason for this, otherwise it returns a falsy value.
+   *
+   * Accepts an attempt as an arg to accommodate for places that run diagnostics periodically
+   * vs manually.
+   */
+  getDisabledDiagnosticsReason: (
+    runDiagnosticsAttempt: Attempt<Report>
+  ) => string;
 };
 
 export type VnetStatus =
@@ -79,10 +94,10 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
     autoStart: false,
   });
 
-  const isSupported = useMemo(
-    () => mainProcessClient.getRuntimeSettings().platform === 'darwin',
-    [mainProcessClient]
-  );
+  const isSupported = useMemo(() => {
+    const { platform } = mainProcessClient.getRuntimeSettings();
+    return platform === 'darwin' || platform === 'win32';
+  }, [mainProcessClient]);
 
   const [startAttempt, start] = useAsync(
     useCallback(async () => {
@@ -98,6 +113,17 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
       setStatus({ value: 'running' });
       setAppState({ autoStart: true });
     }, [vnet, setAppState, appCtx])
+  );
+
+  const [diagnosticsAttempt, runDiagnostics, setDiagnosticsAttempt] = useAsync(
+    useCallback(
+      () => vnet.runDiagnostics({}).then(({ response }) => response.report),
+      [vnet]
+    )
+  );
+  const resetDiagnosticsAttempt = useCallback(
+    () => setDiagnosticsAttempt(makeEmptyAttempt()),
+    [setDiagnosticsAttempt]
   );
 
   const [stopAttempt, stop] = useAsync(
@@ -118,11 +144,29 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
     )
   );
 
+  /**
+   * Calculates whether the button for running diagnostics should be disabled. If it should be
+   * disabled, it returns a reason for this, otherwise it returns a falsy value.
+   *
+   * Accepts an attempt as an arg to accommodate for places that run diagnostics periodically
+   * vs manually.
+   */
+  const getDisabledDiagnosticsReason = useCallback(
+    (runDiagnosticsAttempt: Attempt<Report>) =>
+      status.value !== 'running'
+        ? 'VNet must be running to run diagnostics'
+        : runDiagnosticsAttempt.status === 'processing'
+          ? 'Generating diagnostic report…'
+          : '',
+    [status.value]
+  );
   useEffect(() => {
     const handleAutoStart = async () => {
       if (
         isSupported &&
         autoStart &&
+        // Accessing resources through VNet might trigger the MFA modal,
+        // so we have to wait for the tshd events service to be initialized.
         isWorkspaceStateInitialized &&
         startAttempt.status === ''
       ) {
@@ -173,6 +217,10 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
         stopAttempt,
         listDNSZones,
         listDNSZonesAttempt,
+        runDiagnostics,
+        diagnosticsAttempt,
+        resetDiagnosticsAttempt,
+        getDisabledDiagnosticsReason,
       }}
     >
       {props.children}

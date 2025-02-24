@@ -29,6 +29,8 @@ import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
+import { DiscoverResourcePreferences } from "./discover_resource_preferences_pb";
+import { SideNavDrawerMode } from "./sidenav_preferences_pb";
 import { AccessGraphUserPreferences } from "./access_graph_pb";
 import { UnifiedResourcePreferences } from "./unified_resource_preferences_pb";
 import { ClusterUserPreferences } from "./cluster_preferences_pb";
@@ -70,6 +72,18 @@ export interface UserPreferences {
      * @generated from protobuf field: teleport.userpreferences.v1.AccessGraphUserPreferences access_graph = 6;
      */
     accessGraph?: AccessGraphUserPreferences;
+    /**
+     * side_nav_drawer_mode is the sidenav drawer behavior preference in the frontend.
+     *
+     * @generated from protobuf field: teleport.userpreferences.v1.SideNavDrawerMode side_nav_drawer_mode = 7;
+     */
+    sideNavDrawerMode: SideNavDrawerMode;
+    /**
+     * discover_resource_preferences are user preferences saved for the discover resource web UI.
+     *
+     * @generated from protobuf field: teleport.userpreferences.v1.DiscoverResourcePreferences discover_resource_preferences = 8;
+     */
+    discoverResourcePreferences?: DiscoverResourcePreferences;
 }
 /**
  * GetUserPreferencesRequest is a request to get the user preferences.
@@ -112,12 +126,15 @@ class UserPreferences$Type extends MessageType<UserPreferences> {
             { no: 3, name: "onboard", kind: "message", T: () => OnboardUserPreferences },
             { no: 4, name: "cluster_preferences", kind: "message", T: () => ClusterUserPreferences },
             { no: 5, name: "unified_resource_preferences", kind: "message", T: () => UnifiedResourcePreferences },
-            { no: 6, name: "access_graph", kind: "message", T: () => AccessGraphUserPreferences }
+            { no: 6, name: "access_graph", kind: "message", T: () => AccessGraphUserPreferences },
+            { no: 7, name: "side_nav_drawer_mode", kind: "enum", T: () => ["teleport.userpreferences.v1.SideNavDrawerMode", SideNavDrawerMode, "SIDE_NAV_DRAWER_MODE_"] },
+            { no: 8, name: "discover_resource_preferences", kind: "message", T: () => DiscoverResourcePreferences }
         ]);
     }
     create(value?: PartialMessage<UserPreferences>): UserPreferences {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.theme = 0;
+        message.sideNavDrawerMode = 0;
         if (value !== undefined)
             reflectionMergePartial<UserPreferences>(this, message, value);
         return message;
@@ -141,6 +158,12 @@ class UserPreferences$Type extends MessageType<UserPreferences> {
                     break;
                 case /* teleport.userpreferences.v1.AccessGraphUserPreferences access_graph */ 6:
                     message.accessGraph = AccessGraphUserPreferences.internalBinaryRead(reader, reader.uint32(), options, message.accessGraph);
+                    break;
+                case /* teleport.userpreferences.v1.SideNavDrawerMode side_nav_drawer_mode */ 7:
+                    message.sideNavDrawerMode = reader.int32();
+                    break;
+                case /* teleport.userpreferences.v1.DiscoverResourcePreferences discover_resource_preferences */ 8:
+                    message.discoverResourcePreferences = DiscoverResourcePreferences.internalBinaryRead(reader, reader.uint32(), options, message.discoverResourcePreferences);
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -169,6 +192,12 @@ class UserPreferences$Type extends MessageType<UserPreferences> {
         /* teleport.userpreferences.v1.AccessGraphUserPreferences access_graph = 6; */
         if (message.accessGraph)
             AccessGraphUserPreferences.internalBinaryWrite(message.accessGraph, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.userpreferences.v1.SideNavDrawerMode side_nav_drawer_mode = 7; */
+        if (message.sideNavDrawerMode !== 0)
+            writer.tag(7, WireType.Varint).int32(message.sideNavDrawerMode);
+        /* teleport.userpreferences.v1.DiscoverResourcePreferences discover_resource_preferences = 8; */
+        if (message.discoverResourcePreferences)
+            DiscoverResourcePreferences.internalBinaryWrite(message.discoverResourcePreferences, writer.tag(8, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

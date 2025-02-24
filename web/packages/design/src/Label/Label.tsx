@@ -19,9 +19,10 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { space, SpaceProps } from 'design/system';
+import { space, SpaceProps } from '../system';
+import { Theme } from '../theme';
 
-const kind = ({ kind, theme }) => {
+const kind = ({ kind, theme }: { kind?: LabelKind; theme: Theme }) => {
   if (kind === 'secondary') {
     return {
       backgroundColor: theme.colors.spotBackground[0],
@@ -58,10 +59,16 @@ const kind = ({ kind, theme }) => {
   };
 };
 
-type LabelKind = 'primary' | 'secondary' | 'warning' | 'danger' | 'success';
+export type LabelKind =
+  | 'primary'
+  | 'secondary'
+  | 'warning'
+  | 'danger'
+  | 'success';
 
 interface LabelProps extends SpaceProps {
   kind?: LabelKind;
+  children?: React.ReactNode;
 }
 
 const Label = styled.div<LabelProps>`
@@ -79,7 +86,18 @@ const Label = styled.div<LabelProps>`
 `;
 
 export default Label;
-export const Primary = props => <Label kind="primary" {...props} />;
-export const Secondary = props => <Label kind="secondary" {...props} />;
-export const Warning = props => <Label kind="warning" {...props} />;
-export const Danger = props => <Label kind="danger" {...props} />;
+
+type LabelPropsWithoutKind = Omit<LabelProps, 'kind'>;
+
+export const Primary = (props: LabelPropsWithoutKind) => (
+  <Label kind="primary" {...props} />
+);
+export const Secondary = (props: LabelPropsWithoutKind) => (
+  <Label kind="secondary" {...props} />
+);
+export const Warning = (props: LabelPropsWithoutKind) => (
+  <Label kind="warning" {...props} />
+);
+export const Danger = (props: LabelPropsWithoutKind) => (
+  <Label kind="danger" {...props} />
+);

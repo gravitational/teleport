@@ -16,12 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { Component, MouseEvent, useState } from 'react';
 import styled from 'styled-components';
 
-import { ButtonPrimary, Box, Flex, Text, H2 } from '..';
-
 import Popover, { GrowDirections, Origin } from '.';
+import { Box, ButtonPrimary, Flex, H2, Text } from '..';
 
 export default {
   title: 'Design/Popover',
@@ -47,9 +46,9 @@ type SimplePopoverState = {
   contentMultiplier: number;
 };
 
-class SimplePopover extends React.Component<any, SimplePopoverState> {
-  btnRef: Element;
-  growContentTimer: ReturnType<typeof setInterval>;
+class SimplePopover extends Component<any, SimplePopoverState> {
+  btnRef: Element | null = null;
+  growContentTimer: ReturnType<typeof setInterval> | undefined;
 
   state: SimplePopoverState = {
     anchorEl: null,
@@ -219,12 +218,12 @@ class SimplePopover extends React.Component<any, SimplePopoverState> {
   }
 }
 
-class MouseOverPopover extends React.Component {
+class MouseOverPopover extends Component {
   state = {
     anchorEl: null,
   };
 
-  handlePopoverOpen = event => {
+  handlePopoverOpen = (event: MouseEvent<HTMLDivElement>) => {
     this.setState({ anchorEl: event.currentTarget });
   };
 
@@ -441,7 +440,7 @@ const ManyPopovers = ({
   margin?: string;
   popoverMargin?: number;
 }) => {
-  const [anchorRef, setAnchorRef] = useState(null);
+  const [anchorRef, setAnchorRef] = useState<HTMLDivElement | null>(null);
   return (
     <Box backgroundColor="levels.deep">
       <Box

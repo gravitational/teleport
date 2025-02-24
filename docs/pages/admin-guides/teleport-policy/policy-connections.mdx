@@ -44,7 +44,7 @@ External users (created from authentication connectors for GitHub, SAML, etc.) a
 
 User Groups are created from Teleport roles and Access Requests. Roles create User Groups where the members
 are the users that have that role. Access requests create a temporary User Group where the members are the users that
-got the access through the accepted access request.
+got the access through the accepted Access Request.
 
 ### Actions
 
@@ -70,6 +70,32 @@ can be identified by having `Temporary: true` property.
 #### Resource Groups
 
 Resource Groups are created from Teleport roles.
+
+### Database Access Controls
+
+Teleport supports [object-level permissions](../../enroll-resources/database-access/rbac.mdx#executing-database-object-permission-rules) for select database protocols.
+
+The database objects-level access information is automatically synchronized to Teleport Policy, making it possible to see who has particular levels of access to the different parts of the database.
+
+When you inspect a particular user's access, the Teleport Access Graph will automatically display the database objects that the user can access.
+
+![Overview of access including individual database objects](../../../img/access-graph/dac/overview.png)
+
+To see more details about a specific database object, simply select it.
+
+<Figure width="400">
+![Details of an individual database object](../../../img/access-graph/dac/db-object-details.png)
+</Figure>
+
+In the graph, database objects are connected by multiple edges:
+
+1. There is exactly one edge connecting the object to its parent database resource. This edge has "contains" label.
+
+![Database object and parent database resource](../../../img/access-graph/dac/db-object-contains-relation.png)
+
+2. At least one edge shows the permissions associated with the object, such as `INSERT, SELECT, UPDATE`. If multiple roles grant permissions to the same object, additional edges of this type may be present. The permissions are presented as edge labels.
+
+![Specific object permissions](../../../img/access-graph/dac/db-object-permissions-label.png)
 
 #### Resources
 

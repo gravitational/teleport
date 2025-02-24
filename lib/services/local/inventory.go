@@ -54,11 +54,17 @@ func (s *PresenceService) GetInstances(ctx context.Context, req types.InstanceFi
 	return stream.FilterMap(items, func(item backend.Item) (types.Instance, bool) {
 		instance, err := generic.FastUnmarshal[*types.InstanceV1](item)
 		if err != nil {
-			s.log.Warnf("Skipping instance at %s, failed to unmarshal: %v", item.Key, err)
+			s.logger.WarnContext(ctx, "Skipping instance failed to unmarshal",
+				"key", item.Key,
+				"error", err,
+			)
 			return nil, false
 		}
 		if err := instance.CheckAndSetDefaults(); err != nil {
-			s.log.Warnf("Skipping instance at %s: %v", item.Key, err)
+			s.logger.WarnContext(ctx, "Skipping invalid instance",
+				"key", item.Key,
+				"error", err,
+			)
 			return nil, false
 		}
 		if !req.Match(instance) {

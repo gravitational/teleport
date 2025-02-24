@@ -119,6 +119,11 @@ type Profile struct {
 
 	// SSHDialTimeout is the timeout value that should be used for SSH connections.
 	SSHDialTimeout time.Duration `yaml:"ssh_dial_timeout,omitempty"`
+
+	// SSOHost is the host of the SSO provider used to log in. Clients can check this value, along
+	// with WebProxyAddr, to determine if a webpage is safe to open. Currently used by Teleport
+	// Connect in the proxy host allow list.
+	SSOHost string `yaml:"sso_host,omitempty"`
 }
 
 // Copy returns a shallow copy of p, or nil if p is nil.

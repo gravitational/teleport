@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/tls"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -32,7 +33,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -760,7 +761,7 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 			}
 			user, err := types.NewUser(userName)
 			require.NoError(t, err)
-			user.SetRoles(maps.Keys(tc.roles))
+			user.SetRoles(slices.Collect(maps.Keys(tc.roles)))
 			_, err = testPack.tlsServer.Auth().UpsertUser(ctx, user)
 			require.NoError(t, err)
 
@@ -1364,6 +1365,8 @@ func checkCerts(t *testing.T,
 	// Parse SSH cert.
 	sshCert, err := sshutils.ParseCertificate(certs.SSH)
 	require.NoError(t, err)
+	sshIdentity, err := sshca.DecodeIdentity(sshCert)
+	require.NoError(t, err)
 
 	// Parse TLS cert.
 	tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
@@ -1372,14 +1375,11 @@ func checkCerts(t *testing.T,
 	require.NoError(t, err)
 
 	// Make sure both certs have the expected roles.
-	rawSSHCertRoles := sshCert.Permissions.Extensions[teleport.CertExtensionTeleportRoles]
-	sshCertRoles, err := services.UnmarshalCertRoles(rawSSHCertRoles)
-	require.NoError(t, err)
-	assert.ElementsMatch(t, roles, sshCertRoles)
+	assert.ElementsMatch(t, roles, sshIdentity.Roles)
 	assert.ElementsMatch(t, roles, tlsIdentity.Groups)
 
 	// Make sure both certs have the expected logins/principals.
-	for _, certLogins := range [][]string{sshCert.ValidPrincipals, tlsIdentity.Principals} {
+	for _, certLogins := range [][]string{sshIdentity.Principals, tlsIdentity.Principals} {
 		// filter out invalid logins placed in the cert
 		validCertLogins := []string{}
 		for _, certLogin := range certLogins {
@@ -1391,12 +1391,7 @@ func checkCerts(t *testing.T,
 	}
 
 	// Make sure both certs have the expected access requests, if any.
-	rawSSHCertAccessRequests := sshCert.Permissions.Extensions[teleport.CertExtensionTeleportActiveRequests]
-	sshCertAccessRequests := services.RequestIDs{}
-	if len(rawSSHCertAccessRequests) > 0 {
-		require.NoError(t, sshCertAccessRequests.Unmarshal([]byte(rawSSHCertAccessRequests)))
-	}
-	assert.ElementsMatch(t, accessRequests, sshCertAccessRequests.AccessRequests)
+	assert.ElementsMatch(t, accessRequests, sshIdentity.ActiveRequests)
 	assert.ElementsMatch(t, accessRequests, tlsIdentity.ActiveRequests)
 
 	// Make sure both certs have the expected allowed resources, if any.
@@ -1564,11 +1559,17 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 		return req
 	}
 
-	mustAccessList := func(name string, owners ...string) *accesslist.AccessList {
+	type testAccessListOwner struct {
+		name string
+		kind string
+	}
+
+	mustAccessListWithMembershipKind := func(name string, owners ...testAccessListOwner) *accesslist.AccessList {
 		ownersSpec := make([]accesslist.Owner, len(owners))
 		for i, owner := range owners {
 			ownersSpec[i] = accesslist.Owner{
-				Name: owner,
+				Name:           owner.name,
+				MembershipKind: owner.kind,
 			}
 		}
 		accessList, err := accesslist.NewAccessList(header.Metadata{
@@ -1587,10 +1588,22 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 		return accessList
 	}
 
+	mustAccessList := func(name string, owners ...string) *accesslist.AccessList {
+		ownersStruct := make([]testAccessListOwner, 0, len(owners))
+		for _, owner := range owners {
+			ownersStruct = append(ownersStruct, testAccessListOwner{owner, accesslist.MembershipKindUser})
+		}
+		return mustAccessListWithMembershipKind(name, ownersStruct...)
+	}
+
 	tests := []struct {
 		name              string
 		req               types.AccessRequest
 		accessLists       []*accesslist.AccessList
+		accessListMembers []struct {
+			Header header.Metadata
+			Spec   accesslist.AccessListMemberSpec
+		}
 		promotions        *types.AccessRequestAllowedPromotions
 		expectedReviewers []string
 	}{
@@ -1614,6 +1627,94 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 				},
 			},
 			expectedReviewers: []string{"rev1", "rev2", "owner1", "owner2", "owner3"},
+		},
+		{
+			name: "with ownership through nested list",
+			req:  mustRequest("rev1"),
+			accessLists: []*accesslist.AccessList{
+				mustAccessList("nested1", "owner1"),
+				mustAccessListWithMembershipKind(
+					"nested",
+					testAccessListOwner{"owner1", accesslist.MembershipKindUser},
+					testAccessListOwner{"nested1", accesslist.MembershipKindList},
+				),
+				mustAccessListWithMembershipKind(
+					"root",
+					testAccessListOwner{"owner1", accesslist.MembershipKindUser},
+					testAccessListOwner{"nested", accesslist.MembershipKindList},
+				),
+			},
+			accessListMembers: []struct {
+				Header header.Metadata
+				Spec   accesslist.AccessListMemberSpec
+			}{
+				{
+					Header: header.Metadata{
+						Name: "nested",
+					},
+					Spec: accesslist.AccessListMemberSpec{
+						AccessList:     "root",
+						Name:           "nested",
+						Joined:         clock.Now().UTC(),
+						Expires:        clock.Now().UTC().Add(24 * time.Hour),
+						Reason:         "because",
+						AddedBy:        "owner1",
+						MembershipKind: accesslist.MembershipKindList,
+					},
+				},
+				{
+					Header: header.Metadata{
+						Name: "nested1",
+					},
+					Spec: accesslist.AccessListMemberSpec{
+						AccessList:     "nested",
+						Name:           "nested1",
+						Joined:         clock.Now().UTC(),
+						Expires:        clock.Now().UTC().Add(24 * time.Hour),
+						Reason:         "because",
+						AddedBy:        "owner1",
+						MembershipKind: accesslist.MembershipKindList,
+					},
+				},
+				{
+					Header: header.Metadata{
+						Name: "owner2",
+					},
+					Spec: accesslist.AccessListMemberSpec{
+						AccessList:     "nested",
+						Name:           "owner2",
+						Joined:         clock.Now().UTC(),
+						Expires:        clock.Now().UTC().Add(24 * time.Hour),
+						Reason:         "because",
+						AddedBy:        "owner1",
+						MembershipKind: accesslist.MembershipKindUser,
+					},
+				},
+				{
+					Header: header.Metadata{
+						Name: "owner3",
+					},
+					Spec: accesslist.AccessListMemberSpec{
+						AccessList:     "nested1",
+						Name:           "owner3",
+						Joined:         clock.Now().UTC(),
+						Expires:        clock.Now().UTC().Add(24 * time.Hour),
+						Reason:         "because",
+						AddedBy:        "owner1",
+						MembershipKind: accesslist.MembershipKindUser,
+					},
+				},
+			},
+			promotions: &types.AccessRequestAllowedPromotions{
+				Promotions: []*types.AccessRequestAllowedPromotion{
+					{AccessListName: "root"},
+					{AccessListName: "nested"},
+				},
+			},
+			// owner1 is owner of 'root', should be included
+			// owner2 is member of 'nested', which is owner of 'root', should be included via inheritance
+			// owner3 is member of 'nested1', which is member of 'nested', which is owner of 'root', should be included via two levels of inheritance
+			expectedReviewers: []string{"rev1", "owner1", "owner2", "owner3"},
 		},
 		{
 			name: "no promotions",
@@ -1643,6 +1744,14 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 			for _, accessList := range test.accessLists {
 				_, err = accessLists.UpsertAccessList(ctx, accessList)
 				require.NoError(t, err)
+			}
+			if test.accessListMembers != nil {
+				for _, memberData := range test.accessListMembers {
+					member, err := accesslist.NewAccessListMember(memberData.Header, memberData.Spec)
+					require.NoError(t, err)
+					_, err = accessLists.UpsertAccessListMember(ctx, member)
+					require.NoError(t, err)
+				}
 			}
 
 			req := test.req.Copy()

@@ -36,6 +36,8 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -409,4 +411,149 @@ func testX11Forward(ctx context.Context, t *testing.T, proc *networking.Process,
 	readXauthEntry, err := xauthCmd.ReadEntry(display)
 	require.NoError(t, err)
 	require.Equal(t, fakeXauthEntry, readXauthEntry)
+}
+
+func TestRootCheckHomeDir(t *testing.T) {
+	utils.RequireRoot(t)
+
+	tmp := t.TempDir()
+	require.NoError(t, os.Chmod(filepath.Dir(tmp), 0777))
+	require.NoError(t, os.Chmod(tmp, 0777))
+
+	home := filepath.Join(tmp, "home")
+	noAccess := filepath.Join(tmp, "no_access")
+	file := filepath.Join(tmp, "file")
+	notFound := filepath.Join(tmp, "not_found")
+
+	require.NoError(t, os.Mkdir(home, 0700))
+	require.NoError(t, os.Mkdir(noAccess, 0700))
+	_, err := os.Create(file)
+	require.NoError(t, err)
+
+	login := utils.GenerateLocalUsername(t)
+	_, err = host.UserAdd(login, nil, host.UserOpts{Home: home})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		// change back to accessible home so deletion works
+		changeHomeDir(t, login, home)
+		_, err := host.UserDel(login)
+		require.NoError(t, err)
+	})
+
+	testUser, err := user.Lookup(login)
+	require.NoError(t, err)
+
+	uid, err := strconv.Atoi(testUser.Uid)
+	require.NoError(t, err)
+
+	gid, err := strconv.Atoi(testUser.Gid)
+	require.NoError(t, err)
+
+	require.NoError(t, os.Chown(home, uid, gid))
+	require.NoError(t, os.Chown(file, uid, gid))
+
+	hasAccess, err := CheckHomeDir(testUser)
+	require.NoError(t, err)
+	require.True(t, hasAccess)
+
+	changeHomeDir(t, login, file)
+	hasAccess, err = CheckHomeDir(testUser)
+	require.NoError(t, err)
+	require.False(t, hasAccess)
+
+	changeHomeDir(t, login, notFound)
+	hasAccess, err = CheckHomeDir(testUser)
+	require.NoError(t, err)
+	require.False(t, hasAccess)
+
+	changeHomeDir(t, login, noAccess)
+	hasAccess, err = CheckHomeDir(testUser)
+	require.NoError(t, err)
+	require.False(t, hasAccess)
+}
+
+func changeHomeDir(t *testing.T, username, home string) {
+	usermodBin, err := exec.LookPath("usermod")
+	assert.NoError(t, err, "usermod binary must be present")
+
+	cmd := exec.Command(usermodBin, "--home", home, username)
+	_, err = cmd.CombinedOutput()
+	assert.NoError(t, err, "changing home should not error")
+	assert.Equal(t, 0, cmd.ProcessState.ExitCode(), "changing home should exit 0")
+}
+
+func TestRootOpenFileAsUser(t *testing.T) {
+	utils.RequireRoot(t)
+	euid := os.Geteuid()
+	egid := os.Getegid()
+
+	username := "processing-user"
+
+	arg := os.Args[1]
+	os.Args[1] = teleport.ExecSubCommand
+	defer func() {
+		os.Args[1] = arg
+	}()
+
+	_, err := host.UserAdd(username, nil, host.UserOpts{})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		_, err := host.UserDel(username)
+		require.NoError(t, err)
+	})
+
+	tmp := t.TempDir()
+	testFile := filepath.Join(tmp, "testfile")
+	fileContent := "one does not simply open without permission"
+
+	err = os.WriteFile(testFile, []byte(fileContent), 0777)
+	require.NoError(t, err)
+
+	testUser, err := user.Lookup(username)
+	require.NoError(t, err)
+
+	// no access
+	file, err := openFileAsUser(testUser, testFile)
+	require.True(t, trace.IsAccessDenied(err))
+	require.Nil(t, file)
+
+	// ensure we fallback to root after
+	file, err = os.Open(testFile)
+	require.NoError(t, err)
+	require.NotNil(t, file)
+	file.Close()
+
+	// has access
+	uid, err := strconv.Atoi(testUser.Uid)
+	require.NoError(t, err)
+
+	gid, err := strconv.Atoi(testUser.Gid)
+	require.NoError(t, err)
+
+	err = os.Chown(filepath.Dir(tmp), uid, gid)
+	require.NoError(t, err)
+
+	err = os.Chown(tmp, uid, gid)
+	require.NoError(t, err)
+
+	err = os.Chown(testFile, uid, gid)
+	require.NoError(t, err)
+
+	file, err = openFileAsUser(testUser, testFile)
+	require.NoError(t, err)
+	require.NotNil(t, file)
+
+	data, err := io.ReadAll(file)
+	file.Close()
+	require.NoError(t, err)
+	require.Equal(t, fileContent, string(data))
+
+	// not exist
+	file, err = openFileAsUser(testUser, filepath.Join(tmp, "no_exist"))
+	require.ErrorIs(t, err, os.ErrNotExist)
+	require.Nil(t, file)
+
+	require.Equal(t, euid, os.Geteuid())
+	require.Equal(t, egid, os.Getegid())
 }

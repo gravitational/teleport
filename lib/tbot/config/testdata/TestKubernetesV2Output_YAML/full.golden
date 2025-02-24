@@ -1,0 +1,10 @@
+type: kubernetes/v2
+destination:
+  type: memory
+disable_exec_plugin: true
+selectors:
+  - name: foo
+  - labels:
+      foo: bar
+credential_ttl: 1m0s
+renewal_interval: 30s

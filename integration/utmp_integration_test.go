@@ -66,7 +66,7 @@ type SrvCtx struct {
 	srv        *regular.Server
 	signer     ssh.Signer
 	server     *auth.TestServer
-	clock      clockwork.FakeClock
+	clock      *clockwork.FakeClock
 	nodeClient *authclient.Client
 	nodeID     string
 	utmpPath   string
@@ -118,10 +118,10 @@ func TestRootUTMPEntryExists(t *testing.T) {
 		require.NoError(t, err)
 
 		require.EventuallyWithTf(t, func(collect *assert.CollectT) {
-			require.NoError(collect, uacc.UserWithPtyInDatabase(s.utmpPath, teleportTestUser))
-			require.NoError(collect, uacc.UserWithPtyInDatabase(s.wtmpPath, teleportTestUser))
+			assert.NoError(collect, uacc.UserWithPtyInDatabase(s.utmpPath, teleportTestUser))
+			assert.NoError(collect, uacc.UserWithPtyInDatabase(s.wtmpPath, teleportTestUser))
 			// Ensure than an entry was not written to btmp.
-			require.True(collect, trace.IsNotFound(uacc.UserWithPtyInDatabase(s.btmpPath, teleportTestUser)), "unexpected error: %v", err)
+			assert.True(collect, trace.IsNotFound(uacc.UserWithPtyInDatabase(s.btmpPath, teleportTestUser)), "unexpected error: %v", err)
 		}, 5*time.Minute, time.Second, "did not detect utmp entry within 5 minutes")
 	})
 
@@ -154,10 +154,10 @@ func TestRootUTMPEntryExists(t *testing.T) {
 		require.NoError(t, err)
 
 		require.EventuallyWithT(t, func(collect *assert.CollectT) {
-			require.NoError(collect, uacc.UserWithPtyInDatabase(s.btmpPath, teleportFakeUser))
+			assert.NoError(collect, uacc.UserWithPtyInDatabase(s.btmpPath, teleportFakeUser))
 			// Ensure that entries were not written to utmp and wtmp
-			require.True(collect, trace.IsNotFound(uacc.UserWithPtyInDatabase(s.utmpPath, teleportFakeUser)), "unexpected error: %v", err)
-			require.True(collect, trace.IsNotFound(uacc.UserWithPtyInDatabase(s.wtmpPath, teleportFakeUser)), "unexpected error: %v", err)
+			assert.True(collect, trace.IsNotFound(uacc.UserWithPtyInDatabase(s.utmpPath, teleportFakeUser)), "unexpected error: %v", err)
+			assert.True(collect, trace.IsNotFound(uacc.UserWithPtyInDatabase(s.wtmpPath, teleportFakeUser)), "unexpected error: %v", err)
 		}, 5*time.Minute, time.Second, "did not detect btmp entry within 5 minutes")
 	})
 

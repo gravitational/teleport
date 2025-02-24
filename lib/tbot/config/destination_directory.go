@@ -27,6 +27,7 @@ import (
 	"os/user"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
@@ -41,9 +42,15 @@ const DestinationDirectoryType = "directory"
 
 // DestinationDirectory is a Destination that writes to the local filesystem
 type DestinationDirectory struct {
-	Path     string             `yaml:"path,omitempty"`
-	Symlinks botfs.SymlinksMode `yaml:"symlinks,omitempty"`
-	ACLs     botfs.ACLMode      `yaml:"acls,omitempty"`
+	Path     string               `yaml:"path,omitempty"`
+	Symlinks botfs.SymlinksMode   `yaml:"symlinks,omitempty"`
+	ACLs     botfs.ACLMode        `yaml:"acls,omitempty"`
+	Readers  []*botfs.ACLSelector `yaml:"readers,omitempty"`
+
+	// aclsEnabled is set during `Init()` if new-style ACLs are requested and
+	// the ACL test succeeds. When true, ACLs will be corrected on-the-fly
+	// during `Write()`.
+	aclsEnabled bool
 }
 
 func (dd *DestinationDirectory) UnmarshalYAML(node *yaml.Node) error {
@@ -71,6 +78,12 @@ func (dd *DestinationDirectory) UnmarshalYAML(node *yaml.Node) error {
 func (dd *DestinationDirectory) CheckAndSetDefaults() error {
 	if dd.Path == "" {
 		return trace.BadParameter("destination path must not be empty")
+	}
+
+	for i, reader := range dd.Readers {
+		if err := reader.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "reader entry %d is invalid", i)
+		}
 	}
 
 	switch dd.Symlinks {
@@ -145,28 +158,74 @@ func mkdir(p string) error {
 	return nil
 }
 
-func (dd *DestinationDirectory) Init(_ context.Context, subdirs []string) error {
+func (dd *DestinationDirectory) Init(ctx context.Context, subdirs []string) error {
 	// Create the directory if needed.
 	if err := mkdir(dd.Path); err != nil {
 		return trace.Wrap(err)
+	}
+
+	// Check for ACL configuration and test to ensure support.
+	if len(dd.Readers) > 0 && dd.ACLs != botfs.ACLOff {
+		// Run a test to ensure we can actually make use of them.
+		if err := botfs.TestACL(dd.Path, dd.Readers); err != nil {
+			if dd.ACLs == botfs.ACLRequired {
+				return trace.Wrap(err, "ACLs were marked as required but the "+
+					"write test failed. Remove `acls: required` or resolve the "+
+					"underlying issue.")
+			}
+
+			const msg = "ACLs were requested but could not be configured, they " +
+				"will be disabled. To resolve this warning, ensure ACLs are " +
+				"supported and the directory is owned by the bot user, or " +
+				"remove any configured readers to disable ACLs"
+			log.WarnContext(
+				ctx,
+				msg,
+				"path", dd.Path,
+				"error", err,
+				"readers", dd.Readers,
+			)
+
+			dd.aclsEnabled = false
+		} else {
+			dd.aclsEnabled = true
+			log.InfoContext(
+				ctx,
+				"ACL test succeeded and will be configured at runtime",
+				"path", dd.Path,
+				"readers", len(dd.Readers),
+			)
+		}
+	}
+
+	if dd.aclsEnabled {
+		// Correct the base directory ACLs. Note that no default ACL is
+		// configured; we manage each file/subdirectory ACL manually.
+		if err := dd.verifyAndCorrectACL(ctx, ""); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	for _, dir := range subdirs {
 		if err := mkdir(path.Join(dd.Path, dir)); err != nil {
 			return trace.Wrap(err)
 		}
+
+		if dd.aclsEnabled {
+			if err := dd.verifyAndCorrectACL(ctx, dir); err != nil {
+				return trace.Wrap(err)
+			}
+		}
 	}
 
 	return nil
 }
 
-func (dd *DestinationDirectory) Verify(keys []string) error {
-	// If ACLs are disabled or unsupported, just bail as there's nothing to
-	// check.
-	if dd.ACLs == botfs.ACLOff || !botfs.HasACLSupport() {
-		return nil
-	}
-
+// verifyLegacyACLs performs minor runtime verification of legacy-style ACLs,
+// where it is _not_ assumed that the destination is owned by the bot user.
+// This will not attempt to correct any issues, but will cause a hard failure if
+// `acls: required` is configured and issues are detected.
+func (dd *DestinationDirectory) verifyLegacyACLs(keys []string) error {
 	currentUser, err := user.Current()
 	if err != nil {
 		// user.Current will fail if the user id does not exist in /etc/passwd
@@ -184,36 +243,18 @@ func (dd *DestinationDirectory) Verify(keys []string) error {
 		return nil
 	}
 
-	stat, err := os.Stat(dd.Path)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	ownedByBot, err := botfs.IsOwnedBy(stat, currentUser)
-	if trace.IsNotImplemented(err) {
-		// If file owners aren't supported, ACLs certainly aren't. Just bail.
-		// (Subject to change if we ever try to support Windows ACLs.)
-		return nil
-	} else if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Make sure it's worth warning about ACLs for this Destination. If the
-	// destination is owned by the bot (implying the user is not trying to use
-	//ACLs), just bail.
-	if ownedByBot {
-		return nil
-	}
-
 	errors := []error{}
 	for _, key := range keys {
 		path := filepath.Join(dd.Path, key)
 
-		errors = append(errors, botfs.VerifyACL(path, &botfs.ACLOptions{
+		errors = append(errors, botfs.VerifyLegacyACL(path, &botfs.ACLOptions{
 			BotUser: currentUser,
 		}))
 	}
 
+	// Unlike new-style ACLs, we'll allow hard fails here: we don't expect to
+	// be able to manage legacy ACLs at runtime and need to depend on them being
+	// correct from the start, so hard fails at this stage make sense.
 	aggregate := trace.NewAggregate(errors...)
 	if dd.ACLs == botfs.ACLRequired {
 		// Hard fail if ACLs are specifically requested and there are errors.
@@ -232,6 +273,130 @@ func (dd *DestinationDirectory) Verify(keys []string) error {
 	return nil
 }
 
+func (dd *DestinationDirectory) Verify(keys []string) error {
+	// Preflight: Warn on common misconfigurations where any kind of ACL
+	// management will be impossible.
+	if dd.ACLs == botfs.ACLOff {
+		if len(dd.Readers) > 0 {
+			log.InfoContext(
+				context.TODO(),
+				"Readers are configured but ACLs are disabled for this destination. No ACLs will be managed or verified.",
+				"path", dd.Path,
+			)
+		}
+		return nil
+	}
+
+	if !botfs.HasACLSupport() {
+		if dd.ACLs == botfs.ACLRequired {
+			return trace.BadParameter("ACLs are marked as required for destination %s but are not supported on this platform. Set `acls: off` to resolve this error.", dd.Path)
+		}
+
+		if len(dd.Readers) > 0 {
+			log.WarnContext(
+				context.TODO(),
+				"Readers are configured but this platform does not support filesystem ACLs. ACL management will be disabled.",
+				"path", dd.Path,
+			)
+		}
+	}
+
+	stat, err := os.Stat(dd.Path)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Note: os.Getuid() returns -1 on Windows, but we've implicitly eliminated
+	// that as an option with the `botfs.HasACLSupport()` check above.
+	ownedByBot, err := botfs.IsOwnedBy(stat, os.Getuid())
+	if trace.IsNotImplemented(err) {
+		// If file owners aren't supported, ACLs certainly aren't. Just bail.
+		// (Subject to change if we ever try to support Windows ACLs.)
+		if dd.ACLs == botfs.ACLRequired {
+			return trace.NotImplemented("unable to determine file ownership on this platform but ACLs were marked as required, cannot continue")
+		}
+
+		log.WarnContext(
+			context.TODO(),
+			"unable to determine file ownership on this platform, ACL verification will be skipped",
+			"path", dd.Path,
+			"error", err,
+		)
+
+		return nil
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Check for new-style ACL configuration. These explicitly require
+	// destinations to be owned by the bot user. This is somewhat arbitrarily
+	// here instead of in Init() and will run before each write attempt.
+	if len(dd.Readers) > 0 {
+		if !ownedByBot {
+			const msg = "This destination is not owned by the bot user so ACLs " +
+				"will not be enforced. To silence this warning, fix destination " +
+				"file ownership or remove configured `readers`"
+			log.WarnContext(
+				context.TODO(),
+				msg,
+				"path", dd.Path,
+			)
+
+			return nil
+		}
+
+		return nil
+	}
+
+	// For legacy ACLs, make sure it's worth warning about them. If the
+	// destination is owned by the bot (implying the user is not trying to use
+	// ACLs), just bail.
+	if ownedByBot {
+		return nil
+	}
+
+	return trace.Wrap(dd.verifyLegacyACLs(keys))
+}
+
+// verifyAndCorrectACL performs validation and attempts correction on new-style
+// ACLs when configured.
+//
+//nolint:staticcheck // staticcheck doesn't like nop implementations in fs_other.go
+func (dd *DestinationDirectory) verifyAndCorrectACL(ctx context.Context, subpath string) error {
+	p := filepath.Join(dd.Path, subpath)
+
+	// As a sanity check, try to ensure the resulting path is (lexically) a
+	// child of this destination.
+	if !strings.HasPrefix(p, filepath.Clean(dd.Path)) {
+		return trace.BadParameter("path %s is not a child of destination %s", p, dd.Path)
+	}
+
+	log.DebugContext(ctx, "verifying ACL", "path", p)
+	issues, err := botfs.VerifyACL(p, dd.Readers)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// If issues exist, attempt remediation. As the test during `Init()`
+	// passed, regardless of ACL mode (try, required), treat all errors here
+	// as hard failures.
+	if len(issues) > 0 {
+		if err := botfs.ConfigureACL(p, dd.Readers); err != nil {
+			return trace.Wrap(err, "unable to fix misconfigured ACL at path %s with issues %v", p, issues)
+		}
+
+		log.InfoContext(
+			ctx,
+			"corrected ACLs on destination file",
+			"destination", dd.Path,
+			"path", subpath,
+			"issues", issues,
+		)
+	}
+
+	return nil
+}
+
 func (dd *DestinationDirectory) Write(ctx context.Context, name string, data []byte) error {
 	_, span := tracer.Start(
 		ctx,
@@ -240,7 +405,46 @@ func (dd *DestinationDirectory) Write(ctx context.Context, name string, data []b
 	)
 	defer span.End()
 
-	return trace.Wrap(botfs.Write(filepath.Join(dd.Path, name), data, dd.Symlinks))
+	// If there are any parent directories, attempt to mkdir them again in case
+	// things have drifted since `Init()` was run. We don't bother with secure
+	// botfs.Create() since it's a no-op for directory creation.
+	if dir, _ := filepath.Split(name); dir != "" {
+		if err := mkdir(filepath.Join(dd.Path, dir)); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	path := filepath.Join(dd.Path, name)
+
+	// We can't configure permissions on a file that doesn't exist, so attempt
+	// to read the file first to determine if it exists, and create it if
+	// necessary.
+	_, err := botfs.Read(path, dd.Symlinks)
+	if trace.IsNotFound(err) {
+		log.DebugContext(ctx, "file is missing, creating to apply permissions", "path", path)
+		if err := botfs.Create(path, false, dd.Symlinks); err != nil {
+			return trace.Wrap(err)
+		}
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if dd.aclsEnabled {
+		// Sequentially check all subdirectory ACLs.
+		dirs := strings.Split(name, string(os.PathSeparator))
+		for i := 1; i < len(dirs); i++ {
+			// note: filepath.Join() will call `filepath.Clean()` on each result
+			if err := dd.verifyAndCorrectACL(ctx, filepath.Join(dirs[:i]...)); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		if err := dd.verifyAndCorrectACL(ctx, name); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return trace.Wrap(botfs.Write(path, data, dd.Symlinks))
 }
 
 func (dd *DestinationDirectory) Read(ctx context.Context, name string) ([]byte, error) {

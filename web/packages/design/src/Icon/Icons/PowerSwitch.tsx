@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function PowerSwitch({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const PowerSwitch = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-powerswitch"
       {...otherProps}
+      ref={ref}
     >
       <path
         fillRule="evenodd"
@@ -69,5 +70,5 @@ export function PowerSwitch({ size = 24, color, ...otherProps }: IconProps) {
         d="M8.12826 4.84038C8.35449 5.18736 8.2566 5.65203 7.90962 5.87826C5.84047 7.22733 4.5 9.38491 4.5 12C4.5 13.9891 5.29018 15.8968 6.6967 17.3033C8.10322 18.7098 10.0109 19.5 12 19.5C13.9891 19.5 15.8968 18.7098 17.3033 17.3033C18.7098 15.8968 19.5 13.9891 19.5 12C19.5 9.38491 18.1595 7.22733 16.0904 5.87826C15.7434 5.65203 15.6455 5.18736 15.8717 4.84038C16.098 4.4934 16.5626 4.39551 16.9096 4.62174C19.3555 6.21642 21 8.82321 21 12C21 14.3869 20.0518 16.6761 18.364 18.364C16.6761 20.0518 14.3869 21 12 21C9.61305 21 7.32387 20.0518 5.63604 18.364C3.94821 16.6761 3 14.3869 3 12C3 8.82321 4.64453 6.21642 7.09038 4.62174C7.43736 4.39551 7.90203 4.4934 8.12826 4.84038Z"
       />
     </Icon>
-  );
-}
+  )
+);

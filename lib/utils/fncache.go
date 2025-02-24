@@ -245,6 +245,8 @@ func FnCacheGetWithTTL[T any](ctx context.Context, cache *FnCache, key any, ttl 
 	switch {
 	case err != nil:
 		return ret, err
+	case t == nil:
+		return ret, nil
 	case !ok:
 		return ret, trace.BadParameter("value retrieved was %T, expected %T", t, ret)
 	}

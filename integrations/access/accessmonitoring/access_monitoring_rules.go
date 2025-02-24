@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib/logger"
+	"github.com/gravitational/teleport/integrations/lib/stringset"
 )
 
 const (
@@ -48,6 +49,7 @@ type RuleHandler struct {
 	pluginName string
 
 	fetchRecipientCallback func(ctx context.Context, recipient string) (*common.Recipient, error)
+	onCacheUpdateCallback  func(Operation types.OpType, name string, rule *accessmonitoringrulesv1.AccessMonitoringRule) error
 }
 
 // RuleMap is a concurrent map for access monitoring rules.
@@ -65,6 +67,8 @@ type RuleHandlerConfig struct {
 
 	// FetchRecipientCallback is a callback that maps recipient strings to plugin Recipients.
 	FetchRecipientCallback func(ctx context.Context, recipient string) (*common.Recipient, error)
+	// OnCacheUpdateCallback is a callback that is called when a rule in the cache is created or updated.
+	OnCacheUpdateCallback func(Operation types.OpType, name string, rule *accessmonitoringrulesv1.AccessMonitoringRule) error
 }
 
 // NewRuleHandler returns a new RuleHandler.
@@ -77,6 +81,7 @@ func NewRuleHandler(conf RuleHandlerConfig) *RuleHandler {
 		pluginType:             conf.PluginType,
 		pluginName:             conf.PluginName,
 		fetchRecipientCallback: conf.FetchRecipientCallback,
+		onCacheUpdateCallback:  conf.OnCacheUpdateCallback,
 	}
 }
 
@@ -93,6 +98,9 @@ func (amrh *RuleHandler) InitAccessMonitoringRulesCache(ctx context.Context) err
 			continue
 		}
 		amrh.accessMonitoringRules.rules[amr.GetMetadata().Name] = amr
+		if amrh.onCacheUpdateCallback != nil {
+			amrh.onCacheUpdateCallback(types.OpPut, amr.GetMetadata().Name, amr)
+		}
 	}
 	return nil
 }
@@ -123,6 +131,9 @@ func (amrh *RuleHandler) HandleAccessMonitoringRule(ctx context.Context, event t
 			return nil
 		}
 		amrh.accessMonitoringRules.rules[req.Metadata.Name] = req
+		if amrh.onCacheUpdateCallback != nil {
+			amrh.onCacheUpdateCallback(types.OpPut, req.GetMetadata().Name, req)
+		}
 		return nil
 	case types.OpDelete:
 		delete(amrh.accessMonitoringRules.rules, event.Resource.GetName())
@@ -140,8 +151,10 @@ func (amrh *RuleHandler) RecipientsFromAccessMonitoringRules(ctx context.Context
 	for _, rule := range amrh.getAccessMonitoringRules() {
 		match, err := MatchAccessRequest(rule.Spec.Condition, req)
 		if err != nil {
-			log.WithError(err).WithField("rule", rule.Metadata.Name).
-				Warn("Failed to parse access monitoring notification rule")
+			log.WarnContext(ctx, "Failed to parse access monitoring notification rule",
+				"error", err,
+				"rule", rule.Metadata.Name,
+			)
 		}
 		if !match {
 			continue
@@ -149,13 +162,35 @@ func (amrh *RuleHandler) RecipientsFromAccessMonitoringRules(ctx context.Context
 		for _, recipient := range rule.Spec.Notification.Recipients {
 			rec, err := amrh.fetchRecipientCallback(ctx, recipient)
 			if err != nil {
-				log.WithError(err).Warn("Failed to fetch plugin recipients based on Access moniotring rule recipients")
+				log.WarnContext(ctx, "Failed to fetch plugin recipients based on Access monitoring rule recipients", "error", err)
 				continue
 			}
 			recipientSet.Add(*rec)
 		}
 	}
 	return &recipientSet
+}
+
+// RawRecipientsFromAccessMonitoringRules returns the recipients that result from the Access Monitoring Rules being applied to the given Access Request without converting to the rich recipient type.
+func (amrh *RuleHandler) RawRecipientsFromAccessMonitoringRules(ctx context.Context, req types.AccessRequest) []string {
+	log := logger.Get(ctx)
+	recipientSet := stringset.New()
+	for _, rule := range amrh.getAccessMonitoringRules() {
+		match, err := MatchAccessRequest(rule.Spec.Condition, req)
+		if err != nil {
+			log.WarnContext(ctx, "Failed to parse access monitoring notification rule",
+				"error", err,
+				"rule", rule.Metadata.Name,
+			)
+		}
+		if !match {
+			continue
+		}
+		for _, recipient := range rule.Spec.Notification.Recipients {
+			recipientSet.Add(recipient)
+		}
+	}
+	return recipientSet.ToSlice()
 }
 
 func (amrh *RuleHandler) getAllAccessMonitoringRules(ctx context.Context) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {

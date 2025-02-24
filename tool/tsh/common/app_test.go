@@ -24,9 +24,11 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os/user"
+	"strings"
 	"testing"
 	"time"
 
@@ -38,12 +40,12 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/tlsca"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -85,12 +87,6 @@ func TestAppCommands(t *testing.T) {
 
 	testserver.WithResyncInterval(t, 0)
 
-	isInsecure := lib.IsInsecureDevMode()
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() {
-		lib.SetInsecureDevMode(isInsecure)
-	})
-
 	accessUser, err := types.NewUser("access")
 	require.NoError(t, err)
 	accessUser.SetRoles([]string{"access"})
@@ -103,15 +99,9 @@ func TestAppCommands(t *testing.T) {
 	rootServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithBootstrap(connector, accessUser),
 		testserver.WithClusterName(t, "root"),
+		testserver.WithTestApp(t, "rootapp"),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-			cfg.Apps = servicecfg.AppsConfig{
-				Enabled: true,
-				Apps: []servicecfg.App{{
-					Name: "rootapp",
-					URI:  startDummyHTTPServer(t, "rootapp"),
-				}},
-			}
 		}),
 	}
 	rootServer := testserver.MakeTestServer(t, rootServerOpts...)
@@ -128,15 +118,9 @@ func TestAppCommands(t *testing.T) {
 	leafServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithBootstrap(accessUser),
 		testserver.WithClusterName(t, "leaf"),
+		testserver.WithTestApp(t, "leafapp"),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-			cfg.Apps = servicecfg.AppsConfig{
-				Enabled: true,
-				Apps: []servicecfg.App{{
-					Name: "leafapp",
-					URI:  startDummyHTTPServer(t, "leafapp"),
-				}},
-			}
 		}),
 	}
 	leafServer := testserver.MakeTestServer(t, leafServerOpts...)
@@ -596,4 +580,217 @@ uri: https://test-app.example.com:8443
 			}
 		})
 	}
+}
+
+func TestWriteAppTable(t *testing.T) {
+	defaultAppListings := []appListing{
+		appListing{
+			Proxy:   "example.com",
+			Cluster: "foo-cluster",
+			App: mustMakeNewAppV3(t, types.Metadata{Name: "root-app"}, types.AppSpecV3{
+				// Short URLs, because in tests the width of the term is just 80 characters and the public
+				// address column gets truncated very early.
+				PublicAddr: "https://root-app.example.com",
+				URI:        "http://localhost:8080",
+			}),
+		},
+		appListing{
+			Proxy:   "example.com",
+			Cluster: "bar-cluster",
+			App: mustMakeNewAppV3(t, types.Metadata{Name: "leaf-app"}, types.AppSpecV3{
+				PublicAddr: "https://leaf-app.example.com",
+				URI:        "http://localhost:4242",
+			}),
+		},
+	}
+	appListingsWithMultiPort := append(defaultAppListings,
+		appListing{
+			Proxy:   "example.com",
+			Cluster: "foo-cluster",
+			App: mustMakeNewAppV3(t, types.Metadata{Name: "mp-root"}, types.AppSpecV3{
+				PublicAddr: "https://mp-root.example.com",
+				URI:        "tcp://localhost",
+				TCPPorts: []*types.PortRange{
+					&types.PortRange{Port: 1337},
+					&types.PortRange{Port: 4200, EndPort: 4242},
+				},
+			}),
+		},
+	)
+
+	tests := []struct {
+		name          string
+		config        appTableConfig
+		appListings   []appListing
+		wantHeaders   []string
+		wantNoHeaders []string
+		wantValues    []string
+		wantNoValues  []string
+	}{
+		{
+			name: "regular list",
+			config: appTableConfig{
+				active:  []tlsca.RouteToApp{},
+				verbose: false,
+				listAll: false,
+			},
+			appListings: defaultAppListings,
+			wantHeaders: []string{"Application", "Public Address"},
+			// Public addresses are expected to be truncated when verbose mode is off.
+			wantValues:    []string{"https://root-app...", "https://leaf-app...", "root-app", "leaf-app"},
+			wantNoHeaders: []string{"URI", "Proxy", "Cluster", "Target Ports"},
+			wantNoValues:  []string{"http://localhost:8080", "foo-cluster", "bar-cluster", "1337"},
+		},
+		{
+			name: "regular list with active app",
+			config: appTableConfig{
+				active: []tlsca.RouteToApp{
+					tlsca.RouteToApp{Name: "root-app"},
+				},
+				verbose: false,
+				listAll: false,
+			},
+			appListings: defaultAppListings,
+			wantHeaders: []string{"Application"},
+			wantValues:  []string{"> root-app", "leaf-app"},
+		},
+		{
+			name: "regular list with no apps",
+			config: appTableConfig{
+				active:  []tlsca.RouteToApp{},
+				verbose: false,
+				listAll: false,
+			},
+			appListings: []appListing{},
+			wantHeaders: []string{"Application", "Public Address"},
+		},
+		{
+			name: "regular list with multi-port",
+			config: appTableConfig{
+				active:  []tlsca.RouteToApp{},
+				verbose: false,
+				listAll: false,
+			},
+			appListings: appListingsWithMultiPort,
+			wantHeaders: []string{"Target Ports", "Application", "Public Address"},
+			// Public addresses are expected to be truncated when verbose mode is off.
+			wantValues:    []string{"1337, 4200-4...", "https://mp-r...", "https://root...", "mp-root", "root-app"},
+			wantNoHeaders: []string{"URI", "Proxy", "Cluster"},
+			wantNoValues:  []string{"http://localhost:8080", "foo-cluster", "bar-cluster"},
+		},
+		{
+			name: "verbose",
+			config: appTableConfig{
+				active:  []tlsca.RouteToApp{},
+				verbose: true,
+				listAll: false,
+			},
+			appListings: defaultAppListings,
+			wantHeaders: []string{"URI", "Application", "Public Address"},
+			wantValues: []string{"http://localhost:8080", "http://localhost:4242",
+				"https://root-app.example.com", "https://leaf-app.example.com", "root-app", "leaf-app"},
+			wantNoHeaders: []string{"Proxy", "Cluster", "Target Ports"},
+			wantNoValues:  []string{"foo-cluster", "bar-cluster", "1337"},
+		},
+		{
+			name: "verbose with multi-port",
+			config: appTableConfig{
+				active:  []tlsca.RouteToApp{},
+				verbose: true,
+				listAll: false,
+			},
+			appListings:   appListingsWithMultiPort,
+			wantHeaders:   []string{"Target Ports", "URI"},
+			wantValues:    []string{"1337, 4200-4242", "tcp://localhost", "https://mp-root.example.com", "mp-root"},
+			wantNoHeaders: []string{"Proxy", "Cluster"},
+			wantNoValues:  []string{"foo-cluster", "bar-cluster"},
+		},
+		{
+			name: "list all",
+			config: appTableConfig{
+				active:  []tlsca.RouteToApp{},
+				verbose: false,
+				listAll: true,
+			},
+			appListings: defaultAppListings,
+			wantHeaders: []string{"Proxy", "Cluster", "Application", "Public Address"},
+			// Public addresses are expected to be truncated when verbose mode is off.
+			wantValues:    []string{"foo-cluste...", "bar-cluste...", "example.co...", "https://ro...", "https://le...", "root-app", "leaf-app"},
+			wantNoHeaders: []string{"URI", "Target Ports"},
+			wantNoValues:  []string{"http://localhost:8080", "1337"},
+		},
+		{
+			name: "list all with multi-port",
+			config: appTableConfig{
+				active:  []tlsca.RouteToApp{},
+				verbose: false,
+				listAll: true,
+			},
+			appListings:   appListingsWithMultiPort,
+			wantHeaders:   []string{"Target Ports", "Proxy", "Cluster"},
+			wantValues:    []string{"1337, 420...", "foo-clust...", "example.c...", "https://m...", "mp-root"},
+			wantNoHeaders: []string{"URI"},
+			wantNoValues:  []string{"http://localhost:8080"},
+		},
+		{
+			name: "verbose and list all",
+			config: appTableConfig{
+				active:  []tlsca.RouteToApp{},
+				verbose: true,
+				listAll: true,
+			},
+			appListings: defaultAppListings,
+			wantHeaders: []string{"Proxy", "Cluster", "URI", "Application", "Public Address"},
+			wantValues: []string{"foo-cluster", "bar-cluster", "http://localhost:8080", "http://localhost:4242",
+				"https://root-app.example.com", "https://leaf-app.example.com", "root-app", "leaf-app"},
+		},
+		{
+			name: "verbose, list all, and multi-port",
+			config: appTableConfig{
+				active:  []tlsca.RouteToApp{},
+				verbose: true,
+				listAll: true,
+			},
+			appListings: appListingsWithMultiPort,
+			wantHeaders: []string{"Proxy", "Cluster", "URI", "Application", "Public Address"},
+			wantValues: []string{"1337, 4200-4242", "foo-cluster", "tcp://localhost",
+				"https://mp-root.example.com", "mp-root"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var b bytes.Buffer
+			w := io.Writer(&b)
+
+			err := writeAppTable(w, test.appListings, test.config)
+			require.NoError(t, err)
+
+			lines := strings.SplitN(b.String(), "\n", 3)
+			headers := lines[0]
+			// The second line contains header separators ("------"), that's why it's skipped here.
+			values := lines[2]
+
+			for _, wantHeader := range test.wantHeaders {
+				assert.Contains(t, headers, wantHeader)
+			}
+			for _, wantNoHeader := range test.wantNoHeaders {
+				assert.NotContains(t, headers, wantNoHeader)
+			}
+
+			for _, wantValue := range test.wantValues {
+				assert.Contains(t, values, wantValue)
+			}
+			for _, wantNoValue := range test.wantNoValues {
+				assert.NotContains(t, values, wantNoValue)
+			}
+		})
+	}
+}
+
+func mustMakeNewAppV3(t *testing.T, meta types.Metadata, spec types.AppSpecV3) *types.AppV3 {
+	t.Helper()
+	app, err := types.NewAppV3(meta, spec)
+	require.NoError(t, err)
+	return app
 }

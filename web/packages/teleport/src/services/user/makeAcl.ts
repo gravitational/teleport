@@ -39,6 +39,12 @@ export function makeAcl(json): Acl {
   const dbServers = json.dbServers || defaultAccess;
   const db = json.db || defaultAccess;
   const desktops = json.desktops || defaultAccess;
+  const reviewRequests = json.reviewRequests ?? false;
+  // TODO (avatus) change default to false in v19. We do not want someone
+  // who _can_ access file transfers to be denied access because an older cluster
+  // doesn't return the valid permission. If they don't have access, the action will
+  // still fail with an error, so this is merely a UX improvment.
+  const fileTransferAccess = json.fileTransferAccess ?? true; // use nullish coalescing to prevent default from overriding a strictly false value
   const connectionDiagnostic = json.connectionDiagnostic || defaultAccess;
   // Defaults to true, see RFD 0049
   // https://github.com/gravitational/teleport/blob/master/rfd/0049-desktop-clipboard.md#security
@@ -72,6 +78,11 @@ export function makeAcl(json): Acl {
   const bots = json.bots || defaultAccess;
   const accessMonitoringRule = json.accessMonitoringRule || defaultAccess;
 
+  const discoverConfigs = json.discoverConfigs || defaultAccess;
+
+  const contacts = json.contact || defaultAccess;
+  const gitServers = json.gitServers || defaultAccess;
+
   return {
     accessList,
     authConnectors,
@@ -85,6 +96,7 @@ export function makeAcl(json): Acl {
     kubeServers,
     tokens,
     accessRequests,
+    reviewRequests,
     billing,
     plugins,
     integrations,
@@ -107,6 +119,10 @@ export function makeAcl(json): Acl {
     accessGraph,
     bots,
     accessMonitoringRule,
+    discoverConfigs,
+    contacts,
+    fileTransferAccess,
+    gitServers,
   };
 }
 

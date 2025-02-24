@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useRef, useState, ChangeEvent } from 'react';
+import { ChangeEvent, createRef, useState } from 'react';
 
 import { render, screen, userEvent } from 'design/utils/testing';
 
@@ -67,16 +67,14 @@ test('controlled flow', async () => {
 });
 
 test('uncontrolled flow', async () => {
-  let fooRef, barRef;
+  const fooRef = createRef<HTMLInputElement>();
+  const barRef = createRef<HTMLInputElement>();
+
   function TestForm() {
-    const fooRefInternal = useRef();
-    const barRefInternal = useRef();
-    fooRef = fooRefInternal;
-    barRef = barRefInternal;
     return (
       <form data-testid="form">
-        <FieldRadio ref={fooRefInternal} name="val" value="foo" label="Foo" />
-        <FieldRadio ref={barRefInternal} name="val" value="bar" label="Bar" />
+        <FieldRadio ref={fooRef} name="val" value="foo" label="Foo" />
+        <FieldRadio ref={barRef} name="val" value="bar" label="Bar" />
       </form>
     );
   }
@@ -87,11 +85,11 @@ test('uncontrolled flow', async () => {
 
   await user.click(screen.getByLabelText('Foo'));
   expect(screen.getByTestId('form')).toHaveFormValues({ val: 'foo' });
-  expect(fooRef.current.checked).toBe(true);
-  expect(barRef.current.checked).toBe(false);
+  expect(fooRef.current?.checked).toBe(true);
+  expect(barRef.current?.checked).toBe(false);
 
   await user.click(screen.getByLabelText('Bar'));
   expect(screen.getByTestId('form')).toHaveFormValues({ val: 'bar' });
-  expect(fooRef.current.checked).toBe(false);
-  expect(barRef.current.checked).toBe(true);
+  expect(fooRef.current?.checked).toBe(false);
+  expect(barRef.current?.checked).toBe(true);
 });

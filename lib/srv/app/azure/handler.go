@@ -31,7 +31,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -51,11 +50,8 @@ const ComponentKey = "azure:fwd"
 type HandlerConfig struct {
 	// RoundTripper is the underlying transport given to an oxy Forwarder.
 	RoundTripper http.RoundTripper
-	// Log is the Logger.
-	// TODO(greedy52) replace with slog.
-	Log logrus.FieldLogger
-	// Logger is the slog.Logger.
-	Logger *slog.Logger
+	// Log is a logger for the handler.
+	Log *slog.Logger
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
 
@@ -76,13 +72,10 @@ func (s *HandlerConfig) CheckAndSetDefaults(ctx context.Context) error {
 		s.Clock = clockwork.NewRealClock()
 	}
 	if s.Log == nil {
-		s.Log = logrus.WithField(teleport.ComponentKey, ComponentKey)
-	}
-	if s.Logger == nil {
-		s.Logger = slog.Default().With(teleport.ComponentKey, ComponentKey)
+		s.Log = slog.With(teleport.ComponentKey, ComponentKey)
 	}
 	if s.getAccessToken == nil {
-		s.getAccessToken = lazyGetAccessTokenFromDefaultCredentialProvider(s.Logger)
+		s.getAccessToken = lazyGetAccessTokenFromDefaultCredentialProvider(s.Log)
 	}
 	return nil
 }
@@ -161,13 +154,13 @@ func (s *handler) serveHTTP(w http.ResponseWriter, req *http.Request) error {
 
 	if err := sessionCtx.Audit.OnRequest(req.Context(), sessionCtx, fwdRequest, status, nil); err != nil {
 		// log but don't return the error, because we already handed off request/response handling to the oxy forwarder.
-		s.Log.WithError(err).Warn("Failed to emit audit event.")
+		s.Log.WarnContext(req.Context(), "Failed to emit audit event.", "error", err)
 	}
 	return nil
 }
 
 func (s *handler) formatForwardResponseError(rw http.ResponseWriter, r *http.Request, err error) {
-	s.Log.WithError(err).Debugf("Failed to process request.")
+	s.Log.DebugContext(r.Context(), "Failed to process request.", "error", err)
 	common.SetTeleportAPIErrorHeader(rw, err)
 
 	// Convert trace error type to HTTP and write response.
@@ -179,7 +172,7 @@ func (s *handler) formatForwardResponseError(rw http.ResponseWriter, r *http.Req
 func (s *handler) prepareForwardRequest(r *http.Request, sessionCtx *common.SessionContext) (*http.Request, error) {
 	forwardedHost, err := utils.GetSingleHeader(r.Header, "X-Forwarded-Host")
 	if err != nil {
-		return nil, trace.AccessDenied(err.Error())
+		return nil, trace.AccessDenied("%s", err)
 	} else if !azure.IsAzureEndpoint(forwardedHost) {
 		return nil, trace.AccessDenied("%q is not an Azure endpoint", forwardedHost)
 	}
@@ -224,7 +217,7 @@ func getPeerKey(certs []*x509.Certificate) (crypto.PublicKey, error) {
 func (s *handler) replaceAuthHeaders(r *http.Request, sessionCtx *common.SessionContext, reqCopy *http.Request) error {
 	auth := reqCopy.Header.Get("Authorization")
 	if auth == "" {
-		s.Log.Debugf("No Authorization header present, skipping replacement.")
+		s.Log.DebugContext(r.Context(), "No Authorization header present, skipping replacement.")
 		return nil
 	}
 
@@ -238,7 +231,11 @@ func (s *handler) replaceAuthHeaders(r *http.Request, sessionCtx *common.Session
 		return trace.Wrap(err, "failed to parse Authorization header")
 	}
 
-	s.Log.Debugf("Processing request, sessionId = %q, azureIdentity = %q, claims = %v", sessionCtx.Identity.RouteToApp.SessionID, sessionCtx.Identity.RouteToApp.AzureIdentity, claims)
+	s.Log.DebugContext(r.Context(), "Processing request.",
+		"session_id", sessionCtx.Identity.RouteToApp.SessionID,
+		"azure_identity", sessionCtx.Identity.RouteToApp.AzureIdentity,
+		"claims", claims,
+	)
 	token, err := s.getToken(r.Context(), sessionCtx.Identity.RouteToApp.AzureIdentity, claims.Resource)
 	if err != nil {
 		return trace.Wrap(err)

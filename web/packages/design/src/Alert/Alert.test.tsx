@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { render, screen, theme, userEvent } from 'design/utils/testing';
 
 import { Alert, Banner } from '.';
@@ -33,7 +31,7 @@ describe('Alert', () => {
     ${'success'} | ${theme.colors.interactive.tonal.success[0]}
   `('renders appropriate background for kind $kind', ({ kind, background }) => {
     const { container } = render(<Alert kind={kind} />);
-    expect(container.firstChild.firstChild).toHaveStyle({ background });
+    expect(container.firstChild?.firstChild).toHaveStyle({ background });
   });
 
   test('action buttons', async () => {

@@ -53,15 +53,20 @@ Additionally, be aware of the following limitations of `tbot db`:
 
 ## tbot init
 
-Initializes a certificate destination directory for access from a separate bot user. Allows for certificates to be written to disks other than a Machine ID client,
-configuring either file or POSIX ACL permissions.
+Initializes a certificate destination directory for access from a separate bot
+user. Allows for certificates to be written to disks other than a Machine ID
+client, configuring either file or POSIX ACL permissions.
+
+Note that most use cases should instead use tbot's runtime ACL management by
+specifying allowed reader users and groups in the
+[destination configuration](../machine-id/configuration.mdx#directory).
 
 ### Flags
 
 | Flag                | Description                                                                                                        |
 |---------------------|--------------------------------------------------------------------------------------------------------------------|
 | `-d/--debug`        | Enable verbose logging to stderr.                                                                                  |
-| `-c/--config`       | Path to a Machine ID configuration file.                                                                                      |
+| `-c/--config`       | Path to a Machine ID configuration file.                                                                           |
 | `--destination-dir` | Directory to write short-lived machine certificates to.                                                            |
 | `--owner`           | Defines the Linux `user:group` owner of `--destination-dir`. Defaults to the Linux user running `tbot` if unspecified. |
 | `--bot-user`        | Enables POSIX ACLs and defines the Linux user that can read/write short-lived certificates to `--destination-dir`. |
@@ -106,6 +111,10 @@ The `tbot proxy` command acts as a wrapper for `tsh proxy` to provide local prox
 
 Note that `tsh` must be installed to make use of this command.
 
+Consider using one of the following dedicated tunnel modes where possible:
+- [`tbot start application-tunnel`](#tbot-start-application-tunnel)
+- [`tbot start database-tunnel`](#tbot-start-database-tunnel)
+
 ### Flags
 
 | Flag                | Description                                                                                              |
@@ -123,11 +132,11 @@ login step.
 Additionally, the following should be noted:
 
 - Certain CLI parameters, for example `--help`, may be captured by
-`tbot` even if intended to be passed to the wrapped `tsh`. A `--` argument can
-be used to ensure all following arguments are passed to `tsh` and ignored by
-`tbot`
+  `tbot` even if intended to be passed to the wrapped `tsh`. A `--` argument can
+  be used to ensure all following arguments are passed to `tsh` and ignored by
+  `tbot`
 - If no configuration file is provided, `tbot` will apply a sample configuration based on provided CLI flags.
-For this reason, it is recommended that settings are explicitly applied to a configuration file in production.
+  For this reason, it is recommended that settings are explicitly applied to a configuration file in production.
 
 ### Examples
 
@@ -145,7 +154,7 @@ $ tbot proxy --destination-dir=./tbot-user --proxy-server=proxy.example.com:3080
    - `3022` is the remote SSH port, which is `3022` for Nodes running the Teleport
      SSH service.
 
-**Example using Database Access**
+**Example using a Teleport-protected database**
 
 The following example opens a local proxy server to the given database. Your database client
 must still be configured with client TLS certificates:
@@ -183,7 +192,7 @@ using database proxies.
 | `-a/--auth-server`   | Address of the Teleport Auth Service. Prefer using --proxy-server where possible                |
 | `--proxy-server`     | Address of the Teleport Proxy Server.                                                          |
 | `--token`            | A bot join token, if attempting to onboard a new bot; used on first connect. Can also be an absolute path to a file containing the token. |
-| `--ca-pin`           | CA pin to validate the Teleport Auth Server; used on first connect.                            |
+| `--ca-pin`           | CA pin to validate the Teleport Auth Service; used on first connect.                            |
 | `--data-dir`         | Directory to store internal bot data. In production environments access to this directory should be limited only to an isolated linux user as an owner with `0600` permissions. |
 | `--destination-dir`  | Directory to write short-lived machine certificates.                                           |
 | `--certificate-ttl`  | TTL of short-lived machine certificates.                                                       |
@@ -191,28 +200,120 @@ using database proxies.
 | `--join-method`      | Method to use to join the cluster. Can be `token` or `iam`.                                    |
 | `--oneshot`          | If set, quit after the first renewal.                                                          |
 
-## tbot start
+## tbot configure
 
-Starts the Machine ID client `tbot`, fetching and writing certificates to disk at a set interval.
+The `tbot configure` command is used to convert a `tbot start` CLI call into a
+YAML configuration file. It supports all the same subcommands and flags as
+[`tbot start`](#tbot-start), but prints an equivalent configuration instead of
+starting a bot.
+
+For example, consider this `tbot start identity` CLI call:
+```code
+$ tbot start identity \
+   --destination=./example \
+   --join-method=token \
+   --token=foo \
+   --proxy-server=teleport.example.com:443
+```
+
+To convert this CLI command into a configuration file, replace `tbot start` with
+`tbot configure`:
+```code
+$ tbot configure identity \
+   --destination=./example \
+   --join-method=token \
+   --token=foo \
+   --proxy-server=teleport.example.com:443
+```
+
+An equivalent YAML configuration will be printed, which can be written to a
+file. The client can then be started using this configuration file:
+
+```code
+$ tbot configure identity \
+   --destination=./example \
+   --join-method=token \
+   --token=foo \
+   --proxy-server=teleport.example.com:443 > tbot.yaml
+$ tbot start -c tbot.yaml
+```
 
 ### Flags
 
-| Flag                 | Description                                                                                    |
-|----------------------|------------------------------------------------------------------------------------------------|
-| `-d/--debug`         | Enable verbose logging to stderr.                                                              |
-| `-c/--config`        | Path to a Machine ID configuration file.                                                       |
+This subcommand supports one additional flag beyond its `tbot start` equivalent:
+
+| Flag          | Description |
+|---------------|-------------|
+| `-o/--output` | If set, writes the generated configuration to the given file path instead of stdout. |
+
+## tbot start
+
+The `tbot start` family of commands starts the Machine ID client in various
+modes, depending on the type of resources to be accessed:
+
+- [`tbot start legacy`](#tbot-start-legacy): Starts with a YAML configuration file or in legacy output mode
+- [`tbot start identity`](#tbot-start-identity): Starts with an identity output for SSH and Teleport API access
+- [`tbot start database`](#tbot-start-database): Starts with a database credential output
+- [`tbot start kubernetes`](#tbot-start-kubernetes): Starts with a Kubernetes output
+- [`tbot start application`](#tbot-start-application): Starts with an application TLS credential output
+- [`tbot start application-tunnel`](#tbot-start-application-tunnel): Starts a local application tunnel
+- [`tbot start database-tunnel`](#tbot-start-database-tunnel): Starts a local database tunnel
+- [`tbot start spiffe-svid`](#tbot-start-spiffe-svid): Starts a Workload ID SPIFFE SVID output
+
+If only `tbot start` is specified, `tbot start legacy` will be inferred by
+default; this is the correct mode for use with a YAML configuration file.
+
+### Common Start Flags
+
+These flags are available to all `tbot start` commands. Note that
+`tbot start legacy` supports slightly different options, so refer to its
+specific section for details when using a YAML config file or legacy output.
+
+| Flag                 | Description |
+|----------------------|-------------|
+| `-d/--debug`         | Enable verbose logging to stderr. |
 | `--[no-]fips`        | Whether to run tbot in FIPS compliance mode. This requires the FIPS `tbot` binary. |
-| `-a/--auth-server`   | Address of the Teleport Auth Service. Prefer using --proxy-server where possible                |
-| `--proxy-server`     | Address of the Teleport Proxy Server.                                                          |
-| `--token`            | A bot join token, if attempting to onboard a new bot; used on first connect. Can also be an absolute path to a file containing the token. |
-| `--ca-pin`           | CA pin to validate the Teleport Auth Server; used on first connect.                            |
-| `--data-dir`         | Directory to store internal bot data. In production environments access to this directory should be limited only to an isolated linux user as an owner with `0600` permissions. |
-| `--destination-dir`  | Directory to write short-lived machine certificates.                                           |
-| `--certificate-ttl`  | TTL of short-lived machine certificates.                                                       |
+| `--log-format`       | Controls the format of output logs. Can be `json` or `text`. Defaults to `text`. |
+| `-a/--auth-server`   | Address of the Teleport Auth Service. Prefer using `--proxy-server` where possible. |
+| `--proxy-server`     | Address of the Teleport Proxy Server. |
+| `--token`            | A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect. |
+| `--ca-pin`           | CA pin to validate the Teleport Auth Service; used on first connect. |
+| `--certificate-ttl`  | TTL of short-lived machine certificates. |
 | `--renewal-interval` | Interval at which short-lived certificates are renewed; must be less than the certificate TTL. |
-| `--join-method`      | Method to use to join the cluster. Can be `token`, `azure`, `circleci`, `gcp`, `github`, `gitlab` or `iam`. |
-| `--oneshot`          | If set, quit after the first renewal.                                                          |
-| `--log-format`       | Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.               |
+| `--join-method`      | Method to use to join the cluster. One of: `azure`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud` |
+| `--[no-]oneshot`     | If set, quit after the first renewal. |
+| `--diag-addr`        | If set and the bot is in debug mode, a diagnostics service will listen on specified address. |
+| `--storage`          | A destination URI for tbot's internal storage, e.g. `file:///foo/bar`. See [Destination URIs](#destination-uris) for more info. |
+
+## tbot start legacy
+
+Starts the Machine ID client `tbot`, fetching and writing certificates to disk
+at a set interval. This command either starts from a configuration file if `-c`
+is specified, or starts with a default, legacy-compatible identity output.
+
+This is the default `tbot start` subcommand if no other command is specified.
+Unless using a configuration file, consider using `tbot start identity` or
+another dedicated mode instead.
+
+### Flags
+
+| Flag                 | Description                                                                                                                                                                     |
+|----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `-d/--debug`         | Enable verbose logging to stderr. Can also be configured using the `TBOT_DEBUG` environment variable.                                                                           |
+| `-c/--config`        | Path to a tbot configuration file. Mutually exclusive with `--config-string`. Can also be configured with the `TBOT_CONFIG_PATH` environment variable.                          |
+| `--config-string`    | Allows the tbot configuration to be provided as a base 64 string directly via this flag or the `TBOT_CONFIG` environment variable. Mutually exclusive with `--config`           |
+| `--[no-]fips`        | Whether to run tbot in FIPS compliance mode. This requires the FIPS `tbot` binary.                                                                                              |
+| `-a/--auth-server`   | Address of the Teleport Auth Service. Prefer using --proxy-server where possible                                                                                                |
+| `--proxy-server`     | Address of the Teleport Proxy Server.                                                                                                                                           |
+| `--token`            | A bot join token, if attempting to onboard a new bot; used on first connect. Can also be an absolute path to a file containing the token.                                       |
+| `--ca-pin`           | CA pin to validate the Teleport Auth Service; used on first connect.                                                                                                            |
+| `--data-dir`         | Directory to store internal bot data. In production environments access to this directory should be limited only to an isolated linux user as an owner with `0600` permissions. |
+| `--destination-dir`  | Directory to write short-lived machine certificates.                                                                                                                            |
+| `--certificate-ttl`  | TTL of short-lived machine certificates.                                                                                                                                        |
+| `--renewal-interval` | Interval at which short-lived certificates are renewed; must be less than the certificate TTL.                                                                                  |
+| `--join-method`      | Method to use to join the cluster. Can be `token`, `azure`, `circleci`, `gcp`, `github`, `gitlab` or `iam`.                                                                     |
+| `--oneshot`          | If set, quit after the first renewal.                                                                                                                                           |
+| `--log-format`       | Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.                                                                                                |
 
 ### Examples
 <Tabs>
@@ -244,6 +345,270 @@ $ tbot start \
   </TabItem>
 </Tabs>
 
+## tbot start identity
+
+Starts the Machine ID client `tbot` with an identity output, fetching and
+writing certificates at a regular interval to the output specified with
+`--destination`.
+
+```code
+$ tbot start identity --destination=DESTINATION [<flags>]
+```
+
+### Flags
+
+In addition to the [common `tbot start` flags](#common-start-flags), this
+command supports these additional flags:
+
+| Flag                 | Description |
+|----------------------|-------------|
+| `--destination`  | A destination URI, such as file:///foo/bar. See [Destination URIs](#destination-uris) for more info. Required. |
+| `--reader-user`  | An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux. |
+| `--reader-group` | An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux. |
+| `--cluster`      | The name of a specific cluster for which to issue an identity if using a leaf cluster |
+
+### Examples
+
+To start a bot with a one-time-use join token:
+
+```code
+$ tbot start identity \
+  --proxy-server=example.teleport.sh:443 \
+  --join-type=token \
+  --token=TOKEN \
+  --destination=./tbot-user \
+  --storage=./tbot-data
+```
+
+## tbot start database
+
+Starts the Machine ID client `tbot` with a database output, fetching and writing
+database certificates at a regular interval to the output specified with
+`--destination`.
+
+```code
+$ tbot start database --destination=DESTINATION --service=SERVICE --username=USERNAME --database=DATABASE [<flags>]
+```
+
+### Flags
+
+In addition to the [common `tbot start` flags](#common-start-flags), this
+command supports these additional flags:
+
+| Flag                 | Description |
+|----------------------|-------------|
+| `--destination`  | A destination URI, such as file:///foo/bar. See [Destination URIs](#destination-uris) for more info. Required. |
+| `--reader-user`  | An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux. |
+| `--reader-group` | An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux. |
+| `--format`       | The database output format if necessary |
+| `--service`      | The service name of the database as it appears in Teleport and `tsh db ls`. Required. |
+| `--username`     | The database user name. The bot user must have permission to connect as this user. Required. |
+| `--database`     | The name of the database available in the requested service. Required. |
+
+## tbot start kubernetes
+
+Starts the Machine ID client `tbot` with a Kubernetes output, fetching and
+writing Kubernetes credentials and a `kubeconfig.yaml` at a regular interval to
+the output specified with `--destination`.
+
+```code
+$ tbot start kubernetes --destination=DESTINATION --kubernetes-cluster=KUBERNETES-CLUSTER [<flags>]
+```
+
+### Flags
+
+In addition to the [common `tbot start` flags](#common-start-flags), this
+command supports these additional flags:
+
+| Flag                   | Description |
+|------------------------|-------------|
+| `--destination`        | A destination URI, such as file:///foo/bar. See [Destination URIs](#destination-uris) for more info. Required. |
+| `--reader-user`        | An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux. |
+| `--reader-group`       | An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux. |
+| `--kubernetes-cluster` | The name of the Kubernetes cluster in Teleport for which to fetch credentials |
+
+## tbot start application
+
+Starts the Machine ID client `tbot` with an application output, fetching and
+writing application TLS credentials at a regular interval to the output
+specified with `--destination`.
+
+```code
+$ tbot start application --destination=DESTINATION --app=APP [<flags>]
+```
+
+### Flags
+
+In addition to the [common `tbot start` flags](#common-start-flags), this
+command supports these additional flags:
+
+| Flag                 | Description |
+|----------------------|-------------|
+| `--destination`      | A destination URI, such as file:///foo/bar. See [Destination URIs](#destination-uris) for more info. Required. |
+| `--reader-user`      | An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux. |
+| `--reader-group`     | An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux. |
+| `--app`              | The name of the app in Teleport |
+
+## tbot start application-tunnel
+
+Starts the Machine ID client with a local tunnel to a particular application.
+This tunnel will run continuously and automatically refresh its certificates.
+
+Note that this tunnel will be unencrypted. Be wary of the selected listen
+address, and prefer to use `localhost` or an equivalent loopback interface
+address when possible. Additionally, note that all users on the local system
+will be able to access this socket.
+
+If you wish to tunnel multiple apps from one bot instance, use
+`tbot configure application-tunnel ...` to generate a configuration file and
+repeat the generated block under `services:` as desired.
+
+This tunneling method is preferred over the legacy [`tbot proxy app`](#tbot-proxy).
+
+```code
+$ tbot start application-tunnel --listen=LISTEN --app=APP [<flags>]
+```
+
+### Flags
+
+| Flag       | Description |
+|------------|-------------|
+| `--listen` | A socket URI to listen on, e.g. `tcp://localhost:1234`. Required. |
+| `--app`    | The name of the app in Teleport |
+
+## tbot start database-tunnel
+
+Starts the Machine ID client with a local tunnel to a particular database.
+This tunnel will run continuously and automatically refresh its certificates.
+
+Note that this tunnel will be unencrypted. Be wary of the selected listen
+address, and prefer to use `localhost` or an equivalent loopback interface
+address when possible. Additionally, note that all users on the local system
+will be able to access this socket.
+
+If you wish to tunnel multiple databases from one bot instance, use
+`tbot configure database-tunnel ...` to generate a configuration file and repeat
+the generated block under `services:` as desired.
+
+This tunneling method is preferred over the legacy
+[`tbot proxy db`](#tbot-proxy), and is roughly equivalent to
+`tbot proxy db --tunnel`.
+
+```code
+$ tbot start database-tunnel --listen=LISTEN --service=SERVICE --username=USERNAME --database=DATABASE [<flags>]
+```
+
+### Flags
+
+In addition to the [common `tbot start` flags](#common-start-flags), this
+command supports these additional flags:
+
+| Flag         | Description |
+|--------------|-------------|
+| `--listen`   | A socket URI to listen on, e.g. `tcp://localhost:1234`. Required. |
+| `--service`  | The service name of the database as it appears in Teleport and `tsh db ls`. Required. |
+| `--username` | The database user name. The bot user must have permission to connect as this user. Required. |
+| `--database` | The name of the database available in the requested service. Required. |
+
+## tbot start workload-identity-x509
+
+Issues an X509 workload identity credential using Teleport Workload Identity and
+writes this credential to a specified destination.
+
+See the [configuration reference](../machine-id/configuration.mdx) for further
+information about the workload identity credential output and the YAML
+configuration file format.
+
+### Flags
+
+In addition to the [common `tbot start` flags](#common-start-flags), this
+command supports these additional flags:
+
+| Flag                                     | Description                                                                                                                                                        |
+|------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--destination`                          | A destination URI, such as file:///foo/bar. See [Destination URIs](#destination-uris) for more info. Required.                                                     |
+| `--reader-user`                          | An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.                                 |
+| `--reader-group`                         | An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.                                |
+| `--[no-]include-federated-trust-bundles` | If set, include federated trust bundles in the output                                                                                                              |
+| `--name-selector`                        | Specifies a WorkloadIdentity resource by name to use when issuing the X509 for a workload. Mutually exclusive with `--label-selector`.                             |
+| `--label-selector`                       | Specifies a set of labels to use when selecting WorkloadIdentity resources to use when issuing the X509 for a workload. Mutually exclusive with `--name-selector`. |
+
+## tbot start workload-identity-jwt
+
+Issues a JWT workload identity credential using Teleport Workload Identity and
+writes this credential to a specified destination.
+
+The JWT workload identity credential is compatible with the [SPIFFE JWT SVID
+specification](https://github.com/spiffe/spiffe/blob/main/standards/JWT-SVID.md).
+
+See the [configuration reference](../machine-id/configuration.mdx) for further
+information about the workload identity credential output and the YAML
+configuration file format.
+
+### Flags
+
+In addition to the [common `tbot start` flags](#common-start-flags), this
+command supports these additional flags:
+
+| Flag               | Description                                                                                                                                                        |
+|--------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--destination`    | A destination URI, such as file:///foo/bar. See [Destination URIs](#destination-uris) for more info. Required.                                                     |
+| `--reader-user`    | An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.                                 |
+| `--reader-group`   | An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.                                |
+| `--name-selector`  | Specifies a WorkloadIdentity resource by name to use when issuing the X509 for a workload. Mutually exclusive with `--label-selector`.                             |
+| `--label-selector` | Specifies a set of labels to use when selecting WorkloadIdentity resources to use when issuing the X509 for a workload. Mutually exclusive with `--name-selector`. |
+| `--audience`       | The audience for the JWT. Can be provided multiple times to produce a JWT with multiple audiences. At least one audience must be provided.                         |
+
+## tbot start workload-identity-api
+
+Starts the `tbot` agent and opens a listener for the local workload identity
+API.
+
+The configuration for this service can be complex, and therefore, it is
+recommended that you leverage the YAML configuration.
+
+See [Workload Identity API & Workload Attestation](../workload-identity/workload-identity-api-and-workload-attestation.mdx)
+for further information about the local workload identity API and the YAML
+configuration.
+
+### Flags
+
+In addition to the [common `tbot start` flags](#common-start-flags), this
+command supports these additional flags:
+
+| Flag               | Description                                                                                                                                                        |
+|--------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--listen`         | A socket URI to listen on, e.g. `tcp://localhost:1234` or `unix:///opt/workload-identity.sock`. Required.                                                          |
+| `--name-selector`  | Specifies a WorkloadIdentity resource by name to use when issuing the X509 for a workload. Mutually exclusive with `--label-selector`.                             |
+| `--label-selector` | Specifies a set of labels to use when selecting WorkloadIdentity resources to use when issuing the X509 for a workload. Mutually exclusive with `--name-selector`. |
+
+## tbot start spiffe-svid
+
+<Admonition type="warning" >
+The use of this command has been deprecated as part of the introduction of the
+new Workload Identity configuration experience. You can replace the use of this
+command with the new `tbot start workload-identity-x509` command.
+
+For further information, see [the new Workload Identity configuration experience
+and how to migrate](../workload-identity/configuration-resource-migration.mdx).
+</Admonition>
+
+### Flags
+
+In addition to the [common `tbot start` flags](#common-start-flags), this
+command supports these additional flags:
+
+| Flag                 | Description |
+|----------------------|-------------|
+| `--destination`                          | A destination URI, such as file:///foo/bar. See [Destination URIs](#destination-uris) for more info. Required. |
+| `--reader-user`                          | An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux. |
+| `--reader-group`                         | An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux. |
+| `--[no-]include-federated-trust-bundles` | If set, include federated trust bundles in the output |
+| `--svid-path`                            | A SPIFFE ID to request, prefixed with '/'. Required. |
+| `--svid-hint`                            | An optional hint for consumers of the SVID to aid in identification |
+| `--dns-san`                              | A DNS name that should be included in the SVID. Repeatable. |
+| `--ip-san`                               | An IP address that should be included in the SVID. Repeatable. |
+
 ## tbot install systemd
 
 Generates and installs a systemd unit file for a specific tbot configuration.
@@ -266,5 +631,23 @@ Generates and installs a systemd unit file for a specific tbot configuration.
 ```code
 $ tbot install systemd \
    --config=/etc/tbot.yaml \
-   ---write
+   --write
 ```
+
+## Destination URIs
+
+Many `tbot start` subcommands accept destination URIs via the `--storage` and
+`--destination` flags.
+
+| Protocol               | Description |
+|------------------------|-------------|
+| `file://`              | A local directory destination, such as `file:///foo/bar/` |
+| `memory://`            | An in-memory destination. Useful for internal bot storage if no persistence is required. |
+| `kubernetes-secret://` | A Kubernetes secret destination, such as `kubernetes-secret:///my-secret` |
+
+Plain file paths are also be accepted with no `file://` prefix; these will be
+treated as directory outputs.
+
+Note that `tbot start legacy` only supports directory output destinations via
+the `--destination-dir` flag, though it does support URIs for `--storage`. All
+other `tbot start` subcommands accept these URIs where relevant.

@@ -22,7 +22,9 @@ import (
 	"context"
 	"crypto"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base32"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"net"
@@ -71,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
+	"github.com/gravitational/teleport/lib/sshca"
 	libsshutils "github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -413,8 +416,9 @@ func TestAutoRotation(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	testSrv := newTestTLSServer(t)
-	clock := testSrv.AuthServer.TestAuthServerConfig.Clock
+	clock := clockwork.NewFakeClock()
+	testSrv := newTestTLSServer(t, withClock(clock))
+
 	var ok bool
 
 	// create proxy client
@@ -514,8 +518,8 @@ func TestAutoFallback(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	testSrv := newTestTLSServer(t)
-	clock := testSrv.AuthServer.TestAuthServerConfig.Clock
+	clock := clockwork.NewFakeClock()
+	testSrv := newTestTLSServer(t, withClock(clock))
 
 	var ok bool
 
@@ -1246,36 +1250,60 @@ func TestRemoteUser(t *testing.T) {
 	certPool, err := testSrv.CertPool()
 	require.NoError(t, err)
 
-	remoteClient, err := remoteServer.NewRemoteClient(
-		TestUser(remoteUser.GetName()), testSrv.Addr(), certPool)
+	remoteClient, err := remoteServer.NewRemoteClient(TestUser(remoteUser.GetName()), testSrv.Addr(), certPool)
 	require.NoError(t, err)
 
 	// User is not authorized to perform any actions
-	// as local cluster does not trust the remote cluster yet
+	// as local cluster does not trust the remote cluster yet.
 	_, err = remoteClient.GetDomainName(ctx)
-	require.True(t, trace.IsConnectionProblem(err))
+	require.True(t, trace.IsConnectionProblem(err), "expected a connection problem error, got %v", err)
 
-	// Establish trust, the request will still fail, there is
-	// no role mapping set up
+	// Establish trust, the request will still fail, since there is
+	// no role mapping set up yet.
 	err = testSrv.AuthServer.Trust(ctx, remoteServer, nil)
 	require.NoError(t, err)
 
-	// Create fresh client now trust is established
-	remoteClient, err = remoteServer.NewRemoteClient(
-		TestUser(remoteUser.GetName()), testSrv.Addr(), certPool)
+	// Create a fresh client now that trust is established.
+	remoteClient, err = remoteServer.NewRemoteClient(TestUser(remoteUser.GetName()), testSrv.Addr(), certPool)
 	require.NoError(t, err)
-	_, err = remoteClient.GetDomainName(ctx)
-	require.True(t, trace.IsAccessDenied(err))
 
-	// Establish trust and map remote role to local admin role
+	// Validate that the client is not permitted to perform RPCs without a role map.
+	// The requests are attempted several times since it may take some time
+	// for the trust relationship to be established and CAs to be propagated.
+	_, err = remoteClient.GetDomainName(ctx)
+	assert.Error(t, err)
+	if !trace.IsAccessDenied(err) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			_, err = remoteClient.GetDomainName(ctx)
+			assert.True(t, trace.IsAccessDenied(err), "expected an access denied error, got %v", err)
+		}, 15*time.Second, 100*time.Millisecond)
+	}
+
+	// Establish trust and map the remote role to the local admin role.
 	_, localRole, err := CreateUserAndRole(testSrv.Auth(), "local-user", []string{"local-role"}, nil)
 	require.NoError(t, err)
 
 	err = testSrv.AuthServer.Trust(ctx, remoteServer, types.RoleMap{{Remote: remoteRole.GetName(), Local: []string{localRole.GetName()}}})
 	require.NoError(t, err)
 
+	// Validate that the client is now permitted to perform RPCs now that
+	// the role map was created. The requests are attempted several times since it
+	// may take some time for the trust relationship to be updated and CAs to be propagated.
 	_, err = remoteClient.GetDomainName(ctx)
-	require.NoError(t, err)
+	if err == nil {
+		return
+	}
+
+	// The only acceptable error here is AccessDenied caused by the role map
+	// not being propagated yet. Any other errors should fail the test.
+	if !trace.IsAccessDenied(err) {
+		require.NoError(t, err)
+	}
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err = remoteClient.GetDomainName(ctx)
+		assert.NoError(t, err)
+	}, 15*time.Second, 100*time.Millisecond)
 }
 
 // TestNopUser tests user with no permissions except
@@ -1759,14 +1787,12 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, baseWebClient.Close()) })
 
 	expectRolesAndResources := func(t *testing.T, sess types.WebSession, expectRoles []string, expectResources []types.ResourceID) {
-		sshCert, err := sshutils.ParseCertificate(sess.GetPub())
+		sshcert, err := sshutils.ParseCertificate(sess.GetPub())
 		require.NoError(t, err)
-		gotRoles, err := services.ExtractRolesFromCert(sshCert)
+		ident, err := sshca.DecodeIdentity(sshcert)
 		require.NoError(t, err)
-		gotResources, err := services.ExtractAllowedResourcesFromCert(sshCert)
-		require.NoError(t, err)
-		assert.ElementsMatch(t, expectRoles, gotRoles)
-		assert.ElementsMatch(t, expectResources, gotResources)
+		assert.ElementsMatch(t, expectRoles, ident.Roles)
+		assert.ElementsMatch(t, expectResources, ident.AllowedResourceIDs)
 	}
 
 	type extendSessionFunc func(*testing.T, *authclient.Client, types.WebSession) (*authclient.Client, types.WebSession)
@@ -1951,13 +1977,13 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	require.NoError(t, err)
 
 	// Roles extracted from cert should contain the initial role and the role assigned with access request.
-	roles, err := services.ExtractRolesFromCert(sshcert)
+	ident, err := sshca.DecodeIdentity(sshcert)
 	require.NoError(t, err)
-	require.Len(t, roles, 2)
+	require.Len(t, ident.Roles, 2)
 
 	mappedRole := map[string]string{
-		roles[0]: "",
-		roles[1]: "",
+		ident.Roles[0]: "",
+		ident.Roles[1]: "",
 	}
 
 	_, hasRole := mappedRole[initialRole]
@@ -1992,9 +2018,9 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	sshcert, err = sshutils.ParseCertificate(sess2.GetPub())
 	require.NoError(t, err)
 
-	roles, err = services.ExtractRolesFromCert(sshcert)
+	ident, err = sshca.DecodeIdentity(sshcert)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(roles, []string{initialRole}))
+	require.Empty(t, cmp.Diff(ident.Roles, []string{initialRole}))
 
 	require.Empty(t, certRequests(sess2.GetTLSCert()))
 }
@@ -2057,13 +2083,12 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	// Check traits has been updated to latest.
 	sshcert, err := sshutils.ParseCertificate(sess1.GetPub())
 	require.NoError(t, err)
-	traits, err := services.ExtractTraitsFromCert(sshcert)
+
+	ident, err := sshca.DecodeIdentity(sshcert)
 	require.NoError(t, err)
-	roles, err := services.ExtractRolesFromCert(sshcert)
-	require.NoError(t, err)
-	require.Equal(t, []string{"apple", "banana"}, traits[constants.TraitLogins])
-	require.Equal(t, []string{"llama", "alpaca"}, traits[constants.TraitDBUsers])
-	require.Contains(t, roles, newRoleName)
+	require.Equal(t, []string{"apple", "banana"}, ident.Traits[constants.TraitLogins])
+	require.Equal(t, []string{"llama", "alpaca"}, ident.Traits[constants.TraitDBUsers])
+	require.Contains(t, ident.Roles, newRoleName)
 }
 
 func TestExtendWebSessionWithMaxDuration(t *testing.T) {
@@ -4977,6 +5002,7 @@ func verifyJWTAWSOIDC(clock clockwork.Clock, clusterName string, pairs []*types.
 type testTLSServerOptions struct {
 	cacheEnabled bool
 	accessGraph  *AccessGraphConfig
+	clock        clockwork.Clock
 }
 
 type testTLSServerOption func(*testTLSServerOptions)
@@ -4993,6 +5019,12 @@ func withAccessGraphConfig(cfg AccessGraphConfig) testTLSServerOption {
 	}
 }
 
+func withClock(clock clockwork.Clock) testTLSServerOption {
+	return func(options *testTLSServerOptions) {
+		options.clock = clock
+	}
+}
+
 // newTestTLSServer is a helper that returns a *TestTLSServer with sensible
 // defaults for most tests that are exercising Auth Service RPCs.
 //
@@ -5003,9 +5035,12 @@ func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *TestTLSServer 
 	for _, opt := range opts {
 		opt(&options)
 	}
+	if options.clock == nil {
+		options.clock = clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC())
+	}
 	as, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:          t.TempDir(),
-		Clock:        clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
+		Clock:        options.clock,
 		CacheEnabled: options.cacheEnabled,
 	})
 	require.NoError(t, err)
@@ -5025,4 +5060,228 @@ func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *TestTLSServer 
 	})
 
 	return srv
+}
+
+func TestVerifyPeerCert(t *testing.T) {
+	t.Parallel()
+	const (
+		localClusterName  = "local"
+		remoteClusterName = "remote"
+	)
+	s := newTestServices(t)
+	// Set up local cluster name in the backend.
+	cn, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: localClusterName,
+	})
+	require.NoError(t, err)
+	require.NoError(t, s.UpsertClusterName(cn))
+
+	now := time.Date(2020, time.November, 5, 0, 0, 0, 0, time.UTC)
+
+	var (
+		localUserIdentity = tlsca.Identity{
+			Username:        "foo",
+			Groups:          []string{"devs"},
+			TeleportCluster: localClusterName,
+			Expires:         now,
+		}
+		localSystemRole = tlsca.Identity{
+			Username:        "node",
+			Groups:          []string{string(types.RoleNode)},
+			TeleportCluster: localClusterName,
+			Expires:         now,
+		}
+		remoteUserIdentity = tlsca.Identity{
+			Username:        "foo",
+			Groups:          []string{"devs"},
+			TeleportCluster: remoteClusterName,
+			Expires:         now,
+		}
+		remoteSystemRole = tlsca.Identity{
+			Username:        "node",
+			Groups:          []string{string(types.RoleNode)},
+			TeleportCluster: remoteClusterName,
+			Expires:         now,
+		}
+	)
+
+	localHostCA := suite.NewTestCA(types.HostCA, localClusterName)
+	remoteHostCA := suite.NewTestCA(types.HostCA, remoteClusterName)
+	localUserCA := suite.NewTestCA(types.UserCA, localClusterName)
+	remoteUserCA := suite.NewTestCA(types.UserCA, remoteClusterName)
+
+	caPool := buildPoolInfo(
+		t,
+		localHostCA,
+		localUserCA,
+		remoteHostCA,
+		remoteUserCA,
+	)
+
+	tests := []struct {
+		desc        string
+		peer        *x509.Certificate
+		clusterName string
+		wantErr     bool
+	}{
+		{
+			desc:        "local user issued from remote CA",
+			peer:        generateTestCert(t, remoteUserCA, localUserIdentity, localClusterName),
+			clusterName: localClusterName,
+			wantErr:     true,
+		},
+		{
+			desc:        "local system user issued from remote CA",
+			peer:        generateTestCert(t, remoteHostCA, localSystemRole, localClusterName),
+			clusterName: localClusterName,
+			wantErr:     true,
+		},
+		{
+			desc:        "local user issued from local host CA",
+			peer:        generateTestCert(t, localHostCA, localUserIdentity, localClusterName),
+			clusterName: localClusterName,
+			wantErr:     true,
+		},
+		{
+			desc:        "local system user issued from local user CA",
+			peer:        generateTestCert(t, localUserCA, localSystemRole, localClusterName),
+			clusterName: localClusterName,
+			wantErr:     true,
+		},
+		{
+			desc:        "local user with remote cluster name issued from local user CA",
+			peer:        generateTestCert(t, localUserCA, localUserIdentity, remoteClusterName),
+			clusterName: localClusterName,
+			wantErr:     true,
+		},
+		{
+			desc:        "local system user with remote cluster name issued from local host CA",
+			peer:        generateTestCert(t, localHostCA, localSystemRole, remoteClusterName),
+			clusterName: localClusterName,
+			wantErr:     true,
+		},
+		{
+			desc:        "local user  issued from local user CA",
+			peer:        generateTestCert(t, localUserCA, localUserIdentity, localClusterName),
+			clusterName: localClusterName,
+			wantErr:     false,
+		},
+		{
+			desc:        "local system user  issued from local host CA",
+			peer:        generateTestCert(t, localHostCA, localSystemRole, localClusterName),
+			clusterName: localClusterName,
+			wantErr:     false,
+		},
+		{
+			desc:        "remote user issued from local CA",
+			peer:        generateTestCert(t, localUserCA, remoteUserIdentity, remoteClusterName),
+			clusterName: remoteClusterName,
+			wantErr:     true,
+		},
+		{
+			desc:        "remote system user issued from local CA",
+			peer:        generateTestCert(t, localHostCA, remoteSystemRole, remoteClusterName),
+			clusterName: remoteClusterName,
+			wantErr:     true,
+		},
+		{
+			desc:        "remote user issued from remote host CA",
+			peer:        generateTestCert(t, remoteHostCA, remoteUserIdentity, remoteClusterName),
+			clusterName: remoteClusterName,
+			wantErr:     true,
+		},
+		{
+			desc:        "remote system user issued from user CA",
+			peer:        generateTestCert(t, remoteUserCA, remoteSystemRole, remoteClusterName),
+			clusterName: remoteClusterName,
+			wantErr:     true,
+		},
+		{
+			desc:        "remote user with local cluster name issued from remote user CA",
+			peer:        generateTestCert(t, remoteUserCA, remoteUserIdentity, localClusterName),
+			clusterName: remoteClusterName,
+			wantErr:     true,
+		},
+		{
+			desc:        "remote system user with local cluster name issued from host CA",
+			peer:        generateTestCert(t, remoteHostCA, remoteSystemRole, localClusterName),
+			clusterName: remoteClusterName,
+			wantErr:     true,
+		},
+		{
+			desc:        "remote user issued from remote user CA",
+			peer:        generateTestCert(t, remoteUserCA, remoteUserIdentity, remoteClusterName),
+			clusterName: remoteClusterName,
+			wantErr:     false,
+		},
+		{
+			desc:        "remote system user issued from host CA",
+			peer:        generateTestCert(t, remoteHostCA, remoteSystemRole, remoteClusterName),
+			clusterName: remoteClusterName,
+			wantErr:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			verify := caPool.verifyPeerCert()
+			err := verify(nil, [][]*x509.Certificate{{tt.peer}})
+			if tt.wantErr {
+				require.ErrorContains(t, err, "access denied: invalid client certificate")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func buildPoolInfo(t *testing.T, ca ...types.CertAuthority) *HostAndUserCAPoolInfo {
+	poolInfo := HostAndUserCAPoolInfo{
+		Pool:    x509.NewCertPool(),
+		CATypes: make(authclient.HostAndUserCAInfo),
+	}
+
+	for _, authority := range ca {
+		for _, c := range authority.GetTrustedTLSKeyPairs() {
+			cert, err := tlsca.ParseCertificatePEM(c.Cert)
+			require.NoError(t, err)
+			poolInfo.Pool.AddCert(cert)
+
+			poolInfo.CATypes[string(cert.RawSubject)] = authclient.CATypeInfo{
+				IsHostCA: authority.GetType() == types.HostCA,
+				IsUserCA: authority.GetType() == types.UserCA,
+			}
+		}
+	}
+
+	return &poolInfo
+}
+
+func generateTestCert(t *testing.T, ca types.CertAuthority, id tlsca.Identity, clusterName string) *x509.Certificate {
+	tlsKeyPairs := ca.GetTrustedTLSKeyPairs()
+	require.Len(t, tlsKeyPairs, 1)
+	signer, err := tlsca.FromKeys(tlsKeyPairs[0].Cert, tlsKeyPairs[0].Key)
+	require.NoError(t, err)
+
+	priv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	id.TeleportCluster = clusterName
+	subj, err := id.Subject()
+	require.NoError(t, err)
+
+	pemCert, err := signer.GenerateCertificate(tlsca.CertificateRequest{
+		PublicKey: priv.Public(),
+		Subject:   subj,
+		NotAfter:  time.Now().Add(time.Hour),
+	})
+	require.NoError(t, err)
+	block, rest := pem.Decode(pemCert)
+	require.NotNil(t, block)
+	require.Empty(t, rest)
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	require.NoError(t, err)
+
+	return cert
 }

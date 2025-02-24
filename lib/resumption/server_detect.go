@@ -211,7 +211,7 @@ func (r *SSHServerWrapper) HandleConnection(nc net.Conn) {
 	}
 
 	if !isResumeV1 {
-		slog.ErrorContext(context.TODO(), "returning non-resumable connection to multiplexer")
+		slog.DebugContext(context.TODO(), "returning non-resumable connection to multiplexer")
 		r.sshServer(&sshVersionSkipConn{
 			Conn: conn,
 

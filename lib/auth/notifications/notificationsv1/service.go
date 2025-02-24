@@ -107,12 +107,25 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 
 // ListNotifications returns a paginated list of notifications which match the user.
 func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.ListNotificationsRequest) (*notificationsv1.ListNotificationsResponse, error) {
+	labelsMatch := func(resourceLabels map[string]string) bool {
+		if req.Filters == nil || len(req.Filters.Labels) == 0 {
+			// no labels to match against
+			return true
+		}
+		for k, v := range req.Filters.Labels {
+			if resourceLabels[k] != v {
+				return false
+			}
+		}
+		return true
+	}
+
 	if req.Filters != nil {
 		if req.Filters.GlobalOnly {
-			return s.listGlobalNotifications(ctx, req.Filters.UserCreatedOnly, req.PageToken, req.PageSize)
+			return s.listGlobalNotifications(ctx, req)
 		}
 		if req.Filters.Username != "" {
-			return s.listUserSpecificNotificationsForUser(ctx, req.Filters.Username, req.Filters.UserCreatedOnly, req.PageToken, req.PageSize)
+			return s.listUserSpecificNotificationsForUser(ctx, req)
 		}
 
 		return nil, trace.BadParameter("Invalid filters were provided, exactly one of GlobalOnly or Username must be defined.")
@@ -168,6 +181,10 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 					return nil, false
 				}
 
+				if !labelsMatch(n.GetMetadata().GetLabels()) {
+					return nil, false
+				}
+
 				if !userNotifMatchFn(n) {
 					return nil, false
 				}
@@ -181,6 +198,10 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 			func(gn *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, bool) {
 				// If the notification is expired, return false right away.
 				if hasNotificationExpired(gn.GetSpec().GetNotification()) {
+					return nil, false
+				}
+
+				if !labelsMatch(gn.GetMetadata().GetLabels()) {
 					return nil, false
 				}
 
@@ -276,10 +297,19 @@ func (s *Service) matchGlobalNotification(ctx context.Context, authCtx *authz.Co
 		return false
 	}
 
+	// If the user is explicitly excluded by the notification, return false early.
+	if gn.Spec.ExcludeUsers != nil && slices.Contains(gn.Spec.ExcludeUsers, authCtx.User.GetName()) {
+		return false
+	}
+
 	switch matcher := gn.Spec.Matcher.(type) {
 	case *notificationsv1.GlobalNotificationSpec_All:
 		// Always return true if the matcher is "all."
 		return true
+
+	case *notificationsv1.GlobalNotificationSpec_ByUsers:
+		userList := matcher.ByUsers.GetUsers()
+		return slices.Contains(userList, authCtx.User.GetName())
 
 	case *notificationsv1.GlobalNotificationSpec_ByRoles:
 		matcherRoles := matcher.ByRoles.GetRoles()
@@ -583,8 +613,8 @@ func (s *Service) DeleteUserNotification(ctx context.Context, req *notifications
 }
 
 // listUserSpecificNotificationsForUser returns a paginated list of all user-specific notifications for a user. This should only be used by admins.
-func (s *Service) listUserSpecificNotificationsForUser(ctx context.Context, username string, userCreatedOnly bool, pageToken string, pageSize int32) (*notificationsv1.ListNotificationsResponse, error) {
-	if username == "" {
+func (s *Service) listUserSpecificNotificationsForUser(ctx context.Context, req *notificationsv1.ListNotificationsRequest) (*notificationsv1.ListNotificationsResponse, error) {
+	if req.GetFilters().GetUsername() == "" {
 		return nil, trace.BadParameter("missing username")
 	}
 
@@ -602,13 +632,19 @@ func (s *Service) listUserSpecificNotificationsForUser(ctx context.Context, user
 	}
 
 	stream := stream.FilterMap(
-		s.userNotificationCache.StreamUserNotifications(ctx, username, pageToken),
+		s.userNotificationCache.StreamUserNotifications(ctx, req.GetFilters().GetUsername(), req.GetPageToken()),
 		func(n *notificationsv1.Notification) (*notificationsv1.Notification, bool) {
-			// If only user-created notifications are requested, filter by the user-creatd subkinds.
-			if userCreatedOnly &&
+			// If only user-created notifications are requested, filter by the user-created subkinds.
+			if req.GetFilters().GetUserCreatedOnly() &&
 				n.GetSubKind() != types.NotificationUserCreatedInformationalSubKind &&
 				n.GetSubKind() != types.NotificationUserCreatedWarningSubKind {
 				return nil, false
+			}
+
+			for k, v := range req.GetFilters().GetLabels() {
+				if n.GetMetadata().GetLabels()[k] != v {
+					return nil, false
+				}
 			}
 
 			return n, true
@@ -621,7 +657,7 @@ func (s *Service) listUserSpecificNotificationsForUser(ctx context.Context, user
 		item := stream.Item()
 		if item != nil {
 			notifications = append(notifications, item)
-			if len(notifications) == int(pageSize) {
+			if len(notifications) == int(req.GetPageSize()) {
 				nextKey = item.GetMetadata().GetName()
 				break
 			}
@@ -635,7 +671,7 @@ func (s *Service) listUserSpecificNotificationsForUser(ctx context.Context, user
 }
 
 // listGlobalNotifications returns a paginated list of all global notifications. This should only be used by admins.
-func (s *Service) listGlobalNotifications(ctx context.Context, userCreatedOnly bool, pageToken string, pageSize int32) (*notificationsv1.ListNotificationsResponse, error) {
+func (s *Service) listGlobalNotifications(ctx context.Context, req *notificationsv1.ListNotificationsRequest) (*notificationsv1.ListNotificationsResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -646,13 +682,22 @@ func (s *Service) listGlobalNotifications(ctx context.Context, userCreatedOnly b
 	}
 
 	stream := stream.FilterMap(
-		s.globalNotificationCache.StreamGlobalNotifications(ctx, pageToken),
+		s.globalNotificationCache.StreamGlobalNotifications(ctx, req.GetPageToken()),
 		func(gn *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, bool) {
 			// If only user-created notifications are requested, filter by the user-creatd subkinds.
-			if userCreatedOnly &&
+			if req.GetFilters().GetUserCreatedOnly() &&
 				gn.GetSpec().GetNotification().GetSubKind() != types.NotificationUserCreatedInformationalSubKind &&
 				gn.GetSpec().GetNotification().GetSubKind() != types.NotificationUserCreatedWarningSubKind {
 				return nil, false
+			}
+
+			// Pay special attention to the fact that we match against labels on the
+			// inner-notification resource spec, not the labels in the GlobalNotification's
+			// resource metadata.
+			for k, v := range req.GetFilters().GetLabels() {
+				if gn.GetSpec().GetNotification().GetMetadata().GetLabels()[k] != v {
+					return nil, false
+				}
 			}
 
 			return gn, true
@@ -669,7 +714,7 @@ func (s *Service) listGlobalNotifications(ctx context.Context, userCreatedOnly b
 
 			notifications = append(notifications, notification)
 
-			if len(notifications) == int(pageSize) {
+			if len(notifications) == int(req.GetPageSize()) {
 				nextKey = item.GetMetadata().GetName()
 				break
 			}

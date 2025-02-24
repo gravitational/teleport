@@ -16,52 +16,12 @@ Teleport, and includes links to more detailed documentation at the end.
 your Teleport cluster:
 
 <Tabs>
-<TabItem scope={["oss"]} label="Teleport Community Edition">
-<Tabs>
 <TabItem label="Local user">
 
-```code
-$ tsh login --proxy=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/> --user=<Var name="user" description="Your Teleport username"/>
-Enter password for Teleport user alice:
-Tap any security key
-> Profile URL:        https://teleport.example.com:443
-  Logged in as:       alice
-  Cluster:            example.com
-  Roles:              access
-  Logins:             ubuntu, ec2-user
-  Kubernetes:         enabled
-  Valid until:        2022-11-01 22:37:05 -0500 CDT [valid for 12h0m0s]
-  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
-```
+Authenticate to Teleport as a local user with `tsh login` by assigning <Var
+name="user"/> to your Teleport username and <Var name="teleport.example.com" />
+to the domain name of your Teleport cluster:
 
-</TabItem>
-<TabItem label="GitHub user">
-
-```code
-$ tsh login --proxy=<Var name="teleport.example.com"/> --auth=github
-If browser window does not open automatically, open it by clicking on the link:
- http://127.0.0.1:49927/1d80e257-ec61-4ed2-9403-784f8d35b2fe
-> Profile URL:        https://teleport.example.com:443
-  Logged in as:       user@example.com
-  Cluster:            example.com
-  Roles:              access
-  Logins:             ubuntu, ec2-user
-  Kubernetes:         enabled
-  Valid until:        2022-11-01 22:37:05 -0500 CDT [valid for 12h0m0s]
-  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
-```
-
-Depending on how Teleport was configured for your network, you may not need
-the additional flags `--auth`. Your administrator should provide the details
-required for your particular use case.
-
-</TabItem>
-</Tabs>
-</TabItem>
-
-<TabItem scope={["enterprise", "cloud"]} label="Commercial">
-<Tabs>
-<TabItem label="Local user">
 ```code
 $ tsh login --proxy=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/> --user=<Var name="user" description="Your Teleport username"/>
 Enter password for Teleport user alice:
@@ -77,7 +37,11 @@ Tap any security key
 ```
 
 </TabItem>
-<TabItem label="SAML / OIDC / GitHub user">
+<TabItem label="Single sign-on user">
+
+Authenticate to Teleport as a single sign-on (SSO) user by running `tsh login`
+and assigning <Var name="your-idp-connector" /> to the name of your
+authentication connector, if implemented by your administrators:
 
 ```code
 $ tsh login --proxy=<Var name="teleport.example.com"/> --auth=<Var name="your-idp-connector" description="Your Identity Provider connection name, if implemented by your administrators"/>
@@ -97,8 +61,6 @@ Depending on how Teleport was configured for your network, you may not need
 the additional flags `--auth`. Your administrator should provide the details
 required for your particular use case.
 
-</TabItem>
-</Tabs>
 </TabItem>
 </Tabs>
 

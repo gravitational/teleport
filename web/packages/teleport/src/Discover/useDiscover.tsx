@@ -16,49 +16,46 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useContext, useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useContext, useEffect, useState } from 'react';
 import { useHistory, useLocation } from 'react-router';
 
-import {
-  DiscoverEventStatus,
-  DiscoverEventStepStatus,
-  DiscoverEvent,
-  DiscoverEventResource,
-  userEventService,
-  DiscoverServiceDeployMethod,
-  DiscoverServiceDeploy,
-  DiscoverServiceDeployType,
-  DiscoverDiscoveryConfigMethod,
-} from 'teleport/services/userEvent';
-import cfg from 'teleport/config';
-import { DiscoveryConfig } from 'teleport/services/discovery';
 import {
   addIndexToViews,
   findViewAtIndex,
 } from 'teleport/components/Wizard/flow';
-
-import { ResourceViewConfig, View } from './flow';
-import { viewConfigs } from './resourceViewConfigs';
-import { EViewConfigs } from './types';
-import { ServiceDeployMethod } from './Database/common';
-
-import type { Node } from 'teleport/services/nodes';
-import type { App } from 'teleport/services/apps';
-import type { Kube } from 'teleport/services/kube';
-import type { Database } from 'teleport/services/databases';
+import cfg from 'teleport/config';
 import type { ResourceLabel } from 'teleport/services/agents';
-import type { ResourceSpec } from './SelectResource';
+import type { App } from 'teleport/services/apps';
+import type { Database } from 'teleport/services/databases';
+import { DiscoveryConfig } from 'teleport/services/discovery';
 import type {
   AwsRdsDatabase,
-  Ec2InstanceConnectEndpoint,
-  Integration,
+  IntegrationAwsOidc,
   Regions,
 } from 'teleport/services/integrations';
-
+import type { Kube } from 'teleport/services/kube';
+import type { Node } from 'teleport/services/nodes';
 import type {
   SamlGcpWorkforce,
   SamlIdpServiceProvider,
 } from 'teleport/services/samlidp/types';
+import {
+  DiscoverDiscoveryConfigMethod,
+  DiscoverEvent,
+  DiscoverEventResource,
+  DiscoverEventStatus,
+  DiscoverEventStepStatus,
+  DiscoverServiceDeploy,
+  DiscoverServiceDeployMethod,
+  DiscoverServiceDeployType,
+  userEventService,
+} from 'teleport/services/userEvent';
+
+import { ServiceDeployMethod } from './Database/common';
+import { ResourceViewConfig, View } from './flow';
+import { viewConfigs } from './resourceViewConfigs';
+import type { ResourceSpec } from './SelectResource';
+import { EViewConfigs } from './types';
 
 export interface DiscoverContextState<T = any> {
   agentMeta: AgentMeta;
@@ -125,7 +122,7 @@ export type DiscoverUrlLocationState = {
     currentStep: number;
   };
   // integration is the created aws-oidc integration
-  integration: Integration;
+  integration: IntegrationAwsOidc;
 };
 
 const discoverContext = React.createContext<DiscoverContextState>(null);
@@ -514,7 +511,7 @@ type BaseMeta = {
    * awsIntegration is set to the selected AWS integration.
    * This field is set when a user wants to enroll AWS resources.
    */
-  awsIntegration?: Integration;
+  awsIntegration?: IntegrationAwsOidc;
   /**
    * awsRegion is set to the selected AWS region.
    * This field is set when a user wants to enroll AWS resources.
@@ -546,7 +543,6 @@ export type AutoDiscovery = {
 // that needs to be preserved throughout the flow.
 export type NodeMeta = BaseMeta & {
   node: Node;
-  ec2Ices?: Ec2InstanceConnectEndpoint[];
 };
 
 // DbMeta describes the fields for a db resource

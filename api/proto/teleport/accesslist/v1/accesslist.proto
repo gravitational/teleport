@@ -85,6 +85,10 @@ message AccessListOwner {
   // ineligible_status describes if this owner is eligible or not
   // and if not, describes how they're lacking eligibility.
   IneligibleStatus ineligible_status = 3;
+
+  // membership_kind describes the type of membership, either
+  // `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
+  MembershipKind membership_kind = 4;
 }
 
 // AccessListAudit describes the audit configuration for an Access List.
@@ -197,6 +201,21 @@ message MemberSpec {
   // ineligible_status describes if this member is eligible or not
   // and if not, describes how they're lacking eligibility.
   IneligibleStatus ineligible_status = 7;
+
+  // membership_kind describes the type of membership, either
+  // `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
+  MembershipKind membership_kind = 9;
+}
+
+// MembershipKind represents the different kinds of list membership
+enum MembershipKind {
+  // MEMBERSHIP_KIND_UNSPECIFIED represents list members that are of
+  // unknown membership kind, defaulting to being treated as type USER
+  MEMBERSHIP_KIND_UNSPECIFIED = 0;
+  // MEMBERSHIP_KIND_USER represents list members that are normal users
+  MEMBERSHIP_KIND_USER = 1;
+  // MEMBERSHIP_KIND_LIST represents list members that are nested Access Lists
+  MEMBERSHIP_KIND_LIST = 2;
 }
 
 // IneligibleStatus describes how the user is ineligible.
@@ -268,6 +287,12 @@ message ReviewChanges {
 
 // AccessListStatus contains dynamic fields calculated during retrieval.
 message AccessListStatus {
-  // member_count is the number of members in the in the Access List.
+  // member_count is the number of members in the Access List.
   optional uint32 member_count = 1;
+  // member_list_count is the number of nested list members in the Access List.
+  optional uint32 member_list_count = 2;
+  // owner_of describes Access Lists where this Access List is an explicit owner.
+  repeated string owner_of = 3;
+  // member_of describes Access Lists where this Access List is an explicit member.
+  repeated string member_of = 4;
 }

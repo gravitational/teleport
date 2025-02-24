@@ -36,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -240,7 +241,6 @@ spec:
         enabled: true
     max_session_ttl: 30h0m0s
     pin_source_ip: false
-    port_forwarding: true
     record_session:
       default: best_effort
       desktop: true
@@ -418,30 +418,125 @@ func TestRoleCRUD(t *testing.T) {
 	}
 }
 
-func TestGetGithubConnectors(t *testing.T) {
+func TestGithubConnectorsCRUD(t *testing.T) {
 	ctx := context.Background()
-	m := &mockedResourceAPIGetter{}
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
 
-	m.mockGetGithubConnectors = func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
-		connector, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{
-			TeamsToLogins: []types.TeamMapping{
-				{
-					Organization: "octocats",
-					Team:         "dummy",
-					Logins:       []string{"dummy"},
-				},
+	pack := proxy.authPack(t, "test-user@example.com", nil)
+
+	tests := []struct {
+		name              string
+		connectors        []types.GithubConnector
+		setDefaultReq     *ui.SetDefaultAuthConnectorRequest
+		wantConnectorName string
+		wantConnectorType string
+	}{
+		{
+			name:              "no connectors defaults to local auth",
+			connectors:        []types.GithubConnector{},
+			wantConnectorName: "",
+			wantConnectorType: constants.Local,
+		},
+		{
+			name: "default connector exists in list",
+			connectors: []types.GithubConnector{
+				makeGithubConnector(t, "github-1"),
 			},
-		})
-		require.NoError(t, err)
-
-		return []types.GithubConnector{connector}, nil
+			setDefaultReq: &ui.SetDefaultAuthConnectorRequest{
+				Name: "github-1",
+				Type: constants.Github,
+			},
+			wantConnectorName: "github-1",
+			wantConnectorType: constants.Github,
+		},
+		{
+			name: "default connector missing defaults to last in list",
+			connectors: []types.GithubConnector{
+				makeGithubConnector(t, "github-1"),
+				makeGithubConnector(t, "github-2"),
+			},
+			setDefaultReq: &ui.SetDefaultAuthConnectorRequest{
+				Name: "missing",
+				Type: constants.Github,
+			},
+			wantConnectorName: "github-2",
+			wantConnectorType: constants.Github,
+		},
+		{
+			name: "local auth type always defaults to local",
+			connectors: []types.GithubConnector{
+				makeGithubConnector(t, "github-1"),
+			},
+			setDefaultReq: &ui.SetDefaultAuthConnectorRequest{
+				Name: "local",
+				Type: constants.Local,
+			},
+			wantConnectorName: "",
+			wantConnectorType: constants.Local,
+		},
+		{
+			name:       "missing default with no connectors defaults to local",
+			connectors: []types.GithubConnector{},
+			setDefaultReq: &ui.SetDefaultAuthConnectorRequest{
+				Name: "missing",
+				Type: constants.Github,
+			},
+			wantConnectorName: "",
+			wantConnectorType: constants.Local,
+		},
 	}
 
-	// Test response is converted to ui objects.
-	connectors, err := getGithubConnectors(ctx, m)
-	require.NoError(t, err)
-	require.Len(t, connectors, 1)
-	require.Contains(t, connectors[0].Content, "name: test")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup initial connectors
+			for _, conn := range tt.connectors {
+				raw, err := services.MarshalGithubConnector(conn)
+				require.NoError(t, err)
+				resp, err := pack.clt.PostJSON(ctx, pack.clt.Endpoint("webapi", "github"), ui.ResourceItem{
+					Kind:    types.KindGithubConnector,
+					Name:    conn.GetName(),
+					Content: string(raw),
+				})
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.Code())
+			}
+
+			// Set default connector if specified
+			if tt.setDefaultReq != nil {
+				resp, err := pack.clt.PutJSON(ctx, pack.clt.Endpoint("webapi", "authconnector", "default"), tt.setDefaultReq)
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.Code())
+			}
+
+			// Get connectors and verify response
+			resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "github"), url.Values{})
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.Code())
+
+			var connResponse ui.ListAuthConnectorsResponse
+			err = json.Unmarshal(resp.Bytes(), &connResponse)
+			require.NoError(t, err)
+
+			// Verify connector name and type
+			assert.Equal(t, tt.wantConnectorName, connResponse.DefaultConnectorName)
+			assert.Equal(t, tt.wantConnectorType, connResponse.DefaultConnectorType)
+
+			// Verify connectors list
+			require.Equal(t, len(tt.connectors), len(connResponse.Connectors))
+			for i, conn := range tt.connectors {
+				expectedItem, err := ui.NewResourceItem(conn)
+				require.NoError(t, err)
+				require.Equal(t, expectedItem.Name, connResponse.Connectors[i].Name)
+			}
+
+			// Cleanup connectors
+			for _, conn := range tt.connectors {
+				_, err := pack.clt.Delete(ctx, pack.clt.Endpoint("webapi", "github", conn.GetName()))
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestGetTrustedClusters(t *testing.T) {
@@ -623,6 +718,8 @@ type mockedResourceAPIGetter struct {
 	mockGetTrustedClusters    func(ctx context.Context) ([]types.TrustedCluster, error)
 	mockDeleteTrustedCluster  func(ctx context.Context, name string) error
 	mockListResources         func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+	mockGetAuthPreference     func(ctx context.Context) (types.AuthPreference, error)
+	mockUpsertAuthPreference  func(ctx context.Context, pref types.AuthPreference) (types.AuthPreference, error)
 }
 
 func (m *mockedResourceAPIGetter) GetRole(ctx context.Context, name string) (types.Role, error) {
@@ -718,6 +815,21 @@ func (m *mockedResourceAPIGetter) ListResources(ctx context.Context, req proto.L
 	return nil, trace.NotImplemented("mockListResources not implemented")
 }
 
+// Add new mock methods
+func (m *mockedResourceAPIGetter) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
+	if m.mockGetAuthPreference != nil {
+		return m.mockGetAuthPreference(ctx)
+	}
+	return nil, trace.NotImplemented("mockGetAuthPreference not implemented")
+}
+
+func (m *mockedResourceAPIGetter) UpsertAuthPreference(ctx context.Context, pref types.AuthPreference) (types.AuthPreference, error) {
+	if m.mockUpsertAuthPreference != nil {
+		return m.mockUpsertAuthPreference(ctx, pref)
+	}
+	return nil, trace.NotImplemented("mockUpsertAuthPreference not implemented")
+}
+
 func Test_newKubeListRequest(t *testing.T) {
 	type args struct {
 		query        string
@@ -793,4 +905,18 @@ func Test_newKubeListRequest(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func makeGithubConnector(t *testing.T, name string) types.GithubConnector {
+	connector, err := types.NewGithubConnector(name, types.GithubConnectorSpecV3{
+		TeamsToRoles: []types.TeamRolesMapping{
+			{
+				Organization: "octocats",
+				Team:         "dummy",
+				Roles:        []string{"dummy"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	return connector
 }

@@ -18,17 +18,16 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
 const (
@@ -73,6 +72,8 @@ type LegacyEventsWatcher struct {
 	// until it returns nil.
 	export func(context.Context, *TeleportEvent) error
 
+	log *slog.Logger
+
 	// exportedCursor is a pointer to the cursor values of the most recently
 	// exported event. the values mirror above fields, but those are only accessible
 	// to the main event processing goroutine. these values are meant to be read
@@ -90,6 +91,7 @@ func NewLegacyEventsWatcher(
 	client TeleportSearchEventsClient,
 	cursorValues LegacyCursorValues,
 	export func(context.Context, *TeleportEvent) error,
+	log *slog.Logger,
 ) *LegacyEventsWatcher {
 	w := &LegacyEventsWatcher{
 		client:          client,
@@ -99,6 +101,7 @@ func NewLegacyEventsWatcher(
 		export:          export,
 		id:              cursorValues.ID,
 		windowStartTime: cursorValues.WindowStartTime,
+		log:             log,
 	}
 
 	w.exportedCursor.Store(&cursorValues)
@@ -117,10 +120,13 @@ func (t *LegacyEventsWatcher) GetCursorValues() LegacyCursorValues {
 }
 
 // flipPage flips the current page
-func (t *LegacyEventsWatcher) flipPage() bool {
+func (t *LegacyEventsWatcher) flipPage(ctx context.Context) bool {
 	if t.nextCursor == "" {
+		t.log.DebugContext(ctx, "not flipping page (no next cursor)")
 		return false
 	}
+
+	t.log.DebugContext(ctx, "flipping page", "cursor", t.cursor, "next", t.nextCursor)
 
 	t.cursor = t.nextCursor
 	t.pos = -1
@@ -131,7 +137,6 @@ func (t *LegacyEventsWatcher) flipPage() bool {
 
 // fetch fetches the page and sets the position to the event after latest known
 func (t *LegacyEventsWatcher) fetch(ctx context.Context) error {
-	log := logger.Get(ctx)
 	// Zero batch
 	t.batch = make([]*LegacyTeleportEvent, 0, t.config.BatchSize)
 	nextCursor, err := t.getEvents(ctx)
@@ -145,7 +150,12 @@ func (t *LegacyEventsWatcher) fetch(ctx context.Context) error {
 	// Mark position as unresolved (the page is empty)
 	t.pos = -1
 
-	log.WithField("cursor", t.cursor).WithField("next", nextCursor).WithField("len", len(t.batch)).Debug("Fetched page")
+	t.log.DebugContext(
+		ctx, "Fetched page",
+		"cursor", t.cursor,
+		"next", nextCursor,
+		"len", len(t.batch),
+	)
 
 	// Page is empty: do nothing, return
 	if len(t.batch) == 0 {
@@ -155,7 +165,7 @@ func (t *LegacyEventsWatcher) fetch(ctx context.Context) error {
 
 	pos := 0
 
-	// If last known id is not empty, let's try to find it's pos
+	// If last known id is not empty, let's try to find its pos
 	if t.id != "" {
 		for i, e := range t.batch {
 			if e.ID == t.id {
@@ -167,7 +177,11 @@ func (t *LegacyEventsWatcher) fetch(ctx context.Context) error {
 	// Set the position of the last known event
 	t.pos = pos
 
-	log.WithField("id", t.id).WithField("new_pos", t.pos).Debug("Skipping last known event")
+	if pos == 0 {
+		t.log.DebugContext(ctx, "starting from first event in fetch", "id", t.id, "pos", pos)
+	} else {
+		t.log.DebugContext(ctx, "advancing past last known event in fetch", "id", t.id, "pos", pos)
+	}
 
 	return nil
 }
@@ -182,7 +196,7 @@ func (t *LegacyEventsWatcher) getEvents(ctx context.Context) (string, error) {
 	for i := 1; i < len(rangeSplitByDay); i++ {
 		startTime := rangeSplitByDay[i-1]
 		endTime := rangeSplitByDay[i]
-		log.Debugf("Fetching events from %v to %v", startTime, endTime)
+		t.log.DebugContext(ctx, "Fetching events", "from", startTime, "to", endTime)
 		evts, cursor, err := t.getEventsInWindow(ctx, startTime, endTime)
 		if err != nil {
 			return "", trace.Wrap(err)
@@ -191,7 +205,7 @@ func (t *LegacyEventsWatcher) getEvents(ctx context.Context) (string, error) {
 		// Convert batch to TeleportEvent
 		for _, e := range evts {
 			if _, ok := t.config.SkipEventTypes[e.Type]; ok {
-				log.WithField("event", e).Debug("Skipping event")
+				t.log.DebugContext(ctx, "Skipping event", "event", e)
 				continue
 			}
 			evt, err := NewLegacyTeleportEvent(e, t.cursor, wst)
@@ -205,7 +219,11 @@ func (t *LegacyEventsWatcher) getEvents(ctx context.Context) (string, error) {
 		// if no events are found, the cursor is out of the range [startTime, endTime]
 		// and it's the last complete day, update start time to the next day.
 		if t.canSkipToNextWindow(i, rangeSplitByDay, cursor) {
-			log.Infof("No new events found for the range %v to %v", startTime, endTime)
+			t.log.InfoContext(
+				ctx, "No new events found for the range",
+				"from", startTime,
+				"to", endTime,
+			)
 			t.setWindowStartTime(endTime)
 			continue
 		}
@@ -221,7 +239,11 @@ func (t *LegacyEventsWatcher) canSkipToNextWindow(i int, rangeSplitByDay []time.
 
 	}
 	if len(t.batch) == 0 && i < len(rangeSplitByDay)-1 {
-		log.Infof("No events found for the range %v to %v", rangeSplitByDay[i-1], rangeSplitByDay[i])
+		t.log.InfoContext(
+			context.TODO(), "No events found for the range",
+			"from", rangeSplitByDay[i-1],
+			"to", rangeSplitByDay[i],
+		)
 		return true
 	}
 	pos := 0
@@ -236,7 +258,13 @@ func (t *LegacyEventsWatcher) canSkipToNextWindow(i int, rangeSplitByDay []time.
 	}
 
 	if i < len(rangeSplitByDay)-1 && pos >= len(t.batch) {
-		log.WithField("pos", pos).WithField("len", len(t.batch)).Infof("No new events found for the range %v to %v", rangeSplitByDay[i-1], rangeSplitByDay[i])
+		t.log.InfoContext(
+			context.TODO(), "No new events found for the range",
+			"from", rangeSplitByDay[i-1],
+			"to", rangeSplitByDay[i],
+			"pos", pos,
+			"len", len(t.batch),
+		)
 		return true
 	}
 	return false
@@ -269,8 +297,10 @@ func splitRangeByDay(from, to time.Time, windowSize time.Duration) []time.Time {
 
 // pause sleeps for timeout seconds
 func (t *LegacyEventsWatcher) pause(ctx context.Context) error {
-	log := logger.Get(ctx)
-	log.Debugf("No new events, pause for %v seconds", t.config.Timeout)
+	t.log.DebugContext(
+		ctx, "No new events, pausing",
+		"pause_time", t.config.Timeout,
+	)
 
 	select {
 	case <-ctx.Done():
@@ -294,6 +324,7 @@ func (t *LegacyEventsWatcher) ExportEvents(ctx context.Context) error {
 		for {
 			// If there is nothing in the batch, request
 			if len(t.batch) == 0 {
+				t.log.DebugContext(ctx, "fetching due to empty batch...")
 				err := t.fetch(ctx)
 				if err != nil {
 					e <- trace.Wrap(err)
@@ -303,7 +334,7 @@ func (t *LegacyEventsWatcher) ExportEvents(ctx context.Context) error {
 				// If there is still nothing, sleep
 				if len(t.batch) == 0 && t.nextCursor == "" {
 					if t.config.ExitOnLastEvent {
-						log.Info("All events are processed, exiting...")
+						t.log.InfoContext(ctx, "All events are processed, exiting...")
 						break
 					}
 
@@ -320,7 +351,7 @@ func (t *LegacyEventsWatcher) ExportEvents(ctx context.Context) error {
 			// If we processed the last event on a page
 			if t.pos >= len(t.batch) {
 				// If there is next page, flip page
-				if t.flipPage() {
+				if t.flipPage(ctx) {
 					continue
 				}
 
@@ -334,7 +365,7 @@ func (t *LegacyEventsWatcher) ExportEvents(ctx context.Context) error {
 				// If there is still nothing new on current page, sleep
 				if t.pos >= len(t.batch) {
 					if t.config.ExitOnLastEvent && t.nextCursor == "" {
-						log.Info("All events are processed, exiting...")
+						t.log.InfoContext(ctx, "All events are processed, exiting...")
 						break
 					}
 
@@ -361,7 +392,7 @@ func (t *LegacyEventsWatcher) ExportEvents(ctx context.Context) error {
 			}
 
 			if logLimiter.Allow() {
-				log.Warn("encountering backpressure from outbound event processing")
+				t.log.WarnContext(ctx, "Encountering backpressure from outbound event processing")
 			}
 
 			select {
@@ -385,7 +416,7 @@ func (t *LegacyEventsWatcher) ExportEvents(ctx context.Context) error {
 					break Export
 				}
 
-				log.WithError(err).Error("Failed to export event, retrying...")
+				t.log.ErrorContext(ctx, "Failed to export event, retrying...", "error", err)
 				select {
 				case <-ctx.Done():
 					return trace.Wrap(ctx.Err())

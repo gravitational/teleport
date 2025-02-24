@@ -16,18 +16,17 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/backoff"
-	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
 const (
@@ -76,8 +75,6 @@ func NewSessionEventsJob(app *App) *SessionEventsJob {
 
 // run runs session consuming process
 func (j *SessionEventsJob) run(ctx context.Context) error {
-	log := logger.Get(ctx)
-
 	// Create cancellable context which handles app termination
 	process := lib.MustGetProcess(ctx)
 	ctx, cancel := context.WithCancel(ctx)
@@ -94,7 +91,10 @@ func (j *SessionEventsJob) run(ctx context.Context) error {
 		for {
 			select {
 			case <-logTicker.C:
-				log.WithField("sessions_per_minute", j.sessionsProcessed.Swap(0)).Info("session processing")
+				j.app.log.InfoContext(
+					ctx, "Session processing",
+					"sessions_per_minute", j.sessionsProcessed.Swap(0),
+				)
 			case <-ctx.Done():
 				return
 			}
@@ -102,7 +102,7 @@ func (j *SessionEventsJob) run(ctx context.Context) error {
 	}()
 
 	if err := j.restartPausedSessions(); err != nil {
-		log.WithError(err).Error("Restarting paused sessions")
+		j.app.log.ErrorContext(ctx, "Restarting paused sessions", "error", err)
 	}
 
 	j.SetReady(true)
@@ -110,20 +110,23 @@ func (j *SessionEventsJob) run(ctx context.Context) error {
 	for {
 		select {
 		case s := <-j.sessions:
-			logger := log.WithField("id", s.ID).WithField("index", s.Index)
+			log := j.app.log.With(
+				"id", s.ID,
+				"index", s.Index,
+			)
 
 			if j.logLimiter.Allow() {
-				logger.Debug("Starting session ingest")
+				log.DebugContext(ctx, "Starting session ingest")
 			}
 
 			select {
 			case j.semaphore <- struct{}{}:
 			case <-ctx.Done():
-				logger.WithError(ctx.Err()).Error("Failed to acquire semaphore")
+				log.ErrorContext(ctx, "Failed to acquire semaphore", "error", ctx.Err())
 				return nil
 			}
 
-			func(s session, log logrus.FieldLogger) {
+			func(s session, log *slog.Logger) {
 				j.app.SpawnCritical(func(ctx context.Context) error {
 					defer func() { <-j.semaphore }()
 
@@ -133,7 +136,7 @@ func (j *SessionEventsJob) run(ctx context.Context) error {
 
 					return nil
 				})
-			}(s, logger)
+			}(s, log)
 		case <-ctx.Done():
 			if lib.IsCanceled(ctx.Err()) {
 				return nil
@@ -159,8 +162,10 @@ func (j *SessionEventsJob) processSession(ctx context.Context, s session, proces
 		// sessionBackoffNumTries is the maximum number of backoff tries
 		sessionBackoffNumTries = 3
 	)
-
-	log := logger.Get(ctx).WithField("id", s.ID).WithField("index", s.Index)
+	log := j.app.log.With(
+		"id", s.ID,
+		"index", s.Index,
+	)
 	backoff := backoff.NewDecorr(sessionBackoffBase, sessionBackoffMax, clockwork.NewRealClock())
 	attempt := sessionBackoffNumTries
 
@@ -187,11 +192,18 @@ func (j *SessionEventsJob) processSession(ctx context.Context, s session, proces
 			// abort processing the session any further.
 			attempt--
 			if attempt <= 0 {
-				log.WithField("limit", sessionBackoffNumTries).Error("Session ingestion exceeded attempt limit, aborting")
+				log.ErrorContext(
+					ctx, "Session ingestion exceeded attempt limit, aborting",
+					"limit", sessionBackoffNumTries,
+				)
 				return trace.LimitExceeded("Session ingestion exceeded attempt limit")
 			}
 
-			log.WithError(err).WithField("n", attempt).Error("Session ingestion error, retrying")
+			log.ErrorContext(
+				ctx, "Session ingestion error, retrying",
+				"error", err,
+				"attempt", attempt,
+			)
 
 			// Perform backoff before retrying the session again.
 			if err := backoff.Do(ctx); err != nil {
@@ -200,7 +212,7 @@ func (j *SessionEventsJob) processSession(ctx context.Context, s session, proces
 		case err != nil:
 			// Abort on any errors that don't require a retry.
 			if !lib.IsCanceled(err) {
-				log.WithField("err", err).Error("Session ingestion failed")
+				log.ErrorContext(ctx, "Session ingestion failed", "error", err)
 			}
 			return trace.Wrap(err)
 		default:
@@ -227,7 +239,7 @@ func (j *SessionEventsJob) processMissingRecordings(ctx context.Context) error {
 		return nil
 	})
 
-	jitter := retryutils.NewSeventhJitter()
+	jitter := retryutils.SeventhJitter
 	timer := time.NewTimer(jitter(initialProcessingDelay))
 	defer timer.Stop()
 
@@ -250,14 +262,14 @@ func (j *SessionEventsJob) processMissingRecordings(ctx context.Context) error {
 				defer func() { <-semaphore }()
 
 				if err := j.processSession(ctx, sess, attempts); err != nil {
-					logger.Get(ctx).WithError(err).Debug("Failed processing session recording")
+					j.app.log.DebugContext(ctx, "Failed processing session recording", "error", err)
 				}
 			}()
 
 			return nil
 		})
 		if err != nil && !lib.IsCanceled(err) {
-			logger.Get(ctx).WithError(err).Warn("Unable to load previously failed sessions for processing")
+			j.app.log.WarnContext(ctx, "Unable to load previously failed sessions for processing", "error", err)
 		}
 
 		timer.Reset(jitter(processingInterval))
@@ -275,12 +287,19 @@ func (j *SessionEventsJob) restartPausedSessions() error {
 		return nil
 	}
 
-	logrus.WithField("count", len(sessions)).Debug("Restarting paused sessions")
+	j.app.log.DebugContext(
+		context.TODO(), "Restarting paused sessions",
+		"count", len(sessions),
+	)
 
 	for id, idx := range sessions {
 		func(id string, idx int64) {
 			j.app.SpawnCritical(func(ctx context.Context) error {
-				logrus.WithField("id", id).WithField("index", idx).Debug("Restarting session ingestion")
+				j.app.log.DebugContext(
+					ctx, "Restarting session ingestion",
+					"id", id,
+					"index", idx,
+				)
 
 				s := session{ID: id, Index: idx}
 
@@ -317,7 +336,7 @@ Loop:
 		case evt, ok := <-chEvt:
 			if !ok {
 				if j.logLimiter.Allow() {
-					logrus.WithField("id", s.ID).Debug("Finished session events ingest")
+					j.app.log.DebugContext(ctx, "Finished session events ingest", "id", s.ID)
 				}
 				break Loop // Break the main loop
 			}
@@ -376,7 +395,10 @@ func (j *SessionEventsJob) RegisterSession(ctx context.Context, e *TeleportEvent
 	}
 
 	if j.backpressureLogLimiter.Allow() {
-		logrus.Warn("backpressure in session processing, consider increasing concurrency if this issue persists")
+		j.app.log.WarnContext(
+			ctx,
+			"Backpressure in session processing, consider increasing concurrency if this issue persists",
+		)
 	}
 
 	select {
@@ -384,7 +406,10 @@ func (j *SessionEventsJob) RegisterSession(ctx context.Context, e *TeleportEvent
 		return nil
 	case <-ctx.Done():
 		if !lib.IsCanceled(ctx.Err()) {
-			logrus.Error(ctx.Err())
+			j.app.log.ErrorContext(
+				ctx, "Encountered context error that was not a cancellation",
+				"error", ctx.Err(),
+			)
 		}
 		// from the caller's perspective this isn't really an error since we did
 		// successfully sync session index to disk... session will be ingested

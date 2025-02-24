@@ -92,15 +92,22 @@ func GenerateSelfSignedCAWithConfig(config GenerateCAConfig) (certPEM []byte, er
 	// signed by the same private key and having the same subject (happens in tests)
 	config.Entity.SerialNumber = serialNumber.String()
 
+	// Note: KeyUsageCRLSign is set only to generate empty CRLs for Desktop
+	// Access authentication with Windows.
+	keyUsage := x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign | x509.KeyUsageCRLSign
+	if _, isRSA := config.Signer.Public().(*rsa.PublicKey); isRSA {
+		// The KeyEncipherment bit is necessary for RSA key exchanges
+		// https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.3
+		keyUsage |= x509.KeyUsageKeyEncipherment
+	}
+
 	template := x509.Certificate{
-		SerialNumber: serialNumber,
-		Issuer:       config.Entity,
-		Subject:      config.Entity,
-		NotBefore:    notBefore,
-		NotAfter:     notAfter,
-		// Note: KeyUsageCRLSign is set only to generate empty CRLs for Desktop
-		// Access authentication with Windows.
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		SerialNumber:          serialNumber,
+		Issuer:                config.Entity,
+		Subject:               config.Entity,
+		NotBefore:             notBefore,
+		NotAfter:              notAfter,
+		KeyUsage:              keyUsage,
 		BasicConstraintsValid: true,
 		IsCA:                  true,
 		DNSNames:              config.DNSNames,
@@ -138,7 +145,7 @@ func ParseCertificateRequestPEM(bytes []byte) (*x509.CertificateRequest, error) 
 	}
 	csr, err := x509.ParseCertificateRequest(block.Bytes)
 	if err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	return csr, nil
 }
@@ -170,7 +177,7 @@ func ParseCertificatePEM(bytes []byte) (*x509.Certificate, error) {
 	}
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	return cert, nil
 }
@@ -190,7 +197,7 @@ func ParseCertificatePEMs(bytes []byte) ([]*x509.Certificate, error) {
 	for _, block := range blocks {
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		certs = append(certs, cert)
 	}

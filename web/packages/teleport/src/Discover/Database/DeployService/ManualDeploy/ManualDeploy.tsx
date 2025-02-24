@@ -16,32 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { Suspense, useState, useEffect } from 'react';
-import { Box, ButtonSecondary, Text, Mark, H3 } from 'design';
+import { Suspense, useEffect, useState } from 'react';
+
+import { Alert, Box, ButtonSecondary, H3, Mark, Text } from 'design';
 import * as Icons from 'design/Icon';
 import Validation, { Validator } from 'shared/components/Validation';
 
 import { CatchError } from 'teleport/components/CatchError';
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import cfg from 'teleport/config';
+import { DatabaseLocation } from 'teleport/Discover/SelectResource';
+import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
+import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 import {
   clearCachedJoinTokenResult,
   useJoinTokenSuspender,
 } from 'teleport/Discover/Shared/useJoinTokenSuspender';
-import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
-import { ResourceLabel } from 'teleport/services/agents';
-import cfg from 'teleport/config';
-import { Database } from 'teleport/services/databases';
-
-import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-
-import {
-  HintBox,
-  SuccessBox,
-  WaitingInfo,
-} from 'teleport/Discover/Shared/HintBox';
-
-import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 import { useDiscover } from 'teleport/Discover/useDiscover';
-import { DatabaseLocation } from 'teleport/Discover/SelectResource';
+import { ResourceLabel } from 'teleport/services/agents';
+import { Database } from 'teleport/services/databases';
 import {
   DiscoverEventStatus,
   DiscoverServiceDeployMethod,
@@ -58,7 +51,7 @@ import {
   TextIcon,
   useShowHint,
 } from '../../../Shared';
-import { Labels, hasMatchingLabels } from '../../common';
+import { hasMatchingLabels, Labels } from '../../common';
 import { DeployServiceProp } from '../DeployService';
 
 export default function Container({ toggleDeployMethod }: DeployServiceProp) {
@@ -145,15 +138,19 @@ export function ManualDeploy(props: {
   const { agentMeta, updateAgentMeta, nextStep, emitEvent } = useDiscover();
 
   // Fetches join token.
-  const { joinToken } = useJoinTokenSuspender(
-    [ResourceKind.Database],
-    props.labels
-  );
+  const { joinToken } = useJoinTokenSuspender({
+    resourceKinds: [ResourceKind.Database],
+    suggestedAgentMatcherLabels: props.labels,
+  });
 
   // Starts resource querying interval.
   const { active, result } = usePingTeleport<Database>(agentMeta.resourceName);
 
   const showHint = useShowHint(active);
+
+  useEffect(() => {
+    return () => clearCachedJoinTokenResult([ResourceKind.Database]);
+  }, []);
 
   function handleNextStep() {
     updateAgentMeta({
@@ -177,48 +174,51 @@ export function ManualDeploy(props: {
 
   let hint;
   if (showHint && !result) {
-    hint = (
-      <HintBox header="We're still looking for your database service">
+    const details = (
+      <>
         <Text mb={3}>
-          There are a couple of possible reasons for why we haven't been able to
-          detect your database service.
+          There are a couple of possible reasons for why we haven&apos;t been
+          able to detect your database service.
         </Text>
 
-        <Text mb={1}>
-          - The command was not run on the server you were trying to add.
-        </Text>
-
-        <Text mb={3}>
-          - The Teleport Database Service could not join this Teleport cluster.
-          Check the logs for errors by running{' '}
-          <Mark>journalctl -fu teleport</Mark>.
-        </Text>
+        <ul>
+          <li>
+            <Text mb={1}>
+              The command was not run on the server you were trying to add.
+            </Text>
+          </li>
+          <li>
+            <Text mb={3}>
+              The Teleport database service could not join this Teleport
+              cluster. Check the logs for errors by running{' '}
+              <Mark>journalctl -fu teleport</Mark>.
+            </Text>
+          </li>
+        </ul>
 
         <Text>
-          We'll continue to look for the database service whilst you diagnose
-          the issue.
+          We&apos;ll continue to look for the database service whilst you
+          diagnose the issue.
         </Text>
-      </HintBox>
+      </>
+    );
+    hint = (
+      <Alert kind="warning" alignItems="flex-start" details={details}>
+        We&apos;re still looking for your database service
+      </Alert>
     );
   } else if (result) {
     hint = (
-      <SuccessBox>
+      <Alert kind="success">
         Successfully detected your new Teleport database service.
-      </SuccessBox>
+      </Alert>
     );
   } else {
     hint = (
-      <WaitingInfo>
-        <TextIcon
-          css={`
-            white-space: pre;
-          `}
-        >
-          <Icons.Restore size="medium" mr={2} />
-        </TextIcon>
-        After running the command above, we'll automatically detect your new
-        Teleport database service.
-      </WaitingInfo>
+      <Alert kind="neutral" icon={Icons.Restore}>
+        After running the command above, we&apos;ll automatically detect your
+        new Teleport database service.
+      </Alert>
     );
   }
 

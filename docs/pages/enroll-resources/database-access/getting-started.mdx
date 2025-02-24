@@ -7,10 +7,10 @@ description: Getting started with Teleport database access and AWS Aurora Postgr
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access RDS Self-Hosted](../../../img/database-access/guides/rds_selfhosted.png)
+![Enroll RDS with a Self-Hosted Teleport Cluster](../../../img/database-access/guides/rds_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Teleport Database Access RDS Cloud](../../../img/database-access/guides/rds_cloud.png)
+![Enroll RDS with a Cloud-Hosted Teleport Cluster](../../../img/database-access/guides/rds_cloud.png)
 </TabItem>
 
 </Tabs>
@@ -173,6 +173,8 @@ spec:
 EOF
 ```
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 Create the Teleport user assigned the `db` role we've just created:
 
 <Tabs>
@@ -239,7 +241,7 @@ $ tsh db connect --db-user=alice --db-name postgres aurora
 For the next steps, dive deeper into the topics relevant to your Database
 Access use-case, for example:
 
-- Check out configuration [guides](./guides.mdx).
+- Check out configuration [guides](guides/guides.mdx).
 - Learn how to configure [GUI clients](../../connect-your-client/gui-clients.mdx).
 - Learn about database access [role-based access control](./rbac.mdx).
 - See [frequently asked questions](./faq.mdx).

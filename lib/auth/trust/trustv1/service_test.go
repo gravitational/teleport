@@ -41,7 +41,7 @@ import (
 )
 
 type testPack struct {
-	clock clockwork.FakeClock
+	clock *clockwork.FakeClock
 	mem   *memory.Memory
 }
 
@@ -100,6 +100,18 @@ func (f *fakeAuthServer) RotateCertAuthority(ctx context.Context, req types.Rota
 	return f.rotateCertAuthorityData[string(req.Type)]
 }
 
+func (f *fakeAuthServer) UpsertTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
+	return tc, nil
+}
+
+func (f *fakeAuthServer) CreateTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
+	return tc, nil
+}
+
+func (f *fakeAuthServer) UpdateTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
+	return tc, nil
+}
+
 type fakeChecker struct {
 	services.AccessChecker
 	allow  map[check]bool
@@ -126,7 +138,7 @@ func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) ty
 	priv, pub, err := ta.GenerateKeyPair()
 	require.NoError(t, err)
 
-	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: domain}, nil, time.Hour)
+	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: domain, Organization: []string{domain}}, nil, time.Hour)
 	require.NoError(t, err)
 
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
@@ -847,6 +859,19 @@ func TestRotateExternalCertAuthority(t *testing.T) {
 			},
 		},
 	}
+	remoteUserCtx := &authz.Context{
+		UnmappedIdentity: authz.BuiltinRole{},
+		Checker: &fakeChecker{
+			allow: map[check]bool{
+				{types.KindCertAuthority, types.VerbRotate}: true,
+			},
+		},
+		Identity: authz.RemoteUser{
+			Identity: tlsca.Identity{
+				TeleportCluster: "external",
+			},
+		},
+	}
 
 	tests := []struct {
 		name        string
@@ -866,7 +891,7 @@ func TestRotateExternalCertAuthority(t *testing.T) {
 			},
 			ca: externalCA,
 			assertError: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+				require.True(tt, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
 			},
 		}, {
 			name: "NOK unauthorized service",
@@ -880,44 +905,44 @@ func TestRotateExternalCertAuthority(t *testing.T) {
 			},
 			ca: externalCA,
 			assertError: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+				require.True(tt, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
 			},
 		}, {
 			name:     "NOK no ca",
 			authzCtx: authorizedCtx,
 			ca:       nil,
 			assertError: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsBadParameter(err))
+				require.True(tt, trace.IsBadParameter(err))
 			},
 		}, {
 			name:     "NOK invalid ca",
 			authzCtx: authorizedCtx,
 			ca:       &types.CertAuthorityV2{},
 			assertError: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsBadParameter(err))
+				require.True(tt, trace.IsBadParameter(err))
 			},
 		}, {
 			name:     "NOK rotate local ca",
-			authzCtx: authorizedCtx,
+			authzCtx: remoteUserCtx,
 			ca:       localCA,
 			assertError: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsBadParameter(err))
+				require.True(tt, trace.IsBadParameter(err))
 			},
 		}, {
 			name:     "NOK nonexistent ca",
-			authzCtx: authorizedCtx,
+			authzCtx: remoteUserCtx,
 			ca:       newCertAuthority(t, types.HostCA, "na").(*types.CertAuthorityV2),
 			assertError: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsNotFound(err))
+				require.True(tt, trace.IsBadParameter(err))
 			},
 		}, {
 			name:        "OK rotate external ca",
-			authzCtx:    authorizedCtx,
+			authzCtx:    remoteUserCtx,
 			ca:          newCertAuthority(t, types.HostCA, "external").(*types.CertAuthorityV2),
 			assertError: require.NoError,
 		}, {
 			name:        "OK equivalent external ca",
-			authzCtx:    authorizedCtx,
+			authzCtx:    remoteUserCtx,
 			ca:          externalCA,
 			assertError: require.NoError,
 		},

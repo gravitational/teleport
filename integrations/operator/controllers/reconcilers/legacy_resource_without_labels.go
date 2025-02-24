@@ -62,7 +62,7 @@ func (a ResourceWithoutLabelsAdapter[T]) SetResourceRevision(res T, revision str
 }
 
 // SetResourceLabels implements the Adapter interface. As the resource does not
-// // support labels, it only sets the origin label.
+// support labels, it only sets the origin label.
 func (a ResourceWithoutLabelsAdapter[T]) SetResourceLabels(res T, labels map[string]string) {
 	// We don't set all labels as the Resource doesn't support them
 	// Only the origin

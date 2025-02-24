@@ -16,20 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+import api from 'teleport/services/api';
 import session from 'teleport/services/websession';
 
-import { WebauthnAssertionResponse } from '../auth';
-
-import makeUserContext from './makeUserContext';
+import { MfaChallengeResponse } from '../mfa';
 import { makeResetToken } from './makeResetToken';
 import makeUser, { makeUsers } from './makeUser';
+import makeUserContext from './makeUserContext';
 import {
+  ExcludeUserField,
+  ResetPasswordType,
   User,
   UserContext,
-  ResetPasswordType,
-  ExcludeUserField,
 } from './types';
 
 const cache = {
@@ -86,14 +85,14 @@ const service = {
   createUser(
     user: User,
     excludeUserField: ExcludeUserField,
-    webauthnResponse?: WebauthnAssertionResponse
+    mfaResponse?: MfaChallengeResponse
   ) {
     return api
       .post(
         cfg.getUsersUrl(),
         withExcludedField(user, excludeUserField),
         null,
-        webauthnResponse
+        mfaResponse
       )
       .then(makeUser);
   },
@@ -101,15 +100,10 @@ const service = {
   createResetPasswordToken(
     name: string,
     type: ResetPasswordType,
-    webauthnResponse?: WebauthnAssertionResponse
+    mfaResponse?: MfaChallengeResponse
   ) {
     return api
-      .post(
-        cfg.api.resetPasswordTokenPath,
-        { name, type },
-        null,
-        webauthnResponse
-      )
+      .post(cfg.api.resetPasswordTokenPath, { name, type }, null, mfaResponse)
       .then(makeResetToken);
   },
 

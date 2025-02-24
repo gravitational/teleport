@@ -18,12 +18,12 @@
 
 import Logger from 'shared/libs/logger';
 
-import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
-import { WebauthnAssertionResponse } from 'teleport/services/auth';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
+import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
+import { MfaChallengeResponse } from 'teleport/services/mfa';
 
 import { EventType, TermEvent, WebsocketCloseCode } from './enums';
-import { Protobuf, MessageTypeEnum } from './protobuf';
+import { MessageTypeEnum, Protobuf } from './protobuf';
 
 const logger = Logger.create('Tty');
 
@@ -31,7 +31,7 @@ const defaultOptions = {
   buffered: true,
 };
 
-class Tty extends EventEmitterWebAuthnSender {
+class Tty extends EventEmitterMfaSender {
   socket = null;
 
   _buffered = true;
@@ -80,14 +80,32 @@ class Tty extends EventEmitterWebAuthnSender {
     this.socket.send(bytearray.buffer);
   }
 
-  sendWebAuthn(data: WebauthnAssertionResponse) {
-    const encoded = this._proto.encodeChallengeResponse(JSON.stringify(data));
+  sendChallengeResponse(data: MfaChallengeResponse) {
+    // we want to have the backend listen on a single message type
+    // for any responses. so our data will look like data.webauthn, data.sso, etc
+    // but to be backward compatible, we need to still spread the existing webauthn only fields
+    // as "top level" fields so old proxies can still respond to webauthn challenges.
+    // in 19, we can just pass "data" without this extra step
+    // TODO (avatus): DELETE IN 19.0.0
+    const backwardCompatibleData = {
+      ...data.webauthn_response,
+      ...data,
+    };
+    const encoded = this._proto.encodeChallengeResponse(
+      JSON.stringify(backwardCompatibleData)
+    );
     const bytearray = new Uint8Array(encoded);
     this.socket.send(bytearray);
   }
 
   sendKubeExecData(data: KubeExecData) {
     const encoded = this._proto.encodeKubeExecData(JSON.stringify(data));
+    const bytearray = new Uint8Array(encoded);
+    this.socket.send(bytearray);
+  }
+
+  sendDbConnectData(data: DbConnectData) {
+    const encoded = this._proto.encodeDbConnectData(JSON.stringify(data));
     const bytearray = new Uint8Array(encoded);
     this.socket.send(bytearray);
   }
@@ -190,8 +208,8 @@ class Tty extends EventEmitterWebAuthnSender {
       const msg = this._proto.decode(uintArray);
 
       switch (msg.type) {
-        case MessageTypeEnum.WEBAUTHN_CHALLENGE:
-          this.emit(TermEvent.WEBAUTHN_CHALLENGE, msg.payload);
+        case MessageTypeEnum.MFA_CHALLENGE:
+          this.emit(TermEvent.MFA_CHALLENGE, msg.payload);
           break;
         case MessageTypeEnum.AUDIT:
           this._processAuditPayload(msg.payload);
@@ -274,6 +292,14 @@ export type KubeExecData = {
   container: string;
   command: string;
   isInteractive: boolean;
+};
+
+export type DbConnectData = {
+  serviceName: string;
+  protocol: string;
+  dbName: string;
+  dbUser: string;
+  dbRoles: string[];
 };
 
 export default Tty;

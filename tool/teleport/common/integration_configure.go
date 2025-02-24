@@ -26,9 +26,7 @@ import (
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/athena"
 	"github.com/aws/aws-sdk-go-v2/service/glue"
-	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
 	ecatypes "github.com/gravitational/teleport/api/types/externalauditstorage"
@@ -41,6 +39,8 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/samlidp"
 	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 func onIntegrationConfDeployService(ctx context.Context, params config.IntegrationConfDeployServiceIAM) error {
@@ -62,24 +62,6 @@ func onIntegrationConfDeployService(ctx context.Context, params config.Integrati
 		AutoConfirm:     params.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureDeployServiceIAM(ctx, iamClient, confReq))
-}
-
-func onIntegrationConfEICEIAM(ctx context.Context, params config.IntegrationConfEICEIAM) error {
-	// Ensure we print output to the user. LogLevel at this point was set to Error.
-	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
-
-	clt, err := awsoidc.NewEICEIAMConfigureClient(ctx, params.Region)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	confReq := awsoidc.EICEIAMConfigureRequest{
-		Region:          params.Region,
-		IntegrationRole: params.Role,
-		AccountID:       params.AccountID,
-		AutoConfirm:     params.AutoConfirm,
-	}
-	return trace.Wrap(awsoidc.ConfigureEICEIAM(ctx, clt, confReq))
 }
 
 func onIntegrationConfEC2SSMIAM(ctx context.Context, params config.IntegrationConfEC2SSMIAM) error {
@@ -188,7 +170,7 @@ func onIntegrationConfExternalAuditCmd(ctx context.Context, params easconfig.Ext
 	}
 
 	if params.AccountID != "" {
-		stsClient := sts.NewFromConfig(cfg)
+		stsClient := stsutils.NewFromConfig(cfg)
 		err = awsoidc.CheckAccountID(ctx, stsClient, params.AccountID)
 		if err != nil {
 			return trace.Wrap(err)
@@ -218,8 +200,8 @@ func onIntegrationConfExternalAuditCmd(ctx context.Context, params easconfig.Ext
 	}
 
 	clt := &awsoidc.DefaultConfigureExternalAuditStorageClient{
-		Iam: iam.NewFromConfig(cfg),
-		Sts: sts.NewFromConfig(cfg),
+		Iam: iamutils.NewFromConfig(cfg),
+		Sts: stsutils.NewFromConfig(cfg),
 	}
 	return trace.Wrap(awsoidc.ConfigureExternalAuditStorage(ctx, clt, params))
 }
@@ -241,6 +223,22 @@ func onIntegrationConfAccessGraphAWSSync(ctx context.Context, params config.Inte
 	return trace.Wrap(awsoidc.ConfigureAccessGraphSyncIAM(ctx, clt, confReq))
 }
 
+func onIntegrationConfAccessGraphAzureSync(ctx context.Context, params config.IntegrationConfAccessGraphAzureSync) error {
+	// Ensure we print output to the user. LogLevel at this point was set to Error.
+	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
+	confReq := azureoidc.AccessGraphAzureConfigureRequest{
+		ManagedIdentity: params.ManagedIdentity,
+		RoleName:        params.RoleName,
+		SubscriptionID:  params.SubscriptionID,
+		AutoConfirm:     params.AutoConfirm,
+	}
+	clt, err := azureoidc.NewAzureConfigClient(params.SubscriptionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(azureoidc.ConfigureAccessGraphSyncAzure(ctx, clt, confReq))
+}
+
 func onIntegrationConfAzureOIDCCmd(ctx context.Context, params config.IntegrationConfAzureOIDC) error {
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
@@ -251,7 +249,7 @@ func onIntegrationConfAzureOIDCCmd(ctx context.Context, params config.Integratio
 
 	fmt.Println("Teleport is setting up the Azure integration. This may take a few minutes.")
 
-	appID, tenantID, err := azureoidc.SetupEnterpriseApp(ctx, params.ProxyPublicAddr, params.AuthConnectorName)
+	appID, tenantID, err := azureoidc.SetupEnterpriseApp(ctx, params.ProxyPublicAddr, params.AuthConnectorName, params.SkipOIDCConfiguration)
 	if err != nil {
 		return trace.Wrap(err)
 	}

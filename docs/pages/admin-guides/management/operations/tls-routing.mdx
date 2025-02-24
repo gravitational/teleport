@@ -42,12 +42,12 @@ $ curl https://mytenant.teleport.sh/webapi/ping | jq '.proxy'
 
 Download Teleport from the [downloads page](https://goteleport.com/download) or
 your enterprise portal and follow the standard [upgrade
-procedure](../../../upgrading.mdx). Make sure to upgrade both root and leaf clusters
+procedure](../../../upgrading/upgrading.mdx). Make sure to upgrade both root and leaf clusters
 as well as `tsh` client.
 
 ## Step 2/7. Enable proxy multiplexing
 
-Update your root cluster auth server's configuration to set proxy listener mode
+Update your root cluster Auth  Service's configuration to set proxy listener mode
 to "multiplex":
 
 ```yaml
@@ -128,7 +128,7 @@ proxy_service:
 ```
 
 Config version `v2` will prevent other listeners from being created unless
-they are explicitly set in the proxy service configuration.
+they are explicitly set in the Proxy Service configuration.
 
 ## Rollback
 
@@ -136,7 +136,7 @@ To go back to the legacy separate listeners mode, perform the following steps:
 
 1. Set `version: v1` in the proxy configuration and restart the proxy to make
    it create legacy listeners.
-1. Set `proxy_listener_mode: separate` in auth service configuration to make
+1. Set `proxy_listener_mode: separate` in the Auth Service configuration to make
    clients connect to the legacy listeners.
 1. Reconnect all clients (trusted clusters, reverse tunnel agents, `tsh`) as
    described above.

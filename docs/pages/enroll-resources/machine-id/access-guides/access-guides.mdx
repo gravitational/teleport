@@ -1,0 +1,26 @@
+---
+title: Access your Infrastructure with Machine ID
+description: How to use Machine ID to enable secure access to Teleport resources.
+layout: tocless-doc
+---
+
+These guides cover how to configure a deployed Machine ID to produce credentials
+that can be used for machine to machine access to different Teleport resources.
+
+It is a pre-requisite of these guides that Machine ID has been configured for
+your platform, see the [Deploy Machine ID](../deployment/deployment.mdx) guides for information
+on how to do so.
+
+## Resource Access
+
+- [SSH servers](ssh.mdx): How to use Machine ID to access servers via SSH.
+- [Kubernetes clusters](kubernetes.mdx): How to use Machine ID to access Kubernetes clusters.
+- [Databases](databases.mdx): How to use Machine ID to access database servers.
+- [Applications](applications.mdx): How to use Machine ID to access applications.
+
+## Specific Tools
+
+- [tctl](tctl.mdx): How to use Machine ID with `tctl` to manage your Teleport configuration.
+- [Teleport Terraform provider](../../../admin-guides/infrastructure-as-code/terraform-provider/dedicated-server.mdx): How to use Machine ID with the Teleport Terraform provider to manage your Teleport configuration as IaC.
+- [Ansible](ansible.mdx): How to use Machine ID with Ansible.
+- [SPIFFE](../../workload-identity/getting-started.mdx): How to use Machine ID to issue SPIFFE certificates.

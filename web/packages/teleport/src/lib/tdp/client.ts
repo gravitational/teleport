@@ -19,45 +19,41 @@
 import Logger from 'shared/libs/logger';
 
 import init, {
-  init_wasm_log,
   FastPathProcessor,
+  init_wasm_log,
 } from 'teleport/ironrdp/pkg/ironrdp';
-
-import { WebsocketCloseCode, TermEvent } from 'teleport/lib/term/enums';
-import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
+import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
+import { TermEvent, WebsocketCloseCode } from 'teleport/lib/term/enums';
+import { MfaChallengeResponse } from 'teleport/services/mfa';
 
 import Codec, {
-  MessageType,
   FileType,
-  SharedDirectoryErrCode,
+  MessageType,
   Severity,
+  SharedDirectoryErrCode,
+  type ButtonState,
+  type ClientScreenSpec,
+  type ClipboardData,
+  type FileSystemObject,
+  type MouseButton,
+  type PngFrame,
+  type ScrollAxis,
+  type SharedDirectoryCreateResponse,
+  type SharedDirectoryDeleteResponse,
+  type SharedDirectoryInfoResponse,
+  type SharedDirectoryListResponse,
+  type SharedDirectoryMoveResponse,
+  type SharedDirectoryReadResponse,
+  type SharedDirectoryTruncateResponse,
+  type SharedDirectoryWriteResponse,
+  type SyncKeys,
 } from './codec';
 import {
   PathDoesNotExistError,
   SharedDirectoryManager,
+  type FileOrDirInfo,
 } from './sharedDirectoryManager';
-
-import type { FileOrDirInfo } from './sharedDirectoryManager';
-import type {
-  MouseButton,
-  ButtonState,
-  ScrollAxis,
-  ClientScreenSpec,
-  PngFrame,
-  ClipboardData,
-  SharedDirectoryInfoResponse,
-  SharedDirectoryListResponse,
-  SharedDirectoryMoveResponse,
-  SharedDirectoryReadResponse,
-  SharedDirectoryWriteResponse,
-  SharedDirectoryCreateResponse,
-  SharedDirectoryDeleteResponse,
-  FileSystemObject,
-  SyncKeys,
-  SharedDirectoryTruncateResponse,
-} from './codec';
-import type { WebauthnAssertionResponse } from 'teleport/services/auth';
 
 export enum TdpClientEvent {
   TDP_CLIENT_SCREEN_SPEC = 'tdp client screen spec',
@@ -93,7 +89,7 @@ export enum LogType {
 // sending client commands, and receiving and processing server messages. Its creator is responsible for
 // ensuring the websocket gets closed and all of its event listeners cleaned up when it is no longer in use.
 // For convenience, this can be done in one fell swoop by calling Client.shutdown().
-export default class Client extends EventEmitterWebAuthnSender {
+export default class Client extends EventEmitterMfaSender {
   protected codec: Codec;
   protected socket: AuthenticatedWebSocket | undefined;
   private socketAddr: string;
@@ -374,7 +370,7 @@ export default class Client extends EventEmitterWebAuthnSender {
     try {
       const mfaJson = this.codec.decodeMfaJson(buffer);
       if (mfaJson.mfaType == 'n') {
-        this.emit(TermEvent.WEBAUTHN_CHALLENGE, mfaJson.jsonString);
+        this.emit(TermEvent.MFA_CHALLENGE, mfaJson.jsonString);
       } else {
         // mfaJson.mfaType === 'u', or else decodeMfaJson would have thrown an error.
         this.handleError(
@@ -624,7 +620,7 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.send(this.codec.encodeClipboardData(clipboardData));
   }
 
-  sendWebAuthn(data: WebauthnAssertionResponse) {
+  sendChallengeResponse(data: MfaChallengeResponse) {
     const msg = this.codec.encodeMfaJson({
       mfaType: 'n',
       jsonString: JSON.stringify(data),

@@ -19,8 +19,10 @@
 package teleagent
 
 import (
+	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/user"
@@ -28,10 +30,10 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Agent extends the agent.ExtendedAgent interface.
@@ -103,6 +105,8 @@ func (a *AgentServer) Serve() error {
 	if a.listener == nil {
 		return trace.BadParameter("Serve needs a Listen call first")
 	}
+
+	ctx := context.Background()
 	var tempDelay time.Duration // how long to sleep on accept failure
 	for {
 		conn, err := a.listener.Accept()
@@ -115,7 +119,7 @@ func (a *AgentServer) Serve() error {
 				return nil
 			}
 			if !neterr.Timeout() {
-				log.WithError(err).Error("Got non-timeout error.")
+				slog.ErrorContext(ctx, "Got non-timeout error", "error", err)
 				return trace.Wrap(err)
 			}
 			if tempDelay == 0 {
@@ -126,7 +130,7 @@ func (a *AgentServer) Serve() error {
 			if max := 1 * time.Second; tempDelay > max {
 				tempDelay = max
 			}
-			log.WithError(err).Errorf("Got timeout error (will sleep %v).", tempDelay)
+			slog.ErrorContext(ctx, "Got timeout error - backing off", "delay_time", tempDelay, "error", err)
 			time.Sleep(tempDelay)
 			continue
 		}
@@ -135,7 +139,7 @@ func (a *AgentServer) Serve() error {
 		// get an agent instance for serving this conn
 		instance, err := a.getAgent()
 		if err != nil {
-			log.WithError(err).Error("Failed to get agent.")
+			slog.ErrorContext(ctx, "Failed to get agent", "error", err)
 			return trace.Wrap(err)
 		}
 
@@ -143,10 +147,8 @@ func (a *AgentServer) Serve() error {
 		// separate goroutine.
 		go func() {
 			defer instance.Close()
-			if err := agent.ServeAgent(instance, conn); err != nil {
-				if !errors.Is(err, io.EOF) {
-					log.Error(err)
-				}
+			if err := agent.ServeAgent(instance, conn); err != nil && !errors.Is(err, io.EOF) {
+				slog.ErrorContext(ctx, "Serving agent terminated unexpectedly", "error", err)
 			}
 		}()
 	}
@@ -166,7 +168,9 @@ func (a *AgentServer) ListenAndServe(addr utils.NetAddr) error {
 func (a *AgentServer) Close() error {
 	var errors []error
 	if a.listener != nil {
-		log.Debugf("AgentServer(%v) is closing", a.listener.Addr())
+		slog.DebugContext(context.Background(), "AgentServer is closing",
+			"listen_addr", logutils.StringerAttr(a.listener.Addr()),
+		)
 		if err := a.listener.Close(); err != nil {
 			errors = append(errors, trace.ConvertSystemError(err))
 		}

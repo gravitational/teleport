@@ -137,7 +137,7 @@ To make a [leaf cluster](../../../admin-guides/management/admin/trustedclusters.
 `public_addr`, you need to follow the same steps while being logged in directly to the leaf cluster.
 
 ```code
-$ tsh login --proxy=<Var name="leaf.example.com" /> --user=<Var name="email@example.com" />
+$ tsh login --proxy=leaf.example.com --user=email@example.com
 ```
 
 ### Accessing web apps through VNet
@@ -167,4 +167,6 @@ used depends solely on the app itself and its clients.
 
 ### Further reading
 
+- Read our VNet usage [guide](../../../connect-your-client/vnet.mdx) for end-users
+  accessing your applications with VNet.
 - Read [RFD 163](https://github.com/gravitational/teleport/blob/master/rfd/0163-vnet.md) to learn how VNet works on a technical level.

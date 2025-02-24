@@ -20,8 +20,10 @@ package srv
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"os/user"
@@ -30,7 +32,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
@@ -51,7 +52,7 @@ type HostSudoersProvisioningBackend struct {
 // newHostUsersBackend initializes a new OS specific HostUsersBackend
 func newHostUsersBackend() (HostUsersBackend, error) {
 	var missing []string
-	for _, requiredBin := range []string{"usermod", "useradd", "getent", "groupadd", "visudo"} {
+	for _, requiredBin := range []string{"usermod", "useradd", "getent", "groupadd", "visudo", "chage"} {
 		if _, err := exec.LookPath(requiredBin); err != nil {
 			missing = append(missing, requiredBin)
 		}
@@ -186,9 +187,10 @@ func (u *HostSudoersProvisioningBackend) RemoveSudoersFile(username string) erro
 	fileUsername := sanitizeSudoersName(username)
 	sudoersFilePath := filepath.Join(u.SudoersPath, fmt.Sprintf("teleport-%s-%s", u.HostUUID, fileUsername))
 	if _, err := os.Stat(sudoersFilePath); os.IsNotExist(err) {
-		log.Debugf("User %q, did not have sudoers file as it did not exist at path %q",
-			username,
-			sudoersFilePath)
+		slog.DebugContext(context.Background(), "No sudoers file present to remove",
+			"user", username,
+			"sudoers_path", sudoersFilePath,
+		)
 		return nil
 	}
 	return trace.Wrap(os.Remove(sudoersFilePath))
@@ -282,4 +284,9 @@ func (u *HostUsersProvisioningBackend) CreateHomeDirectory(userHome, uidS, gidS 
 	}
 
 	return nil
+}
+
+func (u *HostUsersProvisioningBackend) RemoveExpirations(username string) error {
+	_, err := host.RemoveUserExpirations(username)
+	return trace.Wrap(err)
 }

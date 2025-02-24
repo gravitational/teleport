@@ -17,16 +17,19 @@
  */
 
 import { PropsWithChildren, useEffect, useRef } from 'react';
-import { StepComponentProps } from 'design/StepSlider';
+
 import { Box, ButtonSecondary, Flex, Text } from 'design';
-import { mergeRefs } from 'shared/libs/mergeRefs';
+import { StepComponentProps } from 'design/StepSlider';
 import { useRefAutoFocus } from 'shared/hooks';
 import { useDelayedRepeatedAttempt } from 'shared/hooks/useAsync';
+import { mergeRefs } from 'shared/libs/mergeRefs';
 
 import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
-import { useVnetContext } from './vnetContext';
+import { DiagnosticsAlert } from './DiagnosticsAlert';
+import { textSpacing } from './sliderStep';
 import { VnetSliderStepHeader } from './VnetConnectionItem';
+import { useVnetContext } from './vnetContext';
 
 /**
  * VnetSliderStep is the second step of StepSlider used in TopBar/Connections. It is shown after
@@ -92,11 +95,11 @@ export const VnetSliderStep = (props: StepComponentProps) => {
       </Flex>
 
       {status.value === 'running' && <DnsZones />}
+
+      <DiagnosticsAlert />
     </Box>
   );
 };
-
-const textSpacing = 1;
 
 const ErrorText = (props: PropsWithChildren) => (
   <Text>
@@ -120,12 +123,15 @@ const DnsZones = () => {
   );
   const dnsZonesRefreshRequestedRef = useRef(false);
 
-  useEffect(function refreshListOnOpen() {
-    if (!dnsZonesRefreshRequestedRef.current) {
-      dnsZonesRefreshRequestedRef.current = true;
-      listDNSZones();
-    }
-  }, []);
+  useEffect(
+    function refreshListOnOpen() {
+      if (!dnsZonesRefreshRequestedRef.current) {
+        dnsZonesRefreshRequestedRef.current = true;
+        listDNSZones();
+      }
+    },
+    [listDNSZones]
+  );
 
   if (listDNSZonesAttempt.status === 'error') {
     return (

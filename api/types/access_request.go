@@ -445,12 +445,17 @@ func (r *AccessRequestV3) SetName(name string) {
 
 // Expiry gets Expiry
 func (r *AccessRequestV3) Expiry() time.Time {
+	// Fallback on existing expiry in metadata if not set in spec.
+	if r.Spec.ResourceExpiry != nil {
+		return *r.Spec.ResourceExpiry
+	}
 	return r.Metadata.Expiry()
 }
 
 // SetExpiry sets Expiry
 func (r *AccessRequestV3) SetExpiry(expiry time.Time) {
-	r.Metadata.SetExpiry(expiry.UTC())
+	t := expiry.UTC()
+	r.Spec.ResourceExpiry = &t
 }
 
 // GetMetadata gets Metadata
@@ -640,6 +645,47 @@ func (u *AccessRequestUpdate) Check() error {
 		return trace.BadParameter("cannot override roles when setting state: %s", u.State)
 	}
 	return nil
+}
+
+// RequestReasonMode can be either "required" or "optional". Empty-string is treated as "optional".
+// If a role has the request reason mode set to "required", then reason is required for all Access
+// Requests requesting roles or resources allowed by this role. It applies only to users who have
+// this role assigned.
+type RequestReasonMode string
+
+const (
+	// RequestReasonModeRequired indicates required mode. See [[RequestReasonMode]] godoc for
+	// more details.
+	RequestReasonModeRequired RequestReasonMode = "required"
+	// RequestReasonModeRequired indicates optional mode. See [[RequestReasonMode]] godoc for
+	// more details.
+	RequestReasonModeOptional RequestReasonMode = "optional"
+)
+
+var allRequestReasonModes = []RequestReasonMode{
+	RequestReasonModeRequired,
+	RequestReasonModeOptional,
+}
+
+// Required checks if this mode is "required". Empty mode is treated as "optional".
+func (m RequestReasonMode) Required() bool {
+	switch m {
+	case RequestReasonModeRequired:
+		return true
+	default:
+		return false
+	}
+}
+
+// Check validates this mode value. Note that an empty value is considered invalid.
+func (m RequestReasonMode) Check() error {
+	for _, x := range allRequestReasonModes {
+		if m == x {
+			return nil
+		}
+	}
+	return trace.BadParameter("unrecognized request reason mode %q, must be one of: %v",
+		m, allRequestReasonModes)
 }
 
 // RequestStrategy is an indicator of how access requests

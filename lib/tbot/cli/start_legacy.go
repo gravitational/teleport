@@ -132,7 +132,7 @@ type LegacyCommand struct {
 
 // NewLegacyCommand initializes and returns a command supporting
 // `tbot start legacy` and `tbot configure legacy`.
-func NewLegacyCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *LegacyCommand {
+func NewLegacyCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *LegacyCommand {
 	joinMethodList := fmt.Sprintf(
 		"(%s)",
 		strings.Join(config.SupportedJoinMethods, ", "),
@@ -140,7 +140,7 @@ func NewLegacyCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *Legac
 
 	c := &LegacyCommand{
 		action: action,
-		cmd:    parentCmd.Command("legacy", "Start with either a config file or a legacy output").Default(),
+		cmd:    parentCmd.Command("legacy", fmt.Sprintf("%s tbot with either a config file or a legacy output.", mode)).Default(),
 	}
 	c.AuthProxyArgs = newAuthProxyArgs(c.cmd)
 	c.LegacyDestinationDirArgs = newLegacyDestinationDirArgs(c.cmd)
@@ -188,29 +188,29 @@ func (c *LegacyCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error
 	}
 
 	if c.CertificateTTL != 0 {
-		if cfg.CertificateTTL != 0 {
+		if cfg.CredentialLifetime.TTL != 0 {
 			log.WarnContext(
 				context.TODO(),
 				"CLI parameters are overriding configuration",
 				"flag", "certificate-ttl",
-				"config_value", cfg.CertificateTTL,
+				"config_value", cfg.CredentialLifetime.TTL,
 				"cli_value", c.CertificateTTL,
 			)
 		}
-		cfg.CertificateTTL = c.CertificateTTL
+		cfg.CredentialLifetime.TTL = c.CertificateTTL
 	}
 
 	if c.RenewalInterval != 0 {
-		if cfg.RenewalInterval != 0 {
+		if cfg.CredentialLifetime.RenewalInterval != 0 {
 			log.WarnContext(
 				context.TODO(),
 				"CLI parameters are overriding configuration",
 				"flag", "renewal-interval",
-				"config_value", cfg.RenewalInterval,
+				"config_value", cfg.CredentialLifetime.RenewalInterval,
 				"cli_value", c.RenewalInterval,
 			)
 		}
-		cfg.RenewalInterval = c.RenewalInterval
+		cfg.CredentialLifetime.RenewalInterval = c.RenewalInterval
 	}
 
 	// DataDir overrides any previously-configured storage config

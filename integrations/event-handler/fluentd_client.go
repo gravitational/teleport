@@ -21,12 +21,13 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+	"golang.org/x/net/http2"
 
 	tlib "github.com/gravitational/teleport/integrations/lib"
 )
@@ -40,10 +41,12 @@ const (
 type FluentdClient struct {
 	// client HTTP client to send requests
 	client *http.Client
+	log    *slog.Logger
+	sem    chan struct{}
 }
 
 // NewFluentdClient creates new FluentdClient
-func NewFluentdClient(c *FluentdConfig) (*FluentdClient, error) {
+func NewFluentdClient(c *FluentdConfig, log *slog.Logger) (*FluentdClient, error) {
 	var certs []tls.Certificate
 	if c.FluentdCert != "" && c.FluentdKey != "" {
 		cert, err := tls.LoadX509KeyPair(c.FluentdCert, c.FluentdKey)
@@ -55,22 +58,34 @@ func NewFluentdClient(c *FluentdConfig) (*FluentdClient, error) {
 		return nil, trace.BadParameter("both fluentd_cert and fluentd_key should be specified")
 	}
 
+	if c.FluentdMaxConnections <= 0 {
+		return nil, trace.BadParameter("fluentd_max_connections should be greater than 0")
+	}
+
 	ca, err := getCertPool(c)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				RootCAs:      ca,
-				Certificates: certs,
-			},
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			RootCAs:      ca,
+			Certificates: certs,
 		},
-		Timeout: httpTimeout,
+		MaxIdleConnsPerHost: c.FluentdMaxConnections,
+		IdleConnTimeout:     httpTimeout,
 	}
 
-	return &FluentdClient{client: client}, nil
+	if err := http2.ConfigureTransport(transport); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	client := &http.Client{
+		Transport: transport,
+		Timeout:   httpTimeout,
+	}
+
+	return &FluentdClient{client: client, log: log, sem: make(chan struct{}, c.FluentdMaxConnections)}, nil
 }
 
 // getCertPool reads CA certificate and returns CA cert pool if passed
@@ -91,7 +106,12 @@ func getCertPool(c *FluentdConfig) (*x509.CertPool, error) {
 
 // Send sends event to fluentd
 func (f *FluentdClient) Send(ctx context.Context, url string, b []byte) error {
-	log.WithField("payload", string(b)).Debug("Sending event to Fluentd")
+	f.sem <- struct{}{}
+	defer func() {
+		<-f.sem
+	}()
+
+	f.log.DebugContext(ctx, "Sending event to Fluentd", "payload", string(b))
 
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(b))
 	if err != nil {

@@ -23,13 +23,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"net"
 	"os"
 	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -122,8 +123,6 @@ type LocalAccessPoint interface {
 type RouterConfig struct {
 	// ClusterName indicates which cluster the router is for
 	ClusterName string
-	// Log is the logger to use
-	Log *logrus.Entry
 	// LocalAccessPoint is the proxy cache
 	LocalAccessPoint LocalAccessPoint
 	// SiteGetter allows looking up sites
@@ -137,10 +136,6 @@ type RouterConfig struct {
 
 // CheckAndSetDefaults ensures the required items were populated
 func (c *RouterConfig) CheckAndSetDefaults() error {
-	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, "Router")
-	}
-
 	if c.ClusterName == "" {
 		return trace.BadParameter("ClusterName must be provided")
 	}
@@ -168,7 +163,6 @@ func (c *RouterConfig) CheckAndSetDefaults() error {
 // nodes and other clusters.
 type Router struct {
 	clusterName      string
-	log              *logrus.Entry
 	localAccessPoint LocalAccessPoint
 	localSite        reversetunnelclient.RemoteSite
 	siteGetter       SiteGetter
@@ -190,7 +184,6 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 
 	return &Router{
 		clusterName:      cfg.ClusterName,
-		log:              cfg.Log,
 		localAccessPoint: cfg.LocalAccessPoint,
 		localSite:        localSite,
 		siteGetter:       cfg.SiteGetter,
@@ -285,7 +278,6 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 				}
 			}
 		}
-
 	} else {
 		return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
 	}
@@ -383,8 +375,9 @@ func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, check
 // site is the minimum interface needed to match servers
 // for a reversetunnelclient.RemoteSite. It makes testing easier.
 type site interface {
-	GetNodes(ctx context.Context, fn func(n services.Node) bool) ([]types.Server, error)
+	GetNodes(ctx context.Context, fn func(n readonly.Server) bool) ([]types.Server, error)
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
+	GetGitServers(context.Context, func(readonly.Server) bool) ([]types.Server, error)
 }
 
 // remoteSite is a site implementation that wraps
@@ -394,13 +387,24 @@ type remoteSite struct {
 }
 
 // GetNodes uses the wrapped sites NodeWatcher to filter nodes
-func (r remoteSite) GetNodes(ctx context.Context, fn func(n services.Node) bool) ([]types.Server, error) {
+func (r remoteSite) GetNodes(ctx context.Context, fn func(n readonly.Server) bool) ([]types.Server, error) {
 	watcher, err := r.site.NodeWatcher()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return watcher.GetNodes(ctx, fn), nil
+	servers, err := watcher.CurrentResourcesWithFilter(ctx, fn)
+	return servers, trace.Wrap(err)
+}
+
+// GetGitServers uses the wrapped sites GitServerWatcher to filter git servers.
+func (r remoteSite) GetGitServers(ctx context.Context, fn func(n readonly.Server) bool) ([]types.Server, error) {
+	watcher, err := r.site.GitServerWatcher()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return watcher.CurrentResourcesWithFilter(ctx, fn)
 }
 
 // GetClusterNetworkingConfig uses the wrapped sites cache to retrieve the ClusterNetworkingConfig
@@ -417,6 +421,9 @@ func (r remoteSite) GetClusterNetworkingConfig(ctx context.Context) (types.Clust
 // getServer attempts to locate a node matching the provided host and port in
 // the provided site.
 func getServer(ctx context.Context, host, port string, site site) (types.Server, error) {
+	if org, ok := types.GetGitHubOrgFromNodeAddr(host); ok {
+		return getGitHubServer(ctx, org, site)
+	}
 	return getServerWithResolver(ctx, host, port, site, nil /* use default resolver */)
 }
 
@@ -450,7 +457,7 @@ func getServerWithResolver(ctx context.Context, host, port string, site site, re
 
 	var maxScore int
 	scores := make(map[string]int)
-	matches, err := site.GetNodes(ctx, func(server services.Node) bool {
+	matches, err := site.GetNodes(ctx, func(server readonly.Server) bool {
 		score := routeMatcher.RouteToServerScore(server)
 		if score < 1 {
 			return false
@@ -500,7 +507,10 @@ func getServerWithResolver(ctx context.Context, host, port string, site site, re
 			}
 		}
 	case len(matches) > 1:
-		return nil, trace.NotFound(teleport.NodeIsAmbiguous)
+		// TODO(tross) DELETE IN V20.0.0
+		// NodeIsAmbiguous is included in the error message for backwards compatibility
+		// with older nodes that expect to see that string in the error message.
+		return nil, trace.Wrap(teleport.ErrNodeIsAmbiguous, teleport.NodeIsAmbiguous)
 	case len(matches) == 1:
 		server = matches[0]
 	}
@@ -566,4 +576,26 @@ func (r *Router) GetSiteClient(ctx context.Context, clusterName string) (authcli
 		return nil, trace.Wrap(err)
 	}
 	return site.GetClient()
+}
+
+func getGitHubServer(ctx context.Context, gitHubOrg string, site site) (types.Server, error) {
+	servers, err := site.GetGitServers(ctx, func(s readonly.Server) bool {
+		github := s.GetGitHub()
+		return github != nil && github.Organization == gitHubOrg
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch len(servers) {
+	case 0:
+		return nil, trace.NotFound("unable to locate Git server for GitHub organization %s", gitHubOrg)
+	case 1:
+		return servers[0], nil
+	default:
+		// It's unusual but possible to have multiple servers per organization
+		// (e.g. possibly a second Git server for a manual CA rotation). Pick a
+		// random one.
+		return servers[rand.N(len(servers))], nil
+	}
 }

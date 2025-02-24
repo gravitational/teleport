@@ -60,6 +60,8 @@ Create the resources:
 $ tctl create -f jenkins.yaml
 ```
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 ## Step 2/3: Create an impersonator role
 
 Next, we will create a role called `impersonator`. Users with this role will be permitted to
@@ -86,11 +88,6 @@ spec:
       users: ['jenkins']
       roles: ['jenkins']
 
-  # The deny section uses the identical format as the 'allow' section.
-  # The deny rules always override allow rules.
-  deny:
-    node_labels:
-      '*': '*'
 ```
 
 Create the `role` resource:
@@ -207,12 +204,6 @@ spec:
       where: >
         equals(impersonate_role.metadata.labels["group"], "security") && 
         equals(impersonate_user.metadata.labels["group"], "security")
-
-  # The deny section uses the identical format as the 'allow' section.
-  # The deny rules always override allow rules.
-  deny:
-    node_labels:
-      '*': '*'
 ```
 
 Create the resources:
@@ -285,12 +276,6 @@ spec:
       where: >
         contains(user.spec.traits["group"], impersonate_role.metadata.labels["group"]) && 
         contains(user.spec.traits["group"], impersonate_user.metadata.labels["group"])
-
-  # The deny section uses the identical format as the 'allow' section.
-  # The deny rules always override allow rules.
-  deny:
-    node_labels:
-      '*': '*'
 ```
 
 While user traits typically come from an external identity provider, we can test

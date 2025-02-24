@@ -55,80 +55,112 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	const pageSize int = 4
-	fakeKMS := newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", pageSize)
-	cfg := servicecfg.KeystoreConfig{
-		AWSKMS: servicecfg.AWSKMSConfig{
-			AWSAccount: "123456789012",
-			AWSRegion:  "us-west-2",
+	for _, tc := range []struct {
+		name string
+		tags map[string]string
+	}{
+		{
+			name: "delete keys with default tags",
 		},
-	}
-	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{ClusterName: "test-cluster"})
-	require.NoError(t, err)
-	opts := &Options{
-		ClusterName:          clusterName,
-		HostUUID:             "uuid",
-		AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
-		awsKMSClient:         fakeKMS,
-		awsSTSClient: &fakeAWSSTSClient{
-			account: "123456789012",
-		},
-		clockworkOverride: clock,
-	}
-	keyStore, err := NewManager(ctx, &cfg, opts)
-	require.NoError(t, err)
-
-	totalKeys := pageSize * 3
-	for i := 0; i < totalKeys; i++ {
-		_, err := keyStore.NewSSHKeyPair(ctx, cryptosuites.UserCASSH)
-		require.NoError(t, err, trace.DebugReport(err))
-	}
-
-	// Newly created keys should not be deleted.
-	err = keyStore.DeleteUnusedKeys(ctx, nil /*activeKeys*/)
-	require.NoError(t, err)
-	for _, key := range fakeKMS.keys {
-		assert.Equal(t, kmstypes.KeyStateEnabled, key.state)
-	}
-
-	// Keys created more than 5 minutes ago should be deleted.
-	clock.Advance(6 * time.Minute)
-	err = keyStore.DeleteUnusedKeys(ctx, nil /*activeKeys*/)
-	require.NoError(t, err)
-	for _, key := range fakeKMS.keys {
-		assert.Equal(t, kmstypes.KeyStatePendingDeletion, key.state)
-	}
-
-	// Insert a key created by a different Teleport cluster, it should not be
-	// deleted by the keystore.
-	output, err := fakeKMS.CreateKey(ctx, &kms.CreateKeyInput{
-		KeySpec: kmstypes.KeySpecEccNistP256,
-		Tags: []kmstypes.Tag{
-			kmstypes.Tag{
-				TagKey:   aws.String(clusterTagKey),
-				TagValue: aws.String("other-cluster"),
+		{
+			name: "delete keys with custom tags",
+			tags: map[string]string{
+				"test-key-1": "test-value-1",
 			},
 		},
-	})
-	require.NoError(t, err)
-	otherClusterKeyARN := aws.ToString(output.KeyMetadata.Arn)
+		{
+			name: "delete keys with override cluster tag",
+			tags: map[string]string{
+				"TeleportCluster": "test-cluster-2",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			const pageSize int = 4
+			fakeKMS := newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", pageSize)
+			cfg := servicecfg.KeystoreConfig{
+				AWSKMS: &servicecfg.AWSKMSConfig{
+					AWSAccount: "123456789012",
+					AWSRegion:  "us-west-2",
+					Tags:       tc.tags,
+				},
+			}
+			clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{ClusterName: "test-cluster"})
+			require.NoError(t, err)
+			opts := &Options{
+				ClusterName:          clusterName,
+				HostUUID:             "uuid",
+				AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
+				awsKMSClient:         fakeKMS,
+				awsSTSClient: &fakeAWSSTSClient{
+					account: "123456789012",
+				},
+				clockworkOverride: clock,
+			}
+			keyStore, err := NewManager(ctx, &cfg, opts)
+			require.NoError(t, err)
 
-	clock.Advance(6 * time.Minute)
-	err = keyStore.DeleteUnusedKeys(ctx, nil /*activeKeys*/)
-	require.NoError(t, err)
-	for _, key := range fakeKMS.keys {
-		if key.arn == otherClusterKeyARN {
-			assert.Equal(t, kmstypes.KeyStateEnabled, key.state)
-		} else {
-			assert.Equal(t, kmstypes.KeyStatePendingDeletion, key.state)
-		}
+			var otherTags []kmstypes.Tag
+			for k, v := range keyStore.backendForNewKeys.(*awsKMSKeystore).tags {
+				if k != clusterTagKey {
+					otherTags = append(otherTags, kmstypes.Tag{
+						TagKey:   aws.String(k),
+						TagValue: aws.String(v),
+					})
+				}
+			}
+
+			totalKeys := pageSize * 3
+			for i := 0; i < totalKeys; i++ {
+				_, err := keyStore.NewSSHKeyPair(ctx, cryptosuites.UserCASSH)
+				require.NoError(t, err, trace.DebugReport(err))
+			}
+
+			// Newly created keys should not be deleted.
+			err = keyStore.DeleteUnusedKeys(ctx, nil /*activeKeys*/)
+			require.NoError(t, err)
+			for _, key := range fakeKMS.keys {
+				assert.Equal(t, kmstypes.KeyStateEnabled, key.state)
+			}
+
+			// Keys created more than 5 minutes ago should be deleted.
+			clock.Advance(6 * time.Minute)
+			err = keyStore.DeleteUnusedKeys(ctx, nil /*activeKeys*/)
+			require.NoError(t, err)
+			for _, key := range fakeKMS.keys {
+				assert.Equal(t, kmstypes.KeyStatePendingDeletion, key.state)
+			}
+
+			// Insert a key created by a different Teleport cluster, it should not be
+			// deleted by the keystore.
+			output, err := fakeKMS.CreateKey(ctx, &kms.CreateKeyInput{
+				KeySpec: kmstypes.KeySpecEccNistP256,
+				Tags: append(otherTags, kmstypes.Tag{
+					TagKey:   aws.String(clusterTagKey),
+					TagValue: aws.String("other-cluster"),
+				}),
+			})
+			require.NoError(t, err)
+			otherClusterKeyARN := aws.ToString(output.KeyMetadata.Arn)
+
+			clock.Advance(6 * time.Minute)
+			err = keyStore.DeleteUnusedKeys(ctx, nil /*activeKeys*/)
+			require.NoError(t, err)
+			for _, key := range fakeKMS.keys {
+				if key.arn == otherClusterKeyARN {
+					assert.Equal(t, kmstypes.KeyStateEnabled, key.state)
+				} else {
+					assert.Equal(t, kmstypes.KeyStatePendingDeletion, key.state)
+				}
+			}
+		})
 	}
 }
 
 func TestAWSKMS_WrongAccount(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	cfg := &servicecfg.KeystoreConfig{
-		AWSKMS: servicecfg.AWSKMSConfig{
+		AWSKMS: &servicecfg.AWSKMSConfig{
 			AWSAccount: "111111111111",
 			AWSRegion:  "us-west-2",
 		},
@@ -159,7 +191,7 @@ func TestAWSKMS_RetryWhilePending(t *testing.T) {
 		pageLimit: 1000,
 	}
 	cfg := &servicecfg.KeystoreConfig{
-		AWSKMS: servicecfg.AWSKMSConfig{
+		AWSKMS: &servicecfg.AWSKMSConfig{
 			AWSAccount: "111111111111",
 			AWSRegion:  "us-west-2",
 		},
@@ -211,6 +243,95 @@ func TestAWSKMS_RetryWhilePending(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestKeyAWSKeyCreationParameters asserts that an AWS keystore created with a
+// variety of parameters correctly passes these parameters to the AWS client.
+// This gives very little real coverage since the AWS KMS service here is faked,
+// but at least we know the keystore passed the parameters to the client correctly.
+// TestBackends and TestManager are both able to run with a real AWS KMS client
+// and you can confirm the keys are configured correctly there.
+func TestAWSKeyCreationParameters(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	const pageSize int = 4
+	fakeKMS := newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", pageSize)
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{ClusterName: "test-cluster"})
+	require.NoError(t, err)
+	opts := &Options{
+		ClusterName:          clusterName,
+		HostUUID:             "uuid",
+		AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
+		awsKMSClient:         fakeKMS,
+		awsSTSClient: &fakeAWSSTSClient{
+			account: "123456789012",
+		},
+		clockworkOverride: clock,
+	}
+
+	for _, tc := range []struct {
+		name        string
+		multiRegion bool
+		tags        map[string]string
+	}{
+		{
+			name:        "multi-region enabled with default tags",
+			multiRegion: true,
+		},
+		{
+			name:        "multi-region disabled with default tags",
+			multiRegion: false,
+		},
+		{
+			name:        "multi region disabled with custom tags",
+			multiRegion: false,
+			tags: map[string]string{
+				"key": "value",
+			},
+		},
+	} {
+
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := servicecfg.KeystoreConfig{
+				AWSKMS: &servicecfg.AWSKMSConfig{
+					AWSAccount: "123456789012",
+					AWSRegion:  "us-west-2",
+					MultiRegion: struct{ Enabled bool }{
+						Enabled: tc.multiRegion,
+					},
+					Tags: tc.tags,
+				},
+			}
+			keyStore, err := NewManager(ctx, &cfg, opts)
+			require.NoError(t, err)
+
+			sshKeyPair, err := keyStore.NewSSHKeyPair(ctx, cryptosuites.UserCASSH)
+			require.NoError(t, err)
+
+			keyID, err := parseAWSKMSKeyID(sshKeyPair.PrivateKey)
+			require.NoError(t, err)
+
+			if tc.multiRegion {
+				assert.Contains(t, keyID.arn, "mrk-")
+			} else {
+				assert.NotContains(t, keyID.arn, "mrk-")
+			}
+
+			tagsOut, err := fakeKMS.ListResourceTags(ctx, &kms.ListResourceTagsInput{KeyId: &keyID.arn})
+			require.NoError(t, err)
+			if len(tc.tags) == 0 {
+				tc.tags = map[string]string{
+					"TeleportCluster": clusterName.GetClusterName(),
+				}
+			}
+			require.Equal(t, len(tc.tags), len(tagsOut.Tags))
+			for _, tag := range tagsOut.Tags {
+				v := tc.tags[aws.ToString(tag.TagKey)]
+				require.Equal(t, v, aws.ToString(tag.TagValue))
+			}
+		})
+	}
+}
+
 type fakeAWSKMSService struct {
 	keys               []*fakeAWSKMSKey
 	clock              clockwork.Clock
@@ -239,6 +360,10 @@ type fakeAWSKMSKey struct {
 
 func (f *fakeAWSKMSService) CreateKey(_ context.Context, input *kms.CreateKeyInput, _ ...func(*kms.Options)) (*kms.CreateKeyOutput, error) {
 	id := uuid.NewString()
+	if aws.ToBool(input.MultiRegion) {
+		// AWS does this https://docs.aws.amazon.com/kms/latest/developerguide/concepts.html#key-id-key-ARN
+		id = "mrk-" + id
+	}
 	a := arn.ARN{
 		Partition: "aws",
 		Service:   "kms",

@@ -106,13 +106,15 @@ destinations:
       - second.example.com
 `,
 			wantOutput: &BotConfig{
-				Version:         V2,
-				AuthServer:      "example.teleport.sh:443",
-				Oneshot:         true,
-				Debug:           true,
-				RenewalInterval: time.Minute * 10,
-				CertificateTTL:  time.Minute * 30,
-				DiagAddr:        "127.0.0.1:621",
+				Version:    V2,
+				AuthServer: "example.teleport.sh:443",
+				Oneshot:    true,
+				Debug:      true,
+				CredentialLifetime: CredentialLifetime{
+					RenewalInterval: time.Minute * 10,
+					TTL:             time.Minute * 30,
+				},
+				DiagAddr: "127.0.0.1:621",
 				Onboarding: OnboardingConfig{
 					JoinMethod: types.JoinMethodToken,
 					TokenValue: "my-token",
@@ -304,7 +306,7 @@ destinations:
 		},
 		// Backwards compat with guides
 		{
-			name: "backwards compat with https://goteleport.com/docs/machine-id/guides/jenkins/",
+			name: "backwards compat with https://goteleport.com/docs/enroll-resources/machine-id/deployment/jenkins/",
 			input: `
 auth_server: "auth.example.com:3025"
 onboarding:
@@ -342,7 +344,7 @@ destinations:
 			},
 		},
 		{
-			name: "backwards compat with https://goteleport.com/docs/machine-id/guides/databases/",
+			name: "backwards compat with https://goteleport.com/docs/enroll-resources/machine-id/access-guides/databases/",
 			input: `
 auth_server: "teleport.example.com:443"
 onboarding:
@@ -354,7 +356,7 @@ storage:
   directory: /var/lib/teleport/bot
 destinations:
   - directory: /opt/machine-id
-    
+
     database:
       service: example-server
       username: alice
@@ -388,7 +390,7 @@ destinations:
 			},
 		},
 		{
-			name: "backwards compat with https://goteleport.com/docs/machine-id/guides/databases/ - mongo",
+			name: "backwards compat with https://goteleport.com/docs/enroll-resources/machine-id/access-guides/databases/ - mongo",
 			input: `
 auth_server: "teleport.example.com:443"
 onboarding:
@@ -400,12 +402,12 @@ storage:
   directory: /var/lib/teleport/bot
 destinations:
   - directory: /opt/machine-id
-    
+
     database:
       service: example-server
       username: alice
       database: example
-    
+
     # If using MongoDB, be sure to include the Mongo-formatted certificates:
     configs:
       - mongo
@@ -439,7 +441,7 @@ destinations:
 			},
 		},
 		{
-			name: "backwards compat with https://goteleport.com/docs/machine-id/guides/databases/ - cockroach",
+			name: "backwards compat with https://goteleport.com/docs/enroll-resources/machine-id/access-guides/databases/ - cockroach",
 			input: `
 auth_server: "teleport.example.com:443"
 onboarding:
@@ -451,7 +453,7 @@ storage:
   directory: /var/lib/teleport/bot
 destinations:
   - directory: /opt/machine-id
-    
+
     database:
       service: example-server
       username: alice
@@ -489,7 +491,7 @@ destinations:
 			},
 		},
 		{
-			name: "backwards compat with https://goteleport.com/docs/machine-id/guides/databases/ - tls",
+			name: "backwards compat with https://goteleport.com/docs/enroll-resources/machine-id/access-guides/databases/ - tls",
 			input: `
 auth_server: "teleport.example.com:443"
 onboarding:
@@ -501,7 +503,7 @@ storage:
   directory: /var/lib/teleport/bot
 destinations:
   - directory: /opt/machine-id
-    
+
     database:
       service: example-server
       username: alice
@@ -539,7 +541,7 @@ destinations:
 			},
 		},
 		{
-			name: "backwards compat with https://goteleport.com/docs/machine-id/guides/host-certificate/",
+			name: "backwards compat with https://goteleport.com/docs/enroll-resources/machine-id - host-certificate",
 			input: `
 onboarding:
   token: "1234abcd5678efgh9"
@@ -574,8 +576,10 @@ oneshot: false
 						"sha256:1234abcd5678efgh910ijklmnop",
 					},
 				},
-				RenewalInterval: DefaultRenewInterval,
-				CertificateTTL:  DefaultCertificateTTL,
+				CredentialLifetime: CredentialLifetime{
+					RenewalInterval: DefaultRenewInterval,
+					TTL:             DefaultCertificateTTL,
+				},
 				Storage: &StorageConfig{
 					Destination: &DestinationDirectory{
 						Path:     "/var/lib/teleport/bot",
@@ -594,7 +598,7 @@ oneshot: false
 			},
 		},
 		{
-			name: "backwards compat with https://goteleport.com/docs/machine-id/guides/applications/",
+			name: "backwards compat with https://goteleport.com/docs/enroll-resources/machine-id/access-guides/applications/",
 			input: `
 auth_server: "teleport.example.com:443"
 onboarding:
@@ -634,7 +638,7 @@ destinations:
 			},
 		},
 		{
-			name: "backwards compat with https://goteleport.com/docs/machine-id/guides/applications/ - with tls config",
+			name: "backwards compat with https://goteleport.com/docs/enroll-resources/machine-id/access-guides/applications/ - with tls config",
 			input: `
 auth_server: "teleport.example.com:443"
 onboarding:
@@ -678,7 +682,7 @@ destinations:
 			},
 		},
 		{
-			name: "backwards compat with https://goteleport.com/docs/machine-id/guides/kubernetes/",
+			name: "backwards compat with https://goteleport.com/docs/enroll-resources/machine-id/access-guides/kubernetes/",
 			input: `
 auth_server: "teleport.example.com:443"
 onboarding:
@@ -921,23 +925,23 @@ onboarding:
 storage:
   directory: /var/lib/teleport/bot
 destinations:
-  - directory: 
+  - directory:
       path: /mount/redacted-prod-global
       acls: off
     kubernetes_cluster: redacted-prod-global
-  - directory: 
+  - directory:
       path: /mount/redacted-prod-au
       acls: off
     kubernetes_cluster: redacted-prod-au
-  - directory: 
+  - directory:
       path: /mount/redacted-prod-eu2
       acls: off
     kubernetes_cluster: redacted-prod-eu2
-  - directory: 
+  - directory:
       path: /mount/redacted-prod-ca
       acls: off
     kubernetes_cluster: redacted-prod-ca
-  - directory: 
+  - directory:
       path: /mount/redacted-prod-us
       acls: off
     kubernetes_cluster: redacted-prod-us

@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"crypto/x509/pkix"
 	"fmt"
 	"testing"
 	"time"
@@ -32,10 +33,204 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+func TestUpdateCertAuthorityCondActs(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// setup closure creates our initial state and returns its components
+	setup := func(active bool) (types.TrustedCluster, types.CertAuthority, *CA) {
+		bk, err := memory.New(memory.Config{})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, bk.Close()) })
+		service := NewCAService(bk)
+
+		tc, err := types.NewTrustedCluster("tc", types.TrustedClusterSpecV2{
+			Enabled:              active,
+			Roles:                []string{"rrr"},
+			Token:                "xxx",
+			ProxyAddress:         "xxx",
+			ReverseTunnelAddress: "xxx",
+		})
+		require.NoError(t, err)
+
+		ca := newCertAuthority(t, types.HostCA, "tc")
+		revision, err := service.CreateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+		require.NoError(t, err)
+		tc.SetRevision(revision)
+		ca.SetRevision(revision)
+		return tc, ca, service
+	}
+
+	// putCA is a helper for injecting a CA into the backend, bypassing atomic condition protections
+	putCA := func(ctx context.Context, service *CA, ca types.CertAuthority, active bool) {
+		key := activeCAKey(ca.GetID())
+		if !active {
+			key = inactiveCAKey(ca.GetID())
+		}
+		item, err := caToItem(key, ca)
+		require.NoError(t, err)
+		_, err = service.Put(ctx, item)
+		require.NoError(t, err)
+	}
+
+	// delCA is a helper for deleting a CA from the backend, bypassing atomic condition protections
+	delCA := func(ctx context.Context, service *CA, ca types.CertAuthority, active bool) {
+		key := activeCAKey(ca.GetID())
+		if !active {
+			key = inactiveCAKey(ca.GetID())
+		}
+		require.NoError(t, service.Delete(ctx, key))
+	}
+
+	// -- update active in place ---
+	tc, ca, service := setup(true /* active */)
+
+	// verify basic update works
+	tc.SetRoles([]string{"rrr", "zzz"})
+	revision, err := service.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.NoError(t, err)
+	tc.SetRevision(revision)
+	ca.SetRevision(revision)
+
+	gotTC, err := service.GetTrustedCluster(ctx, tc.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(tc, gotTC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	_, err = service.GetCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+	_, err = service.GetInactiveCertAuthority(ctx, ca.GetID(), true)
+	require.True(t, trace.IsNotFound(err), "err=%v", err)
+
+	// verify that an inactive CA doesn't prevent update
+	putCA(ctx, service, ca, false /* inactive */)
+	tc.SetRoles([]string{"rrr", "zzz", "aaa"})
+	revision, err = service.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.NoError(t, err)
+	tc.SetRevision(revision)
+	ca.SetRevision(revision)
+
+	gotTC, err = service.GetTrustedCluster(ctx, tc.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(tc, gotTC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	_, err = service.GetCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+	_, err = service.GetInactiveCertAuthority(ctx, ca.GetID(), true)
+	require.True(t, trace.IsNotFound(err), "err=%v", err)
+
+	// verify that concurrent update of the active CA causes update to fail
+	putCA(ctx, service, ca, true /* active */)
+	tc.SetRoles([]string{"rrr", "zzz", "aaa", "bbb"})
+	_, err = service.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.True(t, trace.IsCompareFailed(err), "err=%v", err)
+
+	// --- update inactive in place ---
+	tc, ca, service = setup(false /* inactive */)
+
+	// verify basic update works
+	tc.SetRoles([]string{"rrr", "zzz"})
+	revision, err = service.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.NoError(t, err)
+	tc.SetRevision(revision)
+	ca.SetRevision(revision)
+
+	gotTC, err = service.GetTrustedCluster(ctx, tc.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(tc, gotTC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	_, err = service.GetCertAuthority(ctx, ca.GetID(), true)
+	require.True(t, trace.IsNotFound(err), "err=%v", err)
+	_, err = service.GetInactiveCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+
+	// verify that an active CA prevents update
+	putCA(ctx, service, ca, true /* active */)
+	tc.SetRoles([]string{"rrr", "zzz", "aaa"})
+	_, err = service.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.True(t, trace.IsCompareFailed(err), "err=%v", err)
+	delCA(ctx, service, ca, true /* active */)
+
+	// verify that concurrent update of the inactive CA causes update to fail
+	putCA(ctx, service, ca, false /* inactive */)
+	tc.SetRoles([]string{"rrr", "zzz", "aaa", "bbb"})
+	_, err = service.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.True(t, trace.IsCompareFailed(err), "err=%v", err)
+
+	// --- activate/deactivate ---
+	tc, ca, service = setup(false /* inactive */)
+
+	// verify that activating works
+	tc.SetEnabled(true)
+	revision, err = service.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.NoError(t, err)
+	tc.SetRevision(revision)
+	ca.SetRevision(revision)
+
+	gotTC, err = service.GetTrustedCluster(ctx, tc.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(tc, gotTC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	_, err = service.GetCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+	_, err = service.GetInactiveCertAuthority(ctx, ca.GetID(), true)
+	require.True(t, trace.IsNotFound(err), "err=%v", err)
+
+	// verify that deactivating works
+	tc.SetEnabled(false)
+	revision, err = service.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.NoError(t, err)
+	tc.SetRevision(revision)
+	ca.SetRevision(revision)
+
+	gotTC, err = service.GetTrustedCluster(ctx, tc.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(tc, gotTC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	_, err = service.GetCertAuthority(ctx, ca.GetID(), true)
+	require.True(t, trace.IsNotFound(err), "err=%v", err)
+	_, err = service.GetInactiveCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+
+	// verify that an active CA conflicts with activation
+	putCA(ctx, service, ca, true /* active */)
+	tc.SetEnabled(true)
+	_, err = service.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.True(t, trace.IsCompareFailed(err), "err=%v", err)
+	delCA(ctx, service, ca, true /* active */)
+
+	// activation should work after deleting conlicting CA
+	revision, err = service.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.NoError(t, err)
+	tc.SetRevision(revision)
+	ca.SetRevision(revision)
+
+	gotTC, err = service.GetTrustedCluster(ctx, tc.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(tc, gotTC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	_, err = service.GetCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+	_, err = service.GetInactiveCertAuthority(ctx, ca.GetID(), true)
+	require.True(t, trace.IsNotFound(err), "err=%v", err)
+
+	// verify that deactivation works even if there is an inaactive CA present
+	putCA(ctx, service, ca, false /* inactive */)
+	tc.SetEnabled(false)
+	revision, err = service.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.NoError(t, err)
+	tc.SetRevision(revision)
+	ca.SetRevision(revision)
+
+	gotTC, err = service.GetTrustedCluster(ctx, tc.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(tc, gotTC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	_, err = service.GetCertAuthority(ctx, ca.GetID(), true)
+	require.True(t, trace.IsNotFound(err), "err=%v", err)
+	_, err = service.GetInactiveCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+}
 
 func TestRemoteClusterCRUD(t *testing.T) {
 	t.Parallel()
@@ -67,21 +262,37 @@ func TestRemoteClusterCRUD(t *testing.T) {
 	src.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
 	src.SetLastHeartbeat(clock.Now().Add(-time.Hour))
 
-	// create remote clusters
-	gotRC, err := trustService.CreateRemoteCluster(ctx, rc)
+	// set up fake CAs for the remote clusters
+	ca := newCertAuthority(t, types.HostCA, "foo")
+	sca := newCertAuthority(t, types.HostCA, "bar")
+
+	// create remote cluster
+	revision, err := trustService.CreateRemoteClusterInternal(ctx, rc, []types.CertAuthority{ca})
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-	gotSRC, err := trustService.CreateRemoteCluster(ctx, src)
+	rc.SetRevision(revision)
+	ca.SetRevision(revision)
+
+	_, err = trustService.CreateRemoteClusterInternal(ctx, rc, []types.CertAuthority{ca})
+	require.True(t, trace.IsAlreadyExists(err), "err=%v", err)
+
+	revision, err = trustService.CreateRemoteClusterInternal(ctx, src, []types.CertAuthority{sca})
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(src, gotSRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	src.SetRevision(revision)
+	sca.SetRevision(revision)
 
 	// get remote cluster make sure it's correct
-	gotRC, err = trustService.GetRemoteCluster(ctx, "foo")
+	gotRC, err := trustService.GetRemoteCluster(ctx, "foo")
 	require.NoError(t, err)
 	require.Equal(t, "foo", gotRC.GetName())
 	require.Equal(t, teleport.RemoteClusterStatusOffline, gotRC.GetConnectionStatus())
 	require.Equal(t, clock.Now().Nanosecond(), gotRC.GetLastHeartbeat().Nanosecond())
 	require.Equal(t, originalLabels, gotRC.GetMetadata().Labels)
+
+	// get remote cluster CA make sure it's correct
+	gotCA, err := trustService.GetCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff(ca, gotCA, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	rc = gotRC
 	updatedLabels := map[string]string{
@@ -99,10 +310,9 @@ func TestRemoteClusterCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	src = gotSRC
 	src.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 	src.SetLastHeartbeat(clock.Now())
-	gotSRC, err = trustService.UpdateRemoteCluster(ctx, src)
+	gotSRC, err := trustService.UpdateRemoteCluster(ctx, src)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(src, gotSRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
@@ -126,13 +336,26 @@ func TestRemoteClusterCRUD(t *testing.T) {
 	require.Len(t, allRC, 2)
 
 	// delete cluster
-	err = trustService.DeleteRemoteCluster(ctx, "foo")
+	err = trustService.DeleteRemoteClusterInternal(ctx, "foo", []types.CertAuthID{ca.GetID()})
 	require.NoError(t, err)
 
 	// make sure it's really gone
-	err = trustService.DeleteRemoteCluster(ctx, "foo")
-	require.Error(t, err)
-	require.ErrorIs(t, err, trace.NotFound(`key "/remoteClusters/foo" is not found`))
+	_, err = trustService.GetRemoteCluster(ctx, "foo")
+	require.True(t, trace.IsNotFound(err))
+	_, err = trustService.GetCertAuthority(ctx, ca.GetID(), true)
+	require.True(t, trace.IsNotFound(err))
+
+	// make sure we can't create trusted clusters with the same name as an extant remote cluster
+	tc, err := types.NewTrustedCluster("bar", types.TrustedClusterSpecV2{
+		Enabled:              true,
+		Roles:                []string{"bar", "baz"},
+		Token:                "qux",
+		ProxyAddress:         "quux",
+		ReverseTunnelAddress: "quuz",
+	})
+	require.NoError(t, err)
+	_, err = trustService.CreateTrustedCluster(ctx, tc, nil)
+	require.True(t, trace.IsBadParameter(err), "err=%v", err)
 }
 
 func TestPresenceService_PatchRemoteCluster(t *testing.T) {
@@ -290,10 +513,13 @@ func TestTrustedClusterCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	ca := newCertAuthority(t, types.HostCA, "foo")
+	sca := newCertAuthority(t, types.HostCA, "bar")
+
 	// create trusted clusters
-	_, err = trustService.UpsertTrustedCluster(ctx, tc)
+	_, err = trustService.CreateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
 	require.NoError(t, err)
-	_, err = trustService.UpsertTrustedCluster(ctx, stc)
+	_, err = trustService.CreateTrustedCluster(ctx, stc, []types.CertAuthority{sca})
 	require.NoError(t, err)
 
 	// get trusted cluster make sure it's correct
@@ -306,17 +532,87 @@ func TestTrustedClusterCRUD(t *testing.T) {
 	require.Equal(t, "quux", gotTC.GetProxyAddress())
 	require.Equal(t, "quuz", gotTC.GetReverseTunnelAddress())
 
+	// get trusted cluster CA make sure it's correct
+	gotCA, err := trustService.GetCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(ca, gotCA, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
 	// get all clusters
 	allTC, err := trustService.GetTrustedClusters(ctx)
 	require.NoError(t, err)
 	require.Len(t, allTC, 2)
 
+	// verify that enabling/disabling correctly shows/hides CAs
+	tc.SetEnabled(false)
+	tc.SetRevision(gotTC.GetRevision())
+	ca.SetRevision(gotCA.GetRevision())
+	revision, err := trustService.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.NoError(t, err)
+	_, err = trustService.GetCertAuthority(ctx, ca.GetID(), true)
+	require.True(t, trace.IsNotFound(err), "err=%v", err)
+
+	_, err = trustService.GetInactiveCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+
+	tc.SetEnabled(true)
+	tc.SetRevision(revision)
+	ca.SetRevision(revision)
+	_, err = trustService.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.NoError(t, err)
+
+	_, err = trustService.GetCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+	_, err = trustService.GetInactiveCertAuthority(ctx, ca.GetID(), true)
+	require.True(t, trace.IsNotFound(err), "err=%v", err)
+
 	// delete cluster
-	err = trustService.DeleteTrustedCluster(ctx, "foo")
+	err = trustService.DeleteTrustedClusterInternal(ctx, "foo", []types.CertAuthID{ca.GetID()})
 	require.NoError(t, err)
 
 	// make sure it's really gone
 	_, err = trustService.GetTrustedCluster(ctx, "foo")
-	require.Error(t, err)
-	require.ErrorIs(t, err, trace.NotFound(`key "/trustedclusters/foo" is not found`))
+	require.True(t, trace.IsNotFound(err), "err=%v", err)
+	_, err = trustService.GetCertAuthority(ctx, ca.GetID(), true)
+	require.True(t, trace.IsNotFound(err), "err=%v", err)
+
+	// make sure we can't create remote clusters with the same name as an extant trusted cluster
+	rc, err := types.NewRemoteCluster("bar")
+	require.NoError(t, err)
+	_, err = trustService.CreateRemoteCluster(ctx, rc)
+	require.True(t, trace.IsBadParameter(err), "err=%v", err)
+}
+
+func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) types.CertAuthority {
+	t.Helper()
+
+	ta := testauthority.New()
+	priv, pub, err := ta.GenerateKeyPair()
+	require.NoError(t, err)
+
+	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: domain}, nil, time.Hour)
+	require.NoError(t, err)
+
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        caType,
+		ClusterName: domain,
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PrivateKey:     priv,
+				PrivateKeyType: types.PrivateKeyType_RAW,
+				PublicKey:      pub,
+			}},
+			TLS: []*types.TLSKeyPair{{
+				Cert: cert,
+				Key:  key,
+			}},
+			JWT: []*types.JWTKeyPair{{
+				PublicKey:      pub,
+				PrivateKey:     priv,
+				PrivateKeyType: types.PrivateKeyType_RAW,
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	return ca
 }

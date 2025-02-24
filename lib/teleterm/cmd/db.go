@@ -71,6 +71,7 @@ func newDBCLICommandWithExecer(ctx context.Context, cluster *clusters.Cluster, g
 		dbcmd.WithNoTLS(),
 		dbcmd.WithTolerateMissingCLIClient(),
 		dbcmd.WithExecer(execer),
+		dbcmd.WithOracleOpts(true /* can use TCP */, true /* has TCP servers */),
 		dbcmd.WithGetDatabaseFunc(func(ctx context.Context, _ *client.TeleportClient, _ string) (types.Database, error) {
 			getDatabaseOnce.Do(func() {
 				database, getDatabaseError = cluster.GetDatabase(ctx, authClient, gateway.TargetURI())

@@ -16,12 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import { ButtonPrimary, Text, Box, ButtonIcon, Menu } from 'design';
-import { Info } from 'design/Icon';
-import { displayDateWithPrefixedTime } from 'design/datetime';
+import { ComponentType, useState } from 'react';
 
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { Box, ButtonIcon, ButtonPrimary, Menu, Text } from 'design';
+import { displayDateWithPrefixedTime } from 'design/datetime';
+import { Info } from 'design/Icon';
+import * as Icon from 'design/Icon';
+import { IconProps } from 'design/Icon/Icon';
+import { HoverTooltip } from 'design/Tooltip';
+import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest';
+import { formattedName } from 'shared/components/AccessRequests/ReviewRequests';
 import { AccessRequest } from 'shared/services/accessRequests';
 
 export function PromotedMessage({
@@ -137,3 +141,51 @@ export const BlockedByStartTimeButton = ({
     </HoverTooltip>
   );
 };
+
+/** Returns a list of requested roles or resources. */
+export function getResourcesOrRolesFromRequest(
+  request: Pick<AccessRequest, 'resources' | 'roles'>
+): { Icon: ComponentType<IconProps>; name: string; title: string }[] {
+  return request.resources.length
+    ? request.resources.map(c => {
+        const name = formattedName(c);
+        return {
+          Icon: getIcon(c.id.kind),
+          name,
+          title: `${c.id.kind}: ${name}`,
+        };
+      })
+    : request.roles.map(c => ({
+        Icon: getIcon('role'),
+        name: c,
+        title: `role: ${c}`,
+      }));
+}
+
+function getIcon(item: RequestableResourceKind): ComponentType<IconProps> {
+  switch (item) {
+    case 'app':
+    case 'saml_idp_service_provider':
+    case 'aws_ic_account_assignment':
+      return Icon.Application;
+    case 'node':
+      return Icon.Server;
+    case 'db':
+      return Icon.Database;
+    case 'kube_cluster':
+    case 'namespace':
+      return Icon.Kubernetes;
+    case 'role':
+      return Icon.ClipboardUser;
+    case 'user_group':
+      return Icon.Server;
+    case 'git_server':
+      return Icon.GitHub;
+    case 'windows_desktop':
+      return Icon.Desktop;
+    case 'resource': // This probably never shows in the UI.
+      return Icon.Server;
+    default:
+      item satisfies never;
+  }
+}

@@ -5,7 +5,7 @@ description: Explains how to manage Teleport roles and authentication connectors
 ---
 
 *This guide is Part Two of the Teleport Terraform starter guide. Read the
-[overview](../terraform-starter.mdx) for the scope and purpose of the Terraform
+[overview](terraform-starter.mdx) for the scope and purpose of the Terraform
 starter guide.*
 
 In [Part One](enroll-resources.mdx) of this series, we showed you how to use
@@ -291,7 +291,7 @@ If you plan to skip this step, make sure to remove the `module "saml"` or
      Workspace](../../../admin-guides/access-controls/sso/google-workspace.mdx#step-14-configure-google-workspace)
    - [OneLogin](../../../admin-guides/access-controls/sso/one-login.mdx#step-13-create-teleport-application-in-onelogin)
    - [Azure
-     AD](../../../admin-guides/access-controls/sso/azuread.mdx#step-13-configure-azure-ad)
+     AD](../../../admin-guides/access-controls/sso/azuread.mdx#step-13-configure-microsoft-entra-id)
    - [Okta](../../../admin-guides/access-controls/sso/okta.mdx#step-24-configure-okta)
 
 1. Configure the redirect URL (for OIDC) or assertion consumer service (for SAML):
@@ -563,4 +563,4 @@ troubleshoot the single sign-on provider.
 
 Now that you have configured RBAC in your Terraform demo cluster, fine-tune your
 setup by reading the comprehensive [Terraform provider
-reference](../../../reference/terraform-provider.mdx).
+reference](../../../reference/terraform-provider/terraform-provider.mdx).

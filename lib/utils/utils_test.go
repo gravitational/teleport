@@ -20,14 +20,12 @@ package utils
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,54 +38,6 @@ import (
 func TestMain(m *testing.M) {
 	InitLoggerForTests()
 	os.Exit(m.Run())
-}
-
-func TestHostUUIDIdempotent(t *testing.T) {
-	t.Parallel()
-
-	// call twice, get same result
-	dir := t.TempDir()
-	id, err := ReadOrMakeHostUUID(dir)
-	require.Len(t, id, 36)
-	require.NoError(t, err)
-	uuidCopy, err := ReadOrMakeHostUUID(dir)
-	require.NoError(t, err)
-	require.Equal(t, id, uuidCopy)
-}
-
-func TestHostUUIDBadLocation(t *testing.T) {
-	t.Parallel()
-
-	// call with a read-only dir, make sure to get an error
-	id, err := ReadOrMakeHostUUID("/bad-location")
-	require.Empty(t, id)
-	require.Error(t, err)
-	require.Regexp(t, "^.*no such file or directory.*$", err.Error())
-}
-
-func TestHostUUIDIgnoreWhitespace(t *testing.T) {
-	t.Parallel()
-
-	// newlines are getting ignored
-	dir := t.TempDir()
-	id := fmt.Sprintf("%s\n", uuid.NewString())
-	err := os.WriteFile(filepath.Join(dir, HostUUIDFile), []byte(id), 0666)
-	require.NoError(t, err)
-	out, err := ReadHostUUID(dir)
-	require.NoError(t, err)
-	require.Equal(t, strings.TrimSpace(id), out)
-}
-
-func TestHostUUIDRegenerateEmpty(t *testing.T) {
-	t.Parallel()
-
-	// empty UUID in file is regenerated
-	dir := t.TempDir()
-	err := os.WriteFile(filepath.Join(dir, HostUUIDFile), nil, 0666)
-	require.NoError(t, err)
-	out, err := ReadOrMakeHostUUID(dir)
-	require.NoError(t, err)
-	require.Len(t, out, 36)
 }
 
 func TestSelfSignedCert(t *testing.T) {
@@ -321,6 +271,16 @@ func TestIsValidHostname(t *testing.T) {
 			assert:   require.True,
 		},
 		{
+			name:     "only lower case works",
+			hostname: "only-lower-case-works",
+			assert:   require.True,
+		},
+		{
+			name:     "mixed upper case fails",
+			hostname: "mixed-UPPER-CASE-fails",
+			assert:   require.False,
+		},
+		{
 			name:     "one component",
 			hostname: "example",
 			assert:   require.True,
@@ -382,21 +342,21 @@ func TestReplaceRegexp(t *testing.T) {
 			expr:    "value",
 			replace: "value",
 			in:      "val",
-			err:     trace.NotFound(""),
+			err:     ErrReplaceRegexNotFound,
 		},
 		{
 			comment: "empty value is no match",
 			expr:    "",
 			replace: "value",
 			in:      "value",
-			err:     trace.NotFound(""),
+			err:     ErrReplaceRegexNotFound,
 		},
 		{
 			comment: "bad regexp results in bad parameter error",
 			expr:    "^(($",
 			replace: "value",
 			in:      "val",
-			err:     trace.BadParameter(""),
+			err:     &trace.BadParameterError{Message: "error parsing regexp: missing closing ): `^(($`"},
 		},
 		{
 			comment: "full match is supported",
@@ -455,7 +415,7 @@ func TestReplaceRegexp(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, testCase.out, out)
 			} else {
-				require.IsType(t, testCase.err, err)
+				require.ErrorIs(t, err, testCase.err)
 			}
 		})
 	}

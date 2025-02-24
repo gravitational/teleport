@@ -71,14 +71,14 @@ cluster to Teleport.
   metadata:
     name: my-cluster
     region: us-east-1
-    version: "1.23"
+    version: "1.32"
 
   iam:
     withOIDC: true
 
   addons:
   - name: aws-ebs-csi-driver
-    version: v1.11.4-eksbuild.1
+    version: v1.39.0-eksbuild.1
     attachPolicyARNs:
     - arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
 
@@ -196,14 +196,13 @@ chart.
      </TabItem>
    </Tabs>
 
-1. Install the `teleport-cluster` Helm chart using the values file you wrote:
+1. Install the `teleport-cluster` Helm chart using the values file you created:
 
-    ```code
-    $ helm install teleport-cluster teleport/teleport-cluster \
-      --create-namespace \
-      --version (=teleport.version=) \
-      --values teleport-cluster-values.yaml
-    ```
+   ```code
+   $ helm install teleport-cluster teleport/teleport-cluster \
+     --version (=teleport.version=) \
+     --values teleport-cluster-values.yaml
+   ```
 
 1. After installing the `teleport-cluster` chart, wait a minute or so and ensure
    that both the Auth Service and Proxy Service pods are running:
@@ -288,10 +287,9 @@ In this section, we will  create a local user who has access to Kubernetes group
 `system:masters` via the Teleport role `member`. This user also has the built-in
 `access` and `editor` roles for administrative privileges.
 
-Paste the following role specification into a file called `member.yaml`:
+1. Paste the following role specification into a file called `member.yaml`:
 
-(!docs/pages/includes/kubernetes-access/member-role.mdx!)
-
+   (!docs/pages/includes/kubernetes-access/member-role.mdx!)
 
 1. Create the role:
 
@@ -372,13 +370,13 @@ cluster.
 - **Set up Single Sign-On:** In this guide, we showed you how to create a local
   user, which is appropriate for demo environments. For a production deployment,
   you should set up Single Sign-On with your provider of choice. See our [Single
-  Sign-On guides](../../access-controls/sso.mdx) for how to do this.
+  Sign-On guides](../../access-controls/sso/sso.mdx) for how to do this.
 - **Configure your Teleport deployment:** To see all of the options you can set
   in the values file for the `teleport-cluster` Helm chart, consult our
   [reference guide](../../../reference/helm-reference/teleport-cluster.mdx).
 - **Register resources:** You can register all of the Kubernetes clusters in
   your infrastructure with Teleport. To start, read our [Auto-Discovery
-  guides](../../../enroll-resources/auto-discovery/kubernetes.mdx) to see how to automatically
+  guides](../../../enroll-resources/auto-discovery/kubernetes/kubernetes.mdx) to see how to automatically
   register every cluster in your cloud. You can also register servers,
   databases, applications, and Windows desktops.
 - **Fine-tune your Kubernetes RBAC:** While the user you created in this guide

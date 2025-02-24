@@ -21,7 +21,7 @@ used to access a database configured in Teleport.
   follow the [database access getting started guide](../../database-access/getting-started.mdx).
   The Teleport Database Service supports databases like PostgreSQL, MongoDB,
   Redis, and much more. See our [database access
-  guides](../../database-access/guides.mdx) for a complete list.
+  guides](../../database-access/guides/guides.mdx) for a complete list.
 - (!docs/pages/includes/tctl.mdx!)
 - The `tsh` binary must be installed on the machine that will access the
   database. Depending on how `tbot` was installed, this may already be
@@ -29,7 +29,7 @@ used to access a database configured in Teleport.
   details.
 - `tbot` must already be installed and configured on the machine that will
   access the database. For more information, see the
-  [deployment guides](../deployment.mdx).
+  [deployment guides](../deployment/deployment.mdx).
 
 ## Step 1/4. Configure RBAC
 
@@ -65,6 +65,8 @@ Replace:
   the database.
 
 Use `tctl create -f ./role.yaml` to create the role.
+
+(!docs/pages/includes/create-role-using-web.mdx!)
 
 Now, use `tctl bots update` to add the role to the Bot. Replace `example`
 with the name of the Bot you created in the deployment guide and `example-role`

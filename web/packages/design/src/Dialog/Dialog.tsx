@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { forwardRef, PropsWithChildren } from 'react';
+import { ComponentProps, forwardRef, PropsWithChildren } from 'react';
 import styled, { StyleFunction } from 'styled-components';
 
-import Modal, { Props as ModalProps } from './../Modal';
+import Modal, { ModalProps } from './../Modal';
 
 // ModalProps enforces its own requirements with regards to the children prop through types
 // which we do not care about here, as children passed to <Dialog> are not passed directly to <Modal>.
@@ -30,7 +30,7 @@ export const Dialog = forwardRef<
   PropsWithChildren<
     {
       className?: string;
-      dialogCss?: StyleFunction<any>;
+      dialogCss?: StyleFunction<ComponentProps<'div'>>;
     } & ModalPropsWithoutChildren
   >
 >((props, ref) => {
@@ -68,7 +68,9 @@ const ModalBox = styled.div`
   transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;
 `;
 
-const DialogBox = styled.div<{ dialogCss: StyleFunction<any> }>`
+const DialogBox = styled.div<{
+  dialogCss: StyleFunction<ComponentProps<'div'>> | undefined;
+}>`
   padding: 32px;
   padding-top: 24px;
   background: ${props => props.theme.colors.levels.surface};
@@ -80,5 +82,5 @@ const DialogBox = styled.div<{ dialogCss: StyleFunction<any> }>`
   position: relative;
   overflow-y: auto;
   max-height: calc(100% - 96px);
-  ${props => props.dialogCss && props.dialogCss(props)};
+  ${props => props.dialogCss?.(props)};
 `;

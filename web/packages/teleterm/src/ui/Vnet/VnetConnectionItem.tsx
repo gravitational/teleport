@@ -17,15 +17,14 @@
  */
 
 import React, { forwardRef, useEffect, useRef } from 'react';
-import styled from 'styled-components';
-import { Text, ButtonIcon, Flex, rotate360 } from 'design';
-import * as icons from 'design/Icon';
-import { copyToClipboard } from 'design/utils/copyToClipboard';
 
-import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
-import { ListItem, StaticListItem } from 'teleterm/ui/components/ListItem';
-import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+import { ButtonIcon, Flex, rotate360, Text } from 'design';
+import * as icons from 'design/Icon';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+import { ListItem } from 'teleterm/ui/components/ListItem';
+import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
 import { useVnetContext } from './vnetContext';
 
@@ -63,7 +62,7 @@ export const VnetSliderStepHeader = (props: { goBack: () => void }) => (
     title="Go back to Connections"
     onClick={props.goBack}
     showBackButton
-    showHelpButton
+    showExtraRightButtons
     // Make the element focusable.
     tabIndex={0}
   />
@@ -75,14 +74,28 @@ const VnetConnectionItemBase = forwardRef<
     onClick: () => void;
     title: string;
     showBackButton?: boolean;
-    showHelpButton?: boolean;
+    /** Shows help and diagnostics buttons between "VNet" text and the start/stop button. */
+    showExtraRightButtons?: boolean;
     isActive?: boolean;
     tabIndex?: number;
   }
 >((props, ref) => {
-  const { status, start, stop, startAttempt, stopAttempt } = useVnetContext();
+  const { configService } = useAppContext();
+  const isVnetDiagEnabled = configService.get('unstable.vnetDiag').value;
+  const {
+    status,
+    start,
+    stop,
+    startAttempt,
+    stopAttempt,
+    runDiagnostics,
+    diagnosticsAttempt,
+    getDisabledDiagnosticsReason,
+  } = useVnetContext();
   const isProcessing =
     startAttempt.status === 'processing' || stopAttempt.status === 'processing';
+  const disabledDiagnosticsReason =
+    getDisabledDiagnosticsReason(diagnosticsAttempt);
   const indicatorStatus =
     startAttempt.status === 'error' ||
     stopAttempt.status === 'error' ||
@@ -159,19 +172,34 @@ const VnetConnectionItemBase = forwardRef<
 
         {/* Buttons to the right. Negative margin to match buttons of other connections. */}
         <Flex gap={1} mr="-3px">
-          {props.showHelpButton && (
-            <ButtonIcon
-              as="a"
-              title="Open VNet documentation"
-              href="https://goteleport.com/docs/connect-your-client/vnet/"
-              target="_blank"
-              onClick={e => {
-                // Don't trigger ListItem's onClick.
-                e.stopPropagation();
-              }}
-            >
-              <icons.Question size={18} />
-            </ButtonIcon>
+          {props.showExtraRightButtons && (
+            <>
+              <ButtonIcon
+                as="a"
+                title="Open VNet documentation"
+                href="https://goteleport.com/docs/connect-your-client/vnet/"
+                target="_blank"
+                onClick={e => {
+                  // Don't trigger ListItem's onClick.
+                  e.stopPropagation();
+                }}
+              >
+                <icons.Question size={18} />
+              </ButtonIcon>
+
+              {isVnetDiagEnabled && (
+                <ButtonIcon
+                  title={disabledDiagnosticsReason || 'Run diagnostics'}
+                  disabled={!!disabledDiagnosticsReason}
+                  onClick={e => {
+                    e.stopPropagation();
+                    runDiagnostics();
+                  }}
+                >
+                  <icons.ListMagnifyingGlass size={18} />
+                </ButtonIcon>
+              )}
+            </>
           )}
 
           {/* The conditions for the buttons below could be written in a more concise way.
@@ -233,92 +261,3 @@ const VnetConnectionItemBase = forwardRef<
     </ListItem>
   );
 });
-
-/**
- * AppConnectionItem is an individual connection to an app made through VNet, shown in
- * VnetSliderStep.
- */
-export const AppConnectionItem = (props: {
-  app: string;
-  status: 'on' | 'error' | 'off';
-  // TODO(ravicious): Refactor the status type so that the error prop is available only if status is
-  // set to 'error'.
-  error?: string;
-}) => {
-  const { notificationsService } = useAppContext();
-
-  const copy = async () => {
-    const content = [props.app, props.error].filter(Boolean).join(': ');
-    await copyToClipboard(content);
-
-    notificationsService.notifyInfo(
-      props.error
-        ? `Copied error for ${props.app} to clipboard`
-        : `Copied ${props.app} to clipboard`
-    );
-  };
-
-  return (
-    <StaticListItem
-      title={props.app}
-      as="div"
-      css={`
-        padding: 0 ${props => props.theme.space[2]}px;
-        height: unset;
-      `}
-    >
-      <ConnectionStatusIndicator
-        mr={3}
-        css={`
-          flex-shrink: 0;
-        `}
-        status={props.status}
-      />
-      <Flex
-        alignItems="center"
-        justifyContent="space-between"
-        flex="1"
-        minWidth="0"
-      >
-        <div
-          css={`
-            min-width: 0;
-          `}
-        >
-          <Text
-            typography="body2"
-            color="text.main"
-            css={`
-              line-height: 16px;
-            `}
-          >
-            {props.app}
-          </Text>
-          {props.error && (
-            <Text
-              color="text.slightlyMuted"
-              typography="body3"
-              title={props.error}
-            >
-              {props.error}
-            </Text>
-          )}
-        </div>
-
-        {/* Button to the right. */}
-        <ButtonIconOnHover onClick={copy} title="Copy to clipboard">
-          <icons.Clipboard size={18} />
-        </ButtonIconOnHover>
-      </Flex>
-    </StaticListItem>
-  );
-};
-
-const ButtonIconOnHover = styled(ButtonIcon)`
-  ${StaticListItem}:not(:hover) & {
-    visibility: hidden;
-    // Disable transition so that the button shows up immediately on hover, but still retains the
-    // original transition value once visible.
-    transition: none;
-  }
-`;

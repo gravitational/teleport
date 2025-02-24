@@ -61,7 +61,8 @@ teleportVersionOverride: ""
 # For example:
 #
 # auth:
-#  postStart: ["curl", "http://hook"]
+#  postStart:
+#    command: ["curl", "http://hook"]
 #  imagePullPolicy: Always
 auth:
   # auth.teleportConfig contains YAML teleport configuration for auth pods
@@ -84,7 +85,8 @@ auth:
 # This is merged with chart-scoped values and takes precedence in case of conflict.
 # For example:
 # proxy:
-#   postStart: ["curl", "http://hook"]
+#   postStart:
+#     command: ["curl", "http://hook"]
 #   imagePullPolicy: Always
 #   annotations:
 #     service:
@@ -179,7 +181,7 @@ authentication:
 proxyListenerMode: "separate"
 
 # Optional setting for configuring session recording.
-# See `session_recording` under https://goteleport.com/docs/setup/reference/config/#teleportyaml
+# See `session_recording` under https://goteleport.com/docs/reference/config/#auth-service
 sessionRecording: ""
 
 # By default, Teleport will multiplex Postgres and MongoDB database connections on the same port as the proxy's web listener (443)
@@ -245,7 +247,8 @@ acmeURI: ""
 # You will need to download your Enterprise license from the Teleport dashboard and create a secret to use this:
 # kubectl -n ${TELEPORT_NAMESPACE?} create secret generic license --from-file=/path/to/downloaded/license.pem
 enterprise: false
-
+# Override default Enterprise license name
+licenseSecretName: "license"
 # CRDs are installed by default when the operator is enabled. This manual override allows to disable CRD installation
 # when deploying multiple releases in the same cluster.
 # installCRDs:
@@ -266,7 +269,7 @@ operator:
   #    memory: "1Gi"
   joinMethod: "kubernetes"
   token: "teleport-operator"
-  # This is needed to have a sensible name and predictible service account name.
+  # This is needed to have a sensible name and predictable service account name.
   nameOverride: operator
 
 # If true, create & use Pod Security Policy resources
@@ -565,17 +568,13 @@ tls:
 # Values that you shouldn't need to change.
 ##################################################
 
-# Container image for the cluster.
-# Since version 13, hardened distroless images are used by default.
-# You can use the deprecated debian-based images by setting the value to
-# `public.ecr.aws/gravitational/teleport`. Those images will be
-# removed with teleport 14.
+# Container image for the cluster. By default, the image contains only the
+# Teleport application and its runtime dependencies, and does not contain a
+# shell.
 image: public.ecr.aws/gravitational/teleport-distroless
-# Enterprise version of the image
-# Since version 13, hardened distroless images are used by default.
-# You can use the deprecated debian-based images by setting the value to
-# `public.ecr.aws/gravitational/teleport-ent`. Those images will be
-# removed with teleport 14.
+# Enterprise version of the image. By default, the image contains only the
+# Teleport application and its runtime dependencies, and does not contain a
+# shell.
 enterpriseImage: public.ecr.aws/gravitational/teleport-ent-distroless
 # Optional array of imagePullSecrets, to use when pulling from a private registry
 imagePullSecrets: []
@@ -653,6 +652,9 @@ extraLabels:
   ingress: {}
   # extraLabels.job(object) -- are labels to set on the Job run by the Helm hook.
   job: {}
+  # extraLabels.jobPod(object) -- are labels to set on the Pods created by the
+  # Job run by the Helm hook.
+  jobPod: {}
   # extraLabels.persistentVolumeClaim(object) -- are labels to set on the PersistentVolumeClaim.
   persistentVolumeClaim: {}
   # extraLabels.pod(object) -- are labels to set on the Pods created by the

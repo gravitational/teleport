@@ -61,12 +61,14 @@ service TerminalService {
   // StartHeadlessWatcher starts a headless watcher.
   // If the watcher is already running, it is restarted.
   rpc StartHeadlessWatcher(StartHeadlessWatcherRequest) returns (StartHeadlessWatcherResponse);
-  // GetDatabases returns a filtered and paginated list of databases
-  rpc GetDatabases(GetDatabasesRequest) returns (GetDatabasesResponse);
   // ListDatabaseUsers lists allowed users for the given database based on the role set.
   rpc ListDatabaseUsers(ListDatabaseUsersRequest) returns (ListDatabaseUsersResponse);
   // GetServers returns filtered, sorted, and paginated servers
-  rpc GetServers(GetServersRequest) returns (GetServersResponse);
+  //
+  // Deprecated: Use ListUnifiedResources instead.
+  rpc GetServers(GetServersRequest) returns (GetServersResponse) {
+    option deprecated = true;
+  }
   // GetAccessRequests lists filtered AccessRequests
   rpc GetAccessRequests(GetAccessRequestsRequest) returns (GetAccessRequestsResponse);
   // GetAccessRequest retreives a single Access Request
@@ -89,10 +91,6 @@ service TerminalService {
   // Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
   rpc ListKubernetesResources(ListKubernetesResourcesRequest) returns (ListKubernetesResourcesResponse);
 
-  // GetKubes returns filtered, sorted, and paginated kubes
-  rpc GetKubes(GetKubesRequest) returns (GetKubesResponse);
-  // GetApps returns a filtered and paginated list of apps.
-  rpc GetApps(GetAppsRequest) returns (GetAppsResponse);
   // AddCluster adds a cluster to profile
   rpc AddCluster(AddClusterRequest) returns (Cluster);
   // RemoveCluster removes a cluster from profile
@@ -179,6 +177,10 @@ service TerminalService {
   // See
   // https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
   rpc AuthenticateWebDevice(AuthenticateWebDeviceRequest) returns (AuthenticateWebDeviceResponse);
+
+  // GetApp returns details of an app resource. It does not include information about AWS roles and
+  // FQDN.
+  rpc GetApp(GetAppRequest) returns (GetAppResponse);
 }
 
 message EmptyResponse {}
@@ -346,7 +348,8 @@ message ListKubernetesResourcesRequest {
 
 message ListKubernetesResourcesResponse {
   repeated KubeResource resources = 1;
-  string next_key = 2;
+  reserved 2;
+  reserved "next_key";
 }
 
 // CredentialInfo holds fields related to a user's WebAuthn credential.
@@ -455,16 +458,6 @@ message ListClustersResponse {
   repeated Cluster clusters = 1;
 }
 
-message GetDatabasesRequest {
-  string cluster_uri = 1;
-  int32 limit = 2;
-  string start_key = 3;
-  string search = 4;
-  string query = 5;
-  string sort_by = 6;
-  string search_as_roles = 7;
-}
-
 message ListLeafClustersRequest {
   string cluster_uri = 1;
 }
@@ -516,44 +509,6 @@ message GetServersRequest {
 
 message GetServersResponse {
   repeated Server agents = 1;
-  int32 total_count = 2;
-  string start_key = 3;
-}
-
-message GetDatabasesResponse {
-  repeated Database agents = 1;
-  int32 total_count = 2;
-  string start_key = 3;
-}
-
-message GetKubesRequest {
-  string cluster_uri = 1;
-  int32 limit = 2;
-  string start_key = 3;
-  string search = 4;
-  string query = 5;
-  string sort_by = 6;
-  string search_as_roles = 7;
-}
-
-message GetKubesResponse {
-  repeated Kube agents = 1;
-  int32 total_count = 2;
-  string start_key = 3;
-}
-
-message GetAppsRequest {
-  string cluster_uri = 1;
-  int32 limit = 2;
-  string start_key = 3;
-  string search = 4;
-  string query = 5;
-  string sort_by = 6;
-  string search_as_roles = 7;
-}
-
-message GetAppsResponse {
-  repeated App agents = 1;
   int32 total_count = 2;
   string start_key = 3;
 }
@@ -708,4 +663,12 @@ message AuthenticateWebDeviceResponse {
   // Device confirmation token to be sent to the browser that originated the
   // authentication attempt.
   teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token = 1;
+}
+
+message GetAppRequest {
+  string app_uri = 1;
+}
+
+message GetAppResponse {
+  App app = 1;
 }

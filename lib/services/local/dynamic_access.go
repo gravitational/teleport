@@ -20,11 +20,11 @@ package local
 
 import (
 	"context"
+	"log/slog"
 	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -38,14 +38,14 @@ import (
 // DynamicAccessService manages dynamic RBAC
 type DynamicAccessService struct {
 	backend.Backend
-	log *logrus.Entry
+	logger *slog.Logger
 }
 
 // NewDynamicAccessService returns new dynamic access service instance
 func NewDynamicAccessService(backend backend.Backend) *DynamicAccessService {
 	return &DynamicAccessService{
 		Backend: backend,
-		log:     logrus.WithFields(logrus.Fields{teleport.ComponentKey: "DynamicAccess"}),
+		logger:  slog.With(teleport.ComponentKey, "DynamicAccess"),
 	}
 }
 
@@ -135,7 +135,7 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if _, err := s.CompareAndSwap(ctx, *item, newItem); err != nil {
+		if _, err := s.ConditionalUpdate(ctx, newItem); err != nil {
 			if trace.IsCompareFailed(err) {
 				select {
 				case <-retry.After():
@@ -195,7 +195,7 @@ func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params typ
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if _, err := s.CompareAndSwap(ctx, *item, newItem); err != nil {
+		if _, err := s.ConditionalUpdate(ctx, newItem); err != nil {
 			if trace.IsCompareFailed(err) {
 				select {
 				case <-retry.After():
@@ -348,7 +348,10 @@ func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *prot
 
 			accessRequest, err := itemToAccessRequest(item)
 			if err != nil {
-				s.log.Warnf("Failed to unmarshal access request at %q: %v", item.Key, err)
+				s.logger.WarnContext(ctx, "Failed to unmarshal access request",
+					"key", item.Key,
+					"error", err,
+				)
 				continue
 			}
 
@@ -411,10 +414,8 @@ func (s *DynamicAccessService) CreateAccessRequestAllowedPromotions(ctx context.
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Currently, this logic is used only internally (no API exposed), and
-	// there is only one place that calls it. If this ever changes, we will
-	// need to do a CompareAndSwap here.
-	if _, err := s.Put(ctx, item); err != nil {
+
+	if _, err := s.Create(ctx, item); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -450,7 +451,6 @@ func itemFromAccessRequest(req types.AccessRequest) (backend.Item, error) {
 	return backend.Item{
 		Key:      accessRequestKey(req.GetName()),
 		Value:    value,
-		Expires:  req.Expiry(),
 		Revision: rev,
 	}, nil
 }
@@ -471,7 +471,6 @@ func itemFromAccessListPromotions(req types.AccessRequest, suggestedItems *types
 func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (*types.AccessRequestV3, error) {
 	opts = append(
 		opts,
-		services.WithExpires(item.Expires),
 		services.WithRevision(item.Revision),
 	)
 	req, err := services.UnmarshalAccessRequest(

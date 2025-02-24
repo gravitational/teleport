@@ -19,6 +19,7 @@
 package common
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strconv"
@@ -52,6 +53,8 @@ const puttyDwordProxyLogToTerm = `00000002` // only until session starts
 const puttyPermitRSASHA1 = `00000000`
 const puttyPermitRSASHA256 = `00000001`
 const puttyPermitRSASHA512 = `00000001`
+const puttyAuthGSSAPI = `00000000`
+const puttyAuthGSSAPIKEX = `00000000`
 
 // despite the strings/ints in struct, these are stored in the registry as DWORDs
 type puttyRegistrySessionDwords struct {
@@ -60,6 +63,8 @@ type puttyRegistrySessionDwords struct {
 	ProxyPort      int    // dword
 	ProxyMethod    string // dword
 	ProxyLogToTerm string // dword
+	AuthGSSAPI     string // dword
+	AuthGSSAPIKEX  string // dword
 }
 
 type puttyRegistrySessionStrings struct {
@@ -93,6 +98,8 @@ func addPuTTYSession(proxyHostname string, hostname string, port int, login stri
 		ProxyPort:      puttyDefaultProxyPort,
 		ProxyMethod:    puttyDwordProxyMethod,
 		ProxyLogToTerm: puttyDwordProxyLogToTerm,
+		AuthGSSAPI:     puttyAuthGSSAPI,
+		AuthGSSAPIKEX:  puttyAuthGSSAPIKEX,
 	}
 
 	sessionStrings := puttyRegistrySessionStrings{
@@ -130,6 +137,12 @@ func addPuTTYSession(proxyHostname string, hostname string, port int, login stri
 	if err := registry.WriteDword(pk, "ProxyLogToTerm", sessionDwords.ProxyLogToTerm); err != nil {
 		return trace.Wrap(err)
 	}
+	if err := registry.WriteDword(pk, "AuthGSSAPI", sessionDwords.AuthGSSAPI); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := registry.WriteDword(pk, "AuthGSSAPIKEX", sessionDwords.AuthGSSAPIKEX); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// write strings
 	if err := registry.WriteString(pk, "Hostname", sessionStrings.Hostname); err != nil {
@@ -163,6 +176,7 @@ func addPuTTYSession(proxyHostname string, hostname string, port int, login stri
 // addHostCAPublicKey adds a host CA to the registry with a set of hostnames delimited by " || "
 // as per PuTTY's "Validity" syntax.
 func addHostCAPublicKey(registryHostCAStruct puttyhosts.HostCAPublicKeyForRegistry) error {
+	ctx := context.TODO()
 	registryKeyName := fmt.Sprintf(`%v\%v`, puttyRegistrySSHHostCAsKey, registryHostCAStruct.KeyName)
 
 	// get the subkey with the host CA key name
@@ -178,7 +192,10 @@ func addHostCAPublicKey(registryHostCAStruct puttyhosts.HostCAPublicKeyForRegist
 		// ERROR_FILE_NOT_FOUND is an acceptable error, meaning that the value does not already
 		// exist and it must be created
 		if err != syscall.ERROR_FILE_NOT_FOUND {
-			log.Debugf("Can't get registry value %v: %T", registryKeyName, err)
+			logger.DebugContext(ctx, "Can't get registry value",
+				"registry_key", registryKeyName,
+				"error", err,
+			)
 			return trace.Wrap(err)
 		}
 	}
@@ -196,14 +213,20 @@ func addHostCAPublicKey(registryHostCAStruct puttyhosts.HostCAPublicKeyForRegist
 		// ERROR_FILE_NOT_FOUND is an acceptable error, meaning that the value does not already
 		// exist and it must be created
 		if err != syscall.ERROR_FILE_NOT_FOUND {
-			log.Debugf("Can't get registry value %v: %T", registryKeyName, err)
+			logger.DebugContext(ctx, "Can't get registry value",
+				"registry_key", registryKeyName,
+				"error", err,
+			)
 			return trace.Wrap(err)
 		}
 	}
 	// if matchHosts has any entries, we do a one-time migration of all the values from the "old" MatchHosts
 	// multistring to the new Validity string,
 	if len(matchHosts) > 0 {
-		log.Debugf("Found %v legacy MatchHosts value(s) in registry key %v, migrating to new Validity format", len(matchHosts), registryKeyName)
+		logger.DebugContext(ctx, "Found legacy MatchHosts value(s) in registry key, migrating to new Validity format",
+			"match_host_count", len(matchHosts),
+			"registry_key", registryKeyName,
+		)
 		hostList = append(hostList, matchHosts...)
 	}
 
@@ -237,11 +260,18 @@ func addHostCAPublicKey(registryHostCAStruct puttyhosts.HostCAPublicKeyForRegist
 
 	// if matchHosts has any entries, delete the "MatchHosts" key from the registry as its entries were migrated above.
 	if len(matchHosts) > 0 {
-		log.Debugf("Deleting %v legacy MatchHosts value(s) from registry key %v", len(matchHosts), registryKeyName)
+		logger.DebugContext(ctx, "Deleting legacy MatchHosts value(s) from registry key",
+			"match_host_count", len(matchHosts),
+			"registry_key", registryKeyName,
+		)
+
 		err := registryKey.DeleteValue("MatchHosts")
 		// failure to delete this value isn't a fatal error, so we should continue regardless
 		if err != nil {
-			log.Debugf("Failed to delete old MatchHosts value for %v: %v", registryHostCAStruct.KeyName, err)
+			logger.DebugContext(ctx, "Failed to delete old MatchHosts value for key",
+				"registry_key", registryHostCAStruct.KeyName,
+				"error", err,
+			)
 		}
 	}
 
@@ -271,9 +301,9 @@ func onPuttyConfig(cf *CLIConf) error {
 	case 0:
 		return trace.NotFound("no matching hosts found")
 	case 1:
-		log.Debugf("Using host %v", matches[0])
+		logger.DebugContext(cf.Context, "Using matched host", "host", matches[0])
 	default:
-		log.Debugf("found multiple matching hosts %v %v", matches[0], matches[1])
+		logger.DebugContext(cf.Context, "found multiple matching hosts", matches[0], matches[1])
 		return trace.BadParameter("multiple matching hosts found")
 	}
 
@@ -337,12 +367,15 @@ func onPuttyConfig(cf *CLIConf) error {
 	addToRegistry := puttyhosts.FormatHostCAPublicKeysForRegistry(hostCAPublicKeys, hostname)
 
 	for cluster, values := range addToRegistry {
-		for i, registryPublicKeyStruct := range values {
+		for _, registryPublicKeyStruct := range values {
 			if err := addHostCAPublicKey(registryPublicKeyStruct); err != nil {
-				log.Errorf("Failed to add host CA key for %v: %T", cluster, err)
+				logger.ErrorContext(cf.Context, "Failed to add host CA key for cluster",
+					"cluster", cluster,
+					"error", err,
+				)
 				return trace.Wrap(err)
 			}
-			log.Debugf("Added/updated host CA key %d for %v", i, cluster)
+			logger.DebugContext(cf.Context, "Added/updated host CA key for cluster", cluster, cluster)
 		}
 	}
 
@@ -354,7 +387,10 @@ func onPuttyConfig(cf *CLIConf) error {
 
 	// add session to registry
 	if err := addPuTTYSession(proxyHost, hostname, port, login, ppkFilePath, certificateFilePath, localCommandString, cf.LeafClusterName); err != nil {
-		log.Errorf("Failed to add PuTTY session for %v: %T\n", userHostString, err)
+		logger.ErrorContext(cf.Context, "Failed to add PuTTY session",
+			"user_host", userHostString,
+			"error", err,
+		)
 		return trace.Wrap(err)
 	}
 

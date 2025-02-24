@@ -10,20 +10,52 @@ work with Teleport.
 
 ### Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+- A running Teleport cluster. If you want to get started with Teleport, [sign
+  up](https://goteleport.com/signup) for a free trial or [set up a demo
+  environment](../admin-guides/deploy-a-cluster/linux-demo.mdx).
 
-- (!docs/pages/includes/tctl.mdx!)
+- The `tsh` client tool. Visit [Installation](../installation.mdx) for instructions on downloading
+  `tsh`. See the [Using Teleport Connect](./teleport-connect.mdx) guide for a graphical desktop client
+  that includes `tsh`.
+
+- To check that you can connect to your Teleport cluster, sign in with `tsh login`. For example:
+
+  ```code
+  $ tsh login --proxy=teleport.example.com --user=myuser@example.com
+  ```
+
 - The Teleport Database Service configured to access a database. See one of our
-  [guides](../enroll-resources/database-access/guides.mdx) for how to set up the Teleport
+  [guides](../enroll-resources/database-access/guides/guides.mdx) for how to set up the Teleport
   Database Service for your database.
 
 ### Get connection information
 
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+Get information about the host and port where your database is available so you
+can configure your GUI client to access the database.
 
-<Tabs>
-<TabItem label="Authenticated Proxy">
+#### Using a local proxy server
+
+Use the `tsh proxy db` command to start a local TLS proxy your GUI database
+client will be connecting to. This command requires that you use Teleport
+Enterprise (Cloud) or, if self-hosting Teleport, have enabled [TLS
+routing](../admin-guides/management/operations/tls-routing.mdx) mode.
+
+Run a command similar to the following::
+
+```code
+$ tsh proxy db <database-name>
+Started DB proxy on 127.0.0.1:61740
+
+Use following credentials to connect to the <database-name> proxy:
+  ca_file=/Users/r0mant/.tsh/keys/root.gravitational.io/certs.pem
+  cert_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice-db/root/<database-name>-x509.pem
+  key_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice
+```
+
+Use the displayed local proxy host/port and credentials paths when configuring
+your GUI client below. When entering the hostname, use `localhost` rather than
+`127.0.0.1`.
+
 Starting the local database proxy with the `--tunnel` flag will create an
 authenticated tunnel that you can use to connect to your database instances.
 You won't need to configure any credentials when connecting to this tunnel.
@@ -46,30 +78,11 @@ $ tsh proxy db --db-user=my-database-user --db-name=my-schema --tunnel <database
 Now, you can connect to the address the proxy command returns. In our example it
 is `127.0.0.1:62652`.
 
-</TabItem>
-<TabItem label="TLS routing">
-If you're using Teleport in [TLS routing](../admin-guides/management/operations/tls-routing.mdx)
-mode where each database protocol is multiplexed on the same web proxy port, use
-the following command to start a local TLS proxy your GUI database client will
-be connecting to:
+#### Using a remote host and port
 
-```code
-$ tsh proxy db <database-name>
-Started DB proxy on 127.0.0.1:61740
-
-Use following credentials to connect to the <database-name> proxy:
-  ca_file=/Users/r0mant/.tsh/keys/root.gravitational.io/certs.pem
-  cert_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice-db/root/<database-name>-x509.pem
-  key_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice
-```
-
-Use the displayed local proxy host/port and credentials paths when configuring
-your GUI client below. When entering the hostname, use `localhost` rather than
-`127.0.0.1`.
-</TabItem>
-<TabItem label="Separate ports">
-If you're not using TLS routing, run the following command to see the database
-connection information:
+If you are self-hosting Teleport and not using [TLS
+routing](../admin-guides/management/operations/tls-routing.mdx), run the
+following command to see the database connection information:
 
 ```code
 # View configuration for the database you're logged in to.
@@ -94,32 +107,6 @@ Key:       /Users/alice/.tsh/keys/teleport.example.com/alice
 The displayed `CA`, `Cert`, and `Key` files are used to connect through pgAdmin
 4, MySQL Workbench, and other graphical database clients that support mutual
 TLS authentication.
-</TabItem>
-</Tabs>
-
-</TabItem>
-<TabItem scope="cloud" label="Teleport Enterprise Cloud">
-
-Use the following command to start a local TLS proxy your GUI database client
-will be connecting to:
-
-```code
-$ tsh proxy db <database-name>
-Started DB proxy on 127.0.0.1:61740
-
-Use following credentials to connect to the <database-name> proxy:
-  ca_file=/Users/r0mant/.tsh/keys/root.gravitational.io/certs.pem
-  cert_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice-db/root/<database-name>-x509.pem
-  key_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice
-```
-
-Use the displayed local proxy host/port and credentials paths when configuring
-your GUI client below. When entering the hostname, use `localhost` rather than
-`127.0.0.1`.
-
-</TabItem>
-
-</Tabs>
 
 ## MongoDB Compass
 
@@ -514,31 +501,160 @@ Click "Proceed", then click "Finish".
 
 (!docs/pages/includes/database-access/gui-clients/spanner-reuse-port-note.mdx!)
 
-## Oracle SQL Developer
+## Oracle graphical clients
 
 The Oracle integration works only in the authenticated proxy mode. Start a local proxy for connections to your Oracle database by using the command below:
+
 ```
-tsh proxy db --tunnel --port 1521 --db-user=<user> --db-name=<db-name> oracle
+> tsh proxy db --tunnel --port 11555 --db-user=<user> --db-name=<db-name> oracle
+
+Started authenticated tunnel for the Oracle database "oracle" in cluster "teleport.example.com" on 127.0.0.1:11555.
 ```
 
 <Notice type="tip">
-This command uses the local port 1521, but you can choose any port, or let
-`tsh` pick a local port at random if you omit the `--port` flag.
-You should specify a port to avoid the need to reconfigure your GUI client again
-later.
+The command above uses the local port 11555, but you can choose any available port. Leaving `--port` empty will cause `tsh` to pick a random one.
 </Notice>
+
+The local proxy supports TCP and TCPS modes. Different clients prefer different modes.
+
+TCP:
+- requires no username or password
+- generally easier to configure
+
+TCPS:
+- requires no username or password
+- depends on automatically created wallet
+- uses JDBC URL for configuration
+
+<Notice type="warning">
+Teleport versions earlier than 17.2.0 support only a limited range of clients and only offer TCPS mode. `tsh` will automatically detect this situation and warn the user. We recommend updating to the latest version of Teleport to access full client support and additional connection options.
+</Notice>
+
+### Oracle SQL Developer (standalone)
 
 In "Connections" click the "+" button for a new database connection:
 
-![Oracle SQL Developer Add Database Connection](../../img/database-access/guides/oracle/oracle-sql-developer-add-database.png)
+![Oracle SQL Developer Add Database Connection](../../img/database-access/guides/oracle/sql-developer-standalone-add-database.png)
 
 Next, set the name and username from the `--db-user` parameter. Set connection type to "Custom JDBC" and 
 set the "Custom JDBC URL" from the `tsh proxy db` command.
 
-![Oracle SQL Developer](../../img/database-access/guides/oracle/oracle-sql-developer-general.png)
+![Oracle SQL Developer](../../img/database-access/guides/oracle/sql-developer-standalone-conn-details-tcps.png)
 
 Now you can click "Test" to check your configuration.
 
-![Oracle SQL Developer Success](../../img/database-access/guides/oracle/oracle-sql-developer-success.png)
+![Oracle SQL Developer Success](../../img/database-access/guides/oracle/sql-developer-standalone-success.png)
 
-Congratulations! You have just connected to your Oracle instance.
+### Oracle SQL Developer (VS Code extension)
+
+Install the extension from [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=Oracle.sql-developer).
+
+Both TCP and TCPS modes can be used.
+
+<Tabs>
+<TabItem label="TCP">
+
+Open the extension toolbar and click on "Create Connection" button.
+
+![SQL Developer (VS Code) Start](../../img/database-access/guides/oracle/sql-developer-vscode-start@2x.png)
+
+Enter the following connection details:
+
+| Field           | Value                  |
+|-----------------|------------------------|
+| Connection name | Choose unique name     |
+| User name       | `/`                    |
+| Password        | `/`                    |
+| Save Password   | Mark checkbox          |
+| Connection type | Basic                  |
+| Host name       | `localhost`            |
+| Port number     | `--port` flag value    |
+| Type            | Service Name           |
+| Service name    | `--db-name` flag value |
+
+Test and create the connection.
+
+![SQL Developer (VS Code) Connection Details (basic)](../../img/database-access/guides/oracle/sql-developer-vscode-conn-details-basic@2x.png)
+
+The new connection should appear on the list.
+
+<Figure width="400">
+![SQL Developer (VS Code) Connected (basic)](../../img/database-access/guides/oracle/sql-developer-vscode-connected-basic@2x.png)
+</Figure>
+
+</TabItem>
+
+<TabItem label="TCPS">
+
+Open the extension toolbar and click on "Create Connection" button.
+
+![SQL Developer (VS Code) Start](../../img/database-access/guides/oracle/sql-developer-vscode-start@2x.png)
+
+Enter the following connection details:
+
+| Field            | Value                           |
+|------------------|---------------------------------|
+| Connection name  | (choose per your preference)    |
+| User name        | `/`                             |
+| Password         | `/`                             |
+| Save Password    | Mark the checkbox               |
+| Connection type  | "Custom JDBC"                   |
+| Custom JDBC URL  | Copy from `tsh proxy db` output |
+
+Test and create the connection.
+
+![SQL Developer (VS Code) Connection Details (JDBC)](../../img/database-access/guides/oracle/sql-developer-vscode-conn-details-jdbc@2x.png)
+
+The new connection should appear on the list.
+
+<Figure width="400">
+![SQL Developer (VS Code) Connected (JDBC)](../../img/database-access/guides/oracle/sql-developer-vscode-connected-jdbc@2x.png)
+</Figure>
+
+
+</TabItem>
+</Tabs>
+
+### Toad
+
+Add new login record in the logins dialog.
+
+![Toad Add Login Record](../../img/database-access/guides/oracle/toad-add-login-record@2x.png)
+
+Enter the connection details in "Direct" tab:
+
+| Field           | Value                        |
+|-----------------|------------------------------|
+| Host name       | `127.0.0.1`                  |
+| Port number     | `--port` flag value          |
+| Service name    | `--db-name` flag value       |
+| User name       | `EXTERNAL`                   |
+| Password        | (leave empty)                |
+| Connection name | (choose per your preference) |
+
+Test the connection to verify the setup.
+
+![Toad Add Login Tested](../../img/database-access/guides/oracle/toad-add-login-tested@2x.png)
+
+The newly added login should appear on the login list.
+
+![Toad Login List](../../img/database-access/guides/oracle/toad-login-list@2x.png)
+
+<Notice type="tip">
+You can also configure Toad to use an external Oracle client. Both native and external clients are supported.
+</Notice>
+
+### DBeaver
+
+Click on the "New Database Connection" button.
+
+![DBeaver new connection button](../../img/database-access/guides/oracle/dbeaver-new-connection@2x.png)
+
+Select "Oracle" from the driver list. You may use the search toolbar to narrow down the list.
+![DBeaver connect to a database](../../img/database-access/guides/oracle/dbeaver-connect-to-a-database@2x.png)
+
+Choose "Custom" connection type and paste the JDBC connection string printed by `tsh proxy db`.
+![DBeaver JDBC details](../../img/database-access/guides/oracle/dbeaver-jdbc-details@2x.png)
+
+Test the connection to verify the setup. Finalize by clicking "Finish".
+

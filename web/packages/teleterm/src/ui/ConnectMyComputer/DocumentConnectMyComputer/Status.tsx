@@ -17,47 +17,46 @@
  */
 
 import React, { useCallback, useRef } from 'react';
+import { Transition } from 'react-transition-group';
+import styled, { css } from 'styled-components';
+
 import {
   Alert,
   Box,
   ButtonPrimary,
+  ButtonSecondary,
   Flex,
+  H1,
   Label,
   MenuItem,
   Text,
-  ButtonSecondary,
-  H1,
 } from 'design';
-import styled, { css } from 'styled-components';
-import { Transition } from 'react-transition-group';
+import * as icons from 'design/Icon';
+import type { IconProps } from 'design/Icon/Icon';
+import Indicator from 'design/Indicator';
+import { MenuIcon } from 'shared/components/MenuAction';
 
 import { makeLabelTag } from 'teleport/components/formatters';
-import { MenuIcon } from 'shared/components/MenuAction';
-import * as icons from 'design/Icon';
-import Indicator from 'design/Indicator';
-
+import type * as tsh from 'teleterm/services/tshd/types';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   AgentProcessError,
   CurrentAction,
   NodeWaitJoinTimeout,
   useConnectMyComputerContext,
 } from 'teleterm/ui/ConnectMyComputer';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { connectToServer } from 'teleterm/ui/services/workspacesService';
 import { assertUnreachable } from 'teleterm/ui/utils';
 import { codeOrSignal } from 'teleterm/ui/utils/process';
-import { connectToServer } from 'teleterm/ui/services/workspacesService';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
-import { useAgentProperties } from '../useAgentProperties';
-import { Logs } from '../Logs';
 import { CompatibilityError, useVersions } from '../CompatibilityPromise';
+import { Logs } from '../Logs';
 import {
   shouldShowAgentUpgradeSuggestion,
   UpgradeAgentSuggestion,
 } from '../UpgradeAgentSuggestion';
-
-import type * as tsh from 'teleterm/services/tshd/types';
-import type { IconProps } from 'design/Icon/Icon';
+import { useAgentProperties } from '../useAgentProperties';
 
 export function Status(props: { closeDocument?: () => void }) {
   const ctx = useAppContext();
@@ -80,7 +79,7 @@ export function Status(props: { closeDocument?: () => void }) {
   const downloadAndStartAgentAndIgnoreErrors = useCallback(async () => {
     try {
       await downloadAndStartAgent();
-    } catch (error) {
+    } catch {
       // Ignore the error, it'll be shown in the UI by inspecting the attempts.
     }
   }, [downloadAndStartAgent]);

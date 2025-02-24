@@ -3,14 +3,23 @@ title: See permission changes with Access Graph Crown Jewels
 description: Describes how to use Access Graph Crown Jewels to see permission changes in Teleport.
 ---
 
-Access Graph's Crown Jewel feature allows you to track changes to access for your most sensitive users or resources.
-When you mark a resource as a Crown Jewel, Teleport emits audit events any time access to that resource changes.
-These audit events include snapshots of the permissions before and after the change,
-which can alert you of unexpected access changes and allow you to verify the results.
+Access Graph's Crown Jewel feature allows you to track changes to access for
+your most sensitive users or resources. When you mark a resource as a Crown
+Jewel, Teleport emits audit events any time access to that resource changes.
 
-This guide shows you how to configure Crown Jewels, how to mark resources as Crown Jewels, and how to see permission changes for these resources.
+This guide shows you how to configure Crown Jewels, how to mark resources as
+Crown Jewels, and how to see permission changes for these resources.
 
 ## Prerequisites
+
+<Notice type="tip">
+
+For an improved experience, we recommend using Crown Jewels in conjunction with Teleport local users or integrating with
+[Okta](../../enroll-resources/application-access/okta/okta.mdx) or [Microsoft Entra ID](./integrations/entra-id.mdx).
+This setup helps minimize the number of access path change entries generated when highly privileged ephemeral users
+log in via Teleport Auth Connectors.
+
+</Notice>
 
 - A running Teleport Enterprise cluster v16.2.0 or later.
 - For self-hosted clusters, an updated `license.pem` with Teleport Policy enabled.
@@ -18,11 +27,7 @@ This guide shows you how to configure Crown Jewels, how to mark resources as Cro
 Check [Access Graph page](teleport-policy.mdx) for details on
 how to set up Access Graph.
 
-Access Graph is a feature of the [Teleport Policy](https://goteleport.com/platform/policy/) product
-available to Teleport Enterprise edition customers.
-
-After logging in to the Teleport UI, navigate to the Management tab. If enabled, Access Graph options can be found
-under the Permission Management section.
+(!docs/pages/includes/policy/access-graph.mdx!)
 
 ## Required RBAC permissions
 
@@ -94,4 +99,4 @@ Here is what an example audit event looks like:
 ```
 
 You can export the audit event using the event handler.
-The setup is described [here](../management/export-audit-events.mdx).
+The setup is described [here](../management/export-audit-events/export-audit-events.mdx).

@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { Fragment, useState } from 'react';
+
 import { Box, Flex } from 'design';
 
 export function Tabs({ tabs }: Props) {
@@ -37,7 +38,7 @@ export function Tabs({ tabs }: Props) {
         {tabs.map((tab, index) => {
           const isActive = index === currContentIndex;
           return (
-            <React.Fragment key={index}>
+            <Fragment key={index}>
               {isActive ? (
                 <Box
                   as="button"
@@ -82,7 +83,7 @@ export function Tabs({ tabs }: Props) {
                   {tab.title}
                 </Box>
               )}
-            </React.Fragment>
+            </Fragment>
           );
         })}
       </Flex>

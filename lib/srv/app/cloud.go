@@ -35,12 +35,11 @@ import (
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 // Cloud provides cloud provider access related methods such as generating
@@ -110,7 +109,6 @@ func (c *CloudConfig) CheckAndSetDefaults() error {
 
 type cloud struct {
 	cfg CloudConfig
-	log logrus.FieldLogger
 }
 
 // NewCloud creates a new cloud service.
@@ -120,7 +118,6 @@ func NewCloud(cfg CloudConfig) (Cloud, error) {
 	}
 	return &cloud{
 		cfg: cfg,
-		log: logrus.WithField(teleport.ComponentKey, "cloud"),
 	}, nil
 }
 
@@ -212,7 +209,7 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 			creds.ExternalID = aws.String(req.ExternalID)
 		}
 	})
-	stsCredentials, err := stscreds.NewCredentials(session, req.Identity.RouteToApp.AWSRoleARN, options...).Get()
+	stsCredentials, err := stsutils.NewCredentialsV1(session, req.Identity.RouteToApp.AWSRoleARN, options...).Get()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

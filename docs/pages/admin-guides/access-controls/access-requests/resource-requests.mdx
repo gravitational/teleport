@@ -25,18 +25,19 @@ available in Teleport Enterprise.
 ## Step 1/6. Grant roles to users
 
 The built-in `requester` and `reviewer` roles have permissions to, respectively,
-open and review Access Requests.  Grant the `requester` and `reviewer` roles to
-existing users, or create new users to test this feature.  Make sure the
+open and review Access Requests. Grant the `requester` and `reviewer` roles to
+existing users, or create new users to test this feature. Make sure the
 requester has a valid `login` so that they can view and access SSH nodes.
-
-```code
-$ tctl users add alice --roles requester --logins alice
-$ tctl users add bob --roles reviewer
-```
 
 For the rest of the guide we will assume that the `requester` role has been
 granted to a user named `alice` and the `reviewer` role has been granted to a
 user named `bob`.
+
+1. Assign the `requester` role to a user named `alice`:
+
+   (!docs/pages/includes/add-role-to-user.mdx role="requester" user="\`alice\`"!)
+
+1. Repeat these steps to assign the `reviewer` role to a user named `bob`.
 
 <Notice type="tip">
 
@@ -120,7 +121,7 @@ However, it prevents you from access any resources belonging to another namespac
 </Details>
 
 Advanced filters and queries are supported. See our
-[filtering reference](../../../reference/cli.mdx) for more information.
+[filtering reference](../../../reference/cli/cli.mdx) for more information.
 
 Try narrowing your search to a specific resource you want to access.
 
@@ -406,6 +407,73 @@ Requesting access to a Kubernetes Namespace allows you to access all resources
 in that namespace but you won't be able to access any other supported resources
 in the cluster.
 
+##### Restrict Access Requests to specific Kubernetes resource kinds
+
+The `request.kubernetes_resources` field allows you to restrict what kinds of Kubernetes 
+resources a user can request access to. Configuring this field to any value will disallow
+requesting access to the entire Kubernetes cluster.
+
+If the `request.kubernetes_resources` field is not configured, then a user can request access 
+to any Kubernetes resources, including the entire Kubernetes cluster.
+
+The following role allows users to request access to Kubernetes namespaces. 
+Requests for Kubernetes resources other than `namespace` will not be allowed.
+
+```yaml
+kind: role
+metadata:
+  name: requester-kube-access
+version: v7
+spec:
+  allow:
+    request:
+      search_as_roles:
+        - "kube-access"
+      kubernetes_resources:
+        - kind: "namespace"
+```
+
+The following role allows users to request access only to Kubernetes namespaces and/or pods.
+
+```yaml
+kind: role
+metadata:
+  name: requester-kube-access
+version: v7
+spec:
+  allow:
+    request:
+      search_as_roles:
+        - "kube-access"
+      kubernetes_resources:
+        - kind: "namespace"
+        - kind: "pod"
+```
+
+The following role allows users to request access to any specific Kubernetes resources.
+
+```yaml
+kind: role
+metadata:
+  name: requester-kube-access
+version: v7
+spec:
+  allow:
+    request:
+      search_as_roles:
+        - "kube-access"
+      kubernetes_resources:
+        - kind: "*"
+```
+
+See related section about [Kubernetes Resources](../../../enroll-resources/kubernetes-access/controls.mdx#kubernetes_resources) 
+to see a list of supported `kind` values.
+
+The `request.kubernetes_resources` field only restricts what `kinds` of Kubernetes resource requests are allowed.
+To control Kubernetes access to these resources see 
+[Preventing unintended access to Kubernetes resources](#preventing-unintended-access-to-kubernetes-resources) 
+section for more details.
+
 #### `db`
 
 You can restrict access to searching `db` resources by assigning values to the
@@ -606,4 +674,4 @@ within your organization's existing messaging and project management solutions.
 
 ## Next Steps
 
-- Learn more about [Access Lists](../access-lists.mdx)
+- Learn more about [Access Lists](../access-lists/access-lists.mdx)

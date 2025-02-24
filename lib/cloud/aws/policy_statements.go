@@ -21,7 +21,7 @@ package aws
 import (
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -406,6 +406,9 @@ func StatementAccessGraphAWSSync() *Statement {
 			"s3:ListBucket",
 			"s3:GetBucketLocation",
 			"s3:GetBucketTagging",
+			"s3:GetBucketPolicyStatus",
+			"s3:GetBucketAcl",
+
 			// IAM IAM
 			"iam:ListUsers",
 			"iam:GetUser",
@@ -457,6 +460,7 @@ func StatementForAWSIdentityCenterAccess() *Statement {
 			"sso:DescribePermissionSet",
 			"sso:ListPermissionSets",
 			"sso:ListAccountAssignmentsForPrincipal",
+			"sso:ListPermissionSetsProvisionedToAccount",
 
 			// CreateAndDeleteAccountAssignment
 			"sso:CreateAccountAssignment",

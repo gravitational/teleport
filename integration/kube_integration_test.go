@@ -26,6 +26,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -41,7 +42,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/http2"
@@ -105,7 +105,7 @@ type KubeSuite struct {
 	kubeConfig *rest.Config
 
 	// log defines the test-specific logger
-	log utils.Logger
+	log *slog.Logger
 }
 
 func newKubeSuite(t *testing.T) *KubeSuite {
@@ -168,7 +168,7 @@ type kubeIntegrationTest func(t *testing.T, suite *KubeSuite)
 
 func (s *KubeSuite) bind(test kubeIntegrationTest) func(t *testing.T) {
 	return func(t *testing.T) {
-		s.log = utils.NewLoggerForTests()
+		s.log = utils.NewSlogLoggerForTests()
 		os.RemoveAll(profile.FullProfilePath(""))
 		t.Cleanup(func() { s.log = nil })
 		test(t, s)
@@ -204,7 +204,7 @@ func testExec(t *testing.T, suite *KubeSuite, pinnedIP string, clientError strin
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	username := suite.me.Username
@@ -418,7 +418,7 @@ func testKubeDeny(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	username := suite.me.Username
@@ -475,7 +475,7 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	username := suite.me.Username
@@ -604,7 +604,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	// main cluster has a role and user called main-kube
@@ -635,7 +635,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	lib.SetInsecureDevMode(true)
@@ -656,7 +656,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	auxRole, err := types.NewRole("aux-kube", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
-			// Note that main cluster can pass it's kubernetes groups
+			// Note that main cluster can pass its kubernetes groups
 			// to the remote cluster, and remote cluster
 			// can choose to use them by using special variable
 			KubeGroups: auxKubeGroups,
@@ -694,11 +694,9 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	// try and upsert a trusted cluster
 	var upsertSuccess bool
 	for i := 0; i < 10; i++ {
-		log.Debugf("Will create trusted cluster %v, attempt %v", trustedCluster, i)
-		_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(ctx, trustedCluster)
+		_, err = aux.Process.GetAuthServer().UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
-				log.Debugf("retrying on connection problem: %v", err)
 				continue
 			}
 			t.Fatalf("got non connection problem %v", err)
@@ -791,7 +789,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 loop:
 	for {
 		select {
-		case event := <-main.UploadEventsC:
+		case event := <-aux.UploadEventsC:
 			sessionID = event.SessionID
 			break loop
 		case <-timeoutC:
@@ -800,7 +798,7 @@ loop:
 	}
 
 	// read back the entire session and verify that it matches the stated output
-	capturedStream, _ := streamSession(ctx, t, main.Process.GetAuthServer(), sessionID)
+	capturedStream, _ := streamSession(ctx, t, aux.Process.GetAuthServer(), sessionID)
 	require.Equal(t, sessionStream, capturedStream)
 
 	// impersonating kube exec should be denied
@@ -876,7 +874,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	// main cluster has a role and user called main-kube
@@ -907,7 +905,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	lib.SetInsecureDevMode(true)
@@ -935,7 +933,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 			KubernetesLabels: types.Labels{
 				types.Wildcard: []string{types.Wildcard},
 			},
-			// Note that main cluster can pass it's kubernetes groups
+			// Note that main cluster can pass its kubernetes groups
 			// to the remote cluster, and remote cluster
 			// can choose to use them by using special variable
 			KubeGroups: auxKubeGroups,
@@ -970,11 +968,9 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	// try and upsert a trusted cluster
 	var upsertSuccess bool
 	for i := 0; i < 10; i++ {
-		log.Debugf("Will create trusted cluster %v, attempt %v", trustedCluster, i)
-		_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(ctx, trustedCluster)
+		_, err = aux.Process.GetAuthServer().UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
-				log.Debugf("retrying on connection problem: %v", err)
 				continue
 			}
 			t.Fatalf("got non connection problem %v", err)
@@ -1144,6 +1140,7 @@ func testKubeDisconnect(t *testing.T, suite *KubeSuite) {
 				ClientIdleTimeout: types.NewDuration(500 * time.Millisecond),
 			},
 			disconnectTimeout: 2 * time.Second,
+			verifyError:       errorContains("Client exceeded idle timeout of"),
 		},
 		{
 			name: "expired cert",
@@ -1152,6 +1149,7 @@ func testKubeDisconnect(t *testing.T, suite *KubeSuite) {
 				MaxSessionTTL:         types.NewDuration(3 * time.Second),
 			},
 			disconnectTimeout: 6 * time.Second,
+			verifyError:       errorContains("client certificate expire"),
 		},
 	}
 
@@ -1176,7 +1174,7 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	username := suite.me.Username
@@ -1246,8 +1244,14 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 			tty:          true,
 			stdin:        term,
 		})
-		require.NoError(t, err)
+		require.NoError(t, tc.verifyError(err))
 	}()
+
+	require.Eventually(t, func() bool {
+		// wait for the shell prompt
+		return strings.Contains(term.AllOutput(), "#")
+	}, 5*time.Second, 10*time.Millisecond, "Failed to get shell prompt. "+
+		"If this fails, the exec command is likely hanging and never reaching the kind cluster")
 
 	// lets type something followed by "enter" and then hang the session
 	require.NoError(t, enterInput(sessionCtx, term, "echo boring platypus\r\n", ".*boring platypus.*"))
@@ -1270,7 +1274,7 @@ func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	username := suite.me.Username
@@ -1377,7 +1381,7 @@ func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	username := suite.me.Username
@@ -1467,7 +1471,7 @@ func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
 	sessCreatorTerm := NewTerminal(250)
 	group := &errgroup.Group{}
 	group.Go(func() error {
-		cmd := []string{"/bin/sh", "echo", "hello from an ephemeral container"}
+		cmd := []string{"/bin/sh", "-c", "echo hello from an ephemeral container"}
 		debugPod, _, err := generateDebugContainer(contName, cmd, pod)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1572,7 +1576,7 @@ func generateDebugContainer(name string, cmd []string, pod *v1.Pod) (*v1.Pod, *v
 	ec := &v1.EphemeralContainer{
 		EphemeralContainerCommon: v1.EphemeralContainerCommon{
 			Name:                     name,
-			Image:                    "alpine:latest",
+			Image:                    localPodImage,
 			Command:                  cmd,
 			ImagePullPolicy:          v1.PullIfNotPresent,
 			Stdin:                    true,
@@ -1614,7 +1618,6 @@ func waitForContainer(ctx context.Context, podClient corev1client.PodInterface, 
 		}
 
 		s := getContainerStatusByName(p, containerName)
-		fmt.Println("test", s)
 		if s == nil {
 			return false, nil
 		}
@@ -1654,7 +1657,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	// Setup user and role.
@@ -1769,7 +1772,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 
 		ws := openWebsocketAndReadSession(t, endpoint, req)
 
-		wsStream := terminal.NewWStream(context.Background(), ws, suite.log, nil)
+		wsStream := terminal.NewWStream(context.Background(), ws, utils.NewSlogLoggerForTests(), nil)
 
 		// Check for the expected string in the output.
 		findTextInReader(t, wsStream, testNamespace, time.Second*2)
@@ -1790,7 +1793,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 
 		ws := openWebsocketAndReadSession(t, endpoint, req)
 
-		wsStream := terminal.NewWStream(context.Background(), ws, suite.log, nil)
+		wsStream := terminal.NewWStream(context.Background(), ws, utils.NewSlogLoggerForTests(), nil)
 
 		// Read first prompt from the server.
 		readData := make([]byte, 255)
@@ -1838,8 +1841,7 @@ type sessionMetadataResponse struct {
 // teleKubeConfig sets up teleport with kubernetes turned on
 func (s *KubeSuite) teleKubeConfig(hostname string) *servicecfg.Config {
 	tconf := servicecfg.MakeDefaultConfig()
-	tconf.Console = nil
-	tconf.Log = s.log
+	tconf.Logger = s.log
 	tconf.SSH.Enabled = true
 	tconf.Proxy.DisableWebInterface = true
 	tconf.PollingPeriod = 500 * time.Millisecond
@@ -1859,8 +1861,7 @@ func (s *KubeSuite) teleKubeConfig(hostname string) *servicecfg.Config {
 // teleKubeConfig sets up teleport with kubernetes turned on
 func (s *KubeSuite) teleAuthConfig(hostname string) *servicecfg.Config {
 	tconf := servicecfg.MakeDefaultConfig()
-	tconf.Console = nil
-	tconf.Log = s.log
+	tconf.Logger = s.log
 	tconf.PollingPeriod = 500 * time.Millisecond
 	tconf.Testing.ClientTimeout = time.Second
 	tconf.Testing.ShutdownTimeout = 2 * tconf.Testing.ClientTimeout
@@ -1928,6 +1929,13 @@ func newNamespace(name string) *v1.Namespace {
 	}
 }
 
+// localPodImage is a container image that is used for testing
+// It's a docker image that runs a simple web server
+// that listens on port 80 and returns "Hello, World!" on GET /
+// This image is vendored in the Teleport repository in the
+// fixtures/alpine directory. Check the Dockerfile there for details.
+const localPodImage = "alpine-webserver:v1"
+
 func newPod(ns, name string) *v1.Pod {
 	return &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1937,7 +1945,7 @@ func newPod(ns, name string) *v1.Pod {
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{{
 				Name:  "nginx",
-				Image: "nginx:alpine",
+				Image: localPodImage,
 			}},
 		},
 	}
@@ -2108,7 +2116,7 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	// fooey
@@ -2367,7 +2375,7 @@ func testExecNoAuth(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Log:         suite.log,
+		Logger:      suite.log,
 	})
 
 	adminUsername := "admin"

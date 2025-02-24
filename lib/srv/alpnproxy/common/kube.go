@@ -22,6 +22,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+
+	"github.com/gravitational/trace"
 )
 
 // KubeLocalProxySNI generates the SNI used for Kube local proxy.
@@ -35,6 +37,16 @@ func KubeLocalProxySNI(teleportCluster, kubeCluster string) string {
 func TeleportClusterFromKubeLocalProxySNI(serverName string) string {
 	_, teleportCluster, _ := strings.Cut(serverName, ".")
 	return teleportCluster
+}
+
+// KubeClusterFromKubeLocalProxySNI returns Kubernetes cluster name from SNI.
+func KubeClusterFromKubeLocalProxySNI(serverName string) (string, error) {
+	kubeCluster, _, _ := strings.Cut(serverName, ".")
+	str, err := hex.DecodeString(kubeCluster)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(str), nil
 }
 
 // KubeLocalProxyWildcardDomain returns the wildcard domain used to generate

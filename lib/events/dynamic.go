@@ -107,6 +107,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.X11Forward{}
 	case PortForwardEvent:
 		e = &events.PortForward{}
+	case PortForwardLocalEvent:
+		e = &events.PortForward{}
+	case PortForwardRemoteEvent:
+		e = &events.PortForward{}
+	case PortForwardRemoteConnEvent:
+		e = &events.PortForward{}
 	case AuthAttemptEvent:
 		e = &events.AuthAttempt{}
 	case SCPEvent:
@@ -282,6 +288,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SessionConnect{}
 	case AccessRequestDeleteEvent:
 		e = &events.AccessRequestDelete{}
+	case AccessRequestExpireEvent:
+		e = &events.AccessRequestExpire{}
 	case CertificateCreateEvent:
 		e = &events.CertificateCreate{}
 	case RenewableCertificateGenerationMismatchEvent:
@@ -362,6 +370,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AccessListMemberDelete{}
 	case AccessListMemberDeleteAllForAccessListEvent:
 		e = &events.AccessListMemberDeleteAllForAccessList{}
+	case UserLoginAccessListInvalidEvent:
+		e = &events.UserLoginAccessListInvalid{}
 	case SecReportsAuditQueryRunEvent:
 		e = &events.AuditQueryRun{}
 	case SecReportsReportRunEvent:
@@ -386,6 +396,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AccessGraphSettingsUpdate{}
 	case DatabaseSessionSpannerRPCEvent:
 		e = &events.SpannerRPC{}
+	case GitCommandEvent:
+		e = &events.GitCommand{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 
@@ -445,6 +457,50 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.UserTaskUpdate{}
 	case UserTaskDeleteEvent:
 		e = &events.UserTaskDelete{}
+
+	case SFTPSummaryEvent:
+		e = &events.SFTPSummary{}
+
+	case AutoUpdateConfigCreateEvent:
+		e = &events.AutoUpdateConfigCreate{}
+	case AutoUpdateConfigUpdateEvent:
+		e = &events.AutoUpdateConfigUpdate{}
+	case AutoUpdateConfigDeleteEvent:
+		e = &events.AutoUpdateConfigDelete{}
+
+	case AutoUpdateVersionCreateEvent:
+		e = &events.AutoUpdateVersionCreate{}
+	case AutoUpdateVersionUpdateEvent:
+		e = &events.AutoUpdateVersionUpdate{}
+	case AutoUpdateVersionDeleteEvent:
+		e = &events.AutoUpdateVersionDelete{}
+
+	case ContactCreateEvent:
+		e = &events.ContactCreate{}
+	case ContactDeleteEvent:
+		e = &events.ContactDelete{}
+
+	case WorkloadIdentityCreateEvent:
+		e = &events.WorkloadIdentityCreate{}
+	case WorkloadIdentityUpdateEvent:
+		e = &events.WorkloadIdentityUpdate{}
+	case WorkloadIdentityDeleteEvent:
+		e = &events.WorkloadIdentityDelete{}
+
+	case WorkloadIdentityX509RevocationCreateEvent:
+		e = &events.WorkloadIdentityX509RevocationCreate{}
+	case WorkloadIdentityX509RevocationUpdateEvent:
+		e = &events.WorkloadIdentityX509RevocationUpdate{}
+	case WorkloadIdentityX509RevocationDeleteEvent:
+		e = &events.WorkloadIdentityX509RevocationDelete{}
+
+	case StableUNIXUserCreateEvent:
+		e = &events.StableUNIXUserCreate{}
+
+	case AWSICResourceSyncSuccessEvent,
+		AWSICResourceSyncFailureEvent:
+		e = &events.AWSICResourceSync{}
+
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
 		unknown := &events.Unknown{}

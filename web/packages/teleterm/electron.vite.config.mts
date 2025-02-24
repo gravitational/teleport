@@ -17,16 +17,14 @@
  */
 
 import path from 'node:path';
-import { existsSync, readFileSync } from 'node:fs';
 
 import { defineConfig, externalizeDepsPlugin, UserConfig } from 'electron-vite';
+import type { Plugin } from 'vite';
 
 import { reactPlugin } from '@gravitational/build/vite/react.mjs';
 import { tsconfigPathsPlugin } from '@gravitational/build/vite/tsconfigPaths.mjs';
 
 import { getConnectCsp } from './csp';
-
-import type { Plugin } from 'vite';
 
 const rootDirectory = path.resolve(__dirname, '../../..');
 const outputDirectory = path.resolve(__dirname, 'build', 'app');
@@ -119,31 +117,6 @@ const config = defineConfig(env => {
       },
     },
   };
-
-  if (env.mode === 'development') {
-    if (process.env.VITE_HTTPS_KEY && process.env.VITE_HTTPS_CERT) {
-      config.renderer.server.https = {
-        key: readFileSync(process.env.VITE_HTTPS_KEY),
-        cert: readFileSync(process.env.VITE_HTTPS_CERT),
-      };
-    } else {
-      const certsDirectory = path.resolve(rootDirectory, 'web/certs');
-
-      if (!existsSync(certsDirectory)) {
-        throw new Error(
-          'Could not find SSL certificates. Please follow web/README.md to generate certificates.'
-        );
-      }
-
-      const keyPath = path.resolve(certsDirectory, 'server.key');
-      const certPath = path.resolve(certsDirectory, 'server.crt');
-
-      config.renderer.server.https = {
-        key: readFileSync(keyPath),
-        cert: readFileSync(certPath),
-      };
-    }
-  }
 
   return config;
 });

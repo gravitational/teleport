@@ -16,32 +16,31 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Dialog, { DialogContent, DialogFooter } from 'design/DialogConfirmation';
-import {
-  Box,
-  Flex,
-  ButtonPrimary,
-  ButtonSecondary,
-  Indicator,
-  H2,
-  H3,
-} from 'design';
-
-import React, { Suspense, useState, useEffect } from 'react';
-
+import React, { Suspense, useEffect, useState } from 'react';
 import styled from 'styled-components';
 
+import {
+  Box,
+  ButtonPrimary,
+  ButtonSecondary,
+  Flex,
+  H2,
+  H3,
+  Indicator,
+} from 'design';
+import Dialog, { DialogContent, DialogFooter } from 'design/DialogConfirmation';
 import * as Icons from 'design/Icon';
-
 import { P } from 'design/Text/Text';
 
-import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
-
-import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
-import { ResourceKind, TextIcon } from 'teleport/Discover/Shared';
-import { JoinToken } from 'teleport/services/joinToken';
 import { CatchError } from 'teleport/components/CatchError';
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import { ResourceKind, TextIcon } from 'teleport/Discover/Shared';
+import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
+import {
+  clearCachedJoinTokenResult,
+  useJoinTokenSuspender,
+} from 'teleport/Discover/Shared/useJoinTokenSuspender';
+import { JoinToken } from 'teleport/services/joinToken';
 
 type ManualHelmDialogProps = {
   setJoinTokenAndGetCommand(token: JoinToken): string;
@@ -122,22 +121,28 @@ const FallbackDialog = ({
   );
 };
 
+const resourceKinds = [
+  ResourceKind.Kubernetes,
+  ResourceKind.Application,
+  ResourceKind.Discovery,
+];
+
 export function ManualHelmDialog({
   setJoinTokenAndGetCommand,
   cancel,
   confirmedCommands,
 }: ManualHelmDialogProps) {
-  const { joinToken } = useJoinTokenSuspender([
-    ResourceKind.Kubernetes,
-    ResourceKind.Application,
-    ResourceKind.Discovery,
-  ]);
+  const { joinToken } = useJoinTokenSuspender({
+    resourceKinds,
+  });
   const [command, setCommand] = useState('');
 
   useEffect(() => {
     if (joinToken && !command) {
       setCommand(setJoinTokenAndGetCommand(joinToken));
     }
+
+    return () => clearCachedJoinTokenResult(resourceKinds);
   }, [joinToken, command, setJoinTokenAndGetCommand]);
 
   return (

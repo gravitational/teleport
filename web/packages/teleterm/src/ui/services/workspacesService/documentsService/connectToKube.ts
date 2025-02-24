@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { KubeUri, routing } from 'teleterm/ui/uri';
 import { IAppContext } from 'teleterm/ui/types';
+import { KubeUri, routing } from 'teleterm/ui/uri';
 
 import { DocumentOrigin } from './types';
 

@@ -17,7 +17,7 @@ cluster on version `11.3.1` or greater.
 
 Login Rules only operate on SSO logins, so make sure you have
 configured an OIDC, SAML, or GitHub connector before you begin.
-Check the [Single Sign-On](../sso.mdx) docs to learn how to set this up.
+Check the [Single Sign-On](../sso/sso.mdx) docs to learn how to set this up.
 
 ## Step 1/5. Configure RBAC
 
@@ -44,6 +44,8 @@ Create the role with `tctl`:
 $ tctl create loginrule-manager.yaml
 role 'loginrule-manager' has been created
 ```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
 
 (!docs/pages/includes/add-role-to-user.mdx role="loginrule-manager" !)
 

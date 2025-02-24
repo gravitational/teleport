@@ -6,7 +6,7 @@ description: Reference documentation for Teleport resources
 
 This reference guide lists dynamic resources you can manage with Teleport. For
 more information on dynamic resources, see our guide to [Using Dynamic
-Resources](../admin-guides/infrastructure-as-code.mdx).
+Resources](../admin-guides/infrastructure-as-code/infrastructure-as-code.mdx).
 
 Examples of applying dynamic resources with `tctl`:
 
@@ -51,16 +51,18 @@ Here's the list of resources currently exposed via [`tctl`](./cli/tctl.mdx):
 | - | - |
 | [user](#user) | A user record in the internal Teleport user DB. |
 | [role](#role) | A role assumed by interactive and non-interactive users. |
-| connector | Authentication connectors for [Single Sign-On](../admin-guides/access-controls/sso.mdx) (SSO) for SAML, OIDC and GitHub. |
+| connector | Authentication connectors for [Single Sign-On](../admin-guides/access-controls/sso/sso.mdx) (SSO) for SAML, OIDC and GitHub. |
 | node | A registered SSH node. The same record is displayed via `tctl nodes ls`. |
 | windows_desktop | A registered Windows desktop. |
 | cluster | A trusted cluster. See [here](../admin-guides/management/admin/trustedclusters.mdx) for more details on connecting clusters together. |
-| [login_rule](#login-rules) | A Login Rule, see the [Login Rules guide](../admin-guides/access-controls/login-rules.mdx) for more info. |
+| [login_rule](#login-rules) | A Login Rule, see the [Login Rules guide](../admin-guides/access-controls/login-rules/login-rules.mdx) for more info. |
 | [device](#device) | A Teleport Trusted Device, see the [Device Trust guide](../admin-guides/access-controls/device-trust/guide.mdx) for more info. |
 | [ui_config](#ui-config) | Configuration for the Web UI served by the Proxy Service. |
 | [vnet_config](#vnet-config) | Configuration for the cluster's VNet options. |
 | [cluster_auth_preference](#cluster-auth-preferences) | Configuration for the cluster's auth preferences. |
 | [database_object_import_rule](#database-object-import-rule) | Database object import rules. |
+| [autoupdate_config](#auto-update-config) | Client tools auto-update configuration |
+| [autoupdate_version](#auto-update-version) | Client tools auto-update target version configuration |
 
 ## User
 
@@ -126,7 +128,7 @@ When no `kubernetes_resource` is set:
 {/* This table is cursed. Our current docs engine doesn't support HTML tables
 (due to SSR and the rehydration process). We have dto do everything inlined in
 markdown. Some HTML character codes are used to render specific chars like {}
-or to avoid line breaks in the middle fo the YAML. Whitespaces before br tags
+or to avoid line breaks in the middle fo the YAML. Spaces before br tags
 are required.*/}
 
 | Allow rule                                                                                                                                                                                                                                                                | Role v5                                                                                                           | Role v6                                                                                                           | Role v7                                                                                                                                                                                               |
@@ -138,50 +140,25 @@ are required.*/}
 | <pre>kubernetes_groups: <br/>  - "system:masters" <br/>kubernetes_labels: <br/>  env: ["dev"] <br/>kubernetes_resources: <br/>  - kind: "namespace" <br/>    name: "foo"</pre>                                                                                            | ⚠️ not supported                                                                                                  | ⚠️ not supported                                                                                                  | ✅ full access in namespace `foo` <br/>❌ cannot access other namespaces                                                                                                                                |
 
 
-## Windows desktop
+## Windows desktops
 
 In most cases, Teleport will register `windows_desktop` resources automatically
 based on static hosts in your configuration file or via LDAP-based discovery.
 
-However, you can also manage `windows_desktop` resources manually with `tctl`.
-This can be useful for managing inventories of hosts that are not joined to
-an Active Directory domain.
+You can also use [dynamic
+registration](../enroll-resources/desktop-access/dynamic-registration.mdx) using
+`dynamic_windows_desktop` resources. This can be useful for managing inventories
+of hosts that are not joined to an Active Directory domain.
 
 There are a few important considerations to keep in mind when registering
 desktops this way:
 
 1. The desktop's `addr` can be a hostname or IP address, and should include
    the RDP port (typically 3389).
-1. The desktop's `host_id` should be set to the name of a
-   `windows_desktop_service` that is capable of proxying remote desktop
-   connections to the host. If you have multiple such services, you can create
-   multiple `windows_desktop` resources with different `host_id` values.
 1. If you intend to log in to the desktop with local Windows users you must set
    `non_ad: true`. If you intend to log in with Active Directory users, leave
    `non_ad` unset (or false), and specify the Active Directory domain in the
    `domain` field.
-
-```yaml
-kind: windows_desktop
-metadata:
-  name: desktop-without-ad
-  labels:
-    foo: bar
-    baz: quux
-spec:
-  host_id: 307e091b-7f6b-42e0-b78d-3362ad10b55d
-  addr: 192.168.1.153:3389
-  domain: ""
-  non_ad: true
-
-  # Optional - ensures that all sessions use the same screen size,
-  # no matter what the size of the browser window is.
-  # Leave blank to use the size of the browser window.
-  screen_size:
-    width: 1024
-    height: 768
-version: v3
-```
 
 ## Login Rules
 
@@ -191,7 +168,7 @@ Login rules contain logic to transform SSO user traits during login.
 
 ## Database object import rule
 
-Database object import rule define the labels to be applied to database objects imported into Teleport. 
+Database object import rule define the labels to be applied to database objects imported into Teleport.
 
 See [Database Access Controls](../enroll-resources/database-access/rbac.mdx) for more details.
 
@@ -247,10 +224,17 @@ Global cluster configuration options for authentication.
 metadata:
   name: cluster-auth-preference
 spec:
-  # Sets the type of second factor to use.
+  # Sets the list of allowed second factors for the cluster.
+  # Possible values: "otp", "webauthn", and "sso".
+  # Defaults to ["otp"].
+  second_factors: ["webauthn", "otp"]
+
+  # second_factors is the list of allowed second factors for the cluster.
   # Possible values: "on", "otp" and "webauthn"
   # If "on" is set, all MFA protocols are supported.
-  second_factor: "otp"
+  #
+  # Prefer setting second_factors instead.
+  #second_factor: "webauthn"
 
   # The name of the OIDC or SAML connector. if this is not set, the first connector in the backend is used.
   connector_name: ""
@@ -324,6 +308,15 @@ spec:
   # Possible values: "local", "oidc", "saml" and "github"
   type: local
 
+  stable_unix_user_config:
+    # If set to true, SSH instances will use the same UID for each given
+    # username when automatically creating users.
+    enabled: false
+
+    # The range of UIDs (including both ends) used for automatic UID assignment.
+    first_uid: 90000
+    last_uid: 95000
+
 version: v2
 ```
 
@@ -335,3 +328,37 @@ Find out more on the
 [Machine ID configuration reference](machine-id/configuration.mdx).
 
 (!docs/pages/includes/machine-id/bot-spec.mdx!)
+
+## Auto-update config
+
+Configuration options for managed updates for Teleport client tools.
+
+```yaml
+kind: autoupdate_config
+metadata:
+  name: autoupdate-config
+spec:
+  tools:
+    # tools mode allows users to enable or disable client tool updates at the
+    # cluster level. Disable client tool automatic updates only if self-managed
+    # updates are in place.
+    mode: enabled|disabled
+```
+
+See [Teleport Client Tool Automatic Updates](../upgrading/client-tools-autoupdate.mdx) for more details.
+
+## Auto-update version
+
+Allows cluster administrators to manage the version of client tools that must be installed after logging into the cluster.
+
+```yaml
+kind: autoupdate_version
+metadata:
+  name: autoupdate-version
+spec:
+  tools:
+    # target_version is the semver version of client tools the cluster will advertise.
+    target_version: X.Y.Z
+```
+
+See [Teleport Client Tool Automatic Updates](../upgrading/client-tools-autoupdate.mdx) for more details.

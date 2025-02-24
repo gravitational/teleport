@@ -16,82 +16,164 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { JSX } from 'react';
 import styled from 'styled-components';
-import { Box, Flex, Text, Label } from 'design';
 
-import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
-import { LoggedInUser } from 'teleterm/services/tshd/types';
+import { ButtonText, Flex, Label, P3 } from 'design';
+import { Logout, Refresh, ShieldCheck, ShieldWarning } from 'design/Icon';
+import Link from 'design/Link';
+import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
-import { IdentityRootCluster } from '../useIdentity';
+import { ProfileStatusError } from 'teleterm/ui/components/ProfileStatusError';
+import { WorkspaceColor } from 'teleterm/ui/services/workspacesService';
+import { DeviceTrustStatus } from 'teleterm/ui/TopBar/Identity/Identity';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
-import { IdentityListItem } from './IdentityListItem';
-import { AddNewClusterItem } from './AddNewClusterItem';
+import { ColorPicker } from './ColorPicker';
+import {
+  AddClusterItem,
+  getClusterLetter,
+  IdentityListItem,
+  TitleAndSubtitle,
+} from './IdentityListItem';
 
-export function IdentityList(props: {
-  loggedInUser: LoggedInUser;
-  clusters: IdentityRootCluster[];
-  onSelectCluster(clusterUri: string): void;
-  onAddCluster(): void;
-  onLogout(clusterUri: string): void;
+export function ActiveCluster(props: {
+  activeCluster: Cluster | undefined;
+  activeColor: WorkspaceColor;
+  deviceTrustStatus: DeviceTrustStatus;
+  onChangeColor(color: WorkspaceColor): void;
+  onRefresh(): void;
+  onLogout(): void;
 }) {
   return (
-    <Box minWidth="200px">
-      {props.loggedInUser && (
-        <>
-          <Flex px={3} pt={2} pb={2} justifyContent="space-between">
-            <Box>
-              <Text bold>{props.loggedInUser.name}</Text>
-              <Flex flexWrap="wrap" gap={1}>
-                {props.loggedInUser.roles.map(role => (
-                  <Label key={role} kind="secondary">
-                    {role}
-                  </Label>
-                ))}
-              </Flex>
-            </Box>
-          </Flex>
-          <Separator />
-        </>
-      )}
-      <KeyboardArrowsNavigation>
-        {focusGrabber}
-        <Box>
-          {props.clusters.map((cluster, index) => (
-            <IdentityListItem
-              key={cluster.uri}
-              index={index}
-              cluster={cluster}
-              onSelect={() => props.onSelectCluster(cluster.uri)}
-              onLogout={() => props.onLogout(cluster.uri)}
+    <>
+      <Flex p={3} pb={2} flexWrap="nowrap" gap={2} flexDirection="column">
+        <Flex gap={4} justifyContent="space-between">
+          <Flex alignItems="center" flex={1} minWidth="0" gap={2}>
+            <ColorPicker
+              letter={getClusterLetter(props.activeCluster)}
+              color={props.activeColor}
+              setColor={props.onChangeColor}
             />
-          ))}
-        </Box>
-        <Separator />
-        <Box>
-          <AddNewClusterItem
-            index={props.clusters.length + 1}
-            onClick={props.onAddCluster}
+            <TitleAndSubtitle
+              title={props.activeCluster.name}
+              subtitle={props.activeCluster.loggedInUser?.name}
+            />
+          </Flex>
+
+          <Flex flexDirection="row" alignItems="flex-start" gap={1}>
+            <ButtonText
+              title={`Refresh session in ${props.activeCluster.name}`}
+              size="small"
+              onClick={() => props.onRefresh()}
+            >
+              <Refresh size="small" />
+            </ButtonText>
+            <ButtonText
+              title={`Log out from ${props.activeCluster.name}`}
+              onClick={() => props.onLogout()}
+              intent="danger"
+              size="small"
+            >
+              <Logout size="small" />
+            </ButtonText>
+          </Flex>
+        </Flex>
+        {props.activeCluster.profileStatusError && (
+          <ProfileStatusError
+            error={props.activeCluster.profileStatusError}
+            // Align the error with the user icon.
+            css={`
+              margin-left: ${props => props.theme.space[2]}px;
+              gap: 14px;
+            `}
           />
-        </Box>
-      </KeyboardArrowsNavigation>
-    </Box>
+        )}
+        <Flex flexWrap="wrap" gap={1} mt={1}>
+          {props.activeCluster.loggedInUser?.roles.map(role => (
+            <Label
+              css={`
+                line-height: 20px;
+              `}
+              key={role}
+              kind="secondary"
+            >
+              {role}
+            </Label>
+          ))}
+        </Flex>
+        <DeviceTrustMessage status={props.deviceTrustStatus} />
+      </Flex>
+      <Separator />
+    </>
   );
 }
 
-// Hack - for some reason xterm.js doesn't allow moving a focus to the Identity popover
-// when it is focused using element.focus(). Moreover, it looks like this solution has a benefit
-// of returning the focus to the previously focused element when popover is closed.
-const focusGrabber = (
-  <input
-    style={{
-      opacity: 0,
-      position: 'absolute',
-      height: 0,
-      zIndex: -1,
-    }}
-    autoFocus={true}
-  />
-);
+export function ClusterList(props: {
+  clusters: Cluster[];
+  onSelect(clusterUri: RootClusterUri): void;
+  onLogout?(clusterUri: RootClusterUri): void;
+  onAdd(): void;
+}) {
+  return (
+    <>
+      {props.clusters.map((cluster, index) => (
+        <IdentityListItem
+          key={cluster.uri}
+          index={index}
+          cluster={cluster}
+          onSelect={() => props.onSelect(cluster.uri)}
+          onLogout={
+            props.onLogout ? () => props.onLogout(cluster.uri) : undefined
+          }
+        />
+      ))}
+      <AddClusterItem index={props.clusters.length} onClick={props.onAdd} />
+    </>
+  );
+}
+
+function DeviceTrustMessage(props: { status: DeviceTrustStatus }) {
+  let message: JSX.Element | undefined;
+  switch (props.status) {
+    case 'enrolled':
+      message = (
+        <>
+          <ShieldCheck color="success.main" size="small" mb="2px" />
+          <P3>Access secured with device trust.</P3>
+        </>
+      );
+      break;
+    case 'requires-enrollment':
+      message = (
+        <>
+          <ShieldWarning color="warning.main" size="small" mb="2px" />
+          <P3>
+            Full access requires a trusted device.{' '}
+            <Link
+              href="https://goteleport.com/docs/admin-guides/access-controls/device-trust/guide/#step-22-enroll-device"
+              target="_blank"
+            >
+              Learn how to enroll your device.
+            </Link>
+          </P3>
+        </>
+      );
+      break;
+    case 'none':
+      break;
+    default:
+      props.status satisfies never;
+  }
+
+  if (message) {
+    return (
+      <Flex gap={1} color="text.slightlyMuted">
+        {message}
+      </Flex>
+    );
+  }
+}
 
 const Separator = styled.div`
   background: ${props => props.theme.colors.spotBackground[1]};

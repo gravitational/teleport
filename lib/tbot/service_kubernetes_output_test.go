@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/golden"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 // Fairly ugly hardcoded certs to use in the generation so that the tests are
@@ -279,7 +279,9 @@ func Test_selectKubeConnectionMethod(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			addr, sni, err := selectKubeConnectionMethod(tt.proxyPing)
+			addr, sni, err := selectKubeConnectionMethod(&proxyPingResponse{
+				PingResponse: tt.proxyPing,
+			})
 			require.NoError(t, err)
 			require.Equal(t, tt.wantAddr, addr)
 			require.Equal(t, tt.wantSNI, sni)

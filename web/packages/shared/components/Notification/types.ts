@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import { Action } from 'design/Alert';
 import { IconProps } from 'design/Icon/Icon';
-import React from 'react';
 
 export type NotificationSeverity =
   | 'info'
@@ -42,4 +43,9 @@ export type NotificationItemObjectContent = {
   description?: string;
   icon?: React.ComponentType<IconProps>;
   action?: Action;
+  /**
+   * If defined, isAutoRemovable circumvents the auto-removing logic in the Notification component,
+   * which automatically removes 'success', 'info', and 'neutral' notifications.
+   */
+  isAutoRemovable?: boolean;
 };

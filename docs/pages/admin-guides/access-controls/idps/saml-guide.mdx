@@ -4,10 +4,9 @@ description: How to configure and use Teleport as a SAML identity provider.
 h1: Teleport as a SAML identity provider
 ---
 
-## How to use Teleport as an identity provider
-
-This guide details an example on how to use Teleport as an identity provider to
-authenticate to external services.
+This guide details an example on how to use Teleport as a SAML identity provider
+(IdP). You can set up the Teleport SAML IdP to enable Teleport users to
+authenticate to external services through Teleport.
 
 ## Prerequisites
 
@@ -142,7 +141,7 @@ $ tctl create iamshowcase.yaml
 </Details>
 
 <Admonition type="important">
-If an `entity_descriptor` is provided, it's content takes preference over values provided in `entity_id` and `acs_url`.
+If an `entity_descriptor` is provided, its content takes preference over values provided in `entity_id` and `acs_url`.
 
 Teleport only tries to fetch or generate entity descriptor when service provider is created for the first time.
 Subsequent updates require an entity descriptor to be present in the service provider spec. As such, when updating
@@ -220,6 +219,8 @@ Create the role with `tctl`:
 $ tctl create sp-manager.yaml
 role 'saml-idp-service-provider-manager' has been created
 ```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
 
 Next, add the role to your user.
 

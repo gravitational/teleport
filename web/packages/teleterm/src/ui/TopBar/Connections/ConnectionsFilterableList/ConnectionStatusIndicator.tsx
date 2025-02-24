@@ -17,37 +17,59 @@
  */
 
 import styled, { css } from 'styled-components';
-import { Box, blink } from 'design';
 
-type Status = 'on' | 'off' | 'error' | 'warning' | 'processing';
+import { blink, Box } from 'design';
+
+export type Status = 'on' | 'off' | 'error' | 'warning' | 'processing';
 
 export const ConnectionStatusIndicator = (props: {
   status: Status;
+  /**
+   * Color for the `on` and `processing` statuses.
+   * Defaults to green (`success`).
+   */
+  activeStatusColor?: string;
   inline?: boolean;
   [key: string]: any;
 }) => {
   const { status, inline, ...styles } = props;
 
-  return <StyledStatus {...styles} $status={status} $inline={inline} />;
+  return (
+    <StyledStatus
+      {...styles}
+      $status={status}
+      $inline={inline}
+      activeStatusColor={props.activeStatusColor}
+    />
+  );
 };
 
-const StyledStatus = styled(Box)<{ $inline?: boolean; $status: Status }>`
+const StyledStatus = styled(Box)<{
+  $inline?: boolean;
+  $status: Status;
+  activeStatusColor?: string;
+}>`
   position: relative;
   ${props => props.$inline && `display: inline-block;`}
   width: 8px;
   height: 8px;
+  flex-shrink: 0;
   border-radius: 50%;
 
   ${props => {
-    const { $status, theme } = props;
+    const {
+      $status,
+      theme,
+      activeStatusColor = props.theme.colors.interactive.solid.success.default,
+    } = props;
 
     switch ($status) {
       case 'on': {
-        return { backgroundColor: theme.colors.success.main };
+        return { backgroundColor: activeStatusColor };
       }
       case 'processing': {
         return css`
-          background-color: ${props => props.theme.colors.success.main};
+          background-color: ${activeStatusColor};
           animation: ${blink} 1.4s ease-in-out;
           animation-iteration-count: infinite;
         `;

@@ -20,10 +20,13 @@ package githubactions
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/coreos/go-oidc"
+	"github.com/go-jose/go-jose/v3"
+	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -111,5 +114,47 @@ func (id *IDTokenValidator) Validate(
 	if err := idToken.Claims(&claims); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return &claims, nil
+}
+
+// ValidateTokenWithJWKS validates a GitHub Actions JWT using a configured
+// JWKS rather than fetching from well-known. This supports cases where GHES
+// is not accessible to the Teleport Auth Server.
+func ValidateTokenWithJWKS(
+	now time.Time,
+	jwksData []byte,
+	token string,
+) (*IDTokenClaims, error) {
+	parsed, err := josejwt.ParseSigned(token)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing jwt")
+	}
+
+	jwks := jose.JSONWebKeySet{}
+	if err := json.Unmarshal(jwksData, &jwks); err != nil {
+		return nil, trace.Wrap(err, "parsing provided jwks")
+	}
+
+	stdClaims := josejwt.Claims{}
+	if err := parsed.Claims(jwks, &stdClaims); err != nil {
+		return nil, trace.Wrap(err, "validating jwt signature")
+	}
+
+	leeway := time.Second * 10
+	err = stdClaims.ValidateWithLeeway(josejwt.Expected{
+		Audience: []string{
+			"teleport.cluster.local",
+		},
+		Time: now,
+	}, leeway)
+	if err != nil {
+		return nil, trace.Wrap(err, "validating standard claims")
+	}
+
+	claims := IDTokenClaims{}
+	if err := parsed.Claims(jwks, &claims); err != nil {
+		return nil, trace.Wrap(err, "validating custom claims")
+	}
+
 	return &claims, nil
 }

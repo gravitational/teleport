@@ -20,10 +20,10 @@ package local
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -35,13 +35,13 @@ import (
 // StatusService manages cluster status info.
 type StatusService struct {
 	backend.Backend
-	log logrus.FieldLogger
+	logger *slog.Logger
 }
 
 func NewStatusService(bk backend.Backend) *StatusService {
 	return &StatusService{
 		Backend: bk,
-		log:     logrus.WithField(teleport.ComponentKey, "status"),
+		logger:  slog.With(teleport.ComponentKey, "status"),
 	}
 }
 
@@ -68,7 +68,7 @@ func (s *StatusService) GetClusterAlerts(ctx context.Context, query types.GetClu
 	filtered := alerts[:0]
 	for _, alert := range alerts {
 		if err := alert.CheckAndSetDefaults(); err != nil {
-			s.log.Warnf("Skipping invalid cluster alert: %v", err)
+			s.logger.WarnContext(ctx, "Skipping invalid cluster alert", "error", err)
 		}
 
 		if !query.Match(alert) {

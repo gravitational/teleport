@@ -36,6 +36,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/testing/protocmp"
 	"k8s.io/apimachinery/pkg/util/yaml"
 
@@ -691,7 +692,11 @@ version: v3
 metadata:
   name: foo
 spec:
-  uri: "localhost1"
+  uri: "tcp://localhost1"
+  tcp_ports:
+  - port: 1234
+  - port: 30000
+    end_port: 30768
 ---
 kind: app
 version: v3
@@ -1198,7 +1203,11 @@ func TestAppResource(t *testing.T) {
 		Name:   "foo",
 		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.AppSpecV3{
-		URI: "localhost1",
+		URI: "tcp://localhost1",
+		TCPPorts: []*types.PortRange{
+			&types.PortRange{Port: 1234},
+			&types.PortRange{Port: 30000, EndPort: 30768},
+		},
 	})
 	require.NoError(t, err)
 	appFooBar1, err := types.NewAppV3(types.Metadata{
@@ -1363,17 +1372,29 @@ func TestCreateResources(t *testing.T) {
 	process := testenv.MakeTestServer(t, testenv.WithLogger(utils.NewSlogLoggerForTests()))
 	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
+	// tctlGetAllValidations allows tests to register post-test validations to validate
+	// that their resource is present in "tctl get all" output.
+	// This allows running test rows instead of the whole test table.
+	var tctlGetAllValidations []func(t *testing.T, out string)
+
 	tests := []struct {
-		kind   string
-		create func(t *testing.T, clt *authclient.Client)
+		kind        string
+		create      func(t *testing.T, clt *authclient.Client)
+		getAllCheck func(t *testing.T, out string)
 	}{
 		{
 			kind:   types.KindGithubConnector,
 			create: testCreateGithubConnector,
+			getAllCheck: func(t *testing.T, s string) {
+				assert.Contains(t, s, "kind: github")
+			},
 		},
 		{
 			kind:   types.KindRole,
 			create: testCreateRole,
+			getAllCheck: func(t *testing.T, s string) {
+				assert.Contains(t, s, "kind: role")
+			},
 		},
 		{
 			kind:   types.KindServerInfo,
@@ -1382,6 +1403,13 @@ func TestCreateResources(t *testing.T) {
 		{
 			kind:   types.KindUser,
 			create: testCreateUser,
+			getAllCheck: func(t *testing.T, s string) {
+				assert.Contains(t, s, "kind: user")
+			},
+		},
+		{
+			kind:   "empty-doc",
+			create: testCreateWithEmptyDocument,
 		},
 		{
 			kind:   types.KindDatabaseObjectImportRule,
@@ -1394,10 +1422,16 @@ func TestCreateResources(t *testing.T) {
 		{
 			kind:   types.KindClusterNetworkingConfig,
 			create: testCreateClusterNetworkingConfig,
+			getAllCheck: func(t *testing.T, s string) {
+				assert.Contains(t, s, "kind: cluster_networking_config")
+			},
 		},
 		{
 			kind:   types.KindClusterAuthPreference,
 			create: testCreateAuthPreference,
+			getAllCheck: func(t *testing.T, s string) {
+				assert.Contains(t, s, "kind: cluster_auth_preference")
+			},
 		},
 		{
 			kind:   types.KindSessionRecordingConfig,
@@ -1419,11 +1453,22 @@ func TestCreateResources(t *testing.T) {
 			kind:   types.KindAutoUpdateVersion,
 			create: testCreateAutoUpdateVersion,
 		},
+		{
+			kind:   types.KindAutoUpdateAgentRollout,
+			create: testCreateAutoUpdateAgentRollout,
+		},
+		{
+			kind:   types.KindDynamicWindowsDesktop,
+			create: testCreateDynamicWindowsDesktop,
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.kind, func(t *testing.T) {
 			test.create(t, rootClient)
+			if test.getAllCheck != nil {
+				tctlGetAllValidations = append(tctlGetAllValidations, test.getAllCheck)
+			}
 		})
 	}
 
@@ -1431,12 +1476,9 @@ func TestCreateResources(t *testing.T) {
 	out, err := runResourceCommand(t, rootClient, []string{"get", "all"})
 	require.NoError(t, err)
 	s := out.String()
-	require.NotEmpty(t, s)
-	assert.Contains(t, s, "kind: github")
-	assert.Contains(t, s, "kind: cluster_auth_preference")
-	assert.Contains(t, s, "kind: cluster_networking_config")
-	assert.Contains(t, s, "kind: user")
-	assert.Contains(t, s, "kind: role")
+	for _, validateGetAll := range tctlGetAllValidations {
+		validateGetAll(t, s)
+	}
 }
 
 func testCreateGithubConnector(t *testing.T, clt *authclient.Client) {
@@ -1634,6 +1676,22 @@ spec:
 	require.True(t, trace.IsAlreadyExists(err))
 
 	_, err = runResourceCommand(t, clt, []string{"create", "-f", serverInfoYAMLPath})
+	require.NoError(t, err)
+}
+
+func testCreateWithEmptyDocument(t *testing.T, clt *authclient.Client) {
+	const userYAML = `
+---
+kind: user
+version: v2
+metadata:
+  name: llama2
+spec:
+  roles: ["access"]
+`
+	userYAMLPath := filepath.Join(t.TempDir(), "user.yaml")
+	require.NoError(t, os.WriteFile(userYAMLPath, []byte(userYAML), 0644))
+	_, err := runResourceCommand(t, clt, []string{"create", userYAMLPath})
 	require.NoError(t, err)
 }
 
@@ -1927,11 +1985,15 @@ func testCreateAppServer(t *testing.T, clt *authclient.Client) {
 kind: app_server
 metadata:
   name: my-integration
+  labels:
+    account_id: "123456789012"
 spec:
   app:
     kind: app
     metadata:
       name: my-integration
+      labels:
+        account_id: "123456789012"
     spec:
       uri: https://console.aws.amazon.com
       integration: my-integration
@@ -1975,7 +2037,7 @@ version: v3
 	appServers := mustDecodeJSON[[]*types.AppServerV3](t, buf)
 	require.Len(t, appServers, 1)
 
-	expectedAppServer, err := types.NewAppServerForAWSOIDCIntegration("my-integration", "c6cfe5c2-653f-4e5d-a914-bfac5a7baf38", "integration.example.com")
+	expectedAppServer, err := types.NewAppServerForAWSOIDCIntegration("my-integration", "c6cfe5c2-653f-4e5d-a914-bfac5a7baf38", "integration.example.com", map[string]string{"account_id": "123456789012"})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(
 		expectedAppServer,
@@ -2306,21 +2368,30 @@ version: v1
 	_, err = runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
 	require.NoError(t, err)
 
-	// Get the resource
 	buf, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateConfig, "--format=json"})
 	require.NoError(t, err)
-	resources := mustDecodeJSON[[]*autoupdate.AutoUpdateConfig](t, buf)
-	require.Len(t, resources, 1)
+
+	rawResources := mustDecodeJSON[[]services.UnknownResource](t, buf)
+	require.Len(t, rawResources, 1)
+	var resource autoupdate.AutoUpdateConfig
+	require.NoError(t, protojson.Unmarshal(rawResources[0].Raw, &resource))
 
 	var expected autoupdate.AutoUpdateConfig
-	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
+	expectedJSON := mustTranscodeYAMLToJSON(t, bytes.NewReader([]byte(resourceYAML)))
+	require.NoError(t, protojson.Unmarshal(expectedJSON, &expected))
 
 	require.Empty(t, cmp.Diff(
-		[]*autoupdate.AutoUpdateConfig{&expected},
-		resources,
+		&expected,
+		&resource,
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	))
+
+	// Delete the resource
+	_, err = runResourceCommand(t, clt, []string{"rm", types.KindAutoUpdateConfig})
+	require.NoError(t, err)
+	_, err = runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateConfig})
+	require.ErrorContains(t, err, "autoupdate_config \"autoupdate-config\" doesn't exist")
 }
 
 func testCreateAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
@@ -2342,21 +2413,115 @@ version: v1
 	_, err = runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
 	require.NoError(t, err)
 
-	// Get the resource
 	buf, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateVersion, "--format=json"})
 	require.NoError(t, err)
-	resources := mustDecodeJSON[[]*autoupdate.AutoUpdateVersion](t, buf)
-	require.Len(t, resources, 1)
+
+	rawResources := mustDecodeJSON[[]services.UnknownResource](t, buf)
+	require.Len(t, rawResources, 1)
+	var resource autoupdate.AutoUpdateVersion
+	require.NoError(t, protojson.Unmarshal(rawResources[0].Raw, &resource))
 
 	var expected autoupdate.AutoUpdateVersion
-	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
+	expectedJSON := mustTranscodeYAMLToJSON(t, bytes.NewReader([]byte(resourceYAML)))
+	require.NoError(t, protojson.Unmarshal(expectedJSON, &expected))
 
 	require.Empty(t, cmp.Diff(
-		[]*autoupdate.AutoUpdateVersion{&expected},
-		resources,
+		&expected,
+		&resource,
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	))
+
+	// Delete the resource
+	_, err = runResourceCommand(t, clt, []string{"rm", types.KindAutoUpdateVersion})
+	require.NoError(t, err)
+	_, err = runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateVersion})
+	require.ErrorContains(t, err, "autoupdate_version \"autoupdate-version\" doesn't exist")
+}
+
+func testCreateAutoUpdateAgentRollout(t *testing.T, clt *authclient.Client) {
+	const resourceYAML = `kind: autoupdate_agent_rollout
+metadata:
+  name: autoupdate-agent-rollout
+  revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
+spec:
+  start_version: 1.2.3
+  target_version: 1.2.3
+  autoupdate_mode: "suspended"
+  schedule: "regular"
+  strategy: "halt-on-error"
+status:
+  groups:
+    - name: my-group
+      state: 1
+      config_days: ["*"]
+      config_start_hour: 12
+      config_wait_hours: 0
+version: v1
+`
+	_, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateAgentRollout, "--format=json"})
+	require.ErrorContains(t, err, "doesn't exist")
+
+	// Create the resource.
+	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
+	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
+	_, err = runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
+	require.NoError(t, err)
+
+	// Get the resource
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateAgentRollout, "--format=json"})
+	require.NoError(t, err)
+
+	rawResources := mustDecodeJSON[[]services.UnknownResource](t, buf)
+	require.Len(t, rawResources, 1)
+	var resource autoupdate.AutoUpdateAgentRollout
+	require.NoError(t, protojson.Unmarshal(rawResources[0].Raw, &resource))
+
+	var expected autoupdate.AutoUpdateAgentRollout
+	expectedJSON := mustTranscodeYAMLToJSON(t, bytes.NewReader([]byte(resourceYAML)))
+	require.NoError(t, protojson.Unmarshal(expectedJSON, &expected))
+
+	require.Empty(t, cmp.Diff(
+		&expected,
+		&resource,
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	))
+
+	// Delete the resource
+	_, err = runResourceCommand(t, clt, []string{"rm", types.KindAutoUpdateAgentRollout})
+	require.NoError(t, err)
+	_, err = runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateAgentRollout})
+	require.ErrorContains(t, err, "autoupdate_agent_rollout \"autoupdate-agent-rollout\" doesn't exist")
+}
+
+func testCreateDynamicWindowsDesktop(t *testing.T, clt *authclient.Client) {
+	const resourceYAML = `kind: dynamic_windows_desktop
+metadata:
+  name: test
+  revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
+spec:
+  addr: test
+version: v1
+`
+
+	// Create the resource.
+	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
+	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
+	_, err := runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
+	require.NoError(t, err)
+
+	// Get the resource
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindDynamicWindowsDesktop, "--format=json"})
+	require.NoError(t, err)
+	resources := mustDecodeJSON[[]types.DynamicWindowsDesktopV1](t, buf)
+	require.Len(t, resources, 1)
+
+	var expected types.DynamicWindowsDesktopV1
+	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
+	expected.SetRevision(resources[0].GetRevision())
+
+	require.Empty(t, cmp.Diff([]types.DynamicWindowsDesktopV1{expected}, resources, protocmp.Transform()))
 }
 
 func TestPluginResourceWrapper(t *testing.T) {

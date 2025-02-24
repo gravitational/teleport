@@ -13,10 +13,10 @@ If you want to configure Redis Standalone, please read [Database Access with Red
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access Redis Cluster Self-Hosted](../../../../img/database-access/guides/rediscluster_selfhosted.png)
+![Enroll Redis Cluster with a Self-Hosted Teleport Cluster](../../../../img/database-access/guides/rediscluster_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud","team"]} label="Teleport Cloud">
-![Teleport Database Access Redis Cluster Cloud](../../../../img/database-access/guides/rediscluster_cloud.png)
+![Enroll Redis Cluster with a Cloud-Hosted Teleport Cluster](../../../../img/database-access/guides/rediscluster_cloud.png)
 </TabItem>
 
 </Tabs>
@@ -78,7 +78,9 @@ Install and configure Teleport where you will run the Teleport Database Service:
 ## Step 4/6. Set up mutual TLS
 
 Export your Teleport cluster's `db_client` CA cert and concatenate it with your Redis 
-Cluster's CA cert (in PEM format):
+Cluster's CA cert (in PEM format), assigning <Var name="/path/to/your/ca.crt" />
+to the path to the CA certificate:
+
 ```code
 $ tctl auth export --type=db-client > db-client-ca.crt
 $ cat <Var name="/path/to/your/ca.crt" /> db-client-ca.crt > pem-bundle.cas

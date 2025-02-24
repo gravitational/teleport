@@ -17,12 +17,14 @@
  */
 
 import React, { useState } from 'react';
-import { ButtonPrimary, Box } from 'design';
 
-import Validation, { Validator } from 'shared/components/Validation';
+import { ButtonPrimary, Flex } from 'design';
 import FieldInput from 'shared/components/FieldInput';
+import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { useRefAutoFocus } from 'shared/hooks';
+
+import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
 
 import type { Props } from '../FormLogin';
 
@@ -60,7 +62,7 @@ export const FormLocal = ({
   return (
     <Validation>
       {({ validator }) => (
-        <Box as="form">
+        <Flex as="form" flexDirection="column" gap={3}>
           <FieldInput
             ref={usernameInputRef}
             rule={requiredField('Username is required')}
@@ -68,7 +70,7 @@ export const FormLocal = ({
             value={user}
             onChange={e => setUser(e.target.value)}
             placeholder="Username"
-            mb={3}
+            mb={0}
             disabled={isProcessing}
           />
           <FieldInput
@@ -79,22 +81,24 @@ export const FormLocal = ({
             onChange={e => setPass(e.target.value)}
             type="password"
             placeholder="Password"
-            mb={3}
+            mb={0}
             width="100%"
             disabled={isProcessing}
           />
-          <ButtonPrimary
-            width="100%"
-            mt={2}
-            mb={1}
-            type="submit"
-            size="large"
-            onClick={e => onLoginClick(e, validator)}
-            disabled={isProcessing}
-          >
-            Sign In
-          </ButtonPrimary>
-        </Box>
+          <Flex flexDirection="column" gap={2}>
+            <LinearProgress absolute={false} hidden={!isProcessing} />
+            <ButtonPrimary
+              width="100%"
+              mb={0}
+              type="submit"
+              size="large"
+              onClick={e => onLoginClick(e, validator)}
+              disabled={isProcessing}
+            >
+              Sign In
+            </ButtonPrimary>
+          </Flex>
+        </Flex>
       )}
     </Validation>
   );

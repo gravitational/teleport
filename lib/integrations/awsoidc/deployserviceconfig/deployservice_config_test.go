@@ -23,8 +23,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 func TestDeployServiceConfig(t *testing.T) {
@@ -37,5 +39,47 @@ func TestDeployServiceConfig(t *testing.T) {
 
 		base64SeverityDebug := base64.StdEncoding.EncodeToString([]byte("severity: debug"))
 		require.Contains(t, base64Config, base64SeverityDebug)
+	})
+}
+
+func TestParseResourceLabelMatchers(t *testing.T) {
+	labels := types.Labels{
+		"vpc":    utils.Strings{"vpc-1", "vpc-2"},
+		"region": utils.Strings{"us-west-2"},
+		"xyz":    utils.Strings{},
+	}
+	base64Config, err := GenerateTeleportConfigString("host:port", "iam-token", labels)
+	require.NoError(t, err)
+
+	t.Run("recover matching labels", func(t *testing.T) {
+		gotLabels, err := ParseResourceLabelMatchers(base64Config)
+		require.NoError(t, err)
+
+		require.Equal(t, labels, gotLabels)
+	})
+
+	t.Run("fails if invalid base64 string", func(t *testing.T) {
+		_, err := ParseResourceLabelMatchers("invalid base 64")
+		require.ErrorContains(t, err, "base64")
+	})
+
+	t.Run("invalid yaml", func(t *testing.T) {
+		input := base64.StdEncoding.EncodeToString([]byte("invalid yaml"))
+		_, err := ParseResourceLabelMatchers(input)
+		require.ErrorContains(t, err, "yaml")
+	})
+
+	t.Run("valid yaml but not a teleport config", func(t *testing.T) {
+		yamlInput := struct {
+			DBService string `yaml:"db_service"`
+		}{
+			DBService: "not a valid teleport config",
+		}
+		yamlBS, err := yaml.Marshal(yamlInput)
+		require.NoError(t, err)
+		input := base64.StdEncoding.EncodeToString(yamlBS)
+
+		_, err = ParseResourceLabelMatchers(input)
+		require.ErrorContains(t, err, "invalid teleport config")
 	})
 }

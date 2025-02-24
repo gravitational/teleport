@@ -1,0 +1,95 @@
+---
+title: TeleportAccessList
+description: Provides a comprehensive list of fields in the TeleportAccessList resource available through the Teleport Kubernetes operator
+tocDepth: 3
+---
+
+{/*Auto-generated file. Do not edit.*/}
+{/*To regenerate, navigate to integrations/operator and run "make crd-docs".*/}
+
+This guide is a comprehensive reference to the fields in the `TeleportAccessList`
+resource, which you can apply after installing the Teleport Kubernetes operator.
+
+
+## resources.teleport.dev/v1
+
+**apiVersion:** resources.teleport.dev/v1
+
+|Field|Type|Description|
+|---|---|---|
+|apiVersion|string|APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources|
+|kind|string|Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds|
+|metadata|object||
+|spec|[object](#spec)|AccessList resource definition v1 from Teleport|
+
+### spec
+
+|Field|Type|Description|
+|---|---|---|
+|audit|[object](#specaudit)|audit describes the frequency that this Access List must be audited.|
+|description|string|description is an optional plaintext description of the Access List.|
+|grants|[object](#specgrants)|grants describes the access granted by membership to this Access List.|
+|membership_requires|[object](#specmembership_requires)|membership_requires describes the requirements for a user to be a member of the Access List. For a membership to an Access List to be effective, the user must meet the requirements of Membership_requires and must be in the members list.|
+|owner_grants|[object](#specowner_grants)|owner_grants describes the access granted by owners to this Access List.|
+|owners|[][object](#specowners-items)|owners is a list of owners of the Access List.|
+|ownership_requires|[object](#specownership_requires)|ownership_requires describes the requirements for a user to be an owner of the Access List. For ownership of an Access List to be effective, the user must meet the requirements of ownership_requires and must be in the owners list.|
+|title|string|title is a plaintext short description of the Access List.|
+
+### spec.audit
+
+|Field|Type|Description|
+|---|---|---|
+|next_audit_date|string|next_audit_date is when the next audit date should be done by.|
+|notifications|[object](#specauditnotifications)|notifications is the configuration for notifying users.|
+|recurrence|[object](#specauditrecurrence)|recurrence is the recurrence definition|
+
+### spec.audit.notifications
+
+|Field|Type|Description|
+|---|---|---|
+|start|string|start specifies when to start notifying users that the next audit date is coming up.|
+
+### spec.audit.recurrence
+
+|Field|Type|Description|
+|---|---|---|
+|day_of_month|string or integer|day_of_month is the day of month that reviews will be scheduled on. Supported values are 0, 1, 15, and 31. Can be either the string or the integer representation of each option.|
+|frequency|string or integer|frequency is the frequency of reviews. This represents the period in months between two reviews. Supported values are 0, 1, 3, 6, and 12. Can be either the string or the integer representation of each option.|
+
+### spec.grants
+
+|Field|Type|Description|
+|---|---|---|
+|roles|[]string|roles are the roles that are granted to users who are members of the Access List.|
+|traits|object|traits are the traits that are granted to users who are members of the Access List.|
+
+### spec.membership_requires
+
+|Field|Type|Description|
+|---|---|---|
+|roles|[]string|roles are the user roles that must be present for the user to obtain access.|
+|traits|object|traits are the traits that must be present for the user to obtain access.|
+
+### spec.owner_grants
+
+|Field|Type|Description|
+|---|---|---|
+|roles|[]string|roles are the roles that are granted to users who are members of the Access List.|
+|traits|object|traits are the traits that are granted to users who are members of the Access List.|
+
+### spec.owners items
+
+|Field|Type|Description|
+|---|---|---|
+|description|string|description is the plaintext description of the owner and why they are an owner.|
+|ineligible_status|string or integer|ineligible_status describes if this owner is eligible or not and if not, describes how they're lacking eligibility. Can be either the string or the integer representation of each option.|
+|membership_kind|string or integer|membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`. Can be either the string or the integer representation of each option.|
+|name|string|name is the username of the owner.|
+
+### spec.ownership_requires
+
+|Field|Type|Description|
+|---|---|---|
+|roles|[]string|roles are the user roles that must be present for the user to obtain access.|
+|traits|object|traits are the traits that must be present for the user to obtain access.|
+

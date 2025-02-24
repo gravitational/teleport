@@ -38,17 +38,19 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
 	streamtypes "github.com/aws/aws-sdk-go-v2/service/dynamodbstreams/types"
+	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
+	"go.opentelemetry.io/otel"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
 	awsmetrics "github.com/gravitational/teleport/lib/observability/metrics/aws"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
+	"github.com/gravitational/teleport/lib/utils/aws/dynamodbutils"
+	"github.com/gravitational/teleport/lib/utils/aws/endpoint"
 )
 
 func init() {
@@ -270,31 +272,81 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	var dynamoOpts []func(*dynamodb.Options)
+	dynamoResolver, err := endpoint.NewLoggingResolver(
+		dynamodb.NewDefaultEndpointResolverV2(),
+		l.With(slog.Group("service",
+			"id", dynamodb.ServiceID,
+			"api_version", dynamodb.ServiceAPIVersion,
+		)),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dynamoOpts := []func(*dynamodb.Options){
+		dynamodb.WithEndpointResolverV2(dynamoResolver),
+		func(o *dynamodb.Options) {
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		},
+	}
 
 	// FIPS settings are applied on the individual service instead of the aws config,
-	// as DynamoDB Streams and Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
+	// as Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
 	// See also: https://aws.amazon.com/compliance/fips/#FIPS_Endpoints_by_Service
-	if modules.GetModules().IsBoringBinary() {
+	useFIPS := dynamodbutils.IsFIPSEnabled()
+	if useFIPS {
 		dynamoOpts = append(dynamoOpts, func(o *dynamodb.Options) {
 			o.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateEnabled
 		})
 	}
 
-	otelaws.AppendMiddlewares(&awsConfig.APIOptions, otelaws.WithAttributeSetter(otelaws.DynamoDBAttributeSetter))
+	dynamoClient := dynamodb.NewFromConfig(awsConfig, dynamoOpts...)
 
+	streamsResolver, err := endpoint.NewLoggingResolver(
+		dynamodbstreams.NewDefaultEndpointResolverV2(),
+		l.With(slog.Group("service",
+			"id", dynamodbstreams.ServiceID,
+			"api_version", dynamodbstreams.ServiceAPIVersion,
+		)),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	streamsOpts := []func(*dynamodbstreams.Options){
+		dynamodbstreams.WithEndpointResolverV2(streamsResolver),
+		func(o *dynamodbstreams.Options) {
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		},
+	}
+
+	// FIPS settings are applied on the individual service instead of the aws config,
+	// as Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
+	// See also: https://aws.amazon.com/compliance/fips/#FIPS_Endpoints_by_Service
+	if useFIPS {
+		streamsOpts = append(streamsOpts, func(o *dynamodbstreams.Options) {
+			o.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateEnabled
+		})
+	}
+
+	streamsClient := dynamodbstreams.NewFromConfig(awsConfig, streamsOpts...)
 	b := &Backend{
 		logger:  l,
 		Config:  *cfg,
 		clock:   clockwork.NewRealClock(),
 		buf:     backend.NewCircularBuffer(backend.BufferCapacity(cfg.BufferSize)),
-		svc:     dynamodb.NewFromConfig(awsConfig, dynamoOpts...),
-		streams: dynamodbstreams.NewFromConfig(awsConfig),
+		svc:     dynamoClient,
+		streams: streamsClient,
 	}
 
 	if err := b.configureTable(ctx, applicationautoscaling.NewFromConfig(awsConfig)); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	l.InfoContext(ctx, "Connection established to DynamoDB state database",
+		"table", cfg.TableName,
+		"region", cfg.Region,
+	)
 
 	go func() {
 		if err := b.asyncPollStreams(ctx); err != nil {
@@ -463,7 +515,7 @@ func (b *Backend) GetName() string {
 func (b *Backend) Create(ctx context.Context, item backend.Item) (*backend.Lease, error) {
 	rev, err := b.create(ctx, item, modeCreate)
 	if trace.IsCompareFailed(err) {
-		err = trace.AlreadyExists(err.Error())
+		err = trace.AlreadyExists("%s", err)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -487,7 +539,7 @@ func (b *Backend) Put(ctx context.Context, item backend.Item) (*backend.Lease, e
 func (b *Backend) Update(ctx context.Context, item backend.Item) (*backend.Lease, error) {
 	rev, err := b.create(ctx, item, modeUpdate)
 	if trace.IsCompareFailed(err) {
-		err = trace.NotFound(err.Error())
+		err = trace.NotFound("%s", err)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -674,7 +726,7 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 	if err != nil {
 		// in this case let's use more specific compare failed error
 		if trace.IsAlreadyExists(err) {
-			return nil, trace.CompareFailed(err.Error())
+			return nil, trace.CompareFailed("%s", err)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -775,7 +827,7 @@ func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 	_, err := b.svc.UpdateItem(ctx, input)
 	err = convertError(err)
 	if trace.IsCompareFailed(err) {
-		err = trace.NotFound(err.Error())
+		err = trace.NotFound("%s", err)
 	}
 	return err
 }
@@ -1138,46 +1190,46 @@ func convertError(err error) error {
 
 	var conditionalCheckFailedError *types.ConditionalCheckFailedException
 	if errors.As(err, &conditionalCheckFailedError) {
-		return trace.CompareFailed(conditionalCheckFailedError.ErrorMessage())
+		return trace.CompareFailed("%s", conditionalCheckFailedError.ErrorMessage())
 	}
 
 	var throughputExceededError *types.ProvisionedThroughputExceededException
 	if errors.As(err, &throughputExceededError) {
-		return trace.ConnectionProblem(throughputExceededError, throughputExceededError.ErrorMessage())
+		return trace.ConnectionProblem(throughputExceededError, "%s", throughputExceededError.ErrorMessage())
 	}
 
 	var notFoundError *types.ResourceNotFoundException
 	if errors.As(err, &notFoundError) {
-		return trace.NotFound(notFoundError.ErrorMessage())
+		return trace.NotFound("%s", notFoundError.ErrorMessage())
 	}
 
 	var collectionLimitExceededError *types.ItemCollectionSizeLimitExceededException
 	if errors.As(err, &notFoundError) {
-		return trace.BadParameter(collectionLimitExceededError.ErrorMessage())
+		return trace.BadParameter("%s", collectionLimitExceededError.ErrorMessage())
 	}
 
 	var internalError *types.InternalServerError
 	if errors.As(err, &internalError) {
-		return trace.BadParameter(internalError.ErrorMessage())
+		return trace.BadParameter("%s", internalError.ErrorMessage())
 	}
 
 	var expiredIteratorError *streamtypes.ExpiredIteratorException
 	if errors.As(err, &expiredIteratorError) {
-		return trace.ConnectionProblem(expiredIteratorError, expiredIteratorError.ErrorMessage())
+		return trace.ConnectionProblem(expiredIteratorError, "%s", expiredIteratorError.ErrorMessage())
 	}
 
 	var limitExceededError *streamtypes.LimitExceededException
 	if errors.As(err, &limitExceededError) {
-		return trace.ConnectionProblem(limitExceededError, limitExceededError.ErrorMessage())
+		return trace.ConnectionProblem(limitExceededError, "%s", limitExceededError.ErrorMessage())
 	}
 	var trimmedAccessError *streamtypes.TrimmedDataAccessException
 	if errors.As(err, &trimmedAccessError) {
-		return trace.ConnectionProblem(trimmedAccessError, trimmedAccessError.ErrorMessage())
+		return trace.ConnectionProblem(trimmedAccessError, "%s", trimmedAccessError.ErrorMessage())
 	}
 
 	var scalingObjectNotFoundError *autoscalingtypes.ObjectNotFoundException
 	if errors.As(err, &scalingObjectNotFoundError) {
-		return trace.NotFound(scalingObjectNotFoundError.ErrorMessage())
+		return trace.NotFound("%s", scalingObjectNotFoundError.ErrorMessage())
 	}
 
 	return err

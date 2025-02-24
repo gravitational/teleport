@@ -179,13 +179,13 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 		return nil, nil, trace.Wrap(err)
 	}
 
-	clusterLog := s.Log.WithField("cluster", clusterURI)
+	clusterLog := s.Logger.With("cluster", clusterURI)
 
 	pingResponseJSON, err := json.Marshal(pingResponse)
 	if err != nil {
-		clusterLog.WithError(err).Debugln("Could not marshal ping response to JSON")
+		clusterLog.DebugContext(ctx, "Could not marshal ping response to JSON", "error", err)
 	} else {
-		clusterLog.WithField("response", string(pingResponseJSON)).Debugln("Got ping response")
+		clusterLog.DebugContext(ctx, "Got ping response", "response", string(pingResponseJSON))
 	}
 
 	if err := clusterClient.SaveProfile(false); err != nil {
@@ -201,7 +201,7 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 		clusterClient: clusterClient,
 		dir:           s.Dir,
 		clock:         s.Clock,
-		Log:           clusterLog,
+		Logger:        clusterLog,
 	}, clusterClient, nil
 }
 
@@ -241,10 +241,11 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 		dir:           s.Dir,
 		clock:         s.Clock,
 		statusError:   err,
-		Log:           s.Log.WithField("cluster", clusterURI),
+		Logger:        s.Logger.With("cluster", clusterURI),
 	}
 	if status != nil {
 		cluster.status = *status
+		cluster.SSOHost = status.SSOHost
 	}
 
 	return cluster, clusterClient, trace.Wrap(err)
@@ -257,7 +258,7 @@ func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportC
 	_, err := clusterClient.LocalAgent().GetKeyRing(clusterNameForKey)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			s.Log.Infof("No keys found for cluster %v.", clusterNameForKey)
+			s.Logger.InfoContext(context.Background(), "No keys found for cluster", "cluster", clusterNameForKey)
 		} else {
 			return nil, trace.Wrap(err)
 		}
@@ -285,17 +286,6 @@ func (s *Storage) makeDefaultClientConfig(rootClusterURI uri.ResourceURI) *clien
 	cfg.InsecureSkipVerify = s.InsecureSkipVerify
 	cfg.AddKeysToAgent = s.AddKeysToAgent
 	cfg.WebauthnLogin = s.WebauthnLogin
-	// Set AllowStdinHijack to true to enable daemon.mfaPrompt to ask for both TOTP and Webauthn at
-	// the same time if available.
-	//
-	// tsh sets AllowStdinHijack to true only during tsh login to avoid input swallowing bugs where
-	// calling a command would prompt for MFA and then expect some further data through stdin. tsh
-	// login does not ask for any further input after the MFA prompt.
-	//
-	// Since tsh daemon ran by Connect never expects data over stdin, it can always set this flag to
-	// true.
-	cfg.AllowStdinHijack = true
-
 	cfg.CustomHardwareKeyPrompt = s.HardwareKeyPromptConstructor(rootClusterURI)
 	cfg.DTAuthnRunCeremony = dtauthn.NewCeremony().Run
 	cfg.DTAutoEnroll = dtenroll.AutoEnroll

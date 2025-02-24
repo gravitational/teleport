@@ -4,14 +4,12 @@ description: This chapter explains how Teleport authorizes users and roles.
 h1: Teleport Authorization
 ---
 
-## Authorization
-
 Teleport handles both authentication and authorization.
 
 - Authentication is about proving an identity of a user or a service.
 - Authorization is proving access rights to something.
 
-This article covers authorization of users and services with RBAC.
+This article explains authorization of users and services with RBAC.
 
 ## Users and Roles
 
@@ -52,7 +50,7 @@ that this cluster trusts. In this case, Teleport activates [trusted cluster mapp
 Local interactive users have a record in Teleport's backend with credentials.
 
 A cluster administrator have to create account entries for every Teleport user with
-[`tctl users add`](../cli.mdx) or API call.
+[`tctl users add`](../cli/cli.mdx) or API call.
 
 Every local Teleport User must be associated with a list of one or more roles.
 This list is called "role mappings".
@@ -254,8 +252,9 @@ Reference](../access-controls/roles.mdx).
 
 **How role templates are evaluated**
 
-Role templates are evaluated at the time of access to any resource either by proxy or node.
-Every Teleport component - proxy, auth server or node has up to date copy of all roles.
+Every Teleport component - whether a Proxy Service instance, Auth Service
+instance, or Agent -has up to date copy of all roles.  Teleport components
+evaluate role templates at the time of access to any resource. 
 
 Let's review a case with the following role template:
 
@@ -394,7 +393,7 @@ spec:
 
 - [Access Control Reference](../access-controls/roles.mdx).
 - [Teleport Predicate Language](../predicate-language.mdx).
-- [Access Requests Guides](../../admin-guides/access-controls/access-requests.mdx)
+- [Access Requests Guides](../../admin-guides/access-controls/access-requests/access-requests.mdx)
 - [Architecture Overview](../../core-concepts.mdx)
 - [Teleport Auth](authentication.mdx)
 - [Teleport Agents](agents.mdx)

@@ -69,6 +69,7 @@ Teleport supports the following services:
 |SSH Service|`ssh_service`|✅|
 |Desktop Service|`windows_desktop_service`|❌|
 |Jamf Service|`jamf_service`|❌|
+|Debug Service|`debug_service`|✅|
 
 Teleport Cloud manages the Auth Service and Proxy Service for you. Instances of
 Teleport services (e.g., the Application Service and Database Service) should
@@ -99,7 +100,7 @@ These settings apply to any `teleport` instance:
 
 Further reading:
 - [Joining Services to a
-  Cluster](../enroll-resources/agents/join-services-to-your-cluster.mdx):
+  Cluster](../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx):
   Available join methods to help you configure `join_params`.
 - [Using a CA
   Pin](../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx):
@@ -141,11 +142,11 @@ Further reading:
 - [Headless
   WebAuthn](../admin-guides/access-controls/guides/headless.mdx): The
   `headless` authentication option.
-- [Single Sign-On](../admin-guides/access-controls/sso.mdx): Configuring SSO
+- [Single Sign-On](../admin-guides/access-controls/sso/sso.mdx): Configuring SSO
   so you can configure Teleport to use a specific SSO authentication connector.
 - [Locking](../admin-guides/access-controls/guides/locking.mdx): Configuring the
   `locking_mode` option.
-- [Device Trust](../admin-guides/access-controls/device-trust.mdx): Configuring
+- [Device Trust](../admin-guides/access-controls/device-trust/device-trust.mdx): Configuring
   the `device_trust` section.
 - [Recording Proxy Mode](architecture/session-recording.mdx): If you configure
   Recording Proxy Mode, consider enabling `proxy_checks_host_keys`.

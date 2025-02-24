@@ -26,14 +26,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -69,9 +67,6 @@ var alertMessage = fmt.Sprintf("Teleport has failed to contact the usage reporti
 type SubmitterConfig struct {
 	// Backend is the backend to use to read reports and apply locks. Required.
 	Backend backend.Backend
-	// Log is the [logrus.FieldLogger] used for logging.
-	// TODO(tross): remove once e has been converted
-	Log logrus.FieldLogger
 	// Logger is the used for emitting log messages.
 	Logger *slog.Logger
 	// Status is used to create or clear cluster alerts on a failure. Required.
@@ -109,9 +104,9 @@ func (cfg *SubmitterConfig) CheckAndSetDefaults() error {
 // CheckAndSetDefaults, and should probably be called in a goroutine.
 func RunSubmitter(ctx context.Context, cfg SubmitterConfig) {
 	iv := interval.New(interval.Config{
-		FirstDuration: utils.HalfJitter(2 * submitInterval),
+		FirstDuration: retryutils.HalfJitter(2 * submitInterval),
 		Duration:      submitInterval,
-		Jitter:        retryutils.NewSeventhJitter(),
+		Jitter:        retryutils.SeventhJitter,
 	})
 	defer iv.Stop()
 
@@ -145,7 +140,17 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 		}
 	}
 
-	totalReportCount := len(userActivityReports) + len(resourcePresenceReports)
+	freeBatchSize = submitBatchSize - len(userActivityReports) - len(resourcePresenceReports)
+	var botInstanceActivityReports []*prehogv1.BotInstanceActivityReport
+	if freeBatchSize > 0 {
+		botInstanceActivityReports, err = svc.listBotInstanceActivityReports(ctx, freeBatchSize)
+		if err != nil {
+			c.Logger.ErrorContext(ctx, "Failed to load bot instance activity reports for submission.", "error", err)
+			return
+		}
+	}
+
+	totalReportCount := len(userActivityReports) + len(resourcePresenceReports) + len(botInstanceActivityReports)
 
 	if totalReportCount < 1 {
 		err := ClearAlert(ctx, c.Status)
@@ -175,13 +180,21 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 			newest = t
 		}
 	}
+	if len(botInstanceActivityReports) > 0 {
+		if t := botInstanceActivityReports[0].GetStartTime().AsTime(); t.Before(oldest) {
+			oldest = t
+		}
+		if t := botInstanceActivityReports[len(botInstanceActivityReports)-1].GetStartTime().AsTime(); t.After(newest) {
+			newest = t
+		}
+	}
 
 	debugPayload := fmt.Sprintf("%v %q", time.Now().Round(0), c.HostID)
-	if err := svc.createUserActivityReportsLock(ctx, submitLockDuration, []byte(debugPayload)); err != nil {
+	if err := svc.createUsageReportingLock(ctx, submitLockDuration, []byte(debugPayload)); err != nil {
 		if trace.IsAlreadyExists(err) {
-			c.Logger.DebugContext(ctx, "Failed to acquire lock, already held.", "lock", userActivityReportsLock)
+			c.Logger.DebugContext(ctx, "Failed to acquire lock, already held.", "lock", usageReportingLock)
 		} else {
-			c.Logger.ErrorContext(ctx, "Failed to acquire lock.", "lock", userActivityReportsLock, "error", err)
+			c.Logger.ErrorContext(ctx, "Failed to acquire lock.", "lock", usageReportingLock, "error", err)
 		}
 		return
 	}
@@ -190,8 +203,9 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 	defer cancel()
 
 	batchUUID, err := c.Submitter(lockCtx, &prehogv1.SubmitUsageReportsRequest{
-		UserActivity:     userActivityReports,
-		ResourcePresence: resourcePresenceReports,
+		UserActivity:        userActivityReports,
+		ResourcePresence:    resourcePresenceReports,
+		BotInstanceActivity: botInstanceActivityReports,
 	})
 	if err != nil {
 		c.Logger.ErrorContext(ctx, "Failed to send usage reports.",
@@ -238,6 +252,11 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 	}
 	for _, report := range resourcePresenceReports {
 		if err := svc.deleteResourcePresenceReport(ctx, report); err != nil {
+			lastErr = err
+		}
+	}
+	for _, report := range botInstanceActivityReports {
+		if err := svc.deleteBotInstanceActivityReport(ctx, report); err != nil {
 			lastErr = err
 		}
 	}

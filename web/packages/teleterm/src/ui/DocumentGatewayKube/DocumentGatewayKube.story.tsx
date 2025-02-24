@@ -16,13 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import * as types from 'teleterm/ui/services/workspacesService';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
+import * as types from 'teleterm/ui/services/workspacesService';
 
 import { DocumentGatewayKube } from './DocumentGatewayKube';
 
@@ -30,38 +28,28 @@ export default {
   title: 'Teleterm/DocumentGatewayKube',
 };
 
-const offlineDocumentGatewayProps: types.DocumentGatewayKube = {
+const rootCluster = makeRootCluster();
+const offlineDocumentGateway: types.DocumentGatewayKube = {
   kind: 'doc.gateway_kube',
   rootClusterId: '',
   leafClusterId: '',
-  targetUri: '/clusters/bar/kubes/quux',
+  targetUri: `${rootCluster.uri}/kubes/quux`,
   origin: 'resource_table',
   status: '',
   uri: '/docs/123',
   title: 'quux',
 };
 
-const rootClusterUri = '/clusters/bar';
-
 export function Offline() {
   const appContext = new MockAppContext();
   appContext.clustersService.createGateway = () =>
     Promise.reject(new Error('failed to create gateway'));
-
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = rootClusterUri;
-    draftState.workspaces[rootClusterUri] = {
-      localClusterUri: rootClusterUri,
-      documents: [offlineDocumentGatewayProps],
-      location: offlineDocumentGatewayProps.uri,
-      accessRequests: undefined,
-    };
-  });
+  appContext.addRootClusterWithDoc(rootCluster, offlineDocumentGateway);
 
   return (
     <MockAppContextProvider appContext={appContext}>
       <MockWorkspaceContextProvider>
-        <DocumentGatewayKube doc={offlineDocumentGatewayProps} visible={true} />
+        <DocumentGatewayKube doc={offlineDocumentGateway} visible={true} />
       </MockWorkspaceContextProvider>
     </MockAppContextProvider>
   );

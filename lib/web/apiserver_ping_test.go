@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
@@ -298,35 +299,103 @@ func TestPing_autoUpdateResources(t *testing.T) {
 		name     string
 		config   *autoupdatev1pb.AutoUpdateConfigSpec
 		version  *autoupdatev1pb.AutoUpdateVersionSpec
+		rollout  *autoupdatev1pb.AutoUpdateAgentRolloutSpec
 		cleanup  bool
 		expected webclient.AutoUpdateSettings
 	}{
 		{
-			name:     "resources not defined",
-			expected: webclient.AutoUpdateSettings{},
+			name: "resources not defined",
+			expected: webclient.AutoUpdateSettings{
+				ToolsVersion:             api.Version,
+				ToolsAutoUpdate:          false,
+				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             api.Version,
+			},
 		},
 		{
-			name: "enable auto update",
+			name: "enable tools auto update",
 			config: &autoupdatev1pb.AutoUpdateConfigSpec{
 				Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
 					Mode: autoupdate.ToolsUpdateModeEnabled,
 				},
 			},
-			expected: webclient.AutoUpdateSettings{ToolsMode: "enabled"},
-			cleanup:  true,
+			expected: webclient.AutoUpdateSettings{
+				ToolsAutoUpdate:          true,
+				ToolsVersion:             api.Version,
+				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             api.Version,
+			},
+			cleanup: true,
 		},
 		{
-			name: "set auto update version",
+			name: "enable agent auto update, immediate schedule",
+			rollout: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+				AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
+				Strategy:       autoupdate.AgentsStrategyHaltOnError,
+				Schedule:       autoupdate.AgentsScheduleImmediate,
+				StartVersion:   "1.2.3",
+				TargetVersion:  "1.2.4",
+			},
+			expected: webclient.AutoUpdateSettings{
+				ToolsVersion:             api.Version,
+				ToolsAutoUpdate:          false,
+				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          true,
+				AgentVersion:             "1.2.4",
+			},
+			cleanup: true,
+		},
+		{
+			name: "agent rollout present but AU mode is disabled",
+			rollout: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+				AutoupdateMode: autoupdate.AgentsUpdateModeDisabled,
+				Strategy:       autoupdate.AgentsStrategyHaltOnError,
+				Schedule:       autoupdate.AgentsScheduleImmediate,
+				StartVersion:   "1.2.3",
+				TargetVersion:  "1.2.4",
+			},
+			expected: webclient.AutoUpdateSettings{
+				ToolsVersion:             api.Version,
+				ToolsAutoUpdate:          false,
+				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             "1.2.4",
+			},
+			cleanup: true,
+		},
+		{
+			name:    "empty config and version",
+			config:  &autoupdatev1pb.AutoUpdateConfigSpec{},
+			version: &autoupdatev1pb.AutoUpdateVersionSpec{},
+			expected: webclient.AutoUpdateSettings{
+				ToolsVersion:             api.Version,
+				ToolsAutoUpdate:          false,
+				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             api.Version,
+			},
+			cleanup: true,
+		},
+		{
+			name: "set tools auto update version",
 			version: &autoupdatev1pb.AutoUpdateVersionSpec{
 				Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
 					TargetVersion: "1.2.3",
 				},
 			},
-			expected: webclient.AutoUpdateSettings{ToolsVersion: "1.2.3"},
-			cleanup:  true,
+			expected: webclient.AutoUpdateSettings{
+				ToolsVersion:             "1.2.3",
+				ToolsAutoUpdate:          false,
+				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             api.Version,
+			},
+			cleanup: true,
 		},
 		{
-			name: "enable auto update and set version",
+			name: "enable tools auto update and set version",
 			config: &autoupdatev1pb.AutoUpdateConfigSpec{
 				Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
 					Mode: autoupdate.ToolsUpdateModeEnabled,
@@ -337,7 +406,13 @@ func TestPing_autoUpdateResources(t *testing.T) {
 					TargetVersion: "1.2.3",
 				},
 			},
-			expected: webclient.AutoUpdateSettings{ToolsMode: "enabled", ToolsVersion: "1.2.3"},
+			expected: webclient.AutoUpdateSettings{
+				ToolsAutoUpdate:          true,
+				ToolsVersion:             "1.2.3",
+				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             api.Version,
+			},
 		},
 		{
 			name: "modify auto update config and version",
@@ -351,7 +426,13 @@ func TestPing_autoUpdateResources(t *testing.T) {
 					TargetVersion: "3.2.1",
 				},
 			},
-			expected: webclient.AutoUpdateSettings{ToolsMode: "disabled", ToolsVersion: "3.2.1"},
+			expected: webclient.AutoUpdateSettings{
+				ToolsAutoUpdate:          false,
+				ToolsVersion:             "3.2.1",
+				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             api.Version,
+			},
 		},
 	}
 	for _, tc := range tests {
@@ -368,6 +449,17 @@ func TestPing_autoUpdateResources(t *testing.T) {
 				_, err = env.server.Auth().UpsertAutoUpdateVersion(ctx, version)
 				require.NoError(t, err)
 			}
+			if tc.rollout != nil {
+				rollout, err := autoupdate.NewAutoUpdateAgentRollout(tc.rollout)
+				require.NoError(t, err)
+				_, err = env.server.Auth().UpsertAutoUpdateAgentRollout(ctx, rollout)
+				require.NoError(t, err)
+			}
+
+			// expire the fn cache to force the next answer to be fresh
+			for _, proxy := range env.proxies {
+				proxy.clock.Advance(2 * findEndpointCacheTTL)
+			}
 
 			resp, err := client.NewInsecureWebClient().Do(req)
 			require.NoError(t, err)
@@ -381,6 +473,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			if tc.cleanup {
 				require.NotErrorIs(t, env.server.Auth().DeleteAutoUpdateConfig(ctx), &trace.NotFoundError{})
 				require.NotErrorIs(t, env.server.Auth().DeleteAutoUpdateVersion(ctx), &trace.NotFoundError{})
+				require.NotErrorIs(t, env.server.Auth().DeleteAutoUpdateAgentRollout(ctx), &trace.NotFoundError{})
 			}
 		})
 	}

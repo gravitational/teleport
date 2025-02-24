@@ -14,10 +14,10 @@ It lists all the supported resources and their fields.
 
 <Admonition type="tip">
 To get started with the Terraform provider, you must start with [the installation
-guide](../admin-guides/infrastructure-as-code/terraform-provider.mdx).
+guide](../../admin-guides/infrastructure-as-code/terraform-provider/terraform-provider.mdx).
 Once you got a working provider, we recommend you to follow the
 ["Managing users and roles with IaC"](
-../admin-guides/infrastructure-as-code/managing-resources/user-and-role.mdx) guide.
+../../admin-guides/infrastructure-as-code/managing-resources/user-and-role.mdx) guide.
 </Admonition>
 
 The provider exposes Teleport resources both as Terraform data-sources and Terraform resources.
@@ -27,8 +27,8 @@ to create resources in Teleport.
 {/* Note: the awkward `resource-index` file names are here because `data-sources`
 is reserved by the generator for the catch-all resource template */}
 
-- [list of supported resources](./terraform-provider/resources.mdx)
-- [list of supported data-sources](./terraform-provider/data-sources.mdx)
+- [list of supported resources](./resources/resources.mdx)
+- [list of supported data-sources](./data-sources/data-sources.mdx)
 
 ## Example Usage
 
@@ -80,7 +80,8 @@ provider "teleport" {
 
 This section lists the different ways of passing credentials to the Terraform provider.
 You can find which method fits your use case in
-the [Teleport Terraform provider setup page](../admin-guides/infrastructure-as-code/terraform-provider.mdx)
+the [Teleport Terraform provider setup
+page](../../admin-guides/infrastructure-as-code/terraform-provider/terraform-provider.mdx)
 
 ### With an identity file
 
@@ -107,15 +108,16 @@ Detected security key tap
 ```
 
 You can find more information in
-the ["Run the Terraform provider locally" guide](../admin-guides/infrastructure-as-code/terraform-provider/local.mdx)
+the ["Run the Terraform provider locally" guide](../../admin-guides/infrastructure-as-code/terraform-provider/local.mdx)
 
 #### Obtaining an identity file via `tbot`
 
-`tbot` relies on [MachineID](../enroll-resources/machine-id/introduction.mdx) to obtain and automatically renew
+`tbot` relies on [MachineID](../../enroll-resources/machine-id/introduction.mdx) to obtain and automatically renew
 short-lived credentials. Such credentials are harder to exfiltrate, and you can control more precisely who has access to
 which roles (e.g. you can allow only GitHub Actions pipelines targeting the `prod` environment to get certificates).
 
-You can follow [the Terraform Provider guide](../admin-guides/infrastructure-as-code/terraform-provider.mdx) to setup `tbot`
+You can follow [the Terraform Provider
+guide](../../admin-guides/infrastructure-as-code/terraform-provider/terraform-provider.mdx) to setup `tbot`
 and have Terraform use its identity.
 
 #### Obtaining an identity file via `tctl auth sign`
@@ -130,7 +132,7 @@ This auth method has the following limitations:
 - Such credentials are high-privileged and long-lived. They must be protected and rotated.
 - This auth method does not work against Teleport clusters with MFA set to `webauthn`.
   On such clusters, Teleport will reject any long-lived certificate and require
-  [an additional MFA challenge for administrative actions](../admin-guides/access-controls/guides/mfa-for-admin-actions.mdx).
+  [an additional MFA challenge for administrative actions](../../admin-guides/access-controls/guides/mfa-for-admin-actions.mdx).
 
 ### With a token (native MachineID)
 
@@ -138,11 +140,11 @@ Starting with 16.2, the Teleport Terraform provider can natively use MachineID (
 cluster. The Terraform Provider will rely on its runtime (AWS, GCP, Kubernetes, CI/CD system) to prove its identity to
 Teleport.
 
-You can use any [delegated join method](./join-methods.mdx#delegated-join-methods) by setting
+You can use any [delegated join method](../join-methods.mdx#delegated-join-methods) by setting
 both `join_method` and `join_token` in the provider configuration.
 
 This setup is described in more details in
-the ["Run the Teleport Terraform provider in CI or Cloud" guide](../admin-guides/infrastructure-as-code/terraform-provider/ci-or-cloud.mdx).
+the ["Run the Teleport Terraform provider in CI or Cloud" guide](../../admin-guides/infrastructure-as-code/terraform-provider/ci-or-cloud.mdx).
 
 ### With key, certificate, and CA certificate
 
@@ -158,7 +160,7 @@ This auth method has the following limitations:
 - Such credentials are high-privileged and long-lived. They must be protected and rotated.
 - This auth method does not work against Teleport clusters with MFA set to `webauthn`.
   On such clusters, Teleport will reject any long-lived certificate and require
-  [an additional MFA challenge for administrative actions](../admin-guides/access-controls/guides/mfa-for-admin-actions.mdx).
+  [an additional MFA challenge for administrative actions](../../admin-guides/access-controls/guides/mfa-for-admin-actions.mdx).
 
 {{ .SchemaMarkdown | trimspace }}
 

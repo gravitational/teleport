@@ -29,11 +29,9 @@ export const MainContainer = styled.div`
   --sidebar-width: 256px;
   --sidenav-width: 76px;
   --sidenav-panel-width: 224px;
+  overflow: hidden;
   margin-top: ${p => p.theme.topBarHeight[0]}px;
   @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
     margin-top: ${p => p.theme.topBarHeight[1]}px;
-  }
-  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
-    margin-top: ${p => p.theme.topBarHeight[2]}px;
   }
 `;

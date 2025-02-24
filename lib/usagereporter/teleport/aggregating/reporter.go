@@ -28,7 +28,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
@@ -40,10 +39,11 @@ import (
 )
 
 const (
-	userActivityReportGranularity = 15 * time.Minute
-	resourceReportGranularity     = time.Hour
-	rollbackGrace                 = time.Minute
-	reportTTL                     = 60 * 24 * time.Hour
+	userActivityReportGranularity        = 15 * time.Minute
+	resourceReportGranularity            = time.Hour
+	botInstanceActivityReportGranularity = 15 * time.Minute
+	rollbackGrace                        = time.Minute
+	reportTTL                            = 60 * 24 * time.Hour
 
 	checkInterval = time.Minute
 )
@@ -52,23 +52,19 @@ const (
 type ReporterConfig struct {
 	// Backend is the backend used to store reports. Required
 	Backend backend.Backend
-	// Log is the logger used for logging.
-	// TODO(tross): Delete once e has been converted
-	Log logrus.FieldLogger
 	// Logger is the used for emitting log messages.
 	Logger *slog.Logger
 	// Clock is the clock used for timestamping reports and deciding when to
 	// persist them to the backend. Optional, defaults to the real clock.
 	Clock clockwork.Clock
-
 	// ClusterName is the ClusterName resource for the current cluster, used for
 	// anonymization and to report the cluster name itself. Required.
 	ClusterName types.ClusterName
 	// HostID is the host ID of the current Teleport instance, added to reports
 	// for auditing purposes. Required.
 	HostID string
-	// AnonymizationKey is the key used to anonymize data user or resource names. Optional.
-	AnonymizationKey string
+	// Anonymizer is used to anonymize data user or resource names. Required.
+	Anonymizer utils.Anonymizer
 }
 
 // CheckAndSetDefaults checks the [ReporterConfig] for validity, returning nil
@@ -87,8 +83,8 @@ func (cfg *ReporterConfig) CheckAndSetDefaults() error {
 	if cfg.HostID == "" {
 		return trace.BadParameter("missing HostID")
 	}
-	if cfg.AnonymizationKey == "" {
-		return trace.BadParameter("missing AnonymizationKey")
+	if cfg.Anonymizer == nil {
+		return trace.BadParameter("missing Anonymizer")
 	}
 
 	if cfg.Logger == nil {
@@ -105,15 +101,10 @@ func NewReporter(ctx context.Context, cfg ReporterConfig) (*Reporter, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	anonymizer, err := utils.NewHMACAnonymizer(cfg.AnonymizationKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	baseCtx, baseCancel := context.WithCancel(ctx)
 
 	r := &Reporter{
-		anonymizer: anonymizer,
+		anonymizer: cfg.Anonymizer,
 		svc:        reportService{cfg.Backend},
 		logger:     cfg.Logger,
 		clock:      cfg.Clock,
@@ -122,8 +113,8 @@ func NewReporter(ctx context.Context, cfg ReporterConfig) (*Reporter, error) {
 		closing: make(chan struct{}),
 		done:    make(chan struct{}),
 
-		clusterName: anonymizer.AnonymizeNonEmpty(cfg.ClusterName.GetClusterName()),
-		hostID:      anonymizer.AnonymizeNonEmpty(cfg.HostID),
+		clusterName: cfg.ClusterName.GetClusterName(),
+		hostID:      cfg.HostID,
 
 		baseCancel: baseCancel,
 	}
@@ -150,10 +141,10 @@ type Reporter struct {
 	// done is closed at the end of the background goroutine.
 	done chan struct{}
 
-	// clusterName is the anonymized cluster name.
-	clusterName []byte
-	// hostID is the anonymized host ID of the reporter (this instance).
-	hostID []byte
+	// clusterName is the un-anonymized cluster name.
+	clusterName string
+	// hostID is the un-anonymized host ID of the reporter (this instance).
+	hostID string
 
 	// baseCancel cancels the context used by the background goroutine.
 	baseCancel context.CancelFunc
@@ -245,7 +236,6 @@ func (r *Reporter) run(ctx context.Context) {
 	userActivityWindowEnd := userActivityStartTime.Add(userActivityReportGranularity)
 
 	userActivity := make(map[string]*prehogv1.UserActivityRecord)
-
 	userRecord := func(userName string, v1AlphaUserKind prehogv1alpha.UserKind) *prehogv1.UserActivityRecord {
 		v1UserKind := convertUserKind(v1AlphaUserKind)
 
@@ -281,6 +271,33 @@ func (r *Reporter) run(ctx context.Context) {
 
 		return record
 	}
+	// userSPIFFEIDActivity is map[username]map[spiffeid]count
+	userSPIFFEIDActivity := make(map[string]map[string]uint32)
+	incrementUserSPIFFEIDActivity := func(userName string, spiffeID string) {
+		user := userSPIFFEIDActivity[userName]
+		if user == nil {
+			user = make(map[string]uint32)
+			userSPIFFEIDActivity[userName] = user
+		}
+		user[spiffeID]++
+	}
+
+	botInstanceActivityStartTime := r.clock.Now().UTC().Truncate(botInstanceActivityReportGranularity)
+	botInstanceActivityWindowStart := botInstanceActivityStartTime.Add(-rollbackGrace)
+	botInstanceActivityWindowEnd := botInstanceActivityStartTime.Add(botInstanceActivityReportGranularity)
+	botInstanceActivity := make(map[botInstanceActivityKey]*prehogv1.BotInstanceActivityRecord)
+	botInstanceRecord := func(botUserName string, botInstanceID string) *prehogv1.BotInstanceActivityRecord {
+		key := botInstanceActivityKey{
+			botUserName:   botUserName,
+			botInstanceID: botInstanceID,
+		}
+		record := botInstanceActivity[key]
+		if record == nil {
+			record = &prehogv1.BotInstanceActivityRecord{}
+			botInstanceActivity[key] = record
+		}
+		return record
+	}
 
 	resourceUsageStartTime := r.clock.Now().UTC().Truncate(resourceReportGranularity)
 	resourceUsageWindowStart := resourceUsageStartTime.Add(-rollbackGrace)
@@ -305,7 +322,6 @@ Ingest:
 		select {
 		case <-ticker.Chan():
 		case ae = <-r.ingest:
-
 		case <-ctx.Done():
 			r.closingOnce.Do(func() { close(r.closing) })
 			break Ingest
@@ -316,16 +332,41 @@ Ingest:
 		if now := r.clock.Now().UTC(); now.Before(userActivityWindowStart) || !now.Before(userActivityWindowEnd) {
 			if len(userActivity) > 0 {
 				wg.Add(1)
-				go func(ctx context.Context, startTime time.Time, userActivity map[string]*prehogv1.UserActivityRecord) {
+				go func(
+					ctx context.Context,
+					startTime time.Time,
+					userActivity map[string]*prehogv1.UserActivityRecord,
+					userSPIFFEIDActivity map[string]map[string]uint32,
+				) {
 					defer wg.Done()
-					r.persistUserActivity(ctx, startTime, userActivity)
-				}(ctx, userActivityStartTime, userActivity)
+					r.persistUserActivity(ctx, startTime, userActivity, userSPIFFEIDActivity)
+				}(ctx, userActivityStartTime, userActivity, userSPIFFEIDActivity)
 			}
 
 			userActivityStartTime = now.Truncate(userActivityReportGranularity)
 			userActivityWindowStart = userActivityStartTime.Add(-rollbackGrace)
 			userActivityWindowEnd = userActivityStartTime.Add(userActivityReportGranularity)
 			userActivity = make(map[string]*prehogv1.UserActivityRecord, len(userActivity))
+			userSPIFFEIDActivity = make(map[string]map[string]uint32, len(userSPIFFEIDActivity))
+		}
+
+		if now := r.clock.Now().UTC(); now.Before(botInstanceActivityWindowStart) || !now.Before(botInstanceActivityWindowEnd) {
+			if len(botInstanceActivity) > 0 {
+				wg.Add(1)
+				go func(
+					ctx context.Context,
+					startTime time.Time,
+					botInstanceActivity map[botInstanceActivityKey]*prehogv1.BotInstanceActivityRecord,
+				) {
+					defer wg.Done()
+					r.persistBotInstanceActivity(ctx, startTime, botInstanceActivity)
+				}(ctx, botInstanceActivityStartTime, botInstanceActivity)
+			}
+
+			botInstanceActivityStartTime = now.Truncate(botInstanceActivityReportGranularity)
+			botInstanceActivityWindowStart = botInstanceActivityStartTime.Add(-rollbackGrace)
+			botInstanceActivityWindowEnd = botInstanceActivityStartTime.Add(botInstanceActivityReportGranularity)
+			botInstanceActivity = make(map[botInstanceActivityKey]*prehogv1.BotInstanceActivityRecord, len(botInstanceActivity))
 		}
 
 		if now := r.clock.Now().UTC(); now.Before(resourceUsageWindowStart) || !now.Before(resourceUsageWindowEnd) {
@@ -375,9 +416,16 @@ Ingest:
 			resourcePresence(prehogv1.ResourceKind(te.Kind))[te.Name] = struct{}{}
 		case *usagereporter.SPIFFESVIDIssuedEvent:
 			userRecord(te.UserName, te.UserKind).SpiffeSvidsIssued++
+			incrementUserSPIFFEIDActivity(te.UserName, te.SpiffeId)
+			if te.BotInstanceId != "" {
+				botInstanceRecord(te.UserName, te.BotInstanceId).SpiffeSvidsIssued++
+			}
 		case *usagereporter.BotJoinEvent:
 			botUserName := machineidv1.BotResourceName(te.BotName)
 			userRecord(botUserName, prehogv1alpha.UserKind_USER_KIND_BOT).BotJoins++
+			if te.BotInstanceId != "" {
+				botInstanceRecord(botUserName, te.BotInstanceId).BotJoins++
+			}
 		case *usagereporter.UserCertificateIssuedEvent:
 			// Note: kind is poorly defined for this event type, so we'll assume
 			// unspecified even though non-bot users are almost certainly human.
@@ -387,6 +435,9 @@ Ingest:
 			}
 
 			userRecord(te.UserName, kind).CertificatesIssued++
+			if te.BotInstanceId != "" {
+				botInstanceRecord(te.UserName, te.BotInstanceId).CertificatesIssued++
+			}
 		}
 
 		if ae != nil && r.ingested != nil {
@@ -395,7 +446,11 @@ Ingest:
 	}
 
 	if len(userActivity) > 0 {
-		r.persistUserActivity(ctx, userActivityStartTime, userActivity)
+		r.persistUserActivity(ctx, userActivityStartTime, userActivity, userSPIFFEIDActivity)
+	}
+
+	if len(botInstanceActivity) > 0 {
+		r.persistBotInstanceActivity(ctx, botInstanceActivityStartTime, botInstanceActivity)
 	}
 
 	if len(resourcePresences) > 0 {
@@ -405,14 +460,83 @@ Ingest:
 	wg.Wait()
 }
 
-func (r *Reporter) persistUserActivity(ctx context.Context, startTime time.Time, userActivity map[string]*prehogv1.UserActivityRecord) {
-	records := make([]*prehogv1.UserActivityRecord, 0, len(userActivity))
-	for userName, record := range userActivity {
-		record.UserName = r.anonymizer.AnonymizeNonEmpty(userName)
+type botInstanceActivityKey struct {
+	botUserName   string
+	botInstanceID string
+}
+
+func (r *Reporter) persistBotInstanceActivity(
+	ctx context.Context,
+	startTime time.Time,
+	botInstanceActivity map[botInstanceActivityKey]*prehogv1.BotInstanceActivityRecord,
+) {
+	records := make([]*prehogv1.BotInstanceActivityRecord, 0, len(botInstanceActivity))
+	for key, record := range botInstanceActivity {
+		record.BotUserName = r.anonymizer.AnonymizeNonEmpty(key.botUserName)
+		record.BotInstanceId = r.anonymizer.AnonymizeNonEmpty(key.botInstanceID)
 		records = append(records, record)
 	}
 
-	reports, err := prepareUserActivityReports(r.clusterName, r.hostID, startTime, records)
+	anonymizedClusterName := r.anonymizer.AnonymizeNonEmpty(r.clusterName)
+	anonymizedHostID := r.anonymizer.AnonymizeNonEmpty(r.hostID)
+
+	reports, err := prepareBotInstanceActivityReports(
+		anonymizedClusterName, anonymizedHostID, startTime, records,
+	)
+	if err != nil {
+		r.logger.ErrorContext(ctx, "Failed to prepare bot instance activity report, dropping data.",
+			"start_time", startTime,
+			"lost_records", len(records),
+			"error", err,
+		)
+		return
+	}
+
+	for _, report := range reports {
+		if err := r.svc.upsertBotInstanceActivityReport(ctx, report, reportTTL); err != nil {
+			r.logger.ErrorContext(ctx, "Failed to persist bot instance activity report, dropping data.",
+				"start_time", startTime,
+				"lost_records", len(report.Records),
+				"error", err,
+			)
+			continue
+		}
+
+		reportUUID, _ := uuid.FromBytes(report.ReportUuid)
+		r.logger.DebugContext(ctx, "Persisted bot instance activity report.",
+			"report_uuid", reportUUID,
+			"start_time", startTime,
+			"records", len(report.Records),
+		)
+	}
+}
+
+func (r *Reporter) persistUserActivity(
+	ctx context.Context,
+	startTime time.Time,
+	userActivity map[string]*prehogv1.UserActivityRecord,
+	issuedSPIFFEIDs map[string]map[string]uint32,
+) {
+	records := make([]*prehogv1.UserActivityRecord, 0, len(userActivity))
+	for userName, record := range userActivity {
+		record.UserName = r.anonymizer.AnonymizeNonEmpty(userName)
+
+		spiffeIDRecords := make([]*prehogv1.SPIFFEIDRecord, 0, len(issuedSPIFFEIDs[userName]))
+		for spiffeID, count := range issuedSPIFFEIDs[userName] {
+			spiffeIDRecords = append(spiffeIDRecords, &prehogv1.SPIFFEIDRecord{
+				SpiffeId:    r.anonymizer.AnonymizeNonEmpty(spiffeID),
+				SvidsIssued: count,
+			})
+		}
+		record.SpiffeIdsIssued = spiffeIDRecords
+
+		records = append(records, record)
+	}
+
+	anonymizedClusterName := r.anonymizer.AnonymizeNonEmpty(r.clusterName)
+	anonymizedHostID := r.anonymizer.AnonymizeNonEmpty(r.hostID)
+
+	reports, err := prepareUserActivityReports(anonymizedClusterName, anonymizedHostID, startTime, records)
 	if err != nil {
 		r.logger.ErrorContext(ctx, "Failed to prepare user activity report, dropping data.",
 			"start_time", startTime,
@@ -456,7 +580,10 @@ func (r *Reporter) persistResourcePresence(ctx context.Context, startTime time.T
 		records = append(records, record)
 	}
 
-	reports, err := prepareResourcePresenceReports(r.clusterName, r.hostID, startTime, records)
+	anonymizedClusterName := r.anonymizer.AnonymizeNonEmpty(r.clusterName)
+	anonymizedHostID := r.anonymizer.AnonymizeNonEmpty(r.hostID)
+
+	reports, err := prepareResourcePresenceReports(anonymizedClusterName, anonymizedHostID, startTime, records)
 	if err != nil {
 		r.logger.ErrorContext(ctx, "Failed to prepare resource presence report, dropping data.", "start_time", startTime, "error", err)
 		return

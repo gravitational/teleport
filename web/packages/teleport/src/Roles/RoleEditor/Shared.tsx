@@ -16,24 +16,31 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useTheme } from 'styled-components';
+
 import { Box, ButtonPrimary, ButtonSecondary, Flex } from 'design';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
 
 import useTeleport from 'teleport/useTeleport';
 
 export const EditorSaveCancelButton = ({
   onSave,
+  onPreview,
   onCancel,
-  disabled,
+  saveDisabled,
+  previewDisabled = true,
   isEditing,
 }: {
   onSave?(): void;
+  onPreview?(): void;
   onCancel?(): void;
-  disabled: boolean;
+  saveDisabled: boolean;
+  previewDisabled?: boolean;
   isEditing?: boolean;
 }) => {
   const ctx = useTeleport();
   const roleAccess = ctx.storeUser.getRoleAccess();
+  const theme = useTheme();
 
   let hoverTooltipContent = '';
   if (isEditing && !roleAccess.edit) {
@@ -42,27 +49,48 @@ export const EditorSaveCancelButton = ({
     hoverTooltipContent = 'You do not have access to create roles';
   }
 
+  const saveButton = (
+    <Box width="50%">
+      <HoverTooltip tipContent={hoverTooltipContent}>
+        <ButtonPrimary
+          width="100%"
+          size="large"
+          onClick={onSave}
+          disabled={
+            saveDisabled ||
+            (isEditing && !roleAccess.edit) ||
+            (!isEditing && !roleAccess.create)
+          }
+        >
+          {isEditing ? 'Save Changes' : 'Create Role'}
+        </ButtonPrimary>
+      </HoverTooltip>
+    </Box>
+  );
+  const cancelButton = (
+    <ButtonSecondary width="50%" onClick={onCancel}>
+      Cancel
+    </ButtonSecondary>
+  );
+
+  const previewButton = (
+    <ButtonPrimary width="50%" onClick={onPreview} disabled={previewDisabled}>
+      Preview
+    </ButtonPrimary>
+  );
+
   return (
-    <Flex gap={2} mt={3}>
-      <Box width="50%">
-        <HoverTooltip tipContent={hoverTooltipContent}>
-          <ButtonPrimary
-            width="100%"
-            size="large"
-            onClick={onSave}
-            disabled={
-              disabled ||
-              (isEditing && !roleAccess.edit) ||
-              (!isEditing && !roleAccess.create)
-            }
-          >
-            {isEditing ? 'Update' : 'Create'} Role
-          </ButtonPrimary>
-        </HoverTooltip>
-      </Box>
-      <ButtonSecondary width="50%" onClick={onCancel}>
-        Cancel
-      </ButtonSecondary>
+    <Flex
+      gap={2}
+      p={3}
+      borderTop={1}
+      borderColor={theme.colors.interactive.tonal.neutral[0]}
+    >
+      {saveButton}
+      {onPreview ? previewButton : cancelButton}
     </Flex>
   );
 };
+
+export const unableToUpdatePreviewMessage =
+  'Unable to update the role preview. You can still try and save the role anyway.';

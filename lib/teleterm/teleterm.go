@@ -20,6 +20,7 @@ package teleterm
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -28,7 +29,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -42,6 +42,7 @@ import (
 
 // Serve starts daemon service
 func Serve(ctx context.Context, cfg Config) error {
+	var hardwareKeyPromptConstructor func(clusterURI uri.ResourceURI) keys.HardwareKeyPrompt
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -58,8 +59,8 @@ func Serve(ctx context.Context, cfg Config) error {
 		Clock:              clock,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
 		AddKeysToAgent:     cfg.AddKeysToAgent,
-		HardwareKeyPromptConstructor: func(clusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
-			return nil
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return hardwareKeyPromptConstructor(rootClusterURI)
 		},
 	})
 	if err != nil {
@@ -80,6 +81,9 @@ func Serve(ctx context.Context, cfg Config) error {
 		return trace.Wrap(err)
 	}
 
+	// TODO(gzdunek): Move tshdEventsClient out of daemonService so that we can
+	// construct the prompt before creating Storage.
+	hardwareKeyPromptConstructor = daemonService.NewHardwareKeyPromptConstructor
 	apiServer, err := apiserver.New(apiserver.Config{
 		HostAddr:           cfg.Addr,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
@@ -108,9 +112,9 @@ func Serve(ctx context.Context, cfg Config) error {
 
 		select {
 		case <-ctx.Done():
-			log.Info("Context closed, stopping service.")
+			slog.InfoContext(ctx, "Context closed, stopping service")
 		case sig := <-c:
-			log.Infof("Captured %s, stopping service.", sig)
+			slog.InfoContext(ctx, "Captured signal, stopping service", "signal", sig)
 		}
 
 		daemonService.Stop()

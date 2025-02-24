@@ -17,13 +17,13 @@ Users are able to write their own custom access monitoring queries by querying t
 
 <Admonition type="notice">
   Access Monitoring is not currently supported with External Audit Storage
-  in Teleport Enterprise (cloud-hosted). This functionality will be
+  in Teleport Enterprise (Cloud). This functionality will be
   enabled in a future Teleport release.
 </Admonition>
 
 ## Prerequisites
 - Teleport v14 or later.
-- For self-hosted Teleport the [AWS Athena Backend](../../reference/backends.mdx) is required.
+- For self-hosted Teleport the [Amazon Athena Backend](../../reference/backends.mdx) is required.
 
 
 ### Configuration
@@ -177,6 +177,8 @@ spec:
       - use
 ```
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 ## Query Editor
 
 The Query Editor in Teleport Access Monitoring provides users with an interface to interactively query audit logs and generate reports.
@@ -281,7 +283,8 @@ FROM
 WHERE identity_user = 'admin-annie'
 ```
 
-- Show access requests and their reviews:
+- Show Access Requests and their reviews:
+
 ```sql
 SELECT
   *
@@ -291,7 +294,8 @@ WHERE
   access_request_create.id = access_request_review.id
 ```
 
-- Show details about access request and review:
+- Show details about an Access Request and its reviews:
+
 ```sql
 SELECT
   request.user, request.reason, request.roles, request.resource_ids, review.reviewer, review.state
@@ -313,7 +317,7 @@ The report allows to identify the following weak security events:
 ### Database sessions with weak security
 
 The following query identifies database sessions with weak security
-such as as sessions with missing access requests, MFA, impersonation, and trusted device identification.
+such as as sessions with missing Access Requests, MFA, impersonation, and trusted device identification.
 
 ```sql
 SELECT
@@ -340,12 +344,12 @@ ORDER BY
 ![privileged access report](../../../img/access-monitoring/privileged_access_report.png)
 
 
-**Suggestion:**  Set up access requests, device trust and per-session MFA.
+**Suggestion:**  Set up Access Requests, Device Trust and per-session MFA.
 
 ### SSH sessions with weak security
 
 The following query identifies SSH sessions with weak security,
-such as as sessions with missing access requests, MFA, impersonation, and trusted device identification.
+such as as sessions with missing Access Requests, MFA, impersonation, and trusted device identification.
 
 ```sql
 SELECT
@@ -372,12 +376,12 @@ ORDER BY
     event_date
 ```
 
-**Suggestion:**  Set up access requests, device trust and per-session MFA.
+**Suggestion:**  Set up Access Requests, Device Trust and per-session MFA.
 
 ### Kubernetes API calls with weak security
 
 The following query identifies Kubernetes sessions with weak security,
-such as sessions with missing access requests, MFA, impersonation, and trusted device identification.
+such as sessions with missing Access Requests, MFA, impersonation, and trusted device identification.
 
 ```sql
 SELECT
@@ -401,7 +405,7 @@ ORDER BY
     event_date
 ```
 
-**Suggestion:**  Set up access requests, device trust and per-session MFA.
+**Suggestion:**  Set up Access Requests, Device Trust and per-session MFA.
 
 ### Privileged Postgres sessions
 

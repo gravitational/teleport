@@ -19,39 +19,38 @@
 package mocks
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/elasticache"
-	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
+	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	"github.com/gravitational/trace"
 )
 
 // ElastiCache mocks AWS ElastiCache API.
-type ElastiCacheMock struct {
-	elasticacheiface.ElastiCacheAPI
+type ElastiCacheClient struct {
 	// Unauth set to true will make API calls return unauthorized errors.
 	Unauth bool
 
-	ReplicationGroups []*elasticache.ReplicationGroup
-	Users             []*elasticache.User
-	TagsByARN         map[string][]*elasticache.Tag
+	ReplicationGroups []ectypes.ReplicationGroup
+	Users             []ectypes.User
+	TagsByARN         map[string][]ectypes.Tag
 }
 
-func (m *ElastiCacheMock) AddMockUser(user *elasticache.User, tagsMap map[string]string) {
+func (m *ElastiCacheClient) AddMockUser(user ectypes.User, tagsMap map[string]string) {
 	m.Users = append(m.Users, user)
-	m.addTags(aws.StringValue(user.ARN), tagsMap)
+	m.addTags(aws.ToString(user.ARN), tagsMap)
 }
 
-func (m *ElastiCacheMock) addTags(arn string, tagsMap map[string]string) {
+func (m *ElastiCacheClient) addTags(arn string, tagsMap map[string]string) {
 	if m.TagsByARN == nil {
-		m.TagsByARN = make(map[string][]*elasticache.Tag)
+		m.TagsByARN = make(map[string][]ectypes.Tag)
 	}
 
-	var tags []*elasticache.Tag
+	var tags []ectypes.Tag
 	for key, value := range tagsMap {
-		tags = append(tags, &elasticache.Tag{
+		tags = append(tags, ectypes.Tag{
 			Key:   aws.String(key),
 			Value: aws.String(value),
 		})
@@ -59,7 +58,7 @@ func (m *ElastiCacheMock) addTags(arn string, tagsMap map[string]string) {
 	m.TagsByARN[arn] = tags
 }
 
-func (m *ElastiCacheMock) DescribeUsersWithContext(_ aws.Context, input *elasticache.DescribeUsersInput, opts ...request.Option) (*elasticache.DescribeUsersOutput, error) {
+func (m *ElastiCacheClient) DescribeUsers(_ context.Context, input *elasticache.DescribeUsersInput, opts ...func(*elasticache.Options)) (*elasticache.DescribeUsersOutput, error) {
 	if m.Unauth {
 		return nil, trace.AccessDenied("unauthorized")
 	}
@@ -67,62 +66,47 @@ func (m *ElastiCacheMock) DescribeUsersWithContext(_ aws.Context, input *elastic
 		return &elasticache.DescribeUsersOutput{Users: m.Users}, nil
 	}
 	for _, user := range m.Users {
-		if aws.StringValue(user.UserId) == aws.StringValue(input.UserId) {
-			return &elasticache.DescribeUsersOutput{Users: []*elasticache.User{user}}, nil
+		if aws.ToString(user.UserId) == aws.ToString(input.UserId) {
+			return &elasticache.DescribeUsersOutput{Users: []ectypes.User{user}}, nil
 		}
 	}
-	return nil, trace.NotFound("ElastiCache UserId %v not found", aws.StringValue(input.UserId))
+	return nil, trace.NotFound("ElastiCache UserId %q not found", aws.ToString(input.UserId))
 }
 
-func (m *ElastiCacheMock) DescribeReplicationGroupsWithContext(_ aws.Context, input *elasticache.DescribeReplicationGroupsInput, opts ...request.Option) (*elasticache.DescribeReplicationGroupsOutput, error) {
+func (m *ElastiCacheClient) DescribeReplicationGroups(_ context.Context, input *elasticache.DescribeReplicationGroupsInput, opts ...func(*elasticache.Options)) (*elasticache.DescribeReplicationGroupsOutput, error) {
 	if m.Unauth {
 		return nil, trace.AccessDenied("unauthorized")
 	}
+	if input.ReplicationGroupId == nil {
+		return &elasticache.DescribeReplicationGroupsOutput{
+			ReplicationGroups: m.ReplicationGroups,
+		}, nil
+	}
 	for _, replicationGroup := range m.ReplicationGroups {
-		if aws.StringValue(replicationGroup.ReplicationGroupId) == aws.StringValue(input.ReplicationGroupId) {
+		if aws.ToString(replicationGroup.ReplicationGroupId) == aws.ToString(input.ReplicationGroupId) {
 			return &elasticache.DescribeReplicationGroupsOutput{
-				ReplicationGroups: []*elasticache.ReplicationGroup{replicationGroup},
+				ReplicationGroups: []ectypes.ReplicationGroup{replicationGroup},
 			}, nil
 		}
 	}
-	return nil, trace.NotFound("ElastiCache %v not found", aws.StringValue(input.ReplicationGroupId))
+	return nil, trace.NotFound("ElastiCache ReplicationGroupId %q not found", aws.ToString(input.ReplicationGroupId))
 }
 
-func (m *ElastiCacheMock) DescribeReplicationGroupsPagesWithContext(_ aws.Context, _ *elasticache.DescribeReplicationGroupsInput, fn func(*elasticache.DescribeReplicationGroupsOutput, bool) bool, _ ...request.Option) error {
+func (m *ElastiCacheClient) DescribeCacheClusters(context.Context, *elasticache.DescribeCacheClustersInput, ...func(*elasticache.Options)) (*elasticache.DescribeCacheClustersOutput, error) {
 	if m.Unauth {
-		return trace.AccessDenied("unauthorized")
+		return nil, trace.AccessDenied("unauthorized")
 	}
-	fn(&elasticache.DescribeReplicationGroupsOutput{
-		ReplicationGroups: m.ReplicationGroups,
-	}, true)
-	return nil
+	return nil, trace.NotImplemented("elasticache:DescribeCacheClusters is not implemented")
 }
 
-func (m *ElastiCacheMock) DescribeUsersPagesWithContext(_ aws.Context, _ *elasticache.DescribeUsersInput, fn func(*elasticache.DescribeUsersOutput, bool) bool, _ ...request.Option) error {
+func (m *ElastiCacheClient) DescribeCacheSubnetGroups(context.Context, *elasticache.DescribeCacheSubnetGroupsInput, ...func(*elasticache.Options)) (*elasticache.DescribeCacheSubnetGroupsOutput, error) {
 	if m.Unauth {
-		return trace.AccessDenied("unauthorized")
+		return nil, trace.AccessDenied("unauthorized")
 	}
-	fn(&elasticache.DescribeUsersOutput{
-		Users: m.Users,
-	}, true)
-	return nil
+	return nil, trace.NotImplemented("elasticache:DescribeCacheSubnetGroups is not implemented")
 }
 
-func (m *ElastiCacheMock) DescribeCacheClustersPagesWithContext(aws.Context, *elasticache.DescribeCacheClustersInput, func(*elasticache.DescribeCacheClustersOutput, bool) bool, ...request.Option) error {
-	if m.Unauth {
-		return trace.AccessDenied("unauthorized")
-	}
-	return trace.NotImplemented("elasticache:DescribeCacheClustersPagesWithContext is not implemented")
-}
-
-func (m *ElastiCacheMock) DescribeCacheSubnetGroupsPagesWithContext(aws.Context, *elasticache.DescribeCacheSubnetGroupsInput, func(*elasticache.DescribeCacheSubnetGroupsOutput, bool) bool, ...request.Option) error {
-	if m.Unauth {
-		return trace.AccessDenied("unauthorized")
-	}
-	return trace.NotImplemented("elasticache:DescribeCacheSubnetGroupsPagesWithContext is not implemented")
-}
-
-func (m *ElastiCacheMock) ListTagsForResourceWithContext(_ aws.Context, input *elasticache.ListTagsForResourceInput, _ ...request.Option) (*elasticache.TagListMessage, error) {
+func (m *ElastiCacheClient) ListTagsForResource(_ context.Context, input *elasticache.ListTagsForResourceInput, _ ...func(*elasticache.Options)) (*elasticache.ListTagsForResourceOutput, error) {
 	if m.Unauth {
 		return nil, trace.AccessDenied("unauthorized")
 	}
@@ -130,41 +114,42 @@ func (m *ElastiCacheMock) ListTagsForResourceWithContext(_ aws.Context, input *e
 		return nil, trace.NotFound("no tags")
 	}
 
-	tags, ok := m.TagsByARN[aws.StringValue(input.ResourceName)]
+	tags, ok := m.TagsByARN[aws.ToString(input.ResourceName)]
 	if !ok {
 		return nil, trace.NotFound("no tags")
 	}
 
-	return &elasticache.TagListMessage{
+	return &elasticache.ListTagsForResourceOutput{
 		TagList: tags,
 	}, nil
 }
 
-func (m *ElastiCacheMock) ModifyUserWithContext(_ aws.Context, input *elasticache.ModifyUserInput, opts ...request.Option) (*elasticache.ModifyUserOutput, error) {
+func (m *ElastiCacheClient) ModifyUser(_ context.Context, input *elasticache.ModifyUserInput, opts ...func(*elasticache.Options)) (*elasticache.ModifyUserOutput, error) {
 	if m.Unauth {
 		return nil, trace.AccessDenied("unauthorized")
 	}
 	for _, user := range m.Users {
-		if aws.StringValue(user.UserId) == aws.StringValue(input.UserId) {
+		if aws.ToString(user.UserId) == aws.ToString(input.UserId) {
 			return &elasticache.ModifyUserOutput{}, nil
 		}
 	}
-	return nil, trace.NotFound("user %s not found", aws.StringValue(input.UserId))
+	return nil, trace.NotFound("ElastiCache UserId %q not found", aws.ToString(input.UserId))
 }
 
-// ElastiCacheCluster returns a sample elasticache.ReplicationGroup.
-func ElastiCacheCluster(name, region string, opts ...func(*elasticache.ReplicationGroup)) *elasticache.ReplicationGroup {
-	cluster := &elasticache.ReplicationGroup{
+// ElastiCacheCluster returns a sample ectypes.ReplicationGroup.
+func ElastiCacheCluster(name, region string, opts ...func(*ectypes.ReplicationGroup)) *ectypes.ReplicationGroup {
+	cluster := &ectypes.ReplicationGroup{
 		ARN:                      aws.String(fmt.Sprintf("arn:aws:elasticache:%s:123456789012:replicationgroup:%s", region, name)),
+		Engine:                   aws.String("redis"),
 		ReplicationGroupId:       aws.String(name),
 		Status:                   aws.String("available"),
 		TransitEncryptionEnabled: aws.Bool(true),
 
 		// Default has one primary endpoint in the only node group.
-		NodeGroups: []*elasticache.NodeGroup{{
-			PrimaryEndpoint: &elasticache.Endpoint{
+		NodeGroups: []ectypes.NodeGroup{{
+			PrimaryEndpoint: &ectypes.Endpoint{
 				Address: aws.String(fmt.Sprintf("master.%v-cluster.xxxxxx.use1.cache.amazonaws.com", name)),
-				Port:    aws.Int64(6379),
+				Port:    aws.Int32(6379),
 			},
 		}},
 	}
@@ -177,21 +162,21 @@ func ElastiCacheCluster(name, region string, opts ...func(*elasticache.Replicati
 
 // WithElastiCacheReaderEndpoint is an option function for
 // MakeElastiCacheCluster to set a reader endpoint.
-func WithElastiCacheReaderEndpoint(cluster *elasticache.ReplicationGroup) {
-	cluster.NodeGroups = append(cluster.NodeGroups, &elasticache.NodeGroup{
-		ReaderEndpoint: &elasticache.Endpoint{
-			Address: aws.String(fmt.Sprintf("replica.%v-cluster.xxxxxx.use1.cache.amazonaws.com", aws.StringValue(cluster.ReplicationGroupId))),
-			Port:    aws.Int64(6379),
+func WithElastiCacheReaderEndpoint(cluster *ectypes.ReplicationGroup) {
+	cluster.NodeGroups = append(cluster.NodeGroups, ectypes.NodeGroup{
+		ReaderEndpoint: &ectypes.Endpoint{
+			Address: aws.String(fmt.Sprintf("replica.%v-cluster.xxxxxx.use1.cache.amazonaws.com", aws.ToString(cluster.ReplicationGroupId))),
+			Port:    aws.Int32(6379),
 		},
 	})
 }
 
 // WithElastiCacheConfigurationEndpoint in an option function for
 // MakeElastiCacheCluster to set a configuration endpoint.
-func WithElastiCacheConfigurationEndpoint(cluster *elasticache.ReplicationGroup) {
+func WithElastiCacheConfigurationEndpoint(cluster *ectypes.ReplicationGroup) {
 	cluster.ClusterEnabled = aws.Bool(true)
-	cluster.ConfigurationEndpoint = &elasticache.Endpoint{
-		Address: aws.String(fmt.Sprintf("clustercfg.%v-shards.xxxxxx.use1.cache.amazonaws.com", aws.StringValue(cluster.ReplicationGroupId))),
-		Port:    aws.Int64(6379),
+	cluster.ConfigurationEndpoint = &ectypes.Endpoint{
+		Address: aws.String(fmt.Sprintf("clustercfg.%v-shards.xxxxxx.use1.cache.amazonaws.com", aws.ToString(cluster.ReplicationGroupId))),
+		Port:    aws.Int32(6379),
 	}
 }

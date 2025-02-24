@@ -38,13 +38,13 @@ const (
 )
 
 // RemoveWithSuffix removes all that matches the provided suffix, except for file or directory with `skipName`.
-func RemoveWithSuffix(dir, suffix, skipName string) error {
+func RemoveWithSuffix(dir, suffix string, skipNames []string) error {
 	var removePaths []string
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if skipName == info.Name() {
+		if slices.Contains(skipNames, info.Name()) {
 			return nil
 		}
 		if !strings.HasSuffix(info.Name(), suffix) {
@@ -59,12 +59,13 @@ func RemoveWithSuffix(dir, suffix, skipName string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	var aggErr []error
 	for _, path := range removePaths {
 		if err := os.RemoveAll(path); err != nil {
-			return trace.Wrap(err)
+			aggErr = append(aggErr, err)
 		}
 	}
-	return nil
+	return trace.NewAggregate(aggErr...)
 }
 
 // replaceZip un-archives the Teleport package in .zip format, iterates through
@@ -118,7 +119,7 @@ func replaceZip(toolsDir string, archivePath string, extractDir string, execName
 			defer file.Close()
 
 			dest := filepath.Join(extractDir, baseName)
-			destFile, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
+			destFile, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o755)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -131,7 +132,10 @@ func replaceZip(toolsDir string, archivePath string, extractDir string, execName
 			if err := os.Remove(appPath); err != nil && !os.IsNotExist(err) {
 				return trace.Wrap(err)
 			}
-			if err := os.Symlink(dest, appPath); err != nil {
+			// For the Windows build we have to copy binary to be able
+			// to do this without administrative access as it required
+			// for symlinks.
+			if err := utils.CopyFile(dest, appPath, 0o755); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(destFile.Close())

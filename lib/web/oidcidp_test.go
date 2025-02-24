@@ -20,6 +20,8 @@ package web
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -72,41 +74,14 @@ func TestOIDCIdPPublicEndpoints(t *testing.T) {
 	resp, err = publicClt.Get(ctx, gotConfiguration.JWKSURI, nil)
 	require.NoError(t, err)
 
-	type jwksKey struct {
-		Use     string  `json:"use"`
-		KeyID   *string `json:"kid"`
-		KeyType string  `json:"kty"`
-		Alg     string  `json:"alg"`
-	}
-	type jwksKeys struct {
-		Keys []jwksKey `json:"keys"`
-	}
-
-	var gotKeys jwksKeys
+	var gotKeys JWKSResponse
 	err = json.Unmarshal(resp.Bytes(), &gotKeys)
 	require.NoError(t, err)
 
 	// Expect the same key twice, once with a synthesized Key ID, and once with an empty Key ID for compatibility.
 	require.Len(t, gotKeys.Keys, 2)
-	require.NotEmpty(t, *gotKeys.Keys[0].KeyID)
-	require.Equal(t, "", *gotKeys.Keys[1].KeyID)
-	expectedKeys := jwksKeys{
-		Keys: []jwksKey{
-			{
-				Use:     "sig",
-				KeyType: "RSA",
-				Alg:     "RS256",
-				KeyID:   gotKeys.Keys[0].KeyID,
-			},
-			{
-				Use:     "sig",
-				KeyType: "RSA",
-				Alg:     "RS256",
-				KeyID:   new(string),
-			},
-		},
-	}
-	require.Equal(t, expectedKeys, gotKeys)
+	require.NotEmpty(t, gotKeys.Keys[0].KeyID)
+	require.Empty(t, gotKeys.Keys[1].KeyID)
 }
 
 func TestThumbprint(t *testing.T) {
@@ -126,10 +101,8 @@ func TestThumbprint(t *testing.T) {
 
 	thumbprint := strings.Trim(string(resp.Bytes()), "\"")
 
-	// The Proxy is started using httptest.NewTLSServer, which uses a hard-coded cert
-	// located at go/src/net/http/internal/testcert/testcert.go
-	// The following value is the sha1 fingerprint of that certificate.
-	expectedThumbprint := "15dbd260c7465ecca6de2c0b2181187f66ee0d1a"
+	serverCertificateSHA1 := sha1.Sum(proxy.web.TLS.Certificates[0].Leaf.Raw)
+	expectedThumbprint := hex.EncodeToString(serverCertificateSHA1[:])
 
 	require.Equal(t, expectedThumbprint, thumbprint)
 }

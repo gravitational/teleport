@@ -43,7 +43,7 @@ migrating from Teleport Enterprise to Teleport Community Edition.
 - An existing Teleport cluster.
 - The `tsh` and `tctl` client tools. This guide assumes that you are using
   `tctl` to manage dynamic resources, but it is also possible to use [Teleport
-  Terraform provider](infrastructure-as-code/terraform-provider.mdx) and
+  Terraform provider](infrastructure-as-code/terraform-provider/terraform-provider.mdx) and
   [Kubernetes
   operator](infrastructure-as-code/teleport-operator/teleport-operator-standalone.mdx), in
   addition to custom scripts that use the [Teleport API](api/api.mdx)
@@ -93,7 +93,8 @@ Validate connectivity to both the new Teleport Enterprise cluster and your
 original Teleport Enterprise cluster. You should be able to connect to both
 Teleport clusters and execute `tctl` commands using your current credentials.
 
-1. Log in to the original Teleport cluster:
+1. Log in to the original Teleport cluster, replacing 
+   <Var name="enterprise.example.com" /> with the cluster domain name:
 
    ```code
    # Use the --auth flag instead of --user to log in with Single Sign-On.
@@ -101,7 +102,8 @@ Teleport clusters and execute `tctl` commands using your current credentials.
    $ tctl status
    ```
 
-1. Log in to the new Teleport Enterprise cluster:
+1. Log in to the new Teleport Enterprise cluster, replacing <Var
+   name="example.teleport.sh" /> with the domain name of your new cluster:
 
    ```code
    # Use the --auth flag instead of --user to log in with Single Sign-On.
@@ -307,7 +309,7 @@ In general, you can migrate a Machine ID Bot using the following steps:
 1. Restart `tbot`.
 
 To learn how to restart and configure a Machine ID Bot in your infrastructure,
-read the [full documentation](../enroll-resources/machine-id/deployment.mdx) on deploying a
+read the [full documentation](../enroll-resources/machine-id/deployment/deployment.mdx) on deploying a
 Machine ID Bot.
 
 ### Access Request plugins and the Event Handler
@@ -329,8 +331,8 @@ In general, you can migrate Teleport plugins using the following steps:
 
 For specific plugins running in your infrastructure, read the full documentation
 on:
-- [Access Request plugins](access-controls/access-request-plugins.mdx)
-- The [Teleport Event Handler](management/export-audit-events.mdx)
+- [Access Request plugins](access-controls/access-request-plugins/access-request-plugins.mdx)
+- The [Teleport Event Handler](management/export-audit-events/export-audit-events.mdx)
 
 ## Step 4/4. Verify end user access and performance
 

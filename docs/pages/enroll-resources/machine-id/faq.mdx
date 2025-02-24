@@ -3,6 +3,10 @@ title: Machine ID FAQ
 description: Frequently asked questions about Teleport Machine ID
 ---
 
+This page provides answers to frequently asked questions about Machine ID. For a
+list of frequently asked questions about Teleport in general, see [Frequently
+Asked Questions](../../faq.mdx).
+
 ## Can Machine ID be used within CI/CD jobs?
 
 On CI/CD platforms where your workflow runs in an ephemeral environment (e.g
@@ -75,7 +79,7 @@ Machine ID.
 ## Can Machine ID be used to generate long-lived certificates?
 
 Machine ID cannot currently be used to generate certificates valid for longer
-than 24 hours, and requests for longer certificates using the `certificate_ttl`
+than 24 hours, and requests for longer certificates using the `credential_ttl`
 parameter will be reduced to this 24 hour limit.
 
 This limit serves multiple purposes. For one, it encourages security best

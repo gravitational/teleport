@@ -23,8 +23,8 @@ The `teleport-kube-agent` chart can run any or all of three Teleport services:
 | Teleport service                                                          | Name for `roles` and `tctl tokens add` | Purpose                                                                                      |
 |---------------------------------------------------------------------------|----------------------------------------|----------------------------------------------------------------------------------------------|
 | [`kubernetes_service`](../../enroll-resources/kubernetes-access/introduction.mdx)          | `kube`                                 | Uses Teleport to handle authentication<br/> with and proxy access to a Kubernetes cluster    |
-| [`application_service`](../../enroll-resources/application-access/guides.mdx)              | `app`                                  | Uses Teleport to handle authentication<br/> with and proxy access to web-based applications  |
-| [`database_service`](../../enroll-resources/database-access/guides.mdx)                    | `db`                                   | Uses Teleport to handle authentication<br/> with and proxy access to databases               |
+| [`application_service`](../../enroll-resources/application-access/guides/guides.mdx)              | `app`                                  | Uses Teleport to handle authentication<br/> with and proxy access to web-based applications  |
+| [`database_service`](../../enroll-resources/database-access/guides/guides.mdx)                    | `db`                                   | Uses Teleport to handle authentication<br/> with and proxy access to databases               |
 | [`discovery_service`](../../enroll-resources/auto-discovery/auto-discovery.mdx)              | `discovery`                            | Uses Teleport to discover new resources<br/> and dynamically add them to the cluster         |
 | [`jamf_service`](../../admin-guides/access-controls/device-trust/jamf-integration.mdx) | `jamf`                                 | Uses Teleport to integrate with Jamf Pro<br/> and sync devices with Device Trust inventory   |
 

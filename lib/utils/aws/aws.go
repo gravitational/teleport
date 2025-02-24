@@ -31,15 +31,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
-	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/gravitational/trace"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/migration"
 )
 
 const (
@@ -75,6 +76,8 @@ const (
 	// used by the AssumeRole call.
 	// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html
 	MaxRoleSessionNameLength = 64
+
+	iamServiceName = "iam"
 )
 
 // SigV4 contains parsed content of the AWS Authorization header.
@@ -94,24 +97,33 @@ type SigV4 struct {
 }
 
 // ParseSigV4 AWS SigV4 credentials string sections.
-// AWS SigV4 header example:
-// Authorization: AWS4-HMAC-SHA256
-// Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request,
+// AWS SigV4 header example below adds newlines for readability only - the real
+// header must be a single continuous string with commas (and optional spaces)
+// between the Credential, SignedHeaders, and Signature:
+// Authorization: AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request,
 // SignedHeaders=host;range;x-amz-date,
 // Signature=fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024
 func ParseSigV4(header string) (*SigV4, error) {
 	if header == "" {
 		return nil, trace.BadParameter("empty AWS SigV4 header")
 	}
-	sectionParts := strings.Split(header, " ")
+	if !strings.HasPrefix(header, AmazonSigV4AuthorizationPrefix+" ") {
+		return nil, trace.BadParameter("missing AWS SigV4 authorization algorithm")
+	}
+	header = strings.TrimPrefix(header, AmazonSigV4AuthorizationPrefix+" ")
+
+	components := strings.Split(header, ",")
+	if len(components) != 3 {
+		return nil, trace.BadParameter("expected AWS SigV4 Authorization header with 3 comma-separated components but got %d", len(components))
+	}
 
 	m := make(map[string]string)
-	for _, v := range sectionParts {
-		kv := strings.Split(v, "=")
+	for _, v := range components {
+		kv := strings.Split(strings.Trim(v, " "), "=")
 		if len(kv) != 2 {
 			continue
 		}
-		m[kv[0]] = strings.TrimSuffix(kv[1], ",")
+		m[kv[0]] = kv[1]
 	}
 
 	authParts := strings.Split(m[credentialAuthHeaderElem], "/")
@@ -150,14 +162,14 @@ func IsSignedByAWSSigV4(r *http.Request) bool {
 // VerifyAWSSignature verifies the request signature ensuring that the request originates from tsh aws command execution
 // AWS CLI signs the request with random generated credentials that are passed to LocalProxy by
 // the AWSCredentials LocalProxyConfig configuration.
-func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials) error {
+func VerifyAWSSignature(req *http.Request, credProvider aws.CredentialsProvider) error {
 	sigV4, err := ParseSigV4(req.Header.Get("Authorization"))
 	if err != nil {
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	}
 
 	// Verifies the request is signed by the expected access key ID.
-	credValue, err := credentials.Get()
+	credValue, err := credProvider.Retrieve(req.Context())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -192,10 +204,10 @@ func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials)
 	// originated from AWS CLI and reuse it as a timestamp during request signing call.
 	t, err := time.Parse(AmzDateTimeFormat, reqCopy.Header.Get(AmzDateHeader))
 	if err != nil {
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	}
 
-	signer := NewSigner(credentials, sigV4.Service)
+	signer := NewSignerV2(credProvider, sigV4.Service)
 	_, err = signer.Sign(reqCopy, bytes.NewReader(payload), sigV4.Service, sigV4.Region, t)
 	if err != nil {
 		return trace.Wrap(err)
@@ -212,6 +224,11 @@ func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials)
 		return trace.AccessDenied("signature verification failed")
 	}
 	return nil
+}
+
+// NewSignerV2 is a temporary AWS SDK migration helper.
+func NewSignerV2(provider aws.CredentialsProvider, signingServiceName string) *v4.Signer {
+	return NewSigner(migration.NewCredentialsAdapter(provider), signingServiceName)
 }
 
 // NewSigner creates a new V4 signer.
@@ -384,7 +401,7 @@ func BuildRoleARN(username, region, accountID string) (string, error) {
 	}
 	roleARN := arn.ARN{
 		Partition: partition,
-		Service:   iam.ServiceName,
+		Service:   iamServiceName,
 		AccountID: accountID,
 		Resource:  resource,
 	}
@@ -424,7 +441,7 @@ func ParseRoleARN(roleARN string) (*arn.ARN, error) {
 // Example role ARN: arn:aws:iam::123456789012:role/some-role-name
 func checkRoleARN(parsed *arn.ARN) error {
 	parts := strings.Split(parsed.Resource, "/")
-	if parts[0] != "role" || parsed.Service != iam.ServiceName {
+	if parts[0] != "role" || parsed.Service != iamServiceName {
 		return trace.BadParameter("%q is not an AWS IAM role ARN", parsed)
 	}
 	if len(parts) < 2 || len(parts[len(parts)-1]) == 0 {

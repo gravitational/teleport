@@ -26,10 +26,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/keygen"
-	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/sshca"
 )
 
 type Keygen struct {
@@ -47,31 +46,21 @@ func NewWithClock(clock clockwork.Clock) *Keygen {
 	return &Keygen{Keygen: inner}
 }
 
-// GeneratePrivateKey generates a new PrivateKey.
-func (n *Keygen) GeneratePrivateKey() (*keys.PrivateKey, error) {
-	priv, _, err := n.GenerateKeyPair()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return keys.ParsePrivateKey(priv)
-}
-
-func (n *Keygen) GetNewKeyPairFromPool() (priv []byte, pub []byte, err error) {
-	return n.GenerateKeyPair()
-}
-
 // GenerateKeyPair returns a new private key in PEM format and an ssh
 // public key in authorized_key format.
 func (n *Keygen) GenerateKeyPair() (priv []byte, pub []byte, err error) {
-	return native.GenerateKeyPair()
+	privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return privateKey.PrivateKeyPEM(), privateKey.MarshalSSHPublicKey(), nil
 }
 
-func (n *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
-	return n.GenerateHostCertWithoutValidation(c)
+func (n *Keygen) GenerateHostCert(req sshca.HostCertificateRequest) ([]byte, error) {
+	return n.GenerateHostCertWithoutValidation(req)
 }
 
-func (n *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
+func (n *Keygen) GenerateUserCert(c sshca.UserCertificateRequest) ([]byte, error) {
 	return n.GenerateUserCertWithoutValidation(c)
 }
 

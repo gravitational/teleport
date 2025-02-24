@@ -33,7 +33,7 @@ following order:
    signed by the new certificate authority, but still accept certificates issued
    by the original certificate authority. This only applies to the Teleport
    [`host` CA](#host).
-   1. `standby`: No rotation in progress. All operations have completed.
+1. `standby`: No rotation in progress. All operations have completed.
 
 Before the final `standby` phase, you can also put the rotation in the
 `rollback` phase, aborting the rotation and returning to the original
@@ -84,7 +84,8 @@ to reflect data held by the Auth Service. This internal data includes the status
 of the `host` CA rotation if one is in progress.
 
 To check the rotation status of an agent or Proxy Service instance, run a
-variation of the following command:
+variation of the following command, assigning <Var name="resource" /> to the
+name of an agent or Proxy Service instance:
 
 ```code
 $ tctl get <Var name="resource" /> --format=json | jq '.[] | {hostname: .spec.hostname, rotation: .spec.rotation.state, phase: .spec.rotation.phase}'
@@ -190,7 +191,7 @@ to reconfigure them again before transitioning to `standby` from the
 ### `openssh`
 
 The `openssh` CA issues certificates for [OpenSSH servers registered with
-Teleport](../../../enroll-resources/server-access/openssh.mdx). Clients verify these certificates
+Teleport](../../../enroll-resources/server-access/openssh/openssh.mdx). Clients verify these certificates
 when connecting to Teleport-protected OpenSSH servers.
 
 If you used the [manual

@@ -50,7 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -68,7 +68,7 @@ import (
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
-	native.PrecomputeTestKeys(m)
+	cryptosuites.PrecomputeRSATestKeys(m)
 	os.Exit(m.Run())
 }
 
@@ -307,6 +307,10 @@ func TestBot(t *testing.T) {
 		Destination: &config.DestinationMemory{},
 		Roles:       []string{mainRole},
 	}
+	identityOutputWithReissue := &config.IdentityOutput{
+		Destination:  &config.DestinationMemory{},
+		AllowReissue: true,
+	}
 	appOutput := &config.ApplicationOutput{
 		Destination: &config.DestinationMemory{},
 		AppName:     appName,
@@ -351,6 +355,7 @@ func TestBot(t *testing.T) {
 			sshHostOutput,
 			kubeOutput,
 			kubeDiscoveredNameOutput,
+			identityOutputWithReissue,
 		},
 		defaultBotConfigOpts{
 			useAuthServer: true,
@@ -379,17 +384,30 @@ func TestBot(t *testing.T) {
 
 	t.Run("output: identity", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, identityOutput.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botResource.Status.UserName)
+		requireValidOutputTLSIdent(
+			t, tlsIdent, defaultRoles, botResource.Status.UserName, false,
+		)
 	})
 
 	t.Run("output: identity with role specified", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, identityOutputWithRoles.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, []string{mainRole}, botResource.Status.UserName)
+		requireValidOutputTLSIdent(
+			t, tlsIdent, []string{mainRole}, botResource.Status.UserName, false,
+		)
+	})
+
+	t.Run("output: identity with allow reissue", func(t *testing.T) {
+		tlsIdent := tlsIdentFromDest(ctx, t, identityOutputWithReissue.GetDestination())
+		requireValidOutputTLSIdent(
+			t, tlsIdent, defaultRoles, botResource.Status.UserName, true,
+		)
 	})
 
 	t.Run("output: kubernetes", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, kubeOutput.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botResource.Status.UserName)
+		requireValidOutputTLSIdent(
+			t, tlsIdent, defaultRoles, botResource.Status.UserName, false,
+		)
 		require.Equal(t, kubeClusterName, tlsIdent.KubernetesCluster)
 		require.Equal(t, kubeGroups, tlsIdent.KubernetesGroups)
 		require.Equal(t, kubeUsers, tlsIdent.KubernetesUsers)
@@ -397,7 +415,9 @@ func TestBot(t *testing.T) {
 
 	t.Run("output: kubernetes discovered name", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, kubeDiscoveredNameOutput.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botResource.Status.UserName)
+		requireValidOutputTLSIdent(
+			t, tlsIdent, defaultRoles, botResource.Status.UserName, false,
+		)
 		require.Equal(t, kubeClusterName, tlsIdent.KubernetesCluster)
 		require.Equal(t, kubeGroups, tlsIdent.KubernetesGroups)
 		require.Equal(t, kubeUsers, tlsIdent.KubernetesUsers)
@@ -405,7 +425,9 @@ func TestBot(t *testing.T) {
 
 	t.Run("output: application", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, appOutput.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botResource.Status.UserName)
+		requireValidOutputTLSIdent(
+			t, tlsIdent, defaultRoles, botResource.Status.UserName, false,
+		)
 		route := tlsIdent.RouteToApp
 		require.Equal(t, appName, route.Name)
 		require.Equal(t, "test-app.example.com", route.PublicAddr)
@@ -414,7 +436,9 @@ func TestBot(t *testing.T) {
 
 	t.Run("output: database", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, dbOutput.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botResource.Status.UserName)
+		requireValidOutputTLSIdent(
+			t, tlsIdent, defaultRoles, botResource.Status.UserName, false,
+		)
 		route := tlsIdent.RouteToDatabase
 		require.Equal(t, databaseServiceName, route.ServiceName)
 		require.Equal(t, databaseName, route.Database)
@@ -430,7 +454,9 @@ func TestBot(t *testing.T) {
 
 	t.Run("output: database discovered name", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, dbDiscoveredNameOutput.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botResource.Status.UserName)
+		requireValidOutputTLSIdent(
+			t, tlsIdent, defaultRoles, botResource.Status.UserName, false,
+		)
 		route := tlsIdent.RouteToDatabase
 		require.Equal(t, databaseServiceName, route.ServiceName)
 		require.Equal(t, databaseName, route.Database)
@@ -495,8 +521,8 @@ func TestBot(t *testing.T) {
 // requireValidOutputTLSIdent runs general validation against the TLS identity
 // created by a normal output. This ensures several key parts of the identity
 // have sane values.
-func requireValidOutputTLSIdent(t *testing.T, ident *tlsca.Identity, wantRoles []string, botUsername string) {
-	require.True(t, ident.DisallowReissue)
+func requireValidOutputTLSIdent(t *testing.T, ident *tlsca.Identity, wantRoles []string, botUsername string, allowReissue bool) {
+	require.Equal(t, !allowReissue, ident.DisallowReissue)
 	require.False(t, ident.Renewable)
 	require.Equal(t, botUsername, ident.Impersonator)
 	require.Equal(t, botUsername, ident.Username)

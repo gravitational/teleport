@@ -29,7 +29,7 @@ their on-disk Teleport certificates.
 
 - (!docs/pages/includes/tctl.mdx!)
 - [WebAuthn configured](webauthn.mdx) on this cluster
-- Second factor hardware device, such as YubiKey or SoloKey
+- Hardware device for multi-factor authentication, such as YubiKey or SoloKey
 - A Web browser with [WebAuthn support](
   https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) (if using
   SSH or desktop sessions from the Teleport Web UI).
@@ -43,7 +43,7 @@ per-session MFA with FIPS builds, provide the following in your `teleport.yaml`:
 teleport:
   auth_service:
     local_auth: false
-    second_factor: on
+    second_factors: ["webauthn"]
     webauthn:
       rp_id: teleport.example.com
 ```
@@ -209,6 +209,10 @@ Current limitations for this feature are:
   (The OpenSSH `ssh` client does not work with per-session MFA).
 - Only `kubectl` supports per-session WebAuthn authentication for Kubernetes.
 - For desktop access, only WebAuthn devices are supported.
+- When accessing a
+  [multi-port](../../../enroll-resources/application-access/guides/tcp.mdx#configuring-access-to-multiple-ports)
+  TCP application through [VNet](../../../connect-your-client/vnet.mdx), the first connection over
+  each port triggers an MFA check.
 
 ## Next steps
 

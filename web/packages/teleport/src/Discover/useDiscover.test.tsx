@@ -16,12 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { act, renderHook } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { renderHook, act } from '@testing-library/react';
 
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport';
+import cfg from 'teleport/config';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import api from 'teleport/services/api';
 import {
   DiscoverEvent,
   DiscoverEventResource,
@@ -30,12 +32,9 @@ import {
   DiscoverServiceDeployType,
   userEventService,
 } from 'teleport/services/userEvent';
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import api from 'teleport/services/api';
-import cfg from 'teleport/config';
 
-import { useDiscover, DiscoverProvider } from './useDiscover';
 import { SERVERS } from './SelectResource/resources';
+import { DiscoverProvider, useDiscover } from './useDiscover';
 
 describe('emitting events', () => {
   const ctx = createTeleportContext();

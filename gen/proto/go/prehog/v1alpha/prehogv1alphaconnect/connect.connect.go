@@ -55,12 +55,6 @@ const (
 	ConnectReportingServiceSubmitConnectEventProcedure = "/prehog.v1alpha.ConnectReportingService/SubmitConnectEvent"
 )
 
-// These variables are the protoreflect.Descriptor objects for the RPCs defined in this package.
-var (
-	connectReportingServiceServiceDescriptor                  = v1alpha.File_prehog_v1alpha_connect_proto.Services().ByName("ConnectReportingService")
-	connectReportingServiceSubmitConnectEventMethodDescriptor = connectReportingServiceServiceDescriptor.Methods().ByName("SubmitConnectEvent")
-)
-
 // ConnectReportingServiceClient is a client for the prehog.v1alpha.ConnectReportingService service.
 type ConnectReportingServiceClient interface {
 	SubmitConnectEvent(context.Context, *connect.Request[v1alpha.SubmitConnectEventRequest]) (*connect.Response[v1alpha.SubmitConnectEventResponse], error)
@@ -75,11 +69,12 @@ type ConnectReportingServiceClient interface {
 // http://api.acme.com or https://acme.com/grpc).
 func NewConnectReportingServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) ConnectReportingServiceClient {
 	baseURL = strings.TrimRight(baseURL, "/")
+	connectReportingServiceMethods := v1alpha.File_prehog_v1alpha_connect_proto.Services().ByName("ConnectReportingService").Methods()
 	return &connectReportingServiceClient{
 		submitConnectEvent: connect.NewClient[v1alpha.SubmitConnectEventRequest, v1alpha.SubmitConnectEventResponse](
 			httpClient,
 			baseURL+ConnectReportingServiceSubmitConnectEventProcedure,
-			connect.WithSchema(connectReportingServiceSubmitConnectEventMethodDescriptor),
+			connect.WithSchema(connectReportingServiceMethods.ByName("SubmitConnectEvent")),
 			connect.WithClientOptions(opts...),
 		),
 	}
@@ -107,10 +102,11 @@ type ConnectReportingServiceHandler interface {
 // By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
 // and JSON codecs. They also support gzip compression.
 func NewConnectReportingServiceHandler(svc ConnectReportingServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	connectReportingServiceMethods := v1alpha.File_prehog_v1alpha_connect_proto.Services().ByName("ConnectReportingService").Methods()
 	connectReportingServiceSubmitConnectEventHandler := connect.NewUnaryHandler(
 		ConnectReportingServiceSubmitConnectEventProcedure,
 		svc.SubmitConnectEvent,
-		connect.WithSchema(connectReportingServiceSubmitConnectEventMethodDescriptor),
+		connect.WithSchema(connectReportingServiceMethods.ByName("SubmitConnectEvent")),
 		connect.WithHandlerOptions(opts...),
 	)
 	return "/prehog.v1alpha.ConnectReportingService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

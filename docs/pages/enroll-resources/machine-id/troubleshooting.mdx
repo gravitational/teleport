@@ -3,6 +3,9 @@ title: Machine ID Troubleshooting Guide
 description: Troubleshooting common issues with Machine ID
 ---
 
+This page provides resolution steps for issues that you may come across when
+setting up Machine ID.
+
 ## A bot failed to renew a certificate due to a "generation mismatch"
 
 ### Symptoms
@@ -30,6 +33,13 @@ some additional context:
 ```
 
 ### Explanation
+
+<Notice type="note">
+This applies only to bots using the `token` join method, which makes use of
+one-time use shared secrets. Provider-specific join methods, such as GitHub,
+AWS IAM, etc will not be locked in this fashion unless another instance of the
+bot uses `token` joining.
+</Notice>
 
 Machine ID (with token-based joining) uses a certificate generation counter to
 detect potentially stolen renewable certificates. Each time a bot fetches a new
@@ -69,9 +79,11 @@ directories (usually `/opt/machine-id`) rather than the internal data directory
 Once you have addressed the underlying cause, follow these steps to reset a
 locked bot:
  1. Remove the lock on the bot's user
- 1. Reset the bot's generation counter by deleting and re-creating the bot
+ 1. Reset the bot's generation counter by creating a new bot instance
 
-To remove the lock, first find and remove the lock targeting the bot user:
+To remove the lock, first find and remove the lock targeting the bot user. For
+this example, we'll assume the bot is named `example`, which will have an
+associated Teleport user named `bot-example`:
 
 ```code
 $ tctl get locks
@@ -89,15 +101,16 @@ version: v2
 $ tctl rm lock/5cee949f-5203-4f3b-9805-dac35d798a16
 ```
 
-Next, reset the generation counter by deleting and recreating the bot:
+Next, use `tctl bots instances add` to generate a new join token for the
+preexisting bot `example`:
 ```code
-$ tctl bots rm example
-
-$ tctl bots add example --roles=foo,bar
+$ tctl bots instances add example
 ```
 
-Finally, reconfigure the bot with the new token and restart it. It will detect
-the new token and automatically reset its internal data directory.
+Finally, reconfigure the local `tbot` instance with the new token and restart
+it. It will detect the new token and automatically reset its internal data
+directory. The bot will be issued a new bot instance UUID once connected, and
+the generation counter will be reset.
 
 ## `tbot` shows a "bad certificate error" at startup
 
@@ -123,8 +136,8 @@ fail."
 
 Token-joined bots are unable to reauthenticate to the Teleport Auth Service once
 their certificates have expired. Tokens in token-based joining (as opposed to
-AWS IAM joining) can only be used once, so when the bot's internal certificates
-expire, it will not be able to connect.
+AWS IAM and other join methods) can only be used once, so when the bot's
+internal certificates expire, it will not be able to connect.
 
 When a bot's identity expires, certain parameters associated with the bot on the
 Auth Service must be reset and a new joining token must be issued. The simplest
@@ -133,11 +146,10 @@ server-side data and issues a new joining token.
 
 ### Resolution
 
-Remove and recreate the bot, replacing the name and role list as desired:
+Use `tctl bots instances add` to create a new one-time use token for the bot:
 
 ```code
-$ tctl bots rm example
-$ tctl bots add example --roles=access
+$ tctl bots instances add example
 ```
 
 Copy the resulting join token into the existing bot config—either the
@@ -271,6 +283,8 @@ $ tctl edit role/machine-id-db
 
 Edit the role, then save and close the file to apply your changes.
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 <Notice type="note">
 By default, outputs (like `/opt/machine-id`) are granted all roles provided
 to the bot via `tctl bots add --roles=...`, but it's possible to grant only a
@@ -320,3 +334,18 @@ outputs:
 
 Failure to add the `disable_exec_plugin` flag will result in a warning being displayed:
 `Destination kubernetes_secret: identity-output must be a directory in exec plugin mode`.
+
+## Configuring `tbot` for split DNS proxies
+
+When you have deployed your Proxy Service in such a way that it is
+accessible via two different DNS names, e.g an internal and external address,
+you may find that a `tbot` that is configured to use one of these addresses may
+attempt to use the other address and that this may cause connections to fail.
+
+This is because `tbot` queries an auto-configuration endpoint exposed by the
+Proxy Service to determine the canonical address to use when connecting.
+
+To fix this, set a variable of `TBOT_USE_PROXY_ADDR=yes` in the environment of the
+`tbot` process. This configures `tbot` to prefer using the address that you have
+explicitly provided. This only functions correctly in cases where TLS
+routing/multiplexing is enabled for the Teleport cluster.

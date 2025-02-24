@@ -18,15 +18,14 @@
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { Indicator, Box } from 'design';
-import { Danger } from 'design/Alert';
 
+import { Box, Indicator } from 'design';
+import { Danger } from 'design/Alert';
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 
-import { NodeList } from 'teleport/components/NodeList';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
+import { NodeList } from 'teleport/components/NodeList';
 import Document from 'teleport/Console/Document';
-
 import * as stores from 'teleport/Console/stores/types';
 
 import useNodes from './useNodes';
@@ -47,8 +46,6 @@ export default function DocumentNodes(props: Props) {
     params,
     setParams,
     setSort,
-    pathname,
-    replaceHistory,
     fetchStatus,
     attempt,
     createSshSession,
@@ -112,8 +109,6 @@ export default function DocumentNodes(props: Props) {
             params={params}
             setParams={setParams}
             setSort={setSort}
-            pathname={pathname}
-            replaceHistory={replaceHistory}
             onLabelClick={onLabelClick}
           />
         )}

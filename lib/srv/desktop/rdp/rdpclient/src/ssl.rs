@@ -15,22 +15,20 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::client::{ClientError, ClientResult};
-#[cfg(feature = "fips")]
-use static_init::dynamic;
 use tokio::net::TcpStream;
 
 #[cfg(feature = "fips")]
 pub type TlsStream<S> = tokio_boring::SslStream<S>;
 
+// rdpclient_assert_fips_enabled asserts that FIPS is compiled in and enabled.
 #[cfg(feature = "fips")]
-#[dynamic(0)]
-static mut FIPS_CHECK: () = unsafe {
-    // Make sure that we really have FIPS enabled.
-    // This assert will run at the start of the program and panic if we
-    // build for FIPS but it's somehow disabled
-    use boring;
-    assert!(boring::fips::enabled(), "FIPS mode not enabled");
-};
+#[no_mangle]
+pub extern "C" fn rdpclient_assert_fips_enabled() {
+    assert!(
+        boring::fips::enabled(),
+        "FIPS module for rdpclient not available"
+    );
+}
 
 #[cfg(not(feature = "fips"))]
 pub type TlsStream<S> = ironrdp_tls::TlsStream<S>;

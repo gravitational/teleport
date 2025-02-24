@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/msteams/msapi"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/plugindata"
@@ -80,10 +81,13 @@ type Bot struct {
 	clusterName string
 	// log is the logger
 	log *slog.Logger
+	// StatusSink receives any status updates from the plugin for
+	// further processing. Status updates will be ignored if not set.
+	StatusSink common.StatusSink
 }
 
 // NewBot creates new bot struct
-func NewBot(c msapi.Config, clusterName, webProxyAddr string, log *slog.Logger) (*Bot, error) {
+func NewBot(c *Config, clusterName, webProxyAddr string, log *slog.Logger) (*Bot, error) {
 	var (
 		webProxyURL *url.URL
 		err         error
@@ -97,14 +101,15 @@ func NewBot(c msapi.Config, clusterName, webProxyAddr string, log *slog.Logger) 
 	}
 
 	bot := &Bot{
-		Config:      c,
-		graphClient: msapi.NewGraphClient(c),
-		botClient:   msapi.NewBotFrameworkClient(c),
+		Config:      c.MSAPI,
+		graphClient: msapi.NewGraphClient(c.MSAPI),
+		botClient:   msapi.NewBotFrameworkClient(c.MSAPI),
 		recipients:  make(map[string]RecipientData),
 		webProxyURL: webProxyURL,
 		clusterName: clusterName,
 		mu:          &sync.RWMutex{},
 		log:         log,
+		StatusSink:  c.StatusSink,
 	}
 
 	return bot, nil
@@ -447,4 +452,24 @@ func (b *Bot) checkChannelURL(recipient string) (*Channel, bool) {
 	)
 
 	return &channel, true
+}
+
+// CheckHealth checks if the bot can connect to its messaging service
+func (b *Bot) CheckHealth(ctx context.Context) error {
+	_, err := b.graphClient.GetTeamsApp(ctx, b.Config.TeamsAppID)
+	if b.StatusSink != nil {
+		status := types.PluginStatusCode_RUNNING
+		message := ""
+		if err != nil {
+			status = types.PluginStatusCode_OTHER_ERROR
+			message = err.Error()
+		}
+		if err := b.StatusSink.Emit(ctx, &types.PluginStatusV1{
+			Code:         status,
+			ErrorMessage: message,
+		}); err != nil {
+			b.log.ErrorContext(ctx, "Error while emitting ms teams plugin status", "error", err)
+		}
+	}
+	return trace.Wrap(err)
 }

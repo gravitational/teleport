@@ -48,10 +48,6 @@ import (
 const (
 	// PIVCardTypeYubiKey is the PIV card type assigned to yubiKeys.
 	PIVCardTypeYubiKey = "yubikey"
-
-	// PIV connections are closed after a short delay so that the program
-	// has a chance to reclaim the connection before it is closed completely.
-	releaseConnectionDelay = 5 * time.Second
 )
 
 // Cache keys to prevent reconnecting to PIV module to discover a known key.
@@ -291,8 +287,8 @@ func (y *YubiKeyPrivateKey) Public() crypto.PublicKey {
 // WarmupHardwareKey performs a bogus sign() call to prompt the user for
 // a PIN/touch (if needed).
 func (y *YubiKeyPrivateKey) WarmupHardwareKey(ctx context.Context) error {
-	b := make([]byte, 256)
-	_, err := y.sign(ctx, rand.Reader, b, crypto.SHA256)
+	hash := sha256.Sum256(make([]byte, 256))
+	_, err := y.sign(ctx, rand.Reader, hash[:], crypto.SHA256)
 	return trace.Wrap(err, "failed to access a YubiKey private key")
 }
 
@@ -333,8 +329,8 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 	defer y.signMux.Unlock()
 	ctx, cancel := context.WithCancelCause(ctx)
 
-	// Lock the connection for the entire duration of the sign process.
-	// Without this, the connection will be released after releaseConnectionDelay,
+	// Lock the connection for the entire duration of the sign
+	// process. Without this, the connection will be released,
 	// leading to a failure when providing PIN or touch input:
 	// "verify pin: transmitting request: the supplied handle was invalid".
 	release, err := y.connect()
@@ -374,7 +370,7 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 				defer touchPromptDelayTimer.Reset(signTouchPromptDelay)
 			}
 		}
-		pass, err := y.prompt.AskPIN(ctx, "Enter your YubiKey PIV PIN")
+		pass, err := y.prompt.AskPIN(ctx, PINRequired)
 		return pass, trace.Wrap(err)
 	}
 
@@ -666,7 +662,7 @@ func (y *YubiKey) SetPIN(oldPin, newPin string) error {
 // If the user provides the default PIN, they will be prompted to set a
 // non-default PIN and PUK before continuing.
 func (y *YubiKey) checkOrSetPIN(ctx context.Context) error {
-	pin, err := y.prompt.AskPIN(ctx, "Enter your YubiKey PIV PIN [blank to use default PIN]")
+	pin, err := y.prompt.AskPIN(ctx, PINOptional)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -706,18 +702,14 @@ func (c *sharedPIVConnection) connect() (func(), error) {
 	defer c.mu.Unlock()
 
 	release := func() {
-		go func() {
-			time.Sleep(releaseConnectionDelay)
+		c.mu.Lock()
+		defer c.mu.Unlock()
 
-			c.mu.Lock()
-			defer c.mu.Unlock()
-
-			c.activeConnections--
-			if c.activeConnections == 0 {
-				c.conn.Close()
-				c.conn = nil
-			}
-		}()
+		c.activeConnections--
+		if c.activeConnections == 0 {
+			c.conn.Close()
+			c.conn = nil
+		}
 	}
 
 	if c.conn != nil {
@@ -740,8 +732,8 @@ func (c *sharedPIVConnection) connect() (func(), error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Backoff and retry for a time slightly greater than releaseConnectionDelay.
-	retryCtx, cancel := context.WithTimeout(context.Background(), releaseConnectionDelay+100*time.Millisecond)
+	// Backoff and retry for up to 1 second.
+	retryCtx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
 	err = linearRetry.For(retryCtx, func() error {

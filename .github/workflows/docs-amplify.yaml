@@ -1,0 +1,42 @@
+name: Docs Preview
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - .github/workflows/docs-amplify.yaml
+  workflow_dispatch:
+  
+permissions:
+  pull-requests: write
+  id-token: write
+  
+jobs:
+  amplify-preview:
+    name: Prepare Amplify preview URL
+    runs-on: ubuntu-22.04-2core-arm64
+    environment: docs-amplify
+    steps:    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@4fc4975a852c8cd99761e2de1f4ba73402e44dd9 # v4
+      with:
+        aws-region: us-west-2
+        role-to-assume: ${{ vars.IAM_ROLE }}
+
+    - name: Create Amplify preview environment
+      uses: gravitational/shared-workflows/tools/amplify-preview@tools/amplify-preview/v0.0.1
+      continue-on-error: true
+      with:
+        app_ids: ${{ vars.AMPLIFY_APP_IDS }}
+        create_branches: "true"
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        wait: "true"
+
+    - name: Print failure message
+      if: failure()
+      env:
+        ERR_TITLE: Teleport Docs preview build failed
+        ERR_MESSAGE: >-
+          Please refer to the following documentation for help: https://www.notion.so/goteleport/How-to-Amplify-deployments-162fdd3830be8096ba72efa1a49ee7bc?pvs=4
+      run: |
+        echo ::error title=$ERR_TITLE::$ERR_MESSAGE
+        exit 1

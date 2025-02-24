@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/lib/client/sso"
 )
 
 // NewMFACeremony returns a new MFA ceremony configured for this client.
@@ -33,6 +34,7 @@ func (tc *TeleportClient) NewMFACeremony() *mfa.Ceremony {
 	return &mfa.Ceremony{
 		CreateAuthenticateChallenge: tc.createAuthenticateChallenge,
 		PromptConstructor:           tc.NewMFAPrompt,
+		SSOMFACeremonyConstructor:   tc.NewSSOMFACeremony,
 	}
 }
 
@@ -57,7 +59,15 @@ type WebauthnLoginFunc = libmfa.WebauthnLoginFunc
 func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) mfa.Prompt {
 	cfg := tc.newPromptConfig(opts...)
 
-	var prompt mfa.Prompt = libmfa.NewCLIPrompt(cfg, tc.Stderr)
+	var prompt mfa.Prompt = libmfa.NewCLIPrompt(&libmfa.CLIPromptConfig{
+		PromptConfig:     *cfg,
+		Writer:           tc.Stderr,
+		PreferOTP:        tc.PreferOTP,
+		PreferSSO:        tc.PreferSSO,
+		AllowStdinHijack: tc.AllowStdinHijack,
+		StdinFunc:        tc.StdinFunc,
+	})
+
 	if tc.MFAPromptConstructor != nil {
 		prompt = tc.MFAPromptConstructor(cfg)
 	}
@@ -68,13 +78,29 @@ func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) mfa.Prompt {
 func (tc *TeleportClient) newPromptConfig(opts ...mfa.PromptOpt) *libmfa.PromptConfig {
 	cfg := libmfa.NewPromptConfig(tc.WebProxyAddr, opts...)
 	cfg.AuthenticatorAttachment = tc.AuthenticatorAttachment
-	cfg.PreferOTP = tc.PreferOTP
-	cfg.AllowStdinHijack = tc.AllowStdinHijack
-	cfg.StdinFunc = tc.StdinFunc
-
 	if tc.WebauthnLogin != nil {
 		cfg.WebauthnLoginFunc = tc.WebauthnLogin
 		cfg.WebauthnSupported = true
 	}
+
 	return cfg
+}
+
+// NewSSOMFACeremony creates a new SSO MFA ceremony.
+func (tc *TeleportClient) NewSSOMFACeremony(ctx context.Context) (mfa.SSOMFACeremony, error) {
+	rdConfig, err := tc.ssoRedirectorConfig(ctx, "" /*connectorDisplayName*/)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rd, err := sso.NewRedirector(rdConfig)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to create a redirector for SSO MFA")
+	}
+
+	if tc.SSOMFACeremonyConstructor != nil {
+		return tc.SSOMFACeremonyConstructor(rd), nil
+	}
+
+	return sso.NewCLIMFACeremony(rd), nil
 }

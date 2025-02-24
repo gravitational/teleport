@@ -96,7 +96,7 @@ kind: token
 version: v2
 metadata:
   # name identifies the token. Try to ensure that this is descriptive.
-  name: <Var name="my-bot-token" />
+  name: my-bot-token
 spec:
   # For Machine ID and TPM joining, roles will always be "Bot" and
   # join_method will always be "tpm".
@@ -105,7 +105,7 @@ spec:
 
   # bot_name specifies the name of the bot that this token will grant access to
   # when it is used.
-  bot_name: <Var name="my-bot" />
+  bot_name: my-bot
 
   # tpm specifies the TPM join method specific configuration for this token.
   tpm:
@@ -132,7 +132,7 @@ spec:
         # and encoded in hexadecimal. This value will also be checked when a TPM
         # has submitted an EKCert, and the public key in the EKCert will be used
         # for this check.
-        ek_public_hash: "<Var name="ek-public-hash" />"
+        ek_public_hash: <Var name="ek-public-hash" />
 ```
 
 If your TPM includes an EKCert and you have obtained the manufacturer's CA,
@@ -157,7 +157,7 @@ version: v2
 proxy_server: example.teleport.sh:443
 onboarding:
   join_method: tpm
-  token: <Var name="my-bot-token" />
+  token: my-bot-token
 storage:
   type: directory
   path: /var/lib/teleport/bot
@@ -199,7 +199,7 @@ $ sudo chown teleport:teleport /var/lib/teleport/bot
 
 ## Next steps
 
-- Follow the [access guides](../access-guides.mdx) to finish configuring `tbot` for
+- Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
 your environment.
 - Read the [TPM joining reference](../../../reference/join-methods.mdx#trusted-platform-module-tpm)
 to learn more about `tpm`joining.

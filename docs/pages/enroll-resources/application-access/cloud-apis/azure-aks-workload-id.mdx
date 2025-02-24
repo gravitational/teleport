@@ -135,7 +135,7 @@ Next assign the managed identity desired permissions that the Teleport user
 should have. In this example, the "Reader" role is assigned to the managed
 identity:
 ```code
-$ az role assignment create --role "<Var name="Reader" />" --scope "/subscriptions/${SUBSCRIPTION}" --assignee-object-id $(az identity show --name "<Var name="teleport-reader" />" --resource-group "${RESOURCE_GROUP}" --query principalId --output tsv) --assignee-principal-type ServicePrincipal
+$ az role assignment create --role "Reader" --scope "/subscriptions/${SUBSCRIPTION}" --assignee-object-id $(az identity show --name "<Var name="teleport-reader" />" --resource-group "${RESOURCE_GROUP}" --query principalId --output tsv) --assignee-principal-type ServicePrincipal
 ```
 
 ### Associate the managed identity with the Kubernetes service account
@@ -222,7 +222,7 @@ teleport-azure-access-agent-0   1/1     Running   0          99s
   longstanding admin roles for attackers to hijack. View our documentation on
   [Role Access
   Requests](../../../admin-guides/access-controls/access-requests/role-requests.mdx) and
-  [Access Request plugins](../../../admin-guides/access-controls/access-request-plugins.mdx).
+  [Access Request plugins](../../../admin-guides/access-controls/access-request-plugins/access-request-plugins.mdx).
 - Consult the Azure documentation for information about [Azure managed
   identities](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
   and how to [manage user-assigned managed

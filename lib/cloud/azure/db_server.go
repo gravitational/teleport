@@ -19,9 +19,11 @@
 package azure
 
 import (
+	"context"
+	"log/slog"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -120,9 +122,9 @@ func (s *DBServer) IsAvailable() bool {
 	case "Inaccessible", "Dropping", "Disabled":
 		return false
 	default:
-		log.Warnf("Unknown server state: %q. Assuming Azure DB server %q is available.",
-			s.Properties.UserVisibleState,
-			s.Name,
+		slog.WarnContext(context.Background(), "Assuming Azure DB server with unknown server state is available",
+			"state", s.Properties.UserVisibleState,
+			"server", s.Name,
 		)
 		return true
 	}

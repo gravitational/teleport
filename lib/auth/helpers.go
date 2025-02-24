@@ -31,7 +31,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
@@ -69,6 +68,8 @@ import (
 type TestAuthServerConfig struct {
 	// ClusterName is cluster name
 	ClusterName string
+	// ClusterID is the cluster ID; optional - sets to random UUID string if not present
+	ClusterID string
 	// Dir is directory for local backend
 	Dir string
 	// AcceptedUsage is an optional list of restricted
@@ -77,7 +78,7 @@ type TestAuthServerConfig struct {
 	// CipherSuites is the list of ciphers that the server supports.
 	CipherSuites []uint16
 	// Clock is used to control time in tests.
-	Clock clockwork.FakeClock
+	Clock clockwork.Clock
 	// ClusterNetworkingConfig allows a test to change the default
 	// networking configuration.
 	ClusterNetworkingConfig types.ClusterNetworkingConfig
@@ -285,6 +286,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: cfg.ClusterName,
+		ClusterID:   cfg.ClusterID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -320,53 +322,10 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	srv.AuthServer.bcryptCostOverride = &minCost
 
 	if cfg.CacheEnabled {
-		svces := srv.AuthServer.Services
-		srv.AuthServer.Cache, err = accesspoint.NewCache(accesspoint.Config{
-			Context:      srv.AuthServer.CloseContext(),
-			Setup:        cache.ForAuth,
-			CacheName:    []string{teleport.ComponentAuth},
-			EventsSystem: true,
-			Unstarted:    true,
-
-			Access:                  svces.Access,
-			AccessLists:             svces.AccessLists,
-			AccessMonitoringRules:   svces.AccessMonitoringRules,
-			AppSession:              svces.Identity,
-			Apps:                    svces.Apps,
-			ClusterConfig:           svces.ClusterConfiguration,
-			AutoUpdateService:       svces.AutoUpdateService,
-			CrownJewels:             svces.CrownJewels,
-			DatabaseObjects:         svces.DatabaseObjects,
-			DatabaseServices:        svces.DatabaseServices,
-			Databases:               svces.Databases,
-			DiscoveryConfigs:        svces.DiscoveryConfigs,
-			DynamicAccess:           svces.DynamicAccessExt,
-			Events:                  svces.Events,
-			Integrations:            svces.Integrations,
-			KubeWaitingContainers:   svces.KubeWaitingContainer,
-			Kubernetes:              svces.Kubernetes,
-			Notifications:           svces.Notifications,
-			Okta:                    svces.Okta,
-			Presence:                svces.PresenceInternal,
-			Provisioner:             svces.Provisioner,
-			ProvisioningStates:      svces.ProvisioningStates,
-			Restrictions:            svces.Restrictions,
-			SAMLIdPServiceProviders: svces.SAMLIdPServiceProviders,
-			SAMLIdPSession:          svces.Identity,
-			SecReports:              svces.SecReports,
-			SnowflakeSession:        svces.Identity,
-			SPIFFEFederations:       svces.SPIFFEFederations,
-			StaticHostUsers:         svces.StaticHostUser,
-			Trust:                   svces.TrustInternal,
-			UserGroups:              svces.UserGroups,
-			UserTasks:               svces.UserTasks,
-			UserLoginStates:         svces.UserLoginStates,
-			Users:                   svces.Identity,
-			WebSession:              svces.Identity.WebSessions(),
-			WebToken:                svces.WebTokens(),
-			WindowsDesktops:         svces.WindowsDesktops,
-		})
-		if err != nil {
+		if err := InitTestAuthCache(TestAuthCacheParams{
+			AuthServer: srv.AuthServer,
+			Unstarted:  true,
+		}); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -536,6 +495,69 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		}
 	}
 	return srv, nil
+}
+
+type TestAuthCacheParams struct {
+	AuthServer *Server
+	Unstarted  bool
+}
+
+func InitTestAuthCache(p TestAuthCacheParams) error {
+	c, err := accesspoint.NewCache(accesspoint.Config{
+		Context:      p.AuthServer.CloseContext(),
+		Setup:        cache.ForAuth,
+		CacheName:    []string{teleport.ComponentAuth},
+		EventsSystem: true,
+		Unstarted:    p.Unstarted,
+
+		Access:                  p.AuthServer.Services.Access,
+		AccessLists:             p.AuthServer.Services.AccessLists,
+		AccessMonitoringRules:   p.AuthServer.Services.AccessMonitoringRules,
+		AppSession:              p.AuthServer.Services.Identity,
+		Apps:                    p.AuthServer.Services.Apps,
+		ClusterConfig:           p.AuthServer.Services.ClusterConfigurationInternal,
+		CrownJewels:             p.AuthServer.Services.CrownJewels,
+		DatabaseObjects:         p.AuthServer.Services.DatabaseObjects,
+		DatabaseServices:        p.AuthServer.Services.DatabaseServices,
+		Databases:               p.AuthServer.Services.Databases,
+		DiscoveryConfigs:        p.AuthServer.Services.DiscoveryConfigs,
+		DynamicAccess:           p.AuthServer.Services.DynamicAccessExt,
+		Events:                  p.AuthServer.Services.Events,
+		Integrations:            p.AuthServer.Services.Integrations,
+		KubeWaitingContainers:   p.AuthServer.Services.KubeWaitingContainer,
+		Kubernetes:              p.AuthServer.Services.Kubernetes,
+		Notifications:           p.AuthServer.Services.Notifications,
+		Okta:                    p.AuthServer.Services.Okta,
+		Presence:                p.AuthServer.Services.PresenceInternal,
+		Provisioner:             p.AuthServer.Services.Provisioner,
+		Restrictions:            p.AuthServer.Services.Restrictions,
+		SAMLIdPServiceProviders: p.AuthServer.Services.SAMLIdPServiceProviders,
+		SAMLIdPSession:          p.AuthServer.Services.Identity,
+		SecReports:              p.AuthServer.Services.SecReports,
+		SnowflakeSession:        p.AuthServer.Services.Identity,
+		SPIFFEFederations:       p.AuthServer.Services.SPIFFEFederations,
+		StaticHostUsers:         p.AuthServer.Services.StaticHostUser,
+		Trust:                   p.AuthServer.Services.TrustInternal,
+		UserGroups:              p.AuthServer.Services.UserGroups,
+		UserTasks:               p.AuthServer.Services.UserTasks,
+		UserLoginStates:         p.AuthServer.Services.UserLoginStates,
+		Users:                   p.AuthServer.Services.Identity,
+		WebSession:              p.AuthServer.Services.Identity.WebSessions(),
+		WebToken:                p.AuthServer.Services.WebTokens(),
+		WorkloadIdentity:        p.AuthServer.Services.WorkloadIdentities,
+		DynamicWindowsDesktops:  p.AuthServer.Services.DynamicWindowsDesktops,
+		WindowsDesktops:         p.AuthServer.Services.WindowsDesktops,
+		AutoUpdateService:       p.AuthServer.Services.AutoUpdateService,
+		ProvisioningStates:      p.AuthServer.Services.ProvisioningStates,
+		IdentityCenter:          p.AuthServer.Services.IdentityCenter,
+		PluginStaticCredentials: p.AuthServer.Services.PluginStaticCredentials,
+		GitServers:              p.AuthServer.Services.GitServers,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	p.AuthServer.Cache = c
+	return nil
 }
 
 func (a *TestAuthServer) Close() error {
@@ -1093,7 +1115,8 @@ func (t *TestTLSServer) CloneClient(tt *testing.T, clt *authclient.Client) *auth
 	// shared between all clients that use the same TLS config.
 	// Reusing the cache will skip the TLS handshake and may introduce a weird
 	// behavior in tests.
-	if !tlsConfig.SessionTicketsDisabled {
+	if tlsConfig.ClientSessionCache != nil {
+		tlsConfig = tlsConfig.Clone()
 		tlsConfig.ClientSessionCache = tls.NewLRUClientSessionCache(utils.DefaultLRUCapacity)
 	}
 
@@ -1104,11 +1127,11 @@ func (t *TestTLSServer) CloneClient(tt *testing.T, clt *authclient.Client) *auth
 		},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
-	require.NoError(tt, err)
+	if err != nil {
+		tt.Fatalf("error creating auth client: %v", err.Error())
+	}
 
-	tt.Cleanup(func() {
-		require.NoError(tt, newClient.Close())
-	})
+	tt.Cleanup(func() { _ = newClient.Close() })
 	return newClient
 }
 
@@ -1449,12 +1472,12 @@ func CreateUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []str
 
 // flushClt is the set of methods expected by the flushCache helper.
 type flushClt interface {
-	// GetNamespace returns namespace by name
-	GetNamespace(name string) (*types.Namespace, error)
-	// UpsertNamespace upserts namespace
-	UpsertNamespace(types.Namespace) error
-	// DeleteNamespace deletes namespace by name
-	DeleteNamespace(name string) error
+	// GetRole returns role by name
+	GetRole(ctx context.Context, name string) (types.Role, error)
+	// CreateRole creates a new role.
+	CreateRole(context.Context, types.Role) (types.Role, error)
+	// DeleteRole deletes the role by name.
+	DeleteRole(ctx context.Context, name string) error
 }
 
 // flushCache is a helper for waiting until preceding changes have propagated to the
@@ -1464,19 +1487,35 @@ type flushClt interface {
 // write events for different keys show up in the order in which the writes were performed, which
 // is not necessarily true for all backends.
 func flushCache(t *testing.T, clt flushClt) {
+	ctx := context.Background()
+
 	// the pattern of writing a resource and then waiting for it to appear
-	// works for any resource type (when using memory backend). we use namespaces
-	// here because namespaces are deprecated and therefore unlikely to interfer
-	// with tests.
+	// works for any resource type (when using memory backend).
 	name := strings.ReplaceAll(uuid.NewString(), "-", "")
-	defer clt.DeleteNamespace(name)
+	defer clt.DeleteRole(ctx, name)
 
-	ns, err := types.NewNamespace(name)
-	require.NoError(t, err)
+	role, err := types.NewRole(name, types.RoleSpecV6{})
+	if err != nil {
+		t.Fatalf("Failed to instantiate new role: %v", err)
+	}
 
-	require.NoError(t, clt.UpsertNamespace(ns))
-	require.Eventually(t, func() bool {
-		_, err := clt.GetNamespace(name)
-		return err == nil
-	}, time.Second*20, time.Millisecond*200)
+	role, err = clt.CreateRole(ctx, role)
+	if err != nil {
+		t.Fatalf("Failed to create new role: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	for {
+		r, err := clt.GetRole(ctx, name)
+		if err == nil && r.GetRevision() == role.GetRevision() {
+			return
+		}
+
+		select {
+		case <-time.After(200 * time.Millisecond):
+		case <-ctx.Done():
+			t.Fatal("Time out waiting for role to be replicated")
+		}
+	}
 }

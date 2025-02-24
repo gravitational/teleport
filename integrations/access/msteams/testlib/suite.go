@@ -28,6 +28,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/msteams"
@@ -37,7 +39,7 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 )
 
-// MsTeamsBaseSuite is the Slack access plugin test suite.
+// MsTeamsBaseSuite is the MsTeams access plugin test suite.
 // It implements the testify.TestingSuite interface.
 type MsTeamsBaseSuite struct {
 	*integration.AccessRequestSuite
@@ -51,16 +53,19 @@ type MsTeamsBaseSuite struct {
 	reviewer2TeamsUser    msapi.User
 }
 
-// SetupTest starts a fake Slack, generates the plugin configuration, and loads
-// the fixtures in Slack. It runs for each test.
+// SetupTest starts a fake MsTeams, generates the plugin configuration, and loads
+// the fixtures in MsTeams. It runs for each test.
 func (s *MsTeamsBaseSuite) SetupTest() {
 	t := s.T()
+
+	err := logger.Setup(logger.Config{Severity: "debug"})
+	require.NoError(t, err)
 	s.raceNumber = runtime.GOMAXPROCS(0)
 
 	s.fakeTeams = NewFakeTeams(s.raceNumber)
 	t.Cleanup(s.fakeTeams.Close)
 
-	// We need requester users as well, the slack plugin sends messages to users
+	// We need requester users as well, the MsTeams plugin sends messages to users
 	// when their access request got approved.
 	s.requesterOSSTeamsUser = s.fakeTeams.StoreUser(msapi.User{Name: "Requester OSS", Mail: integration.RequesterOSSUserName})
 	s.requester1TeamsUser = s.fakeTeams.StoreUser(msapi.User{Name: "Requester Ent", Mail: integration.Requester1UserName})
@@ -71,16 +76,17 @@ func (s *MsTeamsBaseSuite) SetupTest() {
 
 	var conf msteams.Config
 	conf.Teleport = s.TeleportConfig()
+	apiClient, err := common.GetTeleportClient(context.Background(), s.TeleportConfig())
+	require.NoError(t, err)
+	conf.Client = apiClient
+	conf.StatusSink = s.fakeStatusSink
 	conf.MSAPI = s.fakeTeams.Config
 	conf.MSAPI.SetBaseURLs(s.fakeTeams.URL(), s.fakeTeams.URL(), s.fakeTeams.URL())
-	conf.Log = logger.Config{
-		Severity: "debug",
-	}
 
 	s.appConfig = &conf
 }
 
-// startApp starts the Slack plugin, waits for it to become ready and returns.
+// startApp starts the MsTeams plugin, waits for it to become ready and returns.
 func (s *MsTeamsBaseSuite) startApp() {
 	s.T().Helper()
 	t := s.T()
@@ -414,7 +420,9 @@ func (s *MsTeamsSuiteEnterprise) TestRace() {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	t.Cleanup(cancel)
 
-	s.appConfig.Log.Severity = "debug" // Turn off noisy debug logging
+	err := logger.Setup(logger.Config{Severity: "info"}) // Turn off noisy debug logging
+	require.NoError(t, err)
+
 	s.startApp()
 
 	var (
@@ -526,4 +534,58 @@ func (s *MsTeamsSuiteEnterprise) TestRace() {
 
 		return next
 	})
+}
+
+func (s *MsTeamsSuiteOSS) TestRecipientsFromAccessMonitoringRule() {
+	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
+
+	s.startApp()
+
+	_, err := s.ClientByName(integration.RulerUserName).
+		AccessMonitoringRulesClient().
+		CreateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
+			Kind:    types.KindAccessMonitoringRule,
+			Version: types.V1,
+			Metadata: &v1.Metadata{
+				Name: "test-msteams-amr",
+			},
+			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+				Subjects:  []string{types.KindAccessRequest},
+				Condition: "!is_empty(access_request.spec.roles)",
+				Notification: &accessmonitoringrulesv1.Notification{
+					Name: "msteams",
+					Recipients: []string{
+						s.reviewer1TeamsUser.ID,
+						s.reviewer2TeamsUser.Mail,
+					},
+				},
+			},
+		})
+	assert.NoError(t, err)
+
+	// Test execution: create an access request
+	req := s.CreateAccessRequest(ctx, integration.RequesterOSSUserName, nil)
+
+	s.checkPluginData(ctx, req.GetName(), func(data msteams.PluginData) bool {
+		return len(data.TeamsData) > 0
+	})
+
+	title := "Access Request " + req.GetName()
+	msgs, err := s.getNewMessages(ctx, 2)
+	require.NoError(t, err)
+
+	var body1 testTeamsMessage
+	require.NoError(t, json.Unmarshal([]byte(msgs[0].Body), &body1))
+	body1.checkTitle(t, title)
+	require.Equal(t, msgs[0].RecipientID, s.reviewer1TeamsUser.ID)
+
+	var body2 testTeamsMessage
+	require.NoError(t, json.Unmarshal([]byte(msgs[1].Body), &body2))
+	body1.checkTitle(t, title)
+	require.Equal(t, msgs[1].RecipientID, s.reviewer2TeamsUser.ID)
+
+	assert.NoError(t, s.ClientByName(integration.RulerUserName).
+		AccessMonitoringRulesClient().DeleteAccessMonitoringRule(ctx, "test-msteams-amr"))
 }

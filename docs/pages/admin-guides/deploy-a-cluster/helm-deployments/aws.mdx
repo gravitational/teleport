@@ -109,7 +109,6 @@ You should be aware of these potential limitations and differences when using La
   that it terminate all inbound TLS traffic itself on the Teleport proxy. This is not directly possible when using
   a Layer 7 load balancer, so the `tsh` client implements this flow itself
   [using ALPN connection upgrades](../../../reference/architecture/tls-routing.mdx).
-- The use of Teleport and `tsh` v13 or higher is required.
 
 <Admonition type="warning">
   Using ACM with an ALB also requires that your cluster has a fully functional installation of the AWS Load Balancer
@@ -290,11 +289,9 @@ Edit your `aws-values.yaml` file (created below) to refer to the name of your se
 
 ## Step 5/7. Set values to configure the cluster
 
-<Tabs>
-<TabItem scope="enterprise" label="Teleport Enterprise">
-
-Before you can install Teleport in your Kubernetes cluster, you will need to
-create a secret that contains your Teleport license information.
+If you run Teleport Enterprise, you will need to create a secret that contains
+your Teleport license information before you can install Teleport in your
+Kubernetes cluster. 
 
 (!docs/pages/includes//enterprise/obtainlicense.mdx!)
 
@@ -305,17 +302,10 @@ this secret as long as your file is named `license.pem`.
 $ kubectl -n <Var name="namespace" /> create secret generic license --from-file=license.pem
 ```
 
-</TabItem>
-
-</Tabs>
-
 Next, configure the `teleport-cluster` Helm chart to use the `aws` mode. Create
 a file called `aws-values.yaml` and write the values you've chosen above to it:
 
 <Tabs>
-<TabItem scope={["oss"]} label="Teleport Community Edition">
-
-<Tabs>
 <TabItem label="cert-manager">
 ```yaml
 chartMode: aws
@@ -334,6 +324,9 @@ highAvailability:
   certManager:
     enabled: true                                 # Enable cert-manager support to get TLS certificates
     issuerName: letsencrypt-production            # Name of the cert-manager Issuer to use (as configured above)
+# Indicate that this is a Teleport Enterprise deployment. Set to false for
+# Teleport Community Edition.
+enterprise: true                                  
 # If you are running Kubernetes 1.23 or above, disable PodSecurityPolicies
 podSecurityPolicy:
   enabled: false
@@ -365,97 +358,9 @@ aws:
   dynamoAutoScaling: false                        # Whether Teleport should configure DynamoDB's autoscaling.
 highAvailability:
   replicaCount: 2                                 # Number of replicas to configure
-ingress:
-  enabled: true
-  spec:
-    ingressClassName: alb
-annotations:
-  ingress:
-    alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/backend-protocol: HTTPS
-    alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=350
-    alb.ingress.kubernetes.io/healthcheck-protocol: HTTPS
-    alb.ingress.kubernetes.io/success-codes: 200,301,302
-    # Replace with your AWS certificate ARN
-    alb.ingress.kubernetes.io/certificate-arn: "<Var name="arn:aws:acm:us-west-2:1234567890:certificate/12345678-43c7-4dd1-a2f6-c495b91ebece"/>"
-# If you are running Kubernetes 1.23 or above, disable PodSecurityPolicies
-podSecurityPolicy:
-  enabled: false
-```
-
-To use an internal AWS application load balancer (as opposed to an internet-facing ALB), you should
-edit the `alb.ingress.kubernetes.io/scheme` annotation:
-
-  ```yaml
-    alb.ingress.kubernetes.io/scheme: internal
-  ```
-
-To automatically redirect HTTP requests on port 80 to HTTPS requests on port 443, you
-can also optionally provide these two values under `annotations.ingress`:
-
-  ```yaml
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
-    alb.ingress.kubernetes.io/ssl-redirect: '443'
-  ```
-</TabItem>
-</Tabs>
-
-</TabItem>
-<TabItem scope={["enterprise"]} label="Teleport Enterprise">
-
-<Tabs>
-<TabItem label="cert-manager">
-```yaml
-chartMode: aws
-clusterName: <Var name="teleport.example.com" />                 # Name of your cluster. Use the FQDN you intend to configure in DNS below.
-proxyListenerMode: multiplex
-aws:
-  region: <Var name="us-west-2" />                # AWS region
-  backendTable: <Var name="teleport-helm-backend" /> # DynamoDB table to use for the Teleport backend
-  auditLogTable: <Var name="teleport-helm-events" />             # DynamoDB table to use for the Teleport audit log (must be different to the backend table)
-  auditLogMirrorOnStdout: false                   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
-  sessionRecordingBucket: <Var name="your-sessions-bucket" />  # S3 bucket to use for Teleport session recordings
-  backups: true                                   # Whether or not to turn on DynamoDB backups
-  dynamoAutoScaling: false                        # Whether Teleport should configure DynamoDB's autoscaling.
-highAvailability:
-  replicaCount: 2                                 # Number of replicas to configure
-  certManager:
-    enabled: true                                 # Enable cert-manager support to get TLS certificates
-    issuerName: letsencrypt-production            # Name of the cert-manager Issuer to use (as configured above)
-enterprise: true                                  # Indicate that this is a Teleport Enterprise deployment
-# If you are running Kubernetes 1.23 or above, disable PodSecurityPolicies
-podSecurityPolicy:
-  enabled: false
-```
-<Admonition type="note">
-If using an AWS PCA with cert-manager, you will need to
-[ensure you set](../../../reference/helm-reference/teleport-cluster.mdx)
-`highAvailability.certManager.addCommonName: true` in your values file.  You will also need to get the certificate authority
-certificate for the CA (`aws acm-pca get-certificate-authority-certificate --certificate-authority-arn <arn>`),
-upload the full certificate chain to a secret, and
-[reference the secret](../../../reference/helm-reference/teleport-cluster.mdx)
-with `tls.existingCASecretName` in the values file.
-</Admonition>
-</TabItem>
-<TabItem label="AWS Certificate Manager">
-```yaml
-chartMode: aws
-clusterName: <Var name="teleport.example.com" />                 # Name of your cluster. Use the FQDN you intend to configure in DNS below.
-proxyListenerMode: multiplex
-service:
-  type: ClusterIP
-aws:
-  region: <Var name="us-west-2" />                # AWS region
-  backendTable: <Var name="teleport-helm-backend" /> # DynamoDB table to use for the Teleport backend
-  auditLogTable: <Var name="teleport-helm-events" />             # DynamoDB table to use for the Teleport audit log (must be different to the backend table)
-  auditLogMirrorOnStdout: false                   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
-  sessionRecordingBucket: <Var name="your-sessions-bucket" />  # S3 bucket to use for Teleport session recordings
-  backups: true                                   # Whether or not to turn on DynamoDB backups
-  dynamoAutoScaling: false                        # Whether Teleport should configure DynamoDB's autoscaling.
-highAvailability:
-  replicaCount: 2                                 # Number of replicas to configure
-enterprise: true                                  # Indicate that this is a Teleport Enterprise deployment
+# Indicate that this is a Teleport Enterprise deployment. Set to false for
+# Teleport Community Edition.
+enterprise: true                                  
 ingress:
   enabled: true
   spec:
@@ -491,10 +396,6 @@ can also optionally provide these two values under `annotations.ingress`:
   ```
 
 </TabItem>
-</Tabs>
-
-</TabItem>
-
 </Tabs>
 
 Install the chart with the values from your `aws-values.yaml` file using this command:
@@ -544,7 +445,7 @@ You'll need to set up a DNS `A` record for `teleport.example.com`. In our exampl
 (!docs/pages/includes/dns-app-access.mdx!)
 </Details>
 
-Here's how to do this in a hosted zone with AWS Route 53:
+Here's how to do this in a hosted zone with Amazon Route 53:
 
 <Tabs>
 <TabItem label="cert-manager">
@@ -674,7 +575,7 @@ $ aws route53 get-change --id "${CHANGEID?}" | jq '.ChangeInfo.Status'
 
 ## Step 7/7. Create a Teleport user
 
-Create a user to be able to log into Teleport. This needs to be done on the Teleport auth server,
+Create a user to be able to log into Teleport. This needs to be done on the Teleport Auth Service,
 so we can run the command using `kubectl`:
 
 <Tabs>

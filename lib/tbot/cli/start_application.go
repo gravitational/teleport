@@ -19,6 +19,7 @@
 package cli
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -31,23 +32,23 @@ import (
 // `tbot configure application`.
 type ApplicationCommand struct {
 	*sharedStartArgs
+	*sharedDestinationArgs
 	*genericMutatorHandler
 
-	Destination           string
 	AppName               string
 	SpecificTLSExtensions bool
 }
 
 // NewApplicationCommand initializes a command and flag for application outputs
 // and returns a struct that will contain the parse result.
-func NewApplicationCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *ApplicationCommand {
-	cmd := parentCmd.Command("application", "Starts with an application output").Alias("app")
+func NewApplicationCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *ApplicationCommand {
+	cmd := parentCmd.Command("application", fmt.Sprintf("%s tbot with an application output.", mode)).Alias("app")
 
 	c := &ApplicationCommand{}
 	c.sharedStartArgs = newSharedStartArgs(cmd)
+	c.sharedDestinationArgs = newSharedDestinationArgs(cmd)
 	c.genericMutatorHandler = newGenericMutatorHandler(cmd, c, action)
 
-	cmd.Flag("destination", "A destination URI, such as file:///foo/bar").Required().StringVar(&c.Destination)
 	cmd.Flag("app", "The name of the app in Teleport").Required().StringVar(&c.AppName)
 	cmd.Flag("specific-tls-extensions", "If set, include additional `tls.crt`, `tls.key`, and `tls.cas` for apps that require these file extensions").BoolVar(&c.SpecificTLSExtensions)
 
@@ -61,7 +62,7 @@ func (c *ApplicationCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) 
 		return trace.Wrap(err)
 	}
 
-	dest, err := config.DestinationFromURI(c.Destination)
+	dest, err := c.BuildDestination()
 	if err != nil {
 		return trace.Wrap(err)
 	}

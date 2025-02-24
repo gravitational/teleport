@@ -40,8 +40,10 @@ func TestCheckerValidateFIPS(t *testing.T) {
 		FIPS: true,
 	}
 
+	//nolint:forbidigo // Generating RSA keys allowed for key check test.
 	rsaKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	require.NoError(t, err)
+	//nolint:forbidigo // Generating RSA keys allowed for key check test.
 	smallRSAKey, err := rsa.GenerateKey(rand.Reader, 1024)
 	require.NoError(t, err)
 	ellipticKeyP224, err := ecdsa.GenerateKey(elliptic.P224(), rand.Reader)

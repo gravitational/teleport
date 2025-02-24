@@ -278,7 +278,7 @@ func TestNotificationCleanupOnUserDelete(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	identitySvc, err := local.NewIdentityServiceV2(backend)
+	identitySvc, err := local.NewIdentityService(backend)
 	require.NoError(t, err)
 	notificationsSvc, err := local.NewNotificationsService(backend, backend.Clock())
 	require.NoError(t, err)
@@ -595,33 +595,40 @@ func TestIdentityService_GetMFADevices_SSO(t *testing.T) {
 	tests := []struct {
 		name            string
 		connectorRef    *types.ConnectorRef
-		expectSSODevice bool
+		expectSSODevice *types.SSOMFADevice
 	}{
 		{
 			name:            "non-sso user",
 			connectorRef:    nil,
-			expectSSODevice: false,
+			expectSSODevice: nil,
 		}, {
 			name: "sso user mfa disabled",
 			connectorRef: &types.ConnectorRef{
 				Type: "saml",
 				ID:   samlConnectorNoMFA.GetName(),
 			},
-			expectSSODevice: false,
 		}, {
 			name: "saml user",
 			connectorRef: &types.ConnectorRef{
 				Type: "saml",
 				ID:   samlConnector.GetName(),
 			},
-			expectSSODevice: true,
+			expectSSODevice: &types.SSOMFADevice{
+				ConnectorType: "saml",
+				ConnectorId:   samlConnector.GetName(),
+				DisplayName:   samlConnector.GetDisplay(),
+			},
 		}, {
 			name: "oidc user",
 			connectorRef: &types.ConnectorRef{
 				Type: "oidc",
 				ID:   oidcConnector.GetName(),
 			},
-			expectSSODevice: true,
+			expectSSODevice: &types.SSOMFADevice{
+				ConnectorType: "oidc",
+				ConnectorId:   oidcConnector.GetName(),
+				DisplayName:   oidcConnector.GetDisplay(),
+			},
 		},
 	}
 	for _, test := range tests {
@@ -638,15 +645,13 @@ func TestIdentityService_GetMFADevices_SSO(t *testing.T) {
 			devs, err := identity.GetMFADevices(ctx, "alice", true /* withSecrets */)
 			require.NoError(t, err)
 
-			if !test.expectSSODevice {
+			if test.expectSSODevice == nil {
 				assert.Empty(t, devs)
 				return
 			}
-			expectSSODevice, err := types.NewMFADevice(test.connectorRef.ID, test.connectorRef.ID, clock.Now().UTC(), &types.MFADevice_Sso{
-				Sso: &types.SSOMFADevice{
-					ConnectorId:   test.connectorRef.ID,
-					ConnectorType: test.connectorRef.Type,
-				},
+
+			expectSSODevice, err := types.NewMFADevice(test.expectSSODevice.ConnectorId, test.expectSSODevice.DisplayName, clock.Now().UTC(), &types.MFADevice_Sso{
+				Sso: test.expectSSODevice,
 			})
 			require.NoError(t, err)
 			assert.Equal(t, []*types.MFADevice{expectSSODevice}, devs)
@@ -1740,4 +1745,43 @@ func TestWeakestMFADeviceKind(t *testing.T) {
 	got, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(t, err)
 	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_TOTP, got.GetWeakestDevice())
+}
+
+func TestIdentityService_SSOMFASessionDataCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+
+	// Verify create.
+	sd := &services.SSOMFASessionData{
+		RequestID:     "request",
+		Username:      "alice",
+		ConnectorID:   "saml",
+		ConnectorType: "saml",
+	}
+	err := identity.UpsertSSOMFASessionData(ctx, sd)
+	require.NoError(t, err)
+
+	// Verify read.
+	got, err := identity.GetSSOMFASessionData(ctx, sd.RequestID)
+	require.NoError(t, err)
+	if diff := cmp.Diff(sd, got); diff != "" {
+		t.Fatalf("GetSSOMFASessionData() mismatch (-want +got):\n%s", diff)
+	}
+
+	// Verify update.
+	sd.Token = "token"
+	err = identity.UpsertSSOMFASessionData(ctx, sd)
+	require.NoError(t, err)
+	got, err = identity.GetSSOMFASessionData(ctx, sd.RequestID)
+	require.NoError(t, err)
+	if diff := cmp.Diff(sd, got); diff != "" {
+		t.Fatalf("GetSSOMFASessionData() mismatch (-want +got):\n%s", diff)
+	}
+
+	// Verify delete.
+	err = identity.DeleteSSOMFASessionData(ctx, sd.RequestID)
+	require.NoError(t, err)
+	_, err = identity.GetSSOMFASessionData(ctx, sd.RequestID)
+	require.True(t, trace.IsNotFound(err))
 }

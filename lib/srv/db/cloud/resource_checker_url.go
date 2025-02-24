@@ -21,25 +21,29 @@ package cloud
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"slices"
 	"sync"
 
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 )
 
 // urlChecker validates the database has the correct URL.
 type urlChecker struct {
-	clients     cloud.Clients
-	log         logrus.FieldLogger
+	// awsConfigProvider provides [aws.Config] for AWS SDK service clients.
+	awsConfigProvider awsconfig.Provider
+	// awsClients is an SDK client provider.
+	awsClients awsClientProvider
+
+	logger      *slog.Logger
 	warnOnError bool
 
 	warnAWSOnce sync.Once
@@ -52,9 +56,10 @@ type urlChecker struct {
 
 func newURLChecker(cfg DiscoveryResourceCheckerConfig) *urlChecker {
 	return &urlChecker{
-		clients:     cfg.Clients,
-		log:         cfg.Log,
-		warnOnError: getWarnOnError(),
+		awsConfigProvider: cfg.AWSConfigProvider,
+		awsClients:        defaultAWSClients{},
+		logger:            cfg.Logger,
+		warnOnError:       getWarnOnError(),
 	}
 }
 
@@ -73,7 +78,7 @@ func getWarnOnError() bool {
 
 	boolValue, err := utils.ParseBool(value)
 	if err != nil {
-		logrus.Warnf("Invalid bool value for TELEPORT_DATABASE_URL_CHECK_WARN_ON_ERROR: %q.", value)
+		slog.WarnContext(context.Background(), "Invalid bool value for TELEPORT_DATABASE_URL_CHECK_WARN_ON_ERROR", "value", value)
 	}
 	return boolValue
 }
@@ -107,13 +112,13 @@ func (c *urlChecker) Check(ctx context.Context, database types.Database) error {
 	if check := checkersByDatabaseType[database.GetType()]; check != nil {
 		err := check(ctx, database)
 		if err != nil && c.warnOnError {
-			c.log.Warnf("URL check failed for %q: %v.", database.GetName(), err)
+			c.logger.WarnContext(ctx, "URL check failed for database", "database", database.GetName(), "error", err)
 			return nil
 		}
 		return trace.Wrap(err)
 	}
 
-	c.log.Debugf("URL checker does not support database type %q.", database.GetType())
+	c.logger.DebugContext(ctx, "URL checker does not support database type", "database_type", database.GetType())
 	return nil
 }
 
@@ -121,8 +126,8 @@ func requireDatabaseIsEndpoint(ctx context.Context, database types.Database, isE
 	return trace.Wrap(convIsEndpoint(isEndpoint)(ctx, database))
 }
 
-func requireDatabaseAddressPort(database types.Database, wantURLHost *string, wantURLPort *int64) error {
-	wantURL := fmt.Sprintf("%v:%v", aws.StringValue(wantURLHost), aws.Int64Value(wantURLPort))
+func requireDatabaseAddressPort(database types.Database, wantURLHost *string, wantURLPort *int32) error {
+	wantURL := fmt.Sprintf("%v:%v", aws.ToString(wantURLHost), aws.ToInt32(wantURLPort))
 	if database.GetURI() != wantURL {
 		return trace.BadParameter("expect database URL %q but got %q for database %q", wantURL, database.GetURI(), database.GetName())
 	}

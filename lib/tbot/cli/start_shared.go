@@ -30,6 +30,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
@@ -151,29 +153,29 @@ func (s *sharedStartArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) err
 	}
 
 	if s.CertificateTTL != 0 {
-		if cfg.CertificateTTL != 0 {
+		if cfg.CredentialLifetime.TTL != 0 {
 			l.WarnContext(
 				context.TODO(),
 				"CLI parameters are overriding configuration",
 				"flag", "certificate-ttl",
-				"config_value", cfg.CertificateTTL,
+				"config_value", cfg.CredentialLifetime.TTL,
 				"cli_value", s.CertificateTTL,
 			)
 		}
-		cfg.CertificateTTL = s.CertificateTTL
+		cfg.CredentialLifetime.TTL = s.CertificateTTL
 	}
 
 	if s.RenewalInterval != 0 {
-		if cfg.RenewalInterval != 0 {
+		if cfg.CredentialLifetime.RenewalInterval != 0 {
 			l.WarnContext(
 				context.TODO(),
 				"CLI parameters are overriding configuration",
 				"flag", "renewal-interval",
-				"config_value", cfg.RenewalInterval,
+				"config_value", cfg.CredentialLifetime.RenewalInterval,
 				"cli_value", s.RenewalInterval,
 			)
 		}
-		cfg.RenewalInterval = s.RenewalInterval
+		cfg.CredentialLifetime.RenewalInterval = s.RenewalInterval
 	}
 
 	if s.DiagAddr != "" {
@@ -232,4 +234,80 @@ func (s *sharedStartArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) err
 	}
 
 	return nil
+}
+
+// sharedDestinationArgs are arguments common to all commands that accept a
+// --destination flag and any related flags. Downstream commands will need to
+// call `BuildDestination()` to retrieve the value.
+type sharedDestinationArgs struct {
+	Destination  string
+	ReaderUsers  []string
+	ReaderGroups []string
+}
+
+// newSharedDestinationArgs initializes args that provide --destination and
+// related flags.
+func newSharedDestinationArgs(cmd *kingpin.CmdClause) *sharedDestinationArgs {
+	args := &sharedDestinationArgs{}
+
+	cmd.Flag("destination", "A destination URI, such as file:///foo/bar").Required().StringVar(&args.Destination)
+	cmd.Flag("reader-user", "An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.").StringsVar(&args.ReaderUsers)
+	cmd.Flag("reader-group", "An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.").StringsVar(&args.ReaderGroups)
+
+	return args
+}
+
+func (s *sharedDestinationArgs) BuildDestination() (bot.Destination, error) {
+	dest, err := config.DestinationFromURI(s.Destination)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(s.ReaderUsers) > 0 || len(s.ReaderGroups) > 0 {
+		// These flags are only supported on directory destinations, so ensure
+		// that's what was built.
+
+		dd, ok := dest.(*config.DestinationDirectory)
+		if !ok {
+			return nil, trace.BadParameter("--reader-user and --reader-group are only compatible with file destinations")
+		}
+
+		for _, r := range s.ReaderUsers {
+			dd.Readers = append(dd.Readers, &botfs.ACLSelector{
+				User: r,
+			})
+		}
+
+		for _, r := range s.ReaderGroups {
+			dd.Readers = append(dd.Readers, &botfs.ACLSelector{
+				Group: r,
+			})
+		}
+	}
+
+	return dest, nil
+}
+
+// CommandMode is a simple enum to help shared start/configure command
+// substitute the correct verb based on whether they are being used for "start"
+// or "configure" actions.
+type CommandMode int
+
+const (
+	// CommandModeStart indicates a command instance will be used for
+	// `tbot start ...`
+	CommandModeStart CommandMode = iota
+
+	// CommandModeConfigure indicates a command instance will be used for
+	// `tbot configure ...`
+	CommandModeConfigure
+)
+
+func (c CommandMode) String() string {
+	switch c {
+	case CommandModeConfigure:
+		return "Configures"
+	default:
+		return "Starts"
+	}
 }
