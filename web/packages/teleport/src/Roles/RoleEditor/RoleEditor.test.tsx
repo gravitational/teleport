@@ -440,6 +440,16 @@ it('YAML editor usable even if the initial conversion throws', async () => {
   expect(onSave).toHaveBeenCalledWith({
     yaml: '{"modified":1}',
   });
+
+  expect(console.error).toHaveBeenCalledTimes(1);
+  expect(console.error).toHaveBeenCalledWith(
+    expect.any(String),
+    expect.any(String),
+    'Could not convert Role to a standard model',
+    expect.objectContaining({
+      message: expect.stringMatching('oh noes, it crashed'),
+    })
+  );
 });
 
 // Here's a trick: since we can't parse YAML back and forth, we use a
