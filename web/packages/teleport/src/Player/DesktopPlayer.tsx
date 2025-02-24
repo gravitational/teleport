@@ -26,7 +26,8 @@ import { TdpClientCanvasRef } from 'teleport/components/TdpClientCanvas/TdpClien
 import cfg from 'teleport/config';
 import { formatDisplayTime, StatusEnum } from 'teleport/lib/player';
 import { PlayerClient, TdpClientEvent } from 'teleport/lib/tdp';
-import type { ClientScreenSpec } from 'teleport/lib/tdp/codec';
+import { BitmapFrame } from 'teleport/lib/tdp/client';
+import type { ClientScreenSpec, PngFrame } from 'teleport/lib/tdp/codec';
 import { getHostName } from 'teleport/services/api';
 
 import ProgressBar from './ProgressBar';
