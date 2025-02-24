@@ -526,7 +526,7 @@ export const integrationService = {
   fetchAwsOidcDatabaseServices(
     name: string,
     resourceType: AwsResource,
-    regions: string[]
+    regions?: string[]
   ): Promise<AWSOIDCListDeployedDatabaseServiceResponse> {
     return api
       .post(cfg.getAwsOidcDatabaseServices(name, resourceType, regions), null)

@@ -15,44 +15,25 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { useEffect } from 'react';
 import { useHistory } from 'react-router';
 
 import { Alert } from 'design';
 import { ArrowForward, BellRinging } from 'design/Icon';
-import { useAsync } from 'shared/hooks/useAsync';
 
 import cfg from 'teleport/config';
-import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
-import {
-  IntegrationKind,
-  integrationService,
-} from 'teleport/services/integrations';
+import { IntegrationKind } from 'teleport/services/integrations';
 
 export function TaskAlert({
   name,
+  pendingTasksCount,
   kind = IntegrationKind.AwsOidc,
 }: {
   name: string;
+  pendingTasksCount: number;
   kind?: IntegrationKind;
 }) {
   const history = useHistory();
-  // todo (michellescripts) should we show the banner if there is an error
-  const [tasksAttempt, fetchTasks] = useAsync(() =>
-    integrationService.fetchIntegrationUserTasksList(name, TaskState.Open)
-  );
-
-  useEffect(() => {
-    fetchTasks();
-  }, []);
-
-  const pendingTasksCount =
-    (tasksAttempt.status === 'success' &&
-      tasksAttempt.data.items?.filter(t => t.state === TaskState.Open)
-        .length) ||
-    0;
-
-  if (!pendingTasksCount) {
+  if (pendingTasksCount == 0) {
     return null;
   }
 
