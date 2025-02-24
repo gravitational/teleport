@@ -171,7 +171,7 @@ func TestBotWorkloadIdentityAPI(t *testing.T) {
 	_, err = jwtsvid.ParseAndValidate(jwtSVID.Marshal(), jwtBundles, []string{"example.com"})
 	require.NoError(t, err)
 
-	// Check CSR is delivered - we have to manually craft the client for this
+	// Check CRL is delivered - we have to manually craft the client for this
 	// since the current go-spiffe SDK doesn't support this.
 	// TODO(noah): I'll raise some changes upstream to add CSR field support to
 	// the go-spiffe SDK, and then we can remove this code.
