@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Box, ButtonPrimary, ButtonSecondary, Flex, Indicator } from 'design';
 import { Info } from 'design/Alert';
@@ -272,7 +272,8 @@ export function DesktopSession(props: State) {
     if (!client) {
       return;
     }
-    const setResolution = tdpClientCanvasRef.current?.setResolution;
+    const setResolution = (spec: ClientScreenSpec) =>
+      tdpClientCanvasRef.current?.setResolution(spec);
     client.addListener(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, setResolution);
 
     return () => {

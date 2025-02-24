@@ -18,7 +18,6 @@
 
 import React, {
   forwardRef,
-  memo,
   useEffect,
   useImperativeHandle,
   useRef,
@@ -42,7 +41,27 @@ export interface TdpClientCanvasRef {
   focus(): void;
 }
 
-const TdpClientCanvas = forwardRef<TdpClientCanvasRef, Props>((props, ref) => {
+export const TdpClientCanvas = forwardRef<
+  TdpClientCanvasRef,
+  {
+    onKeyDown?(e: React.KeyboardEvent): void;
+    onKeyUp?(e: React.KeyboardEvent): void;
+    onBlur?(e: React.FocusEvent): void;
+    onMouseMove?(e: React.MouseEvent): void;
+    onMouseDown?(e: React.MouseEvent): void;
+    onMouseUp?(e: React.MouseEvent): void;
+    onMouseWheel?(e: WheelEvent): void;
+    onContextMenu?(e: React.MouseEvent): void;
+    /**
+     * Handles canvas resize events.
+     *
+     * This function is called whenever the canvas is resized,
+     * with a debounced delay of 250 ms to optimize performance.
+     */
+    onResize?(e: { width: number; height: number }): void;
+    style?: CSSProperties;
+  }
+>((props, ref) => {
   const {
     onKeyDown,
     onKeyUp,
@@ -141,25 +160,6 @@ const TdpClientCanvas = forwardRef<TdpClientCanvasRef, Props>((props, ref) => {
   );
 });
 
-export type Props = {
-  onKeyDown?(e: React.KeyboardEvent): void;
-  onKeyUp?(e: React.KeyboardEvent): void;
-  onBlur?(e: React.FocusEvent): void;
-  onMouseMove?(e: React.MouseEvent): void;
-  onMouseDown?(e: React.MouseEvent): void;
-  onMouseUp?(e: React.MouseEvent): void;
-  onMouseWheel?(e: WheelEvent): void;
-  onContextMenu?(e: React.MouseEvent): void;
-  /**
-   * Handles canvas resize events.
-   *
-   * This function is called whenever the canvas is resized,
-   * with a debounced delay of 250 ms to optimize performance.
-   */
-  onResize?(e: { width: number; height: number }): void;
-  style?: CSSProperties;
-};
-
 interface Pointer {
   data: ImageData | boolean;
   hotspot_x?: number;
@@ -240,5 +240,3 @@ function makeBitmapFrameRenderer(
 
   return frame => bitmapBuffer.push(frame);
 }
-
-export default memo(TdpClientCanvas);
