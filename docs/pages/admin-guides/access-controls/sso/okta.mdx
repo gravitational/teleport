@@ -173,7 +173,7 @@ flags for this command:
 
 ```code
 $ tctl sso configure saml --preset=okta \
---entity-descriptor <Var name="https://example.okta.com/app/000000/sso/saml/metadata"/> \
+--entity-descriptor "https://example.okta.com/app/000000/sso/saml/metadata" \
 --attributes-to-roles=groups,okta-admin,editor \
 --attributes-to-roles=groups,okta-dev,dev > okta-connector.yaml
 ```

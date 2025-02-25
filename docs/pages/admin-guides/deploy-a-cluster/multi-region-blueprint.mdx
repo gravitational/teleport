@@ -53,7 +53,7 @@ To run a multi-region Teleport deployment, you must have:
   This means you have **cross-region Pod/Instance connectivity**. This is typically
   achieved with VPC peering and/or service mesh.
 - A **multi-region object storage** for session recordings.
-- **GeoDNS** to route users and Teleport agents to the closest Teleport cluster.
+- **GeoDNS** to route users and Teleport Agents to the closest Teleport cluster.
 - A **multi-region CockroachDB cluster**. You can use the CockroachDB core
   for testing purposes, but only CockroachDB Enterprise is recommended for production
   because of [its multi-region features](https://www.cockroachlabs.com/docs/stable/enterprise-licensing).
