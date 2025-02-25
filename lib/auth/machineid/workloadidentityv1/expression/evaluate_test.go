@@ -44,6 +44,7 @@ func TestEvaluate(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
+	require.True(t, result)
 
 	// False result.
 	result, err = expression.Evaluate(

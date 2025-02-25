@@ -79,9 +79,9 @@ func TestTemplate_Success(t *testing.T) {
 			output: "HELLO",
 		},
 		"incomplete curly braces": {
-			tmpl:   "look at my moustache :-{{)",
+			tmpl:   "look at my mustache :-{{)",
 			attrs:  &workloadidentityv1.Attrs{},
-			output: "look at my moustache :-{{)",
+			output: "look at my mustache :-{{)",
 		},
 		"empty expression": {
 			tmpl:   "{{ }}",
