@@ -21,14 +21,13 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/expression"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
-// accessRequestExpressionEnv holds user details that can be mapped in an
+// AccessRequestExpressionEnv holds user details that can be mapped in an
 // access request condition assertion.
-type accessRequestExpressionEnv struct {
+type AccessRequestExpressionEnv struct {
 	Roles              []string
 	SuggestedReviewers []string
 	Annotations        map[string][]string
@@ -38,7 +37,7 @@ type accessRequestExpressionEnv struct {
 	Expiry             time.Time
 }
 
-type accessRequestExpression typical.Expression[accessRequestExpressionEnv, any]
+type accessRequestExpression typical.Expression[AccessRequestExpressionEnv, any]
 
 func parseAccessRequestExpression(expr string) (accessRequestExpression, error) {
 	parser, err := newRequestConditionParser()
@@ -52,62 +51,55 @@ func parseAccessRequestExpression(expr string) (accessRequestExpression, error) 
 	return parsedExpr, nil
 }
 
-func newRequestConditionParser() (*typical.Parser[accessRequestExpressionEnv, any], error) {
+func newRequestConditionParser() (*typical.Parser[AccessRequestExpressionEnv, any], error) {
 	typicalEnvVar := map[string]typical.Variable{
 		"true":  true,
 		"false": false,
-		"access_request.spec.roles": typical.DynamicVariable[accessRequestExpressionEnv](func(env accessRequestExpressionEnv) (expression.Set, error) {
+		"access_request.spec.roles": typical.DynamicVariable(func(env AccessRequestExpressionEnv) (expression.Set, error) {
 			return expression.NewSet(env.Roles...), nil
 		}),
-		"access_request.spec.suggested_reviewers": typical.DynamicVariable[accessRequestExpressionEnv](func(env accessRequestExpressionEnv) (expression.Set, error) {
+		"access_request.spec.suggested_reviewers": typical.DynamicVariable(func(env AccessRequestExpressionEnv) (expression.Set, error) {
 			return expression.NewSet(env.SuggestedReviewers...), nil
 		}),
-		"access_request.spec.system_annotations": typical.DynamicMap[accessRequestExpressionEnv, expression.Set](func(env accessRequestExpressionEnv) (expression.Dict, error) {
+		"access_request.spec.system_annotations": typical.DynamicMap(func(env AccessRequestExpressionEnv) (expression.Dict, error) {
 			return expression.DictFromStringSliceMap(env.Annotations), nil
 		}),
-		"access_request.spec.user": typical.DynamicVariable[accessRequestExpressionEnv](func(env accessRequestExpressionEnv) (string, error) {
+		"access_request.spec.user": typical.DynamicVariable(func(env AccessRequestExpressionEnv) (string, error) {
 			return env.User, nil
 		}),
-		"access_request.spec.request_reason": typical.DynamicVariable[accessRequestExpressionEnv](func(env accessRequestExpressionEnv) (string, error) {
+		"access_request.spec.request_reason": typical.DynamicVariable(func(env AccessRequestExpressionEnv) (string, error) {
 			return env.RequestReason, nil
 		}),
-		"access_request.spec.creation_time": typical.DynamicVariable[accessRequestExpressionEnv](func(env accessRequestExpressionEnv) (time.Time, error) {
+		"access_request.spec.creation_time": typical.DynamicVariable(func(env AccessRequestExpressionEnv) (time.Time, error) {
 			return env.CreationTime, nil
 		}),
-		"access_request.spec.expiry": typical.DynamicVariable[accessRequestExpressionEnv](func(env accessRequestExpressionEnv) (time.Time, error) {
+		"access_request.spec.expiry": typical.DynamicVariable(func(env AccessRequestExpressionEnv) (time.Time, error) {
 			return env.Expiry, nil
 		}),
 	}
-	defParserSpec := expression.DefaultParserSpec[accessRequestExpressionEnv]()
+	defParserSpec := expression.DefaultParserSpec[AccessRequestExpressionEnv]()
 	defParserSpec.Variables = typicalEnvVar
 
-	requestConditionParser, err := typical.NewParser[accessRequestExpressionEnv, any](defParserSpec)
+	requestConditionParser, err := typical.NewParser[AccessRequestExpressionEnv, any](defParserSpec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return requestConditionParser, nil
 }
 
-func MatchAccessRequest(expr string, req types.AccessRequest) (bool, error) {
+// EvaluateCondition evaluates the condition expression given the provided environment.
+// A true value indicates that the AMR is a match for the given access request
+// environment. Returns false, if evaluated to a non-boolean value.
+func EvaluateCondition(expr string, env AccessRequestExpressionEnv) (bool, error) {
 	parsedExpr, err := parseAccessRequestExpression(expr)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 
-	match, err := parsedExpr.Evaluate(accessRequestExpressionEnv{
-		Roles:              req.GetRoles(),
-		SuggestedReviewers: req.GetSuggestedReviewers(),
-		Annotations:        req.GetSystemAnnotations(),
-		User:               req.GetUser(),
-		RequestReason:      req.GetRequestReason(),
-		CreationTime:       req.GetCreationTime(),
-		Expiry:             req.Expiry(),
-	})
+	match, err := parsedExpr.Evaluate(env)
 	if err != nil {
 		return false, trace.Wrap(err, "evaluating access monitoring rule condition expression %q", expr)
 	}
-	if matched, ok := match.(bool); ok && matched {
-		return true, nil
-	}
-	return false, nil
+	matched, ok := match.(bool)
+	return ok && matched, nil
 }

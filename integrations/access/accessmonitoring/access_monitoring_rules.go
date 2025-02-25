@@ -149,7 +149,15 @@ func (amrh *RuleHandler) RecipientsFromAccessMonitoringRules(ctx context.Context
 	recipientSet := common.NewRecipientSet()
 
 	for _, rule := range amrh.getAccessMonitoringRules() {
-		match, err := MatchAccessRequest(rule.Spec.Condition, req)
+		match, err := EvaluateCondition(rule.Spec.Condition, AccessRequestExpressionEnv{
+			Roles:              req.GetRoles(),
+			SuggestedReviewers: req.GetSuggestedReviewers(),
+			Annotations:        req.GetSystemAnnotations(),
+			User:               req.GetUser(),
+			RequestReason:      req.GetRequestReason(),
+			CreationTime:       req.GetCreationTime(),
+			Expiry:             req.Expiry(),
+		})
 		if err != nil {
 			log.WarnContext(ctx, "Failed to parse access monitoring notification rule",
 				"error", err,
@@ -176,7 +184,15 @@ func (amrh *RuleHandler) RawRecipientsFromAccessMonitoringRules(ctx context.Cont
 	log := logger.Get(ctx)
 	recipientSet := stringset.New()
 	for _, rule := range amrh.getAccessMonitoringRules() {
-		match, err := MatchAccessRequest(rule.Spec.Condition, req)
+		match, err := EvaluateCondition(rule.Spec.Condition, AccessRequestExpressionEnv{
+			Roles:              req.GetRoles(),
+			SuggestedReviewers: req.GetSuggestedReviewers(),
+			Annotations:        req.GetSystemAnnotations(),
+			User:               req.GetUser(),
+			RequestReason:      req.GetRequestReason(),
+			CreationTime:       req.GetCreationTime(),
+			Expiry:             req.Expiry(),
+		})
 		if err != nil {
 			log.WarnContext(ctx, "Failed to parse access monitoring notification rule",
 				"error", err,
