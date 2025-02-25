@@ -71,7 +71,7 @@ Create a secret called "license" in the namespace you are using to deploy
 Teleport:
 
 ```code
-$ kubectl -n teleport create secret generic license --from-file=license.pem
+$ kubectl -n <Var name="teleport-namespace" /> create secret generic license --from-file=license.pem
 ```
 
 For the Teleport pod to load your license:
@@ -130,8 +130,10 @@ license:
    that the secret is called `license`, but there may be a different secret name
    specified in the `licenseSecretName` field of the chart's values file.
 
-   To replace the secret, print the resource manifest to stdout using a dry run
-   of `kubectl create secret` and pipe it to `kubectl replace`:
+   The following command prints a secret resource manifest to stdout using a dry
+   run of `kubectl create secret` and pipes it to `kubectl replace`. This way,
+   you can update the license without destroying and recreating it, avoiding the
+   risk of an Auth Service instance looking up a nonexistent license file:
 
    ```code
    $ kubectl create secret generic license --from-file license.pem --dry-run=client -o yaml | kubectl replace -n <Var name="teleport-namespace" /> -f -   
