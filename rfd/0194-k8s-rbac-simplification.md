@@ -133,7 +133,7 @@ kubernetes_resources:
     sub_resources: ['*']
 ```
 
-NOTE: The API field is granular at the group level, encompasing all versions.
+NOTE: The API field is granular at the group level, encompassing all versions.
 
 #### Web Role Editor
 
