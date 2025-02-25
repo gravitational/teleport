@@ -20,15 +20,10 @@ import { Meta } from '@storybook/react';
 import { useLayoutEffect } from 'react';
 
 import { Flex, Text } from 'design';
-import { CheckReportStatus } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
-import {
-  makeCheckAttempt,
-  makeCheckReport,
-  makeReport,
-} from 'teleterm/services/vnet/testHelpers';
+import { makeReportWithIssuesFound } from 'teleterm/services/vnet/testHelpers';
 import AppContextProvider from 'teleterm/ui/appContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { VnetContextProvider } from 'teleterm/ui/Vnet';
@@ -142,15 +137,7 @@ export function VnetWarning() {
   });
   appContext.vnet.runDiagnostics = () =>
     new MockedUnaryCall({
-      report: makeReport({
-        checks: [
-          makeCheckAttempt({
-            checkReport: makeCheckReport({
-              status: CheckReportStatus.ISSUES_FOUND,
-            }),
-          }),
-        ],
-      }),
+      report: makeReportWithIssuesFound(),
     });
 
   return (
