@@ -100,9 +100,9 @@ namespace: foo
 ```
 
 Note that the later also grants access to cluster-wide resources outside a
-namesace.
+namespace.
 
-To avoid confustion, this behavior would change and when a `namespace` value is
+To avoid confusion, this behavior would change and when a `namespace` value is
 set (unless it is `*`), only namespaced resources would be matched.
 To match cluster-wide resource, the namespace field should be omitted or set to
 `*`.
@@ -114,7 +114,7 @@ CRD support, i.e. arbitrary kind, a new field `api` will be introduced.
 When not set, the `kind` field would still be restricted to the existing
 hard-coded list, but once set, it can be an arbitrary string.
 
-Similirally, to avoid confusion around sub-resources and the common mistake
+Similarly, to avoid confusion around sub-resources and the common mistake
 of granting `exec` permission with the `get` verb, a new field `sub_resources`
 will be introduce. If not set, then only the main resource would match, which
 removes the unexpected side-effect for `exec`.
@@ -126,18 +126,23 @@ The role would look like this:
 ```yaml
 kubernetes_resources:
   - kind: '*'
-    api: 'API with version'
+    api: 'API'
     name: '*'
     namespace: '*'
     verbs: ['*']
     sub_resources: ['*']
 ```
 
+NOTE: The API field is granular at the group level, encompasing all versions.
+
 #### Web Role Editor
 
 To avoid confusion, in the web role editor, we would remove the ability to set
-and view `kubernetes_group` and `kubernetes_users` in favor of only allowing it
-to be controlled in yaml.
+and view `kubernetes_group` and `kubernetes_users`.
+
+NOTE: The existing preset role `require-trusted-device` that contains
+`kubernetes_group` will be removed, i.e. new install from Teleport v18 will not
+create that role. Existing installs will not be impacted.
 
 The `kubernetes_resources` section currently "hidden" behind a button should be
 open by default.
@@ -185,8 +190,9 @@ The idea is to keep the impersonation and remove the ability to set the
 (Teleport agent SA and user email).
 To do so, a new role version, `v8` will be introduced, which will indicate
 the web ui not to show those fields.
-When a `v8` role is found, if set, the `kubernetes_group` and
-`kubernetes_users` fields would be rejected.
+When a `v8` role is found, if either the `kubernetes_group` or
+`kubernetes_users` fields are set when a `v8` role is created, updated, or
+upserted the request will be rejected.
 This will allow existing setups will keep working, as `v7` behavior will not
 change.
 
