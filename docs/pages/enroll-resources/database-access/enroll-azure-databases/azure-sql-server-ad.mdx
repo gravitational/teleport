@@ -66,6 +66,9 @@ Teleport requires the following permissions:
 - `<resource-type>/read` permissions for discovery, but only for the resource
   types you have. For example, `Microsoft.Sql/managedInstances/read`.
 - `Microsoft.Compute/virtualMachines/read`.
+- If your Database Service runs on a Virtual Machine Scale Set (VMSS) in uniform
+  mode, such as on an AKS cluster. In that case, `Microsoft.Compute/virtualMachineScaleSets/virtualMachines/read`
+  permission will also be required.
 
 Here is a sample role definition allowing Teleport to read **Azure SQL Servers**
 and **Azure SQL Managed Instances**:
@@ -83,7 +86,8 @@ and **Azure SQL Managed Instances**:
                 "actions": [
                     "Microsoft.Sql/managedInstances/read",
                     "Microsoft.Sql/servers/read",
-                    "Microsoft.Compute/virtualMachines/read"
+                    "Microsoft.Compute/virtualMachines/read",
+                    "Microsoft.Compute/virtualMachineScaleSets/virtualMachines/read"
                 ],
                 "notActions": [],
                 "dataActions": [],
