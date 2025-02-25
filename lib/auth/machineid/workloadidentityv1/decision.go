@@ -130,8 +130,8 @@ func decide(
 // The specified attribute must be a string field. If the attribute is not
 // found, an error is returned.
 //
-// TODO(noah): This function will be replaced by the Teleport predicate language
-// in a coming PR.
+// TODO: convert rules into predicate expressions, so we can evaluate them
+// using the expressions package (and remove this function).
 func getFieldStringValue(attrs *workloadidentityv1pb.Attrs, attr string) (string, error) {
 	attrParts := strings.Split(attr, ".")
 	message := attrs.ProtoReflect()
@@ -176,6 +176,18 @@ func evaluateRules(
 	}
 ruleLoop:
 	for _, rule := range wi.GetSpec().GetRules().GetAllow() {
+		if rule.GetExpression() != "" {
+			pass, err := expression.Evaluate(rule.GetExpression(), attrs)
+			if err != nil {
+				return err
+			}
+			if pass {
+				return nil
+			} else {
+				continue ruleLoop
+			}
+		}
+
 		for _, condition := range rule.GetConditions() {
 			val, err := getFieldStringValue(attrs, condition.Attribute)
 			if err != nil {

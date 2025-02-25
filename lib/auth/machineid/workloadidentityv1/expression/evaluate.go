@@ -41,3 +41,10 @@ func Evaluate(expr string, attrs *workloadidentityv1.Attrs) (bool, error) {
 
 	return false, trace.Errorf("expression evaluated to %T instead of boolean: %s", rsp, expr)
 }
+
+// Validate the given boolean expression is syntactically correct, and does not
+// refer to any unknown attributes.
+func Validate(expr string) error {
+	_, err := booleanExpressionParser.Parse(expr)
+	return err
+}

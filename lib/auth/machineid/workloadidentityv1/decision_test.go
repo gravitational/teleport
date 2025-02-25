@@ -355,6 +355,44 @@ func Test_evaluateRules(t *testing.T) {
 			attrs:      attrs,
 			requireErr: noMatchRule,
 		},
+		{
+			name: "expression: pass",
+			wid: &workloadidentityv1pb.WorkloadIdentity{
+				Kind:    types.KindWorkloadIdentity,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
+						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
+							{Expression: `user.name == "foo"`},
+						},
+					},
+				},
+			},
+			attrs:      attrs,
+			requireErr: require.NoError,
+		},
+		{
+			name: "expression: fail",
+			wid: &workloadidentityv1pb.WorkloadIdentity{
+				Kind:    types.KindWorkloadIdentity,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
+						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
+							{Expression: `user.name == "not-foo"`},
+						},
+					},
+				},
+			},
+			attrs:      attrs,
+			requireErr: noMatchRule,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
