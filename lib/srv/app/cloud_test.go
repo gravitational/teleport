@@ -34,6 +34,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -151,9 +152,13 @@ func TestCloudGetFederationDuration(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			c, err := NewCloud(CloudConfig{
-				AWSConfigProvider: &mocks.AWSConfigProvider{},
-				Clock:             clockwork.NewFakeClockAt(now),
-				Logger:            slog.New(logutils.DiscardHandler{}),
+				AWSConfigOptions: []awsconfig.OptionsFn{
+					awsconfig.WithSTSClientProvider(func(_ aws.Config) awsconfig.STSClient {
+						return &mocks.STSClient{}
+					}),
+				},
+				Clock:  clockwork.NewFakeClockAt(now),
+				Logger: slog.New(logutils.DiscardHandler{}),
 			})
 			require.NoError(t, err)
 
@@ -243,8 +248,10 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 			t.Cleanup(mockFederationServer.Close)
 
 			c, err := NewCloud(CloudConfig{
-				AWSConfigProvider: &mocks.AWSConfigProvider{
-					STSClient: &mocks.STSClient{},
+				AWSConfigOptions: []awsconfig.OptionsFn{
+					awsconfig.WithSTSClientProvider(func(_ aws.Config) awsconfig.STSClient {
+						return &mocks.STSClient{}
+					}),
 				},
 				Logger: slog.New(logutils.DiscardHandler{}),
 			})

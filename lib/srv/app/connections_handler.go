@@ -91,11 +91,9 @@ type ConnectionsHandlerConfig struct {
 	// Cloud provides cloud provider access related functionality.
 	Cloud Cloud
 
-	// AWSSessionProvider is used to provide AWS Sessions.
-	AWSSessionProvider awsutils.AWSSessionProvider
-
-	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
-	AWSConfigProvider awsconfig.Provider
+	// AWSConfigOptions is used to provide additional options when getting
+	// config.
+	AWSConfigOptions []awsconfig.OptionsFn
 
 	// TLSConfig is the *tls.Config for this server.
 	TLSConfig *tls.Config
@@ -143,17 +141,11 @@ func (c *ConnectionsHandlerConfig) CheckAndSetDefaults() error {
 	if c.TLSConfig == nil {
 		return trace.BadParameter("tls config missing")
 	}
-	if c.AWSSessionProvider == nil {
-		return trace.BadParameter("aws session provider missing")
-	}
-	if c.AWSConfigProvider == nil {
-		return trace.BadParameter("aws config provider missing")
-	}
 	if c.Cloud == nil {
 		cloud, err := NewCloud(CloudConfig{
-			Clock:             c.Clock,
-			AWSConfigProvider: c.AWSConfigProvider,
-			Logger:            c.Logger,
+			Clock:            c.Clock,
+			AWSConfigOptions: c.AWSConfigOptions,
+			Logger:           c.Logger,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -214,8 +206,13 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		return nil, trace.Wrap(err)
 	}
 
+	awsConfigProvider, err := awsconfig.NewCache(awsconfig.WithDefaults(cfg.AWSConfigOptions...))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	awsHandler, err := appaws.NewAWSSignerHandler(closeContext, appaws.SignerHandlerConfig{
-		AWSConfigProvider: cfg.AWSConfigProvider,
+		AWSConfigProvider: awsConfigProvider,
 		Clock:             cfg.Clock,
 	})
 	if err != nil {

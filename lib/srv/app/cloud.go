@@ -90,8 +90,9 @@ type AWSSigninResponse struct {
 
 // CloudConfig is the configuration for cloud service.
 type CloudConfig struct {
-	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
-	AWSConfigProvider awsconfig.Provider
+	// AWSConfigOptions is used to provide additional options when getting
+	// config.
+	AWSConfigOptions []awsconfig.OptionsFn
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
 	// Logger is the slog.Logger.
@@ -100,9 +101,6 @@ type CloudConfig struct {
 
 // CheckAndSetDefaults validates the config.
 func (c *CloudConfig) CheckAndSetDefaults() error {
-	if c.AWSConfigProvider == nil {
-		return trace.BadParameter("missing aws config provider")
-	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}
@@ -113,7 +111,8 @@ func (c *CloudConfig) CheckAndSetDefaults() error {
 }
 
 type cloud struct {
-	cfg CloudConfig
+	cfg               CloudConfig
+	awsCachedProvider awsconfig.Provider
 }
 
 // NewCloud creates a new cloud service.
@@ -121,8 +120,13 @@ func NewCloud(cfg CloudConfig) (Cloud, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	cachedProvider, err := awsconfig.NewCache(awsconfig.WithDefaults(cfg.AWSConfigOptions...))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &cloud{
-		cfg: cfg,
+		cfg:               cfg,
+		awsCachedProvider: cachedProvider,
 	}, nil
 }
 
@@ -175,7 +179,7 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 
 	// Sign In requests target IAM endpoints which don't require a region.
 	region := ""
-	baseCfg, err := c.cfg.AWSConfigProvider.GetConfig(ctx, region,
+	baseCfg, err := c.awsCachedProvider.GetConfig(ctx, region,
 		awsconfig.WithCredentialsMaybeIntegration(req.Integration),
 	)
 	if err != nil {
@@ -197,7 +201,7 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 		ExternalID: req.ExternalID,
 		// Setting role session name to Teleport username will allow to
 		// associate CloudTrail events with the Teleport user.
-		SessionName: awsutils.MaybeHashRoleSessionName(req.Identity.Username),
+		SessionName: req.Identity.Username,
 	}
 
 	// Setting web console session duration through AssumeRole call for AWS
@@ -216,9 +220,14 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 		assumeRole.Duration = duration
 	}
 
-	awsCfg, err := c.cfg.AWSConfigProvider.GetConfig(ctx, region,
-		awsconfig.WithDetailedAssumeRole(assumeRole),
-		awsconfig.WithCredentialsMaybeIntegration(req.Integration),
+	// Do not use cache provider to avoid returning credentials with wrong
+	// expiry duration.
+	awsCfg, err := awsconfig.GetConfig(ctx, region,
+		append(c.cfg.AWSConfigOptions,
+			awsconfig.WithCredentialsMaybeIntegration(req.Integration),
+			awsconfig.WithDetailedAssumeRole(assumeRole),
+			awsconfig.WithCredentialsMaybeIntegration(req.Integration),
+		)...,
 	)
 	if err != nil {
 		return "", trace.Wrap(err)
