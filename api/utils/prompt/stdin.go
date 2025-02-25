@@ -89,21 +89,23 @@ func maybeUseStdinTerminalFallbackLocked(original *ContextReader) *ContextReader
 		return original
 	}
 
+	ctx := context.Background()
+
 	// File /dev/tty is the controlling tty of the current terminal. Not
 	// available on Windows.
 	// https://tldp.org/HOWTO/Text-Terminal-HOWTO-7.html
 	devTTY, err := os.Open("/dev/tty")
 	if err != nil {
-		slog.DebugContext(context.Background(), "Failed to open /dev/tty", "error", err)
+		slog.DebugContext(ctx, "Failed to open /dev/tty", "error", err)
 		return original
 	}
 
 	fallback := NewContextReader(devTTY)
 	if !fallback.IsTerminal() {
-		slog.DebugContext(context.Background(), "/dev/tty is not a terminal")
+		slog.DebugContext(ctx, "/dev/tty is not a terminal")
 		return original
 	}
 
-	slog.DebugContext(context.Background(), "Using /dev/tty for prompt")
+	slog.DebugContext(ctx, "Using /dev/tty for prompt")
 	return fallback
 }
