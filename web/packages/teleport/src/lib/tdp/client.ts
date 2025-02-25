@@ -180,6 +180,12 @@ export default class Client extends EventEmitterMfaSender {
     );
   }
 
+  renderUpdate(ctx: CanvasRenderingContext2D) {
+    if (this.fastPathProcessor) {
+      this.fastPathProcessor.render_updates(ctx);
+    }
+  }
+
   // processMessage should be await-ed when called,
   // so that its internal await-or-not logic is obeyed.
   async processMessage(buffer: ArrayBuffer): Promise<void> {
