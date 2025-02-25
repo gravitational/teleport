@@ -103,7 +103,7 @@ func protoMessageVariables[TEnv proto.Message](zeroValError bool) map[string]typ
 
 					val, err := get(env)
 					if err != nil {
-						return "", nil
+						return "", err
 					}
 					mapVal := val.Map().Get(mapKey)
 

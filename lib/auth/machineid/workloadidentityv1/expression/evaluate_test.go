@@ -58,17 +58,61 @@ func TestEvaluate(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, result)
 
-	// Nested nil messages.
+	// Unset field (allowed in boolean expressions).
 	result, err = expression.Evaluate(
-		`workload.podman.pod.labels["foo"] == "bar"`,
-		&workloadidentityv1.Attrs{},
+		`user.name == ""`,
+		&workloadidentityv1.Attrs{
+			User: &workloadidentityv1.UserAttrs{
+				Name: "",
+			},
+		},
 	)
 	require.NoError(t, err)
-	require.False(t, result)
+	require.True(t, result)
+}
 
-	// Non-string expression.
-	_, err = expression.Evaluate(`"chunky bacon"`, &workloadidentityv1.Attrs{})
-	require.ErrorContains(t, err, "expression evaluated to string instead of boolean")
+func TestEvaluate_Errors(t *testing.T) {
+	testCases := map[string]struct {
+		expr  string
+		attrs *workloadidentityv1.Attrs
+		err   string
+	}{
+		"unset sub-message": {
+			expr: `workload.podman.pod.labels["foo"] == "bar"`,
+			attrs: &workloadidentityv1.Attrs{
+				Workload: &workloadidentityv1.WorkloadAttrs{
+					Podman: &workloadidentityv1.WorkloadAttrsPodman{
+						Pod: nil,
+					},
+				},
+			},
+			err: "workload.podman.pod is unset",
+		},
+		"unset map key": {
+			expr: `workload.podman.pod.labels["foo"] == "bar"`,
+			attrs: &workloadidentityv1.Attrs{
+				Workload: &workloadidentityv1.WorkloadAttrs{
+					Podman: &workloadidentityv1.WorkloadAttrsPodman{
+						Pod: &workloadidentityv1.WorkloadAttrsPodmanPod{
+							Labels: map[string]string{"bar": "baz"},
+						},
+					},
+				},
+			},
+			err: `no value for key: "foo"`,
+		},
+		"non-boolean expression": {
+			expr:  `"chunky bacon"`,
+			attrs: &workloadidentityv1.Attrs{},
+			err:   "evaluated to string instead of boolean",
+		},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			_, err := expression.Evaluate(tc.expr, tc.attrs)
+			require.ErrorContains(t, err, tc.err)
+		})
+	}
 }
 
 func TestEvaluate_Traits(t *testing.T) {
@@ -82,6 +126,18 @@ func TestEvaluate_Traits(t *testing.T) {
 						Values: []string{"root", "alice", "bob"},
 					},
 				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.True(t, result)
+
+	// Unset trait.
+	result, err = expression.Evaluate(
+		`is_empty(user.traits.logins)`,
+		&workloadidentityv1.Attrs{
+			User: &workloadidentityv1.UserAttrs{
+				Traits: []*traitv1.Trait{},
 			},
 		},
 	)
