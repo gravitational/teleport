@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	scriptShebangAndSetOptions = `#!/bin/bash
+	scriptShebangAndSetOptions = `#!/usr/bin/env sh
 set -euo pipefail`
 	execGenericInstallScript = `
 INSTALL_SCRIPT_URL="https://{{.PublicProxyAddr}}/scripts/install.sh"
@@ -36,7 +36,10 @@ echo "Offloading the installation part to the generic Teleport install script ho
 
 TEMP_INSTALLER_SCRIPT="$(mktemp)"
 curl -sSf "$INSTALL_SCRIPT_URL" -o "$TEMP_INSTALLER_SCRIPT"
-sudo bash "$TEMP_INSTALLER_SCRIPT" || (echo "The install script ($TEMP_INSTALLER_SCRIPT) returned a non-zero exit code" && exit 1)
+
+chmod +x "$TEMP_INSTALLER_SCRIPT"
+
+sudo "$TEMP_INSTALLER_SCRIPT" || (echo "The install script ($TEMP_INSTALLER_SCRIPT) returned a non-zero exit code" && exit 1)
 rm "$TEMP_INSTALLER_SCRIPT"`
 )
 
