@@ -94,6 +94,7 @@ type RevocationService struct {
 
 	crlSigningDebounce time.Duration
 	crlFailureBackoff  time.Duration
+	crlPeriodicRenewal time.Duration
 
 	// mu protects the signedCRL and notifyNewSignedCRL field.
 	mu        sync.Mutex
@@ -138,6 +139,7 @@ func NewRevocationService(cfg *RevocationServiceConfig) (*RevocationService, err
 		eventsWatcher:       cfg.EventsWatcher,
 		crlSigningDebounce:  5 * time.Second,
 		crlFailureBackoff:   30 * time.Second,
+		crlPeriodicRenewal:  10 * time.Minute,
 
 		notifyNewSignedCRL: make(chan struct{}),
 	}, nil
@@ -521,6 +523,7 @@ func (s *RevocationService) watchAndSign(ctx context.Context) error {
 	// - Avoid spamming the clients with a rapid succession of CRL updates.
 	var debounceCh <-chan time.Time
 	for {
+		periodic := s.clock.NewTimer(s.crlPeriodicRenewal)
 		select {
 		case e := <-w.Events():
 			triggerSign, err := handleEvent(e)
@@ -547,6 +550,21 @@ func (s *RevocationService) watchAndSign(ctx context.Context) error {
 			// signature has been handled.
 			debounceCh = nil
 
+			crl, err := s.signCRL(ctx, revocationsMap)
+			if err != nil {
+				return trace.Wrap(err, "signing CRL")
+			}
+			s.publishSignedCRL(crl)
+		case <-periodic.Chan():
+			revocationsSlice, err := s.fetchAllRevocations(ctx)
+			if err != nil {
+				return trace.Wrap(err, "initially fetching revocations")
+			}
+			newRevocationsMap := make(map[string]*workloadidentityv1pb.WorkloadIdentityX509Revocation, len(revocationsSlice))
+			for _, revocation := range revocationsSlice {
+				newRevocationsMap[revocation.Metadata.Name] = revocation
+			}
+			revocationsMap = newRevocationsMap
 			crl, err := s.signCRL(ctx, revocationsMap)
 			if err != nil {
 				return trace.Wrap(err, "signing CRL")
