@@ -63,9 +63,9 @@ Executing command for 'mysql-db2':
 mysql-db2-hostname
 ```
 
-I would like to search databases by labels and run the sql script in parallel:
+I would like to search databases by labels, and run the sql script in parallel:
 ```bash
-$ tsh db exec --search-by-labels env=dev --db-user mysql --exec-query "source my_script.sql" --log-dir exec-logs --max-connections 3
+$ tsh db exec --search-labels env=dev --db-user mysql --exec-query "source my_script.sql" --log-dir exec-logs --max-connections 3
 Found 5 databases:
 
 Name      Protocol Description Labels
@@ -77,17 +77,17 @@ mysql-db4 mysql    instance 4  env=dev
 mysql-db5 mysql    instance 5  env=dev
 
 Tip: use --skip-confirm to skip this confirmation.
-Do you want to continue? (Press any key to proceed or Ctrl+C to exit): <enter>
+Do you want to continue? (Press <enter> to proceed or Ctrl+C/Command+C to exit): <enter>
 
 MFA is required to execute database sessions
 Tap any security key
 Detected security key tap
 
-Executing command for 'mysql-db1'. Outputs will be saved at 'exec-logs/mysql-db1.log'.
-Executing command for 'mysql-db2'. Outputs will be saved at 'exec-logs/mysql-db2.log'.
-Executing command for 'mysql-db3'. Outputs will be saved at 'exec-logs/mysql-db3.log'.
-Executing command for 'mysql-db4'. Outputs will be saved at 'exec-logs/mysql-db4.log'.
-Executing command for 'mysql-db5'. Outputs will be saved at 'exec-logs/mysql-db5.log'.
+Executing command for 'mysql-db1'. Logs will be saved at 'exec-logs/mysql-db1.log'.
+Executing command for 'mysql-db2'. Logs will be saved at 'exec-logs/mysql-db2.log'.
+Executing command for 'mysql-db3'. Logs will be saved at 'exec-logs/mysql-db3.log'.
+Executing command for 'mysql-db4'. Logs will be saved at 'exec-logs/mysql-db4.log'.
+Executing command for 'mysql-db5'. Logs will be saved at 'exec-logs/mysql-db5.log'.
 ```
 (where you can expect the first 3 connections happen right away, and the other 2
 connections happen after the previous ones finish.)
@@ -194,17 +194,16 @@ General flow of the command:
     - No MFA if not required.
   - Starts a local proxy in tunnel mode for this database (regardless of cluster
     proxy listener mode).
-  - Craft a command for `os.exec`. The command is not interactive (e.g. does not
-    take in `stdin` for input). Outputs are printed to `stdout` unless `--log-dir`
-    is specified.
+  - Craft a command for `os.exec`. Outputs are printed to `stdout` unless
+    `--log-dir` is specified.
   - Execute the command.
  
 The command supports searching database by specifying one the following flags:
-- `--search`: List of comma separated search keywords or phrases enclosed in
+- `--search-keywords`: List of comma separated search keywords or phrases enclosed in
   quotations, e.g. `--search=foo,bar`.
-- `--search-by-labels`: List of comma separated labels to filter by labels, e.g.
+- `--search-labels`: List of comma separated labels to filter by labels, e.g.
   `key1=value1,key2=value2`.
-- `--search-by-query`: Query by predicate language enclosed in single quotes.
+- `--search-query`: Query by predicate language enclosed in single quotes.
 
 The command presents the search results then asks user to confirm before
 proceeding. `--skip-confirm` can be used to skip the confirmation.
