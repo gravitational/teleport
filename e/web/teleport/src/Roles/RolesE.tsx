@@ -6,6 +6,8 @@ import { AccessGraphDiff, AccessPathDiff } from 'e-teleport/AccessGraph/Diff';
 import { accessGraphService } from 'e-teleport/services/accessgraph';
 import cfg from 'teleport/config';
 import { RolesContainer as Roles } from 'teleport/Roles';
+import { unableToUpdatePreviewMessage } from 'teleport/Roles/RoleEditor/Shared';
+import { Role } from 'teleport/services/resources';
 import { storageService } from 'teleport/services/storageService';
 
 const emptyDiff: AccessPathDiff = {
@@ -21,7 +23,13 @@ export const RolesE = () => {
     storageService.getAccessGraphRoleTesterEnabled();
 
   const [roleDiffAttempt, updateRoleDiff] = useAsync(
-    useCallback(accessGraphService.getRoleDiff, [])
+    useCallback(async (role: Role) => {
+      try {
+        return await accessGraphService.getRoleDiff(role);
+      } catch (err) {
+        throw new Error(unableToUpdatePreviewMessage, { cause: err });
+      }
+    }, [])
   );
 
   const roleDiffProps = useMemo(() => {
@@ -35,7 +43,7 @@ export const RolesE = () => {
           loading={roleDiffAttempt.status === 'processing'}
         />
       ),
-      errorMessage: roleDiffAttempt.statusText,
+      roleDiffAttempt,
       updateRoleDiff,
     };
   }, [roleDiffAttempt, roleTesterEnabled, updateRoleDiff]);
