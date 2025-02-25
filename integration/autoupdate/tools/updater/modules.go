@@ -65,14 +65,14 @@ func (p *TestModules) BuildType() string {
 	return "CLI"
 }
 
-// IsEnterpriseBuild returns false for [TestModules].
+// IsEnterpriseBuild returns true if `UPDATER_TEST_BUILD` env is set `ent` for [TestModules].
 func (p *TestModules) IsEnterpriseBuild() bool {
 	return os.Getenv(TestBuild) == modules.BuildEnterprise
 }
 
-// IsOSSBuild returns false for [TestModules].
+// IsOSSBuild returns true if `UPDATER_TEST_BUILD` env is set `oss` for [TestModules].
 func (p *TestModules) IsOSSBuild() bool {
-	return true
+	return os.Getenv(TestBuild) == modules.BuildOSS
 }
 
 // LicenseExpiry returns the expiry date of the enterprise license, if applicable.

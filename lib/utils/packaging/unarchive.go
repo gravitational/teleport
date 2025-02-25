@@ -129,9 +129,10 @@ func replaceZip(toolsDir string, archivePath string, extractDir string, execName
 				return trace.Wrap(err)
 			}
 			appPath := filepath.Join(toolsDir, baseName)
-			// For the Windows build we have to copy binary to be able
-			// to do this without administrative access as it required
-			// for symlinks.
+			// For the Windows build, we need to copy the binary to perform updates without requiring
+			// administrative access, which would otherwise be needed for creating symlinks.
+			// Since symlinks are not used on the Windows platform, there's no need to remove appPath
+			// before copying the new binary — it will simply be replaced.
 			if err := utils.CopyFile(dest, appPath, 0o755); err != nil {
 				return trace.Wrap(err)
 			}
