@@ -210,21 +210,25 @@ func (c *UserNotificationCache) StreamUserNotifications(ctx context.Context, use
 		startKey = fmt.Sprintf("%s/%s", username, startKey)
 	}
 
+	const limit = 50
 	var done bool
 	return stream.PageFunc(func() ([]*notificationsv1.Notification, error) {
 		if done {
 			return nil, io.EOF
 		}
-		notifications, nextKey := c.primaryCache.DescendPaginated(notificationKey, startKey, endKey, 50)
-		startKey = nextKey
-		done = nextKey == ""
 
-		// Return copies of the notification to prevent mutating the original.
-		clonedNotifications := make([]*notificationsv1.Notification, 0, len(notifications))
-		for _, notification := range notifications {
-			clonedNotifications = append(clonedNotifications, apiutils.CloneProtoMsg(notification))
+		notifications := make([]*notificationsv1.Notification, 0, limit)
+		for n := range c.primaryCache.Descend(notificationKey, startKey, endKey) {
+			if len(notifications) == limit {
+				startKey = c.primaryCache.KeyOf(notificationKey, n)
+				return notifications, nil
+			}
+
+			notifications = append(notifications, apiutils.CloneProtoMsg(n))
 		}
-		return clonedNotifications, nil
+
+		done = true
+		return notifications, nil
 	})
 }
 
@@ -315,21 +319,25 @@ func (c *GlobalNotificationCache) StreamGlobalNotifications(ctx context.Context,
 		return stream.Fail[*notificationsv1.GlobalNotification](trace.Errorf("global notifications cache was not configured with index %q (this is a bug)", notificationID))
 	}
 
+	const limit = 50
 	var done bool
 	return stream.PageFunc(func() ([]*notificationsv1.GlobalNotification, error) {
 		if done {
 			return nil, io.EOF
 		}
-		notifications, nextKey := c.primaryCache.DescendPaginated(notificationID, startKey, "", 50)
-		startKey = nextKey
-		done = nextKey == ""
 
-		// Return copies of the notification to prevent mutating the original.
-		clonedNotifications := make([]*notificationsv1.GlobalNotification, 0, len(notifications))
-		for _, notification := range notifications {
-			clonedNotifications = append(clonedNotifications, apiutils.CloneProtoMsg(notification))
+		notifications := make([]*notificationsv1.GlobalNotification, 0, limit)
+		for n := range c.primaryCache.Descend(notificationID, startKey, "") {
+			if len(notifications) == limit {
+				startKey = c.primaryCache.KeyOf(notificationID, n)
+				return notifications, nil
+			}
+
+			notifications = append(notifications, apiutils.CloneProtoMsg(n))
 		}
-		return clonedNotifications, nil
+
+		done = true
+		return notifications, nil
 	})
 }
 
