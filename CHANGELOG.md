@@ -14,9 +14,6 @@
 * Add filter drop-downs and pinning support for the "Enroll a New Resource" page in the web UI. [#52176](https://github.com/gravitational/teleport/pull/52176)
 * Improve latency and reduce resource consumption of generating Kubernetes certificates via `tctl auth sign` and `tsh kube login`. [#52146](https://github.com/gravitational/teleport/pull/52146)
 
-Enterprise:
-* Add guided GitHub integration enrollment in the web UI. [#6023](https://github.com/gravitational/teleport.e/pull/6023)
-
 ## 17.2.8 (02/19/25)
 
 * Fixed broken `Download Metadata File` button from the SAML enrolling resource flow in the web UI. [#52276](https://github.com/gravitational/teleport/pull/52276)
