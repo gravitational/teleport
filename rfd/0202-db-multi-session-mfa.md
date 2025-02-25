@@ -39,12 +39,8 @@ metadata:
   name: example-role-with-mfa
 spec:
   options:
-    require_session_mfa: true
-+   # Defaults to 'per-session'. Valid values are:
-+   # - 'per-session': MFA is required for every session.
-+   # - 'multi-session': Allows reuse of a MFA for multiple sessions. Currently only
-+   #    supported for `tsh db exec` command with WebAuthn as the second factor.
-+   require_session_mfa_mode: "multi-session"
+-   require_session_mfa: true
++   require_session_mfa: "multi-session"
   allow:
     db_labels:
       'env': 'dev'
@@ -120,23 +116,18 @@ sequenceDiagram
     end
 ```
 
-A new role option is added to decide the mode for session MFA:
+A new MFA type is added to decide the mode for session MFA:
 ```diff
 kind: role
 version: v7
 spec:
   options:
-    require_session_mfa: true
-+   # Defaults to 'per-session'. Valid values are:
-+   # - 'per-session': MFA is required for every session.
-+   # - 'multi-session': Allows reuse of a MFA for multiple sessions. Currently only
-+   #    supported for `tsh db exec` command with WebAuthn as the second factor.
-+   require_session_mfa_mode: "multi-session"
+-   require_session_mfa: true
++   require_session_mfa: "multi-session"
 ```
 
-Mode defaults to `per-session` if not set. If a resource matches a role set with
-some roles on `per-session` but others on `multi-session`, the stricter mode
-`per-session` should be applied.
+Mode defaults to per-session if not set. If a resource matches a role set with
+per-session but others on `multi-session`, the stricter mode should be applied.
 
 The multi-session MFA extends [RFD 155 Scoped Webauthn
 Credentials](https://github.com/gravitational/teleport/blob/master/rfd/0155-scoped-webauthn-credentials.md)
@@ -157,24 +148,23 @@ WebAuthn).
 The MFA response will be checked upon auth call of `GenerateUserCerts` where
 user requests a TLS user cert with database route. New logic is added to
 `GenerateUserCerts` where the new scope with reuse is allowed only if the role
-set matching the requested database has `roleset.option.require_session_mfa_mode`
+set matching the requested database has `roleset.option.require_session_mfa`
 option set to `multi-session`.
 
 The new scope cannot be used for `GenerateUserCerts` for non-database targets.
 And if the MFA response is validated with existing non-reusable `SCOPE_SESSION`,
-the action should be allowed regardless of
-`roleset.option.require_session_mfa_mode`.
+the action should always be allowed.
 
 Here is a quick matrix:
 
-| `session_mfa_mode` | MFA response scope             | Requested Target | Access |
-|--------------------|--------------------------------|------------------|--------|
-| `multi-session`    | `SCOPE_SESSION`                | Database         | Allow  |
-| `multi-session`    | `SCOPE_DATABASE_MULTI_SESSION` | Database         | Allow  |
-| `multi-session`    | `SCOPE_DATABASE_MULTI_SESSION` | Non-Database     | Denied |
-| `per-session`      | `SCOPE_SESSION`                | Database         | Allow  |
-| `per-session`      | `SCOPE_DATABASE_MULTI_SESSION` | Database         | Denied |
-| `per-session`      | `SCOPE_DATABASE_MULTI_SESSION` | Non-Database     | Denied |
+| `require_session_mfa` mode | MFA response scope             | Requested Target | Access |
+|----------------------------|--------------------------------|------------------|--------|
+| `multi-session`            | `SCOPE_SESSION`                | Database         | Allow  |
+| `multi-session`            | `SCOPE_DATABASE_MULTI_SESSION` | Database         | Allow  |
+| `multi-session`            | `SCOPE_DATABASE_MULTI_SESSION` | Non-Database     | Denied |
+| `session`                  | `SCOPE_SESSION`                | Database         | Allow  |
+| `session`                  | `SCOPE_DATABASE_MULTI_SESSION` | Database         | Denied |
+| `session`                  | `SCOPE_DATABASE_MULTI_SESSION` | Non-Database     | Denied |
 
 MFA requirement check is also updated to indicate whether the client can get
 away with reusing the MFA response.
@@ -242,7 +232,7 @@ admins set the `multi-session` mode in the role option.
 
 Since the mode is configured at the role level, the mode will only be applied to
 the resources that matches the role (e.g. `role.allow.db_labels`). And if
-another role matching the resource has the stricter mode `per-session`, the
+another role matching the resource has the stricter mode `session`, the
 stricter mode will be applied.
 
 The negative implications of the `multi-session` is the same as outlined in [RFD
