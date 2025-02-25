@@ -127,7 +127,6 @@ export function VnetWarning() {
   const appContext = new MockAppContext();
   prepareAppContext(appContext);
 
-  appContext.configService.set('unstable.vnetDiag', true);
   appContext.statePersistenceService.putState({
     ...appContext.statePersistenceService.getState(),
     vnet: { autoStart: true },
