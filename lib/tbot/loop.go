@@ -34,36 +34,37 @@ import (
 var (
 	loopIterationsCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "tbot_task_iterations",
+			Name: "tbot_task_iterations_total",
 			Help: "Number of task iteration attempts, not counting retries",
-		}, []string{"name"},
+		}, []string{"service", "name"},
 	)
 	loopIterationsSuccessCounter = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "tbot_task_iterations_successful",
 			Help:    "Histogram of task iterations that ultimately succeeded, bucketed by number of retries before success",
 			Buckets: []float64{0, 1, 2, 3, 4, 5},
-		}, []string{"name"},
+		}, []string{"service", "name"},
 	)
 	loopIterationsFailureCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "tbot_task_iterations_failed",
 			Help: "Number of task iterations that ultimately failed, not counting retries",
-		}, []string{"name"},
+		}, []string{"service", "name"},
 	)
 	loopIterationTime = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "tbot_task_iteration_duration_seconds",
 			Help:    "Time between beginning and ultimate end of one task iteration regardless of outcome, including all retries",
 			Buckets: prometheus.ExponentialBuckets(0.1, 1.75, 6),
-		}, []string{"name"},
+		}, []string{"service", "name"},
 	)
 )
 
 type runOnIntervalConfig struct {
-	name  string
-	f     func(ctx context.Context) error
-	clock clockwork.Clock
+	service string
+	name    string
+	f       func(ctx context.Context) error
+	clock   clockwork.Clock
 	// reloadCh allows the task to be triggered immediately, ideal for handling
 	// CA rotations or a manual signal from a user.
 	// reloadCh can be nil, in which case, the task will only run on the
@@ -115,7 +116,7 @@ func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
 		}
 		firstRun = false
 
-		loopIterationsCounter.WithLabelValues(cfg.name).Inc()
+		loopIterationsCounter.WithLabelValues(cfg.service, cfg.name).Inc()
 		startTime := time.Now()
 
 		var err error
@@ -128,7 +129,7 @@ func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
 			)
 			err = cfg.f(ctx)
 			if err == nil {
-				loopIterationsSuccessCounter.WithLabelValues(cfg.name).Observe(float64(attempt - 1))
+				loopIterationsSuccessCounter.WithLabelValues(cfg.service, cfg.name).Observe(float64(attempt - 1))
 				break
 			}
 
@@ -155,10 +156,10 @@ func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
 			}
 		}
 
-		loopIterationTime.WithLabelValues(cfg.name).Observe(time.Since(startTime).Seconds())
+		loopIterationTime.WithLabelValues(cfg.service, cfg.name).Observe(time.Since(startTime).Seconds())
 
 		if err != nil {
-			loopIterationsFailureCounter.WithLabelValues(cfg.name).Inc()
+			loopIterationsFailureCounter.WithLabelValues(cfg.service, cfg.name).Inc()
 
 			if cfg.exitOnRetryExhausted {
 				log.ErrorContext(
