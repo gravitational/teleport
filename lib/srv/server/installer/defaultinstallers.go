@@ -50,7 +50,7 @@ INSTALL_SCRIPT_URL="https://{{.PublicProxyAddr}}/scripts/install.sh"
 
 echo "Offloading the installation part to the generic Teleport install script hosted at: $INSTALL_SCRIPT_URL"
 
-curl "$INSTALL_SCRIPT_URL" | sudo bash`
+curl -sSf "$INSTALL_SCRIPT_URL" | sudo bash || (echo "The install.sh script returned a non-zero exit code" && exit 1)`
 	configureTeleport = `
 echo "Configuring the Teleport agent"
 
