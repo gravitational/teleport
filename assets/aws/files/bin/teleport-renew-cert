@@ -17,7 +17,7 @@ if [ ! -f /etc/teleport.d/role.auth ] && [ ! -f /etc/teleport.d/role.all ]; then
 fi
 
 # Fetching certbot state
-aws s3 sync --exact-timestamps "s3://${TELEPORT_S3_BUCKET}" /etc/letsencrypt/ --sse=AES256
+aws s3 sync '--exclude=records/*' --exact-timestamps "s3://${TELEPORT_S3_BUCKET}" /etc/letsencrypt/ --sse=AES256
 
 # s3 does not support symlinks, we have to create them after the sync, else certbot will fail.
 # live/ symlinks point to the latest archive/<domain>/<object>XX.pem where XX is incremented at each cert-renewal.

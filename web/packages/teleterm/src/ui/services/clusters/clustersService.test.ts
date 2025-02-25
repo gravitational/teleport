@@ -16,21 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { NotificationsService } from 'teleterm/ui/services/notifications';
-import { UsageService } from 'teleterm/ui/services/usage';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
+import type { TshdClient } from 'teleterm/services/tshd';
+import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import {
   makeDatabaseGateway,
   makeKubeGateway,
-  makeRootCluster,
   makeLeafCluster,
+  makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
-import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
+import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { UsageService } from 'teleterm/ui/services/usage';
+import type * as uri from 'teleterm/ui/uri';
 
 import { ClustersService } from './clustersService';
-
-import type * as uri from 'teleterm/ui/uri';
-import type { TshdClient } from 'teleterm/services/tshd';
 
 jest.mock('teleterm/ui/services/notifications');
 jest.mock('teleterm/ui/services/usage');
@@ -88,6 +87,9 @@ function getClientMocks(): Partial<TshdClient> {
       .fn()
       .mockReturnValueOnce(new MockedUnaryCall(gatewayMock)),
     removeGateway: jest.fn().mockReturnValueOnce(new MockedUnaryCall({})),
+    startHeadlessWatcher: jest
+      .fn()
+      .mockReturnValueOnce(new MockedUnaryCall({})),
   };
 }
 
@@ -102,6 +104,35 @@ test('add cluster', async () => {
   expect(addCluster).toHaveBeenCalledWith({ name: clusterUri });
   expect(service.state.clusters).toStrictEqual(
     new Map([[clusterUri, clusterMock]])
+  );
+});
+
+test('add cluster does not overwrite the existing cluster', async () => {
+  const { addCluster } = getClientMocks();
+  const service = createService({
+    addCluster,
+  });
+  service.state.clusters.set(clusterUri, {
+    ...clusterMock,
+    features: { advancedAccessWorkflows: true, isUsageBasedBilling: true },
+  });
+
+  await service.addRootCluster(clusterUri);
+
+  expect(addCluster).toHaveBeenCalledWith({ name: clusterUri });
+  expect(service.state.clusters).toStrictEqual(
+    new Map([
+      [
+        clusterUri,
+        {
+          ...clusterMock,
+          features: {
+            advancedAccessWorkflows: true,
+            isUsageBasedBilling: true,
+          },
+        },
+      ],
+    ])
   );
 });
 
@@ -153,13 +184,15 @@ test('remove cluster', async () => {
 });
 
 test('sync root cluster', async () => {
-  const { getCluster, listLeafClusters } = getClientMocks();
+  const { getCluster, listLeafClusters, startHeadlessWatcher } =
+    getClientMocks();
   const service = createService({
     getCluster,
     listLeafClusters,
+    startHeadlessWatcher,
   });
 
-  await service.syncRootClusterAndCatchErrors(clusterUri);
+  await service.syncAndWatchRootClusterWithErrorHandling(clusterUri);
 
   const clusterMockWithRequests = {
     ...clusterMock,
@@ -172,6 +205,9 @@ test('sync root cluster', async () => {
     leafClusterMock
   );
   expect(listLeafClusters).toHaveBeenCalledWith({ clusterUri });
+  expect(startHeadlessWatcher).toHaveBeenCalledWith({
+    rootClusterUri: clusterUri,
+  });
 });
 
 test('login into cluster and sync cluster', async () => {

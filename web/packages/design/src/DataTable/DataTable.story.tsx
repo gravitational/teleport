@@ -16,86 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 
-import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
-
-import { SortType, TableProps } from 'design/DataTable/types';
-
-import Table from './Table';
 import { ClickableLabelCell, DateCell, LabelCell } from './Cells';
+import Table from './Table';
+import { TableProps } from './types';
 
 export default {
   title: 'Design/DataTable',
-};
-
-// `if (serversideProps)` is the first view conditionally rendered by Table
-// it returns a ServersideTable wrapped in StyledTableWrapper
-export const WithServersideProps = () => {
-  const [sort, setSort] = useState<SortType>({ fieldName: 'name', dir: 'ASC' });
-  const [allData, setAllData] = useState(data);
-
-  const props = getDefaultProps();
-  props.data = allData;
-  props.fetching = {
-    onFetchMore: () => setAllData([...allData, ...extraData]),
-    fetchStatus: '',
-  };
-  props.serversideProps = {
-    serversideSearchPanel: (
-      <ServersideSearchPanel
-        pageIndicators={{
-          from: 1,
-          to: allData.length,
-          totalCount: allData.length,
-        }}
-        params={{
-          search: '',
-          query: '',
-          sort: { fieldName: 'hostname', dir: 'ASC' },
-        }}
-        setParams={() => null}
-        pathname=""
-        replaceHistory={() => null}
-      />
-    ),
-    sort: sort,
-    setSort: setSort,
-  };
-  return <Table<DummyDataType> {...props} />;
-};
-
-export const WithServersidePropsEmpty = () => {
-  const [sort, setSort] = useState<SortType>({ fieldName: 'name', dir: 'ASC' });
-
-  const props = getDefaultProps();
-  props.data = [];
-  props.fetching = {
-    onFetchMore: () => {},
-    fetchStatus: '',
-  };
-  props.serversideProps = {
-    serversideSearchPanel: (
-      <ServersideSearchPanel
-        pageIndicators={{
-          from: 1,
-          to: 0,
-          totalCount: 0,
-        }}
-        params={{
-          search: '',
-          query: '',
-          sort: { fieldName: 'hostname', dir: 'ASC' },
-        }}
-        setParams={() => null}
-        pathname=""
-        replaceHistory={() => null}
-      />
-    ),
-    sort: sort,
-    setSort: setSort,
-  };
-  return <Table<DummyDataType> {...props} />;
 };
 
 // `if (state.pagination)` is the second view conditionally rendered by Table
@@ -144,6 +72,13 @@ export const DefaultBasic = () => {
 export const DefaultBasicEmpty = () => {
   const props = getDefaultProps();
   props.data = [];
+  return <Table<DummyDataType> {...props} />;
+};
+
+export const EmptyWithHint = () => {
+  const props = getDefaultProps();
+  props.data = [];
+  props.emptyHint = 'Gimme some data';
   return <Table<DummyDataType> {...props} />;
 };
 
@@ -203,10 +138,6 @@ export function DefaultAndClickableLabels() {
   );
 }
 
-function sortTagsByLength(a: DummyDataType['tags'], b: DummyDataType['tags']) {
-  return a.length - b.length;
-}
-
 const getDefaultProps = (): TableProps<DummyDataType> => ({
   data: data,
   emptyText: 'No Dummy Data Found',
@@ -231,7 +162,7 @@ const getDefaultProps = (): TableProps<DummyDataType> => ({
       headerText: 'Labels',
       render: row => <LabelCell data={row.tags} />,
       isSortable: true,
-      onSort: sortTagsByLength,
+      onSort: (a, b) => a.tags.length - b.tags.length,
     },
     { key: 'bool', headerText: 'Boolean', isSortable: true },
   ],
@@ -259,7 +190,7 @@ const getDefaultIsoProps = (): TableProps<DummyDataISOStringType> => ({
       headerText: 'Labels',
       render: row => <LabelCell data={row.tags} />,
       isSortable: true,
-      onSort: sortTagsByLength,
+      onSort: (a, b) => a.tags.length - b.tags.length,
     },
     { key: 'bool', headerText: 'Boolean', isSortable: true },
   ],

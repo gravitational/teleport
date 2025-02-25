@@ -73,8 +73,8 @@ func (s *JiraBaseSuite) postWebhook(ctx context.Context, url, issueID, status st
 }
 
 func (s *JiraBaseSuite) postWebhookAndCheck(ctx context.Context, url, issueID, status string) {
+	s.T().Helper()
 	t := s.T()
-	t.Helper()
 
 	resp, err := s.postWebhook(ctx, url, issueID, status)
 	require.NoError(t, err)

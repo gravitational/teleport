@@ -30,13 +30,13 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -46,7 +46,7 @@ func testOIDCIntegration(t *testing.T) *types.IntegrationV1 {
 	oidcIntegration, err := types.NewIntegrationAWSOIDC(
 		types.Metadata{Name: "aws-integration-1"},
 		&types.AWSOIDCIntegrationSpecV1{
-			RoleARN: "role1",
+			RoleARN: "arn:aws:iam::account:role/role1",
 		},
 	)
 	require.NoError(t, err)
@@ -102,8 +102,10 @@ func TestConfiguratorIsUsed(t *testing.T) {
 			name: "cloud enterprise without config",
 			modules: &modules.TestModules{
 				TestFeatures: modules.Features{
-					Cloud:                true,
-					ExternalAuditStorage: true,
+					Cloud: true,
+					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+						entitlements.ExternalAuditStorage: {Enabled: true},
+					},
 				},
 			},
 			wantIsUsed: false,
@@ -112,8 +114,10 @@ func TestConfiguratorIsUsed(t *testing.T) {
 			name: "cloud enterprise with only draft",
 			modules: &modules.TestModules{
 				TestFeatures: modules.Features{
-					Cloud:                true,
-					ExternalAuditStorage: true,
+					Cloud: true,
+					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+						entitlements.ExternalAuditStorage: {Enabled: true},
+					},
 				},
 			},
 			// Just create draft, External Audit Storage should be disabled, it's
@@ -129,8 +133,10 @@ func TestConfiguratorIsUsed(t *testing.T) {
 			name: "cloud enterprise with cluster config",
 			modules: &modules.TestModules{
 				TestFeatures: modules.Features{
-					Cloud:                true,
-					ExternalAuditStorage: true,
+					Cloud: true,
+					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+						entitlements.ExternalAuditStorage: {Enabled: true},
+					},
 				},
 			},
 			// Create draft and promote it to cluster.
@@ -172,14 +178,15 @@ func TestConfiguratorIsUsed(t *testing.T) {
 }
 
 func TestCredentialsCache(t *testing.T) {
-	logrus.SetLevel(logrus.DebugLevel)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud:                true,
-			ExternalAuditStorage: true,
+			Cloud: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.ExternalAuditStorage: {Enabled: true},
+			},
 		},
 	})
 
@@ -202,6 +209,13 @@ func TestCredentialsCache(t *testing.T) {
 	require.NoError(t, err)
 
 	clock := clockwork.NewFakeClock()
+	advanceClock := func(d time.Duration) {
+		// Wait for the run loop to actually wait on the clock ticker before advancing. If we advance before
+		// the loop waits on the ticker, it may never tick.
+		clock.BlockUntil(1)
+		clock.Advance(d)
+	}
+
 	stsClient := &fakeSTSClient{
 		clock: clock,
 	}
@@ -217,17 +231,12 @@ func TestCredentialsCache(t *testing.T) {
 	})
 
 	provider := c.CredentialsProvider()
-	providerV1 := c.CredentialsProviderSDKV1()
 
 	checkRetrieveCredentials := func(t require.TestingT, expectErr error) {
-		_, err = providerV1.RetrieveWithContext(ctx)
-		assert.ErrorIs(t, err, expectErr)
 		_, err := provider.Retrieve(ctx)
 		assert.ErrorIs(t, err, expectErr)
 	}
 	checkRetrieveCredentialsWithExpiry := func(t require.TestingT, expectExpiry time.Time) {
-		_, err = providerV1.RetrieveWithContext(ctx)
-		assert.NoError(t, err)
 		creds, err := provider.Retrieve(ctx)
 		assert.NoError(t, err)
 		if err == nil {
@@ -235,13 +244,23 @@ func TestCredentialsCache(t *testing.T) {
 		}
 	}
 
+	const (
+		// Using a longer wait time to avoid test flakes observed with 1s wait.
+		waitFor = 10 * time.Second
+		// We're using a short sleep (1ms) to allow the refresh loop goroutine to get scheduled.
+		// This keeps the test fast under normal conditions. If there's CPU starvation in CI,
+		// neither the test goroutine nor the refresh loop are likely getting scheduled often,
+		// so this shouldn't result in a busy loop.
+		tick = 1 * time.Millisecond
+	)
+
 	// Assert that credentials can be retrieved when everything is happy.
 	// EventuallyWithT is necessary to allow credentialsCache.run to be
 	// scheduled after SetGenerateOIDCTokenFn above.
 	initialCredentialExpiry := clock.Now().Add(TokenLifetime)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		checkRetrieveCredentialsWithExpiry(t, initialCredentialExpiry)
-	}, time.Second, time.Millisecond)
+	}, waitFor, tick)
 
 	// Assert that the good cached credentials are still used even if sts starts
 	// returning errors.
@@ -250,53 +269,58 @@ func TestCredentialsCache(t *testing.T) {
 	// Test immediately
 	checkRetrieveCredentialsWithExpiry(t, initialCredentialExpiry)
 	// Advance to 1 minute before first refresh attempt
-	clock.Advance(TokenLifetime - refreshBeforeExpirationPeriod - time.Minute)
+	advanceClock(TokenLifetime - refreshBeforeExpirationPeriod - time.Minute)
 	checkRetrieveCredentialsWithExpiry(t, initialCredentialExpiry)
 	// Advance to 1 minute after first refresh attempt
-	clock.Advance(2 * time.Minute)
+	advanceClock(2 * time.Minute)
 	checkRetrieveCredentialsWithExpiry(t, initialCredentialExpiry)
 	// Advance to 1 minute before credential expiry
-	clock.Advance(refreshBeforeExpirationPeriod - 2*time.Minute)
+	advanceClock(refreshBeforeExpirationPeriod - 2*time.Minute)
 	checkRetrieveCredentialsWithExpiry(t, initialCredentialExpiry)
 
 	// Advance 1 minute past the credential expiry and make sure we get the
 	// expected error.
-	clock.Advance(2 * time.Minute)
+	advanceClock(2 * time.Minute)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		checkRetrieveCredentials(t, stsError)
-	}, time.Second, time.Millisecond)
+	}, waitFor, tick)
 
 	// Fix STS and make sure we stop getting errors within refreshCheckInterval
 	stsClient.setError(nil)
-	clock.Advance(refreshCheckInterval)
+	advanceClock(refreshCheckInterval)
 	newCredentialExpiry := clock.Now().Add(TokenLifetime)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		checkRetrieveCredentialsWithExpiry(t, newCredentialExpiry)
-	}, time.Second, time.Millisecond)
+	}, waitFor, tick)
 
-	// Test that even if STS is returning errors for 5 minutes surrounding the
-	// expected refresh time and the expiry time, no errors are observed.
+	// Test a scenario where STS is returning errors in two different 10-minute windows: the first surrounding
+	// the expected cert refresh time, and the second surrounding the cert expiry time.
+	// In this case the credentials cache should refresh the certs somewhere between those two outages, and
+	// clients should never see an error retrieving credentials.
 	expectedRefreshTime := newCredentialExpiry.Add(-refreshBeforeExpirationPeriod)
 	credentialsUpdated := false
-	for done := newCredentialExpiry.Add(10 * time.Minute); clock.Now().Before(done); clock.Advance(time.Minute) {
+	done := newCredentialExpiry.Add(10 * time.Minute)
+	for clock.Now().Before(done) {
 		if clock.Now().Sub(expectedRefreshTime).Abs() < 5*time.Minute ||
 			clock.Now().Sub(newCredentialExpiry).Abs() < 5*time.Minute {
+			// Within one of the 10-minute outage windows, make the STS client return errors.
 			stsClient.setError(stsError)
+			advanceClock(time.Minute)
 		} else {
+			// Not within an outage window, STS client should not return errors.
 			stsClient.setError(nil)
+			advanceClock(time.Minute)
+
 			if !credentialsUpdated && clock.Now().After(expectedRefreshTime) {
-				// For the test we need to make sure the credentials actually get
-				// updated during the window between expectedRefreshTime and
-				// newCredentialExpiry where STS is not returning errors, and we might
-				// need to sleep a bit to give the cache run loop time to get scheduled
-				// and updated the cached creds. To solve that we wait for the current
-				// credential expiry to match the newer value.
-				expectedExpiry := expectedRefreshTime.Add(5*time.Minute + TokenLifetime)
+				// This is after the expected refresh time and not within an outage window, for the test to
+				// not be flaky we need to wait for the cache run loop to get a chance to refresh the
+				// credentials.
+				expectedExpiry := clock.Now().Add(TokenLifetime)
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					creds, err := provider.Retrieve(ctx)
 					assert.NoError(t, err)
 					assert.WithinDuration(t, expectedExpiry, creds.Expires, 2*time.Minute)
-				}, time.Second, time.Millisecond)
+				}, waitFor, tick)
 				credentialsUpdated = true
 			}
 		}
@@ -316,8 +340,10 @@ func TestDraftConfigurator(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud:                true,
-			ExternalAuditStorage: true,
+			Cloud: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.ExternalAuditStorage: {Enabled: true},
+			},
 		},
 	})
 

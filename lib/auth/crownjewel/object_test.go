@@ -52,8 +52,8 @@ func TestValidateCrownJewel(t *testing.T) {
 				Spec: &crownjewelv1.CrownJewelSpec{
 					TeleportMatchers: []*crownjewelv1.TeleportMatcher{
 						{
-							Kinds: []string{"kind1"},
-							Name:  "name1",
+							Kinds: []string{"db"},
+							Names: []string{"name1"},
 							Labels: []*labelv1.Label{
 								{
 									Name:   "label1",
@@ -65,7 +65,7 @@ func TestValidateCrownJewel(t *testing.T) {
 					AwsMatchers: []*crownjewelv1.AWSMatcher{
 						{
 							Types: []string{"type1"},
-							Arn:   "arn1",
+							Arns:  []string{"arn1"},
 							Tags: []*crownjewelv1.AWSTag{
 								{
 									Key:    "key1",
@@ -74,6 +74,18 @@ func TestValidateCrownJewel(t *testing.T) {
 							},
 						},
 					},
+				},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "ValidCrownJewelWithQuery",
+			jewel: &crownjewelv1.CrownJewel{
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Spec: &crownjewelv1.CrownJewelSpec{
+					Query: "SELECT * FROM nodes",
 				},
 			},
 			wantErr: require.NoError,
@@ -95,7 +107,7 @@ func TestValidateCrownJewel(t *testing.T) {
 					TeleportMatchers: []*crownjewelv1.TeleportMatcher{
 						{
 							Kinds: []string{"kind1"},
-							Name:  "name1",
+							Names: []string{"name1"},
 							Labels: []*labelv1.Label{
 								{
 									Name:   "label1",
@@ -118,7 +130,7 @@ func TestValidateCrownJewel(t *testing.T) {
 					TeleportMatchers: []*crownjewelv1.TeleportMatcher{
 						{
 							Kinds: []string{"kind1"},
-							Name:  "name1",
+							Names: []string{"name1"},
 							Labels: []*labelv1.Label{
 								{
 									Name:   "label1",
@@ -130,7 +142,7 @@ func TestValidateCrownJewel(t *testing.T) {
 					AwsMatchers: []*crownjewelv1.AWSMatcher{
 						{
 							Types: []string{"type1"},
-							Arn:   "arn1",
+							Arns:  []string{"arn1"},
 							Tags: []*crownjewelv1.AWSTag{
 								{
 									Key:    "key1",
@@ -153,7 +165,7 @@ func TestValidateCrownJewel(t *testing.T) {
 					TeleportMatchers: []*crownjewelv1.TeleportMatcher{
 						{
 							Kinds: []string{},
-							Name:  "name1",
+							Names: []string{"name1"},
 							Labels: []*labelv1.Label{
 								{
 									Name:   "label1",
@@ -165,7 +177,7 @@ func TestValidateCrownJewel(t *testing.T) {
 					AwsMatchers: []*crownjewelv1.AWSMatcher{
 						{
 							Types: []string{"type1"},
-							Arn:   "arn1",
+							Arns:  []string{"arn1"},
 							Tags: []*crownjewelv1.AWSTag{
 								{
 									Key:    "key1",
@@ -188,7 +200,7 @@ func TestValidateCrownJewel(t *testing.T) {
 					TeleportMatchers: []*crownjewelv1.TeleportMatcher{
 						{
 							Kinds: []string{"type2"},
-							Name:  "name1",
+							Names: []string{"name1"},
 							Labels: []*labelv1.Label{
 								{
 									Name:   "label1",
@@ -200,7 +212,7 @@ func TestValidateCrownJewel(t *testing.T) {
 					AwsMatchers: []*crownjewelv1.AWSMatcher{
 						{
 							Types: []string{},
-							Arn:   "arn1",
+							Arns:  []string{"arn1"},
 							Tags: []*crownjewelv1.AWSTag{
 								{
 									Key:    "key1",

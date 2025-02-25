@@ -1,28 +1,27 @@
-/*
- * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 syntax = "proto3";
 
 package types;
 
 import "gogoproto/gogo.proto";
+import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
 import "teleport/attestation/v1/attestation.proto";
+import "teleport/legacy/types/trusted_device_requirement.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
 option go_package = "github.com/gravitational/teleport/api/types";
@@ -31,12 +30,13 @@ option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 
 message KeepAlive {
+  reserved 3; // LeaseID
+  reserved "LeaseID";
+
   // Name of the resource to keep alive.
   string Name = 1 [(gogoproto.jsontag) = "server_name"];
   // Namespace is the namespace of the resource.
   string Namespace = 2 [(gogoproto.jsontag) = "namespace"];
-  // LeaseID is ID of the lease.
-  int64 LeaseID = 3 [(gogoproto.jsontag) = "lease_id"];
   // Expires is set to update expiry time of the resource.
   google.protobuf.Timestamp Expires = 4 [
     (gogoproto.stdtime) = true,
@@ -73,6 +73,9 @@ message KeepAlive {
 
 // Metadata is resource metadata
 message Metadata {
+  reserved 7; // ID
+  reserved "ID";
+
   // Name is an object name
   string Name = 1 [(gogoproto.jsontag) = "name"];
   // Namespace is object namespace. The field should be called "namespace"
@@ -88,12 +91,6 @@ message Metadata {
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "expires,omitempty"
-  ];
-  // ID is a record ID.
-  // Deprecated: Use revision instead.
-  int64 ID = 7 [
-    deprecated = true,
-    (gogoproto.jsontag) = "id,omitempty"
   ];
   // Revision is an opaque identifier which tracks the versions of a resource
   // over time. Clients should ignore and not alter its value but must return
@@ -172,7 +169,10 @@ message ResourceHeader {
   string Kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is version
+  // Version is the API version used to create the resource. It must be
+  // specified. Based on this version, Teleport will apply different defaults on
+  // resource creation or deletion. It must be an integer prefixed by "v".
+  // For example: `v1`
   string Version = 3 [(gogoproto.jsontag) = "version,omitempty"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -253,7 +253,8 @@ message DatabaseV3 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource subkind.
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is the resource version.
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v3`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is the database metadata.
   Metadata Metadata = 4 [
@@ -340,6 +341,12 @@ message DatabaseSpecV3 {
 message DatabaseAdminUser {
   // Name is the username of the privileged database user.
   string Name = 1 [(gogoproto.jsontag) = "name"];
+  // DefaultDatabase is the database that the privileged database user logs
+  // into by default.
+  //
+  // Depending on the database type, this database may be used to store
+  // procedures or data for managing database users.
+  string DefaultDatabase = 2 [(gogoproto.jsontag) = "default_database"];
 }
 
 // OracleOptions contains information about privileged database user used
@@ -460,6 +467,14 @@ message AWS {
   // If not, the user must update the AWS profile identity to allow access to the Database.
   // Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database.
   IAMPolicyStatus IAMPolicyStatus = 14 [(gogoproto.jsontag) = "iam_policy_status"];
+  // SessionTags is a list of AWS STS session tags.
+  map<string, string> SessionTags = 15 [(gogoproto.jsontag) = "session_tags,omitempty"];
+
+  // DocumentDB contains AWS DocumentDB specific metadata.
+  DocumentDB DocumentDB = 16 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "docdb,omitempty"
+  ];
 }
 
 // SecretStore contains secret store configurations.
@@ -490,6 +505,8 @@ message RDS {
   repeated string Subnets = 5 [(gogoproto.jsontag) = "subnets,omitempty"];
   // VPCID is the VPC where the RDS is running.
   string VPCID = 6 [(gogoproto.jsontag) = "vpc_id,omitempty"];
+  // SecurityGroups is a list of attached security groups for the RDS instance.
+  repeated string SecurityGroups = 7 [(gogoproto.jsontag) = "security_groups,omitempty"];
 }
 
 // RDSProxy contains AWS RDS Proxy specific database metadata.
@@ -542,6 +559,16 @@ message OpenSearch {
   string DomainName = 1 [(gogoproto.jsontag) = "domain_name,omitempty"];
   // DomainID is the ID of the domain.
   string DomainID = 2 [(gogoproto.jsontag) = "domain_id,omitempty"];
+  // EndpointType is the type of the endpoint.
+  string EndpointType = 3 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
+}
+
+// DocumentDB contains AWS DocumentDB specific metadata.
+message DocumentDB {
+  // ClusterID is the cluster identifier.
+  string ClusterID = 1 [(gogoproto.jsontag) = "cluster_id,omitempty"];
+  // InstanceID is the instance identifier.
+  string InstanceID = 2 [(gogoproto.jsontag) = "instance_id,omitempty"];
   // EndpointType is the type of the endpoint.
   string EndpointType = 3 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
 }
@@ -604,7 +631,8 @@ enum DatabaseTLSMode {
 
 // DatabaseTLS contains TLS configuration options.
 message DatabaseTLS {
-  // Mode is a TLS connection mode. See DatabaseTLSMode for details.
+  // Mode is a TLS connection mode.
+  // 0 is "verify-full"; 1 is "verify-ca", 2 is "insecure".
   DatabaseTLSMode Mode = 1 [(gogoproto.jsontag) = "mode"];
   // CACert is an optional user provided CA certificate used for verifying
   // database TLS connection.
@@ -612,6 +640,13 @@ message DatabaseTLS {
   // ServerName allows to provide custom hostname. This value will override the
   // servername/hostname on a certificate during validation.
   string ServerName = 3 [(gogoproto.jsontag) = "server_name,omitempty"];
+  // TrustSystemCertPool allows Teleport to trust certificate authorities
+  // available on the host system. If not set (by default), Teleport only
+  // trusts self-signed databases with TLS certificates signed by Teleport's
+  // Database Server CA or the ca_cert specified in this TLS setting. For
+  // cloud-hosted databases, Teleport downloads the corresponding required CAs
+  // for validation.
+  bool TrustSystemCertPool = 4 [(gogoproto.jsontag) = "trust_system_cert_pool,omitempty"];
 }
 
 // MySQLOptions are additional MySQL database options.
@@ -654,10 +689,10 @@ message InstanceSpecV1 {
   // Hostname is the hostname this instance most recently advertised.
   string Hostname = 3 [(gogoproto.jsontag) = "hostname,omitempty"];
 
-  // AuthID is the ID of the auth server that most recently observed this instance.
+  // AuthID is the ID of the Auth Service that most recently observed this instance.
   string AuthID = 4 [(gogoproto.jsontag) = "auth_id,omitempty"];
 
-  // LastSeen is the last time an auth server reported observing this instance.
+  // LastSeen is the last time an Auth Service server reported observing this instance.
   google.protobuf.Timestamp LastSeen = 5 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -674,14 +709,42 @@ message InstanceSpecV1 {
   // ExternalUpgrader identifies the external upgrader that the instance is configured to
   // export schedules to (e.g. 'kube'). Empty if no upgrader is defined.
   string ExternalUpgrader = 7 [(gogoproto.jsontag) = "ext_upgrader,omitempty"];
+
+  // ExternalUpgraderVersion identifies the external upgrader version. Empty if no upgrader is defined.
+  string ExternalUpgraderVersion = 8 [(gogoproto.jsontag) = "ext_upgrader_version,omitempty"];
+
+  // LastMeasurement stores information about the latest measurement between services.
+  SystemClockMeasurement LastMeasurement = 9;
+}
+
+// SystemClockMeasurement represents the measurement state of the systems clock difference.
+message SystemClockMeasurement {
+  // ControllerSystemClock is the system clock of the inventory controller.
+  google.protobuf.Timestamp ControllerSystemClock = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "controller_system_clock,omitempty"
+  ];
+  // SystemClock is the system clock of the upstream.
+  google.protobuf.Timestamp SystemClock = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "system_clock,omitempty"
+  ];
+  // RequestDuration stores information about the request duration between auth and remote service.
+  google.protobuf.Duration RequestDuration = 3 [
+    (gogoproto.jsontag) = "request_duration",
+    (gogoproto.nullable) = false,
+    (gogoproto.stdduration) = true
+  ];
 }
 
 // InstanceControlLogEntry represents an entry in a given instance's control log. The control log of
 // an instance is protected by CompareAndSwap semantics, allowing entries to function as a means of
-// synchronization as well as recordkeeping. For example, an auth server intending to trigger an upgrade
+// synchronization as well as recordkeeping. For example, an Auth Service instance intending to trigger an upgrade
 // for a given instance can check its control log for 'upgrade-attempt' entries. If no such entry exists,
 // it can attempt to write an 'upgrade-attempt' entry of its own. If that entry successfully writes without
-// hitting a CompareFailed, the auth server knows that no other auth servers will make concurrent upgrade
+// hitting a CompareFailed, the Auth Service instance knows that no other Auth Service instances will make concurrent upgrade
 // attempts while that entry persists.
 //
 // NOTE: Due to resource size and backend throughput limitations, care should be taken to minimize the
@@ -748,7 +811,7 @@ message InstanceFilter {
   string NewerThanVersion = 7;
 }
 
-// ServerV2 represents a Node, App, Database, Proxy or Auth server in a Teleport cluster.
+// ServerV2 represents a Node, App, Database, Proxy or Auth Service instance in a Teleport cluster.
 message ServerV2 {
   option (gogoproto.goproto_stringer) = false;
   option (gogoproto.stringer) = false;
@@ -773,11 +836,11 @@ message ServerV2 {
 
 // ServerSpecV2 is a specification for V2 Server
 message ServerSpecV2 {
+  reserved 2;
+  reserved "PublicAddr";
+
   // Addr is a host:port address where this server can be reached.
   string Addr = 1 [(gogoproto.jsontag) = "addr"];
-  // PublicAddr is the public address where this server can be reached.
-  // DELETE IN 15.0. (joerger) Deprecated in favor of public_addrs.
-  string PublicAddr = 2 [(gogoproto.jsontag) = "public_addr,omitempty"];
   // Hostname is server hostname
   string Hostname = 3 [(gogoproto.jsontag) = "hostname"];
   // CmdLabels is server dynamic labels
@@ -805,6 +868,9 @@ message ServerSpecV2 {
   // CloudMetadata contains info about the cloud instance the server is running
   // on, if any.
   CloudMetadata CloudMetadata = 14 [(gogoproto.jsontag) = "cloud_metadata,omitempty"];
+  // GitHub contains info about GitHub proxies where each server represents a
+  // GitHub organization.
+  GitHubServerMetadata git_hub = 15 [(gogoproto.jsontag) = "github,omitempty"];
 
   reserved 8;
   reserved 10;
@@ -836,6 +902,15 @@ message AWSInfo {
 message CloudMetadata {
   // AWSInfo contains attributes to match to an EC2 instance.
   AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
+}
+
+// GitHubServerMetadata contains info about GitHub proxies where each server
+// represents a GitHub organization.
+message GitHubServerMetadata {
+  // Organization specifies the name of the organization for the GitHub integration.
+  string organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
+  // Integration is the integration that is associated with this Server.
+  string integration = 2 [(gogoproto.jsontag) = "integration,omitempty"];
 }
 
 // AppServerV3 represents a single proxied web app.
@@ -895,7 +970,8 @@ message AppV3 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource subkind.
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is the resource version.
+  // Version is the resource version. It must be specified.
+  // Supported values are:`v3`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is the app resource metadata.
   Metadata Metadata = 4 [
@@ -907,6 +983,46 @@ message AppV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+}
+
+// CORSPolicy defines the CORS policy for AppSpecV3
+message CORSPolicy {
+  // allowed_origins specifies which origins are allowed to access the app.
+  repeated string allowed_origins = 1 [(gogoproto.jsontag) = "allowed_origins,omitempty"];
+  // allowed_methods specifies which methods are allowed when accessing the app.
+  repeated string allowed_methods = 2 [(gogoproto.jsontag) = "allowed_methods,omitempty"];
+  // allowed_headers specifies which headers can be used when accessing the app.
+  repeated string allowed_headers = 3 [(gogoproto.jsontag) = "allowed_headers,omitempty"];
+  // allow_credentials indicates whether credentials are allowed.
+  bool allow_credentials = 4 [(gogoproto.jsontag) = "allow_credentials,omitempty"];
+  // max_age indicates how long (in seconds) the results of a preflight request can be cached.
+  uint32 max_age = 5 [(gogoproto.jsontag) = "max_age,omitempty"];
+  // exposed_headers indicates which headers are made available to scripts via the browser.
+  repeated string exposed_headers = 6 [(gogoproto.jsontag) = "exposed_headers,omitempty"];
+}
+
+// IdentityCenterPermissionSet defines a permission set that is available on an
+// IdentityCenter account app
+message IdentityCenterPermissionSet {
+  // ARN is the fully-formed ARN of the Permission Set.
+  string ARN = 1 [(gogoproto.jsontag) = "arn,omitempty"];
+
+  // Name is the human-readable name of the Permission Set.
+  string Name = 2 [(gogoproto.jsontag) = "name,omitempty"];
+
+  // AssignmentID is the ID of the Teelport Account Assignment resource that
+  // represents this permission being assigned on the enclosing Account.
+  string AssignmentID = 3 [(gogoproto.jsontag) = "assignment_name,omitempty"];
+}
+
+// AppIdentityCenter encapsulates information about an AWS Identity Center
+// account application.
+message AppIdentityCenter {
+  // Account ID is the AWS-assigned ID of the account
+  string AccountID = 1 [(gogoproto.jsontag) = "account_id,omitempty"];
+
+  // PermissionSets lists the available permission sets on the given account
+  repeated IdentityCenterPermissionSet PermissionSets = 2 [(gogoproto.jsontag) = "permission_sets,omitempty"];
 }
 
 // AppSpecV3 is the AppV3 resource spec.
@@ -930,11 +1046,31 @@ message AppSpecV3 {
   string Cloud = 7 [(gogoproto.jsontag) = "cloud,omitempty"];
   // UserGroups are a list of user group IDs that this app is associated with.
   repeated string UserGroups = 8;
+  // Integration is the integration name that must be used to access this Application.
+  // Only applicable to AWS App Access.
+  // If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
+  string Integration = 9 [(gogoproto.jsontag) = "integration,omitempty"];
+  // RequiredAppNames is a list of app names that are required for this app to function. Any app listed here will
+  // be part of the authentication redirect flow and authenticate along side this app.
+  repeated string RequiredAppNames = 10 [(gogoproto.jsontag) = "required_app_names,omitempty"];
+  // CORSPolicy defines the Cross-Origin Resource Sharing settings for the app.
+  CORSPolicy CORS = 11 [(gogoproto.jsontag) = "cors,omitempty"];
+  // IdentityCenter encasulates AWS identity-center specific information. Only
+  // valid for Identity Center account apps.
+  AppIdentityCenter IdentityCenter = 12 [(gogoproto.jsontag) = "identity_center,omitempty"];
+  // TCPPorts is a list of ports and port ranges that an app agent can forward connections to.
+  // Only applicable to TCP App Access.
+  // If this field is not empty, URI is expected to contain no port number and start with the tcp
+  // protocol.
+  repeated PortRange TCPPorts = 13 [(gogoproto.jsontag) = "tcp_ports,omitempty"];
 }
 
 // AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).
 // Used in application listings that request both app servers and saml apps.
+//
+// DEPRECATED: Use AppServer and SAMLIdPServiceProvider type individually.
 message AppServerOrSAMLIdPServiceProviderV1 {
+  option deprecated = true;
   option (gogoproto.goproto_stringer) = false;
   option (gogoproto.stringer) = false;
   // Kind is the resource kind. Always "app_server_saml_idp_sp".
@@ -968,6 +1104,20 @@ message Header {
   string Value = 2 [(gogoproto.jsontag) = "value"];
 }
 
+// PortRange describes a port range for TCP apps. The range starts with Port and ends with EndPort.
+// PortRange can be used to describe a single port in which case the Port field is the port and the
+// EndPort field is 0.
+message PortRange {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+  // Port describes the start of the range. It must be between 1 and 65535.
+  uint32 Port = 1 [(gogoproto.jsontag) = "port"];
+  // EndPort describes the end of the range, inclusive. If set, it must be between 2 and 65535 and
+  // be greater than Port when describing a port range. When omitted or set to zero, it signifies
+  // that the port range defines a single port.
+  uint32 EndPort = 2 [(gogoproto.jsontag) = "end_port,omitempty"];
+}
+
 // CommandLabelV2 is a label that has a value as a result of the
 // output generated by running command, e.g. hostname
 message CommandLabelV2 {
@@ -996,6 +1146,8 @@ enum PrivateKeyType {
   PKCS11 = 1;
   // GCP_KMS is a private key backed by GCP KMS.
   GCP_KMS = 2;
+  // AWS_KMS is a private key backed by AWS KMS.
+  AWS_KMS = 3;
 }
 
 // SSHKeyPair is an SSH CA key pair.
@@ -1059,12 +1211,7 @@ message CertAuthoritySpecV2 {
     (gogoproto.jsontag) = "type",
     (gogoproto.casttype) = "CertAuthType"
   ];
-  // DELETE IN(2.7.0) this field is deprecated,
-  // as resource name matches cluster name after migrations.
-  // and this property is enforced by the auth server code.
-  // ClusterName identifies cluster name this authority serves,
-  // for host authorities that means base hostname of all servers,
-  // for user authorities that means organization name
+  // ClusterName identifies the cluster name this authority serves.
   string ClusterName = 2 [(gogoproto.jsontag) = "cluster_name"];
   // Roles is a list of roles assumed by users signed by this CA
   repeated string Roles = 5 [(gogoproto.jsontag) = "roles,omitempty"];
@@ -1078,15 +1225,23 @@ message CertAuthoritySpecV2 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "rotation,omitempty"
   ];
-  // SigningAlg is the algorithm used for signing new SSH certificates using
-  // SigningKeys.
+  // SigningAlgType is unused.
+  //
+  // Deprecated: SigningAlgType is unused.
   enum SigningAlgType {
+    option deprecated = true;
     UNKNOWN = 0;
     RSA_SHA1 = 1;
     RSA_SHA2_256 = 2;
     RSA_SHA2_512 = 3;
   }
-  SigningAlgType SigningAlg = 9 [(gogoproto.jsontag) = "signing_alg,omitempty"];
+  // SigningAlg is unused.
+  //
+  // Deprecated: SigningAlg is unused.
+  SigningAlgType SigningAlg = 9 [
+    (gogoproto.jsontag) = "signing_alg,omitempty",
+    deprecated = true
+  ];
   // ActiveKeys are the CA key sets used to sign any new certificates.
   CAKeySet ActiveKeys = 11 [
     (gogoproto.nullable) = false,
@@ -1152,7 +1307,8 @@ message ProvisionTokenV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is version
+  // Version is the resource version. It must be specified.
+  // Supported values are:`v2`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -1181,7 +1337,7 @@ message TokenRule {
   // node is allowed to join from.
   repeated string AWSRegions = 2 [(gogoproto.jsontag) = "aws_regions,omitempty"];
   // AWSRole is used for the EC2 join method and is the ARN of the AWS
-  // role that the auth server will assume in order to call the ec2 API.
+  // role that the Auth Service will assume in order to call the ec2 API.
   string AWSRole = 3 [(gogoproto.jsontag) = "aws_role,omitempty"];
   // AWSARN is used for the IAM join method, the AWS identity of joining nodes
   // must match this ARN. Supports wildcards "*" and "?".
@@ -1207,7 +1363,7 @@ message ProvisionTokenSpecV2 {
     (gogoproto.casttype) = "Duration"
   ];
   // JoinMethod is the joining method required in order to use this token.
-  // Supported joining methods include "token", "ec2", and "iam".
+  // Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm
   string JoinMethod = 4 [
     (gogoproto.jsontag) = "join_method",
     (gogoproto.casttype) = "JoinMethod"
@@ -1243,6 +1399,51 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2GitLab GitLab = 12 [(gogoproto.jsontag) = "gitlab,omitempty"];
   // GCP allows the configuration of options specific to the "gcp" join method.
   ProvisionTokenSpecV2GCP GCP = 13 [(gogoproto.jsontag) = "gcp,omitempty"];
+  // Spacelift allows the configuration of options specific to the "spacelift" join method.
+  ProvisionTokenSpecV2Spacelift Spacelift = 14 [(gogoproto.jsontag) = "spacelift,omitempty"];
+  // TPM allows the configuration of options specific to the "tpm" join method.
+  ProvisionTokenSpecV2TPM TPM = 15 [(gogoproto.jsontag) = "tpm,omitempty"];
+  // TerraformCloud allows the configuration of options specific to the "terraform_cloud" join method.
+  ProvisionTokenSpecV2TerraformCloud TerraformCloud = 16 [(gogoproto.jsontag) = "terraform_cloud,omitempty"];
+  // Bitbucket allows the configuration of options specific to the "bitbucket" join method.
+  ProvisionTokenSpecV2Bitbucket Bitbucket = 17 [(gogoproto.jsontag) = "bitbucket,omitempty"];
+}
+
+// ProvisionTokenSpecV2TPM contains the TPM-specific part of the
+// ProvisionTokenSpecV2
+message ProvisionTokenSpecV2TPM {
+  message Rule {
+    reserved 2, 3;
+    reserved "EKPubHash", "EKCertSerial";
+    // Description is a human-readable description of the rule. It has no
+    // bearing on whether or not a TPM is allowed to join, but can be used
+    // to associate a rule with a specific host (e.g the asset tag of the server
+    // in which the TPM resides).
+    // Example: "build-server-100"
+    string Description = 1 [(gogoproto.jsontag) = "description,omitempty"];
+    // EKPublicHash is the SHA256 hash of the EKPub marshaled in PKIX format
+    // and encoded in hexadecimal. This value will also be checked when a TPM
+    // has submitted an EKCert, and the public key in the EKCert will be used
+    // for this check.
+    // Example: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6
+    string EKPublicHash = 4 [(gogoproto.jsontag) = "ek_public_hash,omitempty"];
+    // EKCertificateSerial is the serial number of the EKCert in hexadecimal
+    // with colon separated nibbles. This value will not be checked when a TPM
+    // does not have an EKCert configured.
+    // Example: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4
+    string EKCertificateSerial = 5 [(gogoproto.jsontag) = "ek_certificate_serial,omitempty"];
+  }
+  // Allow is a list of Rules, the presented delegated identity must match one
+  // allow rule to permit joining.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  // EKCertAllowedCAs is a list of CA certificates that will be used to validate
+  // TPM EKCerts.
+  // When specified, joining TPMs must present an EKCert signed by one of the
+  // specified CAs. TPMs that do not present an EKCert will be not permitted to
+  // join.
+  // When unspecified, TPMs will be allowed to join with either an EKCert or an
+  // EKPubHash.
+  repeated string EKCertAllowedCAs = 2 [(gogoproto.jsontag) = "ekcert_allowed_cas,omitempty"];
 }
 
 // ProvisionTokenSpecV2Github contains the GitHub-specific part of the
@@ -1283,8 +1484,24 @@ message ProvisionTokenSpecV2GitHub {
   //
   // This value should be the hostname of the GHES instance, and should not
   // include the scheme or a path. The instance must be accessible over HTTPS
-  // at this hostname and the certificate must be trusted by the Auth Server.
+  // at this hostname and the certificate must be trusted by the Auth Service.
   string EnterpriseServerHost = 2 [(gogoproto.jsontag) = "enterprise_server_host,omitempty"];
+  // EnterpriseSlug allows the slug of a GitHub Enterprise organisation to be
+  // included in the expected issuer of the OIDC tokens. This is for
+  // compatibility with the `include_enterprise_slug` option in GHE.
+  //
+  // This field should be set to the slug of your enterprise if this is enabled. If
+  // this is not enabled, then this field must be left empty. This field cannot
+  // be specified if `enterprise_server_host` is specified.
+  //
+  // See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise
+  // for more information about customized issuer values.
+  string EnterpriseSlug = 3 [(gogoproto.jsontag) = "enterprise_slug,omitempty"];
+  // StaticJWKS disables fetching of the GHES signing keys via the JWKS/OIDC
+  // endpoints, and allows them to be directly specified. This allows joining
+  // from GitHub Actions in GHES instances that are not reachable by the
+  // Teleport Auth Service.
+  string StaticJWKS = 4 [(gogoproto.jsontag) = "static_jwks,omitempty"];
 }
 
 // ProvisionTokenSpecV2GitLab contains the GitLab-specific part of the
@@ -1293,10 +1510,18 @@ message ProvisionTokenSpecV2GitLab {
   message Rule {
     // Sub roughly uniquely identifies the workload. Example:
     // `project_path:mygroup/my-project:ref_type:branch:ref:main`
-    // project_path:{group}/{project}:ref_type:{type}:ref:{branch_name}
+    // project_path:GROUP/PROJECT:ref_type:TYPE:ref:BRANCH_NAME
+    //
+    // This field supports "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string Sub = 1 [(gogoproto.jsontag) = "sub,omitempty"];
     // Ref allows access to be limited to jobs triggered by a specific git ref.
     // Ensure this is used in combination with ref_type.
+    //
+    // This field supports "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string Ref = 2 [(gogoproto.jsontag) = "ref,omitempty"];
     // RefType allows access to be limited to jobs triggered by a specific git
     // ref type. Example:
@@ -1306,10 +1531,18 @@ message ProvisionTokenSpecV2GitLab {
     // projects.
     // Example:
     // `mygroup`
+    //
+    // This field supports "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string NamespacePath = 4 [(gogoproto.jsontag) = "namespace_path,omitempty"];
     // ProjectPath is used to limit access to jobs belonging to an individual
     // project. Example:
     // `mygroup/myproject`
+    //
+    // This field supports "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string ProjectPath = 5 [(gogoproto.jsontag) = "project_path,omitempty"];
     // PipelineSource limits access by the job pipeline source type.
     // https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules
@@ -1318,6 +1551,34 @@ message ProvisionTokenSpecV2GitLab {
     // Environment limits access by the environment the job deploys to
     // (if one is associated)
     string Environment = 7 [(gogoproto.jsontag) = "environment,omitempty"];
+    // UserLogin is the username of the user executing the job
+    string UserLogin = 8 [(gogoproto.jsontag) = "user_login,omitempty"];
+    // UserID is the ID of the user executing the job
+    string UserID = 9 [(gogoproto.jsontag) = "user_id,omitempty"];
+    // UserEmail is the email of the user executing the job
+    string UserEmail = 10 [(gogoproto.jsontag) = "user_email,omitempty"];
+    // RefProtected is true if the Git ref is protected, false otherwise.
+    BoolValue RefProtected = 11 [
+      (gogoproto.nullable) = true,
+      (gogoproto.jsontag) = "ref_protected,omitempty",
+      (gogoproto.customtype) = "BoolOption"
+    ];
+    // EnvironmentProtected is true if the Git ref is protected, false otherwise.
+    BoolValue EnvironmentProtected = 12 [
+      (gogoproto.nullable) = true,
+      (gogoproto.jsontag) = "environment_protected,omitempty",
+      (gogoproto.customtype) = "BoolOption"
+    ];
+    // CIConfigSHA is the git commit SHA for the ci_config_ref_uri.
+    string CIConfigSHA = 13 [(gogoproto.jsontag) = "ci_config_sha,omitempty"];
+    // CIConfigRefURI is the ref path to the top-level pipeline definition, for example,
+    // gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.
+    string CIConfigRefURI = 14 [(gogoproto.jsontag) = "ci_config_ref_uri,omitempty"];
+    // DeploymentTier is the deployment tier of the environment the job specifies
+    string DeploymentTier = 15 [(gogoproto.jsontag) = "deployment_tier,omitempty"];
+    // ProjectVisibility is the visibility of the project where the pipeline is running.
+    // Can be internal, private, or public.
+    string ProjectVisibility = 16 [(gogoproto.jsontag) = "project_visibility,omitempty"];
   }
   // Allow is a list of TokenRules, nodes using this token must match one
   // allow rule to use this token.
@@ -1341,9 +1602,40 @@ message ProvisionTokenSpecV2CircleCI {
   string OrganizationID = 2 [(gogoproto.jsontag) = "organization_id,omitempty"];
 }
 
+// ProvisionTokenSpecV2Spacelift contains the Spacelift-specific part of the
+// ProvisionTokenSpecV2
+message ProvisionTokenSpecV2Spacelift {
+  message Rule {
+    // SpaceID is the ID of the space in which the run that owns the token was
+    // executed.
+    string SpaceID = 1 [(gogoproto.jsontag) = "space_id,omitempty"];
+    // CallerID is the ID of the caller, ie. the stack or module that generated
+    // the run.
+    string CallerID = 2 [(gogoproto.jsontag) = "caller_id,omitempty"];
+    // CallerType is the type of the caller, ie. the entity that owns the run -
+    // either `stack` or `module`.
+    string CallerType = 3 [(gogoproto.jsontag) = "caller_type,omitempty"];
+    // Scope is the scope of the token - either `read` or `write`.
+    // See https://docs.spacelift.io/integrations/cloud-providers/oidc/#about-scopes
+    string Scope = 4 [(gogoproto.jsontag) = "scope,omitempty"];
+  }
+  // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  // Hostname is the hostname of the Spacelift tenant that tokens
+  // will originate from. E.g `example.app.spacelift.io`
+  string Hostname = 2 [(gogoproto.jsontag) = "hostname,omitempty"];
+}
+
 // ProvisionTokenSpecV2Kubernetes contains the Kubernetes-specific part of the
 // ProvisionTokenSpecV2
 message ProvisionTokenSpecV2Kubernetes {
+  message StaticJWKSConfig {
+    // JWKS should be the JSON Web Key Set formatted public keys of that the
+    // Kubernetes Cluster uses to sign service account tokens.
+    // This can be fetched from /openid/v1/jwks on the Kubernetes API Server.
+    string JWKS = 1 [(gogoproto.jsontag) = "jwks,omitempty"];
+  }
   // Rule is a set of properties the Kubernetes-issued token might have to be
   // allowed to use this ProvisionToken
   message Rule {
@@ -1354,6 +1646,17 @@ message ProvisionTokenSpecV2Kubernetes {
   // Allow is a list of Rules, nodes using this token must match one
   // allow rule to use this token.
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  // Type controls which behavior should be used for validating the Kubernetes
+  // Service Account token. Support values:
+  // - `in_cluster`
+  // - `static_jwks`
+  // If unset, this defaults to `in_cluster`.
+  string Type = 2 [
+    (gogoproto.jsontag) = "type,omitempty",
+    (gogoproto.casttype) = "KubernetesJoinType"
+  ];
+  // StaticJWKS is the configuration specific to the `static_jwks` type.
+  StaticJWKSConfig StaticJWKS = 3 [(gogoproto.jsontag) = "static_jwks,omitempty"];
 }
 
 // ProvisionTokenSpecV2Azure contains the Azure-specific part of the
@@ -1379,18 +1682,117 @@ message ProvisionTokenSpecV2GCP {
   // Rule is a set of properties the GCP-ussued token might have to be allowed
   // to use this ProvisionToken.
   message Rule {
-    // ProjectIDs is a list of project IDs (e.g. "<example-id-123456>").
+    // ProjectIDs is a list of project IDs (e.g. `<example-id-123456>`).
     repeated string ProjectIDs = 1 [(gogoproto.jsontag) = "project_ids,omitempty"];
     // Locations is a list of regions (e.g. "us-west1") and/or zones (e.g.
     // "us-west1-b").
     repeated string Locations = 2 [(gogoproto.jsontag) = "locations,omitempty"];
     // ServiceAccounts is a list of service account emails (e.g.
-    // "<project-number>-compute@developer.gserviceaccount.com").
+    // `<project-number>-compute@developer.gserviceaccount.com`).
     repeated string ServiceAccounts = 3 [(gogoproto.jsontag) = "service_accounts,omitempty"];
   }
   // Allow is a list of Rules, nodes using this token must match one
   // allow rule to use this token.
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+}
+
+// ProvisionTokenSpecV2Terraform contains Terraform-specific parts of the
+// ProvisionTokenSpecV2.
+message ProvisionTokenSpecV2TerraformCloud {
+  // Rule is a set of properties the Terraform-issued token might have to be
+  // allowed to use this ProvisionToken.
+  message Rule {
+    // OrganizationID is the ID of the HCP Terraform organization. At least
+    // one organization value is required, either ID or name.
+    string OrganizationID = 1 [(gogoproto.jsontag) = "organization_id,omitempty"];
+
+    // OrganizationName is the human-readable name of the HCP Terraform
+    // organization. At least one organization value is required, either ID or
+    // name.
+    string OrganizationName = 2 [(gogoproto.jsontag) = "organization_name,omitempty"];
+
+    // ProjectID is the ID of the HCP Terraform project. At least one project or
+    // workspace value is required, either ID or name.
+    string ProjectID = 3 [(gogoproto.jsontag) = "project_id,omitempty"];
+
+    // ProjectName is the human-readable name for the HCP Terraform project. At
+    // least one project or workspace value is required, either ID or name.
+    string ProjectName = 4 [(gogoproto.jsontag) = "project_name,omitempty"];
+
+    // WorkspaceID is the ID of the HCP Terraform workspace. At least one
+    // project or workspace value is required, either ID or name.
+    string WorkspaceID = 5 [(gogoproto.jsontag) = "workspace_id,omitempty"];
+
+    // WorkspaceName is the human-readable name of the HCP Terraform workspace.
+    // At least one project or workspace value is required, either ID or name.
+    string WorkspaceName = 6 [(gogoproto.jsontag) = "workspace_name,omitempty"];
+
+    // RunPhase is the phase of the run the token was issued for, e.g. `plan` or
+    // `apply`
+    string RunPhase = 7 [(gogoproto.jsontag) = "run_phase,omitempty"];
+  }
+
+  // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+
+  // Audience is the JWT audience as configured in the
+  // TFC_WORKLOAD_IDENTITY_AUDIENCE(_$TAG) variable in Terraform Cloud. If
+  // unset, defaults to the Teleport cluster name.
+  // For example, if `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT=foo` is set in
+  // Terraform Cloud, this value should be `foo`. If the variable is set to
+  // match the cluster name, it does not need to be set here.
+  string Audience = 2 [(gogoproto.jsontag) = "audience,omitempty"];
+
+  // Hostname is the hostname of the Terraform Enterprise instance expected to
+  // issue JWTs allowed by this token. This may be unset for regular Terraform
+  // Cloud use, in which case it will be assumed to be `app.terraform.io`.
+  // Otherwise, it must both match the `iss` (issuer) field included in JWTs,
+  // and provide standard JWKS endpoints.
+  string Hostname = 3 [(gogoproto.jsontag) = "hostname,omitempty"];
+}
+
+message ProvisionTokenSpecV2Bitbucket {
+  // Rule is a set of properties the Bitbucket-issued token might have to be
+  // allowed to use this ProvisionToken.
+  message Rule {
+    // WorkspaceUUID is the UUID of the workspace for which this token was
+    // issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`.
+    // This value may be found in the Pipelines -> OpenID Connect section of the
+    // repository settings.
+    string WorkspaceUUID = 1 [(gogoproto.jsontag) = "workspace_uuid,omitempty"];
+
+    // RepositoryUUID is the UUID of the repository for which this token was
+    // issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`.
+    // This value may be found in the Pipelines -> OpenID Connect section of the
+    // repository settings.
+    string RepositoryUUID = 2 [(gogoproto.jsontag) = "repository_uuid,omitempty"];
+
+    // DeploymentEnvironmentUUID is the UUID of the deployment environment
+    // targeted by this pipelines run, if any. These values may be found in the
+    // "Pipelines -> OpenID Connect -> Deployment environments" section of the
+    // repository settings.
+    string DeploymentEnvironmentUUID = 3 [(gogoproto.jsontag) = "deployment_environment_uuid,omitempty"];
+
+    // BranchName is the name of the branch on which this pipeline executed.
+    string BranchName = 4 [(gogoproto.jsontag) = "branch_name,omitempty"];
+  }
+
+  // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+
+  // Audience is a Bitbucket-specified audience value for this token. It is
+  // unique to each Bitbucket repository, and must be set to the value as
+  // written in the Pipelines -> OpenID Connect section of the repository
+  // settings.
+  string Audience = 2 [(gogoproto.jsontag) = "audience,omitempty"];
+
+  // IdentityProviderURL is a Bitbucket-specified issuer URL for incoming OIDC
+  // tokens. It is unique to each Bitbucket repository, and must be set to the
+  // value as written in the Pipelines -> OpenID Connect section of the
+  // repository settings.
+  string IdentityProviderURL = 3 [(gogoproto.jsontag) = "identity_provider_url,omitempty"];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -1456,7 +1858,7 @@ message ClusterNameSpecV2 {
   string ClusterName = 1 [(gogoproto.jsontag) = "cluster_name"];
 
   // ClusterID is the unique cluster ID that is set once during the first
-  // auth server startup.
+  // Auth Service startup.
   string ClusterID = 2 [(gogoproto.jsontag) = "cluster_id"];
 }
 
@@ -1543,7 +1945,8 @@ message ClusterNetworkingConfigV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is a resource version
+  // Version is the resource version. It must be specified.
+  // Supported values are:`v2`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -1597,9 +2000,11 @@ message ClusterNetworkingConfigSpecV2 {
   ];
 
   // ProxyListenerMode is proxy listener mode used by Teleport Proxies.
+  // 0 is "separate"; 1 is "multiplex".
   ProxyListenerMode ProxyListenerMode = 7 [(gogoproto.jsontag) = "proxy_listener_mode,omitempty"];
 
   // RoutingStrategy determines the strategy used to route to nodes.
+  // 0 is "unambiguous_match"; 1 is "most_recent".
   RoutingStrategy RoutingStrategy = 8 [(gogoproto.jsontag) = "routing_strategy,omitempty"];
 
   // TunnelStrategyV1 determines the tunnel strategy used in the cluster.
@@ -1619,6 +2024,13 @@ message ClusterNetworkingConfigSpecV2 {
 
   // CaseInsensitiveRouting causes proxies to use case-insensitive hostname matching.
   bool CaseInsensitiveRouting = 12 [(gogoproto.jsontag) = "case_insensitive_routing,omitempty"];
+
+  // SSHDialTimeout is a custom dial timeout used when establishing
+  // SSH connections. If not set, the default timeout of 30s will be used.
+  int64 SSHDialTimeout = 13 [
+    (gogoproto.jsontag) = "ssh_dial_timeout,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 // TunnelStrategyV1 defines possible tunnel strategy types.
@@ -1662,7 +2074,8 @@ message SessionRecordingConfigV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is a resource version
+  // Version is the resource version. It must be specified.
+  // Supported values are:`v2`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -1700,7 +2113,8 @@ message AuthPreferenceV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is a resource version
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v2`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -1719,7 +2133,7 @@ message AuthPreferenceSpecV2 {
   // Type is the type of authentication.
   string Type = 1 [(gogoproto.jsontag) = "type"];
 
-  // SecondFactor is the type of second factor.
+  // SecondFactor is the type of mult-factor.
   string SecondFactor = 2 [
     (gogoproto.jsontag) = "second_factor,omitempty",
     (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.SecondFactorType"
@@ -1775,6 +2189,8 @@ message AuthPreferenceSpecV2 {
   ];
 
   // RequireMFAType is the type of MFA requirement enforced for this cluster.
+  // 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH",
+  // 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN".
   RequireMFAType RequireMFAType = 12 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
 
   // DeviceTrust holds settings related to trusted device verification.
@@ -1805,16 +2221,41 @@ message AuthPreferenceSpecV2 {
   // Okta is a set of options related to the Okta service in Teleport.
   // Requires Teleport Enterprise.
   OktaOptions Okta = 17 [(gogoproto.jsontag) = "okta,omitempty"];
+
+  reserved 18; // PIVSlot replaced by HardwareKey
+  reserved "PIVSlot";
+
+  // HardwareKey are the settings for hardware key support.
+  HardwareKey HardwareKey = 19 [(gogoproto.jsontag) = "hardware_key,omitempty"];
+
+  // SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster.
+  // If unspecified, the current default value is "legacy".
+  // 1 is "legacy", 2 is "balanced-v1", 3 is "fips-v1", 4 is "hsm-v1".
+  SignatureAlgorithmSuite signature_algorithm_suite = 20;
+
+  // SecondFactors is a list of supported second factor types.
+  repeated SecondFactorType SecondFactors = 21 [(gogoproto.jsontag) = "second_factors,omitempty"];
+}
+
+// SecondFactorType is a type of second factor.
+enum SecondFactorType {
+  SECOND_FACTOR_TYPE_UNSPECIFIED = 0;
+  // SECOND_FACTOR_TYPE_OTP is OTP second factor.
+  SECOND_FACTOR_TYPE_OTP = 1;
+  // SECOND_FACTOR_TYPE_WEBAUTHN is WebAuthn second factor.
+  SECOND_FACTOR_TYPE_WEBAUTHN = 2;
+  // SECOND_FACTOR_TYPE_SSO is SSO second factor.
+  SECOND_FACTOR_TYPE_SSO = 3;
 }
 
 // U2F defines settings for U2F device.
 // Deprecated: U2F is transparently converted to WebAuthn by Teleport. Prefer
 // using WebAuthn instead.
 message U2F {
-  // AppID returns the application ID for universal second factor.
+  // AppID returns the application ID for universal mult-factor.
   string AppID = 1 [(gogoproto.jsontag) = "app_id,omitempty"];
 
-  // Facets returns the facets for universal second factor.
+  // Facets returns the facets for universal mult-factor.
   // Deprecated: Kept for backwards compatibility reasons, but Facets have no
   // effect since Teleport v10, when Webauthn replaced the U2F implementation.
   repeated string Facets = 2 [(gogoproto.jsontag) = "facets,omitempty"];
@@ -1833,7 +2274,7 @@ message Webauthn {
   // IMPORTANT: RPID must never change in the lifetime of the cluster, because
   // it's recorded in the registration data on the WebAuthn device. If the
   // RPID changes, all existing WebAuthn key registrations will become invalid
-  // and all users who use WebAuthn as the second factor will need to
+  // and all users who use WebAuthn as the multi-factor will need to
   // re-register.
   string RPID = 1 [(gogoproto.jsontag) = "rp_id,omitempty"];
   // Allow list of device attestation CAs in PEM format.
@@ -1892,6 +2333,30 @@ message DeviceTrust {
   // If not present, then the CA of TPM EKCerts will not be checked during
   // enrollment, this allows any device to enroll.
   repeated string EKCertAllowedCAs = 3 [(gogoproto.jsontag) = "ekcert_allowed_cas,omitempty"];
+}
+
+// HardwareKey holds settings related to hardware key support.
+// Requires Teleport Enterprise.
+message HardwareKey {
+  // PIVSlot is a PIV slot that Teleport clients should use instead of the
+  // default based on private key policy. For example, "9a" or "9e".
+  string PIVSlot = 1 [(gogoproto.jsontag) = "piv_slot,omitempty"];
+
+  // SerialNumberValidation holds settings for hardware key serial number validation.
+  // By default, serial number validation is disabled.
+  HardwareKeySerialNumberValidation SerialNumberValidation = 2 [(gogoproto.jsontag) = "serial_number_validation,omitempty"];
+}
+
+message HardwareKeySerialNumberValidation {
+  // Enabled indicates whether hardware key serial number validation is enabled.
+  bool Enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
+
+  // SerialNumberTraitName is an optional custom user trait name for hardware key
+  // serial numbers to replace the default: "hardware_key_serial_numbers".
+  //
+  // Note: Values for this user trait should be a comma-separated list of serial numbers,
+  // or a list of comm-separated lists. e.g ["123", "345,678"]
+  string SerialNumberTraitName = 2 [(gogoproto.jsontag) = "serial_number_trait_name,omitempty"];
 }
 
 // Namespace represents namespace resource specification
@@ -2002,7 +2467,7 @@ message UserTokenSecretsSpecV3 {
   ];
 }
 
-// AccessRequest represents an access request resource specification
+// AccessRequest represents an Access Request resource specification
 message AccessRequestV3 {
   option (gogoproto.goproto_stringer) = false;
   option (gogoproto.stringer) = false;
@@ -2041,7 +2506,16 @@ message AccessReviewThreshold {
   uint32 Deny = 4 [(gogoproto.jsontag) = "deny,omitempty"];
 }
 
-// AccessReview is a review to be applied to an access request.
+// PromotedAccessList is a minimal access list representation used for
+// promoting Access Requests to access lists.
+message PromotedAccessList {
+  // Name is the name of the access list.
+  string Name = 1 [(gogoproto.jsontag) = "name"];
+  // Title is the title of the access list.
+  string Title = 2 [(gogoproto.jsontag) = "title"];
+}
+
+// AccessReview is a review to be applied to an Access Request.
 message AccessReview {
   // Author is the teleport username of the review author.
   string Author = 1 [(gogoproto.jsontag) = "author"];
@@ -2068,6 +2542,20 @@ message AccessReview {
   // ThresholdIndexes stores the indexes of thresholds which this review matches
   // (internal use only).
   repeated uint32 ThresholdIndexes = 7 [(gogoproto.jsontag) = "i,omitempty"];
+
+  reserved "PromotedAccessListTitle";
+  reserved 8;
+
+  // AccessList is the access list that this request was promoted to.
+  // This field is only populated when the request is in the PROMOTED state.
+  PromotedAccessList accessList = 9 [(gogoproto.jsontag) = "access_list,omitempty"];
+
+  // AssumeStartTime is the time the requested roles can be assumed.
+  google.protobuf.Timestamp AssumeStartTime = 10 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "assume_start_time,omitempty"
+  ];
 }
 
 // AccessReviewSubmission encodes the necessary parameters for submitting
@@ -2096,6 +2584,9 @@ enum RequestState {
   // DENIED variant indicates that a request has been rejected by
   // an administrating party.
   DENIED = 3;
+  // PROMOTED variant indicates that a request has been promoted to
+  // an access list.
+  PROMOTED = 4;
 }
 
 // ThresholdIndexSet encodes a list of threshold indexes. One of the listed thresholds
@@ -2121,7 +2612,7 @@ message AccessRequestSpecV3 {
   string User = 1 [(gogoproto.jsontag) = "user"];
   // Roles is the name of the roles being requested.
   repeated string Roles = 2 [(gogoproto.jsontag) = "roles"];
-  // State is the current state of this access request.
+  // State is the current state of this Access Request.
   RequestState State = 3 [(gogoproto.jsontag) = "state,omitempty"];
   // Created encodes the time at which the request was registered with the auth
   // server.
@@ -2156,10 +2647,10 @@ message AccessRequestSpecV3 {
   ];
 
   // SystemAnnotations is a set of programmatically generated annotations attached
-  // to pending access requests by teleport.  These annotations are generated by
+  // to pending Access Requests by teleport.  These annotations are generated by
   // applying variable interpolation to the RoleConditions.Request.Annotations block
   // of a user's role(s).  These annotations serve as a mechanism for administrators
-  // to pass extra information to plugins when they process pending access requests.
+  // to pass extra information to plugins when they process pending Access Requests.
   wrappers.LabelValues SystemAnnotations = 9 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "system_annotations,omitempty",
@@ -2202,12 +2693,12 @@ message AccessRequestSpecV3 {
     (gogoproto.nullable) = false
   ];
 
-  // LoginHint is used as a hint for search-based access requests to select
+  // LoginHint is used as a hint for search-based Access Requests to select
   // roles based on the login the user is attempting.
   string LoginHint = 15 [(gogoproto.jsontag) = "login_hint,omitempty"];
 
   // DryRun indicates that the request should not actually be created, the
-  // auth server should only validate the access request.
+  // Auth Service should only validate the Access Request.
   bool DryRun = 16 [(gogoproto.jsontag) = "dry_run,omitempty"];
 
   // MaxDuration indicates how long the access should be granted for.
@@ -2223,9 +2714,45 @@ message AccessRequestSpecV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "session_ttl,omitempty"
   ];
+
+  reserved "PromotedAccessListTitle";
+  reserved 19;
+
+  // PromotedAccessListTitle is the title of the access list that this request
+  // was promoted to. Used by WebUI to display the title of the access list.
+  // This field is only populated when the request is in the PROMOTED state.
+  PromotedAccessList accessList = 20 [(gogoproto.jsontag) = "access_list,omitempty"];
+
+  // AssumeStartTime is the time the requested roles can be assumed.
+  google.protobuf.Timestamp AssumeStartTime = 21 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "assume_start_time,omitempty"
+  ];
+
+  // ResourceExpiry is the time at which the access request resource will expire.
+  google.protobuf.Timestamp ResourceExpiry = 22 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "expiry,omitempty"
+  ];
 }
 
-// AccessRequestFilter encodes filter params for access requests.
+enum AccessRequestScope {
+  // DEFAULT allows all requests to be viewed
+  DEFAULT = 0;
+  // MY_REQUESTS will return only requests created by the requester
+  MY_REQUESTS = 1;
+  // NEEDS_REVIEW will return only requests that were not created by
+  // the requester and do not include a review made by the requester
+  NEEDS_REVIEW = 2;
+  // REVIEWED will return only requests that were not created by
+  // the requester and have a review submitted by the requester. This
+  // can include requests that have no yet been completely approved/denied.
+  REVIEWED = 3;
+}
+
+// AccessRequestFilter encodes filter params for Access Requests.
 message AccessRequestFilter {
   // ID specifies a request ID if set.
   string ID = 1 [(gogoproto.jsontag) = "id,omitempty"];
@@ -2233,6 +2760,17 @@ message AccessRequestFilter {
   string User = 2 [(gogoproto.jsontag) = "user,omitempty"];
   // RequestState filters for requests in a specific state.
   RequestState State = 3 [(gogoproto.jsontag) = "state,omitempty"];
+  // SearchKeywords is a list of search keywords to match against resource field values.
+  // The matcher goes through select field values from a resource
+  // and tries to match against the list of search values, ignoring case and order.
+  // Returns true if all search vals were matched (or if nil search vals).
+  // Returns false if no or partial match (or nil field values).
+  repeated string SearchKeywords = 4 [(gogoproto.jsontag) = "search,omitempty"];
+  // Scope is an aditional filter to view requests based on needs review, reviewed, my requests
+  AccessRequestScope Scope = 5 [(gogoproto.jsontag) = "scope,omitempty"];
+  // Requester is the requester of the api call. This is set by the Auth Service
+  // Use User for the requester of the request.
+  string Requester = 6 [(gogoproto.jsontag) = "requester,omitempty"];
 }
 
 // AccessCapabilities is a summary of capabilities that a user
@@ -2272,9 +2810,24 @@ message AccessCapabilitiesRequest {
     (gogoproto.jsontag) = "resource_ids,omitempty",
     (gogoproto.nullable) = false
   ];
+  // Login is the host login the user is requesting access for.
+  string Login = 5 [(gogoproto.jsontag) = "login,omitempty"];
+  // FilterRequestableRolesByResource is a flag indicating that the returned
+  // list of roles that the user can request should be filtered to only include
+  // roles that allow access to the provided ResourceIDs.
+  bool FilterRequestableRolesByResource = 6 [(gogoproto.jsontag) = "filter_requestable_roles_by_resource,omitempty"];
+}
+
+// RequestKubernetesResource is the Kubernetes resource identifier used
+// in access request settings.
+// Modeled after existing message KubernetesResource.
+message RequestKubernetesResource {
+  // kind specifies the Kubernetes Resource type.
+  string kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
 }
 
 // ResourceID is a unique identifier for a teleport resource.
+// Must be kept in sync with teleport.decision.v1alpha1.ResourceId.
 message ResourceID {
   // ClusterName is the name of the cluster the resource is in.
   string ClusterName = 1 [(gogoproto.jsontag) = "cluster"];
@@ -2357,6 +2910,14 @@ message PluginDataUpdateParams {
   map<string, string> Expect = 5 [(gogoproto.jsontag) = "expect,omitempty"];
 }
 
+// RoleFilter matches role resources.
+message RoleFilter {
+  // SearchKeywords is a list of search keywords to match against resource field values.
+  repeated string SearchKeywords = 1 [(gogoproto.jsontag) = "search_keywords,omitempty"];
+  // SkipSystemRoles filters out teleport system roles from the results.
+  bool SkipSystemRoles = 2 [(gogoproto.jsontag) = "skip_system_roles,omitempty"];
+}
+
 // RoleV6 represents role resource specification
 message RoleV6 {
   option (gogoproto.goproto_stringer) = false;
@@ -2366,7 +2927,8 @@ message RoleV6 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is version
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -2408,12 +2970,58 @@ enum CreateHostUserMode {
   // HOST_USER_MODE_OFF disables host user creation.
   HOST_USER_MODE_OFF = 1;
   // HOST_USER_MODE_DROP enables host user creation and deletes users at session end.
-  HOST_USER_MODE_DROP = 2;
+  // Deprecated: replaced by HOST_USER_MODE_INSECURE_DROP.
+  HOST_USER_MODE_DROP = 2 [deprecated = true];
   // HOST_USER_MODE_KEEP enables host user creation and leaves users behind at session end.
   HOST_USER_MODE_KEEP = 3;
-  // HOST_USER_MODE_INSECURE enables host user creation without a home directory and deletes
+  // HOST_USER_MODE_INSECURE_DROP enables host user creation without a home directory and deletes
   // users at session end.
   HOST_USER_MODE_INSECURE_DROP = 4;
+}
+
+// CreateDatabaseUserMode determines whether database user creation should be
+// disabled or if users should be cleaned up or kept after sessions end.
+enum CreateDatabaseUserMode {
+  DB_USER_MODE_UNSPECIFIED = 0;
+  // DB_USER_MODE_OFF disables user creation.
+  DB_USER_MODE_OFF = 1;
+  // DB_USER_MODE_KEEP allows user creation and disable users at session end.
+  DB_USER_MODE_KEEP = 2;
+  // DB_USER_MODE_BEST_EFFORT_DROP allows user creation and tries to drop user
+  // at session end. If the drop fails, fallback to disabling them.
+  DB_USER_MODE_BEST_EFFORT_DROP = 3;
+}
+
+// SSHLocalPortForwarding configures access controls for local SSH port forwarding.
+message SSHLocalPortForwarding {
+  BoolValue Enabled = 1 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "enabled,omitempty",
+    (gogoproto.customtype) = "BoolOption"
+  ];
+}
+
+// SSHRemotePortForwarding configures access controls for remote SSH port forwarding.
+message SSHRemotePortForwarding {
+  BoolValue Enabled = 1 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "enabled,omitempty",
+    (gogoproto.customtype) = "BoolOption"
+  ];
+}
+
+// SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
+message SSHPortForwarding {
+  // Allow local port forwarding.
+  SSHLocalPortForwarding Local = 1 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "local,omitempty"
+  ];
+  // Allow remote port forwarding.
+  SSHRemotePortForwarding Remote = 2 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "remote,omitempty"
+  ];
 }
 
 // RoleOptions is a set of role options
@@ -2430,11 +3038,9 @@ message RoleOptions {
     (gogoproto.casttype) = "Duration"
   ];
 
-  // PortForwarding defines if the certificate will have
-  // "permit-port-forwarding"
-  // in the certificate. PortForwarding is "yes" if not set,
-  // that's why this is a pointer
+  // Deprecated: Use SSHPortForwarding instead
   BoolValue PortForwarding = 3 [
+    deprecated = true,
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "port_forwarding,omitempty",
     (gogoproto.customtype) = "BoolOption"
@@ -2477,7 +3083,7 @@ message RoleOptions {
   // concurrent sessions per connection.
   int64 MaxSessions = 10 [(gogoproto.jsontag) = "max_sessions,omitempty"];
 
-  // RequestAccess defines the access request strategy (optional|note|always)
+  // RequestAccess defines the request strategy (optional|note|always)
   // where optional is the default.
   string RequestAccess = 11 [
     (gogoproto.jsontag) = "request_access,omitempty",
@@ -2526,7 +3132,7 @@ message RoleOptions {
     (gogoproto.customtype) = "BoolOption"
   ];
 
-  // CreateHostUser allows users to be automatically created on a host
+  // Deprecated: use CreateHostUserMode instead.
   BoolValue CreateHostUser = 20 [
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "create_host_user,omitempty",
@@ -2548,12 +3154,13 @@ message RoleOptions {
   ];
 
   // RequireMFAType is the type of MFA requirement enforced for this user.
+  // 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH",
+  // 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN".
   RequireMFAType RequireMFAType = 23 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
 
   // DeviceTrustMode is the device authorization mode used for the resources
   // associated with the role.
   // See DeviceTrust.Mode.
-  // Reserved for future use, not yet used by Teleport.
   string DeviceTrustMode = 24 [(gogoproto.jsontag) = "device_trust_mode,omitempty"];
 
   // IDP is a set of options related to accessing IdPs within Teleport.
@@ -2575,8 +3182,37 @@ message RoleOptions {
   ];
 
   // CreateHostUserMode allows users to be automatically created on a
-  // host when not set to off
+  // host when not set to off.
+  // 0 is "unspecified"; 1 is "off"; 2 is "drop" (removed for v15 and above),
+  // 3 is "keep"; 4 is "insecure-drop".
   CreateHostUserMode CreateHostUserMode = 28 [(gogoproto.jsontag) = "create_host_user_mode,omitempty"];
+
+  // CreateDatabaseUserMode allows users to be automatically created on a
+  // database when not set to off.
+  // 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop".
+  CreateDatabaseUserMode CreateDatabaseUserMode = 29 [(gogoproto.jsontag) = "create_db_user_mode,omitempty"];
+
+  // MFAVerificationInterval optionally defines the maximum duration that can elapse
+  // between successive MFA verifications. This variable is used to ensure
+  // that users are periodically prompted to verify their identity, enhancing
+  // security by preventing prolonged sessions without re-authentication when using
+  // tsh proxy * derivatives.
+  // It's only effective if the session requires MFA.
+  // If not set, defaults to `max_session_ttl`.
+  google.protobuf.Duration MFAVerificationInterval = 30 [
+    (gogoproto.jsontag) = "mfa_verification_interval,omitempty",
+    (gogoproto.nullable) = false,
+    (gogoproto.stdduration) = true
+  ];
+
+  // CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.
+  string CreateHostUserDefaultShell = 31 [(gogoproto.jsontag) = "create_host_user_default_shell,omitempty"];
+
+  // SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
+  SSHPortForwarding SSHPortForwarding = 32 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "ssh_port_forwarding,omitempty"
+  ];
 }
 
 message RecordSession {
@@ -2619,9 +3255,11 @@ enum CertExtensionType {
 message CertExtension {
   // Type represents the certificate type being extended, only ssh
   // is supported at this time.
+  // 0 is "ssh".
   CertExtensionType Type = 1 [(gogoproto.jsontag) = "type"];
   // Mode is the type of extension to be used -- currently
-  // critical-option is not supported
+  // critical-option is not supported.
+  // 0 is "extension".
   CertExtensionMode Mode = 2 [(gogoproto.jsontag) = "mode"];
   // Name specifies the key to be used in the cert extension.
   string Name = 3 [(gogoproto.jsontag) = "name"];
@@ -2783,12 +3421,114 @@ message RoleConditions {
   // GroupLabelsExpression is a predicate expression used to allow/deny
   // access to user groups.
   string GroupLabelsExpression = 37 [(gogoproto.jsontag) = "group_labels_expression,omitempty"];
+  // DatabasePermissions specifies a set of permissions that will be granted
+  // to the database user when using automatic database user provisioning.
+  repeated DatabasePermission DatabasePermissions = 38 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "db_permissions,omitempty"
+  ];
+  // SPIFFE is used to allow or deny access to a role holder to generating a
+  // SPIFFE SVID.
+  repeated SPIFFERoleCondition SPIFFE = 39 [(gogoproto.jsontag) = "spiffe,omitempty"];
+  reserved 40; // removed saml_idp_service_provider_labels in favor of using app_labels.
+  reserved "SAMLIdPServiceProviderLabels";
+  reserved 41; // removed saml_idp_service_provider_labels_expression in favor of using app_labels_expression.
+  reserved "SAMLIdPServiceProviderLabelsExpression";
+
+  // AccountAssignments holds the list of account assignments affected by this
+  // condition.
+  repeated IdentityCenterAccountAssignment AccountAssignments = 42 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "account_assignments,omitempty"
+  ];
+
+  // GitHubPermissions defines GitHub integration related permissions.
+  repeated GitHubPermission git_hub_permissions = 43 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "github_permissions,omitempty"
+  ];
+
+  // WorkloadIdentityLabels controls whether or not specific WorkloadIdentity
+  // resources can be invoked. Further authorization controls exist on the
+  // WorkloadIdentity resource itself.
+  wrappers.LabelValues WorkloadIdentityLabels = 44 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "workload_identity_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+  // WorkloadIdentityLabelsExpression is a predicate expression used to
+  // allow/deny access to issuing a WorkloadIdentity.
+  string WorkloadIdentityLabelsExpression = 45 [(gogoproto.jsontag) = "workload_identity_labels_expression,omitempty"];
+}
+
+// IdentityCenterAccountAssignment captures an AWS Identity Center account
+// assignment (acccount + permission set) pair.
+message IdentityCenterAccountAssignment {
+  string PermissionSet = 1 [(gogoproto.jsontag) = "permission_set,omitempty"];
+  string Account = 2 [(gogoproto.jsontag) = "account,omitempty"];
+}
+
+// GitHubPermission defines GitHub integration related permissions.
+message GitHubPermission {
+  repeated string organizations = 1 [(gogoproto.jsontag) = "orgs,omitempty"];
+}
+
+// SPIFFERoleCondition sets out which SPIFFE identities this role is allowed or
+// denied to generate. The Path matcher is required, and is evaluated first. If,
+// the Path does not match then the other matcher fields are not evaluated.
+message SPIFFERoleCondition {
+  // Path specifies a matcher for the SPIFFE ID path. It should not include the
+  // trust domain and should start with a leading slash.
+  //
+  // The matcher by default allows '*' to be used to indicate zero or more of
+  // any character. Prepend '^' and append '$' to instead switch to matching
+  // using the Go regex syntax.
+  //
+  // Example:
+  // - /svc/foo/*/bar would match /svc/foo/baz/bar
+  // - ^\/svc\/foo\/.*\/bar$ would match /svc/foo/baz/bar
+  string Path = 1 [(gogoproto.jsontag) = "path,omitempty"];
+  // DNSSANs specifies matchers for the SPIFFE ID DNS SANs.
+  //
+  // Each requested DNS SAN is compared against all matchers configured and if
+  // any match, the condition is considered to be met.
+  //
+  // The matcher by default allows '*' to be used to indicate zero or more of
+  // any character. Prepend '^' and append '$' to instead switch to matching
+  // using the Go regex syntax.
+  //
+  // Example: *.example.com would match foo.example.com
+  repeated string DNSSANs = 2 [(gogoproto.jsontag) = "dns_sans,omitempty"];
+  // IPSANs specifies matchers for the SPIFFE ID IP SANs.
+  //
+  // Each requested IP SAN is compared against all matchers configured and if
+  // any match, the condition is considered to be met.
+  //
+  // The matchers should be specified using CIDR notation, it supports IPv4 and
+  // IPv6.
+  //
+  // Examples:
+  // - 10.0.0.0/24 would match 10.0.0.0 to 10.255.255.255
+  // - 10.0.0.42/32 would match only 10.0.0.42
+  repeated string IPSANs = 3 [(gogoproto.jsontag) = "ip_sans,omitempty"];
+}
+
+// DatabasePermission specifies the database object permission for the user.
+message DatabasePermission {
+  // Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...
+  repeated string Permissions = 1 [(gogoproto.jsontag) = "permissions"];
+
+  // Match is a list of object labels that must be matched for the permission to be granted.
+  wrappers.LabelValues Match = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "match",
+    (gogoproto.customtype) = "Labels"
+  ];
 }
 
 // KubernetesResource is the Kubernetes resource identifier.
 message KubernetesResource {
   // Kind specifies the Kubernetes Resource type.
-  // At the moment only "pod" is supported.
   string Kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
   // Namespace is the resource namespace.
   // It supports wildcards.
@@ -2851,7 +3591,7 @@ message AccessRequestConditions {
   ];
 
   // Annotations is a collection of annotations to be programmatically
-  // appended to pending access requests at the time of their creation.
+  // appended to pending Access Requests at the time of their creation.
   // These annotations serve as a mechanism to propagate extra information
   // to plugins.  Since these annotations support variable interpolation
   // syntax, they also offer a mechanism for forwarding claims from an
@@ -2887,6 +3627,31 @@ message AccessRequestConditions {
     (gogoproto.jsontag) = "max_duration,omitempty",
     (gogoproto.casttype) = "Duration"
   ];
+
+  // kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources.
+  // Eg: Users can make request to either a resource kind "kube_cluster" or any of its
+  // subresources like "namespaces". This field can be defined such that it prevents a user
+  // from requesting "kube_cluster" and enforce requesting any of its subresources.
+  repeated RequestKubernetesResource kubernetes_resources = 8 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "kubernetes_resources,omitempty"
+  ];
+
+  // Reason defines settings for the reason for the access provided by the user.
+  AccessRequestConditionsReason Reason = 9 [(gogoproto.jsontag) = "reason,omitempty"];
+}
+
+// AccessRequestConditionsReason defines settings for the reason for the access provided by the
+// user.
+message AccessRequestConditionsReason {
+  // Mode can be either "required" or "optional". Empty string is treated as "optional". If a role
+  // has the request reason mode set to "required", then reason is required for all Access Requests
+  // requesting roles or resources allowed by this role. It applies only to users who have this
+  // role assigned.
+  string Mode = 1 [
+    (gogoproto.jsontag) = "mode,omitempty",
+    (gogoproto.casttype) = "RequestReasonMode"
+  ];
 }
 
 // AccessReviewConditions is a matcher for allow/deny restrictions on
@@ -2910,6 +3675,19 @@ message AccessReviewConditions {
   // while they are viewing a Resource Access Request for the purposes of
   // viewing details such as the hostname and labels of requested resources.
   repeated string PreviewAsRoles = 4 [(gogoproto.jsontag) = "preview_as_roles,omitempty"];
+}
+
+// AccessRequestAllowedPromotion describes an allowed promotion to an Access List.
+message AccessRequestAllowedPromotion {
+  // associated access list
+  string accessListName = 1;
+}
+
+// AccessRequestAllowedPromotions describes an valid promotion from an access request
+// to an access list.
+message AccessRequestAllowedPromotions {
+  // suggestions is a list of allowed access lists promotions.
+  repeated AccessRequestAllowedPromotion promotions = 1;
 }
 
 // ClaimMapping maps a claim to teleport roles.
@@ -2963,6 +3741,12 @@ message BoolValue {
   bool Value = 1;
 }
 
+// UserFilter matches user resources.
+message UserFilter {
+  // SearchKeywords is a list of search keywords to match against resource field values.
+  repeated string SearchKeywords = 1 [(gogoproto.jsontag) = "search_keywords,omitempty"];
+}
+
 // UserV2 is version 2 resource spec of the user
 message UserV2 {
   option (gogoproto.goproto_stringer) = false;
@@ -2972,7 +3756,8 @@ message UserV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is version
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v2`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -2984,6 +3769,45 @@ message UserV2 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  UserStatusV2 Status = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "status,omitempty"
+  ];
+}
+
+// UserStatusV2 is a dynamic state of UserV2.
+message UserStatusV2 {
+  // password_state reflects what the system knows about the user's password.
+  // Note that this is a "best effort" property, in that it can be UNSPECIFIED
+  // for users who were created before this property was introduced and didn't
+  // perform any password-related activity since then. See RFD 0159 for
+  // details. Do NOT use this value for authentication purposes!
+  PasswordState password_state = 1 [(gogoproto.jsontag) = "password_state,omitempty"];
+  // mfa_weakest_device reflects what the system knows about the user's weakest MFA device.
+  // Note that this is a "best effort" property, in that it can be UNSPECIFIED.
+  MFADeviceKind mfa_weakest_device = 2 [(gogoproto.jsontag) = "mfa_weakest_device,omitempty"];
+}
+
+// PasswordState indicates what is known about existence of user's password.
+enum PasswordState {
+  // Unable to tell whether the password has been configured.
+  PASSWORD_STATE_UNSPECIFIED = 0;
+  // Password is known to be not configured.
+  PASSWORD_STATE_UNSET = 1;
+  // Password is known to be configured.
+  PASSWORD_STATE_SET = 2;
+}
+
+// MFADeviceKind indicates what is known about existence of user's MFA device.
+enum MFADeviceKind {
+  // Unable to tell whether the MFA device has been configured.
+  MFA_DEVICE_KIND_UNSPECIFIED = 0;
+  // MFA device is known to be not configured.
+  MFA_DEVICE_KIND_UNSET = 1;
+  // MFA device is known to be configured using TOTP as the weakest form of MFA.
+  MFA_DEVICE_KIND_TOTP = 2;
+  // MFA device is known to be configured using WebAuthn as the weakest form of MFA.
+  MFA_DEVICE_KIND_WEBAUTHN = 3;
 }
 
 // UserSpecV2 is a specification for V2 user
@@ -3045,6 +3869,13 @@ message UserSpecV2 {
   LocalAuthSecrets LocalAuth = 9 [(gogoproto.jsontag) = "local_auth,omitempty"];
 
   // TrustedDeviceIDs contains the IDs of trusted devices enrolled by the user.
+  //
+  // Note that SSO users are transient and thus may contain an empty
+  // TrustedDeviceIDs field, even though the user->device association exists
+  // under the Device Trust subsystem. Do not rely on this field to determine
+  // device associations or ownership, it exists for legacy/informative purposes
+  // only.
+  //
   // Managed by the Device Trust subsystem, avoid manual edits.
   repeated string TrustedDeviceIDs = 10 [(gogoproto.jsontag) = "trusted_device_ids,omitempty"];
 }
@@ -3061,6 +3892,13 @@ message ExternalIdentity {
 
   // Username is username supplied by external identity provider
   string Username = 2 [(gogoproto.jsontag) = "username,omitempty"];
+
+  // SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.
+  string SAMLSingleLogoutURL = 3 [(gogoproto.jsontag) = "samlSingleLogoutUrl,omitempty"];
+
+  // UserID is the ID of the identity. Some connectors like GitHub have an
+  // unique ID apart from the username.
+  string UserID = 4 [(gogoproto.jsontag) = "user_id,omitempty"];
 }
 
 // LoginStatus is a login status of the user
@@ -3081,7 +3919,7 @@ message LoginStatus {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "lock_expires,omitempty"
   ];
-  reserved 5;  // removed "google.protobuf.Timestamp RecoveryAttemptLockExpires" after lockout was removed
+  reserved 5; // removed "google.protobuf.Timestamp RecoveryAttemptLockExpires" after lockout was removed
   reserved "RecoveryAttemptLockExpires";
 }
 
@@ -3121,7 +3959,7 @@ message LocalAuthSecrets {
   repeated MFADevice MFA = 5 [(gogoproto.jsontag) = "mfa,omitempty"];
   // Webauthn holds settings necessary for webauthn local auth.
   // May be null for legacy users or users that haven't yet used webauthn as
-  // their second factor.
+  // their multi-factor.
   WebauthnLocalAuth Webauthn = 6 [(gogoproto.jsontag) = "webauthn,omitempty"];
 }
 
@@ -3150,6 +3988,7 @@ message MFADevice {
     TOTPDevice totp = 8;
     U2FDevice u2f = 9;
     WebauthnDevice webauthn = 10;
+    SSOMFADevice sso = 11;
   }
 }
 
@@ -3204,6 +4043,24 @@ message WebauthnDevice {
   // If an RPID change does happen, this helps Teleport detect it and react
   // accordingly.
   string credential_rp_id = 8;
+  // Authenticator Backup Eligibility (BE) bit, recorded during registration or
+  // backfill (for older authenticators).
+  // https://w3c.github.io/webauthn/#authdata-flags-be
+  google.protobuf.BoolValue credential_backup_eligible = 9;
+  // Authenticator Backup State (BS) bit, recorded during registration or
+  // backfill (for older authenticators).
+  // https://w3c.github.io/webauthn/#authdata-flags-bs
+  google.protobuf.BoolValue credential_backed_up = 10;
+}
+
+// SSOMFADevice contains details of an SSO MFA method.
+message SSOMFADevice {
+  // connector_id is the ID of the SSO connector.
+  string connector_id = 1;
+  // connector_type is the type of the SSO connector.
+  string connector_type = 2;
+  // display_name is the display name of the SSO connector
+  string display_name = 3;
 }
 
 // WebauthnLocalAuth holds settings necessary for local webauthn use.
@@ -3425,11 +4282,13 @@ message WebSessionV2 {
 message WebSessionSpecV2 {
   // User is the identity of the user to which the web session belongs.
   string User = 1 [(gogoproto.jsontag) = "user"];
-  // Pub is the SSH certificate for the user.
+  // Pub is the SSH certificate for the user, marshaled in the authorized key
+  // format.
   bytes Pub = 2 [(gogoproto.jsontag) = "pub"];
-  // Priv is the SSH private key for the user.
+  // Priv is the SSH private key for the user, in PEM-encoded PKCS#1 or PKCS#8
+  // format. If TLSPriv is unset, this is also the TLS private key.
   bytes Priv = 3 [(gogoproto.jsontag) = "priv,omitempty"];
-  // TLSCert is the TLS certificate for the user.
+  // TLSCert is the X.509 certificate for the user (PEM-encoded).
   bytes TLSCert = 4 [(gogoproto.jsontag) = "tls_cert,omitempty"];
   // BearerToken is a token that is paired with the session cookie for
   // authentication. It is periodically rotated so a stolen cookie itself
@@ -3464,6 +4323,32 @@ message WebSessionSpecV2 {
   string ConsumedAccessRequestID = 10 [(gogoproto.jsontag) = "consumed_access_request_id,omitempty"];
   // SAMLSession is data associated with a SAML IdP session.
   SAMLSessionData SAMLSession = 11 [(gogoproto.jsontag) = "saml_session,omitempty"];
+  // Device trust web authentication token.
+  // May be exchanged for a single on-behalf-of device authentication attempt
+  // (typically performed by Connect).
+  // Only present if on-behalf-of device authentication is possible.
+  DeviceWebToken DeviceWebToken = 12 [(gogoproto.jsontag) = "device_web_token,omitempty"];
+  // HasDeviceExtensions is true if the session's TLS and SSH certificates are
+  // augmented with device extensions.
+  bool HasDeviceExtensions = 13 [(gogoproto.jsontag) = "has_device_extensions,omitempty"];
+  // TrustedDeviceRequirement indicates whether access may be hindered by the
+  // lack of a trusted device.
+  //
+  // If during login a device is required and DeviceWebToken is nil, then it's
+  // likely the user needs to enroll their device to avoid impacting access.
+  TrustedDeviceRequirement TrustedDeviceRequirement = 14 [(gogoproto.jsontag) = "trusted_device_requirement,omitempty"];
+  // TLSPriv is the TLS private key for the user, in PEM-encoded PKCS#1 or PKCS#8
+  // format. If unset, then Priv is used as both the SSH and TLS private key.
+  bytes TLSPriv = 15 [(gogoproto.jsontag) = "tls_priv,omitempty"];
+}
+
+// Web-focused view of teleport.devicetrust.v1.DeviceWebToken.
+message DeviceWebToken {
+  // Opaque token identifier.
+  string id = 1;
+  // Opaque device web token, in plaintext, encoded in base64.RawURLEncoding
+  // (so it is inherently safe for URl use).
+  string token = 2;
 }
 
 // WebSessionFilter encodes cache watch parameters for filtering web sessions.
@@ -3847,7 +4732,8 @@ message OIDCConnectorV3 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources.
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is a resource version.
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v3`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata holds resource metadata.
   Metadata Metadata = 4 [
@@ -3876,7 +4762,7 @@ message OIDCConnectorSpecV3 {
 
   // IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.
   string IssuerURL = 1 [(gogoproto.jsontag) = "issuer_url"];
-  // ClientID is the id of the authentication client (Teleport Auth server).
+  // ClientID is the id of the authentication client (Teleport Auth Service).
   string ClientID = 2 [(gogoproto.jsontag) = "client_id"];
   // ClientSecret is used to authenticate the client.
   string ClientSecret = 3 [(gogoproto.jsontag) = "client_secret"];
@@ -3924,6 +4810,11 @@ message OIDCConnectorSpecV3 {
     (gogoproto.jsontag) = "",
     (gogoproto.embed) = true
   ];
+  // ClientRedirectSettings defines which client redirect URLs are allowed for
+  // non-browser SSO logins other than the standard localhost ones.
+  SSOClientRedirectSettings ClientRedirectSettings = 18 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
+  // MFASettings contains settings to enable SSO MFA checks through this auth connector.
+  OIDCConnectorMFASettings MFASettings = 19 [(gogoproto.jsontag) = "mfa,omitempty"];
 }
 
 // MaxAge allows the max_age parameter to be nullable to preserve backwards
@@ -3935,8 +4826,38 @@ message MaxAge {
   ];
 }
 
+// SSOClientRedirectSettings contains settings to define which additional client
+// redirect URLs should be allowed for non-browser SSO logins.
+message SSOClientRedirectSettings {
+  // a list of hostnames allowed for https client redirect URLs
+  repeated string allowed_https_hostnames = 1;
+  // a list of CIDRs allowed for HTTP or HTTPS client redirect URLs
+  repeated string insecure_allowed_cidr_ranges = 2;
+}
+
+// OIDCConnectorMFASettings contains OIDC MFA settings.
+message OIDCConnectorMFASettings {
+  // Enabled specified whether this OIDC connector supports MFA checks. Defaults to false.
+  bool enabled = 1;
+  // ClientID is the OIDC OAuth app client ID.
+  string client_id = 2;
+  // ClientSecret is the OIDC OAuth app client secret.
+  string client_secret = 3;
+  // AcrValues are Authentication Context Class Reference values. The meaning of the ACR
+  // value is context-specific and varies for identity providers. Some identity providers
+  // support MFA specific contexts, such Okta with its "phr" (phishing-resistant) ACR.
+  string acr_values = 4;
+  // Prompt is an optional OIDC prompt. An empty string omits prompt.
+  // If not specified, it defaults to select_account for backwards compatibility.
+  string prompt = 5;
+  // MaxAge is the amount of time in nanoseconds that an IdP session is valid for. Defaults to
+  // 0 to always force re-authentication for MFA checks. This should only be set to a non-zero
+  // value if the IdP is setup to perform MFA checks on top of active user sessions.
+  int64 max_age = 6 [(gogoproto.casttype) = "Duration"];
+}
+
 // OIDCAuthRequest is a request to authenticate with OIDC
-// provider, the state about request is managed by auth server
+// provider, the state about request is managed by Auth Service
 message OIDCAuthRequest {
   // ConnectorID is ID of OIDC connector this request uses
   string ConnectorID = 1 [(gogoproto.jsontag) = "connector_id"];
@@ -3958,10 +4879,14 @@ message OIDCAuthRequest {
   // Teleport Proxy after the oidc login attempt in the browser.
   string RedirectURL = 6 [(gogoproto.jsontag) = "redirect_url"];
 
-  // PublicKey is an optional public key, users want these
-  // keys to be signed by auth servers user CA in case
-  // of successful auth
-  bytes PublicKey = 7 [(gogoproto.jsontag) = "public_key"];
+  // PublicKey is an optional public key, users want these keys to be signed by
+  // the Auth Service's user CA in case of successful auth.
+  //
+  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
+  bytes PublicKey = 7 [
+    (gogoproto.jsontag) = "public_key",
+    deprecated = true
+  ];
 
   // CertTTL is the TTL of the certificate user wants to get
   int64 CertTTL = 8 [
@@ -3999,10 +4924,30 @@ message OIDCAuthRequest {
   string ProxyAddress = 16 [(gogoproto.jsontag) = "proxy_address,omitempty"];
 
   // attestation_statement is an attestation statement for the given public key.
-  teleport.attestation.v1.AttestationStatement attestation_statement = 17 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
+  //
+  // Deprecated: prefer SshAttestationStatement and/or TlsAttestationStatement.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 17 [
+    (gogoproto.jsontag) = "attestation_statement,omitempty",
+    deprecated = true
+  ];
 
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 18 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
+
+  // ClientUserAgent is the user agent of the Web browser, used for issuing a
+  // DeviceWebToken.
+  string ClientUserAgent = 19 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
+
+  // SshPublicKey is an optional public key to use as the subject of an issued
+  // SSH cert in case of successful auth.
+  bytes ssh_public_key = 20 [(gogoproto.jsontag) = "ssh_pub_key,omitempty"];
+  // TlsPublicKey is an optional public key to use as the subject of an issued
+  // TLS cert in case of successful auth.
+  bytes tls_public_key = 21 [(gogoproto.jsontag) = "tls_pub_key,omitempty"];
+  // SshAttestationStatement is an attestation statement for the given SSH public key.
+  teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 22 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
+  // TlsAttestationStatement is an attestation statement for the given TLS public key.
+  teleport.attestation.v1.AttestationStatement tls_attestation_statement = 23 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -4011,7 +4956,8 @@ message SAMLConnectorV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources.
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is a resource version.
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v2`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata holds resource metadata.
   Metadata Metadata = 4 [
@@ -4038,7 +4984,7 @@ message SAMLConnectorSpecV2 {
   // SSO is the URL of the identity provider's SSO service.
   string SSO = 2 [(gogoproto.jsontag) = "sso"];
   // Cert is the identity provider certificate PEM.
-  // IDP signs <Response> responses using this certificate.
+  // IDP signs `<Response>` responses using this certificate.
   string Cert = 3 [(gogoproto.jsontag) = "cert"];
   // Display controls how this connector is displayed.
   string Display = 4 [(gogoproto.jsontag) = "display"];
@@ -4077,10 +5023,54 @@ message SAMLConnectorSpecV2 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "allow_idp_initiated,omitempty"
   ];
+  // ClientRedirectSettings defines which client redirect URLs are allowed for
+  // non-browser SSO logins other than the standard localhost ones.
+  SSOClientRedirectSettings ClientRedirectSettings = 15 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
+  // SingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out). If this is not provided, SLO is disabled.
+  string SingleLogoutURL = 16 [(gogoproto.jsontag) = "single_logout_url,omitempty"];
+  // MFASettings contains settings to enable SSO MFA checks through this auth connector.
+  SAMLConnectorMFASettings MFASettings = 17 [(gogoproto.jsontag) = "mfa,omitempty"];
+  // ForceAuthn specified whether re-authentication should be forced on login. UNSPECIFIED
+  // is treated as NO.
+  SAMLForceAuthn ForceAuthn = 18 [(gogoproto.jsontag) = "force_authn,omitempty"];
+}
+
+// SAMLConnectorMFASettings contains SAML MFA settings.
+message SAMLConnectorMFASettings {
+  // Enabled specified whether this SAML connector supports MFA checks. Defaults to false.
+  bool enabled = 1;
+  // EntityDescriptor is XML with descriptor. It can be used to supply configuration
+  // parameters in one XML file rather than supplying them in the individual elements.
+  // Usually set from EntityDescriptorUrl.
+  string entity_descriptor = 2;
+  // EntityDescriptorUrl is a URL that supplies a configuration XML.
+  string entity_descriptor_url = 3;
+  // ForceAuthn specified whether re-authentication should be forced for MFA checks. UNSPECIFIED is
+  // treated as YES to always re-authentication for MFA checks. This should only be set to NO if the
+  // IdP is setup to perform MFA checks on top of active user sessions.
+  SAMLForceAuthn force_authn = 4;
+  // Issuer is the identity provider issuer. Usually set from EntityDescriptor.
+  string issuer = 5;
+  // SSO is the URL of the identity provider's SSO service. Usually set from EntityDescriptor.
+  string sso = 6;
+  // Cert is the identity provider certificate PEM.
+  // IDP signs `<Response>` responses using this certificate.
+  string cert = 7;
+}
+
+// SAMLForceAuthn specified whether existing SAML sessions should be accepted or re-authentication
+// should be forced.
+enum SAMLForceAuthn {
+  // UNSPECIFIED is treated as the default value for the context; NO for login, YES for MFA checks.
+  FORCE_AUTHN_UNSPECIFIED = 0;
+  // YES re-authentication should be forced for existing SAML sessions..
+  FORCE_AUTHN_YES = 1;
+  // NO re-authentication should not be forced for existing SAML sessions.
+  FORCE_AUTHN_NO = 2;
 }
 
 // SAMLAuthRequest is a request to authenticate with SAML
-// provider, the state about request is managed by auth server.
+// provider, the state about request is managed by the Auth Service
 message SAMLAuthRequest {
   // ID is a unique request ID.
   string ID = 1 [(gogoproto.jsontag) = "id"];
@@ -4098,9 +5088,14 @@ message SAMLAuthRequest {
   string RedirectURL = 5 [(gogoproto.jsontag) = "redirect_url"];
 
   // PublicKey is an optional public key, users want these
-  // keys to be signed by auth servers user CA in case
+  // keys to be signed by Auth Service's user CA in case
   // of successful auth.
-  bytes PublicKey = 6 [(gogoproto.jsontag) = "public_key"];
+  //
+  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
+  bytes PublicKey = 6 [
+    (gogoproto.jsontag) = "public_key",
+    deprecated = true
+  ];
 
   // CertTTL is the TTL of the certificate user wants to get.
   int64 CertTTL = 7 [
@@ -4135,10 +5130,27 @@ message SAMLAuthRequest {
   SAMLConnectorSpecV2 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
 
   // attestation_statement is an attestation statement for the given public key.
+  //
+  // Deprecated: prefer SshAttestationStatement and/or TlsAttestationStatement.
   teleport.attestation.v1.AttestationStatement attestation_statement = 16 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
 
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 17 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
+
+  // ClientUserAgent is the user agent of the Web browser, used for issuing a
+  // DeviceWebToken.
+  string ClientUserAgent = 18 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
+
+  // SshPublicKey is an optional public key to use as the subject of an issued
+  // SSH cert in case of successful auth.
+  bytes ssh_public_key = 19 [(gogoproto.jsontag) = "ssh_pub_key,omitempty"];
+  // TlsPublicKey is an optional public key to use as the subject of an issued
+  // TLS cert in case of successful auth.
+  bytes tls_public_key = 20 [(gogoproto.jsontag) = "tls_pub_key,omitempty"];
+  // SshAttestationStatement is an attestation statement for the given SSH public key.
+  teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 21 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
+  // TlsAttestationStatement is an attestation statement for the given TLS public key.
+  teleport.attestation.v1.AttestationStatement tls_attestation_statement = 22 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -4166,7 +5178,8 @@ message GithubConnectorV3 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources.
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is a resource version.
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v3`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata holds resource metadata.
   Metadata Metadata = 4 [
@@ -4214,6 +5227,9 @@ message GithubConnectorSpecV3 {
   // APIEndpointURL is the URL of the API endpoint of the Github instance
   // this connector is for.
   string APIEndpointURL = 8 [(gogoproto.jsontag) = "api_endpoint_url"];
+  // ClientRedirectSettings defines which client redirect URLs are allowed for
+  // non-browser SSO logins other than the standard localhost ones.
+  SSOClientRedirectSettings ClientRedirectSettings = 9 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
 }
 
 // GithubAuthRequest is the request to start Github OAuth2 flow.
@@ -4227,7 +5243,12 @@ message GithubAuthRequest {
   // CSRFToken is used to protect against CSRF attacks.
   string CSRFToken = 4 [(gogoproto.jsontag) = "csrf_token"];
   // PublicKey is an optional public key to sign in case of successful auth.
-  bytes PublicKey = 5 [(gogoproto.jsontag) = "public_key"];
+  //
+  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
+  bytes PublicKey = 5 [
+    (gogoproto.jsontag) = "public_key",
+    deprecated = true
+  ];
   // CertTTL is TTL of the cert that's generated in case of successful auth.
   int64 CertTTL = 6 [
     (gogoproto.jsontag) = "cert_ttl",
@@ -4255,12 +5276,34 @@ message GithubAuthRequest {
   string KubernetesCluster = 13 [(gogoproto.jsontag) = "kubernetes_cluster,omitempty"];
   // SSOTestFlow indicates if the request is part of the test flow.
   bool SSOTestFlow = 14 [(gogoproto.jsontag) = "sso_test_flow"];
-  // ConnectorSpec is embedded connector spec for use in test flow.
+  // ConnectorSpec is embedded connector spec for use in test flow or authenticated user flow.
   GithubConnectorSpecV3 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
-  // attestation_statement is an attestation statement for the given public key.
-  teleport.attestation.v1.AttestationStatement attestation_statement = 16 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
+  // AttestationStatement is an attestation statement for the given public key.
+  //
+  // Deprecated: prefer SshAttestationStatement and/or TlsAttestationStatement.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 16 [
+    (gogoproto.jsontag) = "attestation_statement,omitempty",
+    deprecated = true
+  ];
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 17 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
+  // ClientUserAgent is the user agent of the Web browser, used for issuing
+  // a DeviceWebToken.
+  string ClientUserAgent = 18 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
+  // SshPublicKey is an optional public key to use as the subject of an issued
+  // SSH cert in case of successful auth.
+  bytes ssh_public_key = 19 [(gogoproto.jsontag) = "ssh_pub_key,omitempty"];
+  // TlsPublicKey is an optional public key to use as the subject of an issued
+  // TLS cert in case of successful auth.
+  bytes tls_public_key = 20 [(gogoproto.jsontag) = "tls_pub_key,omitempty"];
+  // SshAttestationStatement is an attestation statement for the given SSH public key.
+  teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 21 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
+  // TlsAttestationStatement is an attestation statement for the given TLS public key.
+  teleport.attestation.v1.AttestationStatement tls_attestation_statement = 22 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
+  // AuthenticatedUser is the username of an authenticated Teleport user. This
+  // OAuth flow is used to retrieve GitHub identity info which will be added to
+  // the existing user.
+  string authenticated_user = 23 [(gogoproto.jsontag) = "authenticated_user,omitempty"];
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.
@@ -4431,6 +5474,12 @@ message GithubClaims {
 
   // Teams is the users team membership
   repeated string Teams = 3 [(gogoproto.jsontag) = "teams"];
+
+  // UserID is a global unique integer that is assigned to each GitHub user. The
+  // user ID is immutable (unlike the GitHub username) and can be found in APIs
+  // like get user.
+  // https://docs.github.com/en/rest/users/users
+  string UserID = 4 [(gogoproto.jsontag) = "user_id,omitempty"];
 }
 
 // TeamMapping represents a single team membership mapping.
@@ -4466,7 +5515,8 @@ message TrustedClusterV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources.
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is a resource version.
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v2`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata holds resource metadata.
   Metadata Metadata = 4 [
@@ -4497,10 +5547,10 @@ message TrustedClusterSpecV2 {
   // Token is the authorization token provided by another cluster needed by this cluster to join.
   string Token = 3 [(gogoproto.jsontag) = "token"];
   // ProxyAddress is the address of the web proxy server of the cluster to join. If not set,
-  // it is derived from <metadata.name>:<default web proxy server port>.
+  // it is derived from `<metadata.name>:<default web proxy server port>`.
   string ProxyAddress = 4 [(gogoproto.jsontag) = "web_proxy_addr"];
   // ReverseTunnelAddress is the address of the SSH proxy server of the cluster to join. If
-  // not set, it is derived from <metadata.name>:<default reverse tunnel port>.
+  // not set, it is derived from `<metadata.name>:<default reverse tunnel port>`.
   string ReverseTunnelAddress = 5 [(gogoproto.jsontag) = "tunnel_addr"];
   // RoleMap specifies role mappings to remote roles.
   repeated RoleMapping RoleMap = 6 [
@@ -4518,7 +5568,8 @@ message LockV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources.
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is a resource version.
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v2`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata holds resource metadata.
   Metadata Metadata = 4 [
@@ -4573,7 +5624,7 @@ message LockTarget {
   string Login = 3 [(gogoproto.jsontag) = "login,omitempty"];
 
   // Node specifies the UUID of a Teleport node.
-  // A matching node is also prevented from heartbeating to the auth server.
+  // A matching node is also prevented from heartbeating to the Auth Service.
   // DEPRECATED: use ServerID instead.
   string Node = 4 [
     deprecated = true,
@@ -4702,9 +5753,48 @@ message WindowsDesktopSpecV3 {
   // NonAD marks this desktop as a standalone host that is
   // not joined to an Active Directory domain.
   bool NonAD = 4 [(gogoproto.jsontag) = "non_ad"];
+  // ScreenSize specifies the size of the screen to use for sessions
+  // on this host. In most cases this should be unspecified, in which
+  // case Teleport will fill the browser window.
+  Resolution ScreenSize = 5 [(gogoproto.jsontag) = "screen_size,omitempty"];
 }
 
-// RegisterUsingTokenRequest is a request to register with the auth server using
+// DynamicWindowsDesktopV1 represents a dynamic windows host for desktop access.
+message DynamicWindowsDesktopV1 {
+  // Header is the common resource header.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+  // Spec is the DynamicWindows host spec.
+  DynamicWindowsDesktopSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// DynamicWindowsDesktopSpecV1 is the dynamic windows host spec.
+message DynamicWindowsDesktopSpecV1 {
+  // Addr is the address that this host can be reached at.
+  string Addr = 1 [(gogoproto.jsontag) = "addr"];
+  // Domain is the ActiveDirectory domain that this host belongs to.
+  string Domain = 2 [(gogoproto.jsontag) = "domain"];
+  // NonAD marks this desktop as a standalone host that is
+  // not joined to an Active Directory domain.
+  bool NonAD = 4 [(gogoproto.jsontag) = "non_ad"];
+  // ScreenSize specifies the size of the screen to use for sessions
+  // on this host. In most cases this should be unspecified, in which
+  // case Teleport will fill the browser window.
+  Resolution ScreenSize = 5 [(gogoproto.jsontag) = "screen_size,omitempty"];
+}
+
+message Resolution {
+  uint32 Width = 1 [(gogoproto.jsontag) = "width,omitempty"];
+  uint32 Height = 2 [(gogoproto.jsontag) = "height,omitempty"];
+}
+
+// RegisterUsingTokenRequest is a request to register with the Auth Service using
 // an authentication token
 message RegisterUsingTokenRequest {
   // HostID is a unique host ID, usually a UUID
@@ -4745,10 +5835,20 @@ message RegisterUsingTokenRequest {
     (gogoproto.stdtime) = true,
     (gogoproto.jsontag) = "expires,omitempty"
   ];
+  // BotInstanceID is a trusted instance identifier for a Machine ID bot,
+  // provided when rejoining. This parameters may only be provided by the join
+  // service and is ignored otherwise; bots should otherwise rejoin with their
+  // existing client certificate to prove their instance identity.
+  string BotInstanceID = 13 [(gogoproto.jsontag) = "bot_instance_id"];
+  // BotGeneration is a trusted generation counter value for Machine ID bots,
+  // provided to Auth by the Join Service when bots rejoin via a streamed/gRPC
+  // join method. Rejoining bots supply this value via a client certificate
+  // extension; it is ignored from other sources.
+  int32 BotGeneration = 14 [(gogoproto.jsontag) = "bot_generation"];
 }
 
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
-// access to their account by restoring their lost password or second factor. Once a recovery code
+// access to their account by restoring their lost password or multi-factor. Once a recovery code
 // is successfully verified, the code is mark used (which invalidates it), and lets the user begin
 // the recovery flow. When a user successfully finishes the recovery flow, users will get a new set
 // of codes that will replace all the previous ones.
@@ -4867,8 +5967,8 @@ message SessionTrackerSpecV1 {
   // purpose.
   string Reason = 7 [(gogoproto.jsontag) = "reason,omitempty"];
 
-  // Invited is a list of invited users, this field is interpreted by different
-  // clients on a best-effort basis and used for delivering notifications to invited users.
+  // Invited is a list of invited users, this field can be used by
+  // clients to deliver notifications to invited users.
   repeated string Invited = 8 [(gogoproto.jsontag) = "invited,omitempty"];
 
   // Hostname identifies the target this session is connected to.
@@ -4918,6 +6018,12 @@ message SessionTrackerSpecV1 {
   // It's useful for Kubernetes moderated sessions when running in high availabilty
   // otherwise kube proxy is not able to know which agent runs the session.
   string HostID = 21 [(gogoproto.jsontag) = "host_id,omitempty"];
+
+  // TargetSubKind is the sub kind of the target server.
+  string TargetSubKind = 22 [(gogoproto.jsontag) = "target_sub_kind,omitempty"];
+
+  // InitialCommand is the command that was executed to start this session.
+  repeated string InitialCommand = 23 [(gogoproto.jsontag) = "initial_command,omitempty"];
 }
 
 // SessionTrackerPolicySet is a set of RBAC policies held by the session tracker
@@ -4969,7 +6075,15 @@ message UIConfigV1 {
 
 // UIConfigSpecV1 is the specification for a UIConfig
 message UIConfigSpecV1 {
+  // ScrollbackLines is the max number of lines the UI terminal can display in its history.
   int32 ScrollbackLines = 1 [(gogoproto.jsontag) = "scrollback_lines"];
+  // ShowResources determines which resources are shown in the web UI. Default if unset is "requestable"
+  // which means resources the user has access to and resources they can request will be shown in the
+  // resources UI. If set to `accessible_only`, only resources the user already has access to will be shown.
+  string ShowResources = 2 [
+    (gogoproto.jsontag) = "show_resources,omitempty",
+    (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.ShowResources"
+  ];
 }
 
 // InstallerV1 represents an installer script resource. Used to
@@ -5121,6 +6235,8 @@ message DatabaseServiceV1 {
 message DatabaseServiceSpecV1 {
   // ResourceMatchers is the configured match for Database resources.
   repeated DatabaseResourceMatcher ResourceMatchers = 1 [(gogoproto.jsontag) = "resources"];
+  // Hostname is the hostname where this service is running.
+  string Hostname = 2 [(gogoproto.jsontag) = "hostname"];
 }
 
 // DatabaseResourceMatcher is a set of properties that is used to match on resources.
@@ -5267,10 +6383,38 @@ enum RequireMFAType {
   // and login sessions must use a private key backed by a hardware key.
   SESSION_AND_HARDWARE_KEY = 2;
   // HARDWARE_KEY_TOUCH means login sessions must use a hardware private key that
-  // requires touch to be used. This touch requirement applies to all API requests
-  // rather than only session requests. This touch is different from MFA, so to prevent
-  // requiring double touch on session requests, normal Session MFA is disabled.
+  // requires touch to be used.
   HARDWARE_KEY_TOUCH = 3;
+  // HARDWARE_KEY_PIN means login sessions must use a hardware private key that
+  // requires pin to be used.
+  HARDWARE_KEY_PIN = 4;
+  // HARDWARE_KEY_TOUCH_AND_PIN means login sessions must use a hardware private key that
+  // requires touch and pin to be used.
+  HARDWARE_KEY_TOUCH_AND_PIN = 5;
+}
+
+// SignatureAlgorithmSuite represents the suite of cryptographic signature algorithms used in the cluster.
+enum SignatureAlgorithmSuite {
+  // SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED represents an unspecified signature algorithm suite.
+  SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED = 0;
+  // SIGNATURE_ALGORITHM_SUITE_LEGACY is the original algorithm suite used in
+  // Teleport, it almost exclusively uses 2048-bit RSA.
+  SIGNATURE_ALGORITHM_SUITE_LEGACY = 1;
+  // SIGNATURE_ALGORITHM_SUITE_BALANCED_V1 aims to strikes a balance between
+  // security, compatibility, and performance. It uses Ed25519 for most SSH
+  // keys, ECDSA on the NIST P256 curve for most TLS keys, and 2048-bit RSA
+  // where necessary for compatibility with third-party software.
+  SIGNATURE_ALGORITHM_SUITE_BALANCED_V1 = 2;
+  // SIGNATURE_ALGORITHM_SUITE_FIPS_V1 is tailored for FIPS compliance. It is
+  // based on the BALANCED_V1 suite but replaces all instances of Ed25519 with
+  // ECDSA on the NIST P256 curve.
+  SIGNATURE_ALGORITHM_SUITE_FIPS_V1 = 3;
+  // SIGNATURE_ALGORITHM_SUITE_HSM_V1 is tailored for clusters using an HSM or
+  // KMS service to back CA private material. It is based on the BALANCED suite
+  // but replaces Ed25519 with ECDSA on the NIST P256 curve for CA keys only,
+  // not for server or client keys. It is also valid to use the LEGACY for FIPS
+  // suites if your cluster uses an HSM or KMS.
+  SIGNATURE_ALGORITHM_SUITE_HSM_V1 = 4;
 }
 
 // Plugin describes a single instance of a Teleport Plugin
@@ -5317,13 +6461,45 @@ message PluginSpecV1 {
     PluginJiraSettings jira = 8;
     // Settings for the Discord plugin
     PluginDiscordSettings discord = 9;
+    // Settings for the ServiceNow plugin
+    PluginServiceNowSettings serviceNow = 10;
+    // Settings for the Gitlab plugin.
+    PluginGitlabSettings gitlab = 12;
+    // Settings for the Entra ID plugin
+    PluginEntraIDSettings entra_id = 13;
+    // Settings for the SCIM plugin
+    PluginSCIMSettings scim = 14;
+    // Settings for the Datadog Incident Management plugin
+    PluginDatadogAccessSettings datadog = 15;
+    // PluginAWSICSettings holds settings for AWSICSettings
+    PluginAWSICSettings aws_ic = 16;
+    // Settings for the Email Access Request plugin
+    PluginEmailSettings email = 17;
+    // Settings for the Microsoft Teams plugin
+    PluginMSTeamsSettings msteams = 18;
+    // Settings for the OpenTex NetIQ plugin.
+    PluginNetIQSettings net_iq = 19;
   }
+
+  // generation contains a unique ID that should:
+  // - Be created by the backend on plugin creation.
+  // - Be updated by the backend if the plugin is updated in any way.
+  //
+  // For older plugins, it's possible for this to be empty.
+  string generation = 11;
 }
 
 message PluginSlackAccessSettings {
   option (gogoproto.equal) = true;
 
   string fallback_channel = 1;
+}
+
+message PluginGitlabSettings {
+  option (gogoproto.equal) = true;
+
+  // APIEndpoint is the address of Gitlab API.
+  string api_endpoint = 1;
 }
 
 message PluginOpsgenieAccessSettings {
@@ -5340,6 +6516,20 @@ message PluginOpsgenieAccessSettings {
   repeated string default_schedules = 4;
   // APIEndpoint is the address of Opsgenie API.
   string api_endpoint = 5;
+}
+
+// PluginServiceNowSettings are the settings for the serviceNow plugin
+message PluginServiceNowSettings {
+  option (gogoproto.equal) = true;
+
+  // ApiEndpoint is the ServiceNow API endpoint.
+  string api_endpoint = 1 [(gogoproto.jsontag) = "api_endpoint,omitempty"];
+  // Username is the ServiceNow API username.
+  string username = 2 [(gogoproto.jsontag) = "username,omitempty"];
+  // Password is the ServiceNow API password.
+  string password = 3 [(gogoproto.jsontag) = "password,omitempty"];
+  // CloseCode is the close code that ServiceNow incidents will use.
+  string close_code = 4 [(gogoproto.jsontag) = "close_code,omitempty"];
 }
 
 message PluginPagerDutySettings {
@@ -5403,6 +6593,84 @@ message PluginOktaSettings {
 
   // OrgUrl is the Okta organization URL to use for API communication.
   string org_url = 1;
+
+  // EnableUserSync controls the user sync in the Okta integration service. Deprecated.
+  // TODO(mdwn): Remove once e changes have been made.
+  bool enable_user_sync = 2;
+
+  // SSOConnectorID (deprecated)
+  // TODO(mdwn): Remove once e changes have been made.
+  string sso_connector_id = 3;
+
+  // Sync settings controls the user and access list sync settings for Okta.
+  PluginOktaSyncSettings sync_settings = 4;
+
+  // CredentialsInfo contains information about the Okta credentials.
+  PluginOktaCredentialsInfo credentials_info = 5;
+}
+
+// PluginOktaCredentialsInfo contains information about the Okta credentials.
+// This is used to determine if the plugin has configured the necessary credentials.
+message PluginOktaCredentialsInfo {
+  option (gogoproto.equal) = true;
+  // HasSSMSToken is true if the plugin has configured SSMSToken.
+  bool has_ssm_token = 1;
+  // HasOauthCredentials is true if the plugin has configured OauthCredentials.
+  bool has_oauth_credentials = 2;
+  // HasSCIMToken is true if the plugin has configured SCIMToken.
+  bool has_scim_token = 3;
+}
+
+// Defines settings for syncing users and access lists from Okta.
+message PluginOktaSyncSettings {
+  option (gogoproto.equal) = true;
+
+  // SyncUsers controls the user sync in the Okta integration service.
+  bool sync_users = 1;
+
+  // SSOConnectorID is the name of the Teleport SSO connector created and used by the Okta plugin
+  string sso_connector_id = 2;
+
+  // SyncAccessLists controls the access list sync in the Okta integration service.
+  bool sync_access_lists = 3;
+
+  // DefaultOwners are the default owners for all imported access lists.
+  repeated string default_owners = 4;
+
+  // AppID is the Okta-assigned ID of the Okta App that Teleport uses as a
+  // gateway to interact with Okta for SAML login, SCIM provisioning and user
+  // sync. When set, user sync will pull users from the assignment list for this
+  // app. When empty the plugin will fall back to the legacy behaviour of syncing
+  // users from the entre organization.
+  string app_id = 5;
+
+  // GroupFilters are filters for which Okta groups to synchronize as access lists.
+  // Filters can be globs, for example:
+  //   group*
+  //   *service*
+  // Or regexes if they're prefixed and suffixed with ^ and $, for example:
+  //   ^group.*$
+  //   ^.*service.*$
+  repeated string group_filters = 6;
+
+  // AppFilters are filters for which Okta applications to synchronize as access lists.
+  // Filters can be globs, for example:
+  //   app*
+  //   *service*
+  // Or regexes if they're prefixed and suffixed with ^ and $, for example:
+  //   ^app.*$
+  //   ^.*service.*$
+  repeated string app_filters = 7;
+
+  // AppName is the Okta-assigned unique name of the Okta App that Teleport uses
+  // as a gateway to interact with Okta for SAML login, SCIM provisioning and user
+  // sync. May be missing for old Okta integration installs.
+  string app_name = 8;
+
+  // DisableSyncAppGroups disables syncing of app groups from Okta.
+  // This is useful when the app groups are not needed in Teleport.
+  // and integration with Okta is only used for user sync.
+  bool disable_sync_app_groups = 9;
 }
 
 // Defines a set of discord channel IDs
@@ -5419,6 +6687,234 @@ message PluginDiscordSettings {
   // channel IDs that will receive notifications and requests regarding that
   // that Role.
   map<string, DiscordChannels> role_to_recipients = 1;
+}
+
+// PluginEntraIDSettings defines settings for the Entra ID sync plugin
+message PluginEntraIDSettings {
+  option (gogoproto.equal) = true;
+
+  // SyncSettings controls the user and access list sync settings for EntraID.
+  PluginEntraIDSyncSettings sync_settings = 1;
+
+  // AccessGraphSettings controls settings for syncing access graph specific data.
+  // When this is null, Entra ID integration with Access Graph is disabled.
+  PluginEntraIDAccessGraphSettings access_graph_settings = 2;
+}
+
+// Defines settings for syncing users and access lists from Entra ID.
+message PluginEntraIDSyncSettings {
+  option (gogoproto.equal) = true;
+
+  // DefaultOwners are the default owners for all imported access lists.
+  repeated string default_owners = 1;
+
+  // SSOConnectorID is the name of the Teleport SSO connector created and used by the Entra ID plugin.
+  string sso_connector_id = 2;
+
+  // credentials_source specifies the source of the credentials used for authentication with Azure.
+  EntraIDCredentialsSource credentials_source = 3;
+
+  // tenant_id refers to the Azure Directory that this plugin synchronizes with.
+  // This field is populated on a best-effort basis for legacy plugins but mandatory for plugins created after its introduction.
+  // For existing plugins, it is filled in using the Entra integration when utilized.
+  string tenant_id = 4;
+
+  // entra_app_id refers to the Entra Application ID that supports the SSO for "sso_connector_id".
+  // This field is populated on a best-effort basis for legacy plugins but mandatory for plugins created after its introduction.
+  // For existing plugins, it is filled in using the entity descriptor url when utilized.
+  string entra_app_id = 5;
+}
+
+// EntraIDCredentialsSource defines the credentials source for Entra ID.
+enum EntraIDCredentialsSource {
+  // ENTRAID_CREDENTIALS_SOURCE_UNKNOWN is used when the credentials source is not specified.
+  // Due to legacy reasons, UNKNOWN is handled as OIDC.
+  ENTRAID_CREDENTIALS_SOURCE_UNKNOWN = 0;
+  // ENTRAID_CREDENTIALS_SOURCE_OIDC indicates that the plugin will authenticate with Azure/Entra ID using OIDC.
+  ENTRAID_CREDENTIALS_SOURCE_OIDC = 1;
+  // ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS means the plugin will rely on system-provided credentials
+  // for authentication with Azure Entra ID, especially for clusters with no internet access.
+  ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS = 2;
+}
+
+// AccessGraphSettings controls settings for syncing access graph specific data.
+message PluginEntraIDAccessGraphSettings {
+  option (gogoproto.equal) = true;
+
+  // AppSsoSettingsCache is an array of single sign-on settings for Entra enterprise applications.
+  //
+  // This data is stored here because it is not available through traditional methods (MS Graph API).
+  // Instead, it is fetched once during the plugin's set up using the user's credentials to connect to Azure's private API.
+  repeated PluginEntraIDAppSSOSettings app_sso_settings_cache = 1;
+}
+
+// PluginEntraIDAppSSOSettings is a container for a single Entra ID enterprise application's
+// cached SSO settings.
+// As this data is only parsed by TAG, each value is stored as an opaque JSON blob.
+message PluginEntraIDAppSSOSettings {
+  option (gogoproto.equal) = true;
+
+  // AppID is the `AppID` property of Entra application.
+  string app_id = 1;
+
+  // FederatedSSOV2 contains the cached, gzip-compressed payload from the /ApplicationSso/{servicePrincipalId}/FederatedSSOV2 endpoint.
+  bytes federated_sso_v2 = 2;
+}
+
+// PluginSCIMSettings defines the settings for a SCIM integration plugin
+message PluginSCIMSettings {
+  option (gogoproto.equal) = true;
+
+  // SamlConnectorName is the name of the SAML Connector that users provisioned
+  // by this SCIM plugin will use to log in to Teleport.
+  string saml_connector_name = 1;
+
+  // DefaultRole is the default role assigned to users provisioned by this
+  // plugin.
+  string default_role = 2;
+}
+
+// PluginDatadogAccessSettings defines the settings for a Datadog Incident Management plugin
+message PluginDatadogAccessSettings {
+  option (gogoproto.equal) = true;
+
+  // ApiEndpoint is the Datadog API endpoint.
+  string api_endpoint = 1;
+  // FallbackRecipient specifies the default recipient.
+  string fallback_recipient = 2;
+}
+
+// PluginAWSICSettings holds the settings for an AWS Identity Center integration.
+message PluginAWSICSettings {
+  option (gogoproto.equal) = true;
+
+  // IntegrationName is the Teleport OIDC integration used to gain access to the
+  // AWS account
+  string integration_name = 1;
+
+  // Region is the AWS region the target Identity Center instance is configured in
+  string region = 2;
+
+  // InstanceARN is the arn of the Identity Center instance to manage
+  string arn = 3;
+
+  // Provisioning holds settings for provisioing users and groups into AWS
+  AWSICProvisioningSpec provisioning_spec = 4;
+
+  // AccessListDefaultOwners is a list of default owners for Access List created for
+  // user groups imported from AWS Idenity Center.
+  repeated string access_list_default_owners = 5;
+
+  // SAMLIdPServiceProviderName is the name of a SAML service provider created
+  // for the Identity Center.
+  string saml_idp_service_provider_name = 6;
+}
+
+// AWSICProvisioningSpec holds provisioning-specific Identity Center settings
+message AWSICProvisioningSpec {
+  option (gogoproto.equal) = true;
+
+  // BaseURL is the SCIM base URL
+  string base_url = 1;
+
+  // BearerToken is used to authenticate with AWS when provisioning users and
+  // groups via SCIM. This is expected to be empty in serialized records, as the
+  // actual credential is stored separetely ain a PluginStaticCredentials
+  // service, and populated at runtime as necessary.
+  string bearer_token = 2;
+}
+
+// PluginAWSICStatusV1 defines AWS Identity Center plugin sub-process status.
+message PluginAWSICStatusV1 {
+  // GroupImportStatus is a status of Identity Center group and group members import.
+  AWSICGroupImportStatus group_import_status = 1;
+}
+
+// AWSICGroupImportStatus defines Identity Center group and group members import status.
+message AWSICGroupImportStatus {
+  // StatusCode is a status code of group and group members import operation.
+  AWSICGroupImportStatusCode status_code = 1;
+  // ErrorMessage contains error message for a group and group members import attempt
+  // that met with an error.
+  string error_message = 2;
+}
+
+// AWSICGroupImportStatus defines Identity Center group and group members
+// import status codes.
+enum AWSICGroupImportStatusCode {
+  // UNSPECIFIED denotes that a status is unknown.
+  UNSPECIFIED = 0;
+  // DONE denotes that the group and group members import operation was
+  // completed.
+  DONE = 1;
+  // FAILED denotes that the group and group members import met with an error.
+  FAILED = 2;
+}
+
+// PluginEmailSettings holds the settings for an Email Access Request plugin.
+message PluginEmailSettings {
+  option (gogoproto.equal) = true;
+
+  // Sender specifies the email sender.
+  string sender = 1;
+  // FallbackRecipient specifies the default recipient.
+  string fallback_recipient = 2;
+
+  // Spec configures the mail service settings.
+  oneof spec {
+    // MailgunSpec configures Mailgun service settings.
+    MailgunSpec mailgun_spec = 3;
+    // SmtpSpec configures generic SMTP service settings.
+    SMTPSpec smtp_spec = 4;
+  }
+}
+
+// MailgunSpec holds Mailgun-specific settings.
+message MailgunSpec {
+  option (gogoproto.equal) = true;
+
+  // Domain specifies the Mailgun sending domain.
+  string domain = 1;
+}
+
+// SMTPSpec holds a generic SMTP service specific settings.
+message SMTPSpec {
+  option (gogoproto.equal) = true;
+
+  // Host specifies the SMTP service host name.
+  string host = 1;
+  // Port specifies the SMTP service port number.
+  int32 port = 2;
+  // StartTLSPolicy specifies the SMTP start TLS policy used to send emails over
+  // SMTP.
+  string start_tls_policy = 3;
+}
+
+// PluginMSTeamsSettings defines the settings for a Microsoft Teams integration plugin
+message PluginMSTeamsSettings {
+  option (gogoproto.equal) = true;
+  // AppId is the Microsoft application ID (uuid, for Azure bots must be underlying app id, not bot's id).
+  string app_id = 1;
+  // TenantId is the Microsoft tenant ID.
+  string tenant_id = 2;
+  // TeamsAppId is the Microsoft teams application ID.
+  string teams_app_id = 3;
+  // Region to be used by the Microsoft Graph API client.
+  string region = 4;
+  // DefaultRecipient is the default recipient to use if no access monitoring rules are specified.
+  string default_recipient = 5;
+}
+
+// PluginNetIQSettings defines the settings for a NetIQ integration plugin
+message PluginNetIQSettings {
+  option (gogoproto.equal) = true;
+  // oauth_issuer_endpoint is the NetIQ Oauth Issuer endpoint.
+  // Usually, it's equal to https://osp.domain.ext/a/idm/auth/oauth2
+  string oauth_issuer_endpoint = 1;
+  // api_endpoint is the IDM PROV Rest API location.
+  string api_endpoint = 2;
+  // insecure_skip_verify controls whether the NetIQ certificate validation should be skipped.
+  bool insecure_skip_verify = 3;
 }
 
 message PluginBootstrapCredentialsV1 {
@@ -5443,6 +6939,61 @@ message PluginOAuth2AuthorizationCodeCredentials {
 // PluginStatus is the user-facing status for the plugin instance.
 message PluginStatusV1 {
   PluginStatusCode code = 1;
+  // error_message is a human-readable error message that can be displayed to the user.
+  string error_message = 2;
+  // last_sync_time is the last time the plugin was run.
+  google.protobuf.Timestamp last_sync_time = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+  // details contains provider-specific plugin status details.
+  oneof details {
+    // gitlab is the status details for the Gitlab plugin.
+    PluginGitlabStatusV1 gitlab = 4;
+    PluginEntraIDStatusV1 entra_id = 5;
+    // Okta holds status details for the Okta plugin
+    PluginOktaStatusV1 okta = 7;
+    // AWSIC holds status details for the AWS Identity Center plugin.
+    PluginAWSICStatusV1 aws_ic = 8;
+    // NetIQ holds status details for the NetIQ plugin.
+    PluginNetIQStatusV1 net_iq = 9;
+  }
+
+  // last_raw_error variable stores the most recent raw error message received from an API or service.
+  // It is intended to capture the original error message without any modifications or formatting.
+  // This can be useful for debugging purposes, providing detailed information about what went wrong
+  // in the interaction with the external service.
+  string last_raw_error = 6;
+}
+
+// PluginNetIQStatusV1 is the status details for the NetIQ plugin.
+message PluginNetIQStatusV1 {
+  // imported_users is the number of users imported from NetIQ eDirectory.
+  uint32 imported_users = 1;
+  // imported_groups is the number of groups imported from NetIQ eDirectory.
+  uint32 imported_groups = 2;
+  // imported_roles is the number of roles imported from NetIQ eDirectory.
+  uint32 imported_roles = 3;
+  // imported_resources is the number of resources imported from NetIQ eDirectory.
+  uint32 imported_resources = 4;
+}
+
+// PluginGitlabStatusV1 is the status details for the Gitlab plugin.
+message PluginGitlabStatusV1 {
+  // imported_users is the number of users imported from Gitlab.
+  uint32 imported_users = 1;
+  // imported_groups is the number of groups imported from Gitlab.
+  uint32 imported_groups = 2;
+  // imported_projects is the number of projects imported from Gitlab.
+  uint32 imported_projects = 3;
+}
+
+// PluginEntraIDStatusV1 is the status details for the Entra ID plugin.
+message PluginEntraIDStatusV1 {
+  // imported_users is the number of users imported from Entra ID.
+  uint32 imported_users = 1;
+  // imported_groups is the number of groups imported from Entra ID.
+  uint32 imported_groups = 2;
 }
 
 enum PluginStatusCode {
@@ -5459,6 +7010,171 @@ enum PluginStatusCode {
   // SLACK_NOT_IN_CHANNEL is a Slack-specific status code that indicates
   // that the bot has not been invited to a channel that it is configured to post in.
   SLACK_NOT_IN_CHANNEL = 10;
+}
+
+// OktaPluginSyncStatusCode indicates the possible states of an Okta
+// synchronization service.
+enum OktaPluginSyncStatusCode {
+  // OKTA_PLUGIN_SYNC_STATUS_CODE_UNSPECIFIED is the status code zero value,
+  // indicating that the service has not yet reported a status code.
+  OKTA_PLUGIN_SYNC_STATUS_CODE_UNSPECIFIED = 0;
+
+  // OKTA_PLUGIN_SYNC_STATUS_CODE_SUCCESS indicates that the service is running
+  // without error
+  OKTA_PLUGIN_SYNC_STATUS_CODE_SUCCESS = 1;
+
+  // OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR indicates that the service is currently
+  // in an error state.
+  OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR = 2;
+}
+
+// PluginOktaStatusV1 contains the details for the running Okta plugin.
+message PluginOktaStatusV1 {
+  // SSODetails are status details relating to SSO.
+  PluginOktaStatusDetailsSSO sso_details = 1;
+
+  // AppGroupSyncDetails are status details relating to synchronizing apps and
+  // groups from Okta.
+  PluginOktaStatusDetailsAppGroupSync app_group_sync_details = 2;
+
+  // UsersSyncDetails are status details relating to synchronizing users from
+  // Okta.
+  PluginOktaStatusDetailsUsersSync users_sync_details = 3;
+
+  // ScimDetails are status details relating to SCIM integration with
+  // Okta.
+  PluginOktaStatusDetailsSCIM scim_details = 4;
+
+  // AccessListSyncDetails are status details relating to synchronizing access
+  // lists from Okta.
+  PluginOktaStatusDetailsAccessListsSync access_lists_sync_details = 5;
+}
+
+// PluginOktaStatusDetailsSSO are details related to the
+// current status of the Okta integration w/r/t SSO.
+message PluginOktaStatusDetailsSSO {
+  // Enabled indicates whether SSO login is enabled.
+  bool enabled = 1;
+
+  // AppId is the unique Okta application ID of the Okta Applicaion used for
+  // SSO login.
+  string app_id = 2;
+
+  // AppName is the human-readable name of the Okta Applicaion used for SSO.
+  string app_name = 3;
+}
+
+// PluginOktaStatusDetailsAppGroupSync are details related to the
+// current status of the Okta integration w/r/t application and group
+// sync.
+message PluginOktaStatusDetailsAppGroupSync {
+  // Enabled is whether the users sync is enabled.
+  bool enabled = 1;
+
+  // StatusCode indicates the current state of the App & Group sync service
+  OktaPluginSyncStatusCode status_code = 2;
+
+  // LastSuccessful is the date of the last successful run.
+  google.protobuf.Timestamp last_successful = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_successful"
+  ];
+
+  // LastFailed is the date of the last failed run.
+  google.protobuf.Timestamp last_failed = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_failed"
+  ];
+
+  // NumAppsSynced is the total number of apps synchronized.
+  int32 num_apps_synced = 5;
+
+  // NumAppsSynced is the total number of groups synchronized.
+  int32 num_groups_synced = 6;
+
+  // Error contains a textual description of the reason the last synchronization
+  // failed. Only valid when StatusCode is OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR.
+  string error = 7;
+}
+
+// PluginOktaStatusDetailsUsersSync are details related to the
+// current status of the Okta integration w/r/t users sync.
+message PluginOktaStatusDetailsUsersSync {
+  // Enabled is whether the users sync is enabled.
+  bool enabled = 1;
+
+  // StatusCode indicates the current state of the User sync service
+  OktaPluginSyncStatusCode status_code = 2;
+
+  // LastSuccessful is the date of the last successful run.
+  google.protobuf.Timestamp last_successful = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_successful"
+  ];
+
+  // LastFailed is the date of the last failed run.
+  google.protobuf.Timestamp last_failed = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_failed"
+  ];
+
+  // NumUsersSynced is the total number of users synchronized.
+  int32 num_users_synced = 5;
+
+  // Error contains a textual description of the reason the last synchronization
+  // failed. Only valid when StatusCode is OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR.
+  string error = 6;
+}
+
+// PluginOktaStatusDetailsSCIM are details related to the
+// current status of the Okta integration w/r/t SCIM.
+message PluginOktaStatusDetailsSCIM {
+  // Enabled is whether SCIM is enabled.
+  bool enabled = 1;
+}
+
+// PluginOktaStatusDetailsAccessListsSync are details related to the
+// current status of the Okta integration w/r/t access list sync.
+message PluginOktaStatusDetailsAccessListsSync {
+  // Enabled is whether access lists sync is enabled.
+  bool enabled = 1;
+
+  // StatusCode indicates the current state of the AccessList sync service
+  OktaPluginSyncStatusCode status_code = 2;
+
+  // LastSuccessful is the date of the last successful run.
+  google.protobuf.Timestamp last_successful = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_successful"
+  ];
+
+  // LastFailed is the date of the last failed run.
+  google.protobuf.Timestamp last_failed = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_failed"
+  ];
+
+  // AppFilters are the app filters used for the access list sync.
+  repeated string app_filters = 5;
+
+  // NumAppsSynced are the number of applications synchronized as access lists.
+  int32 num_apps_synced = 6;
+
+  // GroupFilters are the group filters used for the access list sync.
+  repeated string group_filters = 7;
+
+  // NumGroupsSynced are the number of groups synchronized as access lists.
+  int32 num_groups_synced = 8;
+
+  // Error contains a textual description of the reason the last synchronization
+  // failed. Only valid when StatusCode is OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR.
+  string error = 9;
 }
 
 // PluginCredentialsV1 represents "live" credentials
@@ -5491,6 +7207,8 @@ message PluginBearerTokenCredentials {
 
 // PluginStaticCredentialsRef is a reference to plugin static credentials by labels.
 message PluginStaticCredentialsRef {
+  option (gogoproto.equal) = true;
+
   // Labels is the set of labels to use to match against a set of static credentials.
   map<string, string> Labels = 1 [(gogoproto.jsontag) = "labels,omitempty"];
 }
@@ -5522,6 +7240,7 @@ message PluginStaticCredentialsSpecV1 {
     string APIToken = 1;
     PluginStaticCredentialsBasicAuth BasicAuth = 2;
     PluginStaticCredentialsOAuthClientSecret OAuthClientSecret = 3;
+    PluginStaticCredentialsSSHCertAuthorities SSHCertAuthorities = 4;
   }
 }
 
@@ -5541,6 +7260,14 @@ message PluginStaticCredentialsOAuthClientSecret {
 
   // ClientSecret is the client secret to use.
   string ClientSecret = 2 [(gogoproto.jsontag) = "client_secret"];
+}
+
+// PluginStaticCredentialsSSHCertAuthorities contains the active SSH CAs used
+// for the integration or plugin.
+message PluginStaticCredentialsSSHCertAuthorities {
+  // CertAuthorities contains the active SSH CAs used for the integration or
+  // plugin.
+  repeated SSHKeyPair cert_authorities = 1;
 }
 
 // SAMLIdPServiceProviderV1 is the representation of a SAML IdP service provider.
@@ -5565,10 +7292,45 @@ message SAMLIdPServiceProviderV1 {
 message SAMLIdPServiceProviderSpecV1 {
   // EntityDescriptor is the entity descriptor for the service provider
   string EntityDescriptor = 1 [(gogoproto.jsontag) = "entity_descriptor"];
-  // EntityID is the entity ID for the entity descriptor. This ID is checked that it matches
-  // the entity ID in the entity descriptor at upsert time to avoid having to parse the
-  // XML blob in the entity descriptor every time we need to use this resource.
+  // EntityID is the entity ID for the entity descriptor. If entity descriptor is provided,
+  // this value is checked that it matches the entity ID in the entity descriptor
+  // at upsert time to avoid having to parse the XML blob in the entity descriptor
+  // every time we need to use this resource.
   string EntityID = 2 [(gogoproto.jsontag) = "entity_id"];
+  // ACSURL is the endpoint where SAML authentication response will be redirected.
+  string ACSURL = 3 [(gogoproto.jsontag) = "acs_url"];
+  // AttributeMapping is used to map service provider requested attributes to
+  // username, role and traits in Teleport.
+  repeated SAMLAttributeMapping AttributeMapping = 4 [(gogoproto.jsontag) = "attribute_mapping"];
+  // Preset is used to define service provider profile that will have a custom behavior
+  // processed by Teleport.
+  string Preset = 5 [(gogoproto.jsontag) = "preset"];
+  // RelayState is used to add custom value in the SAML response as a relay_state HTTP parameter.
+  // The value can contain service provider specific redirect URL, static state token etc.
+  // The value is only applied in the IdP initiated SSO flow.
+  string RelayState = 6 [(gogoproto.jsontag) = "relay_state"];
+  // LaunchURLs is used to configure custom landing URLs for service provider. It is useful in
+  // the following scenarios:
+  // 1. If a service provider does not support IdP initiated authentication, launch url can be
+  //    configured to launch users directly into the service provider authentication endpoint.
+  // 2. If a service provider does support IdP initiated authentication, it can be useful if
+  //    that service provider acts as a master authentication service provider for internal services.
+  //    In such case, Teleport administrator can configure launch URL, that lets user pick a specific
+  //    internal service URL from the Log In tile in the UI, which would take them to that particular
+  //    service for authentication instead of directly launching to the master service provider.
+  // Each launch URL value must be an HTTPs endpoint.
+  repeated string LaunchURLs = 7 [(gogoproto.jsontag) = "launch_urls"];
+}
+
+// SAMLAttributeMapping represents SAML service provider requested attribute
+// name, format and its values.
+message SAMLAttributeMapping {
+  //  name is an attribute name.
+  string name = 1 [(gogoproto.jsontag) = "name"];
+  //  name_format is an attribute name format.
+  string name_format = 2 [(gogoproto.jsontag) = "name_format"];
+  //  value is an attribute value definable with predicate expression.
+  string value = 3 [(gogoproto.jsontag) = "value"];
 }
 
 // IdPOptions specify options related to access Teleport IdPs.
@@ -5853,7 +7615,14 @@ message IntegrationSpecV1 {
   oneof SubKindSpec {
     // AWSOIDC contains the specific fields to handle the AWS OIDC Integration subkind
     AWSOIDCIntegrationSpecV1 AWSOIDC = 1 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
+    // AzureOIDC contains the specific fields to handle the Azure OIDC Integration subkind
+    AzureOIDCIntegrationSpecV1 AzureOIDC = 2 [(gogoproto.jsontag) = "azure_oidc,omitempty"];
+    // GitHub contains the specific fields to handle the GitHub integration subkind.
+    GitHubIntegrationSpecV1 GitHub = 3 [(gogoproto.jsontag) = "github,omitempty"];
   }
+
+  // Credentials contains credentials for the integration.
+  PluginCredentialsV1 credentials = 4;
 }
 
 // AWSOIDCIntegrationSpecV1 contains the spec properties for the AWS OIDC SubKind Integration.
@@ -5861,6 +7630,47 @@ message AWSOIDCIntegrationSpecV1 {
   // RoleARN contains the Role ARN used to set up the Integration.
   // This is the AWS Role that Teleport will use to issue tokens for API Calls.
   string RoleARN = 1 [(gogoproto.jsontag) = "role_arn,omitempty"];
+
+  // IssuerS3URI is the Identity Provider that was configured in AWS.
+  // This bucket/prefix/* files must be publicly accessible and contain the following:
+  // > .well-known/openid-configuration
+  // > .well-known/jwks
+  // Format: s3://<bucket>/<prefix>
+  // Optional. The proxy's endpoint is used if it is not specified.
+  //
+  // DEPRECATED: Thumbprint validation requires the issuer to update the IdP in AWS everytime the issuer changes the certificate.
+  // Amazon had some whitelisted providers where the thumbprint was ignored. S3 hosted providers was in that list.
+  // Amazon is now trusting all the root certificate authorities, and this workaround is no longer needed.
+  // DELETE IN 18.0.
+  string IssuerS3URI = 2 [
+    (gogoproto.jsontag) = "issuer_s3_uri,omitempty",
+    deprecated = true
+  ];
+
+  // Audience is used to record a name of a plugin or a discover service in Teleport
+  // that depends on this integration.
+  // Audience value can be empty or configured with supported preset audience type.
+  // Preset audience may impose specific behavior on the integration CRUD API,
+  // such as preventing integration from update or deletion. Empty audience value
+  // should be treated as a default and backward-compatible behavior of the integration.
+  string audience = 3 [(gogoproto.jsontag) = "audience,omitempty"];
+}
+
+// AzureOIDCIntegrationSpecV1 contains the spec properties for the Azure OIDC SubKind Integration.
+message AzureOIDCIntegrationSpecV1 {
+  // TenantID specifies the ID of Entra Tenant (Directory)
+  // that this plugin integrates with.
+  string TenantID = 1 [(gogoproto.jsontag) = "tenant_id,omitempty"];
+
+  // ClientID specifies the ID of Azure enterprise application (client)
+  // that corresponds to this plugin.
+  string ClientID = 2 [(gogoproto.jsontag) = "client_id,omitempty"];
+}
+
+// GitHubIntegrationSpecV1 contains the specific fields to handle the GitHub integration subkind.
+message GitHubIntegrationSpecV1 {
+  // Organization specifies the name of the organization for the GitHub integration.
+  string Organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
 }
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.
@@ -5875,7 +7685,9 @@ message HeadlessAuthentication {
   string user = 2;
 
   // PublicKey is an ssh public key to sign in case of successful auth.
-  bytes public_key = 3;
+  //
+  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
+  bytes public_key = 3 [deprecated = true];
 
   // State is the headless authentication request state.
   HeadlessAuthenticationState state = 4;
@@ -5885,6 +7697,14 @@ message HeadlessAuthentication {
 
   // ClientIPAddress is the IP address of the client being authenticated.
   string client_ip_address = 6;
+
+  // SshPublicKey is a public key that will be used as the subject of the issued
+  // SSH certificate in case of successful auth. It must be in SSH authorized_keys format.
+  bytes ssh_public_key = 7;
+  // TlsPublicKey is a public key that will be used as the subject of the issued
+  // TLS certificate in case of successful auth. It must be in PEM-encoded
+  // PKCS#1 or PKIX format.
+  bytes tls_public_key = 8;
 }
 
 // HeadlessAuthenticationState is a headless authentication state.
@@ -5980,6 +7800,8 @@ message ServerInfoSpecV1 {
 
 // JamfSpecV1 is the base configuration for the Jamf MDM service.
 message JamfSpecV1 {
+  reserved 5, 6, 8, 9;
+  reserved "username", "password", "client_id", "client_secret";
   option (gogoproto.equal) = true;
   // Enabled toggles the service on or off.
   bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
@@ -5998,16 +7820,6 @@ message JamfSpecV1 {
   // Example: "https://yourtenant.jamfcloud.com/api".
   // Required.
   string api_endpoint = 4 [(gogoproto.jsontag) = "api_endpoint,omitempty"];
-  // Jamf API username.
-  // Username and password are used to acquire short-lived Jamf Pro API tokens.
-  // See https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview.
-  // Required.
-  string username = 5 [(gogoproto.jsontag) = "username,omitempty"];
-  // Jamf API password.
-  // Username and password are used to acquire short-lived Jamf Pro API tokens.
-  // See https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview.
-  // Required.
-  string password = 6 [(gogoproto.jsontag) = "password,omitempty"];
   // Inventory sync entries.
   // If empty a default sync configuration is used.
   repeated JamfInventoryEntry inventory = 7 [(gogoproto.jsontag) = "inventory,omitempty"];
@@ -6044,6 +7856,9 @@ message JamfInventoryEntry {
   // Must be either "NOOP" or "DELETE".
   // Defaults to "NOOP".
   string on_missing = 4 [(gogoproto.jsontag) = "on_missing,omitempty"];
+  // Custom page size for inventory queries.
+  // A server default is used if zeroed or negative.
+  int32 page_size = 5 [(gogoproto.jsontag) = "page_size,omitempty"];
 }
 
 // MessageWithHeader is a message with a resource header. This is used primarily
@@ -6095,6 +7910,16 @@ message AWSMatcher {
   // SSM provides options to use when sending a document command to
   // an EC2 node
   AWSSSM SSM = 6 [(gogoproto.jsontag) = "ssm,omitempty"];
+  // Integration is the integration name used to generate credentials to interact with AWS APIs.
+  // Environment credentials will not be used when this value is set.
+  string Integration = 7 [(gogoproto.jsontag) = "integration,omitempty"];
+  // KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on
+  // discovered clusters, currently only affects AWS EKS discovery in integration mode.
+  bool KubeAppDiscovery = 8 [(gogoproto.jsontag) = "kube_app_discovery,omitempty"];
+  // SetupAccessForARN is the role that the discovery service should create EKS Access Entries for.
+  // This value should match the IAM identity that Teleport Kubernetes Service uses.
+  // If this value is empty, the discovery service will attempt to set up access for its own identity (self).
+  string SetupAccessForARN = 9 [(gogoproto.jsontag) = "setup_access_for_arn,omitempty"];
 }
 
 // AssumeRole provides a role ARN and ExternalID to assume an AWS role
@@ -6123,8 +7948,27 @@ message InstallerParams {
   // SSHDConfig provides the path to write sshd configuration changes
   string SSHDConfig = 5 [(gogoproto.jsontag) = "sshd_config,omitempty"];
   // PublicProxyAddr is the address of the proxy the discovered node should use
-  // to connect to the cluster. Used only in Azure.
+  // to connect to the cluster.
   string PublicProxyAddr = 6 [(gogoproto.jsontag) = "proxy_addr,omitempty"];
+  // Azure is the set of Azure-specific installation parameters.
+  AzureInstallerParams Azure = 7 [(gogoproto.jsontag) = "azure,omitempty"];
+  // EnrollMode indicates the enrollment mode to be used when adding a node.
+  // Valid values:
+  // 0: uses eice for EC2 matchers which use an integration and script for all the other methods
+  // 1: uses script mode
+  // 2: uses eice mode
+  InstallParamEnrollMode EnrollMode = 8 [(gogoproto.jsontag) = "enroll_mode,omitempty"];
+}
+
+// InstallParamEnrollMode is the mode used to enroll the node into the cluster.
+enum InstallParamEnrollMode {
+  // INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED uses the EICE mode for EC2 Matchers with an Integration and SCRIPT mode otherwise.
+  INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED = 0;
+  // INSTALL_PARAM_ENROLL_MODE_SCRIPT runs a script on the target host.
+  INSTALL_PARAM_ENROLL_MODE_SCRIPT = 1;
+  // INSTALL_PARAM_ENROLL_MODE_EICE uses EC2 Instance Connect Endpoint to access the node and DiscoveryService handles the heartbeat.
+  // Only available for AWS EC2 instances.
+  INSTALL_PARAM_ENROLL_MODE_EICE = 2;
 }
 
 // AWSSSM provides options to use when executing SSM documents
@@ -6132,6 +7976,13 @@ message AWSSSM {
   // DocumentName is the name of the document to use when executing an
   // SSM command
   string DocumentName = 1 [(gogoproto.jsontag) = "document_name,omitempty"];
+}
+
+// AzureInstallerParams is the set of Azure-specific installation parameters.
+message AzureInstallerParams {
+  // ClientID is the client ID of the managed identity discovered nodes
+  // should use to join the cluster.
+  string ClientID = 1 [(gogoproto.jsontag) = "client_id,omitempty"];
 }
 
 // AzureMatcher matches Azure resources.
@@ -6162,7 +8013,7 @@ message GCPMatcher {
   repeated string Types = 1 [(gogoproto.jsontag) = "types,omitempty"];
   // Locations are GKE locations to search resources for.
   repeated string Locations = 2 [(gogoproto.jsontag) = "locations,omitempty"];
-  // Tags are GCP labels to match.
+  // Tags is obsolete and only exists for backwards compatibility. Use Labels instead.
   wrappers.LabelValues Tags = 3 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "tags,omitempty",
@@ -6175,6 +8026,12 @@ message GCPMatcher {
   // Params sets the join method when installing on
   // discovered GCP nodes.
   InstallerParams Params = 6 [(gogoproto.jsontag) = "install_params,omitempty"];
+  // Labels are GCP labels to match.
+  wrappers.LabelValues Labels = 7 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
 }
 
 // KubernetesMatcher matches Kubernetes services.
@@ -6198,4 +8055,36 @@ message OktaOptions {
     (gogoproto.jsontag) = "sync_period,omitempty",
     (gogoproto.casttype) = "Duration"
   ];
+}
+
+// AccessGraphSync is a configuration for Access Graph service.
+message AccessGraphSync {
+  // AWS is a configuration for AWS Access Graph service poll service.
+  repeated AccessGraphAWSSync AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
+  // PollInterval is the frequency at which to poll for resources
+  google.protobuf.Duration PollInterval = 2 [
+    (gogoproto.jsontag) = "poll_interval,omitempty",
+    (gogoproto.nullable) = false,
+    (gogoproto.stdduration) = true
+  ];
+  // Azure is a configuration for Azure Access Graph service poll service.
+  repeated AccessGraphAzureSync Azure = 3 [(gogoproto.jsontag) = "azure,omitempty"];
+}
+
+// AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.
+message AccessGraphAWSSync {
+  // Regions are AWS regions to import resources from.
+  repeated string Regions = 1 [(gogoproto.jsontag) = "regions,omitempty"];
+  // AssumeRoleARN is the AWS role to assume for database discovery.
+  AssumeRole AssumeRole = 3 [(gogoproto.jsontag) = "assume_role,omitempty"];
+  // Integration is the integration name used to generate credentials to interact with AWS APIs.
+  string Integration = 4 [(gogoproto.jsontag) = "integration,omitempty"];
+}
+
+// AccessGraphAzureSync is a configuration for Azure Access Graph service poll service.
+message AccessGraphAzureSync {
+  // SubscriptionID Is the ID of the Azure subscription to sync resources from
+  string SubscriptionID = 1 [(gogoproto.jsontag) = "subscription_id,omitempty"];
+  // Integration is the integration name used to generate credentials to interact with AWS APIs.
+  string Integration = 2 [(gogoproto.jsontag) = "integration,omitempty"];
 }

@@ -56,6 +56,52 @@ export interface Kube {
      */
     labels: Label[];
 }
+/**
+ * KubeResource describes a kube_cluster's subresource eg: pods, namespaces, etc.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.KubeResource
+ */
+export interface KubeResource {
+    /**
+     * uri is the kube resource URI
+     *
+     * @generated from protobuf field: string uri = 1;
+     */
+    uri: string;
+    /**
+     * kind is the kube subresource kind eg: pods, namespace
+     *
+     * @generated from protobuf field: string kind = 2;
+     */
+    kind: string;
+    /**
+     * name is the kube resource name eg: pod name, namespace name
+     *
+     * @generated from protobuf field: string name = 3;
+     */
+    name: string;
+    /**
+     * labels is the kube resource labels
+     *
+     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.Label labels = 4;
+     */
+    labels: Label[];
+    /**
+     * cluster is the kube cluster name that this kube resource belongs to
+     * eg: the kube cluster that a namespace belongs to
+     *
+     * @generated from protobuf field: string cluster = 5;
+     */
+    cluster: string;
+    /**
+     * namespace is the kube namespace where the resource is located
+     * note: this field will be blank if this resource "kind" is "namespace",
+     * refer to field "name" for the name of namespace
+     *
+     * @generated from protobuf field: string namespace = 6;
+     */
+    namespace: string;
+}
 // @generated message type with reflection information, may provide speed optimized methods
 class Kube$Type extends MessageType<Kube> {
     constructor() {
@@ -119,3 +165,90 @@ class Kube$Type extends MessageType<Kube> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.Kube
  */
 export const Kube = new Kube$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class KubeResource$Type extends MessageType<KubeResource> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.KubeResource", [
+            { no: 1, name: "uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "kind", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "labels", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Label },
+            { no: 5, name: "cluster", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "namespace", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<KubeResource>): KubeResource {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.uri = "";
+        message.kind = "";
+        message.name = "";
+        message.labels = [];
+        message.cluster = "";
+        message.namespace = "";
+        if (value !== undefined)
+            reflectionMergePartial<KubeResource>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: KubeResource): KubeResource {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string uri */ 1:
+                    message.uri = reader.string();
+                    break;
+                case /* string kind */ 2:
+                    message.kind = reader.string();
+                    break;
+                case /* string name */ 3:
+                    message.name = reader.string();
+                    break;
+                case /* repeated teleport.lib.teleterm.v1.Label labels */ 4:
+                    message.labels.push(Label.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string cluster */ 5:
+                    message.cluster = reader.string();
+                    break;
+                case /* string namespace */ 6:
+                    message.namespace = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: KubeResource, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string uri = 1; */
+        if (message.uri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.uri);
+        /* string kind = 2; */
+        if (message.kind !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.kind);
+        /* string name = 3; */
+        if (message.name !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.name);
+        /* repeated teleport.lib.teleterm.v1.Label labels = 4; */
+        for (let i = 0; i < message.labels.length; i++)
+            Label.internalBinaryWrite(message.labels[i], writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        /* string cluster = 5; */
+        if (message.cluster !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.cluster);
+        /* string namespace = 6; */
+        if (message.namespace !== "")
+            writer.tag(6, WireType.LengthDelimited).string(message.namespace);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.KubeResource
+ */
+export const KubeResource = new KubeResource$Type();

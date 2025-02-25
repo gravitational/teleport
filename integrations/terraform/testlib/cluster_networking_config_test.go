@@ -90,7 +90,7 @@ func (s *TerraformSuiteOSS) TestImportClusterNetworkingConfig() {
 		clusterNetworkConfigCurrent, err := s.client.GetClusterNetworkingConfig(ctx)
 		require.NoError(s.T(), err)
 
-		return clusterNetworkConfigBefore.GetMetadata().ID != clusterNetworkConfigCurrent.GetMetadata().ID
+		return clusterNetworkConfigBefore.GetMetadata().Revision != clusterNetworkConfigCurrent.GetMetadata().Revision
 	}, 5*time.Second, time.Second)
 
 	resource.Test(s.T(), resource.TestCase{

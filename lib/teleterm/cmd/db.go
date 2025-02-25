@@ -19,10 +19,15 @@
 package cmd
 
 import (
+	"context"
 	"os/exec"
+	"sync"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -43,12 +48,12 @@ type Cmds struct {
 }
 
 // NewDBCLICommand creates CLI commands for database gateway.
-func NewDBCLICommand(cluster *clusters.Cluster, gateway gateway.Gateway) (Cmds, error) {
-	cmds, err := newDBCLICommandWithExecer(cluster, gateway, dbcmd.SystemExecer{})
+func NewDBCLICommand(ctx context.Context, cluster *clusters.Cluster, gateway gateway.Gateway, authClient authclient.ClientI) (Cmds, error) {
+	cmds, err := newDBCLICommandWithExecer(ctx, cluster, gateway, dbcmd.SystemExecer{}, authClient)
 	return cmds, trace.Wrap(err)
 }
 
-func newDBCLICommandWithExecer(cluster *clusters.Cluster, gateway gateway.Gateway, execer dbcmd.Execer) (Cmds, error) {
+func newDBCLICommandWithExecer(ctx context.Context, cluster *clusters.Cluster, gateway gateway.Gateway, execer dbcmd.Execer, authClient authclient.ClientI) (Cmds, error) {
 	routeToDb := tlsca.RouteToDatabase{
 		ServiceName: gateway.TargetName(),
 		Protocol:    gateway.Protocol(),
@@ -56,12 +61,23 @@ func newDBCLICommandWithExecer(cluster *clusters.Cluster, gateway gateway.Gatewa
 		Database:    gateway.TargetSubresourceName(),
 	}
 
+	var getDatabaseOnce sync.Once
+	var getDatabaseError error
+	var database types.Database
+
 	opts := []dbcmd.ConnectCommandFunc{
 		dbcmd.WithLogger(gateway.Log()),
 		dbcmd.WithLocalProxy(gateway.LocalAddress(), gateway.LocalPortInt(), ""),
 		dbcmd.WithNoTLS(),
 		dbcmd.WithTolerateMissingCLIClient(),
 		dbcmd.WithExecer(execer),
+		dbcmd.WithOracleOpts(true /* can use TCP */, true /* has TCP servers */),
+		dbcmd.WithGetDatabaseFunc(func(ctx context.Context, _ *client.TeleportClient, _ string) (types.Database, error) {
+			getDatabaseOnce.Do(func() {
+				database, getDatabaseError = cluster.GetDatabase(ctx, authClient, gateway.TargetURI())
+			})
+			return database, trace.Wrap(getDatabaseError)
+		}),
 	}
 
 	switch gateway.Protocol() {
@@ -75,12 +91,12 @@ func newDBCLICommandWithExecer(cluster *clusters.Cluster, gateway gateway.Gatewa
 
 	previewOpts := append(opts, dbcmd.WithPrintFormat())
 
-	execCmd, err := clusters.NewDBCLICmdBuilder(cluster, routeToDb, opts...).GetConnectCommand()
+	execCmd, err := clusters.NewDBCLICmdBuilder(cluster, routeToDb, opts...).GetConnectCommand(ctx)
 	if err != nil {
 		return Cmds{}, trace.Wrap(err)
 	}
 
-	previewCmd, err := clusters.NewDBCLICmdBuilder(cluster, routeToDb, previewOpts...).GetConnectCommand()
+	previewCmd, err := clusters.NewDBCLICmdBuilder(cluster, routeToDb, previewOpts...).GetConnectCommand(ctx)
 	if err != nil {
 		return Cmds{}, trace.Wrap(err)
 	}

@@ -16,17 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { memo, useEffect, useRef } from 'react';
+import { memo, useEffect, useRef, type CSSProperties } from 'react';
+
 import { DebouncedFunc } from 'shared/utils/highbar';
 
-import { TdpClientEvent, TdpClient } from 'teleport/lib/tdp';
+import { TdpClient, TdpClientEvent } from 'teleport/lib/tdp';
 import { BitmapFrame } from 'teleport/lib/tdp/client';
-
-import type { CSSProperties } from 'react';
 import type {
-  PngFrame,
   ClientScreenSpec,
   ClipboardData,
+  PngFrame,
 } from 'teleport/lib/tdp/codec';
 
 function TdpClientCanvas(props: Props) {
@@ -157,7 +156,9 @@ function TdpClientCanvas(props: Props) {
         client.renderUpdate(ctx);
         if (bitmapBuffer.length) {
           for (let i = 0; i < bitmapBuffer.length; i++) {
-            clientOnBmpFrame(ctx, bitmapBuffer[i]);
+            if (bitmapBuffer[i].image_data.data.length != 0) {
+              clientOnBmpFrame(ctx, bitmapBuffer[i]);
+            }
           }
           bitmapBuffer = [];
         }

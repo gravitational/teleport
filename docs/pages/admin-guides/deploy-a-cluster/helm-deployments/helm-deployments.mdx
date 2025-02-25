@@ -1,0 +1,38 @@
+---
+title: Guides for running Teleport using Helm
+description: How to install and configure Teleport in Kubernetes using Helm
+layout: tocless-doc
+---
+
+The `teleport-cluster` Helm chart enables you deploy and manage a self-hosted,
+high-availability Teleport cluster. This chart launches the Teleport Auth
+Service, Teleport Proxy Service, and the Kubernetes infrastructure required to
+support these services. The guides in this section show you how to use the
+`teleport-cluster` Helm chart in your environment.
+
+You do not need to deploy the Auth Service and Proxy Service on Kubernetes in
+order to protect a Kubernetes cluster with Teleport, and it is possible to
+enroll a Kubernetes cluster on Teleport Cloud or by running the Teleport
+Kubernetes Service on a Linux server. For instructions on enrolling a Kubernetes
+cluster with Teleport, read the [Kubernetes
+Access](../../../enroll-resources/kubernetes-access/introduction.mdx) documentation.
+
+## Helm deployment guides
+
+These guides show you how to set up a full self-hosted Teleport deployment using
+our `teleport-cluster` Helm chart.
+
+- [Deploy Teleport on Kubernetes](kubernetes-cluster.mdx): Run a Teleport cluster in a Kubernetes cluster using
+  the default configuration. This deployment is a great starting point to try a self-hosted 
+  Teleport with minimal resources. 
+- [HA AWS Teleport Cluster](aws.mdx): Running an HA Teleport cluster in Kubernetes using an AWS EKS Cluster
+- [HA Azure Teleport Cluster](azure.mdx): Running an HA Teleport cluster in Kubernetes using an Azure AKS Cluster
+- [HA GCP Teleport Cluster](gcp.mdx): Running an HA Teleport cluster in Kubernetes using a Google Cloud GKE Cluster
+- [IBM Teleport Cluster](ibm.mdx): Running a replicated Teleport cluster in Kubernetes using and IBM Cloud IKS Cluster
+- [DigitalOcean Kubernetes Cluster](digitalocean.mdx):
+  Running Teleport on DigitalOcean Kubernetes.
+- [Custom Teleport config](custom.mdx): Running a Teleport cluster in Kubernetes with a custom Teleport config
+
+## Migration Guides
+
+- [Kubernetes 1.25 and PSP removal](migration-kubernetes-1-25-psp.mdx)

@@ -14,5 +14,24 @@ svids:
           pid: 100
           uid: 1000
           gid: 1234
+        kubernetes: {}
       - unix:
           pid: 100
+        kubernetes:
+          namespace: my-namespace
+          service_account: service-account
+          pod_name: my-pod
+attestors:
+  kubernetes:
+    enabled: true
+    kubelet:
+      secure_port: 12345
+      token_path: /path/to/token
+      ca_path: /path/to/ca.pem
+      skip_verify: true
+      anonymous: true
+  podman:
+    enabled: false
+jwt_svid_ttl: 5m0s
+credential_ttl: 1m0s
+renewal_interval: 30s

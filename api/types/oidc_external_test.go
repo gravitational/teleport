@@ -17,6 +17,7 @@ package types
 import (
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -54,4 +55,21 @@ func TestOIDCClaimsRoundTrip(t *testing.T) {
 			require.Equal(t, &tt.src, dst)
 		})
 	}
+}
+
+func TestClientSecretFileURI(t *testing.T) {
+	_, err := NewOIDCConnector("test-connector", OIDCConnectorSpecV3{
+		ClientID:     "some-client-id",
+		ClientSecret: "file://is-not-allowed",
+		ClaimsToRoles: []ClaimMapping{
+			{
+				Claim: "team",
+				Value: "dev",
+				Roles: []string{"dev-team-access"},
+			},
+		},
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
+	require.ErrorContains(t, err, "file:// URLs are not supported")
 }

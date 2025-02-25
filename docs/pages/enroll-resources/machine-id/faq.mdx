@@ -1,0 +1,95 @@
+---
+title: Machine ID FAQ
+description: Frequently asked questions about Teleport Machine ID
+---
+
+This page provides answers to frequently asked questions about Machine ID. For a
+list of frequently asked questions about Teleport in general, see [Frequently
+Asked Questions](../../faq.mdx).
+
+## Can Machine ID be used within CI/CD jobs?
+
+On CI/CD platforms where your workflow runs in an ephemeral environment (e.g
+no persistent state exists between individual workflow runs), Machine ID works
+best where a supported join method exists. These are:
+
+- GitHub Actions
+- CircleCI
+- GitLab
+- AWS
+- GCP
+- Azure
+- Kubernetes
+- Spacelift
+- Terraform Cloud
+
+On CI/CD platforms where you control the runner environment (e.g self-hosted
+Jenkins runner), Machine ID can run as a daemon on the runner and the generated
+credentials can be mounted into the environment of your individual workflow
+runs.
+
+## Can Machine ID be used with Trusted Clusters ?
+
+You can use Machine ID for SSH access in trusted leaf clusters.
+
+We currently do not support access to applications, databases, or Kubernetes
+clusters in leaf clusters.
+
+## Should I define allowed logins as user traits or within roles?
+
+When defining the logins that your bot will be allowed to use, there are two
+options:
+
+- Directly adding the login to the `logins` section of the role that your bot
+  will impersonate.
+- Adding the login to the logins trait of the bot user, and impersonating a role
+  that includes the `{{ internal.logins }}` role variable. This is usually done
+  by providing the `--logins` parameter when creating the bot.
+
+For simpler scenarios — where you only expect the bot to use a single output
+or role — you can add the login to the logins trait of the bot user. This
+approach allows you to leverage default roles like `access`.
+
+For situations where your bot is producing certificates for different roles in
+different outputs, it is important to consider whether using a login trait
+grants access to resources that you didn't intend. To prevent a login trait from
+granting access you didn't intend, we recommend that you create bespoke roles
+that explicitly specify the logins that should be included in the certificates.
+
+## Can Machine ID be used with per-session MFA?
+
+We do not currently support Machine ID and per-session MFA. Enabling per-session
+MFA globally, or for roles impersonated by Machine ID, will prevent credentials
+produced by Machine ID from being used to connect to resources.
+
+As a work-around, ensure that per-session MFA is enforced on individual roles
+rather than enforced globally, and that it is not enforced for roles that you
+will impersonate using Machine ID.
+
+## Can Machine ID be used with Device Trust?
+
+We do not currently support Machine ID and Device Trust. Requiring Device
+Trust cluster-wide or for roles impersonated by Machine ID will prevent
+credentials produced by Machine ID from being used to connect to resources.
+
+As a work-around, configure Device Trust enforcement on a role-by-role basis
+and ensure that it is not required for roles that you will impersonate using
+Machine ID.
+
+## Can Machine ID be used to generate long-lived certificates?
+
+Machine ID cannot currently be used to generate certificates valid for longer
+than 24 hours, and requests for longer certificates using the `credential_ttl`
+parameter will be reduced to this 24 hour limit.
+
+This limit serves multiple purposes. For one, it encourages security best
+practices by only ever issuing very short lived certificates. Additionally, as
+Machine ID allows for certificate renewal, this limit helps to prevent further
+exploitation should a Machine ID identity be compromised: an attacker could use
+a stolen renewable certificate to request very long lived certificates and
+maintain access for a much longer period.
+
+If your use case absolutely requires long-lived certificates,
+[`tctl auth sign`](../../reference/cli/tctl.mdx#tctl-auth-sign) can
+alternatively be used, however this loses the security benefits of Machine ID's
+short-lived renewable certificates.

@@ -36,7 +36,11 @@ export const dryRunResponse: AccessRequest = {
   sessionTTL: new Date('2024-02-15T14:51:03.999893Z'),
   sessionTTLDuration: '',
   reviews: [],
-  reviewers: [],
+  reviewers: [
+    { name: 'bob', state: '' },
+    { name: 'cat', state: '' },
+    { name: 'george washington', state: '' },
+  ],
   thresholdNames: ['default'],
   resources: [],
   assumeStartTime: null,
@@ -125,6 +129,26 @@ export const requestSearchPending: AccessRequest = {
       },
       details: {
         friendlyName: 'Some Friendly Name',
+      },
+    },
+    {
+      id: {
+        kind: 'saml_idp_service_provider',
+        name: 'raw-saml-id',
+        clusterName: 'cluster-name',
+      },
+      details: {
+        friendlyName: 'app-saml',
+      },
+    },
+    {
+      id: {
+        kind: 'aws_ic_account_assignment',
+        name: 'admin-on-account1',
+        clusterName: 'cluster-name',
+      },
+      details: {
+        friendlyName: 'account1',
       },
     },
   ],

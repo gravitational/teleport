@@ -1,5 +1,6 @@
 ---
-title: Teleport Configuration Reference
+title: Teleport Configuration
+h1: Teleport Configuration Reference
 description: The detailed guide and reference documentation for configuring Teleport for SSH and Kubernetes access.
 keywords: [config, file, reference, yaml, etc]
 tocDepth: 3
@@ -68,6 +69,7 @@ Teleport supports the following services:
 |SSH Service|`ssh_service`|✅|
 |Desktop Service|`windows_desktop_service`|❌|
 |Jamf Service|`jamf_service`|❌|
+|Debug Service|`debug_service`|✅|
 
 Teleport Cloud manages the Auth Service and Proxy Service for you. Instances of
 Teleport services (e.g., the Application Service and Database Service) should
@@ -96,6 +98,16 @@ These settings apply to any `teleport` instance:
 (!docs/pages/includes/config-reference/instance-wide.yaml!)
 ```
 
+Further reading:
+- [Joining Services to a
+  Cluster](../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx):
+  Available join methods to help you configure `join_params`.
+- [Using a CA
+  Pin](../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx):
+  When to assign a value to `ca_pin`.
+- [Teleport Metrics Reference](monitoring/monitoring.mdx): Data to collect using
+  `diag_addr`.
+
 ### Proxy Service
 
 These settings apply to the Teleport Proxy Service:
@@ -122,6 +134,23 @@ to specify these configuration settings.
 (!docs/pages/includes/config-reference/auth-service.yaml!)
 ```
 
+Further reading:
+- [Storage Backends](backends.mdx) reference: instructions on configuring DynamoDB, S3, etcd, and other highly available
+  backends.
+- [Passwordless](../admin-guides/access-controls/guides/passwordless.mdx): More
+  information about the `passwordless` authentication option.
+- [Headless
+  WebAuthn](../admin-guides/access-controls/guides/headless.mdx): The
+  `headless` authentication option.
+- [Single Sign-On](../admin-guides/access-controls/sso/sso.mdx): Configuring SSO
+  so you can configure Teleport to use a specific SSO authentication connector.
+- [Locking](../admin-guides/access-controls/guides/locking.mdx): Configuring the
+  `locking_mode` option.
+- [Device Trust](../admin-guides/access-controls/device-trust/device-trust.mdx): Configuring
+  the `device_trust` section.
+- [Recording Proxy Mode](architecture/session-recording.mdx): If you configure
+  Recording Proxy Mode, consider enabling `proxy_checks_host_keys`.
+
 ### SSH Service
 
 These settings apply to the Teleport SSH Service:
@@ -129,6 +158,13 @@ These settings apply to the Teleport SSH Service:
 ```yaml
 (!docs/pages/includes/config-reference/ssh-service.yaml!)
 ```
+
+Further reading:
+- [Enhanced Session
+  Recording](../enroll-resources/server-access/guides/bpf-session-recording.mdx):
+  Configuring `enhanced_recording`.
+- [PAM Integration](../enroll-resources/server-access/guides/ssh-pam.mdx):
+  Configuring the `pam` section.
 
 ### Kubernetes Service
 
@@ -176,6 +212,14 @@ These settings apply to the Jamf Service:
 
 ```yaml
 (!docs/pages/includes/config-reference/jamf-service.yaml!)
+```
+
+### Debug Service
+
+These settings apply to the Debug Service
+
+```yaml
+(!docs/pages/includes/config-reference/debug-service.yaml!)
 ```
 
 ## Configuration versions

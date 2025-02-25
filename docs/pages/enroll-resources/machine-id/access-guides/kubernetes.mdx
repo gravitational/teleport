@@ -1,0 +1,187 @@
+---
+title: Machine ID with Kubernetes Access
+description: How to use Machine ID to access Kubernetes clusters
+---
+
+Teleport protects and controls access to Kubernetes
+clusters. Machine ID can be used to grant machines secure, short-lived
+access to these clusters.
+
+In this guide, you will configure `tbot` to produce credentials that can be
+used to access a Kubernetes cluster enrolled with your Teleport cluster.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- If you have not already connected your Kubernetes cluster to Teleport, follow
+  the [Kubernetes Access Getting Started Guide](../../kubernetes-access/getting-started.mdx).
+- (!docs/pages/includes/tctl.mdx!)
+- To configure the Kubernetes cluster, your client system will need to have
+  `kubectl` installed. See the
+  [Kubernetes documentation](https://kubernetes.io/docs/tasks/tools/) for
+  installation instructions.
+- `tbot` must already be installed and configured on the machine that will
+  access Kubernetes clusters. For more information, see the
+  [deployment guides](../deployment/deployment.mdx).
+- To demonstrate connecting to the Kubernetes cluster, the machine that will
+  access Kubernetes clusters will need to have `kubectl` installed. See the
+  [Kubernetes documentation](https://kubernetes.io/docs/tasks/tools/) for
+  installation instructions.
+
+## Step 1/3. Configure Teleport and Kubernetes RBAC
+
+First, we need to configure the RBAC for both Teleport and Kubernetes in order
+to grant the bot the correct level of access.
+
+When forwarding requests to the Kubernetes API on behalf of a bot, the
+Teleport Proxy attaches the groups configured (using `kubernetes_groups`) in the
+bot's Teleport roles to the request. These groups are then used to configure a
+RoleBinding or ClusterRoleBinding in Kubernetes to grant specific permissions
+within the Kubernetes cluster to the bot.
+
+For the purpose of this guide, we will bind the `editor` group to the default
+`edit` ClusterRole that is preconfigured in most Kubernetes clusters to give
+the bot read and write access to resources in all the cluster namespaces.
+
+When configuring this for a production environment, you should consider:
+
+- If RoleBinding should be used instead of ClusterRoleBinding to limit the
+  bot's access to a specific namespace.
+- If a Role should be created that grants the bot the least privileges
+  necessary rather than using a pre-existing general Role such as `edit`.
+
+To bind the `editor` group to the `edit` Cluster Role, execute:
+
+```code
+$ kubectl create clusterrolebinding teleport-editor-edit \
+  --clusterrole=edit \
+  --group=editor
+```
+
+With the appropriate RoleBinding configured in Kubernetes to grant access to
+a specific group, you now need to add this group to the role that the bot
+will impersonate when producing credentials. You also need to grant the bot
+access through Teleport to the cluster itself. This is done by creating a
+role that grants the necessary permissions and then assigning this role to a
+Bot.
+
+Create a file called `role.yaml` with the following content:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: example-role
+spec:
+  allow:
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_groups:
+    - editor
+    kubernetes_resources:
+    - kind: "*"
+      namespace: "*"
+      name: "*"
+      verbs: ["*"]
+```
+
+Replace `example-role` with a descriptive name related to your use case.
+
+Adjust the `allow` field for your environment:
+
+- `kubernetes_labels` should be adjusted to grant access to only the clusters
+  that the bot will need to access. The value shown, `'*': '*'` will grant
+  access to all Kubernetes clusters.
+- `editor` must match the name of the group you specified in the
+  RoleBinding or ClusterRoleBinding.
+- `kubernetes_resources` can be used to apply additional restrictions to what
+  the bot can access within the Kubernetes cluster. These restrictions are
+  layered upon the RBAC configured within the Kubernetes role itself.
+
+Use `tctl create -f ./role.yaml` to create the role.
+
+(!docs/pages/includes/create-role-using-web.mdx!)
+
+Now, use `tctl bots update` to add the role to the Bot. Replace `example`
+with the name of the Bot you created in the deployment guide and `example-role`
+with the name of the role you just created:
+
+```code
+$ tctl bots update example --add-roles example-role
+```
+
+## Step 2/3. Configure a Kubernetes `tbot` output
+
+Now, `tbot` needs to be configured with an output to produce the Kubernetes
+credentials and client configuration file. This is done using the `kubernetes`
+output type.
+
+The Kubernetes cluster you want the credentials to have access to must
+be specified using the `kubernetes_cluster` field. In this example,
+`example-k8s-cluster` will be used.
+
+The output must be configured with a destination and the name of the
+Kubernetes cluster that should be encoded in the credentials produced by `tbot`.
+At this time, each output can only contain credentials for a single Kubernetes
+cluster. If your bot needs to connect to multiple Kubernetes clusters,
+create an output for each cluster.
+
+Outputs must also be configured with a destination. In this example, the
+`directory` type will be used. This will write artifacts to a specified
+directory on disk. Ensure that this directory can be written to by the Linux
+user that `tbot` runs as, and that it can be read by the Linux user that will
+be accessing the Kubernetes cluster.
+
+Modify your `tbot` configuration to add a `kubernetes` output:
+
+```yaml
+outputs:
+  - type: kubernetes
+    # Specify the name of the Kubernetes cluster you wish the credentials to
+    # grant access to.
+    kubernetes_cluster: example-k8s-cluster
+    destination:
+      type: directory
+          # For this guide, /opt/machine-id is used as the destination directory.
+          # You may wish to customize this. Multiple outputs cannot share the same
+          # destination.
+      path: /opt/machine-id
+```
+
+Ensure you replace `example-k8s-cluster` with the name of the Kubernetes cluster
+as registered in Teleport and adjust `/opt/machine-id` if you wish
+
+If operating `tbot` as a background service, restart it. If running `tbot` in
+one-shot mode, it must be executed before you attempt to use the credentials.
+
+## Step 3/3. Connect to your Kubernetes cluster with the Machine ID identity
+
+Once `tbot` has been run with the new output configured, a file called
+`kubeconfig.yaml` should have been generated in the destination directory
+you specified. This contains all the information necessary for `kubectl` to
+connect to the Kubernetes cluster through the Teleport Proxy.
+
+To use `kubeconfig.yaml` with `kubectl`, the `--kubeconfig` flag or `KUBECONFIG`
+environment variable can be provided to `kubectl`:
+
+```code
+$ kubectl --kubeconfig /opt/machine-id/kubeconfig.yaml get pods -A
+# Or, set the KUBECONFIG environment variable:
+$ export KUBECONFIG=/opt/machine-id/kubeconfig.yaml
+$ kubectl get pods -A
+```
+
+Whilst this guide has demonstrated `kubeconfig.yaml` being used with `kubectl`,
+this format is compatible with most Kubernetes tools including:
+
+- Helm
+- Lens
+- ArgoCD
+
+## Next steps
+
+- Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
+  all the available configuration options.
+- Read the [Kubernetes Access RBAC guide](../../kubernetes-access/controls.mdx)
+  for more details on controlling Kubernetes access.

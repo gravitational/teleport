@@ -53,6 +53,8 @@ type DiscoverEventData struct {
 
 	ServiceDeploy discoverServiceDeploy `json:"serviceDeploy,omitempty"`
 
+	DiscoveryConfigMethod string `json:"discoveryConfigMethod,omitempty"`
+
 	// StepStatus is the Wizard step status result.
 	// Its possible values are the usageevents.DiscoverStepStatus proto enum values.
 	// Example: "DISCOVER_STATUS_SUCCESS"
@@ -129,6 +131,15 @@ func (d *DiscoverEventData) ToUsageEvent(eventName string) (*usageeventsv1.Usage
 			},
 		}}, nil
 
+	case uiDiscoverKubeEKSEnrollEvent:
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverKubeEksEnrollEvent{
+			UiDiscoverKubeEksEnrollEvent: &usageeventsv1.UIDiscoverKubeEKSEnrollEvent{
+				Metadata: metadata,
+				Resource: resource,
+				Status:   status,
+			},
+		}}, nil
+
 	case uiDiscoverDeployServiceEvent:
 		deployMethodEnum, ok := usageeventsv1.UIDiscoverDeployServiceEvent_DeployMethod_value[d.ServiceDeploy.Method]
 		if !ok {
@@ -145,6 +156,20 @@ func (d *DiscoverEventData) ToUsageEvent(eventName string) (*usageeventsv1.Usage
 				Status:       status,
 				DeployMethod: usageeventsv1.UIDiscoverDeployServiceEvent_DeployMethod(deployMethodEnum),
 				DeployType:   usageeventsv1.UIDiscoverDeployServiceEvent_DeployType(deployTypeEnum),
+			},
+		}}, nil
+
+	case uiDiscoverCreateDiscoveryConfigEvent:
+		configMethodEnum, ok := usageeventsv1.UIDiscoverCreateDiscoveryConfigEvent_ConfigMethod_value[d.DiscoveryConfigMethod]
+		if !ok {
+			return nil, trace.BadParameter("invalid discovery config method %s", d.DiscoveryConfigMethod)
+		}
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverCreateDiscoveryConfig{
+			UiDiscoverCreateDiscoveryConfig: &usageeventsv1.UIDiscoverCreateDiscoveryConfigEvent{
+				Metadata:     metadata,
+				Resource:     resource,
+				Status:       status,
+				ConfigMethod: usageeventsv1.UIDiscoverCreateDiscoveryConfigEvent_ConfigMethod(configMethodEnum),
 			},
 		}}, nil
 
@@ -194,27 +219,9 @@ func (d *DiscoverEventData) ToUsageEvent(eventName string) (*usageeventsv1.Usage
 			},
 		}}, nil
 
-	case uiDiscoverEC2InstanceSelectionEvent:
-		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverEc2InstanceSelection{
-			UiDiscoverEc2InstanceSelection: &usageeventsv1.UIDiscoverEC2InstanceSelectionEvent{
-				Metadata: metadata,
-				Resource: resource,
-				Status:   status,
-			},
-		}}, nil
-
-	case uiDiscoverDeployEICEEvent:
-		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDeployEice{
-			UiDiscoverDeployEice: &usageeventsv1.UIDiscoverDeployEICEEvent{
-				Metadata: metadata,
-				Resource: resource,
-				Status:   status,
-			},
-		}}, nil
-
-	case uiDiscoverCreateNodeEvent:
-		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverCreateNode{
-			UiDiscoverCreateNode: &usageeventsv1.UIDiscoverCreateNodeEvent{
+	case uiDiscoverCreateAppServerEvent:
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverCreateAppServerEvent{
+			UiDiscoverCreateAppServerEvent: &usageeventsv1.UIDiscoverCreateAppServerEvent{
 				Metadata: metadata,
 				Resource: resource,
 				Status:   status,

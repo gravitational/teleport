@@ -1,0 +1,9 @@
+type: workload-identity-api
+listen: tcp://0.0.0.0:4040
+attestors:
+  kubernetes:
+    enabled: false
+  podman:
+    enabled: false
+selector:
+  name: my-workload-identity

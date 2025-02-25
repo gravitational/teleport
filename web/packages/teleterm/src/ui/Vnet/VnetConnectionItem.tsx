@@ -17,15 +17,14 @@
  */
 
 import React, { forwardRef, useEffect, useRef } from 'react';
-import styled from 'styled-components';
-import { Text, ButtonIcon, Flex, rotate360 } from 'design';
-import * as icons from 'design/Icon';
-import { copyToClipboard } from 'design/utils/copyToClipboard';
 
-import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
-import { ListItem, StaticListItem } from 'teleterm/ui/components/ListItem';
-import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+import { ButtonIcon, Flex, rotate360, Text } from 'design';
+import * as icons from 'design/Icon';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+import { ListItem } from 'teleterm/ui/components/ListItem';
+import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
 import { useVnetContext } from './vnetContext';
 
@@ -42,7 +41,7 @@ export const VnetConnectionItem = (props: {
     onRun: props.openVnetPanel,
   });
 
-  const ref = useRef<HTMLElement>();
+  const ref = useRef<HTMLLIElement>();
 
   useEffect(() => {
     scrollIntoViewIfActive(ref.current);
@@ -63,215 +62,88 @@ export const VnetSliderStepHeader = (props: { goBack: () => void }) => (
     title="Go back to Connections"
     onClick={props.goBack}
     showBackButton
-    showHelpButton
+    showExtraRightButtons
     // Make the element focusable.
     tabIndex={0}
   />
 );
 
-const VnetConnectionItemBase = forwardRef(
-  (
-    props: {
-      onClick: () => void;
-      title: string;
-      showBackButton?: boolean;
-      showHelpButton?: boolean;
-      isActive?: boolean;
-      tabIndex?: number;
-    },
-    ref
-  ) => {
-    const { status, start, stop, startAttempt, stopAttempt } = useVnetContext();
-    const isProcessing =
-      startAttempt.status === 'processing' ||
-      stopAttempt.status === 'processing';
-    const indicatorStatus =
-      startAttempt.status === 'error' || stopAttempt.status === 'error'
-        ? 'error'
-        : status === 'running'
-          ? 'on'
-          : 'off';
-
-    const onEnterPress = (event: React.KeyboardEvent) => {
-      if (
-        event.key !== 'Enter' ||
-        // onKeyDown propagates from children too.
-        // Ignore those events, handle only keypresses on ListItem.
-        event.target !== event.currentTarget
-      ) {
-        return;
-      }
-
-      props.onClick();
-    };
-
-    return (
-      <ListItem
-        ref={ref}
-        css={`
-          padding: ${props => props.theme.space[1]}px
-            ${props => props.theme.space[2]}px;
-          height: unset;
-        `}
-        isActive={props.isActive}
-        title={props.title}
-        onClick={props.onClick}
-        onKeyDown={onEnterPress}
-        tabIndex={props.tabIndex}
-      >
-        {props.showBackButton ? (
-          <icons.ArrowBack size="small" mr={2} />
-        ) : (
-          <ConnectionStatusIndicator
-            mr={3}
-            css={`
-              flex-shrink: 0;
-            `}
-            status={indicatorStatus}
-          />
-        )}
-        <Flex
-          alignItems="center"
-          justifyContent="space-between"
-          flex="1"
-          minWidth="0"
-        >
-          <div
-            css={`
-              min-width: 0;
-            `}
-          >
-            <Text
-              typography="body1"
-              bold
-              color="text.main"
-              css={`
-                line-height: 16px;
-              `}
-            >
-              VNet
-            </Text>
-            <Text color="text.slightlyMuted" typography="body2">
-              Virtual Network Emulation
-            </Text>
-          </div>
-
-          {/* Buttons to the right. Negative margin to match buttons of other connections. */}
-          <Flex gap={1} mr="-3px">
-            {props.showHelpButton && (
-              <ButtonIcon
-                as="a"
-                title="Open VNet documentation"
-                href="https://goteleport.com/docs/connect-your-client/teleport-connect/#vnet"
-                target="_blank"
-                onClick={e => {
-                  // Don't trigger ListItem's onClick.
-                  e.stopPropagation();
-                }}
-              >
-                <icons.Question size={18} />
-              </ButtonIcon>
-            )}
-
-            {/* The conditions for the buttons below could be written in a more concise way.
-                However, what's important for us here is that React keeps focus on the same
-                "logical" button when this component transitions between different states.
-                As a result, we cannot e.g. use a fragment to group two different states together.
-
-                There's a test which checks whether the focus is kept between state transitions.
-            */}
-
-            {isProcessing && (
-              // This button cannot be disabled, otherwise the focus will be lost between
-              // transitions and the test won't be able to catch this.
-              <ButtonIcon
-                key="vnet-toggle"
-                title={status === 'stopped' ? 'Starting VNet' : 'Stopping VNet'}
-                onClick={e => {
-                  e.stopPropagation();
-                }}
-              >
-                <icons.Spinner
-                  css={`
-                    width: 32px;
-                    height: 32px;
-                    animation: ${rotate360} 1.5s infinite linear;
-                  `}
-                  size={18}
-                />
-              </ButtonIcon>
-            )}
-            {!isProcessing && status === 'running' && (
-              <ButtonIcon
-                key="vnet-toggle"
-                title="Stop VNet"
-                onClick={e => {
-                  e.stopPropagation();
-                  stop();
-                }}
-              >
-                <icons.BroadcastSlash size={18} />
-              </ButtonIcon>
-            )}
-            {!isProcessing && status === 'stopped' && (
-              <ButtonIcon
-                key="vnet-toggle"
-                title="Start VNet"
-                onClick={e => {
-                  e.stopPropagation();
-                  start();
-                }}
-              >
-                <icons.Broadcast size={18} />
-              </ButtonIcon>
-            )}
-          </Flex>
-        </Flex>
-      </ListItem>
-    );
+const VnetConnectionItemBase = forwardRef<
+  HTMLLIElement,
+  {
+    onClick: () => void;
+    title: string;
+    showBackButton?: boolean;
+    /** Shows help and diagnostics buttons between "VNet" text and the start/stop button. */
+    showExtraRightButtons?: boolean;
+    isActive?: boolean;
+    tabIndex?: number;
   }
-);
+>((props, ref) => {
+  const { configService } = useAppContext();
+  const isVnetDiagEnabled = configService.get('unstable.vnetDiag').value;
+  const {
+    status,
+    start,
+    stop,
+    startAttempt,
+    stopAttempt,
+    runDiagnostics,
+    diagnosticsAttempt,
+    getDisabledDiagnosticsReason,
+  } = useVnetContext();
+  const isProcessing =
+    startAttempt.status === 'processing' || stopAttempt.status === 'processing';
+  const disabledDiagnosticsReason =
+    getDisabledDiagnosticsReason(diagnosticsAttempt);
+  const indicatorStatus =
+    startAttempt.status === 'error' ||
+    stopAttempt.status === 'error' ||
+    (status.value === 'stopped' &&
+      status.reason.value === 'unexpected-shutdown')
+      ? 'error'
+      : status.value === 'running'
+        ? 'on'
+        : 'off';
 
-/**
- * AppConnectionItem is an individual connection to an app made through VNet, shown in
- * VnetSliderStep.
- */
-export const AppConnectionItem = (props: {
-  app: string;
-  status: 'on' | 'error' | 'off';
-  // TODO(ravicious): Refactor the status type so that the error prop is available only if status is
-  // set to 'error'.
-  error?: string;
-}) => {
-  const { notificationsService } = useAppContext();
+  const onEnterPress = (event: React.KeyboardEvent) => {
+    if (
+      event.key !== 'Enter' ||
+      // onKeyDown propagates from children too.
+      // Ignore those events, handle only keypresses on ListItem.
+      event.target !== event.currentTarget
+    ) {
+      return;
+    }
 
-  const copy = async () => {
-    const content = [props.app, props.error].filter(Boolean).join(': ');
-    await copyToClipboard(content);
-
-    notificationsService.notifyInfo(
-      props.error
-        ? `Copied error for ${props.app} to clipboard`
-        : `Copied ${props.app} to clipboard`
-    );
+    props.onClick();
   };
 
   return (
-    <StaticListItem
-      title={props.app}
-      as="div"
+    <ListItem
+      ref={ref}
       css={`
-        padding: 0 ${props => props.theme.space[2]}px;
+        padding: ${props => props.theme.space[1]}px
+          ${props => props.theme.space[2]}px;
         height: unset;
       `}
+      isActive={props.isActive}
+      title={props.title}
+      onClick={props.onClick}
+      onKeyDown={onEnterPress}
+      tabIndex={props.tabIndex}
     >
-      <ConnectionStatusIndicator
-        mr={3}
-        css={`
-          flex-shrink: 0;
-        `}
-        status={props.status}
-      />
+      {props.showBackButton ? (
+        <icons.ArrowBack size="small" mr={2} />
+      ) : (
+        <ConnectionStatusIndicator
+          mr={3}
+          css={`
+            flex-shrink: 0;
+          `}
+          status={indicatorStatus}
+        />
+      )}
       <Flex
         alignItems="center"
         justifyContent="space-between"
@@ -284,39 +156,108 @@ export const AppConnectionItem = (props: {
           `}
         >
           <Text
-            typography="body1"
+            typography="body2"
+            bold
             color="text.main"
             css={`
               line-height: 16px;
             `}
           >
-            {props.app}
+            VNet
           </Text>
-          {props.error && (
-            <Text
-              color="text.slightlyMuted"
-              typography="body2"
-              title={props.error}
-            >
-              {props.error}
-            </Text>
-          )}
+          <Text color="text.slightlyMuted" typography="body3">
+            Virtual Network Emulation
+          </Text>
         </div>
 
-        {/* Button to the right. */}
-        <ButtonIconOnHover onClick={copy} title="Copy to clipboard">
-          <icons.Clipboard size={18} />
-        </ButtonIconOnHover>
-      </Flex>
-    </StaticListItem>
-  );
-};
+        {/* Buttons to the right. Negative margin to match buttons of other connections. */}
+        <Flex gap={1} mr="-3px">
+          {props.showExtraRightButtons && (
+            <>
+              <ButtonIcon
+                as="a"
+                title="Open VNet documentation"
+                href="https://goteleport.com/docs/connect-your-client/vnet/"
+                target="_blank"
+                onClick={e => {
+                  // Don't trigger ListItem's onClick.
+                  e.stopPropagation();
+                }}
+              >
+                <icons.Question size={18} />
+              </ButtonIcon>
 
-const ButtonIconOnHover = styled(ButtonIcon)`
-  ${StaticListItem}:not(:hover) & {
-    visibility: hidden;
-    // Disable transition so that the button shows up immediately on hover, but still retains the
-    // original transition value once visible.
-    transition: none;
-  }
-`;
+              {isVnetDiagEnabled && (
+                <ButtonIcon
+                  title={disabledDiagnosticsReason || 'Run diagnostics'}
+                  disabled={!!disabledDiagnosticsReason}
+                  onClick={e => {
+                    e.stopPropagation();
+                    runDiagnostics();
+                  }}
+                >
+                  <icons.ListMagnifyingGlass size={18} />
+                </ButtonIcon>
+              )}
+            </>
+          )}
+
+          {/* The conditions for the buttons below could be written in a more concise way.
+                However, what's important for us here is that React keeps focus on the same
+                "logical" button when this component transitions between different states.
+                As a result, we cannot e.g. use a fragment to group two different states together.
+
+                There's a test which checks whether the focus is kept between state transitions.
+            */}
+
+          {isProcessing && (
+            // This button cannot be disabled, otherwise the focus will be lost between
+            // transitions and the test won't be able to catch this.
+            <ButtonIcon
+              key="vnet-toggle"
+              title={
+                status.value === 'running' ? 'Stopping VNet' : 'Starting VNet'
+              }
+              onClick={e => {
+                e.stopPropagation();
+              }}
+            >
+              <icons.Spinner
+                css={`
+                  width: 32px;
+                  height: 32px;
+                  animation: ${rotate360} 1.5s infinite linear;
+                `}
+                size={18}
+              />
+            </ButtonIcon>
+          )}
+          {!isProcessing && status.value === 'running' && (
+            <ButtonIcon
+              key="vnet-toggle"
+              title="Stop VNet"
+              onClick={e => {
+                e.stopPropagation();
+                stop();
+              }}
+            >
+              <icons.BroadcastSlash size={18} />
+            </ButtonIcon>
+          )}
+          {!isProcessing && status.value === 'stopped' && (
+            <ButtonIcon
+              key="vnet-toggle"
+              title="Start VNet"
+              onClick={e => {
+                e.stopPropagation();
+                start();
+              }}
+            >
+              <icons.Broadcast size={18} />
+            </ButtonIcon>
+          )}
+        </Flex>
+      </Flex>
+    </ListItem>
+  );
+});

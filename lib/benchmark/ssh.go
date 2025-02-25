@@ -20,7 +20,7 @@ package benchmark
 
 import (
 	"context"
-	"math/rand"
+	"math/rand/v2"
 
 	"github.com/gravitational/trace"
 
@@ -68,7 +68,7 @@ func (s SSHBenchmark) BenchBuilder(ctx context.Context, tc *client.TeleportClien
 			opts = append(opts, client.WithHostAddress(chooseRandomHost(resources)))
 		}
 
-		return tc.SSH(ctx, s.Command, false, opts...)
+		return tc.SSH(ctx, s.Command, opts...)
 	}, nil
 }
 
@@ -81,7 +81,7 @@ func chooseRandomHost(hosts []types.Server) string {
 		name := hosts[0].GetName()
 		return name + ":0"
 	default:
-		name := hosts[rand.Intn(len(hosts))].GetName()
+		name := hosts[rand.N(len(hosts))].GetName()
 		return name + ":0"
 	}
 }

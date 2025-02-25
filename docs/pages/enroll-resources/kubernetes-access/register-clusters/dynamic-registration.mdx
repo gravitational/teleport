@@ -1,0 +1,464 @@
+---
+title: Dynamic Kubernetes Cluster Registration
+description: Register and unregister Kubernetes clusters without restarting a Teleport Kubernetes Service instance.
+---
+
+With dynamic Kubernetes cluster registration, you can manage the Kubernetes
+clusters connected to your Teleport cluster without needing to modify the
+configuration file of an individual Kubernetes Service instance. 
+
+Dynamic Kubernetes cluster registration is useful when you have deployed
+multiple Kubernetes Service instances or need to regularly reconfigure access to
+Kubernetes clusters in your infrastructure.
+
+In this guide, we will show you how to set up dynamic Kubernetes cluster
+registration, then create, list, update, and delete Kubernetes clusters via
+`tctl`.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- A Linux host where you will install the Teleport Kubernetes Service.
+
+  <Notice type="tip">
+
+  Our `teleport-kube-agent` Helm chart does not support dynamic Kubernetes
+  cluster registration.
+
+  </Notice>
+
+- A Kubernetes cluster to join to your Teleport cluster. You must have
+  permissions to create namespaces, secrets, service accounts, cluster roles,
+  and cluster role bindings in the cluster.
+
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/3. Set up the Teleport Kubernetes Service
+
+The Teleport Kubernetes Service proxies traffic from Teleport users to a
+Kubernetes API server so you can take advantage of passwordless authentication,
+role-based access controls, audit logging, and other Teleport features in order
+to manage access to Kubernetes. 
+
+In this step, you will install the Teleport Kubernetes Service on a Linux host
+and configure it to access any Kubernetes cluster you register with your
+Teleport cluster. 
+
+### Get a join token
+
+Establish trust between your Teleport cluster and your new Kubernetes Service
+instance by creating a join token:
+
+```code
+$ tctl tokens add --type=kube --ttl=1h --format=text
+(=presets.tokens.first=)
+```
+
+Copy the token and keep it somewhere safe so you can use it when running the
+Teleport Kubernetes Service.
+
+### Install the Teleport Kubernetes Service
+
+Install the Teleport Kubernetes Service on your Linux host:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+### Configure the Teleport Kubernetes Service
+
+On the host where you will run the Teleport Kubernetes Service, run the
+following command to create a base configuration for your Teleport instance,
+assigning <Var name="example.teleport.sh:443" /> to the host and port of your
+Teleport Proxy Service or Teleport Cloud tenant and <Var name="join-token" /> to
+the join token we created earlier:
+
+```code
+$ sudo teleport configure \
+--proxy=<Var name="example.teleport.sh:443" /> \
+--roles=kube \
+--token=<Var name="join-token" /> \
+-o file
+```
+
+Edit your configuration file at `/etc/teleport.yaml` to include the following:
+
+```yaml
+kubernetes_service:
+  enabled: "yes"
+  resources:
+  - labels:
+      "*": "*"
+```
+
+This configuration enables your Kubernetes Service instance to connect to any
+Kubernetes clusters you register with your Teleport cluster. This is because the
+`resources[0].labels` field includes the wildcard pattern (`"*": "*"`), which
+allows this Kubernetes Service instance to connect to Kubernetes cluster
+resources with any label key or value.
+
+<Details title="Selectively watching Kubernetes clusters">
+
+You can configure a Kubernetes Service instance to watch for a subset of
+Kubernetes clusters by including specific label keys and values instead of
+wildcard characters:
+
+```yaml
+resources:
+- labels:
+    "env": "prod"
+    "region": "us-east-2"
+- labels:
+    "env": "test"
+    "region": "us-west-1"
+```
+
+For the Kubernetes Service to register a cluster, *any* of the items in
+`resources` must match the cluster's labels. For an item in `resources` to
+match, *all* of the `labels` entries within that item must match the cluster's
+labels.
+
+For example, a cluster with the labels `env:prod` and `region:us-west-1` would
+not match the configuration above, since it only matches the `env:prod` label in
+the first `resources` item and the `region:us-west-1` label in the second
+`resources` item.
+
+However, a cluster with `env:test` and `region:us-west-1` would match, since it
+matches both labels given in the second `resources` item.
+
+When you create dynamic Kubernetes cluster resources later in this guide, you
+can assign them labels to ensure that only specific Kubernetes Service instances
+will watch for them.
+
+</Details>
+
+### Run the Teleport Kubernetes Service
+
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Kubernetes Service"!)
+
+## Step 2/3. Authorize your user 
+
+To enable dynamic Kubernetes cluster registration in Teleport, you will need to
+authorize your user to access the Kubernetes clusters you want to register with
+Teleport. We will configure this access in this step, both in Teleport and on
+your Kubernetes cluster.
+
+### Allow access to your Kubernetes cluster
+
+Ensure that you are in the correct Kubernetes context for the cluster you would
+like to enable access to.
+
+Retrieve all available contexts:
+
+```code
+$ kubectl config get-contexts
+```
+
+Switch to your context, replacing `CONTEXT_NAME` with the name of your chosen
+context:
+
+```code
+$ kubectl config use-context CONTEXT_NAME
+Switched to context CONTEXT_NAME
+```
+
+(!docs/pages/includes/kubernetes-access/rbac.mdx!)
+
+### Authorize your user to manage Kubernetes clusters
+
+Teleport tracks Kubernetes clusters in your infrastructure via dynamic
+`kube_cluster` resources. To manage access to Kubernetes clusters with Teleport,
+your user will need permissions to manage these resources. 
+
+In the previous section, you authorized your user to access all Kubernetes
+clusters registered in your Teleport cluster. Now that you can access these
+clusters, create a role that enables you to manage them.
+
+Create a role definition called `kube-manager.yaml` with the following content: 
+
+```yaml
+kind: role
+metadata:
+  name: kube-manager
+spec:
+  allow:
+    rules:
+    - resources:
+      - kube_cluster
+      verbs:
+      - list
+      - create
+      - read
+      - update
+      - delete
+version: v5
+```
+
+Create the role:
+
+```code
+$ tctl create -f kube-manager.yaml
+```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
+
+(!docs/pages/includes/add-role-to-user.mdx role="kube-manager"!)
+
+## Step 3/3. Manage dynamic Kubernetes cluster resources
+
+Now that your Teleport user has permissions to manage Kubernetes cluster
+resources, we will show you how to create, list, update, and delete them. 
+
+### Create a kubeconfig
+
+In this section, you will create a Kubernetes `Config` resource, or kubeconfig,
+that your Teleport cluster will use to authenticate to your Kubernetes cluster.
+
+When you signed into Teleport earlier in this guide, `tsh` may have changed your
+Kubernetes context to one based on your Teleport cluster, so make sure you
+update your Kubernetes context to match the cluster you would like to connect to
+Teleport: 
+
+```code
+$ kubectl config get-contexts
+# Assign CONTEXT_NAME to your chosen context
+$ kubectl config use-context CONTEXT_NAME
+```
+
+On your workstation, download Teleport's `get-kubeconfig.sh` script, which you
+will use to generate the kubeconfig:
+
+```code
+$ curl -OL \
+https://raw.githubusercontent.com/gravitational/teleport/v(=teleport.version=)/examples/k8s-auth/get-kubeconfig.sh
+```
+
+The script creates a service account for the Teleport Kubernetes Service that
+can get Kubernetes pods as well as impersonate users, groups, and other service
+accounts. The Teleport Kubernetes Service uses this service account to manage
+access to resources in your Kubernetes cluster. The script also ensures that
+there is a Kubernetes `Secret` in your cluster to store service account
+credentials. 
+
+`get-kubeconfig.sh` creates a namespace called `teleport` for the resources it
+deploys, though you can choose a different name by assigning the
+`TELEPORT_NAMESPACE` environment variable in the shell where you run the script. 
+
+After creating resources, `get-kubeconfig.sh` writes a new kubeconfig to a file
+called `kubeconfig` in the directory where you run the script.
+
+Run the `get-kubeconfig.sh` script:
+
+```code
+$ bash get-kubeconfig.sh
+```
+
+The script is successful if you see this message:
+
+```text
+Done!
+```
+
+Ignore the script's instructions to copy the generated kubeconfig file to the
+Teleport Proxy Service. In the next section, we will show you how to use the
+kubeconfig file when creating a dynamic `kube_cluster` resource.
+
+### Create a Kubernetes cluster resource
+
+Define a `kube_cluster` resource with the following content in a file called
+`kube_cluster.yaml`:
+
+```yaml
+kind: kube_cluster
+version: v3
+metadata:
+  name: mycluster
+spec:
+  kubeconfig: |
+```
+
+The `spec.kubeconfig` field in the snippet above begins a multi-line string.
+Below, you will include the contents of the kubeconfig file as its value.
+
+Since `spec.kubeconfig` must be a base64-encoded string, convert the kubeconfig
+file to base64, then indent it and add it to the `kube_cluster.yaml` resource
+definition using the following command:
+
+```code
+$ printf "    %s" $(cat kubeconfig | base64) >> kube_cluster.yaml
+```
+
+<Details title="Add labels to your kube_cluster">
+
+You can add labels to the `kube_cluster` resource, allowing you to manage access
+to specific clusters from your Teleport roles or Kubernetes Service instances.
+
+Labels can either be static or dynamic. Static labels are key/value pairs. This
+example defines the `env=prod` and `team=dev` labels:
+
+```yaml
+kind: kube_cluster
+version: v3
+metadata:
+  name: mycluster
+  labels:
+    env: prod
+    team: dev
+spec:
+  kubeconfig: KUBECONFIG
+```
+
+You can also add dynamic labels, which define shell commands that a Kubernetes
+Service instance will execute in order to generate labels. To do so, edit the
+`spec.dynamic_labels` field of a `kube_cluster` resource. 
+
+This example runs the `python3 get_region.py` command to fetch the region in
+which the Kubernetes Service is deployed and assign the result to the `region`
+key:
+
+```yaml
+kind: kube_cluster
+version: v3
+metadata:
+  name: mycluster
+spec:
+  kubeconfig: KUBECONFIG
+  dynamic_labels:
+    region:
+      period: "24h"
+      command: ["python3", "get_region.py"]
+```
+
+When defining a dynamic label, the key within the `spec.dynamic_labels` field
+behaves the same as keys within the `metadata.labels` field, indicating the key
+of the label. 
+
+The Kubernetes Service obtains a value for that key by running the
+command given in `command` every `period`. `command` is an array of strings,
+where the first element indicates the command to execute and each subsequent
+element indicates an argument. 
+
+`period` is a Go duration string, which includes a number and a unit of time.
+Supported units are `ns`, `us` (or `µs`), `ms`, `s`, `m`, and `h`. The example
+above configures the Kubernetes Service to run the command every day.
+
+</Details>
+
+To create the `kube_cluster` resource, run the following command:
+
+```code
+$ tctl create kube_cluster.yaml
+kubernetes cluster "mycluster" has been created
+```
+
+### Access your new Kubernetes cluster
+
+Instances of the Teleport Kubernetes Service watch for newly created or updated
+`kube_cluster` resources. When you create the `kube_cluster` resource, any
+Kubernetes Service instances you have configured to track that cluster's labels
+will register that cluster and enable access to it via Teleport.
+
+As a result, you should now see the cluster you registered above when you run
+`tsh kube ls`: 
+
+```code
+$ tsh kube ls
+ Kube Cluster Name Labels                      Selected
+ ----------------- --------------------------- --------
+ mycluster         teleport.dev/origin=dynamic
+```
+
+The `teleport.dev/origin=dynamic` label indicates that the cluster was
+registered dynamically.
+
+You can also log in to the cluster you just registered:
+
+```code
+$ tsh kube login mycluster
+Logged into kubernetes cluster "mycluster". Try 'kubectl version' to test the
+connection.
+```
+
+### List Kubernetes cluster resources
+
+You can list `kube_cluster` resources with the following command:
+
+```code
+$ tctl get kube_clusters
+```
+
+### Update a Kubernetes cluster resource
+
+To update the `kube_cluster` resource you created earlier, execute the following
+command to open the resource as it exists on the Auth Service's backend in your
+text editor:
+
+```code
+$ tctl edit kube_clusters/mycluster
+```
+
+Edit the resource to add a label to your `kube_cluster`:
+
+```diff
+  kind: kube_cluster
+  metadata:
+    id: 9999999999999999999
+    labels:
+      teleport.dev/origin: dynamic
++     env: test
+    name: mycluster
+  spec:
+    aws: {}
+    azure: {}
+    kubeconfig: KUBECONFIG
+  version: v3
+```
+
+Save and close the file in your editor to apply your changes.
+
+You should now see the updated labels:
+
+```code
+$ tsh kube ls
+ Kube Cluster Name Labels                               Selected
+ ----------------- ------------------------------------ --------
+ mycluster         env=test teleport.dev/origin=dynamic *
+```
+
+<Notice type="warning">
+
+If the updated `kube_cluster` resource's labels no longer match the ones a Teleport
+Kubernetes Service instance is configured to watch, the instance will unregister
+and stop proxying the Kubernetes cluster.  
+
+</Notice>
+
+### Delete Kubernetes cluster resources
+
+To delete the `kube_cluster` resource you created earlier, run the following
+command:
+
+```code
+$ tctl rm kube_clusters/mycluster
+kubernetes cluster "mycluster" has been deleted
+```
+
+This will unregister the Kubernetes cluster from Teleport:
+
+```code
+$ tsh kube ls
+Kube Cluster Name Labels Selected
+----------------- ------ --------
+```
+
+## Next steps
+
+In this guide, we showed you how to manage `kube_cluster` resources using
+`tctl`. If you are interested in other ways you can manage access to Kubernetes
+clusters via Teleport, check out the following guides:
+
+- [Connect a Kubernetes Cluster to Teleport](../getting-started.mdx): How to use
+  the `teleport-kube-agent` Helm chart to register a Kubernetes cluster with
+  Teleport.
+- [Kubernetes Access from a Standalone Teleport
+  Cluster](./static-kubeconfig.mdx): How to use the Teleport Kubernetes
+  Service's configuration file to register a Kubernetes cluster with Teleport.

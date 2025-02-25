@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -118,11 +119,11 @@ func (a *App) run(ctx context.Context) error {
 
 	log := logger.Get(ctx)
 
-	log.Info("Access list monitor is running")
+	log.InfoContext(ctx, "Access list monitor is running")
 
 	a.job.SetReady(true)
 
-	jitter := retryutils.NewSeventhJitter()
+	jitter := retryutils.SeventhJitter
 	timer := a.clock.NewTimer(jitter(30 * time.Second))
 	defer timer.Stop()
 
@@ -134,7 +135,7 @@ func (a *App) run(ctx context.Context) error {
 			}
 			timer.Reset(jitter(reminderInterval))
 		case <-ctx.Done():
-			log.Info("Access list monitor is finished")
+			log.InfoContext(ctx, "Access list monitor is finished")
 			return nil
 		}
 	}
@@ -146,29 +147,42 @@ func (a *App) run(ctx context.Context) error {
 func (a *App) remindIfNecessary(ctx context.Context) error {
 	log := logger.Get(ctx)
 
-	log.Info("Looking for Access List Review reminders")
+	log.InfoContext(ctx, "Looking for Access List Review reminders")
 
 	var nextToken string
 	var err error
+	remindersLookup := make(map[common.Recipient][]*accesslist.AccessList)
 	for {
 		var accessLists []*accesslist.AccessList
 		accessLists, nextToken, err = a.apiClient.ListAccessLists(ctx, 0 /* default page size */, nextToken)
 		if err != nil {
 			if trace.IsNotImplemented(err) {
-				log.Errorf("access list endpoint is not implemented on this auth server, so the access list app is ceasing to run.")
+				log.ErrorContext(ctx, "access list endpoint is not implemented on this auth server, so the access list app is ceasing to run")
 				return trace.Wrap(err)
 			} else if trace.IsAccessDenied(err) {
-				log.Warnf("Slack bot does not have permissions to list access lists. Please add access_list read and list permissions " +
-					"to the role associated with the Slack bot.")
+				const msg = "Slack bot does not have permissions to list access lists. Please add access_list read and list permissions " +
+					"to the role associated with the Slack bot."
+				log.WarnContext(ctx, msg)
 			} else {
-				log.Errorf("error listing access lists: %v", err)
+				log.ErrorContext(ctx, "error listing access lists", "error", err)
 			}
 			break
 		}
 
 		for _, accessList := range accessLists {
-			if err := a.notifyForAccessListReviews(ctx, accessList); err != nil {
-				log.WithError(err).Warn("Error notifying for access list reviews")
+			recipients, err := a.getRecipientsRequiringReminders(ctx, accessList)
+			if err != nil {
+				log.WarnContext(ctx, "Error getting recipients to notify for review due for access list",
+					"error", err,
+					"access_list", accessList.Spec.Title,
+				)
+				continue
+			}
+
+			// Store all recipients and the accesslist needing review
+			// for later processing.
+			for _, recipient := range recipients {
+				remindersLookup[recipient] = append(remindersLookup[recipient], accessList)
 			}
 		}
 
@@ -177,12 +191,25 @@ func (a *App) remindIfNecessary(ctx context.Context) error {
 		}
 	}
 
+	// Send reminders for each collected recipients.
+	var errs []error
+	for recipient, accessLists := range remindersLookup {
+		if err := a.bot.SendReviewReminders(ctx, recipient, accessLists); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if len(errs) > 0 {
+		log.WarnContext(ctx, "Error notifying for access list reviews", "error", trace.NewAggregate(errs...))
+	}
+
 	return nil
 }
 
-// notifyForAccessListReviews will notify if access list review dates are getting close. At the moment, this
+// getRecipientsRequiringReminders will return recipients that require reminders only
+// if the access list review dates are getting close. At the moment, this
 // only supports notifying owners.
-func (a *App) notifyForAccessListReviews(ctx context.Context, accessList *accesslist.AccessList) error {
+func (a *App) getRecipientsRequiringReminders(ctx context.Context, accessList *accesslist.AccessList) ([]common.Recipient, error) {
 	log := logger.Get(ctx)
 
 	// Find the current notification window.
@@ -191,13 +218,16 @@ func (a *App) notifyForAccessListReviews(ctx context.Context, accessList *access
 
 	// If the current time before the notification start time, skip notifications.
 	if now.Before(notificationStart) {
-		log.Debugf("Access list %s is not ready for notifications, notifications start at %s", accessList.GetName(), notificationStart.Format(time.RFC3339))
-		return nil
+		log.DebugContext(ctx, "Access list is not ready for notifications",
+			"access_list", accessList.GetName(),
+			"notification_start_time", notificationStart.Format(time.RFC3339),
+		)
+		return nil, nil
 	}
 
 	allRecipients := a.fetchRecipients(ctx, accessList, now, notificationStart)
 	if len(allRecipients) == 0 {
-		return trace.NotFound("no recipients could be fetched for access list %s", accessList.GetName())
+		return nil, trace.NotFound("no recipients could be fetched for access list %s", accessList.GetName())
 	}
 
 	// Try to create base notification data with a zero notification date. If these objects already
@@ -212,23 +242,48 @@ func (a *App) notifyForAccessListReviews(ctx context.Context, accessList *access
 
 	// Error is okay so long as it's already exists.
 	if err != nil && !trace.IsAlreadyExists(err) {
-		return trace.Wrap(err, "during create")
+		return nil, trace.Wrap(err, "during create")
 	}
 
-	return trace.Wrap(a.sendMessages(ctx, accessList, allRecipients, now, notificationStart))
+	recipients, err := a.updatePluginDataAndGetRecipientsRequiringReminders(ctx, accessList, allRecipients, now, notificationStart)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return recipients, nil
 }
 
 // fetchRecipients will return all recipients.
 func (a *App) fetchRecipients(ctx context.Context, accessList *accesslist.AccessList, now, notificationStart time.Time) map[string]common.Recipient {
 	log := logger.Get(ctx)
 
-	allRecipients := make(map[string]common.Recipient, len(accessList.Spec.Owners))
+	var allOwners []*accesslist.Owner
+
+	allOwners, err := a.apiClient.GetAccessListOwners(ctx, accessList.GetName())
+	if err != nil {
+		// TODO(kiosion): Remove in v18; protecting against server not having `GetAccessListOwners` func.
+		if trace.IsNotImplemented(err) {
+			log.WarnContext(ctx, "Error getting nested owners for access list, continuing with only explicit owners",
+				"error", err,
+				"access_list", accessList.GetName(),
+			)
+			for _, owner := range accessList.Spec.Owners {
+				allOwners = append(allOwners, &owner)
+			}
+		} else {
+			log.ErrorContext(ctx, "Error getting owners for access list",
+				"error", err,
+				"access_list", accessList.GetName())
+		}
+	}
+
+	allRecipients := make(map[string]common.Recipient, len(allOwners))
 
 	// Get the owners from the bot as recipients.
-	for _, owner := range accessList.Spec.Owners {
+	for _, owner := range allOwners {
 		recipient, err := a.bot.FetchRecipient(ctx, owner.Name)
 		if err != nil {
-			log.Debugf("error getting recipient %s", owner.Name)
+			log.DebugContext(ctx, "error getting recipient", "recipient", owner.Name)
 			continue
 		}
 		allRecipients[owner.Name] = *recipient
@@ -237,8 +292,9 @@ func (a *App) fetchRecipients(ctx context.Context, accessList *accesslist.Access
 	return allRecipients
 }
 
-// sendMessages will send review notifications to owners and update the plugin data.
-func (a *App) sendMessages(ctx context.Context, accessList *accesslist.AccessList, allRecipients map[string]common.Recipient, now, notificationStart time.Time) error {
+// updatePluginDataAndGetRecipientsRequiringReminders will return recipients requiring reminders
+// and update the plugin data about when the recipient got notified.
+func (a *App) updatePluginDataAndGetRecipientsRequiringReminders(ctx context.Context, accessList *accesslist.AccessList, allRecipients map[string]common.Recipient, now, notificationStart time.Time) ([]common.Recipient, error) {
 	log := logger.Get(ctx)
 
 	var windowStart time.Time
@@ -250,7 +306,10 @@ func (a *App) sendMessages(ctx context.Context, accessList *accesslist.AccessLis
 		// Calculate days from start.
 		daysFromStart := now.Sub(notificationStart) / oneDay
 		windowStart = notificationStart.Add(daysFromStart * oneDay)
-		log.Infof("windowStart: %s, now: %s", windowStart.String(), now.String())
+		log.InfoContext(ctx, "calculating window start",
+			"window_start", logutils.StringerAttr(windowStart),
+			"now", logutils.StringerAttr(now),
+		)
 	}
 
 	recipients := []common.Recipient{}
@@ -261,7 +320,10 @@ func (a *App) sendMessages(ctx context.Context, accessList *accesslist.AccessLis
 
 			// If the notification window is before the last notification date, then this user doesn't need a notification.
 			if !windowStart.After(lastNotification) {
-				log.Debugf("User %s has already been notified for access list %s", recipient.Name, accessList.GetName())
+				log.DebugContext(ctx, "User has already been notified for access list",
+					"user", recipient.Name,
+					"access_list", accessList.GetName(),
+				)
 				userNotifications[recipient.Name] = lastNotification
 				continue
 			}
@@ -276,15 +338,8 @@ func (a *App) sendMessages(ctx context.Context, accessList *accesslist.AccessLis
 		return pd.AccessListNotificationData{UserNotifications: userNotifications}, nil
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	var errs []error
-	for _, recipient := range recipients {
-		if err := a.bot.SendReviewReminders(ctx, recipient, accessList); err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	return trace.NewAggregate(errs...)
+	return recipients, nil
 }

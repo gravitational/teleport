@@ -23,12 +23,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"slices"
 	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/integrations/lib/logger"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 
@@ -67,7 +68,7 @@ func onAfterResponseSlack(sink common.StatusSink) func(_ *resty.Client, resp *re
 			ctx, cancel := context.WithTimeout(context.Background(), statusEmitTimeout)
 			defer cancel()
 			if err := sink.Emit(ctx, status); err != nil {
-				log.Errorf("Error while emitting plugin status: %v", err)
+				logger.Get(ctx).ErrorContext(ctx, "Error while emitting plugin status", "error", err)
 			}
 		}()
 
@@ -111,11 +112,19 @@ func (b Bot) CheckHealth(ctx context.Context) error {
 }
 
 // SendReviewReminders will send a review reminder that an access list needs to be reviewed.
-func (b Bot) SendReviewReminders(ctx context.Context, recipient common.Recipient, accessList *accesslist.AccessList) error {
+func (b Bot) SendReviewReminders(ctx context.Context, recipient common.Recipient, accessLists []*accesslist.AccessList) error {
+	var blockItem []BlockItem
+
+	if len(accessLists) > 1 {
+		blockItem = b.slackAccessListBatchedReminderMsgSection(accessLists)
+	} else if len(accessLists) == 1 {
+		blockItem = b.slackAccessListReminderMsgSection(accessLists[0])
+	}
+
 	var result ChatMsgResponse
 	_, err := b.client.NewRequest().
 		SetContext(ctx).
-		SetBody(Message{BaseMessage: BaseMessage{Channel: recipient.ID}, BlockItems: b.slackAccessListReminderMsgSection(accessList)}).
+		SetBody(Message{BaseMessage: BaseMessage{Channel: recipient.ID}, BlockItems: blockItem}).
 		SetResult(&result).
 		Post("chat.postMessage")
 	return trace.Wrap(err)
@@ -130,7 +139,7 @@ func (b Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []com
 	// the case with most SSO setups.
 	userRecipient, err := b.FetchRecipient(ctx, reqData.User)
 	if err != nil {
-		log.Warningf("Unable to find user %s in Slack, will not be able to notify.", reqData.User)
+		logger.Get(ctx).WarnContext(ctx, "Unable to find user in Slack, will not be able to notify", "user", reqData.User)
 	}
 
 	// Include the user in the list of recipients if it exists.
@@ -269,25 +278,77 @@ func (b Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient
 	}, nil
 }
 
+// FetchOncallUsers fetches on-call users filtered by the provided annotations.
+func (b Bot) FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]string, error) {
+	return nil, trace.NotImplemented("fetch oncall users not implemented for plugin")
+}
+
 // slackAccessListReminderMsgSection builds an access list reminder Slack message section (obeys markdown).
 func (b Bot) slackAccessListReminderMsgSection(accessList *accesslist.AccessList) []BlockItem {
 	nextAuditDate := accessList.Spec.Audit.NextAuditDate
+
+	link := ""
+	if b.webProxyURL != nil {
+		reqURL := *b.webProxyURL
+		reqURL.Path = lib.BuildURLPath("web", "accesslists", accessList.Metadata.Name)
+		reqURL.Fragment = "review"
+		link = fmt.Sprintf("*Link*: %s", reqURL.String())
+	}
 
 	name := fmt.Sprintf("*%s*", accessList.Spec.Title)
 	var msg string
 	if b.clock.Now().After(nextAuditDate) {
 		daysSinceDue := int(b.clock.Since(nextAuditDate).Hours() / 24)
-		msg = fmt.Sprintf("Access List %s is %d day(s) past due for a review! Please review it.",
-			name, daysSinceDue)
+		msg = fmt.Sprintf("Access List %s is %d day(s) past due for a review! Please review it.\n%s",
+			name, daysSinceDue, link)
 	} else {
 		msg = fmt.Sprintf(
-			"Access List %s is due for a review by %s. Please review it soon!",
-			name, accessList.Spec.Audit.NextAuditDate.Format(time.DateOnly))
+			"Access List %s is due for a review by %s. Please review it soon!\n%s",
+			name, accessList.Spec.Audit.NextAuditDate.Format(time.DateOnly), link)
 	}
 
 	sections := []BlockItem{
 		NewBlockItem(SectionBlock{
 			Text: NewTextObjectItem(MarkdownObject{Text: msg}),
+		}),
+	}
+
+	return sections
+}
+
+// slackAccessListReminderMsgSection builds an access list reminder Slack message section (obeys markdown).
+func (b Bot) slackAccessListBatchedReminderMsgSection(accessLists []*accesslist.AccessList) []BlockItem {
+	// Sort by earliest date due.
+	slices.SortFunc(accessLists, func(a, b *accesslist.AccessList) int {
+		return a.Spec.Audit.NextAuditDate.Compare(b.Spec.Audit.NextAuditDate)
+	})
+
+	accessList := accessLists[0]
+
+	earliestNextAuditDate := accessList.Spec.Audit.NextAuditDate
+	numOfReviewsRequired := len(accessLists)
+	link := ""
+	dueDate := ""
+
+	if b.webProxyURL != nil {
+		reqURL := *b.webProxyURL
+		reqURL.Path = lib.BuildURLPath("web", "accesslists")
+		link = fmt.Sprintf("*Link*: %s", reqURL.String())
+	}
+
+	if b.clock.Now().After(earliestNextAuditDate) {
+		daysSinceDue := int(b.clock.Since(earliestNextAuditDate).Hours() / 24)
+		dueDate = fmt.Sprintf("earliest of which is %d day(s) past due. Please review!",
+			daysSinceDue)
+	} else {
+		dueDate = fmt.Sprintf(
+			"earliest of which is due by %s. Please review them soon!",
+			accessList.Spec.Audit.NextAuditDate.Format(time.DateOnly))
+	}
+
+	sections := []BlockItem{
+		NewBlockItem(SectionBlock{
+			Text: NewTextObjectItem(MarkdownObject{Text: fmt.Sprintf("%d Access Lists are due for reviews, %s\n%s", numOfReviewsRequired, dueDate, link)}),
 		}),
 	}
 

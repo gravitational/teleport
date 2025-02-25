@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 	"strconv"
@@ -31,19 +32,20 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/gcp"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // UserCommand implements `tctl users` set of commands
@@ -80,8 +82,8 @@ type UserCommand struct {
 }
 
 // Initialize allows UserCommand to plug itself into the CLI parser
-func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
-	const helpPrefix string = "[Teleport DB users only]"
+func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
+	const helpPrefix string = "[Teleport local users only]"
 
 	u.config = config
 	users := app.Command("users", "Manage user accounts.")
@@ -153,30 +155,38 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 }
 
 // TryRun takes the CLI command as an argument (like "users add") and executes it.
-func (u *UserCommand) TryRun(ctx context.Context, cmd string, client *auth.Client) (match bool, err error) {
+func (u *UserCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case u.userAdd.FullCommand():
-		err = u.Add(ctx, client)
+		commandFunc = u.Add
 	case u.userUpdate.FullCommand():
-		err = u.Update(ctx, client)
+		commandFunc = u.Update
 	case u.userList.FullCommand():
-		err = u.List(ctx, client)
+		commandFunc = u.List
 	case u.userDelete.FullCommand():
-		err = u.Delete(ctx, client)
+		commandFunc = u.Delete
 	case u.userResetPassword.FullCommand():
-		err = u.ResetPassword(ctx, client)
+		commandFunc = u.ResetPassword
 	default:
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
+
 	return true, trace.Wrap(err)
 }
 
 // ResetPassword resets user password and generates a token to setup new password
-func (u *UserCommand) ResetPassword(ctx context.Context, client *auth.Client) error {
-	req := auth.CreateUserTokenRequest{
+func (u *UserCommand) ResetPassword(ctx context.Context, client *authclient.Client) error {
+	req := authclient.CreateUserTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
-		Type: auth.UserTokenTypeResetPassword,
+		Type: authclient.UserTokenTypeResetPassword,
 	}
 	token, err := client.CreateResetPasswordToken(ctx, req)
 	if err != nil {
@@ -234,7 +244,7 @@ func (u *UserCommand) printResetPasswordToken(token types.UserToken, messageForm
 
 // Add implements `tctl users add` for the enterprise edition. Unlike the OSS
 // version, this one requires --roles flag to be set
-func (u *UserCommand) Add(ctx context.Context, client *auth.Client) error {
+func (u *UserCommand) Add(ctx context.Context, client *authclient.Client) error {
 	u.allowedRoles = flattenSlice(u.allowedRoles)
 	u.allowedLogins = flattenSlice(u.allowedLogins)
 	u.allowedWindowsLogins = flattenSlice(u.allowedWindowsLogins)
@@ -315,10 +325,10 @@ func (u *UserCommand) Add(ctx context.Context, client *auth.Client) error {
 		return trace.Wrap(err)
 	}
 
-	token, err := client.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+	token, err := client.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
-		Type: auth.UserTokenTypeResetPasswordInvite,
+		Type: authclient.UserTokenTypeResetPasswordInvite,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -364,7 +374,7 @@ func printTokenAsText(token types.UserToken, messageFormat string) error {
 }
 
 // Update updates existing user
-func (u *UserCommand) Update(ctx context.Context, client *auth.Client) error {
+func (u *UserCommand) Update(ctx context.Context, client *authclient.Client) error {
 	user, err := client.GetUser(ctx, u.login, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -472,7 +482,11 @@ func (u *UserCommand) Update(ctx context.Context, client *auth.Client) error {
 
 	for _, roleName := range user.GetRoles() {
 		if _, err := client.GetRole(ctx, roleName); err != nil {
-			log.Warnf("Error checking role %q when upserting user %q: %v", roleName, user.GetName(), err)
+			slog.WarnContext(ctx, "Error checking role when upserting user",
+				"role", roleName,
+				"user", user.GetName(),
+				"error", err,
+			)
 		}
 	}
 	if _, err := client.UpsertUser(ctx, user); err != nil {
@@ -486,7 +500,7 @@ func (u *UserCommand) Update(ctx context.Context, client *auth.Client) error {
 }
 
 // List prints all existing user accounts
-func (u *UserCommand) List(ctx context.Context, client *auth.Client) error {
+func (u *UserCommand) List(ctx context.Context, client *authclient.Client) error {
 	users, err := client.GetUsers(ctx, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -515,7 +529,7 @@ func (u *UserCommand) List(ctx context.Context, client *auth.Client) error {
 
 // Delete deletes teleport user(s). User IDs are passed as a comma-separated
 // list in UserCommand.login
-func (u *UserCommand) Delete(ctx context.Context, client *auth.Client) error {
+func (u *UserCommand) Delete(ctx context.Context, client *authclient.Client) error {
 	for _, l := range strings.Split(u.login, ",") {
 		if err := client.DeleteUser(ctx, l); err != nil {
 			return trace.Wrap(err)

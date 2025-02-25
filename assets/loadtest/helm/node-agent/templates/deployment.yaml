@@ -13,6 +13,8 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: {{ .Release.Name }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ .Release.Name }}
       containers:
@@ -20,14 +22,23 @@ spec:
         {{- $id := printf "%02d" $i }}
         - image: "{{ $.Values.image.repository }}:{{ default $.Chart.AppVersion $.Values.image.tag }}"
           name: agent-{{ $id }}
-          command: ["bash", "/etc/teleport-config/entrypoint.sh"]
+          command: ["/busybox/sh", "/etc/teleport-config/entrypoint.sh"]
           env:
             - name: REPLICA
               value: "{{ $id }}"
+            {{- if $.Values.tls.existingCASecretName }}
+            - name: SSL_CERT_FILE
+              value: /etc/teleport-tls-ca/ca.pem
+            {{- end }}
           volumeMounts:
             - mountPath: /etc/teleport-config
               name: config
               readOnly: true
+            {{- if $.Values.tls.existingCASecretName }}
+            - mountPath: /etc/teleport-tls-ca
+              name: "teleport-tls-ca"
+              readOnly: true
+            {{- end }}
           resources: {{- toYaml $.Values.resources | nindent 12 }}
         {{- end }}
       volumes:
@@ -35,6 +46,11 @@ spec:
             name: {{ .Release.Name }}
             defaultMode: 0766
           name: config
+        {{- if .Values.tls.existingCASecretName }}
+        - name: teleport-tls-ca
+          secret:
+            secretName: {{ .Values.tls.existingCASecretName }}
+        {{- end }}
       {{- if .Values.tolerations }}
       tolerations: {{ toYaml .Values.tolerations | nindent 8}}
       {{- end }}

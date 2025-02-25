@@ -18,7 +18,7 @@
 
 import styled from 'styled-components';
 
-export const ButtonIconContainer = styled.div<{ open: boolean }>`
+export const ButtonIconContainer = styled.div<{ open?: boolean }>`
   padding: 0 10px;
   height: 100%;
   display: flex;
@@ -36,7 +36,9 @@ export const ButtonIconContainer = styled.div<{ open: boolean }>`
 
   background: ${props =>
     props.open ? props.theme.colors.spotBackground[0] : ''};
-  &:hover {
+  &:hover,
+  &:focus-visible {
+    outline: none;
     background: ${props => props.theme.colors.spotBackground[0]};
   }
 `;

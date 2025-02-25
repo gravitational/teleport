@@ -38,9 +38,9 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/fixtures"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -381,7 +381,7 @@ func (p *pingSrv) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 }
 
 type mockClient struct {
-	*auth.Client
+	*authclient.Client
 
 	clusterName    types.ClusterName
 	userCerts      *proto.Certs
@@ -470,110 +470,6 @@ func (c *mockClient) GenerateCertAuthorityCRL(context.Context, types.CertAuthTyp
 	return c.crl, nil
 }
 
-func TestCheckKubeCluster(t *testing.T) {
-	const teleportCluster = "local-teleport"
-	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-		ClusterName: teleportCluster,
-	})
-	require.NoError(t, err)
-	client := &mockClient{
-		clusterName: clusterName,
-	}
-	tests := []struct {
-		desc               string
-		kubeCluster        string
-		leafCluster        string
-		outputFormat       identityfile.Format
-		registeredClusters []*types.KubernetesClusterV3
-		want               string
-		assertErr          require.ErrorAssertionFunc
-	}{
-		{
-			desc:         "non-k8s output format",
-			outputFormat: identityfile.FormatFile,
-			assertErr:    require.NoError,
-		},
-		{
-			desc:               "local cluster, valid kube cluster",
-			kubeCluster:        "foo",
-			leafCluster:        teleportCluster,
-			registeredClusters: []*types.KubernetesClusterV3{{Metadata: types.Metadata{Name: "foo"}}},
-			outputFormat:       identityfile.FormatKubernetes,
-			want:               "foo",
-			assertErr:          require.NoError,
-		},
-		{
-			desc:               "local cluster, empty kube cluster",
-			kubeCluster:        "",
-			leafCluster:        teleportCluster,
-			registeredClusters: []*types.KubernetesClusterV3{{Metadata: types.Metadata{Name: "foo"}}},
-			outputFormat:       identityfile.FormatKubernetes,
-			assertErr:          require.NoError,
-		},
-		{
-			desc:               "local cluster, empty kube cluster, no registered kube clusters",
-			kubeCluster:        "",
-			leafCluster:        teleportCluster,
-			registeredClusters: []*types.KubernetesClusterV3{},
-			outputFormat:       identityfile.FormatKubernetes,
-			want:               "",
-			assertErr:          require.NoError,
-		},
-		{
-			desc:               "local cluster, invalid kube cluster",
-			kubeCluster:        "bar",
-			leafCluster:        teleportCluster,
-			registeredClusters: []*types.KubernetesClusterV3{{Metadata: types.Metadata{Name: "foo"}}},
-			outputFormat:       identityfile.FormatKubernetes,
-			assertErr:          require.Error,
-		},
-		{
-			desc:               "remote cluster, empty kube cluster",
-			kubeCluster:        "",
-			leafCluster:        "remote-teleport",
-			registeredClusters: []*types.KubernetesClusterV3{{Metadata: types.Metadata{Name: "foo"}}},
-			outputFormat:       identityfile.FormatKubernetes,
-			want:               "",
-			assertErr:          require.NoError,
-		},
-		{
-			desc:               "remote cluster, non-empty kube cluster",
-			kubeCluster:        "bar",
-			leafCluster:        "remote-teleport",
-			registeredClusters: []*types.KubernetesClusterV3{{Metadata: types.Metadata{Name: "foo"}}},
-			outputFormat:       identityfile.FormatKubernetes,
-			want:               "bar",
-			assertErr:          require.NoError,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
-			client.kubeServers = []types.KubeServer{}
-			for _, kube := range tt.registeredClusters {
-				client.kubeServers = append(client.kubeServers, &types.KubernetesServerV3{
-					Metadata: types.Metadata{
-						Name: kube.GetName(),
-					},
-					Spec: types.KubernetesServerSpecV3{
-						Hostname: "host",
-						Cluster:  kube,
-					},
-				})
-			}
-			a := &AuthCommand{
-				kubeCluster:  tt.kubeCluster,
-				leafCluster:  tt.leafCluster,
-				outputFormat: tt.outputFormat,
-			}
-			err := a.checkKubeCluster(context.Background(), client)
-			tt.assertErr(t, err)
-			if err == nil {
-				require.Equal(t, tt.want, a.kubeCluster)
-			}
-		})
-	}
-}
-
 // TestGenerateDatabaseKeys verifies cert/key pair generation for databases.
 func TestGenerateDatabaseKeys(t *testing.T) {
 	clusterName, err := services.NewClusterNameWithRandomID(
@@ -603,7 +499,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 		cas: []types.CertAuthority{dbCA},
 	}
 
-	key, err := client.GenerateRSAKey()
+	keyRing, err := generateKeyRing(context.Background(), authClient, cryptosuites.DatabaseClient)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -627,7 +523,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outSubject:     pkix.Name{CommonName: "postgres.example.com"},
 			outServerNames: []string{"postgres.example.com"},
 			wantFiles: map[string][]byte{
-				"db.key": key.PrivateKeyPEM(),
+				"db.key": keyRing.TLSPrivateKey.PrivateKeyPEM(),
 				"db.crt": certBytes,
 				"db.cas": dbClientCABytes,
 			},
@@ -641,7 +537,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outSubject:     pkix.Name{CommonName: "mysql.external.net"},
 			outServerNames: []string{"mysql.external.net", "mysql.internal.net", "192.168.1.1"},
 			wantFiles: map[string][]byte{
-				"db.key": key.PrivateKeyPEM(),
+				"db.key": keyRing.TLSPrivateKey.PrivateKeyPEM(),
 				"db.crt": certBytes,
 				"db.cas": dbClientCABytes,
 			},
@@ -655,7 +551,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outSubject:     pkix.Name{CommonName: "mongo.example.com", Organization: []string{"example.com"}},
 			outServerNames: []string{"mongo.example.com"},
 			wantFiles: map[string][]byte{
-				"mongo.crt": append(certBytes, key.PrivateKeyPEM()...),
+				"mongo.crt": append(certBytes, keyRing.TLSPrivateKey.PrivateKeyPEM()...),
 				"mongo.cas": dbClientCABytes,
 			},
 		},
@@ -667,7 +563,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outSubject:     pkix.Name{CommonName: "node"},
 			outServerNames: []string{"node", "localhost", "roach1"}, // "node" principal should always be added
 			wantFiles: map[string][]byte{
-				"node.key":      key.PrivateKeyPEM(),
+				"node.key":      keyRing.TLSPrivateKey.PrivateKeyPEM(),
 				"node.crt":      certBytes,
 				"ca.crt":        dbServerCABytes,
 				"ca-client.crt": dbClientCABytes,
@@ -682,7 +578,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outSubject:     pkix.Name{CommonName: "localhost"},
 			outServerNames: []string{"localhost", "redis1", "172.0.0.1"},
 			wantFiles: map[string][]byte{
-				"db.key": key.PrivateKeyPEM(),
+				"db.key": keyRing.TLSPrivateKey.PrivateKeyPEM(),
 				"db.crt": certBytes,
 				"db.cas": dbClientCABytes,
 			},
@@ -707,7 +603,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 				genTTL:        time.Hour,
 			}
 
-			err = ac.generateDatabaseKeysForKey(context.Background(), authClient, key)
+			err = ac.generateDatabaseKeysForKeyRing(context.Background(), authClient, keyRing)
 			if test.genKeyErrMsg == "" {
 				require.NoError(t, err)
 			} else {

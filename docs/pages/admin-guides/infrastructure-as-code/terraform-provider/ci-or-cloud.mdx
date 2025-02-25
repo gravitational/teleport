@@ -1,0 +1,473 @@
+---
+title: Run the Teleport Terraform Provider in CI or Cloud
+description: How to manage dynamic resources using the Teleport Terraform provider from your CI pipelines or Cloud provider.
+---
+
+This guides covers how to run the Teleport Terraform Provider from:
+
+- your CI/CD pipelines on:
+  - GitHub Actions (we'll use the `github` join method)
+  - GitlabCI (we'll use the `gitlab` join method)
+  - CircleCI (we'll use the `circleci` join method)
+- a cloud VM on:
+  - AWS (we'll use the `aws` join method)
+  - GCP (we'll use the `gcp` join method)
+
+<Admonition type="note">
+Running the Terraform provider with native MachineID is supported on Azure, inside a Kubernetes pod,
+and on servers with Trusted Platform Module (TPM). While those setups are not described in details in this guide,
+you can follow their regular MachineID guides and replace the "Configure `tbot`" step by passing the
+join method and token to the provider.
+
+- [Azure MachineID guide](../../../enroll-resources/machine-id/deployment/azure.mdx)
+- [Kubernetes MachineID guide](../../../enroll-resources/machine-id/deployment/kubernetes.mdx)
+- [TPM MachineID guide](../../../enroll-resources/machine-id/deployment/linux-tpm.mdx)
+
+HCP Terraform (Terraform Cloud) and self-hosted Terraform Enterprise are
+supported but require special configuration, so refer to our
+[dedicated guide](./terraform-cloud.mdx).
+</Admonition>
+
+This guide does not cover running Teleport locally, on a dedicated server or on
+certain platforms. See the following more specific guides for those cases:
+- [Run the Terraform Provider locally](./local.mdx)
+- [Run the Teleport Terraform Provider on a server](./dedicated-server.mdx)
+- [Run the Teleport Terraform Provider on Spacelift](./spacelift.mdx)
+
+## How it works
+
+This setup asks the runtime (the CI/CD system, cloud provider, container engine, ...) for an identity
+proof. This proof is then used directly by the Terraform provider to connect to Teleport and obtain credentials.
+In this setup, there is no `tbot` daemon involved as the Terraform provider can natively obtain the identity proof
+and join the Teleport cluster.
+
+The setup only works for select runtimes which Teleport
+has [a delegated join method](../../../reference/join-methods.mdx#delegated-join-methods) for (e.g. GitHub Actions,
+GitLab CI, ...)
+
+## Prerequisites
+
+You need either:
+- A GCP or AWS VM with terraform installed
+- A git repo able to run GitHub Actions, GitLab CI or CircleCI jobs
+
+You also need:
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+## Step 1/4. Create the Terraform provider bot
+
+In this step you will create [a bot](../../../reference/architecture/machine-id-architecture.mdx#what-is-a-bot) named `terraform`.
+
+Create a file named `terraform-bot.yaml`:
+
+```yaml
+kind: bot
+version: v1
+metadata:
+  name: terraform
+spec:
+  # The terraform-provider is a default role shipped in Teleport granting access
+  # to every resource supported by the terraform provider.
+  roles: ["terraform-provider"]
+```
+
+Then apply it with `tctl`:
+
+```code
+$ tctl create terraform-bot.yaml
+
+This is an admin-level action and requires MFA to complete
+Tap any security key
+Detected security key tap
+bot "terraform" has been created
+```
+
+At this point, you should see your new bot:
+```code
+$ tctl bots ls
+
+Bot       User          Roles
+--------- ------------- ------------------
+terraform bot-terraform terraform-provider
+```
+
+## Step 2/4. Create the bot join token
+
+In this step you will create a token allowing a process to connect to Teleport as the `terraform` bot you created
+earlier.
+
+The token type and configuration depends on where the Terraform provider is running.
+See [the joining reference](../../../reference/join-methods.mdx) for more details about the joining process,
+the different join methods, types of tokens, and the fields they support.
+
+<Tabs>
+<TabItem label="GitHub Actions">
+To allow the Terraform Provider to join from GitHub Actions workflows in <Var name="organization/repository" />,
+create the following `terraform-bot-token.yaml`:
+
+```yaml
+kind: token
+version: v2
+metadata:
+  name: terraform-bot
+spec:
+  roles: [Bot]
+  join_method: github
+  bot_name: terraform
+  github:
+    # allow specifies rules that control which GitHub Actions runs will be
+    # granted access. Those not matching any allow rule will be denied.
+    allow:
+    - repository: <Var name="organization/repository"/>
+```
+
+</TabItem>
+<TabItem label="GitLab CI">
+To allow the Terraform Provider to join from GitLab CI pipelines in <Var name="group/project"/> on
+the <Var name="gitlab.example.com" /> GitLab instance, create the following `terraform-bot-token.yaml`:
+
+```yaml
+kind: token
+version: v2
+metadata:
+  name: terraform-bot
+spec:
+  roles: [Bot]
+  join_method: gitlab
+  bot_name: terraform
+  gitlab:
+    # domain should be the domain of your GitLab instance. If you are using
+    # GitLab's cloud hosted offering, omit this field entirely.
+    domain: <Var name="gitlab.example.com" />
+    # allow specifies rules that control which GitLab tokens will be accepted
+    # by Teleport. Tokens not matching any allow rule will be denied.
+    allow:
+      - project_path: <Var name="group/project"/>
+```
+</TabItem>
+<TabItem label="CircleCI">
+
+(!docs/pages/includes/machine-id/recover-circle-ci-claims.mdx!)
+
+Then, create the following `terraform-bot-token.yaml`, replacing <Var
+name="context-id" /> with your context ID:
+
+```yaml
+kind: token
+version: v2
+metadata:
+  name: terraform-bot
+spec:
+  roles: [Bot]
+  join_method: circleci
+  bot_name: terraform
+  circleci:
+    organization_id: <Var name="organization-id" />
+    # allow specifies the rules by which the Auth Service determines if `tbot`
+    # should be allowed to join.
+    allow:
+    - context_id: <Var name="context-id" />
+```
+</TabItem>
+<TabItem label="AWS">
+Make sure you have:
+- An AWS IAM role that you wish to grant access to your Teleport cluster. This role must be granted `sts:GetCallerIdentity`. In this guide, this role will be named <Var name="instance-iam-role" />.
+- An AWS EC2 virtual machine configured with the IAM role attached where you want to run the Terraform provider.
+- The AWS account ID: <Var name="111111111111" />
+
+Then, create the following `terraform-bot-token.yaml`:
+
+```yaml
+kind: token
+version: v2
+metadata:
+  name: terraform-bot
+spec:
+  roles: [Bot]
+  bot_name: terraform
+  join_method: iam
+  allow:
+    - aws_account: "<Var name="111111111111" />"
+      aws_arn: "arn:aws:sts::<Var name="organization-id" />:assumed-role/<Var name="instance-iam-role" />/i-*"
+```
+</TabItem>
+<TabItem label="GCP">
+Make sure you have:
+- A GCP Service Account (SA) attached to the VM you want to run the provider on. This cannot be the default compute SA. In this guide, this SA will be named <Var name="my-service-account" />.
+- The GCP project ID: <Var name="my-project-123456" />
+
+Then, create the following `terraform-bot-token.yaml`:
+
+```yaml
+kind: token
+version: v2
+metadata:
+  name: terraform-bot
+spec:
+  roles: [Bot]
+  bot_name: terraform
+  join_method: gcp
+  gcp:
+    allow:
+    - project_ids:
+        - "<Var name="my-project-123456" />"
+      service_accounts:
+        - "<Var name="my-service-account" />@<Var name="my-project-123456" />.iam.gserviceaccount.com"
+```
+</TabItem>
+</Tabs>
+
+Create the bot token described by the `terraform-bot-token.yaml` manifest:
+
+```code
+$ tctl create -f terraform-bot-token.yaml
+
+This is an admin-level action and requires MFA to complete
+Tap any security key
+Detected security key tap
+provision_token "terraform-bot" has been created
+```
+
+## Step 3/4. Configure your Terraform provider
+
+
+In this step you will write a minimal Terraform code that configures the provider to connect to your Teleport cluster
+and join with the token you previously created.
+
+To do this you need:
+ - your Teleport cluster domain including the port: <Var name="teleport.example.com:443" />.
+   You can find this in the URL when accessing the Web UI.
+ - the join method of the token you've created. This is the `spec.join_method` field in the `terraform-bot-token.yaml`:
+   <Var name="token-join-method" />.
+
+Create this minimal `main.tf` file:
+
+```hcl
+terraform {
+  required_providers {
+    teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = "~> (=teleport.major_version=).0"
+    }
+  }
+}
+
+provider "teleport" {
+  addr        = "<Var name="teleport.example.com:443" />"
+  join_method = "<Var name="token-join-method" />"
+  join_token  = "terraform-bot"
+}
+
+# We must create a test role, if we don't declare resources, Terraform won't try to
+# connect to Teleport and we won't be able to validate the setup.
+resource "teleport_role" "test" {
+  version = "v7"
+  metadata = {
+    name        = "test"
+    description = "Dummy role to validate Terraform Provider setup"
+    labels = {
+      test = "yes"
+    }
+  }
+
+  spec = {}
+}
+```
+
+<Tabs>
+<TabItem label="GitHub Actions">
+Copy the `main.tf` file in the GitHub repo that runs GitHub Actions pipelines.
+</TabItem>
+<TabItem label="GitLab CI">
+Copy the `main.tf` file in the GitLab repo that runs GitLab CI pipelines.
+</TabItem>
+<TabItem label="CircleCI">
+Copy the `main.tf` file in the Git repo that runs CircleCI pipelines.
+</TabItem>
+<TabItem label="AWS">
+Copy the `main.tf` file on the AWS VM you will run Terraform from.
+</TabItem>
+<TabItem label="GCP">
+Copy the `main.tf` file on the GCP VM you will run Terraform from.
+</TabItem>
+</Tabs>
+
+## Step 4/4. Run Terraform
+
+This step shows minimal examples on how to run Terraform based on your environment. This code uses the default local
+backend which is not fit for production purposes. Especially in CI, you must
+use [non-local Terraform backends](https://developer.hashicorp.com/terraform/language/settings/backends/configuration)
+so the Terraform state is persisted across CI pipelines.
+
+<Tabs>
+<TabItem label="GitHub Actions">
+In the repo containing your Terraform code, create a `.github/workflows/teleport-terraform.yaml` file with the
+following content:
+
+```yaml
+name: Teleport Terraform Demo
+# This is a basic workflow to help you get started.
+# It will take the following action whenever a push is made to the "main" branch.
+on:
+  push:
+    branches:
+    - main
+jobs:
+  demo:
+    permissions:
+      # The "id-token: write" permission is required or Machine ID will not be
+      # able to authenticate with the cluster.
+      id-token: write
+      contents: read
+    name: terraform-plan
+    runs-on: ubuntu-latest
+
+    # You can find more advanced TF workflows at https://github.com/hashicorp/setup-terraform
+    steps:
+    - uses: actions/checkout@v4
+    - uses: hashicorp/setup-terraform@v3
+    - name: Terraform Init
+      id: init
+      run: terraform init
+    - name: Terraform Plan
+      id: plan
+      run: terraform plan -no-color
+```
+
+Commit the changes and push to the `main` branch to trigger the GitHub Actions workflow.
+You should see a successful Terraform plan in the workflow logs.
+
+</TabItem>
+<TabItem label="GitLab CI">
+
+Recover your cluster name:
+```code
+$ tctl status
+
+Cluster       <Var name="teleport.example.com"/>
+Version       16.2.0
+# ...
+```
+
+In the repo containing your Terraform code, create the `.gitlab-ci.yaml` file if it does exist, and add the following
+content:
+
+```yaml
+stages:
+  - plan
+image:
+  name: hashicorp/terraform:1.9
+  entrypoint: [""]
+terraform-job:
+  stage: plan
+  # id_tokens configures ID Tokens that GitLab will automatically inject into
+  # the environment of your GitLab run.
+  #
+  # See https://docs.gitlab.com/ee/ci/secrets/id_token_authentication.html
+  # for further explanation of the id_tokens configuration in GitLab.
+  id_tokens:
+    TBOT_GITLAB_JWT:
+      # aud for TBOT_GITLAB_JWT must be configured with the name of your
+      # Teleport cluster. This is not necessarily the address of your Teleport
+      # cluster and will not include a port or scheme (http/https)
+      #
+      # This helps the Teleport Auth Server know that the token is intended for
+      # it, and not a different service or Teleport cluster.
+      aud: "<Var name="teleport.example.com"/>"
+  script:
+    - terraform init
+    - terraform plan
+```
+
+Commit the changes and push to any branch to trigger a Gitlab CI pipeline.
+You should see a successful Terraform plan in the pipeline logs.
+
+</TabItem>
+<TabItem label="CircleCI">
+In the repo containing your Terraform code add the following CircleCI config in `.circleci/config.yml`:
+```yaml
+version: '2.1'
+orbs:
+  terraform: circleci/terraform@3.1
+workflows:
+  deploy_infrastructure:
+    jobs:
+      - terraform/init:
+          tag: 1.9.5
+          checkout: true
+          context: <Var name="teleport-access" />
+      - terraform/plan:
+          tag: 1.9.5
+          context: <Var name="teleport-access" />
+          requires:
+            - terraform/init
+```
+
+Commit the changes and push to any branch to trigger a CircleCI pipeline.
+You should see a successful Terraform plan in the pipeline logs.
+
+</TabItem>
+<TabItem label="AWS">
+Run the Terraform commands on the EC2 instance:
+
+```code
+$ terraform init
+Initializing the backend...
+
+Initializing provider plugins...
+- Finding terraform.releases.teleport.dev/gravitational/teleport versions matching ...
+
+$ terraform plan
+Terraform used the selected providers to generate the following execution plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # teleport_role.test will be created
+  + resource "teleport_role" "test" {
+      + id       = (known after apply)
+      + kind     = (known after apply)
+      + metadata = {
+          + name      = "test"
+          + namespace = (known after apply)
+        }
+      + spec     = {}
+      + version  = "v7"
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+```
+</TabItem>
+<TabItem label="GCP">
+Run the Terraform commands on the GCP VM:
+
+```code
+$ terraform init
+Initializing the backend...
+
+Initializing provider plugins...
+- Finding terraform.releases.teleport.dev/gravitational/teleport versions matching ...
+
+$ terraform plan
+Terraform used the selected providers to generate the following execution plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # teleport_role.test will be created
+  + resource "teleport_role" "test" {
+      + id       = (known after apply)
+      + kind     = (known after apply)
+      + metadata = {
+          + name      = "test"
+          + namespace = (known after apply)
+        }
+      + spec     = {}
+      + version  = "v7"
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+```
+</TabItem>
+</Tabs>

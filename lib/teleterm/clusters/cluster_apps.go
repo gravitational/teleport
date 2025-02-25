@@ -25,11 +25,9 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/mfa"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/utils"
@@ -58,78 +56,11 @@ type SAMLIdPServiceProvider struct {
 	Provider types.SAMLIdPServiceProvider
 }
 
-// AppOrSAMLIdPServiceProvider holds either App or SAMLIdPServiceProvider but not both. It is
-// a teleterm version of [proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider].
-type AppOrSAMLIdPServiceProvider struct {
-	App                    *App
-	SAMLIdPServiceProvider *SAMLIdPServiceProvider
-}
-
-// GetApps returns a paginated apps list
-func (c *Cluster) GetApps(ctx context.Context, authClient auth.ClientI, r *api.GetAppsRequest) (*GetAppsResponse, error) {
-	var (
-		page apiclient.ResourcePage[types.AppServerOrSAMLIdPServiceProvider]
-		err  error
-	)
-
-	req := &proto.ListResourcesRequest{
-		Namespace:           defaults.Namespace,
-		ResourceType:        types.KindAppOrSAMLIdPServiceProvider,
-		Limit:               r.Limit,
-		SortBy:              types.GetSortByFromString(r.SortBy),
-		StartKey:            r.StartKey,
-		PredicateExpression: r.Query,
-		SearchKeywords:      client.ParseSearchKeywords(r.Search, ' '),
-		UseSearchAsRoles:    r.SearchAsRoles == "yes",
-	}
-
-	err = AddMetadataToRetryableError(ctx, func() error {
-		page, err = apiclient.GetResourcePage[types.AppServerOrSAMLIdPServiceProvider](ctx, authClient, req)
-		return trace.Wrap(err)
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	results := make([]AppOrSAMLIdPServiceProvider, 0, len(page.Resources))
-	for _, appServerOrProvider := range page.Resources {
-		if appServerOrProvider.IsAppServer() {
-			app := appServerOrProvider.GetAppServer().GetApp()
-			results = append(results, AppOrSAMLIdPServiceProvider{App: &App{
-				URI:      c.URI.AppendApp(app.GetName()),
-				FQDN:     c.AssembleAppFQDN(app),
-				AWSRoles: c.GetAWSRoles(app),
-				App:      app,
-			}})
-		} else {
-			provider := appServerOrProvider.GetSAMLIdPServiceProvider()
-			results = append(results, AppOrSAMLIdPServiceProvider{SAMLIdPServiceProvider: &SAMLIdPServiceProvider{
-				URI:      c.URI.AppendApp(provider.GetName()),
-				Provider: provider,
-			}})
-		}
-	}
-
-	return &GetAppsResponse{
-		Apps:       results,
-		StartKey:   page.NextKey,
-		TotalCount: page.Total,
-	}, nil
-}
-
-type GetAppsResponse struct {
-	Apps []AppOrSAMLIdPServiceProvider
-	// StartKey is the next key to use as a starting point.
-	StartKey string
-	// TotalCount is the total number of resources available as a whole.
-	TotalCount int
-}
-
-func (c *Cluster) getApp(ctx context.Context, authClient auth.ClientI, appName string) (types.Application, error) {
+func GetApp(ctx context.Context, authClient authclient.ClientI, appName string) (types.Application, error) {
 	var app types.Application
 	err := AddMetadataToRetryableError(ctx, func() error {
 		apps, err := apiclient.GetAllResources[types.AppServer](ctx, authClient, &proto.ListResourcesRequest{
-			Namespace:           c.clusterClient.Namespace,
+			Namespace:           apidefaults.Namespace,
 			ResourceType:        types.KindAppServer,
 			PredicateExpression: fmt.Sprintf(`name == "%s"`, appName),
 		})
@@ -148,51 +79,29 @@ func (c *Cluster) getApp(ctx context.Context, authClient auth.ClientI, appName s
 	return app, trace.Wrap(err)
 }
 
-// reissueAppCert issue new certificates for the app and saves them to disk.
-func (c *Cluster) reissueAppCert(ctx context.Context, clusterClient *client.ClusterClient, app types.Application) (tls.Certificate, error) {
-	if app.IsAWSConsole() || app.IsGCP() || app.IsAzureCloud() {
-		return tls.Certificate{}, trace.BadParameter("cloud applications are not supported")
-	}
+// ReissueAppCert issue new certificates for the app and saves them to disk.
+func (c *Cluster) ReissueAppCert(ctx context.Context, clusterClient *client.ClusterClient, routeToApp proto.RouteToApp) (tls.Certificate, error) {
 	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
 	err := clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
-		AccessRequests: c.status.ActiveRequests.AccessRequests,
+		AccessRequests: c.status.ActiveRequests,
 	})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	routeToApp := proto.RouteToApp{
-		Name:              app.GetName(),
-		PublicAddr:        app.GetPublicAddr(),
-		ClusterName:       c.clusterClient.SiteName,
-		AWSRoleARN:        "",
-		AzureIdentity:     "",
-		GCPServiceAccount: "",
-	}
-
-	// TODO (Joerger): DELETE IN v17.0.0
-	rootClient, err := clusterClient.ConnectToRootCluster(ctx)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-	defer rootClient.Close()
-	routeToApp.SessionID, err = auth.TryCreateAppSessionForClientCertV15(ctx, rootClient, c.status.Username, routeToApp)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
-	key, _, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
+	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
 		RouteToApp:     routeToApp,
-		AccessRequests: c.status.ActiveRequests.AccessRequests,
+		AccessRequests: c.status.ActiveRequests,
 		RequesterName:  proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
-	}, c.clusterClient.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("Application", routeToApp.Name)))
+		TTL:            c.clusterClient.KeyTTL,
+	})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	appCert, err := key.AppTLSCert(app.GetName())
+	appCert, err := keyRing.AppTLSCert(routeToApp.Name)
 	return appCert, trace.Wrap(err)
 }
 
@@ -234,4 +143,30 @@ func (c *Cluster) GetAWSRoles(app types.Application) aws.Roles {
 		return aws.FilterAWSRoles(c.GetAWSRolesARNs(), app.GetAWSAccountID())
 	}
 	return aws.Roles{}
+}
+
+// ValidateTargetPort parses rawTargetPort to uint32 and checks if it's included in TCP ports of app.
+// It also returns an error if app doesn't have any TCP ports defined.
+func ValidateTargetPort(app types.Application, rawTargetPort string) (uint32, error) {
+	if rawTargetPort == "" {
+		return 0, nil
+	}
+
+	targetPort, err := parseTargetPort(rawTargetPort)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	tcpPorts := app.GetTCPPorts()
+	if len(tcpPorts) == 0 {
+		return 0, trace.BadParameter("cannot specify target port %d because app %s does not provide access to multiple ports",
+			targetPort, app.GetName())
+	}
+
+	if !tcpPorts.Contains(int(targetPort)) {
+		return 0, trace.BadParameter("port %d is not included in target ports of app %s",
+			targetPort, app.GetName())
+	}
+
+	return targetPort, nil
 }

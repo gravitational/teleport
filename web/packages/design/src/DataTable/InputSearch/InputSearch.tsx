@@ -16,39 +16,63 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { JSX, SetStateAction } from 'react';
+import { FormEvent, JSX } from 'react';
 import styled from 'styled-components';
 
-import { height, space, color } from 'design/system';
+import {
+  color,
+  ColorProps,
+  height,
+  HeightProps,
+  space,
+  SpaceProps,
+} from 'design/system';
+
+const searchInputName = 'searchValue';
 
 export default function InputSearch({
   searchValue,
   setSearchValue,
   children,
+  bigInputSize = false,
+  autoFocus = false,
+  placeholder = 'Search...',
 }: Props) {
+  function submitSearch(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault(); // prevent form default
+
+    const formData = new FormData(e.currentTarget);
+    const searchValue = formData.get(searchInputName) as string;
+
+    setSearchValue(searchValue);
+  }
+
   return (
-    <WrapperBackground>
-      <Wrapper>
+    <WrapperBackground bigSize={bigInputSize}>
+      <Form onSubmit={submitSearch}>
         <StyledInput
-          placeholder="Search..."
+          bigInputSize={bigInputSize}
+          placeholder={placeholder}
           px={3}
-          value={searchValue}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-            setSearchValue(e.target.value)
-          }
+          defaultValue={searchValue}
+          name={searchInputName}
+          autoFocus={autoFocus}
         />
         <ChildWrapperBackground>
           <ChildWrapper>{children}</ChildWrapper>
         </ChildWrapperBackground>
-      </Wrapper>
+      </Form>
     </WrapperBackground>
   );
 }
 
 type Props = {
   searchValue: string;
-  setSearchValue: React.Dispatch<SetStateAction<string>>;
+  setSearchValue: (searchValue: string) => void;
   children?: JSX.Element;
+  bigInputSize?: boolean;
+  autoFocus?: boolean;
+  placeholder?: string;
 };
 
 const ChildWrapper = styled.div`
@@ -73,7 +97,7 @@ const ChildWrapperBackground = styled.div`
   border-radius: 0 200px 200px 0;
 `;
 
-const Wrapper = styled.div`
+const Form = styled.form`
   position: relative;
   display: flex;
   overflow: hidden;
@@ -83,18 +107,23 @@ const Wrapper = styled.div`
   max-width: 725px;
 `;
 
-const WrapperBackground = styled.div`
+const WrapperBackground = styled.div<{ bigSize: boolean }>`
   border-radius: 200px;
   width: 100%;
-  height: ${props => props.theme.space[8]}px;
-  margin-bottom: 12px;
+  height: ${props =>
+    props.bigSize ? props.theme.space[7] : props.theme.space[6]}px;
 `;
 
-const StyledInput = styled.input`
+interface StyledInputProps extends ColorProps, SpaceProps, HeightProps {
+  bigInputSize: boolean;
+}
+
+const StyledInput = styled.input<StyledInputProps>`
   border: none;
   outline: none;
   box-sizing: border-box;
-  font-size: ${props => props.theme.fontSizes[3]}px;
+  font-size: ${props =>
+    props.bigInputSize ? props.theme.fontSizes[3] : props.theme.fontSizes[2]}px;
   width: 100%;
   transition: all 0.2s;
   ${color}

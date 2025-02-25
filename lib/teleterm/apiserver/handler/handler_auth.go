@@ -28,14 +28,14 @@ import (
 
 // Login logs in a user to a cluster
 func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyResponse, error) {
-	cluster, clusterClient, err := s.DaemonService.ResolveCluster(req.ClusterUri)
+	cluster, _, err := s.DaemonService.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// The credentials + MFA login flow in the Electron app assumes that the default CLI prompt is
-	// used and works around that. Thus we have to remove the teleterm-specific MFAPromptConstructor
-	// added by daemon.Service.ResolveClusterURI.
-	clusterClient.MFAPromptConstructor = nil
+
+	if !cluster.URI.IsRoot() {
+		return nil, trace.BadParameter("cluster URI must be a root URI")
+	}
 
 	if err = s.DaemonService.ClearCachedClientsForRoot(cluster.URI); err != nil {
 		return nil, trace.Wrap(err)
@@ -58,11 +58,6 @@ func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyR
 		return nil, trace.BadParameter("unsupported login parameters")
 	}
 
-	// Don't wait for the headless watcher to initialize as this could slow down logins.
-	if err := s.DaemonService.StartHeadlessWatcher(req.ClusterUri, false /* waitInit */); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return &api.EmptyResponse{}, nil
 }
 
@@ -83,6 +78,11 @@ func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordless
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if !cluster.URI.IsRoot() {
+		return trace.BadParameter("cluster URI must be a root URI")
+	}
+
 	// The passwordless login flow in the Electron app assumes that the default CLI prompt is used and
 	// works around that. Thus we have to remove the teleterm-specific MFAPromptConstructor added by
 	// daemon.Service.ResolveClusterURI.
@@ -94,11 +94,6 @@ func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordless
 
 	// Start the prompt flow.
 	if err := cluster.PasswordlessLogin(stream.Context(), stream); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Don't wait for the headless watcher to initialize as this could slow down logins.
-	if err := s.DaemonService.StartHeadlessWatcher(initReq.GetClusterUri(), false /* waitInit */); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -127,8 +122,6 @@ func (s *Handler) GetAuthSettings(ctx context.Context, req *api.GetAuthSettingsR
 	}
 
 	result := &api.AuthSettings{
-		PreferredMfa:       string(preferences.PreferredLocalMFA),
-		SecondFactor:       string(preferences.SecondFactor),
 		LocalAuthEnabled:   preferences.LocalAuthEnabled,
 		AuthType:           preferences.AuthType,
 		AllowPasswordless:  preferences.AllowPasswordless,
@@ -144,4 +137,16 @@ func (s *Handler) GetAuthSettings(ctx context.Context, req *api.GetAuthSettingsR
 	}
 
 	return result, nil
+}
+
+// StartHeadlessWatcher starts a headless watcher.
+// If the watcher is already running, it is restarted.
+func (s *Handler) StartHeadlessWatcher(_ context.Context, req *api.StartHeadlessWatcherRequest) (*api.StartHeadlessWatcherResponse, error) {
+	// Don't wait for the headless watcher to initialize
+	err := s.DaemonService.StartHeadlessWatcher(req.RootClusterUri, false /* waitInit */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &api.StartHeadlessWatcherResponse{}, nil
 }

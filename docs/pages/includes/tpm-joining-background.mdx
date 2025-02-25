@@ -1,6 +1,6 @@
 The `tpm` join method is a secure way for Bots and Agents to authenticate with
 the Teleport Auth Service without using any shared secrets. Instead of using a
-hared secret, the unique identity of the host's Trusted Platform Module (TPM)
+shared secret, the unique identity of the host's Trusted Platform Module (TPM)
 and public key cryptography is used to authenticate the host.
 
 In environments where there is no other form of identity available to machines,
@@ -11,7 +11,8 @@ A Trusted Platform Module (TPM) is a secure, physical cryptoprocessor that is
 installed on a host. TPMs can store cryptographic material and perform a number
 of cryptographic operations, without exposing the cryptographic material to the
 operating system. Each TPM has a unique key pair burned-in known as the
-Endorsement Key (EK).
+Endorsement Key (EK). This key does not change, even if the host operating
+system is reinstalled.
 
 Some TPMs also contain an X.509 certificate for this key pair that is signed by
 the manufacturer's CA. This is known as the EK Certificate (EKCert). This
@@ -19,11 +20,12 @@ certificate can be used by the TPM to prove to a third-party (who trusts the
 manufacturer's CA) that the TPM is genuine and abides by the TPM specification.
 
 When using the `tpm` join method, you must first query the TPM's public key and
-then create a join token that explicitly allows this public key. Even if the
-host operating system is reinstalled, the EK public key will not change, meaning
-that the TPM will still be usable to join your Teleport cluster. If you have a
-large number of hosts, it may make sense to use automation tooling such as
-ansible to query the TPMs across your fleet and then generate join tokens.
+then create a join token that explicitly allows this public key. To list
+information about the detected TPM, run the `teleport tpm identify` command.
+
+If you have a large number of hosts, it may make sense to use automation tooling
+such as Ansible to query the TPMs across your fleet and then generate join
+tokens.
 
 <Admonition type="warning">
 The `tpm` join method is currently not compatible with FIPS 140-2.

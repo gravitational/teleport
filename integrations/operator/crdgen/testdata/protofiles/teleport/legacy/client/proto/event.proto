@@ -1,28 +1,40 @@
-/*
- * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// Copyright 2023 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 syntax = "proto3";
 
 package proto;
 
 import "teleport/accesslist/v1/accesslist.proto";
+import "teleport/accessmonitoringrules/v1/access_monitoring_rules.proto";
+import "teleport/autoupdate/v1/autoupdate.proto";
+import "teleport/clusterconfig/v1/access_graph_settings.proto";
+import "teleport/crownjewel/v1/crownjewel.proto";
+import "teleport/dbobject/v1/dbobject.proto";
+import "teleport/discoveryconfig/v1/discoveryconfig.proto";
+import "teleport/identitycenter/v1/identitycenter.proto";
+import "teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto";
 import "teleport/legacy/types/types.proto";
+import "teleport/machineid/v1/bot_instance.proto";
+import "teleport/machineid/v1/federation.proto";
+import "teleport/notifications/v1/notifications.proto";
+import "teleport/provisioning/v1/provisioning.proto";
+import "teleport/secreports/v1/secreports.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
+import "teleport/userprovisioning/v2/statichostuser.proto";
+import "teleport/usertasks/v1/user_tasks.proto";
+import "teleport/workloadidentity/v1/resource.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
 
@@ -40,6 +52,12 @@ enum Operation {
 // Event returns cluster event
 message Event {
   reserved 7;
+  reserved 49;
+  reserved 63;
+  reserved 68;
+  reserved "ExternalCloudAudit";
+  reserved "StaticHostUser";
+  reserved "AutoUpdateAgentPlan";
 
   // Operation identifies operation
   Operation Type = 1;
@@ -137,5 +155,61 @@ message Event {
     teleport.userloginstate.v1.UserLoginState UserLoginState = 46;
     // AccessListMember is an access list member resource.
     teleport.accesslist.v1.Member AccessListMember = 47;
+    // DiscoveryConfig contains a list of matchers to be loaded dynamically by Discovery Services.
+    teleport.discoveryconfig.v1.DiscoveryConfig DiscoveryConfig = 48;
+    // AuditQuery is an audit query resource.
+    teleport.secreports.v1.AuditQuery AuditQuery = 50;
+    // SecurityReport is a security report resource.
+    teleport.secreports.v1.Report Report = 51;
+    // SecurityReportState is a security report state resource.
+    teleport.secreports.v1.ReportState ReportState = 52;
+    // AccessListReview is an access list review resource.
+    teleport.accesslist.v1.Review AccessListReview = 53;
+    // AccessMonitoringRule is an access monitoring rule resource.
+    teleport.accessmonitoringrules.v1.AccessMonitoringRule AccessMonitoringRule = 54;
+    // KubernetesWaitingContainer is a Kubernetes ephemeral container
+    // waiting to be created.
+    teleport.kubewaitingcontainer.v1.KubernetesWaitingContainer KubernetesWaitingContainer = 55;
+    // UserNotification is a user notification resource.
+    teleport.notifications.v1.Notification UserNotification = 56;
+    // GlobalNotification is a global notification resource.
+    teleport.notifications.v1.GlobalNotification GlobalNotification = 57;
+    // CrownJewel is a Crown Jewel resource.
+    teleport.crownjewel.v1.CrownJewel CrownJewel = 58;
+    // DatabaseObject is a database object resource.
+    teleport.dbobject.v1.DatabaseObject DatabaseObject = 59;
+    // BotInstance is a Machine ID bot instance.
+    teleport.machineid.v1.BotInstance BotInstance = 60;
+    // AccessGraphSettings is a resource for access graph settings.
+    teleport.clusterconfig.v1.AccessGraphSettings AccessGraphSettings = 61;
+    // SPIFFEFederation is a resource for SPIFFE federation.
+    teleport.machineid.v1.SPIFFEFederation SPIFFEFederation = 62;
+    // AutoUpdateConfig is a resource for autoupdate config.
+    teleport.autoupdate.v1.AutoUpdateConfig AutoUpdateConfig = 64;
+    // AutoUpdateVersion is a resource for autoupdate version.
+    teleport.autoupdate.v1.AutoUpdateVersion AutoUpdateVersion = 65;
+    // StaticHostUserV2 is a resource for static host users.
+    teleport.userprovisioning.v2.StaticHostUser StaticHostUserV2 = 66;
+    // UserTask is a resource for user task.
+    teleport.usertasks.v1.UserTask UserTask = 67;
+    // DynamicWindowsDesktop is a resource for dynamic Windows desktop host.
+    types.DynamicWindowsDesktopV1 DynamicWindowsDesktop = 69;
+    // ProvisioningPrincipalState is a resource for tracking the provisioning of
+    // users and groups into downstream systems.
+    teleport.provisioning.v1.PrincipalState ProvisioningPrincipalState = 70;
+    // AutoUpdateVersion is a resource for controlling the autoupdate agent rollout.
+    teleport.autoupdate.v1.AutoUpdateAgentRollout AutoUpdateAgentRollout = 71;
+    // IdentityCenterAccount is a resource for tracking Identity Center accounts
+    teleport.identitycenter.v1.Account IdentityCenterAccount = 72;
+    // IdentityCenterPrincipalAssignment is a resource for tracking the AWS
+    // Permission Sets assigned to a Teleport user or AAccess List
+    teleport.identitycenter.v1.PrincipalAssignment IdentityCenterPrincipalAssignment = 73;
+    // IdentityCenterAccountlAssignment is a resource representing a potential
+    // Permission Set grant on a specific AWS account.
+    teleport.identitycenter.v1.AccountAssignment IdentityCenterAccountAssignment = 74;
+    // PluginStaticCredentials is filled in PluginStaticCredentials related events
+    types.PluginStaticCredentialsV1 PluginStaticCredentials = 75;
+    // WorkloadIdentity is a resource for workload identity.
+    teleport.workloadidentity.v1.WorkloadIdentity WorkloadIdentity = 76;
   }
 }

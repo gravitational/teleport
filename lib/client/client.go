@@ -47,19 +47,20 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/socks"
 )
 
 // NodeClient implements ssh client to a ssh node (teleport or any regular ssh node)
 // NodeClient can run shell and commands or upload and download files.
 type NodeClient struct {
-	Namespace   string
 	Tracer      oteltrace.Tracer
 	Client      *tracessh.Client
 	TC          *TeleportClient
@@ -117,10 +118,9 @@ type ReissueParams struct {
 	KubernetesCluster string
 	AccessRequests    []string
 	// See [proto.UserCertsRequest.DropAccessRequests].
-	DropAccessRequests    []string
-	RouteToDatabase       proto.RouteToDatabase
-	RouteToApp            proto.RouteToApp
-	RouteToWindowsDesktop proto.RouteToWindowsDesktop
+	DropAccessRequests []string
+	RouteToDatabase    proto.RouteToDatabase
+	RouteToApp         proto.RouteToApp
 
 	// ExistingCreds is a gross hack for lib/web/terminal.go to pass in
 	// existing user credentials. The TeleportClient in lib/web/terminal.go
@@ -130,15 +130,20 @@ type ReissueParams struct {
 	//
 	// TODO(awly): refactor lib/web to use a Keystore implementation that
 	// mimics LocalKeystore and remove this.
-	ExistingCreds *Key
+	ExistingCreds *KeyRing
 
 	// MFACheck is optional parameter passed if MFA check was already done.
 	// It can be nil.
 	MFACheck *proto.IsMFARequiredResponse
 	// AuthClient is the client used for the MFACheck that can be reused
-	AuthClient auth.ClientI
+	AuthClient authclient.ClientI
 	// RequesterName identifies who is sending the cert reissue request.
 	RequesterName proto.UserCertsRequest_Requester
+	// TTL defines the maximum time-to-live for user certificates.
+	// This variable sets the upper limit on the duration for which a certificate
+	// remains valid. It's bounded by the `max_session_ttl` or `mfa_verification_interval`
+	// if MFA is required.
+	TTL time.Duration
 }
 
 func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
@@ -159,8 +164,6 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 		// App means a request for a TLS certificate for access to a specific
 		// web app, as specified by RouteToApp.
 		return proto.UserCertsRequest_App
-	case p.RouteToWindowsDesktop.WindowsDesktop != "":
-		return proto.UserCertsRequest_WindowsDesktop
 	default:
 		// All means a request for both SSH and TLS certificates for the
 		// overall user session. These certificates are not specific to any SSH
@@ -169,7 +172,7 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 	}
 }
 
-func (p ReissueParams) isMFARequiredRequest(sshLogin string) *proto.IsMFARequiredRequest {
+func (p ReissueParams) isMFARequiredRequest(sshLogin string) (*proto.IsMFARequiredRequest, error) {
 	req := new(proto.IsMFARequiredRequest)
 	switch {
 	case p.NodeName != "":
@@ -178,12 +181,12 @@ func (p ReissueParams) isMFARequiredRequest(sshLogin string) *proto.IsMFARequire
 		req.Target = &proto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: p.KubernetesCluster}
 	case p.RouteToDatabase.ServiceName != "":
 		req.Target = &proto.IsMFARequiredRequest_Database{Database: &p.RouteToDatabase}
-	case p.RouteToWindowsDesktop.WindowsDesktop != "":
-		req.Target = &proto.IsMFARequiredRequest_WindowsDesktop{WindowsDesktop: &p.RouteToWindowsDesktop}
 	case p.RouteToApp.Name != "":
 		req.Target = &proto.IsMFARequiredRequest_App{App: &p.RouteToApp}
+	default:
+		return nil, trace.BadParameter("reissue params have no valid MFA target")
 	}
-	return req
+	return req, nil
 }
 
 // CertCachePolicy describes what should happen to the certificate cache when a
@@ -205,16 +208,16 @@ const (
 // makeDatabaseClientPEM returns appropriate client PEM file contents for the
 // specified database type. Some databases only need certificate in the PEM
 // file, others both certificate and key.
-func makeDatabaseClientPEM(proto string, cert []byte, pk *Key) ([]byte, error) {
+func makeDatabaseClientPEM(proto string, cert []byte, pk *keys.PrivateKey) ([]byte, error) {
 	// MongoDB expects certificate and key pair in the same pem file.
 	if proto == defaults.ProtocolMongoDB {
-		rsaKeyPEM, err := pk.PrivateKey.RSAPrivateKeyPEM()
+		keyPEM, err := pk.SoftwarePrivateKeyPEM()
 		if err == nil {
-			return append(cert, rsaKeyPEM...), nil
+			return append(cert, keyPEM...), nil
 		} else if !trace.IsBadParameter(err) {
 			return nil, trace.Wrap(err)
 		}
-		log.WithError(err).Warn("MongoDB integration is not supported when logging in with a non-rsa private key.")
+		log.WarnContext(context.Background(), "MongoDB integration is not supported when logging in with a hardware private key", "error", err)
 	}
 	return cert, nil
 }
@@ -229,7 +232,7 @@ type PromptMFAChallengeHandler func(ctx context.Context, proxyAddr string, c *pr
 // sharedAuthClient is a wrapper around auth.ClientI which
 // prevents the underlying client from being closed.
 type sharedAuthClient struct {
-	auth.ClientI
+	authclient.ClientI
 }
 
 // Close is a no-op
@@ -238,13 +241,13 @@ func (a sharedAuthClient) Close() error {
 }
 
 // nodeName removes the port number from the hostname, if present
-func nodeName(node targetNode) string {
-	if node.hostname != "" {
-		return node.hostname
+func nodeName(node TargetNode) string {
+	if node.Hostname != "" {
+		return node.Hostname
 	}
-	n, _, err := net.SplitHostPort(node.addr)
+	n, _, err := net.SplitHostPort(node.Addr)
 	if err != nil {
-		return node.addr
+		return node.Addr
 	}
 	return n
 }
@@ -253,8 +256,6 @@ func nodeName(node targetNode) string {
 type NodeDetails struct {
 	// Addr is an address to dial
 	Addr string
-	// Namespace is the node namespace
-	Namespace string
 	// Cluster is the name of the target cluster
 	Cluster string
 
@@ -268,7 +269,7 @@ type NodeDetails struct {
 
 // String returns a user-friendly name
 func (n NodeDetails) String() string {
-	parts := []string{nodeName(targetNode{addr: n.Addr})}
+	parts := []string{nodeName(TargetNode{Addr: n.Addr})}
 	if n.Cluster != "" {
 		parts = append(parts, "on cluster", n.Cluster)
 	}
@@ -278,10 +279,7 @@ func (n NodeDetails) String() string {
 // ProxyFormat returns the address in the format
 // used by the proxy subsystem
 func (n *NodeDetails) ProxyFormat() string {
-	parts := []string{n.Addr}
-	if n.Namespace != "" {
-		parts = append(parts, n.Namespace)
-	}
+	parts := []string{n.Addr, apidefaults.Namespace}
 	if n.Cluster != "" {
 		parts = append(parts, n.Cluster)
 	}
@@ -330,8 +328,12 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 			// TODO(codingllama): Improve error message below for device trust.
 			//  An alternative we have here is querying the cluster to check if device
 			//  trust is required, a check similar to `IsMFARequired`.
-			log.Infof("Access denied to %v connecting to %v: %v", sshConfig.User, nodeName, err)
-			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, sshConfig.User, nodeName)
+			log.InfoContext(ctx, "Access denied connecting to host",
+				"login", sshConfig.User,
+				"target_host", nodeName,
+				"error", err,
+			)
+			return nil, trace.AccessDenied("access denied to %v connecting to %v", sshConfig.User, nodeName)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -343,7 +345,6 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 
 	nc := &NodeClient{
 		Client:          tracessh.NewClient(sshconn, chans, emptyCh),
-		Namespace:       apidefaults.Namespace,
 		TC:              tc,
 		Tracer:          tc.Tracer,
 		FIPSEnabled:     fipsEnabled,
@@ -366,7 +367,7 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 // RunInteractiveShell creates an interactive shell on the node and copies stdin/stdout/stderr
 // to and from the node and local shell. This will block until the interactive shell on the node
 // is terminated.
-func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.SessionParticipantMode, sessToJoin types.SessionTracker, beforeStart func(io.Writer)) error {
+func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.SessionParticipantMode, sessToJoin types.SessionTracker, chanReqCallback tracessh.ChannelRequestCallback, beforeStart func(io.Writer)) error {
 	ctx, span := c.Tracer.Start(
 		ctx,
 		"nodeClient/RunInteractiveShell",
@@ -395,7 +396,7 @@ func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.Session
 		return trace.Wrap(err)
 	}
 
-	if err = nodeSession.runShell(ctx, mode, beforeStart, c.TC.OnShellCreated); err != nil {
+	if err = nodeSession.runShell(ctx, mode, c.TC.OnChannelRequest, beforeStart, c.TC.OnShellCreated); err != nil {
 		var exitErr *ssh.ExitError
 		var exitMissingErr *ssh.ExitMissingError
 		switch err := trace.Unwrap(err); {
@@ -419,68 +420,93 @@ func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.Session
 
 // lineLabeledWriter is an io.Writer that prepends a label to each line it writes.
 type lineLabeledWriter struct {
-	linePrefix        []byte
-	w                 io.Writer
-	shouldWritePrefix bool
+	linePrefix    string
+	w             io.Writer
+	maxLineLength int
+	buf           *bytes.Buffer
 }
 
-func newLineLabeledWriter(w io.Writer, label string) io.Writer {
+const defaultLabeledLineLength = 1024
+
+func newLineLabeledWriter(w io.Writer, label string, maxLineLength int) (io.WriteCloser, error) {
+	prefix := "[" + label + "] "
+	if maxLineLength == 0 {
+		maxLineLength = defaultLabeledLineLength
+	}
+	if maxLineLength <= len(prefix) {
+		return nil, trace.BadParameter("maxLineLength of %v is too short", maxLineLength)
+	}
+
+	buf := &bytes.Buffer{}
+	buf.Grow(maxLineLength + 1)
 	return &lineLabeledWriter{
-		linePrefix:        []byte(fmt.Sprintf("[%v] ", label)),
-		w:                 w,
-		shouldWritePrefix: true,
-	}
+		linePrefix:    prefix,
+		w:             w,
+		maxLineLength: maxLineLength,
+		buf:           buf,
+	}, nil
 }
 
-func (lw *lineLabeledWriter) writeChunk(b []byte, bytesWritten int, newline bool) (int, error) {
-	n, err := lw.w.Write(b)
-	bytesWritten += n
-	if err != nil {
-		return bytesWritten, trace.Wrap(err)
-	}
-	if newline {
-		n, err = lw.w.Write([]byte("\n"))
-		bytesWritten += n
-	}
-	return bytesWritten, trace.Wrap(err)
-}
-
+// Write writes data to the output writer. The underlying writer will only
+// receive complete lines at a time.
 func (lw *lineLabeledWriter) Write(input []byte) (int, error) {
 	bytesWritten := 0
-	var line []byte
 	rest := input
-	var found bool
-	for {
-		line, rest, found = bytes.Cut(rest, []byte("\n"))
-		// Write the prefix unless we're either continuing a line from the last
-		// write or we're at the end.
-		if lw.shouldWritePrefix && (len(line) > 0 || found) {
-			// Write the prefix on its own to not mess with the eventual returned
-			// number of bytes written.
-			if _, err := lw.w.Write(lw.linePrefix); err != nil {
+
+	for len(rest) > 0 {
+		origLine := rest
+		var line []byte
+		var writeLine bool
+		line, rest, writeLine = bytes.Cut(origLine, []byte("\n"))
+		// If the buffer is empty and we receive new data, it's a new line and
+		// we should add the prefix.
+		if lw.buf.Len() == 0 && (len(line) > 0 || writeLine) {
+			lw.buf.WriteString(lw.linePrefix)
+		}
+
+		// If we overflowed a line, cut a little earlier.
+		if lw.buf.Len()+len(line) > lw.maxLineLength {
+			linePortion := lw.maxLineLength - lw.buf.Len()
+			line = origLine[:linePortion]
+			rest = origLine[linePortion:]
+			writeLine = true
+			// We inserted this newline, don't count it later.
+			bytesWritten--
+		}
+
+		lw.buf.Write(line)
+		bytesWritten += len(line)
+		// If we hit a newline (or overflowed into one), flush the buffer.
+		if writeLine {
+			lw.buf.WriteString("\n")
+			bytesWritten++
+			_, err := lw.buf.WriteTo(lw.w)
+			if err != nil {
 				return bytesWritten, trace.Wrap(err)
 			}
-		}
-		var err error
-		if bytesWritten, err = lw.writeChunk(line, bytesWritten, found); err != nil {
-			return bytesWritten, trace.Wrap(err)
-		}
-		lw.shouldWritePrefix = true
-
-		if !found {
-			// If there were leftovers, the line will continue on the next write, so
-			// skip the first prefix next time.
-			lw.shouldWritePrefix = len(line) == 0
-			break
 		}
 	}
 
 	return bytesWritten, nil
 }
 
+// Close flushes the rest of the buffer to the output writer.
+func (lw *lineLabeledWriter) Close() error {
+	if lw.buf.Len() == 0 {
+		return nil
+	}
+	// End whatever line we're on to prevent clobbering.
+	lw.buf.WriteString("\n")
+	_, err := lw.buf.WriteTo(lw.w)
+	return trace.Wrap(err)
+}
+
 // RunCommandOptions is a set of options for NodeClient.RunCommand.
 type RunCommandOptions struct {
-	labelLines bool
+	labelLines    bool
+	maxLineLength int
+	stdout        io.Writer
+	stderr        io.Writer
 }
 
 // RunCommandOption is a functional argument for NodeClient.RunCommand.
@@ -488,9 +514,19 @@ type RunCommandOption func(opts *RunCommandOptions)
 
 // WithLabeledOutput labels each line of output from a command with the node's
 // hostname.
-func WithLabeledOutput() RunCommandOption {
+func WithLabeledOutput(maxLineLength int) RunCommandOption {
 	return func(opts *RunCommandOptions) {
 		opts.labelLines = true
+		opts.maxLineLength = maxLineLength
+	}
+}
+
+// WithOutput sends command output to the given stdout and stderr instead of
+// the node client's.
+func WithOutput(stdout, stderr io.Writer) RunCommandOption {
+	return func(opts *RunCommandOptions) {
+		opts.stdout = stdout
+		opts.stderr = stderr
 	}
 }
 
@@ -503,18 +539,40 @@ func (c *NodeClient) RunCommand(ctx context.Context, command []string, opts ...R
 	)
 	defer span.End()
 
-	var options RunCommandOptions
+	options := RunCommandOptions{
+		stdout: c.TC.Stdout,
+		stderr: c.TC.Stderr,
+	}
 	for _, opt := range opts {
 		opt(&options)
 	}
 
 	// Set up output streams
-	stdout := c.TC.Stdout
-	stderr := c.TC.Stderr
+	stdout := options.stdout
+	stderr := options.stderr
 	if c.hostname != "" {
 		if options.labelLines {
-			stdout = newLineLabeledWriter(c.TC.Stdout, c.hostname)
-			stderr = newLineLabeledWriter(c.TC.Stderr, c.hostname)
+			var err error
+			stdoutWriter, err := newLineLabeledWriter(
+				options.stdout,
+				c.hostname,
+				options.maxLineLength,
+			)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer stdoutWriter.Close()
+			stdout = stdoutWriter
+			stderrWriter, err := newLineLabeledWriter(
+				options.stderr,
+				c.hostname,
+				options.maxLineLength,
+			)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer stderrWriter.Close()
+			stderr = stderrWriter
 		}
 
 		if c.sshLogDir != "" {
@@ -539,7 +597,7 @@ func (c *NodeClient) RunCommand(ctx context.Context, command []string, opts ...R
 		return trace.Wrap(err)
 	}
 	defer nodeSession.Close()
-	if err := nodeSession.runCommand(ctx, types.SessionPeerMode, command, c.TC.OnShellCreated, c.TC.Config.InteractiveCommand); err != nil {
+	if err := nodeSession.runCommand(ctx, types.SessionPeerMode, command, c.TC.OnChannelRequest, c.TC.OnShellCreated, c.TC.Config.InteractiveCommand); err != nil {
 		originErr := trace.Unwrap(err)
 		var exitErr *ssh.ExitError
 		if errors.As(originErr, &exitErr) {
@@ -580,7 +638,7 @@ func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan 
 			switch r.Type {
 			case teleport.MFAPresenceRequest:
 				if c.OnMFA == nil {
-					log.Warn("Received MFA presence request, but no callback was provided.")
+					log.WarnContext(ctx, "Received MFA presence request, but no callback was provided")
 					continue
 				}
 
@@ -591,21 +649,21 @@ func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan 
 				var e events.EventFields
 				err := json.Unmarshal(r.Payload, &e)
 				if err != nil {
-					log.Warnf("Unable to parse event: %v: %v.", string(r.Payload), err)
+					log.WarnContext(ctx, "Unable to parse event", "event", string(r.Payload), "error", err)
 					continue
 				}
 
 				// Send event to event channel.
 				err = c.TC.SendEvent(ctx, e)
 				if err != nil {
-					log.Warnf("Unable to send event %v: %v.", string(r.Payload), err)
+					log.WarnContext(ctx, "Unable to send event", "event", string(r.Payload), "error", err)
 					continue
 				}
 			default:
 				// This handles keep-alive messages and matches the behavior of OpenSSH.
 				err := r.Reply(false, nil)
 				if err != nil {
-					log.Warnf("Unable to reply to %v request.", r.Type)
+					log.WarnContext(ctx, "Unable to reply to request", "request_type", r.Type, "error", err)
 					continue
 				}
 			}
@@ -647,7 +705,7 @@ func newClientConn(
 	case <-ctx.Done():
 		errClose := conn.Close()
 		if errClose != nil {
-			log.Error(errClose)
+			log.ErrorContext(ctx, "Failed closing connection", "error", errClose)
 		}
 		// drain the channel
 		resp := <-respCh
@@ -664,7 +722,18 @@ func (c *NodeClient) TransferFiles(ctx context.Context, cfg *sftp.Config) error 
 	)
 	defer span.End()
 
-	return trace.Wrap(cfg.TransferFiles(ctx, c.Client.Client))
+	if err := cfg.TransferFiles(ctx, c.Client.Client); err != nil {
+		// TODO(tross): DELETE IN 19.0.0 - Older versions of Teleport would return
+		// a trace.BadParameter error when ~user path expansion was rejected, and
+		// reauthentication logic is attempted on BadParameter errors.
+		if trace.IsBadParameter(err) && strings.Contains(err.Error(), "expanding remote ~user paths is not supported") {
+			return trace.Wrap(&NonRetryableError{Err: err})
+		}
+
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 type netDialer interface {
@@ -672,17 +741,22 @@ type netDialer interface {
 }
 
 func proxyConnection(ctx context.Context, conn net.Conn, remoteAddr string, dialer netDialer) error {
+	logger := log.With(
+		"source_addr", logutils.StringerAttr(conn.RemoteAddr()),
+		"target_addr", remoteAddr,
+	)
+
 	defer conn.Close()
-	defer log.Debugf("Finished proxy from %v to %v.", conn.RemoteAddr(), remoteAddr)
+	defer logger.DebugContext(ctx, "Finished proxy connection")
 
 	var remoteConn net.Conn
-	log.Debugf("Attempting to connect proxy from %v to %v.", conn.RemoteAddr(), remoteAddr)
+	logger.DebugContext(ctx, "Attempting to proxy connection")
 
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		First:  100 * time.Millisecond,
 		Step:   100 * time.Millisecond,
 		Max:    time.Second,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -696,7 +770,7 @@ func proxyConnection(ctx context.Context, conn net.Conn, remoteAddr string, dial
 			break
 		}
 
-		log.Debugf("Proxy connection attempt %v: %v.", attempt, err)
+		logger.DebugContext(ctx, "Proxy connection attempt", "attempt", attempt, "error", err)
 		// Wait and attempt to connect again, if the context has closed, exit
 		// right away.
 		select {
@@ -746,16 +820,19 @@ func acceptWithContext(ctx context.Context, l net.Listener) (net.Conn, error) {
 func (c *NodeClient) listenAndForward(ctx context.Context, ln net.Listener, localAddr string, remoteAddr string) {
 	defer ln.Close()
 
-	log := log.WithField("localAddr", localAddr).WithField("remoteAddr", remoteAddr)
+	log := log.With(
+		"local_addr", localAddr,
+		"remote_addr", remoteAddr,
+	)
 
-	log.Infof("Starting port forwarding")
+	log.InfoContext(ctx, "Starting port forwarding")
 
 	for ctx.Err() == nil {
 		// Accept connections from the client.
 		conn, err := acceptWithContext(ctx, ln)
 		if err != nil {
 			if ctx.Err() == nil {
-				log.WithError(err).Errorf("Port forwarding failed.")
+				log.ErrorContext(ctx, "Port forwarding failed", "error", err)
 			}
 			continue
 		}
@@ -764,12 +841,12 @@ func (c *NodeClient) listenAndForward(ctx context.Context, ln net.Listener, loca
 		go func() {
 			// `err` must be a fresh variable, hence `:=` instead of `=`.
 			if err := proxyConnection(ctx, conn, remoteAddr, c.Client); err != nil {
-				log.WithError(err).Warnf("Failed to proxy connection.")
+				log.WarnContext(ctx, "Failed to proxy connection", "error", err)
 			}
 		}()
 	}
 
-	log.WithError(ctx.Err()).Infof("Shutting down port forwarding.")
+	log.InfoContext(ctx, "Shutting down port forwarding", "error", ctx.Err())
 }
 
 // dynamicListenAndForward listens for connections, performs a SOCKS5
@@ -777,9 +854,11 @@ func (c *NodeClient) listenAndForward(ctx context.Context, ln net.Listener, loca
 func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listener, localAddr string) {
 	defer ln.Close()
 
-	log := log.WithField("localAddr", localAddr)
+	log := log.With(
+		"local_addr", localAddr,
+	)
 
-	log.Infof("Starting dynamic port forwarding.")
+	log.InfoContext(ctx, "Starting dynamic port forwarding")
 
 	for ctx.Err() == nil {
 		// Accept connection from the client. Here the client is typically
@@ -787,7 +866,7 @@ func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listene
 		conn, err := acceptWithContext(ctx, ln)
 		if err != nil {
 			if ctx.Err() == nil {
-				log.WithError(err).Errorf("Dynamic port forwarding (SOCKS5) failed.")
+				log.ErrorContext(ctx, "Dynamic port forwarding (SOCKS5) failed", "error", err)
 			}
 			continue
 		}
@@ -796,52 +875,55 @@ func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listene
 		// address to proxy.
 		remoteAddr, err := socks.Handshake(conn)
 		if err != nil {
-			log.WithError(err).Errorf("SOCKS5 handshake failed.")
+			log.ErrorContext(ctx, "SOCKS5 handshake failed", "error", err)
 			if err = conn.Close(); err != nil {
-				log.WithError(err).Errorf("Error closing failed proxy connection.")
+				log.ErrorContext(ctx, "Error closing failed proxy connection", "error", err)
 			}
 			continue
 		}
-		log.Debugf("SOCKS5 proxy forwarding requests to %v.", remoteAddr)
+		log.DebugContext(ctx, "SOCKS5 proxy forwarding requests", "remote_addr", remoteAddr)
 
 		// Proxy the connection to the remote address.
 		go func() {
 			// `err` must be a fresh variable, hence `:=` instead of `=`.
 			if err := proxyConnection(ctx, conn, remoteAddr, c.Client); err != nil {
-				log.WithError(err).Warnf("Failed to proxy connection.")
+				log.WarnContext(ctx, "Failed to proxy connection", "error", err)
 				if err = conn.Close(); err != nil {
-					log.WithError(err).Errorf("Error closing failed proxy connection.")
+					log.ErrorContext(ctx, "Error closing failed proxy connection", "error", err)
 				}
 			}
 		}()
 	}
 
-	log.WithError(ctx.Err()).Infof("Shutting down dynamic port forwarding.")
+	log.InfoContext(ctx, "Shutting down dynamic port forwarding", "error", ctx.Err())
 }
 
 // remoteListenAndForward requests a listening socket and forwards all incoming
 // commands to the local address through the SSH tunnel.
 func (c *NodeClient) remoteListenAndForward(ctx context.Context, ln net.Listener, localAddr, remoteAddr string) {
 	defer ln.Close()
-	log := log.WithField("localAddr", localAddr).WithField("remoteAddr", remoteAddr)
-	log.Infof("Starting remote port forwarding")
+	log := log.With(
+		"local_addr", localAddr,
+		"remote_addr", remoteAddr,
+	)
+	log.InfoContext(ctx, "Starting remote port forwarding")
 
 	for ctx.Err() == nil {
 		conn, err := acceptWithContext(ctx, ln)
 		if err != nil {
 			if ctx.Err() == nil {
-				log.WithError(err).Errorf("Remote port forwarding failed.")
+				log.ErrorContext(ctx, "Remote port forwarding failed", "error", err)
 			}
 			continue
 		}
 
 		go func() {
 			if err := proxyConnection(ctx, conn, localAddr, &net.Dialer{}); err != nil {
-				log.WithError(err).Warnf("Failed to proxy connection")
+				log.WarnContext(ctx, "Failed to proxy connection", "error", err)
 			}
 		}()
 	}
-	log.WithError(ctx.Err()).Infof("Shutting down remote port forwarding.")
+	log.InfoContext(ctx, "Shutting down remote port forwarding", "error", ctx.Err())
 }
 
 // GetRemoteTerminalSize fetches the terminal size of a given SSH session.
@@ -888,7 +970,7 @@ func (c *NodeClient) Close() error {
 }
 
 // GetPaginatedSessions grabs up to 'max' sessions.
-func GetPaginatedSessions(ctx context.Context, fromUTC, toUTC time.Time, pageSize int, order types.EventOrder, max int, authClient auth.ClientI) ([]apievents.AuditEvent, error) {
+func GetPaginatedSessions(ctx context.Context, fromUTC, toUTC time.Time, pageSize int, order types.EventOrder, max int, authClient authclient.ClientI) ([]apievents.AuditEvent, error) {
 	prevEventKey := ""
 	var sessions []apievents.AuditEvent
 	for {

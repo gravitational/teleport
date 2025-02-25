@@ -17,9 +17,9 @@
  */
 
 import {
+  createFileTransferEventsEmitter,
   FileTransferEventsEmitter,
   FileTransferListeners,
-  createFileTransferEventsEmitter,
 } from 'shared/components/FileTransfer';
 
 import { getAuthHeaders, getNoCacheHeaders } from 'teleport/services/api';
@@ -184,7 +184,7 @@ function getErrorText(response: string | undefined): string {
   try {
     const json = JSON.parse(response);
     return json.error?.message || json.message || badRequest;
-  } catch (err) {
+  } catch {
     return 'Bad request, failed to parse error message.';
   }
 }

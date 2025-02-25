@@ -26,7 +26,6 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
-	"path"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -47,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -75,7 +75,7 @@ func TestKubeLogin(t *testing.T) {
 
 	testKubeLogin := func(t *testing.T, kubeCluster string, expectedAddr string) {
 		// Set default kubeconfig to a non-exist file to avoid loading other things.
-		t.Setenv("KUBECONFIG", path.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
+		t.Setenv("KUBECONFIG", filepath.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
 
 		// Test "tsh proxy kube root-cluster1".
 
@@ -174,7 +174,7 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 		}),
 	)
 
-	mustLoginSetEnv(t, s)
+	mustLoginSetEnvLegacy(t, s)
 	return &kubeTestPack{
 		suite:            s,
 		rootClusterName:  s.root.Config.Auth.ClusterName.GetClusterName(),
@@ -320,7 +320,9 @@ func TestKubeSelection(t *testing.T) {
 		&modules.TestModules{
 			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
-				Kubernetes: true,
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.K8s: {Enabled: true},
+				},
 			},
 		},
 	)
@@ -549,9 +551,9 @@ func TestKubeSelection(t *testing.T) {
 				t.Parallel()
 				// login for each parallel test to avoid races when multiple tsh
 				// clients work in the same profile dir.
-				tshHome, _ := mustLogin(t, s)
+				tshHome, _ := mustLoginLegacy(t, s)
 				// Set kubeconfig to a non-exist file to avoid loading other things.
-				kubeConfigPath := path.Join(tshHome, "kube-config")
+				kubeConfigPath := filepath.Join(tshHome, "kube-config")
 				var cmdRunner func(*exec.Cmd) error
 				if len(test.wantProxied) > 0 {
 					cmdRunner = func(cmd *exec.Cmd) error {
@@ -589,7 +591,7 @@ func TestKubeSelection(t *testing.T) {
 			test := test
 			t.Run(test.desc, func(t *testing.T) {
 				t.Parallel()
-				tshHome, kubeConfigPath := mustLogin(t, s)
+				tshHome, kubeConfigPath := mustLoginLegacy(t, s)
 				err := Run(
 					context.Background(),
 					append([]string{"kube", "login", "--insecure"},
@@ -674,7 +676,7 @@ func TestKubeSelection(t *testing.T) {
 	t.Run("access request", func(t *testing.T) {
 		t.Parallel()
 		// login as the user.
-		tshHome, kubeConfig := mustLogin(t, s)
+		tshHome, kubeConfig := mustLoginLegacy(t, s)
 
 		// Run the login command in a goroutine so we can check if the access
 		// request was created and approved.

@@ -17,12 +17,13 @@
  */
 
 import CardError, {
-  Failed,
-  Offline,
-  LoginFailed,
   AccessDenied,
+  Failed,
+  LoginFailed,
+  LogoutFailed,
   NotFound,
+  Offline,
 } from './CardError';
 
 export default CardError;
-export { Failed, LoginFailed, AccessDenied, NotFound, Offline };
+export { Failed, LoginFailed, AccessDenied, NotFound, Offline, LogoutFailed };

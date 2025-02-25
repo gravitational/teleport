@@ -30,124 +30,269 @@ message AccessList {
   // header is the header for the resource.
   teleport.header.v1.ResourceHeader header = 1;
 
-  // spec is the specification for the access list.
+  // spec is the specification for the Access List.
   AccessListSpec spec = 2;
+
+  // status contains dynamically calculated fields.
+  AccessListStatus status = 3;
 }
 
-// AccessListSpec is the specification for an access list.
+// AccessListSpec is the specification for an Access List.
 message AccessListSpec {
-  // description is an optional plaintext description of the access list.
+  reserved 7, 9, 10;
+  reserved "members", "membership", "ownership";
+
+  // description is an optional plaintext description of the Access List.
   string description = 1;
 
-  // owners is a list of owners of the access list.
+  // owners is a list of owners of the Access List.
   repeated AccessListOwner owners = 2;
 
-  // audit describes the frequency that this access list must be audited.
+  // audit describes the frequency that this Access List must be audited.
   AccessListAudit audit = 3;
 
-  // membership_requires describes the requirements for a user to be a member of the access list.
-  // For a membership to an access list to be effective, the user must meet the requirements of
-  // Membership_requires and must be in the members list.
+  // membership_requires describes the requirements for a user to be a member of
+  // the Access List. For a membership to an Access List to be effective, the
+  // user must meet the requirements of Membership_requires and must be in the
+  // members list.
   AccessListRequires membership_requires = 4;
 
-  // ownership_requires describes the requirements for a user to be an owner of the access list.
-  // For ownership of an access list to be effective, the user must meet the requirements of
-  // ownership_requires and must be in the owners list.
+  // ownership_requires describes the requirements for a user to be an owner of
+  // the Access List. For ownership of an Access List to be effective, the user
+  // must meet the requirements of ownership_requires and must be in the owners
+  // list.
   AccessListRequires ownership_requires = 5;
 
-  // grants describes the access granted by membership to this access list.
+  // grants describes the access granted by membership to this Access List.
   AccessListGrants grants = 6;
 
-  // members describes the current members of the access list.
-  // TODO(mdwn): Remove this once members are independent objects.
-  repeated AccessListMember members = 7;
-
-  // title is a plaintext short description of the access list.
+  // title is a plaintext short description of the Access List.
   string title = 8;
+
+  // owner_grants describes the access granted by owners to this Access List.
+  AccessListGrants owner_grants = 11;
 }
 
-// AccessListOwner is an owner of an access list.
+// AccessListOwner is an owner of an Access List.
 message AccessListOwner {
   // name is the username of the owner.
   string name = 1;
 
-  // description is the plaintext description of the owner and why they are an owner.
+  // description is the plaintext description of the owner and why they are an
+  // owner.
   string description = 2;
+
+  // ineligible_status describes if this owner is eligible or not
+  // and if not, describes how they're lacking eligibility.
+  IneligibleStatus ineligible_status = 3;
+
+  // membership_kind describes the type of membership, either
+  // `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
+  MembershipKind membership_kind = 4;
 }
 
-// AccessListAudit describes the audit configuration for an access list.
+// AccessListAudit describes the audit configuration for an Access List.
 message AccessListAudit {
-  // frequency is a duration that describes how often an access list must be audited.
-  google.protobuf.Duration frequency = 1;
+  reserved 1;
+  reserved "frequency";
 
   // next_audit_date is when the next audit date should be done by.
   google.protobuf.Timestamp next_audit_date = 2;
+
+  // recurrence is the recurrence definition
+  Recurrence recurrence = 3;
+
+  // notifications is the configuration for notifying users.
+  Notifications notifications = 4;
 }
 
-// AccessListRequires describes a requirement section for an access list. A user must
-// meet the following criteria to obtain the specific access to the list.
+// ReviewFrequency is the frequency of reviews.
+enum ReviewFrequency {
+  REVIEW_FREQUENCY_UNSPECIFIED = 0;
+  REVIEW_FREQUENCY_ONE_MONTH = 1;
+  REVIEW_FREQUENCY_THREE_MONTHS = 3;
+  REVIEW_FREQUENCY_SIX_MONTHS = 6;
+  REVIEW_FREQUENCY_ONE_YEAR = 12;
+}
+
+// ReviewDayOfMonth is the day of month that reviews will repeat on.
+enum ReviewDayOfMonth {
+  REVIEW_DAY_OF_MONTH_UNSPECIFIED = 0;
+  REVIEW_DAY_OF_MONTH_FIRST = 1;
+  REVIEW_DAY_OF_MONTH_FIFTEENTH = 15;
+  REVIEW_DAY_OF_MONTH_LAST = 31;
+}
+
+// Recurrence is the definition for when reviews will be scheduled.
+message Recurrence {
+  // frequency is the frequency of reviews. This represents the period in months
+  // between two reviews.
+  // Supported values are 0, 1, 3, 6, and 12.
+  ReviewFrequency frequency = 1;
+
+  // day_of_month is the day of month that reviews will be scheduled on.
+  // Supported values are 0, 1, 15, and 31.
+  ReviewDayOfMonth day_of_month = 2;
+}
+
+// Notifications contains the configuration for notifying users of a nearing
+// next audit date.
+message Notifications {
+  // start specifies when to start notifying users that the next audit date is
+  // coming up.
+  google.protobuf.Duration start = 1;
+}
+
+// AccessListRequires describes a requirement section for an Access List. A user
+// must meet the following criteria to obtain the specific access to the list.
 message AccessListRequires {
-  // roles are the user roles that must be present for the user to obtain access.
+  // roles are the user roles that must be present for the user to obtain
+  // access.
   repeated string roles = 1;
 
   // traits are the traits that must be present for the user to obtain access.
   repeated teleport.trait.v1.Trait traits = 2;
 }
 
-// AccessListGrants describes what access is granted by membership to the access list.
+// AccessListGrants describes what access is granted by membership to the Access
+// List.
 message AccessListGrants {
-  // roles are the roles that are granted to users who are members of the access list.
+  // roles are the roles that are granted to users who are members of the Access
+  // List.
   repeated string roles = 1;
 
-  // traits are the traits that are granted to users who are members of the access list.
+  // traits are the traits that are granted to users who are members of the
+  // Access List.
   repeated teleport.trait.v1.Trait traits = 2;
 }
 
-// AccessListMember describes a member of an access list.
-// TODO(mdwn): Remove this once members are independent objects.
-message AccessListMember {
-  // name is the name of the member of the access list.
-  string name = 1;
-
-  // joined is when the user joined the access list.
-  google.protobuf.Timestamp joined = 2;
-
-  // expires is when the user's membership to the access list expires.
-  google.protobuf.Timestamp expires = 3;
-
-  // reason is the reason this user was added to the access list.
-  string reason = 4;
-
-  // added_by is the user that added this user to the access list.
-  string added_by = 5;
-}
-
-// Member describes a member of an access list.
+// Member describes a member of an Access List.
 message Member {
   // header is the header for the resource.
   teleport.header.v1.ResourceHeader header = 1;
 
-  // spec is the specification for the access list member.
+  // spec is the specification for the Access List member.
   MemberSpec spec = 2;
 }
 
-// MemberSpec is the specification for an access list member.
+// MemberSpec is the specification for an Access List member.
 message MemberSpec {
-  // associated access list
+  reserved 8;
+  reserved "membership";
+
+  // associated Access List
   string access_list = 1;
 
-  // name is the name of the member of the access list.
+  // name is the name of the member of the Access List.
   string name = 2;
 
-  // joined is when the user joined the access list.
+  // joined is when the user joined the Access List.
   google.protobuf.Timestamp joined = 3;
 
-  // expires is when the user's membership to the access list expires.
+  // expires is when the user's membership to the Access List expires.
   google.protobuf.Timestamp expires = 4;
 
-  // reason is the reason this user was added to the access list.
+  // reason is the reason this user was added to the Access List.
   string reason = 5;
 
-  // added_by is the user that added this user to the access list.
+  // added_by is the user that added this user to the Access List.
   string added_by = 6;
+
+  // ineligible_status describes if this member is eligible or not
+  // and if not, describes how they're lacking eligibility.
+  IneligibleStatus ineligible_status = 7;
+
+  // membership_kind describes the type of membership, either
+  // `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
+  MembershipKind membership_kind = 9;
+}
+
+// MembershipKind represents the different kinds of list membership
+enum MembershipKind {
+  // MEMBERSHIP_KIND_UNSPECIFIED represents list members that are of
+  // unknown membership kind, defaulting to being treated as type USER
+  MEMBERSHIP_KIND_UNSPECIFIED = 0;
+  // MEMBERSHIP_KIND_USER represents list members that are normal users
+  MEMBERSHIP_KIND_USER = 1;
+  // MEMBERSHIP_KIND_LIST represents list members that are nested Access Lists
+  MEMBERSHIP_KIND_LIST = 2;
+}
+
+// IneligibleStatus describes how the user is ineligible.
+enum IneligibleStatus {
+  // INELIGIBLE_STATUS_UNSPECIFIED means eligiblity is unknown.
+  INELIGIBLE_STATUS_UNSPECIFIED = 0;
+  // INELIGIBLE_STATUS_ELIGIBLE means checks were done and user met all
+  // requirements.
+  INELIGIBLE_STATUS_ELIGIBLE = 1;
+  // INELIGIBLE_STATUS_USER_NOT_EXIST means user was not found in backend.
+  INELIGIBLE_STATUS_USER_NOT_EXIST = 2;
+  // INELIGIBLE_STATUS_MISSING_REQUIREMENTS means user is missing some
+  // requirements defined by AccessListRequires (fields can be either
+  // ownership_requires or membership_requires)
+  INELIGIBLE_STATUS_MISSING_REQUIREMENTS = 3;
+  // INELIGIBLE_STATUS_EXPIRED means user is expired.
+  // Only applicable to members.
+  INELIGIBLE_STATUS_EXPIRED = 4;
+}
+
+// Review is a review of an Access List.
+message Review {
+  // header is the header for the resource.
+  teleport.header.v1.ResourceHeader header = 1;
+
+  // spec is the specification for the Access List review.
+  ReviewSpec spec = 2;
+}
+
+// ReviewSpec is the specification for an Access List review.
+message ReviewSpec {
+  // access_list is the name of the Access List that this review is for.
+  string access_list = 1;
+
+  // reviewers are the users who performed the review.
+  repeated string reviewers = 2;
+
+  // review_date is the date that this review was created.
+  google.protobuf.Timestamp review_date = 3;
+
+  // notes is an optional plaintext attached to the review that can be used by
+  // the review for arbitrary note taking on the review.
+  string notes = 4;
+
+  // changes are the changes made as part of the review.
+  ReviewChanges changes = 5;
+}
+
+// ReviewChanges are the changes that were made as part of the review.
+message ReviewChanges {
+  reserved 1;
+  reserved "frequency_changed";
+
+  // membership_requirements_changed is populated if the requirements were
+  // changed as part of this review.
+  AccessListRequires membership_requirements_changed = 2;
+
+  // removed_members contains the members that were removed as part of this
+  // review.
+  repeated string removed_members = 3;
+
+  // review_frequency_changed is populated if the review frequency has changed.
+  ReviewFrequency review_frequency_changed = 4;
+
+  // review_day_of_month_changed is populated if the review day of month has
+  // changed.
+  ReviewDayOfMonth review_day_of_month_changed = 5;
+}
+
+// AccessListStatus contains dynamic fields calculated during retrieval.
+message AccessListStatus {
+  // member_count is the number of members in the Access List.
+  optional uint32 member_count = 1;
+  // member_list_count is the number of nested list members in the Access List.
+  optional uint32 member_list_count = 2;
+  // owner_of describes Access Lists where this Access List is an explicit owner.
+  repeated string owner_of = 3;
+  // member_of describes Access Lists where this Access List is an explicit member.
+  repeated string member_of = 4;
 }

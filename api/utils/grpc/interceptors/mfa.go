@@ -21,17 +21,17 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/mfa"
+	"github.com/gravitational/teleport/api/trail"
 )
 
 // WithMFAUnaryInterceptor intercepts a GRPC client unary call to add MFA credentials
 // to the rpc call when an MFA response is provided through the context. Additionally,
 // when the call returns an error that indicates that MFA is required, this interceptor
 // will prompt for MFA using the given mfaCeremony and retry.
-func WithMFAUnaryInterceptor(mfaCeremony mfa.MFACeremony) grpc.UnaryClientInterceptor {
+func WithMFAUnaryInterceptor(mfaCeremony mfa.CeremonyFn) grpc.UnaryClientInterceptor {
 	return func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 		// Check for MFA response passed through the context.
 		if mfaResp, err := mfa.MFAResponseFromContext(ctx); err == nil {

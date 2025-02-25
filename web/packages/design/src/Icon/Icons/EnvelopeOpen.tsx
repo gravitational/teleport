@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function EnvelopeOpen({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const EnvelopeOpen = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-envelopeopen"
       {...otherProps}
+      ref={ref}
     >
       <path
         fillRule="evenodd"
@@ -64,5 +65,5 @@ export function EnvelopeOpen({ size = 24, color, ...otherProps }: IconProps) {
         d="M12.416 2.37596C12.1641 2.20801 11.8359 2.20801 11.584 2.37596L2.59504 8.36858C2.54568 8.40022 2.49953 8.43803 2.4578 8.48179C2.41124 8.53051 2.37167 8.58508 2.33994 8.64388C2.27938 8.75578 2.25003 8.87799 2.25 8.99926C2.25 8.99951 2.25 8.99902 2.25 8.99926L2.25 18.75C2.25 19.1478 2.40804 19.5294 2.68934 19.8107C2.97065 20.092 3.35218 20.25 3.75 20.25H20.25C20.6478 20.25 21.0294 20.092 21.3107 19.8107C21.592 19.5294 21.75 19.1478 21.75 18.75V9.01273C21.7527 8.85774 21.7076 8.70055 21.6107 8.56465C21.5528 8.48342 21.4817 8.4172 21.4023 8.36684L12.416 2.37596ZM19.6791 9.02079L12 3.90139L4.32101 9.02071L10.6041 13.5001H13.3969L19.6791 9.02079ZM3.75 10.4558V18.75H20.25V10.456L14.0723 14.8607C13.9452 14.9514 13.793 15.0001 13.6369 15.0001H10.3641C10.208 15.0001 10.0558 14.9514 9.92874 14.8608L3.75 10.4558Z"
       />
     </Icon>
-  );
-}
+  )
+);

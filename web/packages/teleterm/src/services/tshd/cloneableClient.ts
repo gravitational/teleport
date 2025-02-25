@@ -17,16 +17,16 @@
  */
 
 import {
-  RpcInputStream,
-  UnaryCall,
   ClientStreamingCall,
-  ServerStreamingCall,
   DuplexStreamingCall,
-  RpcOutputStream,
-  RpcError,
-  RpcOptions,
-  ServiceInfo,
   FinishedUnaryCall,
+  RpcError,
+  RpcInputStream,
+  RpcOptions,
+  RpcOutputStream,
+  ServerStreamingCall,
+  ServiceInfo,
+  UnaryCall,
 } from '@protobuf-ts/runtime-rpc';
 
 /**
@@ -97,6 +97,7 @@ export function cloneAbortSignal(signal: AbortSignal): CloneableAbortSignal {
       signal.removeEventListener(type, listener, options),
     eventListeners: (...args) => signal.eventListeners(...args),
     removeAllListeners: (...args) => signal.removeAllListeners(...args),
+    any: (...args) => signal.any(...args),
   };
 
   signal.addEventListener(
@@ -409,9 +410,17 @@ export class MockedUnaryCall<Response extends object>
     onrejected?: (reason: any) => TResult2 | PromiseLike<TResult2>
   ): Promise<TResult1 | TResult2> {
     if (this.error) {
-      // Despite this being an error branch, it needs to use Promise.resolve. Otherwise we'd get
-      // uncaught errors. See https://www.promisejs.org/implementing/#then
-      return Promise.resolve(onrejected(this.error));
+      if (typeof onrejected === 'function') {
+        try {
+          // Despite this being an error branch, it needs to use Promise.resolve. Otherwise we'd get
+          // uncaught errors. See https://www.promisejs.org/implementing/#then
+          return Promise.resolve(onrejected(this.error));
+        } catch (ex) {
+          return Promise.reject(ex);
+        }
+      } else {
+        return Promise.reject(this.error);
+      }
     }
 
     return Promise.resolve(

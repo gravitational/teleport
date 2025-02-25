@@ -25,11 +25,13 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -50,7 +52,7 @@ type GCPInstances struct {
 	// Parameters are the parameters passed to the installation script
 	Parameters []string
 	// Instances is a list of discovered GCP virtual machines.
-	Instances []*gcp.Instance
+	Instances []*gcpimds.Instance
 }
 
 // MakeEvents generates MakeEvents for these instances.
@@ -77,6 +79,7 @@ func NewGCPWatcher(ctx context.Context, fetchersFn func() []Fetcher, opts ...Opt
 		fetchersFn:    fetchersFn,
 		ctx:           cancelCtx,
 		cancel:        cancelFn,
+		clock:         clockwork.NewRealClock(),
 		pollInterval:  time.Minute,
 		triggerFetchC: make(<-chan struct{}),
 		InstancesC:    make(chan Instances),
@@ -90,13 +93,15 @@ func NewGCPWatcher(ctx context.Context, fetchersFn func() []Fetcher, opts ...Opt
 }
 
 // MatchersToGCPInstanceFetchers converts a list of GCP GCE Matchers into a list of GCP GCE Fetchers.
-func MatchersToGCPInstanceFetchers(matchers []types.GCPMatcher, gcpClient gcp.InstancesClient) []Fetcher {
+func MatchersToGCPInstanceFetchers(matchers []types.GCPMatcher, gcpClient gcp.InstancesClient, projectsClient gcp.ProjectsClient, discoveryConfigName string) []Fetcher {
 	fetchers := make([]Fetcher, 0, len(matchers))
 
 	for _, matcher := range matchers {
 		fetchers = append(fetchers, newGCPInstanceFetcher(gcpFetcherConfig{
-			Matcher:   matcher,
-			GCPClient: gcpClient,
+			Matcher:             matcher,
+			GCPClient:           gcpClient,
+			projectsClient:      projectsClient,
+			DiscoveryConfigName: discoveryConfigName,
 		}))
 	}
 
@@ -104,27 +109,36 @@ func MatchersToGCPInstanceFetchers(matchers []types.GCPMatcher, gcpClient gcp.In
 }
 
 type gcpFetcherConfig struct {
-	Matcher   types.GCPMatcher
-	GCPClient gcp.InstancesClient
+	Matcher             types.GCPMatcher
+	GCPClient           gcp.InstancesClient
+	projectsClient      gcp.ProjectsClient
+	DiscoveryConfigName string
+	Integration         string
 }
 
 type gcpInstanceFetcher struct {
-	GCP             gcp.InstancesClient
-	ProjectIDs      []string
-	Zones           []string
-	ProjectID       string
-	ServiceAccounts []string
-	Labels          types.Labels
-	Parameters      map[string]string
+	GCP                 gcp.InstancesClient
+	ProjectIDs          []string
+	Zones               []string
+	ProjectID           string
+	ServiceAccounts     []string
+	Labels              types.Labels
+	Parameters          map[string]string
+	projectsClient      gcp.ProjectsClient
+	DiscoveryConfigName string
+	Integration         string
 }
 
 func newGCPInstanceFetcher(cfg gcpFetcherConfig) *gcpInstanceFetcher {
 	fetcher := &gcpInstanceFetcher{
-		GCP:             cfg.GCPClient,
-		Zones:           cfg.Matcher.Locations,
-		ProjectIDs:      cfg.Matcher.ProjectIDs,
-		ServiceAccounts: cfg.Matcher.ServiceAccounts,
-		Labels:          cfg.Matcher.GetLabels(),
+		GCP:                 cfg.GCPClient,
+		Zones:               cfg.Matcher.Locations,
+		ProjectIDs:          cfg.Matcher.ProjectIDs,
+		ServiceAccounts:     cfg.Matcher.ServiceAccounts,
+		Labels:              cfg.Matcher.GetLabels(),
+		projectsClient:      cfg.projectsClient,
+		Integration:         cfg.Integration,
+		DiscoveryConfigName: cfg.DiscoveryConfigName,
 	}
 	if cfg.Matcher.Params != nil {
 		fetcher.Parameters = map[string]string{
@@ -140,19 +154,33 @@ func (*gcpInstanceFetcher) GetMatchingInstances(_ []types.Server, _ bool) ([]Ins
 	return nil, trace.NotImplemented("not implemented for gcp fetchers")
 }
 
+func (f *gcpInstanceFetcher) GetDiscoveryConfigName() string {
+	return f.DiscoveryConfigName
+}
+
+// IntegrationName identifies the integration name whose credentials were used to fetch the resources.
+// Might be empty when the fetcher is using ambient credentials.
+func (f *gcpInstanceFetcher) IntegrationName() string {
+	return f.Integration
+}
+
 // GetInstances fetches all GCP virtual machines matching configured filters.
 func (f *gcpInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Instances, error) {
 	// Key by project ID, then by zone.
-	instanceMap := make(map[string]map[string][]*gcp.Instance)
-	for _, projectID := range f.ProjectIDs {
-		instanceMap[projectID] = make(map[string][]*gcp.Instance)
+	instanceMap := make(map[string]map[string][]*gcpimds.Instance)
+	projectIDs, err := f.getProjectIDs(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, projectID := range projectIDs {
+		instanceMap[projectID] = make(map[string][]*gcpimds.Instance)
 		for _, zone := range f.Zones {
-			instanceMap[projectID][zone] = make([]*gcp.Instance, 0)
+			instanceMap[projectID][zone] = make([]*gcpimds.Instance, 0)
 			vms, err := f.GCP.ListInstances(ctx, projectID, zone)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			filteredVMs := make([]*gcp.Instance, 0, len(vms))
+			filteredVMs := make([]*gcpimds.Instance, 0, len(vms))
 			for _, vm := range vms {
 				if len(f.ServiceAccounts) > 0 && !slices.Contains(f.ServiceAccounts, vm.ServiceAccount) {
 					continue
@@ -183,4 +211,24 @@ func (f *gcpInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Instan
 	}
 
 	return instances, nil
+}
+
+// getProjectIDs returns the project ids that this fetcher is configured to query.
+// This will make an API call to list project IDs when the fetcher is configured to match "*" projectID,
+// in order to discover and query new projectID.
+// Otherwise, a list containing the fetcher's non-wildcard project is returned.
+func (f *gcpInstanceFetcher) getProjectIDs(ctx context.Context) ([]string, error) {
+	if len(f.ProjectIDs) != 1 || len(f.ProjectIDs) == 1 && f.ProjectIDs[0] != types.Wildcard {
+		return f.ProjectIDs, nil
+	}
+
+	gcpProjects, err := f.projectsClient.ListProjects(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var projectIDs []string
+	for _, prj := range gcpProjects {
+		projectIDs = append(projectIDs, prj.ID)
+	}
+	return projectIDs, nil
 }

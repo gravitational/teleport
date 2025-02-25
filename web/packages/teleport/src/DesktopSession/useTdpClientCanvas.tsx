@@ -17,34 +17,34 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect, useRef } from 'react';
-import { Attempt } from 'shared/hooks/useAttemptNext';
+import { useEffect, useRef, useState } from 'react';
+
 import { NotificationItem } from 'shared/components/Notification';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 import { debounce } from 'shared/utils/highbar';
 
-import { TdpClient, ButtonState, ScrollAxis } from 'teleport/lib/tdp';
+import cfg from 'teleport/config';
+import { ButtonState, ScrollAxis, TdpClient } from 'teleport/lib/tdp';
+import type { BitmapFrame } from 'teleport/lib/tdp/client';
 import {
   ClientScreenSpec,
   ClipboardData,
   PngFrame,
 } from 'teleport/lib/tdp/codec';
-import { getHostName } from 'teleport/services/api';
-import cfg from 'teleport/config';
 import { Sha256Digest } from 'teleport/lib/util';
+import { getHostName } from 'teleport/services/api';
 
+import { KeyboardHandler } from './KeyboardHandler';
 import { TopBarHeight } from './TopBar';
 import {
-  ClipboardSharingState,
-  DirectorySharingState,
-  Setter,
   clipboardSharingPossible,
+  ClipboardSharingState,
   defaultClipboardSharingState,
   defaultDirectorySharingState,
+  DirectorySharingState,
   isSharingClipboard,
+  Setter,
 } from './useDesktopSession';
-import { KeyboardHandler } from './KeyboardHandler';
-
-import type { BitmapFrame } from 'teleport/lib/tdp/client';
 
 declare global {
   interface Navigator {
@@ -62,7 +62,7 @@ export default function useTdpClientCanvas(props: Props) {
     clipboardSharingState,
     setClipboardSharingState,
     setDirectorySharingState,
-    setWarnings,
+    setAlerts,
   } = props;
   const [tdpClient, setTdpClient] = useState<TdpClient | null>(null);
   const initialTdpConnectionSucceeded = useRef(false);
@@ -157,15 +157,24 @@ export default function useTdpClientCanvas(props: Props) {
   const clientOnTdpError = (error: Error) => {
     setDirectorySharingState(defaultDirectorySharingState);
     setClipboardSharingState(defaultClipboardSharingState);
-    setTdpConnection({
-      status: 'failed',
-      statusText: error.message || error.toString(),
+    setTdpConnection(prevState => {
+      // Sometimes when a connection closes due to an error, we get a cascade of
+      // errors. Here we update the status only if it's not already 'failed', so
+      // that the first error message (which is usually the most informative) is
+      // displayed to the user.
+      if (prevState.status !== 'failed') {
+        return {
+          status: 'failed',
+          statusText: error.message || error.toString(),
+        };
+      }
+      return prevState;
     });
   };
 
   // Default TdpClientEvent.TDP_WARNING and TdpClientEvent.CLIENT_WARNING handler
   const clientOnTdpWarning = (warning: string) => {
-    setWarnings(prevState => {
+    setAlerts(prevState => {
       return [
         ...prevState,
         {
@@ -177,6 +186,8 @@ export default function useTdpClientCanvas(props: Props) {
     });
   };
 
+  // TODO(zmb3): this is not what an info-level alert should do.
+  // rename it to something like onGracefulDisconnect
   const clientOnTdpInfo = (info: string) => {
     setDirectorySharingState(defaultDirectorySharingState);
     setClipboardSharingState(defaultClipboardSharingState);
@@ -338,7 +349,7 @@ type Props = {
   clipboardSharingState: ClipboardSharingState;
   setClipboardSharingState: Setter<ClipboardSharingState>;
   setDirectorySharingState: Setter<DirectorySharingState>;
-  setWarnings: Setter<NotificationItem[]>;
+  setAlerts: Setter<NotificationItem[]>;
 };
 
 /**

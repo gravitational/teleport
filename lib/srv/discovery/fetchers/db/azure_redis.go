@@ -19,13 +19,14 @@
 package db
 
 import (
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
+	"context"
+	"log/slog"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v3"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -46,22 +47,26 @@ func (p *azureRedisPlugin) GetServerLocation(server *armredis.ResourceInfo) stri
 	return azure.StringVal(server.Location)
 }
 
-func (p *azureRedisPlugin) NewDatabaseFromServer(server *armredis.ResourceInfo, log logrus.FieldLogger) types.Database {
+func (p *azureRedisPlugin) NewDatabaseFromServer(ctx context.Context, server *armredis.ResourceInfo, logger *slog.Logger) types.Database {
 	if server.Properties.SSLPort == nil { // should never happen, but checking just in case.
-		log.Debugf("Azure Redis server %v is missing SSL port. Skipping.", azure.StringVal(server.Name))
+		logger.DebugContext(ctx, "Skipping Azure Redis server with missing SSL port", "server", azure.StringVal(server.Name))
 		return nil
 	}
 
 	if !p.isAvailable(server) {
-		log.Debugf("The current status of Azure Redis server %q is %q. Skipping.",
-			azure.StringVal(server.Name),
-			azure.StringVal(server.Properties.ProvisioningState))
+		logger.DebugContext(ctx, "Skipping unavailable Azure Redis server",
+			"server", azure.StringVal(server.Name),
+			"status", azure.StringVal(server.Properties.ProvisioningState),
+		)
 		return nil
 	}
 
-	database, err := services.NewDatabaseFromAzureRedis(server)
+	database, err := common.NewDatabaseFromAzureRedis(server)
 	if err != nil {
-		log.Warnf("Could not convert Azure Redis server %q to database resource: %v.", azure.StringVal(server.Name), err)
+		logger.WarnContext(ctx, "Could not convert Azure Redis server to database resource",
+			"server", azure.StringVal(server.Name),
+			"error", err,
+		)
 		return nil
 	}
 	return database
@@ -86,9 +91,9 @@ func (p *azureRedisPlugin) isAvailable(server *armredis.ResourceInfo) bool {
 		armredis.ProvisioningStateUnprovisioning:
 		return false
 	default:
-		logrus.Warnf("Unknown status type: %q. Assuming Azure Redis %q is available.",
-			azure.StringVal(server.Properties.ProvisioningState),
-			azure.StringVal(server.Name),
+		slog.WarnContext(context.Background(), "Assuming Azure Redis with unknown status type is available",
+			"status", azure.StringVal(server.Properties.ProvisioningState),
+			"server", azure.StringVal(server.Name),
 		)
 		return true
 	}

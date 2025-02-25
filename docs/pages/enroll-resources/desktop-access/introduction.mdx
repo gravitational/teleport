@@ -1,0 +1,85 @@
+---
+title: Manage Access to Windows Resources
+description: Demonstrates how you can manage access to Windows desktops with Teleport.
+videoBanner: n2h0GisWdss
+---
+
+The topics in this guide describe how to configure Teleport to provide secure, passwordless
+access to Microsoft Windows desktops and servers. For Windows, Teleport provides the
+following key features:
+
+- Passwordless access to Windows hosts backed by secure cryptographic
+  authentication and short-lived certificates.
+- Configurable role-based access controls (RBAC) for groups of hosts and users.
+- Configurable clipboard and directory sharing for copying and pasting to and
+  from remote Windows hosts.
+- Session recording for all desktop activity.
+- Audit logs that track user activity.
+
+## How it works
+
+In order to provide connectivity to Windows hosts, you deploy one or more
+instances of Teleport's Windows Desktop Service on your infrastructure. The
+Windows Desktop Service typically makes an outbound connection to the Teleport
+Proxy Service and maintains a reverse tunnel that is used to power remote
+desktop sessions.
+
+Since the only external networking requirement is a single outbound connection
+to the Teleport Proxy Service, you are free to deploy as many Desktop Service
+instances in as many different network segments as you need
+- Teleport will take care of selecting a route to your Windows host at
+connection time.
+
+![Manage access to Windows through Teleport](../../../img/desktop-access/windows-desktop-service-overview.png)
+
+You can configure Teleport Windows Desktop Service to control access for the following
+scenarios:
+
+- Domain users who access computers that are joined to an Active Directory domain.
+- Local users who access computers that aren't joined to an Active Directory domain.
+
+In both cases, Teleport authenticates by presenting a short lived certificate to
+the RDP server in the form of a virtual smart card - no passwords are involved.
+
+Each approach offers its own pros and cons.
+
+Teleport's support for domain users works with standard Active Directory smart
+card support, which comes with several benefits:
+
+- automatic inventory management via an LDAP integration
+- configuration can be managed centrally via Group Policy
+- no Teleport software runs on the Windows hosts
+
+The downside of the Active Directory setup is that Windows PKI can be difficult
+to configure and troubleshoot, and some environments require large configuration
+changes in order to support smart card authentication.
+
+Teleport's support for local users requires the installation of a separate
+package on each host that you wish to provide access to. System configuration is
+performed by the installer rather than via Group Policy. This approach is easier
+to set up and easier to troubleshoot, and also provides unique features like the
+ability to create users on-demand. The lack of automatic LDAP-based discovery
+and the requirement to install software on each host makes this approach less
+attractive for large environments.
+
+For more information about configuring basic access using Teleport Windows
+Desktop Service, see the following topics:
+
+- [Configure access for local Windows users](./getting-started.mdx)
+- [Configure access for Active Directory](./active-directory.mdx)
+
+## Further reading
+
+The following topics provide information about performing common tasks and
+Windows-specific configuration settings, role-based permissions, and audit events:
+
+- [Role-Based Access Control for Desktops](./rbac.mdx)
+- [Clipboard Sharing](../../reference/agent-services/desktop-access-reference/clipboard.mdx)
+- [Directory Sharing](./directory-sharing.mdx)
+- [Dynamic Registration](./dynamic-registration.mdx)
+- [Session Recording and Playback](../../reference/agent-services/desktop-access-reference/sessions.mdx)
+- [Troubleshooting Desktop Access](./troubleshooting.mdx)
+- [Desktop Access Audit Events Reference](../../reference/agent-services/desktop-access-reference/audit.mdx)
+- [Desktop Access Configuration Reference](../../reference/agent-services/desktop-access-reference/configuration.mdx)
+- [Desktop Access CLI Reference](../../reference/agent-services/desktop-access-reference/cli.mdx)
+

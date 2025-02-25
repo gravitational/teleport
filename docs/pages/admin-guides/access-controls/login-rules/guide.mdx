@@ -1,0 +1,286 @@
+---
+title: Set Up Login Rules 
+description: Set up Login Rules to transform user traits
+---
+
+This guide will walk you through the process of writing, testing, and adding the
+first Login Rule to your Teleport cluster.
+
+## Prerequisites
+
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+
+Before you get started you’ll need a running Teleport Enterprise or Cloud
+cluster on version `11.3.1` or greater.
+
+Login Rules only operate on SSO logins, so make sure you have
+configured an OIDC, SAML, or GitHub connector before you begin.
+Check the [Single Sign-On](../sso/sso.mdx) docs to learn how to set this up.
+
+## Step 1/5. Configure RBAC
+
+First, ensure you are logged into Teleport as a user that has permissions
+to read and modify `login_rule` resources. The preset `editor` role
+has access to this already, but in case you are using a more customized configuration,
+create a role called `loginrule-manager.yaml` with the following contents:
+
+```yaml
+kind: role
+metadata:
+  name: loginrule-manager
+spec:
+  allow:
+    rules:
+      - resources: [login_rule]
+        verbs: [list, create, read, update, delete]
+version: v7
+```
+
+Create the role with `tctl`:
+
+```code
+$ tctl create loginrule-manager.yaml
+role 'loginrule-manager' has been created
+```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
+
+(!docs/pages/includes/add-role-to-user.mdx role="loginrule-manager" !)
+
+## Step 2/5. Draft your Login Rule resource
+
+The following example will give all users a new `logins` trait set to the value
+of their current `username` trait converted to lowercase.
+Copy this example rule to a file called `my_rule.yaml` to continue with the
+guide.
+
+```
+# my_rule.yaml
+kind: login_rule
+version: v1
+metadata:
+  # Each Login Rule must have a unique name within the cluster.
+  name: my_rule
+
+  # expires is optional and usually should not be set for deployed login
+  # rules, but it can be useful to set an expiry a short time in the future
+  # while testing new Login Rules to prevent potentially locking yourself out of
+  # your Teleport cluster.
+  # expires: "2023-01-31T00:00:00-00:00"
+spec:
+  # priority orders the evaluation of Login Rules if multiple are present in the
+  # cluster, lower priorities are evaluated first.
+  priority: 0
+
+  # traits_expression is a predicate expression which will be evaluated to
+  # determine the final traits for each SSO user during login.
+  #
+  # This example expression sets the "logins" trait to the incoming "username"
+  # trait converted to lowercase.
+  traits_expression: 'external.put("logins", strings.lower(external["username"]))'
+```
+
+Each Login Rule resource must have either a `traits_map` or `traits_expression`
+field.
+In this guide we will use an example `traits_expression`.
+
+The `traits_expression` is a form of script which will be evaluated by your
+Teleport cluster at runtime to determine the traits for each SSO user who logs
+in.
+The expression can access the incoming traits for the user via the `external`
+variable.
+The `external` variable is a dictionary which maps trait keys to sets of values
+for that trait.
+
+## Step 3/5. Test the Login Rule
+
+The `tctl login_rule test` command can be used to experiment with new Login
+Rules to check their syntax and see exactly how they will operate on example
+incoming traits.
+
+Fetch your user's current traits and store them in `input.json`, then test your
+new Login Rule with that input.
+
+```code
+$ tctl get --format json users/<Var name="username"/> | jq 'first.spec.traits' > input.json
+$ tctl login_rule test --resource-file my_rule.yaml input.json
+access:
+- staging
+groups:
+- dbs
+- devs
+logins:
+- alice
+```
+
+This script will catch any syntax errors in your expressions.
+Make sure that all expected traits are present in the output.
+
+## Step 4/5. Create the Login Rule
+
+Use the following command to create the Login Rule in your cluster:
+
+```code
+$ tctl create my_rule.yaml
+```
+
+## Step 5/5. Try it out
+
+As a final step, log out of your cluster, then log in again and make sure your user received the
+expected traits and roles.
+You can check the traits and roles with the following command:
+
+```code
+$ tctl get --format json users/<Var name="username"/> | jq '{traits: first.spec.traits, roles: first.spec.roles}'
+{
+  "traits": {
+	"access": [
+	  "staging"
+    ],
+    "groups": [
+      "dbs",
+      "devs"
+    ],
+    "logins": [
+      "alice"
+    ]
+  },
+  "roles": [
+    "access",
+    "editor",
+    "auditor"
+  ]
+}
+```
+
+## Troubleshooting
+
+The [`tctl sso test`](../../../reference/cli/tctl.mdx) command can be used to
+debug SSO logins and see exactly which traits are being sent by your SSO
+provider and how they are being mapped by your Login Rules.
+
+`tctl sso test` expects a connector spec.
+Run the following command to debug with a connector currently installed in your
+cluster.
+
+```code
+$ tctl get connector/<Var name="SSO connector name"/> --with-secrets | tctl sso test
+```
+
+## Next steps
+
+To learn more about the Login Rule expression syntax, check out the
+[Login Rule Reference](../../../reference/access-controls/login-rules.mdx) page.
+
+Learn about the `tctl login_rule test` command by running the help command or
+checking the [reference page](../../../reference/cli/tctl.mdx).
+```code
+$ tctl help login_rule test
+```
+
+The following `tctl` resource commands are helpful for viewing and modifying the
+login rules currently installed in your cluster.
+
+Command | Description
+------- | -----------
+`tctl get login_rules` | Show all Login Rules installed in your cluster.
+`tctl get login_rule/<rule_name>` | Get a specific installed Login Rule.
+`tctl create login_rule.yaml` | Install a new Login Rule.
+`tctl create -f login_rule.yaml` | Overwrite an existing Login Rule.
+`tctl rm login_rule/<rule_name>` | Delete a Login Rule.
+
+## Example Login Rules
+
+### Set a trait to a static list of values defined per group
+
+```yaml
+kind: login_rule
+version: v1
+metadata:
+  name: example
+spec:
+  priority: 0
+  traits_expression: |
+    external.put("allow-env",
+      choose(
+        option(external.group.contains("dev"), set("dev", "staging")),
+        option(external.group.contains("qa"), set("qa", "staging")),
+        option(external.group.contains("admin"), set("dev", "qa", "staging", "prod")),
+        option(true, set()),
+      ))
+```
+
+### Use only specific traits provided by the OIDC/SAML provider
+
+To only keep the `groups` and `email` traits, with their original values:
+
+```yaml
+kind: login_rule
+version: v1
+metadata:
+  name: example
+spec:
+  priority: 0
+  traits_map:
+    groups:
+      - external.groups
+    email:
+      - external.email
+```
+
+### Remove a specific trait
+
+To remove a specific trait and keep the rest:
+
+```yaml
+kind: login_rule
+version: v1
+metadata:
+  name: example
+spec:
+  priority: 0
+  traits_expression: |
+    external.remove("big-trait")
+```
+
+### Extend a specific trait with extra values
+
+```yaml
+kind: login_rule
+version: v1
+metadata:
+  name: example
+spec:
+  priority: 0
+  traits_expression: |
+    external.add_values("logins", "ubuntu", "ec2-user")
+```
+
+### Use the output of one Login Rule in another rule
+
+```yaml
+kind: login_rule
+version: v1
+metadata:
+  name: set_groups
+spec:
+  priority: 0
+  traits_expression: |
+    external.put("groups",
+      ifelse(external.groups.contains("admins"),
+        external["groups"].add("superusers"),
+        external["groups"]))
+---
+kind: login_rule
+version: v1
+metadata:
+  name: set_logins
+spec:
+  priority: 1
+  traits_expression: |
+    ifelse(external.groups.contains("superusers"),
+      external.add_values("logins", "root"),
+      external)
+```

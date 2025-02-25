@@ -20,6 +20,7 @@ package clusters
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 
 	"github.com/gravitational/trace"
@@ -28,13 +29,11 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
-	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
-	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	dbrole "github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -47,12 +46,12 @@ type Database struct {
 }
 
 // GetDatabase returns a database
-func (c *Cluster) GetDatabase(ctx context.Context, authClient auth.ClientI, dbURI uri.ResourceURI) (*Database, error) {
+func (c *Cluster) GetDatabase(ctx context.Context, authClient authclient.ClientI, dbURI uri.ResourceURI) (*Database, error) {
 	var database types.Database
 	dbName := dbURI.GetDbName()
 	err := AddMetadataToRetryableError(ctx, func() error {
 		databases, err := apiclient.GetAllResources[types.DatabaseServer](ctx, authClient, &proto.ListResourcesRequest{
-			Namespace:           c.clusterClient.Namespace,
+			Namespace:           defaults.Namespace,
 			ResourceType:        types.KindDatabaseServer,
 			PredicateExpression: fmt.Sprintf(`name == "%s"`, dbName),
 		})
@@ -77,94 +76,48 @@ func (c *Cluster) GetDatabase(ctx context.Context, authClient auth.ClientI, dbUR
 	}, err
 }
 
-func (c *Cluster) GetDatabases(ctx context.Context, authClient auth.ClientI, r *api.GetDatabasesRequest) (*GetDatabasesResponse, error) {
-	var (
-		page apiclient.ResourcePage[types.DatabaseServer]
-		err  error
-	)
-
-	req := &proto.ListResourcesRequest{
-		Namespace:           defaults.Namespace,
-		ResourceType:        types.KindDatabaseServer,
-		Limit:               r.Limit,
-		SortBy:              types.GetSortByFromString(r.SortBy),
-		StartKey:            r.StartKey,
-		PredicateExpression: r.Query,
-		SearchKeywords:      client.ParseSearchKeywords(r.Search, ' '),
-		UseSearchAsRoles:    r.SearchAsRoles == "yes",
-	}
-
-	err = AddMetadataToRetryableError(ctx, func() error {
-		page, err = apiclient.GetResourcePage[types.DatabaseServer](ctx, authClient, req)
-		return trace.Wrap(err)
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	response := &GetDatabasesResponse{
-		StartKey:   page.NextKey,
-		TotalCount: page.Total,
-	}
-	for _, database := range page.Resources {
-		response.Databases = append(response.Databases, Database{
-			URI:      c.URI.AppendDB(database.GetName()),
-			Database: database.GetDatabase(),
-		})
-	}
-
-	return response, nil
-}
-
 // reissueDBCerts issues new certificates for specific DB access and saves them to disk.
-func (c *Cluster) reissueDBCerts(ctx context.Context, clusterClient *client.ClusterClient, routeToDatabase tlsca.RouteToDatabase) error {
-	// When generating certificate for MongoDB access, database username must
-	// be encoded into it. This is required to be able to tell which database
-	// user to authenticate the connection as.
-	if routeToDatabase.Protocol == libdefaults.ProtocolMongoDB && routeToDatabase.Username == "" {
-		return trace.BadParameter("the username must be present for MongoDB connections")
+func (c *Cluster) reissueDBCerts(ctx context.Context, clusterClient *client.ClusterClient, routeToDatabase tlsca.RouteToDatabase) (tls.Certificate, error) {
+	if dbrole.RequireDatabaseUserMatcher(routeToDatabase.Protocol) && routeToDatabase.Username == "" {
+		return tls.Certificate{}, trace.BadParameter("the username must be present")
 	}
 
 	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
 	err := clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
-		AccessRequests: c.status.ActiveRequests.AccessRequests,
+		AccessRequests: c.status.ActiveRequests,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	// Fetch the certs for the database.
-	err = clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+	key, _, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
 		RouteToDatabase: proto.RouteToDatabase{
 			ServiceName: routeToDatabase.ServiceName,
 			Protocol:    routeToDatabase.Protocol,
 			Username:    routeToDatabase.Username,
 		},
-		AccessRequests: c.status.ActiveRequests.AccessRequests,
+		AccessRequests: c.status.ActiveRequests,
+		RequesterName:  proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
+		TTL:            c.clusterClient.KeyTTL,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	// Update the database-specific connection profile file.
-	err = dbprofile.Add(ctx, c.clusterClient, routeToDatabase, c.status)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	dbCert, err := key.DBTLSCert(routeToDatabase.ServiceName)
+	return dbCert, trace.Wrap(err)
 }
 
 // GetAllowedDatabaseUsers returns allowed users for the given database based on the role set.
-func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, authClient auth.ClientI, dbURI string) ([]string, error) {
+func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, authClient authclient.ClientI, dbURI string) ([]string, error) {
 	dbResourceURI, err := uri.ParseDBURI(dbURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, c.status.AccessInfo(), c.status.Cluster, authClient)
+	accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, c.status.AccessInfo(), c.clusterClient.SiteName, authClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

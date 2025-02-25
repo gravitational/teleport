@@ -19,8 +19,10 @@
 package tlsca
 
 import (
+	"context"
 	"crypto"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -29,24 +31,25 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"os"
 	"strconv"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentAuthority,
-})
+var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentAuthority)
 
 // FromCertAndSigner returns a CertAuthority with the given raw certificate and signer.
 func FromCertAndSigner(certPEM []byte, signer crypto.Signer) (*CertAuthority, error) {
@@ -71,7 +74,7 @@ func FromKeys(certPEM, keyPEM []byte) (*CertAuthority, error) {
 		return nil, trace.Wrap(err)
 	}
 	if len(keyPEM) != 0 {
-		ca.Signer, err = ParsePrivateKeyPEM(keyPEM)
+		ca.Signer, err = keys.ParsePrivateKey(keyPEM)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -109,8 +112,10 @@ type CertAuthority struct {
 }
 
 // Identity is an identity of the user or service, e.g. Proxy or Node
+// Must be kept in sync with teleport.decision.v1alpha1.TLSIdentity.
 type Identity struct {
-	// Username is a username or name of the node connection
+	// Username is the name of the user (for end-users/bots) or the Host ID (for
+	// Teleport processes).
 	Username string
 	// Impersonator is a username of a user impersonating this user
 	Impersonator string
@@ -184,6 +189,9 @@ type Identity struct {
 	// BotName indicates the name of the Machine ID bot this identity was issued
 	// to, if any.
 	BotName string
+	// BotInstanceID is a unique identifier for Machine ID bots that is
+	// persisted through renewals.
+	BotInstanceID string
 	// AllowedResourceIDs lists the resources the identity should be allowed to
 	// access.
 	AllowedResourceIDs []types.ResourceID
@@ -198,15 +206,16 @@ type Identity struct {
 
 	// UserType indicates if the User was created by an SSO Provider or locally.
 	UserType types.UserType
+
+	// JoinAttributes holds the attributes that resulted from the
+	// Bot/Agent join process.
+	JoinAttributes *workloadidentityv1pb.JoinAttrs
 }
 
 // RouteToApp holds routing information for applications.
 type RouteToApp struct {
-	// SessionID is a UUIDv4 used to identify application sessions created by
-	// this certificate. The reason a UUID was used instead of a hash of the
-	// SubjectPublicKeyInfo like the CA pin is for UX consistency. For example,
-	// the SessionID is emitted in the audit log, using a UUID matches how SSH
-	// sessions are identified.
+	// SessionID is an ID used to identify application sessions created by
+	// this certificate.
 	SessionID string
 
 	// PublicAddr (and ClusterName) are used to route requests issued with this
@@ -228,6 +237,16 @@ type RouteToApp struct {
 
 	// GCPServiceAccount is the GCP service account to assume when accessing GCP API.
 	GCPServiceAccount string
+
+	// URI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
+	// Used merely for audit events and mirrors the URI from the app spec. Not used as a source of
+	// truth when routing connections.
+	URI string
+
+	// TargetPort is the port to which connections should be routed to. Used only for multi-port TCP
+	// apps. It is appended to the hostname from the URI in the app spec, since the URI from
+	// RouteToApp is not used as the source of truth for routing.
+	TargetPort int
 }
 
 // RouteToDatabase contains routing information for databases.
@@ -304,6 +323,8 @@ func (id *Identity) GetEventIdentity() events.Identity {
 			AWSRoleARN:        id.RouteToApp.AWSRoleARN,
 			AzureIdentity:     id.RouteToApp.AzureIdentity,
 			GCPServiceAccount: id.RouteToApp.GCPServiceAccount,
+			URI:               id.RouteToApp.URI,
+			TargetPort:        uint32(id.RouteToApp.TargetPort),
 		}
 	}
 	var routeToDatabase *events.RouteToDatabase
@@ -354,6 +375,8 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		AllowedResourceIDs:      events.ResourceIDs(id.AllowedResourceIDs),
 		PrivateKeyPolicy:        string(id.PrivateKeyPolicy),
 		DeviceExtensions:        devExts,
+		BotName:                 id.BotName,
+		BotInstanceID:           id.BotInstanceID,
 	}
 }
 
@@ -451,6 +474,14 @@ var (
 	// the list of allowed GCP service accounts into a certificate.
 	GCPServiceAccountsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 19}
 
+	// UserTypeASN1ExtensionOID is an extension that encodes the user type.
+	// Its value is either local or sso.
+	UserTypeASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 20}
+
+	// AppTargetPortASN1ExtensionOID is an extension ID used to encode the application
+	// target port into a certificate.
+	AppTargetPortASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 21}
+
 	// DatabaseServiceNameASN1ExtensionOID is an extension ID used when encoding/decoding
 	// database service name into certificates.
 	DatabaseServiceNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 1}
@@ -528,6 +559,14 @@ var (
 	// RequestedDatabaseRolesExtensionOID is an extension OID used when
 	// encoding/decoding requested database roles.
 	RequestedDatabaseRolesExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 19}
+
+	// BotInstanceASN1ExtensionOID is an extension that encodes a unique bot
+	// instance identifier into a certificate.
+	BotInstanceASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 20}
+
+	// JoinAttributesASN1ExtensionOID is an extension that encodes the
+	// attributes that resulted from the Bot/Agent join process.
+	JoinAttributesASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 21}
 )
 
 // Device Trust OIDs.
@@ -614,6 +653,15 @@ func (id *Identity) Subject() (pkix.Name, error) {
 				Type:  AppPublicAddrASN1ExtensionOID,
 				Value: id.RouteToApp.PublicAddr,
 			})
+	}
+	if id.RouteToApp.TargetPort != 0 {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type: AppTargetPortASN1ExtensionOID,
+				// asn1 doesn't seem to handle uint16, hence the string.
+				Value: strconv.Itoa(id.RouteToApp.TargetPort),
+			},
+		)
 	}
 	if id.RouteToApp.ClusterName != "" {
 		subject.ExtraNames = append(subject.ExtraNames,
@@ -810,6 +858,23 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	if id.BotInstanceID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  BotInstanceASN1ExtensionOID,
+				Value: id.BotInstanceID,
+			})
+	}
+
+	if id.UserType != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  UserTypeASN1ExtensionOID,
+				Value: string(id.UserType),
+			},
+		)
+	}
+
 	if len(id.AllowedResourceIDs) > 0 {
 		allowedResourcesStr, err := types.ResourceIDsToString(id.AllowedResourceIDs)
 		if err != nil {
@@ -837,6 +902,24 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  ConnectionDiagnosticIDASN1ExtensionOID,
 				Value: id.ConnectionDiagnosticID,
+			},
+		)
+	}
+
+	if id.JoinAttributes != nil && shouldPersistJoinAttrs() {
+		encoded, err := protojson.MarshalOptions{
+			// Use the proto field names as this is what we use in the
+			// templating engine and this being consistent for any user who
+			// inspects the cert is kind.
+			UseProtoNames: true,
+		}.Marshal(id.JoinAttributes)
+		if err != nil {
+			return pkix.Name{}, trace.Wrap(err, "encoding join attributes as protojson")
+		}
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  JoinAttributesASN1ExtensionOID,
+				Value: string(encoded),
 			},
 		)
 	}
@@ -914,6 +997,16 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			val, ok := attr.Value.(string)
 			if ok {
 				id.RouteToApp.PublicAddr = val
+			}
+		case attr.Type.Equal(AppTargetPortASN1ExtensionOID):
+			// Similar to GenerationASN1ExtensionOID, it has to be cast to a string first and then parsed.
+			val, ok := attr.Value.(string)
+			if ok {
+				targetPort, err := strconv.ParseUint(val, 10, 16)
+				if err != nil {
+					return nil, trace.Wrap(err, "parsing target port")
+				}
+				id.RouteToApp.TargetPort = int(targetPort)
 			}
 		case attr.Type.Equal(AppClusterNameASN1ExtensionOID):
 			val, ok := attr.Value.(string)
@@ -1050,6 +1143,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.BotName = val
 			}
+		case attr.Type.Equal(BotInstanceASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.BotInstanceID = val
+			}
 		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
 			allowedResourcesStr, ok := attr.Value.(string)
 			if ok {
@@ -1085,6 +1183,23 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if val, ok := attr.Value.(string); ok {
 				id.PinnedIP = val
 			}
+		case attr.Type.Equal(UserTypeASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.UserType = types.UserType(val)
+			}
+		case attr.Type.Equal(JoinAttributesASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.JoinAttributes = &workloadidentityv1pb.JoinAttrs{}
+				unmarshaler := protojson.UnmarshalOptions{
+					// We specifically want to DiscardUnknown or unmarshaling
+					// will fail if the proto message was issued by a newer
+					// auth server w/ new fields.
+					DiscardUnknown: true,
+				}
+				if err := unmarshaler.Unmarshal([]byte(val), id.JoinAttributes); err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
 		}
 	}
 
@@ -1118,6 +1233,8 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		AccessRequests:    id.ActiveRequests,
 		UserKind:          userKind,
 		TrustedDevice:     device,
+		BotName:           id.BotName,
+		BotInstanceID:     id.BotInstanceID,
 	}
 }
 
@@ -1174,7 +1291,12 @@ func (c *CertificateRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter NotAfter")
 	}
 	if c.KeyUsage == 0 {
-		c.KeyUsage = x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
+		c.KeyUsage = x509.KeyUsageDigitalSignature
+		if _, isRSA := c.PublicKey.(*rsa.PublicKey); isRSA {
+			// The KeyEncipherment bit is necessary for RSA key exchanges
+			// https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.3
+			c.KeyUsage |= x509.KeyUsageKeyEncipherment
+		}
 	}
 
 	c.DNSNames = utils.Deduplicate(c.DNSNames)
@@ -1193,11 +1315,12 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 		return nil, trace.Wrap(err)
 	}
 
-	log.WithFields(logrus.Fields{
-		"not_after": req.NotAfter,
-		"dns_names": req.DNSNames,
-		"key_usage": req.KeyUsage,
-	}).Infof("Generating TLS certificate %v", req.Subject.String())
+	logger.DebugContext(context.TODO(), "Generating TLS certificate",
+		"not_after", req.NotAfter,
+		"dns_names", req.DNSNames,
+		"key_usage", req.KeyUsage,
+		"common_name", req.Subject.CommonName,
+	)
 
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,
@@ -1230,4 +1353,11 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 	}
 
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certBytes}), nil
+}
+
+// shouldPersistJoinAttrs returns true if the join attributes should be persisted
+// into the X509 identity. This provides an emergency "off" handle for this
+// new behavior until we are confident it is working as expected.
+func shouldPersistJoinAttrs() bool {
+	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_JOIN_ATTRS") != "yes"
 }

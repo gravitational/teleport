@@ -20,25 +20,27 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/athena"
 	"github.com/aws/aws-sdk-go-v2/service/glue"
-	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
 	ecatypes "github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/integrations/azureoidc"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
 	"github.com/gravitational/teleport/lib/integrations/samlidp"
 	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 func onIntegrationConfDeployService(ctx context.Context, params config.IntegrationConfDeployServiceIAM) error {
@@ -51,29 +53,15 @@ func onIntegrationConfDeployService(ctx context.Context, params config.Integrati
 	}
 
 	confReq := awsoidc.DeployServiceIAMConfigureRequest{
+		AccountID:       params.AccountID,
 		Cluster:         params.Cluster,
 		IntegrationName: params.Name,
 		Region:          params.Region,
 		IntegrationRole: params.Role,
 		TaskRole:        params.TaskRole,
+		AutoConfirm:     params.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureDeployServiceIAM(ctx, iamClient, confReq))
-}
-
-func onIntegrationConfEICEIAM(ctx context.Context, params config.IntegrationConfEICEIAM) error {
-	// Ensure we print output to the user. LogLevel at this point was set to Error.
-	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
-
-	iamClient, err := awsoidc.NewEICEIAMConfigureClient(ctx, params.Region)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	confReq := awsoidc.EICEIAMConfigureRequest{
-		Region:          params.Region,
-		IntegrationRole: params.Role,
-	}
-	return trace.Wrap(awsoidc.ConfigureEICEIAM(ctx, iamClient, confReq))
 }
 
 func onIntegrationConfEC2SSMIAM(ctx context.Context, params config.IntegrationConfEC2SSMIAM) error {
@@ -90,6 +78,10 @@ func onIntegrationConfEC2SSMIAM(ctx context.Context, params config.IntegrationCo
 		IntegrationRole: params.RoleName,
 		SSMDocumentName: params.SSMDocumentName,
 		ProxyPublicURL:  params.ProxyPublicURL,
+		ClusterName:     params.ClusterName,
+		IntegrationName: params.IntegrationName,
+		AccountID:       params.AccountID,
+		AutoConfirm:     params.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureEC2SSM(ctx, awsClt, confReq))
 }
@@ -105,6 +97,8 @@ func onIntegrationConfAWSAppAccessIAM(ctx context.Context, params config.Integra
 
 	confReq := awsoidc.AWSAppAccessConfigureRequest{
 		IntegrationRole: params.RoleName,
+		AccountID:       params.AccountID,
+		AutoConfirm:     params.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureAWSAppAccess(ctx, iamClient, confReq))
 }
@@ -121,6 +115,8 @@ func onIntegrationConfEKSIAM(ctx context.Context, params config.IntegrationConfE
 	confReq := awsoidc.EKSIAMConfigureRequest{
 		Region:          params.Region,
 		IntegrationRole: params.Role,
+		AccountID:       params.AccountID,
+		AutoConfirm:     params.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureEKSIAM(ctx, iamClient, confReq))
 }
@@ -138,12 +134,12 @@ func onIntegrationConfAWSOIDCIdP(ctx context.Context, clf config.CommandLineFlag
 	}
 
 	confReq := awsoidc.IdPIAMConfigureRequest{
-		Cluster:            clf.IntegrationConfAWSOIDCIdPArguments.Cluster,
-		IntegrationName:    clf.IntegrationConfAWSOIDCIdPArguments.Name,
-		IntegrationRole:    clf.IntegrationConfAWSOIDCIdPArguments.Role,
-		ProxyPublicAddress: clf.IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL,
-		S3BucketLocation:   clf.IntegrationConfAWSOIDCIdPArguments.S3BucketURI,
-		S3JWKSContentsB64:  clf.IntegrationConfAWSOIDCIdPArguments.S3JWKSContentsB64,
+		Cluster:                 clf.IntegrationConfAWSOIDCIdPArguments.Cluster,
+		IntegrationName:         clf.IntegrationConfAWSOIDCIdPArguments.Name,
+		IntegrationRole:         clf.IntegrationConfAWSOIDCIdPArguments.Role,
+		ProxyPublicAddress:      clf.IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL,
+		IntegrationPolicyPreset: awsoidc.PolicyPreset(clf.IntegrationConfAWSOIDCIdPArguments.PolicyPreset),
+		AutoConfirm:             clf.IntegrationConfAWSOIDCIdPArguments.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureIdPIAM(ctx, iamClient, confReq))
 }
@@ -153,22 +149,18 @@ func onIntegrationConfListDatabasesIAM(ctx context.Context, params config.Integr
 	// LogLevel at this point is set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 
-	if params.Region == "" {
-		return trace.BadParameter("region is required")
-	}
-
-	cfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(params.Region))
+	clt, err := awsoidc.NewListDatabasesIAMConfigureClient(ctx, params.Region)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	iamClient := iam.NewFromConfig(cfg)
-
 	confReq := awsoidc.ConfigureIAMListDatabasesRequest{
 		Region:          params.Region,
 		IntegrationRole: params.Role,
+		AccountID:       params.AccountID,
+		AutoConfirm:     params.AutoConfirm,
 	}
-	return trace.Wrap(awsoidc.ConfigureListDatabasesIAM(ctx, iamClient, confReq))
+	return trace.Wrap(awsoidc.ConfigureListDatabasesIAM(ctx, clt, confReq))
 }
 
 func onIntegrationConfExternalAuditCmd(ctx context.Context, params easconfig.ExternalAuditStorageConfiguration) error {
@@ -176,6 +168,15 @@ func onIntegrationConfExternalAuditCmd(ctx context.Context, params easconfig.Ext
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if params.AccountID != "" {
+		stsClient := stsutils.NewFromConfig(cfg)
+		err = awsoidc.CheckAccountID(ctx, stsClient, params.AccountID)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	if params.Bootstrap {
 		err = externalauditstorage.BootstrapInfra(ctx, externalauditstorage.BootstrapInfraParams{
 			Athena: athena.NewFromConfig(cfg),
@@ -189,7 +190,9 @@ func onIntegrationConfExternalAuditCmd(ctx context.Context, params easconfig.Ext
 				GlueDatabase:           params.GlueDatabase,
 				GlueTable:              params.GlueTable,
 			},
-			Region: params.Region,
+			Region:          params.Region,
+			ClusterName:     params.ClusterName,
+			IntegrationName: params.IntegrationName,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -197,8 +200,8 @@ func onIntegrationConfExternalAuditCmd(ctx context.Context, params easconfig.Ext
 	}
 
 	clt := &awsoidc.DefaultConfigureExternalAuditStorageClient{
-		Iam: iam.NewFromConfig(cfg),
-		Sts: sts.NewFromConfig(cfg),
+		Iam: iamutils.NewFromConfig(cfg),
+		Sts: stsutils.NewFromConfig(cfg),
 	}
 	return trace.Wrap(awsoidc.ConfigureExternalAuditStorage(ctx, clt, params))
 }
@@ -207,15 +210,65 @@ func onIntegrationConfAccessGraphAWSSync(ctx context.Context, params config.Inte
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 
-	iamClient, err := awsoidc.NewAccessGraphIAMConfigureClient(ctx)
+	clt, err := awsoidc.NewAccessGraphIAMConfigureClient(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	confReq := awsoidc.AccessGraphAWSIAMConfigureRequest{
 		IntegrationRole: params.Role,
+		AccountID:       params.AccountID,
+		AutoConfirm:     params.AutoConfirm,
 	}
-	return trace.Wrap(awsoidc.ConfigureAccessGraphSyncIAM(ctx, iamClient, confReq))
+	return trace.Wrap(awsoidc.ConfigureAccessGraphSyncIAM(ctx, clt, confReq))
+}
+
+func onIntegrationConfAccessGraphAzureSync(ctx context.Context, params config.IntegrationConfAccessGraphAzureSync) error {
+	// Ensure we print output to the user. LogLevel at this point was set to Error.
+	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
+	confReq := azureoidc.AccessGraphAzureConfigureRequest{
+		ManagedIdentity: params.ManagedIdentity,
+		RoleName:        params.RoleName,
+		SubscriptionID:  params.SubscriptionID,
+		AutoConfirm:     params.AutoConfirm,
+	}
+	clt, err := azureoidc.NewAzureConfigClient(params.SubscriptionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(azureoidc.ConfigureAccessGraphSyncAzure(ctx, clt, confReq))
+}
+
+func onIntegrationConfAzureOIDCCmd(ctx context.Context, params config.IntegrationConfAzureOIDC) error {
+	// Ensure we print output to the user. LogLevel at this point was set to Error.
+	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
+
+	if err := azureoidc.EnsureAZLogin(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("Teleport is setting up the Azure integration. This may take a few minutes.")
+
+	appID, tenantID, err := azureoidc.SetupEnterpriseApp(ctx, params.ProxyPublicAddr, params.AuthConnectorName, params.SkipOIDCConfiguration)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if params.AccessGraphEnabled {
+		err := azureoidc.CreateTAGCacheFile(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	fmt.Println()
+	fmt.Println("Success! Use the following information to finish the integration onboarding in Teleport:")
+	fmt.Printf("Tenant ID: %s\nClient ID: %s\n", tenantID, appID)
+	if params.AccessGraphEnabled {
+		fmt.Println("To finish the setup you will need the `cache.json` file that we created for you.")
+		fmt.Println("Use `download cache.json` to download it from the Azure Cloud Shell, and submit it on the integration onboarding page.")
+	}
+	return nil
 }
 
 func onIntegrationConfSAMLIdPGCPWorkforce(ctx context.Context, params samlidpconfig.GCPWorkforceAPIParams) error {

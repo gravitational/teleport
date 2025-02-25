@@ -16,47 +16,109 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { formatDistanceToNowStrict } from 'date-fns';
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { formatDistanceToNowStrict } from 'date-fns';
 
-import * as Icons from 'design/Icon';
-
-import Text from 'design/Text';
 import { ButtonSecondary } from 'design/Button';
-import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
-import { IGNORE_CLICK_CLASSNAME } from 'shared/hooks/useRefClickOutside/useRefClickOutside';
 import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
+import * as Icons from 'design/Icon';
+import Text, { P3 } from 'design/Text';
 import { Theme } from 'design/theme/themes/types';
+import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
+import { useAsync } from 'shared/hooks/useAsync';
+import { IGNORE_CLICK_CLASSNAME } from 'shared/hooks/useRefClickOutside/useRefClickOutside';
 
-import { Notification as NotificationType } from 'teleport/services/notifications';
+import history from 'teleport/services/history';
+import {
+  NotificationState,
+  Notification as NotificationType,
+} from 'teleport/services/notifications';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { useTeleport } from '..';
-
 import { NotificationContent } from './notificationContentFactory';
+import { View } from './Notifications';
 
 export function Notification({
   notification,
+  view = 'All',
+  closeNotificationsList,
+  removeNotification,
+  markNotificationAsClicked,
 }: {
   notification: NotificationType;
+  view?: View;
+  closeNotificationsList: () => void;
+  removeNotification: (notificationId: string) => void;
+  markNotificationAsClicked: (notificationId: string) => void;
 }) {
   const ctx = useTeleport();
+  const { clusterId } = useStickyClusterId();
 
   const content = ctx.notificationContentFactory(notification);
-
-  // If the notification is unsupported, it should not be shown.
+  // If there is no notification content because it is an unsupported kind, don't render anything.
   if (!content) {
     return null;
   }
 
+  const [markAsClickedAttempt, markAsClicked] = useAsync(() =>
+    ctx.notificationService
+      .upsertNotificationState(clusterId, {
+        notificationId: notification.id,
+        notificationState: NotificationState.CLICKED,
+      })
+      .then(res => {
+        markNotificationAsClicked(notification.id);
+        return res;
+      })
+  );
+
+  const [hideNotificationAttempt, hideNotification] = useAsync(() => {
+    return ctx.notificationService
+      .upsertNotificationState(clusterId, {
+        notificationId: notification.id,
+        notificationState: NotificationState.DISMISSED,
+      })
+      .then(() => {
+        removeNotification(notification.id);
+      });
+  });
+
   // Whether to show the text content dialog. This is only ever used for user-created notifications which only contain informational text
   // and don't redirect to any page.
   const [showTextContentDialog, setShowTextContentDialog] = useState(false);
+
+  // If the view is "Unread" and the notification has been read, it should not be shown.
+  if (view === 'Unread' && notification.clicked) {
+    // If this is a text content notification, the dialog should still be renderable. This is to prevent the text content dialog immediately disappearing
+    // when trying to open an unread text notification, since clicking on the notification instantly marks it as read.
+    if (content.kind === 'text') {
+      return (
+        <Dialog open={showTextContentDialog} className={IGNORE_CLICK_CLASSNAME}>
+          <DialogHeader>
+            <DialogTitle>{content.title}</DialogTitle>
+          </DialogHeader>
+          <DialogContent>{content.textContent}</DialogContent>
+          <DialogFooter>
+            <ButtonSecondary
+              onClick={() => setShowTextContentDialog(false)}
+              size="small"
+              className={IGNORE_CLICK_CLASSNAME}
+            >
+              Close
+            </ButtonSecondary>
+          </DialogFooter>
+        </Dialog>
+      );
+    }
+    return null;
+  }
 
   let AccentIcon;
   switch (content.type) {
@@ -77,32 +139,37 @@ export function Notification({
 
   const formattedDate = formatDate(notification.createdDate);
 
-  function onMarkAsClicked() {
-    // TODO rudream - add mark as clicked functionality
-  }
-
-  function onHideNotification() {
-    // TODO rudream - add hide notification functionality
-  }
-
   function onNotificationClick(e: React.MouseEvent<HTMLElement>) {
     // Prevents this from being triggered when the user is just clicking away from
     // an open "mark as read/hide this notification" menu popover.
     if (e.currentTarget.contains(e.target as HTMLElement)) {
-      if (content.kind === 'text') {
-        setShowTextContentDialog(true);
-        return;
-      }
-      // TODO rudream - add notification redirect functionality
+      onClick();
     }
   }
+
+  function onClick() {
+    if (content.kind === 'text') {
+      setShowTextContentDialog(true);
+      markAsClicked();
+      return;
+    }
+    markAsClicked();
+    closeNotificationsList();
+    history.push(content.redirectRoute);
+  }
+
+  const isClicked =
+    notification.clicked || markAsClickedAttempt.status === 'processing';
 
   return (
     <>
       <Container
-        clicked={notification.clicked}
+        data-testid="notification-item"
+        clicked={isClicked}
         onClick={onNotificationClick}
         className="notification"
+        tabIndex={0}
+        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && onClick()}
       >
         <GraphicContainer>
           <MainIconContainer type={content.type}>
@@ -115,19 +182,26 @@ export function Notification({
         <ContentContainer>
           <ContentBody>
             <Text>{content.title}</Text>
-            {content.kind === 'redirect' && content.quickAction && (
-              <ButtonSecondary
-                css={`
-                  text-transform: none;
-                `}
-                onClick={content.quickAction.onClick}
-              >
-                {content.quickAction.buttonText}
-              </ButtonSecondary>
+            {content.kind === 'redirect' && content.QuickAction && (
+              <content.QuickAction markAsClicked={markAsClicked} />
+            )}
+            {hideNotificationAttempt.status === 'error' && (
+              <Text typography="body4" color="error.main">
+                Failed to hide notification:{' '}
+                {hideNotificationAttempt.statusText}
+              </Text>
+            )}
+            {markAsClickedAttempt.status === 'error' && (
+              <P3 color="error.main">
+                Failed to mark notification as read:{' '}
+                {markAsClickedAttempt.statusText}
+              </P3>
             )}
           </ContentBody>
           <SideContent>
-            <Text typography="subtitle3">{formattedDate}</Text>
+            {!content?.hideDate && (
+              <Text typography="body4">{formattedDate}</Text>
+            )}
             <MenuIcon
               menuProps={{
                 anchorOrigin: { vertical: 'bottom', horizontal: 'right' },
@@ -136,14 +210,16 @@ export function Notification({
               }}
               buttonIconProps={{ style: { borderRadius: '4px' } }}
             >
+              {!isClicked && (
+                <MenuItem
+                  onClick={markAsClicked}
+                  className={IGNORE_CLICK_CLASSNAME}
+                >
+                  Mark as read
+                </MenuItem>
+              )}
               <MenuItem
-                onClick={onMarkAsClicked}
-                className={IGNORE_CLICK_CLASSNAME}
-              >
-                Mark as read
-              </MenuItem>
-              <MenuItem
-                onClick={onHideNotification}
+                onClick={hideNotification}
                 className={IGNORE_CLICK_CLASSNAME}
               >
                 Hide this notification
@@ -189,7 +265,7 @@ function formatDate(date: Date) {
   return `${distance} ago`;
 }
 
-const Container = styled.div`
+const Container = styled.div<{ clicked?: boolean }>`
   box-sizing: border-box;
   display: flex;
   align-items: center;
@@ -200,20 +276,40 @@ const Container = styled.div`
   border-radius: ${props => props.theme.radii[3]}px;
   cursor: pointer;
 
-  background: ${props => props.theme.colors.interactive.tonal.primary[0]};
-  &:hover {
-    background: ${props => props.theme.colors.interactive.tonal.primary[1]};
+  ${props => getInteractiveStateStyles(props.theme, props.clicked)}
+`;
+
+function getInteractiveStateStyles(theme: Theme, clicked: boolean): string {
+  if (clicked) {
+    return `
+        background: transparent;
+        &:hover {
+          background: ${theme.colors.interactive.tonal.neutral[0]};
+        }
+        &:active {
+          outline: none;
+          background: ${theme.colors.interactive.tonal.neutral[1]};
+        }
+        &:focus {
+          outline: ${theme.borders[2]} ${theme.colors.text.slightlyMuted};
+        }
+        `;
   }
 
-  ${props =>
-    props.clicked &&
-    `
-    background: ${props.theme.colors.interactive.tonal.neutral[0]};
+  return `
+    background: ${theme.colors.interactive.tonal.primary[0]};
     &:hover {
-      background: ${props.theme.colors.interactive.tonal.neutral[1]};
+      background: ${theme.colors.interactive.tonal.primary[1]};
     }
-    `}
-`;
+    &:active {
+      outline: none;
+      background: ${theme.colors.interactive.tonal.primary[2]};
+    }
+    &:focus {
+      outline: ${theme.borders[2]} ${theme.colors.interactive.solid.primary.default};
+    }
+    `;
+}
 
 const ContentContainer = styled.div`
   display: flex;
@@ -228,6 +324,10 @@ const ContentBody = styled.div`
   justify-content: center;
   align-items: flex-start;
   gap: ${props => props.theme.space[2]}px;
+
+  button {
+    text-transform: none;
+  }
 `;
 
 const SideContent = styled.div`
@@ -256,12 +356,12 @@ function getIconColors(
   switch (type) {
     case 'success':
       return {
-        primary: theme.colors.success.main,
+        primary: theme.colors.interactive.solid.success.active,
         secondary: theme.colors.interactive.tonal.success[0],
       };
     case 'success-alt':
       return {
-        primary: theme.colors.accent.main,
+        primary: theme.colors.interactive.solid.accent.active,
         secondary: theme.colors.interactive.tonal.informational[0],
       };
     case 'informational':
@@ -271,7 +371,7 @@ function getIconColors(
       };
     case `warning`:
       return {
-        primary: theme.colors.warning.main,
+        primary: theme.colors.interactive.solid.alert.active,
         secondary: theme.colors.interactive.tonal.alert[0],
       };
     case 'failure':
@@ -282,7 +382,7 @@ function getIconColors(
   }
 }
 
-const MainIconContainer = styled.div`
+const MainIconContainer = styled.div<{ type: NotificationContent['type'] }>`
   display: flex;
   align-items: center;
   justify-content: center;
@@ -301,7 +401,7 @@ const MainIconContainer = styled.div`
     getIconColors(props.theme, props.type).secondary};
 `;
 
-const AccentIconContainer = styled.div`
+const AccentIconContainer = styled.div<{ type: NotificationContent['type'] }>`
   height: 18px;
   width: 18px;
   display: flex;

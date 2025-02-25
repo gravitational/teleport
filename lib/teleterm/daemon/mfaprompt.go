@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package daemon
 
@@ -20,74 +24,87 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
+	"github.com/gravitational/teleport/api/trail"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
 // mfaPrompt is a tshd implementation of mfa.Prompt that uses the
 // tshdEventsClient to propagate mfa prompts to the Electron App.
 type mfaPrompt struct {
 	cfg          libmfa.PromptConfig
-	clusterURI   string
+	resourceURI  uri.ResourceURI
 	promptAppMFA func(ctx context.Context, in *api.PromptMFARequest) (*api.PromptMFAResponse, error)
 }
 
 // NewMFAPromptConstructor returns a new MFA prompt constructor
-// for this service and the given cluster.
-func (s *Service) NewMFAPromptConstructor(clusterURI string) func(cfg *libmfa.PromptConfig) mfa.Prompt {
+// for this service and the given resource URI.
+func (s *Service) NewMFAPromptConstructor(resourceURI uri.ResourceURI) func(cfg *libmfa.PromptConfig) mfa.Prompt {
 	return func(cfg *libmfa.PromptConfig) mfa.Prompt {
-		return s.NewMFAPrompt(clusterURI, cfg)
+		return s.NewMFAPrompt(resourceURI, cfg)
 	}
 }
 
-// NewMFAPrompt returns a new MFA prompt for this service and the given cluster.
-func (s *Service) NewMFAPrompt(clusterURI string, cfg *libmfa.PromptConfig) *mfaPrompt {
+// NewMFAPrompt returns a new MFA prompt for this service and the given resource URI.
+func (s *Service) NewMFAPrompt(resourceURI uri.ResourceURI, cfg *libmfa.PromptConfig) *mfaPrompt {
 	return &mfaPrompt{
 		cfg:          *cfg,
-		clusterURI:   clusterURI,
+		resourceURI:  resourceURI,
 		promptAppMFA: s.promptAppMFA,
 	}
 }
 
 func (s *Service) promptAppMFA(ctx context.Context, in *api.PromptMFARequest) (*api.PromptMFAResponse, error) {
-	if err := s.importantModalSemaphore.Acquire(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer s.importantModalSemaphore.Release()
+	s.mfaMu.Lock()
+	defer s.mfaMu.Unlock()
 
 	return s.tshdEventsClient.PromptMFA(ctx, in)
 }
 
 // Run prompts the user to complete an MFA authentication challenge.
 func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	runOpts, err := p.cfg.GetRunOptions(ctx, chal)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	promptOTP := chal.TOTP != nil
+	promptWebauthn := chal.WebauthnChallenge != nil && p.cfg.WebauthnSupported
+	promptSSO := chal.SSOChallenge != nil && p.cfg.SSOMFACeremony != nil
 
 	// No prompt to run, no-op.
-	if !runOpts.PromptTOTP && !runOpts.PromptWebauthn {
+	if !(promptOTP || promptWebauthn || promptSSO) {
 		return &proto.MFAAuthenticateResponse{}, nil
 	}
 
-	// Depending on the run opts, we may spawn a TOTP goroutine, webauth goroutine, or both.
+	var ssoChallenge *api.SSOChallenge
+	if promptSSO {
+		ssoChallenge = &api.SSOChallenge{
+			ConnectorId:   chal.SSOChallenge.Device.ConnectorId,
+			ConnectorType: chal.SSOChallenge.Device.ConnectorType,
+			DisplayName:   chal.SSOChallenge.Device.DisplayName,
+			RedirectUrl:   chal.SSOChallenge.RedirectUrl,
+		}
+	}
+
 	spawnGoroutines := func(ctx context.Context, wg *sync.WaitGroup, respC chan<- libmfa.MFAGoroutineResponse) {
 		ctx, cancel := context.WithCancelCause(ctx)
 
-		// Fire App goroutine (TOTP).
+		// Fire app Prompt goroutine. Handles client cancellation and TOTP.
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
-			resp, err := p.promptMFA(ctx, chal, runOpts)
+			resp, err := p.promptMFA(ctx, &api.PromptMFARequest{
+				ClusterUri: p.resourceURI.GetClusterURI().String(),
+				Reason:     p.cfg.PromptReason,
+				Totp:       promptOTP,
+				Webauthn:   promptWebauthn,
+				Sso:        ssoChallenge,
+			})
 			respC <- libmfa.MFAGoroutineResponse{Resp: resp, Err: err}
 
 			// If the user closes the modal in the Electron app, we need to be able to cancel the other
@@ -98,7 +115,7 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		}()
 
 		// Fire Webauthn goroutine.
-		if runOpts.PromptWebauthn {
+		if promptWebauthn {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -107,9 +124,32 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 				respC <- libmfa.MFAGoroutineResponse{Resp: resp, Err: trace.Wrap(err, "Webauthn authentication failed")}
 			}()
 		}
+
+		// Fire SSO goroutine.
+		if promptSSO {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+
+				resp, err := p.promptSSO(ctx, chal)
+				respC <- libmfa.MFAGoroutineResponse{Resp: resp, Err: trace.Wrap(err, "SSO authentication failed")}
+			}()
+		}
 	}
 
 	return libmfa.HandleMFAPromptGoroutines(ctx, spawnGoroutines)
+}
+
+func (p *mfaPrompt) promptMFA(ctx context.Context, req *api.PromptMFARequest) (*proto.MFAAuthenticateResponse, error) {
+	resp, err := p.promptAppMFA(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_TOTP{
+			TOTP: &proto.TOTPResponse{Code: resp.TotpCode},
+		},
+	}, nil
 }
 
 func (p *mfaPrompt) promptWebauthn(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
@@ -123,19 +163,7 @@ func (p *mfaPrompt) promptWebauthn(ctx context.Context, chal *proto.MFAAuthentic
 	return resp, nil
 }
 
-func (p *mfaPrompt) promptMFA(ctx context.Context, chal *proto.MFAAuthenticateChallenge, runOpts libmfa.RunOpts) (*proto.MFAAuthenticateResponse, error) {
-	resp, err := p.promptAppMFA(ctx, &api.PromptMFARequest{
-		RootClusterUri: p.clusterURI,
-		Reason:         p.cfg.PromptReason,
-		Totp:           runOpts.PromptTOTP,
-		Webauthn:       runOpts.PromptWebauthn,
-	})
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	return &proto.MFAAuthenticateResponse{
-		Response: &proto.MFAAuthenticateResponse_TOTP{
-			TOTP: &proto.TOTPResponse{Code: resp.TotpCode},
-		},
-	}, nil
+func (c *mfaPrompt) promptSSO(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	resp, err := c.cfg.SSOMFACeremony.Run(ctx, chal)
+	return resp, trace.Wrap(err)
 }

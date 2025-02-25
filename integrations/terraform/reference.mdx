@@ -695,8 +695,7 @@ Metadata is resource metadata
 Spec is a ClusterNetworkingConfig specification
 
 |               Name               |   Type   | Required |                                                                                               Description                                                                                               |
-|----------------------------------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| assist_command_execution_workers | number   |          | AssistCommandExecutionWorkers determines the number of workers that will execute arbitrary Assist commands on servers in parallel                                                                       |
+|----------------------------------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------| |
 | case_insensitive_routing         | bool     |          | CaseInsensitiveRouting causes proxies to use case-insensitive hostname matching.                                                                                                                        |
 | client_idle_timeout              | duration |          | ClientIdleTimeout sets global cluster default setting for client idle timeouts.                                                                                                                         |
 | idle_timeout_message             | string   |          | ClientIdleTimeoutMessage is the message sent to the user when a connection times out.                                                                                                                   |
@@ -1092,7 +1091,7 @@ resource "teleport_github_connector" "github" {
        example = "yes"
      }
   }
-  
+
   spec = {
     client_id = "client"
     client_secret = var.github_secret
@@ -1229,7 +1228,7 @@ Example:
 
 ```
 # Teleport OIDC connector
-# 
+#
 # Please note that OIDC connector will work in Enterprise version only. Check the setup docs:
 # https://goteleport.com/docs/enterprise/sso/oidc/
 
@@ -1614,7 +1613,7 @@ resource "teleport_provision_token" "example" {
     description = "Example token"
 
     labels = {
-      example = "yes" 
+      example = "yes"
       "teleport.dev/origin" = "dynamic" // This label is added on Teleport side by default
     }
   }
@@ -2052,7 +2051,8 @@ Options is for OpenSSH options like agent forwarding.
 | max_sessions               | number           |          | MaxSessions defines the maximum number of concurrent sessions per connection.                                                                                                                          |
 | permit_x11_forwarding      | bool             |          | PermitX11Forwarding authorizes use of X11 forwarding.                                                                                                                                                  |
 | pin_source_ip              | bool             |          | PinSourceIP forces the same client IP for certificate generation and usage                                                                                                                             |
-| port_forwarding            | bool             |          |                                                                                                                                                                                                        |
+| ssh_port_forwarding        | object           |          | SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.                                                                                                                  |
+| port_forwarding            | bool             |          | Deprecated: Use SSHPortForwarding instead.                                                                                                                                                             |
 | record_session             | object           |          | RecordDesktopSession indicates whether desktop access sessions should be recorded. It defaults to true unless explicitly set to false.                                                                 |
 | request_access             | string           |          | RequestAccess defines the access request strategy (optional|note|always) where optional is the default.                                                                                                |
 | request_prompt             | string           |          | RequestPrompt is an optional message which tells users what they aught to request.                                                                                                                     |
@@ -2086,6 +2086,31 @@ SAML are options related to the Teleport SAML IdP.
 |---------|------|----------|-------------|
 | enabled | bool |          |             |
 
+##### spec.options.ssh_port_forwarding
+
+SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
+
+|  Name  |  Type  | Required |                    Description                            |
+|--------|--------|----------|-----------------------------------------------------------|
+| remote | object |          | remote contains options related to remote port forwarding |
+| local  | object |          | local contains options related to local port forwarding   |
+
+###### spec.options.ssh_port_forwarding.remote
+
+remote contains options related to remote port forwarding
+
+|  Name   | Type | Required | Description |
+|---------|------|----------|-------------|
+| enabled | bool |          |             |
+
+###### spec.options.ssh_port_forwarding.local
+
+local contains options related to local port forwarding
+
+|  Name   | Type | Required | Description |
+|---------|------|----------|-------------|
+| enabled | bool |          |             |
+
 ##### spec.options.record_session
 
 RecordDesktopSession indicates whether desktop access sessions should be recorded. It defaults to true unless explicitly set to false.
@@ -2107,19 +2132,27 @@ resource "teleport_role" "example" {
     description = "Example Teleport Role"
     expires     = "2022-10-12T07:20:51Z"
     labels = {
-      example  = "yes"      
+      example  = "yes"
     }
   }
-  
+
   spec = {
     options = {
       forward_agent           = false
       max_session_ttl         = "7m"
-      port_forwarding         = false
       client_idle_timeout     = "1h"
       disconnect_expired_cert = true
       permit_x11_forwarding   = false
       request_access          = "denied"
+      ssh_port_forwarding     = {
+        remote = {
+          enabled = false
+        }
+
+        local = {
+          enabled = false
+        }
+      }
     }
 
     allow = {
@@ -2226,12 +2259,12 @@ Example:
 
 ```
 # Teleport SAML connector
-# 
+#
 # Please note that SAML connector will work in Enterprise version only. Check the setup docs:
 # https://goteleport.com/docs/enterprise/sso/okta/
 
 resource "teleport_saml_connector" "example" {
-  # This block will tell Terraform to never update private key from our side if a keys are managed 
+  # This block will tell Terraform to never update private key from our side if a keys are managed
   # from an outside of Terraform.
 
   # lifecycle {

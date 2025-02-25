@@ -20,16 +20,24 @@ package jwt
 
 import (
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
 	"math/big"
 
+	"github.com/go-jose/go-jose/v3"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
+)
+
+const (
+	keyTypeRSA = "RSA"
+	keyTypeEC  = "EC"
 )
 
 // JWK is a JSON Web Key, described in detail in RFC 7517.
@@ -38,10 +46,19 @@ type JWK struct {
 	KeyType string `json:"kty"`
 	// Algorithm used to sign.
 	Algorithm string `json:"alg"`
-	// N is the modulus of the public key.
-	N string `json:"n"`
-	// E is the exponent of the public key.
-	E string `json:"e"`
+
+	// N is the modulus of an RSA public key.
+	N string `json:"n,omitempty"`
+	// E is the exponent of an RSA public key.
+	E string `json:"e,omitempty"`
+
+	// Curve identifies the cryptographic curve used with an ECDSA public key.
+	Curve string `json:"crv,omitempty"`
+	// X is the x coordinate parameter of an ECDSA public key.
+	X string `json:"x,omitempty"`
+	// Y is the y coordinate parameter of an ECDSA public key.
+	Y string `json:"y,omitempty"`
+
 	// Use identifies the intended use of the public key.
 	// This field is required for the AWS OIDC Integration.
 	// https://www.rfc-editor.org/rfc/rfc7517#section-4.2
@@ -53,41 +70,92 @@ type JWK struct {
 }
 
 // KeyID returns a key id derived from the public key.
-func KeyID(pub *rsa.PublicKey) string {
+func KeyID(pub crypto.PublicKey) (string, error) {
+	switch p := pub.(type) {
+	case *rsa.PublicKey:
+		return rsaKeyID(p), nil
+	default:
+		return genericKeyID(p)
+	}
+}
+
+func rsaKeyID(pub *rsa.PublicKey) string {
 	hash := sha256.Sum256(x509.MarshalPKCS1PublicKey(pub))
 	return base64.RawURLEncoding.EncodeToString(hash[:])
+}
+
+func genericKeyID(pub crypto.PublicKey) (string, error) {
+	pubKeyDER, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	hash := sha256.Sum256(pubKeyDER)
+	return base64.RawURLEncoding.EncodeToString(hash[:]), nil
 }
 
 // MarshalJWK will marshal a supported public key into JWK format.
 func MarshalJWK(bytes []byte) (JWK, error) {
 	// Parse the public key and validate type.
-	p, err := utils.ParsePublicKey(bytes)
+	pub, err := keys.ParsePublicKey(bytes)
 	if err != nil {
 		return JWK{}, trace.Wrap(err)
 	}
-	publicKey, ok := p.(*rsa.PublicKey)
-	if !ok {
-		return JWK{}, trace.BadParameter("unsupported key format %T", p)
-	}
 
-	// Marshal to JWK.
+	switch p := pub.(type) {
+	case *rsa.PublicKey:
+		return marshalRSAJWK(p), nil
+	case *ecdsa.PublicKey:
+		return marshalECDSAJWK(p)
+	default:
+		return JWK{}, trace.BadParameter("unsupported public type type %T", pub)
+	}
+}
+
+func marshalRSAJWK(pub *rsa.PublicKey) JWK {
 	return JWK{
-		KeyType:   string(defaults.ApplicationTokenKeyType),
-		Algorithm: string(defaults.ApplicationTokenAlgorithm),
-		N:         base64.RawURLEncoding.EncodeToString(publicKey.N.Bytes()),
-		E:         base64.RawURLEncoding.EncodeToString(big.NewInt(int64(publicKey.E)).Bytes()),
+		KeyType:   keyTypeRSA,
 		Use:       defaults.JWTUse,
-		KeyID:     KeyID(publicKey),
+		KeyID:     rsaKeyID(pub),
+		Algorithm: string(jose.RS256),
+		N:         base64.RawURLEncoding.EncodeToString(pub.N.Bytes()),
+		E:         base64.RawURLEncoding.EncodeToString(big.NewInt(int64(pub.E)).Bytes()),
+	}
+}
+
+func marshalECDSAJWK(pub *ecdsa.PublicKey) (JWK, error) {
+	if pub.Curve != elliptic.P256() {
+		return JWK{}, trace.BadParameter("unsupported curve %T", pub.Curve)
+	}
+	keyID, err := genericKeyID(pub)
+	if err != nil {
+		return JWK{}, trace.Wrap(err)
+	}
+	return JWK{
+		KeyType:   keyTypeEC,
+		Use:       defaults.JWTUse,
+		KeyID:     keyID,
+		Algorithm: string(jose.ES256),
+		Curve:     pub.Curve.Params().Name,
+		X:         base64.RawURLEncoding.EncodeToString(pub.X.Bytes()),
+		Y:         base64.RawURLEncoding.EncodeToString(pub.Y.Bytes()),
 	}, nil
 }
 
 // UnmarshalJWK will unmarshal JWK into a crypto.PublicKey that can be used
 // to validate signatures.
 func UnmarshalJWK(jwk JWK) (crypto.PublicKey, error) {
-	if jwk.KeyType != string(defaults.ApplicationTokenKeyType) {
+	switch jwk.KeyType {
+	case keyTypeRSA:
+		return unmarshalRSAJWK(jwk)
+	case keyTypeEC:
+		return unmarshalECDSAJWK(jwk)
+	default:
 		return nil, trace.BadParameter("unsupported key type %v", jwk.KeyType)
 	}
-	if jwk.Algorithm != string(defaults.ApplicationTokenAlgorithm) {
+}
+
+func unmarshalRSAJWK(jwk JWK) (*rsa.PublicKey, error) {
+	if jwk.Algorithm != string(jose.RS256) {
 		return nil, trace.BadParameter("unsupported algorithm %v", jwk.Algorithm)
 	}
 
@@ -103,5 +171,29 @@ func UnmarshalJWK(jwk JWK) (crypto.PublicKey, error) {
 	return &rsa.PublicKey{
 		N: new(big.Int).SetBytes(n),
 		E: int(new(big.Int).SetBytes(e).Uint64()),
+	}, nil
+}
+
+func unmarshalECDSAJWK(jwk JWK) (*ecdsa.PublicKey, error) {
+	if jwk.Algorithm != string(jose.ES256) {
+		return nil, trace.BadParameter("unsupported algorithm %v", jwk.Algorithm)
+	}
+	if jwk.Curve != elliptic.P256().Params().Name {
+		return nil, trace.BadParameter("unsupported curve %v", jwk.Curve)
+	}
+
+	x, err := base64.RawURLEncoding.DecodeString(jwk.X)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	y, err := base64.RawURLEncoding.DecodeString(jwk.Y)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ecdsa.PublicKey{
+		Curve: elliptic.P256(),
+		X:     new(big.Int).SetBytes(x),
+		Y:     new(big.Int).SetBytes(y),
 	}, nil
 }

@@ -30,7 +30,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -44,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/utils/grpc/stream"
 )
 
@@ -114,16 +114,15 @@ type fakeGRPCServer struct {
 }
 
 type fakeAuthServer struct {
-	*proto.UnimplementedAuthServiceServer
+	proto.UnimplementedAuthServiceServer
 	listener net.Listener
 	srv      *grpc.Server
 }
 
 func newFakeAuthServer(t *testing.T, conn net.Conn) *fakeAuthServer {
 	f := &fakeAuthServer{
-		listener:                       newOneShotListener(conn),
-		UnimplementedAuthServiceServer: &proto.UnimplementedAuthServiceServer{},
-		srv:                            grpc.NewServer(),
+		listener: newOneShotListener(conn),
+		srv:      grpc.NewServer(),
 	}
 
 	t.Cleanup(f.Stop)

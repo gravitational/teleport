@@ -128,7 +128,7 @@ func (c *Conn) ReadClientScreenSpec() (*ClientScreenSpec, error) {
 
 // SendNotification is a convenience function for sending a Notification message.
 func (c *Conn) SendNotification(message string, severity Severity) error {
-	return c.WriteMessage(Notification{Message: message, Severity: severity})
+	return c.WriteMessage(Alert{Message: message, Severity: severity})
 }
 
 // LocalAddr returns local address

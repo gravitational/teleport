@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,14 +50,20 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function Check({ size = 24, color, ...otherProps }: IconProps) {
-  return (
-    <Icon size={size} color={color} className="icon icon-check" {...otherProps}>
+export const Check = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
+    <Icon
+      size={size}
+      color={color}
+      className="icon icon-check"
+      {...otherProps}
+      ref={ref}
+    >
       <path
         fillRule="evenodd"
         clipRule="evenodd"
         d="M21.5303 6.21967C21.8232 6.51256 21.8232 6.98744 21.5303 7.28033L9.53033 19.2803C9.23744 19.5732 8.76256 19.5732 8.46967 19.2803L3.21967 14.0303C2.92678 13.7374 2.92678 13.2626 3.21967 12.9697C3.51256 12.6768 3.98744 12.6768 4.28033 12.9697L9 17.6893L20.4697 6.21967C20.7626 5.92678 21.2374 5.92678 21.5303 6.21967Z"
       />
     </Icon>
-  );
-}
+  )
+);

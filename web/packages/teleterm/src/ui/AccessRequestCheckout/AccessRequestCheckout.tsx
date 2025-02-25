@@ -16,22 +16,34 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useRef } from 'react';
 import { Transition } from 'react-transition-group';
 
-import { Box, Flex, ButtonPrimary, ButtonText, Text, ButtonIcon } from 'design';
-import { ChevronDown } from 'design/Icon';
+import {
+  Box,
+  ButtonIcon,
+  ButtonPrimary,
+  ButtonText,
+  Flex,
+  Label,
+  Text,
+} from 'design';
+import * as Icon from 'design/Icon';
+import { RequestCheckoutWithSlider } from 'shared/components/AccessRequests/NewRequest';
+import { isKubeClusterWithNamespaces } from 'shared/components/AccessRequests/NewRequest/kube';
 import { pluralize } from 'shared/utils/text';
 
-import { RequestCheckout } from 'shared/components/AccessRequests/NewRequest';
-
 import useAccessRequestCheckout from './useAccessRequestCheckout';
-import { AssumedRolesBar } from './AssumedRolesBar';
 
-export function RequestCheckoutSuccess({
+const MAX_RESOURCES_IN_BAR_TO_SHOW = 5;
+
+function RequestCheckoutSuccess({
   onClose,
-  reset,
-}: RequestCheckoutSuccessProps) {
+  goToRequests,
+}: {
+  onClose(): void;
+  goToRequests(): void;
+}) {
   return (
     <Box textAlign="center">
       <ButtonPrimary
@@ -40,11 +52,11 @@ export function RequestCheckoutSuccess({
         width="100%"
         size="large"
         onClick={() => {
-          reset();
+          goToRequests();
           onClose();
         }}
       >
-        Back to Listings
+        See requests
       </ButtonPrimary>
       <ButtonText
         onClick={() => {
@@ -57,11 +69,6 @@ export function RequestCheckoutSuccess({
   );
 }
 
-type RequestCheckoutSuccessProps = {
-  onClose: () => void;
-  reset: () => void;
-};
-
 export function AccessRequestCheckout() {
   const {
     showCheckout,
@@ -72,55 +79,162 @@ export function AccessRequestCheckout() {
     toggleResource,
     selectedResourceRequestRoles,
     createRequest,
+    reset,
     resourceRequestRoles,
     fetchResourceRolesAttempt,
     setSelectedResourceRequestRoles,
     clearCreateAttempt,
-    data,
-    suggestedReviewers,
+    pendingAccessRequests,
+    shouldShowClusterNameColumn,
     selectedReviewers,
     setSelectedReviewers,
-    assumedRequests,
     requestedCount,
-    goToRequestsList: reset, // have to pass through RequestCheckout because works differently on web
+    goToRequestsList,
     setShowCheckout,
     maxDuration,
-    setMaxDuration,
+    onMaxDurationChange,
+    maxDurationOptions,
     dryRunResponse,
-    requestTTL,
-    setRequestTTL,
+    pendingRequestTtl,
+    setPendingRequestTtl,
+    pendingRequestTtlOptions,
+    startTime,
+    onStartTimeChange,
+    fetchKubeNamespaces,
+    updateNamespacesForKubeCluster,
   } = useAccessRequestCheckout();
 
+  const isRoleRequest = pendingAccessRequests[0]?.kind === 'role';
+  const transitionRef = useRef<HTMLDivElement>();
+
+  function closeCheckout() {
+    setShowCheckout(false);
+  }
+
+  const pendingAccessRequestsWithoutParentResource =
+    pendingAccessRequests.filter(
+      d => !isKubeClusterWithNamespaces(d, pendingAccessRequests)
+    );
+
+  const numAddedResources = pendingAccessRequestsWithoutParentResource.length;
+
+  // We should rather detect how much space we have,
+  // but for simplicity we only count items.
+  const moreToShow = Math.max(
+    pendingAccessRequestsWithoutParentResource.length -
+      MAX_RESOURCES_IN_BAR_TO_SHOW,
+    0
+  );
   return (
     <>
-      {data.length > 0 && !isCollapsed() && (
-        <Box
-          p={3}
-          css={`
-            border-top: 1px solid
-              ${props => props.theme.colors.spotBackground[1]};
-          `}
-        >
-          <Flex justifyContent="space-between" alignItems="center">
-            <Text typography="h4" bold>
-              {data.length} {pluralize(data.length, 'Resource')} Selected
-            </Text>
-            <Flex gap={3}>
-              <ButtonPrimary onClick={() => setShowCheckout(!showCheckout)}>
-                Proceed to Request
-              </ButtonPrimary>
-              <ButtonIcon onClick={collapseBar}>
-                <ChevronDown size="medium" />
-              </ButtonIcon>
+      {pendingAccessRequestsWithoutParentResource.length > 0 &&
+        !isCollapsed() && (
+          <Box
+            px={3}
+            py={2}
+            css={`
+              border-top: 1px solid
+                ${props => props.theme.colors.spotBackground[1]};
+            `}
+          >
+            <Flex
+              justifyContent="space-between"
+              alignItems="center"
+              css={`
+                gap: ${props => props.theme.space[1]}px;
+              `}
+            >
+              <Flex flexDirection="column" minWidth={0}>
+                <Text mb={1}>
+                  {numAddedResources}{' '}
+                  {pluralize(
+                    numAddedResources,
+                    isRoleRequest ? 'role' : 'resource'
+                  )}{' '}
+                  added to access request:
+                </Text>
+                <Flex gap={1} flexWrap="wrap">
+                  {pendingAccessRequestsWithoutParentResource
+                    .slice(0, MAX_RESOURCES_IN_BAR_TO_SHOW)
+                    .map(c => {
+                      let resource = {
+                        name: c.subResourceName
+                          ? `${c.id}/${c.subResourceName}`
+                          : c.name,
+                        key: `${c.clusterName}-${c.kind}-${c.id}-${c.subResourceName}`,
+                        Icon: undefined,
+                      };
+                      switch (c.kind) {
+                        case 'app':
+                        case 'saml_idp_service_provider':
+                        case 'aws_ic_account_assignment':
+                          resource.Icon = Icon.Application;
+                          break;
+                        case 'node':
+                          resource.Icon = Icon.Server;
+                          break;
+                        case 'db':
+                          resource.Icon = Icon.Database;
+                          break;
+                        case 'kube_cluster':
+                        case 'namespace':
+                          resource.Icon = Icon.Kubernetes;
+                          break;
+                        case 'role':
+                          break;
+                        default:
+                          c satisfies never;
+                      }
+                      return resource;
+                    })
+                    .map(c => (
+                      <Label
+                        kind="secondary"
+                        key={c.key}
+                        css={`
+                          display: flex;
+                          align-items: center;
+                          min-width: 0;
+                          gap: ${props => props.theme.space[1]}px;
+                        `}
+                      >
+                        {c.Icon && <c.Icon size={15} />}
+                        <span
+                          css={`
+                            text-overflow: ellipsis;
+                            white-space: nowrap;
+                            overflow: hidden;
+                          `}
+                        >
+                          {c.name}
+                        </span>
+                      </Label>
+                    ))}
+                  {!!moreToShow && (
+                    <Label kind="secondary">+ {moreToShow} more</Label>
+                  )}
+                </Flex>
+              </Flex>
+              <Flex gap={3}>
+                <ButtonPrimary
+                  onClick={() => setShowCheckout(!showCheckout)}
+                  textTransform="none"
+                  css={`
+                    white-space: nowrap;
+                  `}
+                >
+                  Proceed to request
+                </ButtonPrimary>
+                <ButtonIcon onClick={collapseBar}>
+                  <Icon.ChevronDown size="medium" />
+                </ButtonIcon>
+              </Flex>
             </Flex>
-          </Flex>
-        </Box>
-      )}
-      {assumedRequests.map(request => (
-        <AssumedRolesBar key={request.id} assumedRolesRequest={request} />
-      ))}
+          </Box>
+        )}
       <Transition
         in={showCheckout}
+        nodeRef={transitionRef}
         onEntered={() => setHasExited(false)}
         onExited={() => setHasExited(true)}
         timeout={300}
@@ -128,13 +242,20 @@ export function AccessRequestCheckout() {
         unmountOnExit
       >
         {transitionState => (
-          <RequestCheckout
+          <RequestCheckoutWithSlider
+            ref={transitionRef}
             toggleResource={toggleResource}
-            onClose={() => setShowCheckout(false)}
+            onClose={closeCheckout}
             transitionState={transitionState}
-            SuccessComponent={RequestCheckoutSuccess}
+            SuccessComponent={() =>
+              RequestCheckoutSuccess({
+                onClose: closeCheckout,
+                goToRequests: goToRequestsList,
+              })
+            }
             reset={reset}
-            data={data}
+            pendingAccessRequests={pendingAccessRequests}
+            showClusterNameColumn={shouldShowClusterNameColumn}
             createAttempt={createRequestAttempt}
             resourceRequestRoles={resourceRequestRoles}
             fetchResourceRequestRolesAttempt={fetchResourceRolesAttempt}
@@ -142,18 +263,23 @@ export function AccessRequestCheckout() {
             setSelectedResourceRequestRoles={setSelectedResourceRequestRoles}
             createRequest={createRequest}
             clearAttempt={clearCreateAttempt}
-            reviewers={suggestedReviewers}
             selectedReviewers={selectedReviewers}
             setSelectedReviewers={setSelectedReviewers}
             requireReason={false}
             numRequestedResources={requestedCount}
-            isResourceRequest={data[0]?.kind !== 'role'}
+            isResourceRequest={!isRoleRequest}
             fetchStatus={'loaded'}
             dryRunResponse={dryRunResponse}
             maxDuration={maxDuration}
-            setMaxDuration={setMaxDuration}
-            requestTTL={requestTTL}
-            setRequestTTL={setRequestTTL}
+            onMaxDurationChange={onMaxDurationChange}
+            maxDurationOptions={maxDurationOptions}
+            pendingRequestTtl={pendingRequestTtl}
+            pendingRequestTtlOptions={pendingRequestTtlOptions}
+            setPendingRequestTtl={setPendingRequestTtl}
+            startTime={startTime}
+            onStartTimeChange={onStartTimeChange}
+            fetchKubeNamespaces={fetchKubeNamespaces}
+            updateNamespacesForKubeCluster={updateNamespacesForKubeCluster}
           />
         )}
       </Transition>

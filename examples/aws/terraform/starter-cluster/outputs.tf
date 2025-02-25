@@ -10,7 +10,7 @@ output "cluster_name" {
 
 output "cluster_web_address" {
   description = "Web address to access the Teleport cluster"
-  value       = "https://${var.use_acm ? aws_route53_record.cluster_acm[0].name : aws_route53_record.cluster[0].name}"
+  value       = "https://${var.use_acm ? aws_route53_record.cluster_acm[0].name : aws_route53_record.cluster[0].fqdn}"
 }
 
 output "key_name" {

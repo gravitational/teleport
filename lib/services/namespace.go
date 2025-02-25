@@ -35,7 +35,7 @@ func MarshalNamespace(resource types.Namespace, opts ...MarshalOption) ([]byte, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, &resource))
+	return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, &resource))
 }
 
 // UnmarshalNamespace unmarshals the Namespace resource from JSON.
@@ -53,16 +53,13 @@ func UnmarshalNamespace(data []byte, opts ...MarshalOption) (*types.Namespace, e
 	// the namespace is always created by teleport now
 	var namespace types.Namespace
 	if err := utils.FastUnmarshal(data, &namespace); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 
 	if err := namespace.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.ID != 0 {
-		namespace.Metadata.ID = cfg.ID
-	}
 	if cfg.Revision != "" {
 		namespace.SetRevision(cfg.Revision)
 	}

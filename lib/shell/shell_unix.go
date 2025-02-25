@@ -36,13 +36,14 @@ static int mygetpwnam_r(const char *name, struct passwd *pwd,
 import "C"
 
 import (
+	"context"
+	"log/slog"
 	"os/user"
 	"strings"
 	"syscall"
 	"unsafe"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // getLoginShell determines the login shell for a given username
@@ -63,7 +64,7 @@ func getLoginShell(username string) (string, error) {
 		bufSize = 1024
 	}
 	if bufSize <= 0 || bufSize > 1<<20 {
-		return "", trace.BadParameter("lookupPosixShell: unreasonable _SC_GETPW_R_SIZE_MAX of %d", bufSize)
+		return "", trace.BadParameter("unreasonable _SC_GETPW_R_SIZE_MAX of %d", bufSize)
 	}
 	buf := C.malloc(C.size_t(bufSize))
 	defer C.free(buf)
@@ -76,7 +77,7 @@ func getLoginShell(username string) (string, error) {
 		C.size_t(bufSize),
 		&result)
 	if rv != 0 || result == nil {
-		log.Errorf("lookupPosixShell: lookup username %s: %s", username, syscall.Errno(rv))
+		slog.ErrorContext(context.Background(), "failed looking up username", "username", username, "error", syscall.Errno(rv).Error())
 		return "", trace.BadParameter("cannot determine shell for %s", username)
 	}
 

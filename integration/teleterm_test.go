@@ -43,21 +43,26 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	dbhelpers "github.com/gravitational/teleport/integration/db"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver/handler"
+	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
+	"github.com/gravitational/teleport/lib/tlsca"
 	libutils "github.com/gravitational/teleport/lib/utils"
 )
 
@@ -97,7 +102,7 @@ func TestTeleterm(t *testing.T) {
 		testGetClusterReturnsPropertiesFromAuthServer(t, pack)
 	})
 
-	t.Run("Test headless watcher", func(t *testing.T) {
+	t.Run("headless watcher", func(t *testing.T) {
 		t.Parallel()
 
 		testHeadlessWatcher(t, pack, creds)
@@ -123,10 +128,19 @@ func TestTeleterm(t *testing.T) {
 		testDeleteConnectMyComputerNode(t, pack)
 	})
 
-	t.Run("TestClientCache", func(t *testing.T) {
+	t.Run("client cache", func(t *testing.T) {
 		t.Parallel()
 
 		testClientCache(t, pack, creds)
+	})
+
+	t.Run("ListDatabaseUsers", func(t *testing.T) {
+		// ListDatabaseUsers cannot be run in parallel as it modifies the default roles of users set up
+		// through the test pack.
+		// TODO(ravicious): After some optimizations, those tests could run in parallel. Instead of
+		// modifying existing roles, they could create new users with new roles and then update the role
+		// mapping between the root the leaf cluster through authServer.UpdateUserCARoleMap.
+		testListDatabaseUsers(t, pack)
 	})
 
 	t.Run("with MFA", func(t *testing.T) {
@@ -163,7 +177,7 @@ func TestTeleterm(t *testing.T) {
 			require.NoError(t, err)
 			device.SetPasswordless()
 
-			token, err := authServer.CreateResetPasswordToken(context.Background(), auth.CreateUserTokenRequest{
+			token, err := authServer.CreateResetPasswordToken(context.Background(), authclient.CreateUserTokenRequest{
 				Name: userName,
 			})
 			require.NoError(t, err)
@@ -244,6 +258,9 @@ func testAddingRootCluster(t *testing.T, pack *dbhelpers.DatabasePack, creds *he
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                t.TempDir(),
 		InsecureSkipVerify: true,
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -276,6 +293,9 @@ func testListRootClustersReturnsLoggedInUser(t *testing.T, pack *dbhelpers.Datab
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -358,13 +378,19 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return nil
+		},
 	})
 	require.NoError(t, err)
+
+	clusterIDCache := clusteridcache.Cache{}
 
 	daemonService, err := daemon.New(daemon.Config{
 		Storage:        storage,
 		KubeconfigsDir: t.TempDir(),
 		AgentsDir:      t.TempDir(),
+		ClusterIDCache: &clusterIDCache,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -380,15 +406,22 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 
 	rootClusterName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
 	require.NoError(t, err)
+	clusterURI := uri.NewClusterURI(rootClusterName)
 
 	response, err := handler.GetCluster(context.Background(), &api.GetClusterRequest{
-		ClusterUri: uri.NewClusterURI(rootClusterName).String(),
+		ClusterUri: clusterURI.String(),
 	})
 	require.NoError(t, err)
 
 	require.Equal(t, userName, response.LoggedInUser.Name)
 	require.ElementsMatch(t, []string{requestableRoleName}, response.LoggedInUser.RequestableRoles)
 	require.ElementsMatch(t, []string{suggestedReviewer}, response.LoggedInUser.SuggestedReviewers)
+
+	// Verify that cluster ID cache gets updated.
+	clusterIDFromCache, ok := clusterIDCache.Load(clusterURI)
+	require.True(t, ok, "ID for cluster %q was not found in the cache", clusterURI)
+	require.NotEmpty(t, clusterIDFromCache)
+	require.Equal(t, response.AuthClusterId, clusterIDFromCache)
 }
 
 func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
@@ -400,6 +433,9 @@ func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *help
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -427,6 +463,9 @@ func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *help
 	// Start the tshd event service and connect the daemon to it.
 	tshdEventsService, addr := newMockTSHDEventsServiceServer(t)
 	err = daemonService.UpdateAndDialTshdEventsServerAddress(addr)
+	require.NoError(t, err)
+
+	err = daemonService.StartHeadlessWatcher(cluster.URI.String(), false /* waitInit */)
 	require.NoError(t, err)
 
 	// Stop and restart the watcher twice to simulate logout + login + relogin. Ensure the watcher catches events.
@@ -465,6 +504,9 @@ func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.
 		Dir:                tc.KeysDir,
 		Clock:              storageFakeClock,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -724,6 +766,9 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 			storage, err := clusters.NewStorage(clusters.Config{
 				Dir:                t.TempDir(),
 				InsecureSkipVerify: true,
+				HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+					return nil
+				},
 			})
 			require.NoError(t, err)
 
@@ -840,6 +885,9 @@ func testCreateConnectMyComputerToken(t *testing.T, pack *dbhelpers.DatabasePack
 		InsecureSkipVerify: tc.InsecureSkipVerify,
 		Clock:              fakeClock,
 		WebauthnLogin:      webauthnLogin,
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -900,6 +948,9 @@ func testWaitForConnectMyComputerNodeJoin(t *testing.T, pack *dbhelpers.Database
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -934,9 +985,10 @@ func testWaitForConnectMyComputerNodeJoin(t *testing.T, pack *dbhelpers.Database
 	}()
 
 	// Start the new node.
-	nodeConfig := newNodeConfig(t, pack.Root.Cluster.Config.Auth.ListenAddr, "token", types.JoinMethodToken)
+	nodeConfig := newNodeConfig(t, "token", types.JoinMethodToken)
+	nodeConfig.SetAuthServerAddress(pack.Root.Cluster.Config.Auth.ListenAddr)
 	nodeConfig.DataDir = filepath.Join(agentsDir, profileName, "data")
-	nodeConfig.Log = libutils.NewLoggerForTests()
+	nodeConfig.Logger = libutils.NewSlogLoggerForTests()
 	nodeSvc, err := service.NewTeleport(nodeConfig)
 	require.NoError(t, err)
 	require.NoError(t, nodeSvc.Start())
@@ -983,6 +1035,9 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -1008,9 +1063,10 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 	require.NoError(t, err)
 
 	// Start the new node.
-	nodeConfig := newNodeConfig(t, pack.Root.Cluster.Config.Auth.ListenAddr, "token", types.JoinMethodToken)
+	nodeConfig := newNodeConfig(t, "token", types.JoinMethodToken)
+	nodeConfig.SetAuthServerAddress(pack.Root.Cluster.Config.Auth.ListenAddr)
 	nodeConfig.DataDir = filepath.Join(agentsDir, profileName, "data")
-	nodeConfig.Log = libutils.NewLoggerForTests()
+	nodeConfig.Logger = libutils.NewSlogLoggerForTests()
 	nodeSvc, err := service.NewTeleport(nodeConfig)
 	require.NoError(t, err)
 	require.NoError(t, nodeSvc.Start())
@@ -1037,6 +1093,217 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 		_, err := authServer.GetNode(ctx, defaults.Namespace, nodeConfig.HostUUID)
 		return trace.IsNotFound(err)
 	}, time.Minute, time.Second, "waiting for node to be deleted")
+}
+
+// testListDatabaseUsers adds a unique string under spec.allow.db_users of the role automatically
+// given to a user by [dbhelpers.DatabasePack] and then checks if that string is returned when
+// calling [handler.Handler.ListDatabaseUsers].
+func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
+	ctx := context.Background()
+
+	mustAddDBUserToUserRole := func(ctx context.Context, t *testing.T, cluster *helpers.TeleInstance, user, dbUser string) {
+		t.Helper()
+		authServer := cluster.Process.GetAuthServer()
+		roleName := services.RoleNameForUser(user)
+		role, err := authServer.GetRole(ctx, roleName)
+		require.NoError(t, err)
+
+		dbUsers := role.GetDatabaseUsers(types.Allow)
+		dbUsers = append(dbUsers, dbUser)
+		role.SetDatabaseUsers(types.Allow, dbUsers)
+		_, err = authServer.UpdateRole(ctx, role)
+		require.NoError(t, err)
+
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			role, err := authServer.GetRole(ctx, roleName)
+			if assert.NoError(collect, err) {
+				assert.Equal(collect, dbUsers, role.GetDatabaseUsers(types.Allow))
+			}
+		}, 10*time.Second, 100*time.Millisecond)
+	}
+
+	mustUpdateUserRoles := func(ctx context.Context, t *testing.T, cluster *helpers.TeleInstance, userName string, roles []string) {
+		t.Helper()
+		authServer := cluster.Process.GetAuthServer()
+		user, err := authServer.GetUser(ctx, userName, false /* withSecrets */)
+		require.NoError(t, err)
+
+		user.SetRoles(roles)
+		_, err = authServer.UpdateUser(ctx, user)
+		require.NoError(t, err)
+
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			user, err := authServer.GetUser(ctx, userName, false /* withSecrets */)
+			if assert.NoError(collect, err) {
+				assert.Equal(collect, roles, user.GetRoles())
+			}
+		}, 10*time.Second, 100*time.Millisecond)
+	}
+
+	// Allow resource access requests to be created.
+	currentModules := modules.GetModules()
+	t.Cleanup(func() { modules.SetModules(currentModules) })
+	modules.SetModules(&modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
+	rootClusterName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
+	require.NoError(t, err)
+	rootDatabaseURI := uri.NewClusterURI(rootClusterName).AppendDB(pack.Root.PostgresService.Name)
+	leafDatabaseURI := uri.NewClusterURI(rootClusterName).AppendLeafCluster(pack.Leaf.Cluster.Secrets.SiteName).AppendDB(pack.Leaf.PostgresService.Name)
+
+	rootDBUser := fmt.Sprintf("root-db-user-%s", uuid.NewString())
+	leafDBUser := fmt.Sprintf("leaf-db-user-%s", uuid.NewString())
+	leafDBUserWithAccessRequest := fmt.Sprintf("leaf-db-user-with-access-request-%s", uuid.NewString())
+
+	rootUserName := pack.Root.User.GetName()
+	leafUserName := pack.Leaf.User.GetName()
+	rootRoleName := services.RoleNameForUser(rootUserName)
+
+	tests := []struct {
+		name                string
+		dbURI               uri.ResourceURI
+		wantDBUser          string
+		prepareRole         func(ctx context.Context, t *testing.T)
+		createAccessRequest func(ctx context.Context, t *testing.T) string
+	}{
+		{
+			name:       "root cluster",
+			dbURI:      rootDatabaseURI,
+			wantDBUser: rootDBUser,
+			prepareRole: func(ctx context.Context, t *testing.T) {
+				mustAddDBUserToUserRole(ctx, t, pack.Root.Cluster, rootUserName, rootDBUser)
+			},
+		},
+		{
+			name:       "leaf cluster",
+			dbURI:      leafDatabaseURI,
+			wantDBUser: leafDBUser,
+			prepareRole: func(ctx context.Context, t *testing.T) {
+				mustAddDBUserToUserRole(ctx, t, pack.Leaf.Cluster, leafUserName, leafDBUser)
+			},
+		},
+		{
+			name:       "leaf cluster with resource access request",
+			dbURI:      leafDatabaseURI,
+			wantDBUser: leafDBUserWithAccessRequest,
+			// Remove role from root-user and move it to search_as_roles.
+			//
+			// root-user has access to leafDatabaseURI through the user:root-user role which gets mapped
+			// to a corresponding leaf cluster role.
+			// We want to create a resource access request for that database. To do this, we need to
+			// create a new role which lets root-user request the database.
+			prepareRole: func(ctx context.Context, t *testing.T) {
+				mustAddDBUserToUserRole(ctx, t, pack.Leaf.Cluster, leafUserName, leafDBUserWithAccessRequest)
+
+				authServer := pack.Root.Cluster.Process.GetAuthServer()
+
+				// Create new role that lets root-user request the database.
+				requesterRole, err := types.NewRole(fmt.Sprintf("requester-%s", uuid.NewString()), types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Request: &types.AccessRequestConditions{
+							SearchAsRoles: []string{rootRoleName},
+						},
+					},
+				})
+				require.NoError(t, err)
+				requesterRole, err = authServer.CreateRole(ctx, requesterRole)
+				require.NoError(t, err)
+
+				user, err := authServer.GetUser(ctx, rootUserName, false /* withSecrets */)
+				require.NoError(t, err)
+
+				// Delete rootRoleName from roles, add requester role. Restore original role set after test
+				// is done.
+				currentRoles := user.GetRoles()
+				t.Cleanup(func() { mustUpdateUserRoles(ctx, t, pack.Root.Cluster, rootUserName, currentRoles) })
+				mustUpdateUserRoles(ctx, t, pack.Root.Cluster, rootUserName, []string{requesterRole.GetName()})
+			},
+			createAccessRequest: func(ctx context.Context, t *testing.T) string {
+				req, err := services.NewAccessRequestWithResources(rootUserName, []string{rootRoleName}, []types.ResourceID{
+					types.ResourceID{
+						ClusterName: pack.Leaf.Cluster.Secrets.SiteName,
+						Kind:        types.KindDatabase,
+						Name:        pack.Leaf.PostgresService.Name,
+					},
+				})
+				require.NoError(t, err)
+
+				authServer := pack.Root.Cluster.Process.GetAuthServer()
+				req, err = authServer.CreateAccessRequestV2(ctx, req, tlsca.Identity{})
+				require.NoError(t, err)
+
+				err = authServer.SetAccessRequestState(ctx, types.AccessRequestUpdate{
+					RequestID: req.GetName(),
+					State:     types.RequestState_APPROVED,
+				})
+				require.NoError(t, err)
+
+				return req.GetName()
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.prepareRole(ctx, t)
+			var accessRequestID string
+			if test.createAccessRequest != nil {
+				accessRequestID = test.createAccessRequest(ctx, t)
+
+				if accessRequestID == "" {
+					require.FailNow(t, "createAccessRequest returned empty access request ID")
+				}
+			}
+
+			creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
+				Process:  pack.Root.Cluster.Process,
+				Username: rootUserName,
+			})
+			require.NoError(t, err)
+
+			tc := mustLogin(t, rootUserName, pack, creds)
+
+			storage, err := clusters.NewStorage(clusters.Config{
+				Dir:                tc.KeysDir,
+				InsecureSkipVerify: tc.InsecureSkipVerify,
+				HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+					return nil
+				},
+			})
+			require.NoError(t, err)
+
+			daemonService, err := daemon.New(daemon.Config{
+				Storage:        storage,
+				KubeconfigsDir: t.TempDir(),
+				AgentsDir:      t.TempDir(),
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				daemonService.Stop()
+			})
+
+			handler, err := handler.New(
+				handler.Config{
+					DaemonService: daemonService,
+				},
+			)
+			require.NoError(t, err)
+
+			if accessRequestID != "" {
+				_, err := handler.AssumeRole(ctx, &api.AssumeRoleRequest{
+					RootClusterUri:   test.dbURI.GetRootClusterURI().String(),
+					AccessRequestIds: []string{accessRequestID},
+				})
+				require.NoError(t, err)
+			}
+
+			res, err := handler.ListDatabaseUsers(ctx, &api.ListDatabaseUsersRequest{
+				DbUri: test.dbURI.String(),
+			})
+			require.NoError(t, err)
+			require.Contains(t, res.Users, test.wantDBUser)
+		})
+	}
+
 }
 
 // mustLogin logs in as the given user by completely skipping the actual login flow and saving valid

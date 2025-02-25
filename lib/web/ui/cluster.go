@@ -47,6 +47,8 @@ type Cluster struct {
 	// ProxyVersion is the cluster proxy's service version,
 	// or possibly empty if no proxies could be loaded.
 	ProxyVersion string `json:"proxyVersion"`
+	// LicenseExpiry is the expiry date of the enterprise license, if applicable.
+	LicenseExpiry *time.Time `json:"licenseExpiry,omitempty"`
 }
 
 // NewClusters creates a slice of Cluster's, containing data about each cluster.

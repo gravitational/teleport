@@ -25,8 +25,10 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // implements common.CLICommand interface
@@ -41,7 +43,7 @@ type SAMLCommand struct {
 
 // Initialize allows a caller-defined command to plug itself into CLI
 // argument parsing
-func (cmd *SAMLCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
+func (cmd *SAMLCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) {
 	cmd.config = cfg
 
 	saml := app.Command("saml", "Operations on SAML auth connectors.")
@@ -51,15 +53,20 @@ func (cmd *SAMLCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Con
 
 // TryRun is executed after the CLI parsing is done. The command must
 // determine if selectedCommand belongs to it and return match=true
-func (cmd *SAMLCommand) TryRun(ctx context.Context, selectedCommand string, c *auth.Client) (match bool, err error) {
+func (cmd *SAMLCommand) TryRun(ctx context.Context, selectedCommand string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	if selectedCommand == cmd.exportCmd.FullCommand() {
-		return true, trace.Wrap(cmd.export(ctx, c))
+		client, closeFn, err := clientFunc(ctx)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		defer closeFn(ctx)
+		return true, trace.Wrap(cmd.export(ctx, client))
 	}
 	return false, nil
 }
 
 // export executes 'tctl saml export <connector_name>'
-func (cmd *SAMLCommand) export(ctx context.Context, c *auth.Client) error {
+func (cmd *SAMLCommand) export(ctx context.Context, c *authclient.Client) error {
 	sc, err := c.GetSAMLConnector(ctx, cmd.connectorName, false)
 	if err != nil {
 		return trace.Wrap(err)

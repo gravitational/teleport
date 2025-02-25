@@ -1,0 +1,151 @@
+---
+title: Installing the SCIM-Only Okta Integration
+description: How to install a SCIM-only Okta integration
+---
+
+The SCIM (System for Cross-domain Identity Management) integration enables automated user management,
+ensuring that user accounts in Teleport are synchronized with the corresponding Okta user profiles.
+This integration streamlines the onboarding and offboarding process by automatically creating, updating, and deleting
+Teleport user accounts in response to changes within the Okta organization.
+SCIM Teleport integration allows immediate locking of users in Teleport when they are deprovisioned in Okta,
+stopping all ongoing user Teleport sessions to maintain security and compliance.
+
+## How it works
+User provisioning (and de-provisioning) with SCIM requires two Teleport
+components working together:
+
+ - A SAML Connector that provides SSO login to Teleport for upstream Okta users
+ - A Teleport SCIM plugin integration that provisions and de-provisions Teleport user accounts
+   in response to changes in the upstream Okta organization
+
+Both of these Teleport components rely on an Okta SAML application to act as the
+interface between Teleport and Okta. For consistency, both of
+the Teleport components must use the same Okta application.
+
+When a user is assigned to the Okta app, either directly or via group
+membership, a corresponding Teleport user account will be created. If the Okta
+user already has a valid temporary Teleport SAML user account (i.e. they have
+logged into the cluster via SAML SSO before SCIM provisioning was enabled), the
+temporary account will automatically be adopted by the SAML integration and
+promoted to a long-lived SCIM-managed account.
+
+<Admonition type="note">
+Currently none of the SCIM user profile traits are stored in the Teleport user, although this may change in future.
+</Admonition>
+
+When a user is unassigned from the Okta app, or is deactivated by the Okta admin, Teleport will immediately delete the user in question, and create a lock that will both immediately terminate any existing sessions and prevent that user from re-using any credentials that have already been issued. This lock will be automatically revoked if the user is subsequently re-provisioned via SCIM, otherwise the lock is permanent and will have to be explicitly deleted to remove.
+
+<Admonition type="warning">
+Okta does not send SCIM updates to Teleport when a user is merely suspended. Even though Okta will prevent a suspended user from logging back into the cluster, any existing sessions will not be terminated, and any pre-issued credentials will be valid for their normal lifetimes.
+</Admonition>
+
+## Prerequisites
+
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+- [Authentication With Okta as an SSO Provider](../../../admin-guides/access-controls/sso/okta.mdx)
+
+
+## Step 1/2. Installing the Teleport SCIM integration
+
+Teleport supports two SCIM integration modes:
+ - **Without API token** - User traits to role mapping will be propagated when the user logs in to Teleport.
+ As a side effect, user roles will be visible and updated when users log in to Teleport.
+ - **With API token** - User traits to role mapping will be propagated immediately during SCIM user provisioning.
+
+Run the following `tctl` command to install the SCIM integration.
+
+<Tabs>
+<TabItem label="Without API token">
+
+```code
+$ tctl plugins install okta  \
+  --org https://trial-12356.okta.com \
+  --saml-connector "${SAML_CONNECTOR_NAME}" \
+  --no-users-sync \
+  --no-accesslist-sync \
+  --no-appgroup-sync \
+  --scim
+Successfully created Okta plugin "okta"
+
+SCIM Base URL: https://teleport.example.com:443/v1/webapi/scim/okta
+SCIM Identifier field for users: userName
+SCIM Bearer Token: 1234567891234567891234567890
+```
+
+</TabItem>
+<TabItem label="With API token">
+
+```code
+$ tctl plugins install okta  \
+  --org https://trial-12356.okta.com \
+  --saml-connector "${SAML_CONNECTOR_NAME}" \
+  --no-users-sync \
+  --no-accesslist-sync \
+  --no-appgroup-sync \
+  --scim \
+  --api-token="${OKTA_API_TOKEN}"
+Successfully created Okta plugin "okta"
+
+SCIM Base URL: https://teleport.example.com:443/v1/webapi/scim/okta
+SCIM Identifier field for users: userName
+SCIM Bearer Token: 1234567891234567891234567890
+```
+<Admonition type="note">
+The Okta API Token requires the following permissions:
+ - View users and their details
+ - View groups and their details
+ - View applications and their details
+</Admonition>
+
+</TabItem>
+</Tabs>
+
+
+
+## Step 2/2. Configuring the Okta app
+
+To leverage the Teleport SCIM integration, you need to enable SCIM provisioning in your Okta app,
+which will propagate user management changes to Teleport.
+For detailed instructions on configuring SCIM provisioning in the Okta app, see the [Okta Integration *Configuring SCIM provisioning*](./hosted-guide.mdx#configuring-scim-provisioning) guide.
+
+If your Okta app has assigned users *before* SCIM provisioning is enabled, you
+will need to trigger their provisioning explicitly. This can be done by
+selecting the *Provision Users* button on the Okta app Assignments page.
+
+![Provision Existing Users](../../../../img/enterprise/plugins/okta/scim-provision-existing-users.png)
+
+<Admonition>
+We have seen some Okta instances that are missing the Provision Users button.
+In that case the best way we have found to force user provisioning is to remove
+and re-add the users to the app. Triggering a *Force Sync* in the Provisioning/To
+App panel may also work, but we have had only intermittent success.
+</Admonition>
+
+### Hiding profile data from Teleport
+If you have data in your Okta user profile that you don’t wish to share with
+your Teleport cluster, you can edit the Okta application User profile to present Teleport
+with a subset and/or mapped version of the full User profile.
+
+## Deleting the SCIM integration
+
+You can delete the SCIM integration via the Integrations page in the Teleport UI,
+or with tctl like so:
+
+```code
+$ tctl plugins delete okta
+```
+
+<Admonition type="warning">
+Any users provisioned by the SCIM service will be not automatically deleted
+along with the SCIM plugin.
+</Admonition>
+
+You can semi-manually delete all SCIM-provisioned users using a combination of
+tctl and jq.
+
+For example:
+```code
+tctl get users --format=json \
+ |  jq '.[] | select(.metadata.labels["teleport.dev/origin"] == "okta") | .metadata.name' -r \
+ | xargs -L 1 tctl users rm
+```

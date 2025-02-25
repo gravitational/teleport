@@ -16,21 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { ButtonPrimary, ButtonSecondary, Alert } from 'design';
+import { Alert, Box, ButtonPrimary, ButtonSecondary } from 'design';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
-import Validation from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
 import { FieldSelectAsync } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
+import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
 import UserTokenLink from './../UserTokenLink';
+import { TraitsEditor } from './TraitsEditor';
 import useDialog, { Props } from './useDialog';
 
 export default function Container(props: Props) {
@@ -44,12 +44,14 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
     onChangeRoles,
     onClose,
     fetchRoles,
+    setConfiguredTraits,
     attempt,
     name,
     selectedRoles,
     onSave,
     isNew,
     token,
+    configuredTraits,
   } = props;
 
   if (attempt.status === 'success' && isNew) {
@@ -69,9 +71,10 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
       {({ validator }) => (
         <Dialog
           dialogCss={() => ({
-            maxWidth: '500px',
+            maxWidth: '700px',
             width: '100%',
-            overflow: 'initial',
+            height: '100%',
+            maxHeight: '600px',
           })}
           disableEscapeKeyDown={false}
           onClose={onClose}
@@ -80,37 +83,45 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
           <DialogHeader>
             <DialogTitle>{isNew ? 'Create User' : 'Edit User'}</DialogTitle>
           </DialogHeader>
-          <DialogContent>
+          <DialogContent overflow={'auto'}>
             {attempt.status === 'failed' && (
               <Alert kind="danger" children={attempt.statusText} />
             )}
-            <FieldInput
-              label="Username"
-              rule={requiredField('Username is required')}
-              placeholder="Username"
-              autoFocus
-              value={name}
-              onChange={e => onChangeName(e.target.value)}
-              readonly={isNew ? false : true}
-            />
-            <FieldSelectAsync
-              menuPosition="fixed"
-              label="User Roles"
-              rule={requiredField('At least one role is required')}
-              placeholder="Click to select roles"
-              isSearchable
-              isMulti
-              isSimpleValue
-              isClearable={false}
-              value={selectedRoles}
-              onChange={values => onChangeRoles(values as Option[])}
-              noOptionsMessage={() => 'No roles found'}
-              loadOptions={async input => {
-                const roles = await fetchRoles(input);
-                return roles.map(r => ({ value: r, label: r }));
-              }}
-              elevated={true}
-            />
+            <Box maxWidth={690}>
+              <FieldInput
+                mr={2}
+                label="Username"
+                rule={requiredField('Username is required')}
+                placeholder="Username"
+                autoFocus
+                value={name}
+                onChange={e => onChangeName(e.target.value)}
+                readonly={isNew ? false : true}
+              />
+              <FieldSelectAsync
+                mr={2}
+                menuPosition="fixed"
+                label="User Roles"
+                rule={requiredField('At least one role is required')}
+                placeholder="Click to select roles"
+                isSearchable
+                isMulti
+                isClearable={false}
+                value={selectedRoles}
+                onChange={values => onChangeRoles(values as Option[])}
+                noOptionsMessage={() => 'No roles found'}
+                loadOptions={async input => {
+                  const roles = await fetchRoles(input);
+                  return roles.map(r => ({ value: r, label: r }));
+                }}
+                elevated={true}
+              />
+              <TraitsEditor
+                attempt={attempt}
+                configuredTraits={configuredTraits}
+                setConfiguredTraits={setConfiguredTraits}
+              />
+            </Box>
           </DialogContent>
           <DialogFooter>
             <ButtonPrimary

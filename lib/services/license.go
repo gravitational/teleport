@@ -35,7 +35,7 @@ func UnmarshalLicense(bytes []byte) (types.License, error) {
 	var license types.LicenseV3
 	err := utils.FastUnmarshal(bytes, &license)
 	if err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 
 	if license.Version != types.V3 {
@@ -62,11 +62,10 @@ func MarshalLicense(license types.License, opts ...MarshalOption) ([]byte, error
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
+		if !cfg.PreserveRevision {
 			// avoid modifying the original object
 			// to prevent unexpected data races
 			copy := *license
-			copy.SetResourceID(0)
 			copy.SetRevision("")
 			license = &copy
 		}

@@ -19,14 +19,15 @@
 package servicecfg
 
 import (
-	"github.com/coreos/go-oidc/oauth2"
+	"slices"
+	"time"
+
 	"github.com/dustin/go-humanize"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -97,7 +98,7 @@ type AuthConfig struct {
 	PublicAddrs []utils.NetAddr
 
 	// KeyStore configuration. Handles CA private keys which may be held in a HSM.
-	KeyStore keystore.Config
+	KeyStore KeystoreConfig
 
 	// LoadAllCAs sends the host CAs of all clusters to SSH clients logging in when enabled,
 	// instead of just the host CA for the current cluster.
@@ -114,12 +115,14 @@ type AuthConfig struct {
 	// STS requests. Used in test.
 	HTTPClientForAWSSTS utils.HTTPDoClient
 
-	// AssistAPIKey is the OpenAI API key.
-	// TODO: This key will be moved to a plugin once support for plugins is implemented.
-	AssistAPIKey string
-
 	// AccessMonitoring configures access monitoring.
 	AccessMonitoring *AccessMonitoringOptions
+
+	// AgentRolloutControllerSyncPeriod controls the period between two
+	// reconciliations of the agent rollout controller. This value is jittered.
+	// Empty value means the controller uses its default.
+	// Used in tests.
+	AgentRolloutControllerSyncPeriod time.Duration
 }
 
 // AccessMonitoringOptions configures access monitoring.
@@ -181,5 +184,133 @@ type HostedPluginsConfig struct {
 // PluginOAuthProviders holds application credentials for each
 // 3rd party API provider
 type PluginOAuthProviders struct {
-	Slack *oauth2.ClientCredentials
+	SlackCredentials *OAuthClientCredentials
+}
+
+// OAuthClientCredentials stores the client_id and client_secret
+// of an OAuth application.
+type OAuthClientCredentials struct {
+	ClientID     string
+	ClientSecret string
+}
+
+// KeystoreConfig configures the auth keystore.
+type KeystoreConfig struct {
+	// PKCS11 holds configuration parameters specific to PKCS#11 keystores.
+	PKCS11 PKCS11Config
+	// GCPKMS holds configuration parameters specific to GCP KMS keystores.
+	GCPKMS GCPKMSConfig
+	// AWSKMS holds configuration parameter specific to AWS KMS keystores.
+	AWSKMS *AWSKMSConfig
+}
+
+// CheckAndSetDefaults checks that required parameters of the config are
+// properly set and sets defaults.
+func (cfg *KeystoreConfig) CheckAndSetDefaults() error {
+	count := 0
+	if cfg.PKCS11 != (PKCS11Config{}) {
+		if err := cfg.PKCS11.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "validating pkcs11 config")
+		}
+		count++
+	}
+	if cfg.GCPKMS != (GCPKMSConfig{}) {
+		if err := cfg.GCPKMS.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "validating gcp_kms config")
+		}
+		count++
+	}
+	if cfg.AWSKMS != nil {
+		if err := cfg.AWSKMS.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "validating aws_kms config")
+		}
+		count++
+	}
+	if count > 1 {
+		return trace.BadParameter("must configure at most one of pkcs11, gcp_kms, or aws_kms")
+	}
+	return nil
+}
+
+// PKCS11Config holds static configuration options for a PKCS#11 HSM.
+type PKCS11Config struct {
+	// Path is the path to the PKCS11 module.
+	Path string
+	// SlotNumber is the PKCS11 slot to use.
+	SlotNumber *int
+	// TokenLabel is the label of the PKCS11 token to use.
+	TokenLabel string
+	// PIN is the PKCS11 PIN for the given token.
+	PIN string
+}
+
+// CheckAndSetDefaults checks that required parameters of the config are
+// properly set and sets defaults.
+func (cfg *PKCS11Config) CheckAndSetDefaults() error {
+	if cfg.Path == "" {
+		return trace.BadParameter("must provide Path")
+	}
+	if cfg.SlotNumber == nil && cfg.TokenLabel == "" {
+		return trace.BadParameter("must provide one of SlotNumber or TokenLabel")
+	}
+	return nil
+}
+
+// GCPKMSConfig holds static configuration options for GCP KMS.
+type GCPKMSConfig struct {
+	// KeyRing is the fully qualified name of the GCP KMS keyring.
+	KeyRing string
+	// ProtectionLevel specifies how cryptographic operations are performed.
+	// For more information, see https://cloud.google.com/kms/docs/algorithms#protection_levels
+	// Supported options are "HSM" and "SOFTWARE".
+	ProtectionLevel string
+}
+
+const (
+	// GCPKMSProtectionLevelHSM represents the HSM protection level in GCP KMS.
+	GCPKMSProtectionLevelHSM = "HSM"
+	// GCPKMSProtectionLevelSoftware represents the SOFTWARE protection level in GCP KMS.
+	GCPKMSProtectionLevelSoftware = "SOFTWARE"
+)
+
+// CheckAndSetDefaults checks that required parameters of the config are
+// properly set and sets defaults.
+func (cfg *GCPKMSConfig) CheckAndSetDefaults() error {
+	if cfg.KeyRing == "" {
+		return trace.BadParameter("must provide a valid KeyRing")
+	}
+	if !slices.Contains([]string{GCPKMSProtectionLevelHSM, GCPKMSProtectionLevelSoftware}, cfg.ProtectionLevel) {
+		return trace.BadParameter("unsupported ProtectionLevel %s", cfg.ProtectionLevel)
+	}
+	return nil
+}
+
+// AWSKMSConfig holds static configuration options for AWS KMS.
+type AWSKMSConfig struct {
+	// AWSAccount is the AWS account ID where the keys will reside.
+	AWSAccount string
+	// AWSRegion is the AWS region where the keys will reside.
+	AWSRegion string
+	// MultiRegion contains configuration for multi-region AWS KMS.
+	MultiRegion struct {
+		// Enabled configures new keys to be multi-region.
+		Enabled bool
+	}
+	// Tags are key/value pairs used as AWS resource tags. The 'TeleportCluster'
+	// tag is added automatically if not specified in the set of tags. Changing tags
+	// after Teleport has already created KMS keys may require manually updating
+	// the tags of existing keys.
+	Tags map[string]string
+}
+
+// CheckAndSetDefaults checks that required parameters of the config are
+// properly set and sets defaults.
+func (c *AWSKMSConfig) CheckAndSetDefaults() error {
+	if c.AWSAccount == "" {
+		return trace.BadParameter("AWS account is required")
+	}
+	if c.AWSRegion == "" {
+		return trace.BadParameter("AWS region is required")
+	}
+	return nil
 }

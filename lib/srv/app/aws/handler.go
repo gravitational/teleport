@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -30,9 +31,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
@@ -53,12 +54,12 @@ type signerHandler struct {
 
 // SignerHandlerConfig is the awsSignerHandler configuration.
 type SignerHandlerConfig struct {
+	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
+	AWSConfigProvider awsconfig.Provider
 	// Log is a logger for the handler.
-	Log logrus.FieldLogger
+	Log *slog.Logger
 	// RoundTripper is an http.RoundTripper instance used for requests.
 	RoundTripper http.RoundTripper
-	// SigningService is used to sign requests before forwarding them.
-	*awsutils.SigningService
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
 	// MaxHTTPRequestBodySize is the limit on how big a request body can be.
@@ -67,8 +68,8 @@ type SignerHandlerConfig struct {
 
 // CheckAndSetDefaults validates the AwsSignerHandlerConfig.
 func (cfg *SignerHandlerConfig) CheckAndSetDefaults() error {
-	if cfg.SigningService == nil {
-		return trace.BadParameter("missing SigningService")
+	if cfg.AWSConfigProvider == nil {
+		return trace.BadParameter("aws config provider missing")
 	}
 	if cfg.RoundTripper == nil {
 		tr, err := defaults.Transport()
@@ -78,7 +79,7 @@ func (cfg *SignerHandlerConfig) CheckAndSetDefaults() error {
 		cfg.RoundTripper = tr
 	}
 	if cfg.Log == nil {
-		cfg.Log = logrus.WithField(teleport.ComponentKey, "aws:signer")
+		cfg.Log = slog.With(teleport.ComponentKey, "aws:signer")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -115,7 +116,7 @@ func NewAWSSignerHandler(ctx context.Context, config SignerHandlerConfig) (http.
 
 // formatForwardResponseError converts an error to a status code and writes the code to a response.
 func (s *signerHandler) formatForwardResponseError(rw http.ResponseWriter, r *http.Request, err error) {
-	s.Log.WithError(err).Debugf("Failed to process request.")
+	s.Log.DebugContext(r.Context(), "Failed to process request", "error", err)
 	common.SetTeleportAPIErrorHeader(rw, err)
 
 	// Convert trace error type to HTTP and write response.
@@ -165,15 +166,24 @@ func (s *signerHandler) serveCommonRequest(sessCtx *common.SessionContext, w htt
 		return trace.Wrap(err)
 	}
 
-	signedReq, err := s.SignRequest(s.closeContext, unsignedReq,
+	awsCfg, err := s.AWSConfigProvider.GetConfig(s.closeContext, re.SigningRegion,
+		awsconfig.WithDetailedAssumeRole(awsconfig.AssumeRole{
+			RoleARN:     sessCtx.Identity.RouteToApp.AWSRoleARN,
+			ExternalID:  sessCtx.App.GetAWSExternalID(),
+			SessionName: sessCtx.Identity.Username,
+		}),
+		awsconfig.WithCredentialsMaybeIntegration(sessCtx.App.GetIntegration()),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	signedReq, err := awsutils.SignRequest(s.closeContext, unsignedReq,
 		&awsutils.SigningCtx{
+			Clock:         s.Clock,
+			Credentials:   awsCfg.Credentials,
 			SigningName:   re.SigningName,
 			SigningRegion: re.SigningRegion,
-			Expiry:        sessCtx.Identity.Expires,
-			SessionName:   sessCtx.Identity.Username,
-			AWSRoleArn:    sessCtx.Identity.RouteToApp.AWSRoleARN,
-			AWSExternalID: sessCtx.App.GetAWSExternalID(),
-			Integration:   sessCtx.App.GetIntegration(),
 		})
 	if err != nil {
 		return trace.Wrap(err)
@@ -217,7 +227,7 @@ func (s *signerHandler) emitAudit(sessCtx *common.SessionContext, req *http.Requ
 	}
 	if auditErr != nil {
 		// log but don't return the error, because we already handed off request/response handling to the oxy forwarder.
-		s.Log.WithError(auditErr).Warn("Failed to emit audit event.")
+		s.Log.WarnContext(req.Context(), "Failed to emit audit event.", "error", auditErr)
 	}
 }
 

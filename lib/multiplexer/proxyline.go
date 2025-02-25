@@ -38,7 +38,6 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -520,7 +519,6 @@ func (p *ProxyLine) VerifySignature(ctx context.Context, caGetter CertAuthorityG
 	jwtVerifier, err := jwt.New(&jwt.Config{
 		Clock:       clock,
 		PublicKey:   signingCert.PublicKey,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: localClusterName,
 	})
 	if err != nil {

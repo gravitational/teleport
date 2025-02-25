@@ -48,7 +48,7 @@ func UnmarshalSessionRecordingConfig(bytes []byte, opts ...MarshalOption) (types
 		return nil, trace.Wrap(err)
 	}
 	if err := utils.FastUnmarshal(bytes, &recConfig); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 
 	err = recConfig.CheckAndSetDefaults()
@@ -56,9 +56,6 @@ func UnmarshalSessionRecordingConfig(bytes []byte, opts ...MarshalOption) (types
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.ID != 0 {
-		recConfig.SetResourceID(cfg.ID)
-	}
 	if cfg.Revision != "" {
 		recConfig.SetRevision(cfg.Revision)
 	}
@@ -84,7 +81,7 @@ func MarshalSessionRecordingConfig(recConfig types.SessionRecordingConfig, opts 
 		if version := recConfig.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched session recording config version %v and type %T", version, recConfig)
 		}
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, recConfig))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, recConfig))
 	default:
 		return nil, trace.BadParameter("unrecognized session recording config version %T", recConfig)
 	}

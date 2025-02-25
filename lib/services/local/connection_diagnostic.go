@@ -54,10 +54,9 @@ func (s *ConnectionDiagnosticService) CreateConnectionDiagnostic(ctx context.Con
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(connectionDiagnosticPrefix, connectionDiagnostic.GetName()),
+		Key:     backend.NewKey(connectionDiagnosticPrefix, connectionDiagnostic.GetName()),
 		Value:   value,
 		Expires: connectionDiagnostic.Expiry(),
-		ID:      connectionDiagnostic.GetResourceID(),
 	}
 	_, err = s.Create(ctx, item)
 
@@ -75,10 +74,9 @@ func (s *ConnectionDiagnosticService) UpdateConnectionDiagnostic(ctx context.Con
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(connectionDiagnosticPrefix, connectionDiagnostic.GetName()),
+		Key:      backend.NewKey(connectionDiagnosticPrefix, connectionDiagnostic.GetName()),
 		Value:    value,
 		Expires:  connectionDiagnostic.Expiry(),
-		ID:       connectionDiagnostic.GetResourceID(),
 		Revision: rev,
 	}
 	_, err = s.Update(ctx, item)
@@ -87,9 +85,8 @@ func (s *ConnectionDiagnosticService) UpdateConnectionDiagnostic(ctx context.Con
 }
 
 // AppendDiagnosticTrace adds a Trace into the ConnectionDiagnostics.
-// It does a CompareAndSwap to ensure atomicity.
 func (s *ConnectionDiagnosticService) AppendDiagnosticTrace(ctx context.Context, name string, t *types.ConnectionDiagnosticTrace) (types.ConnectionDiagnostic, error) {
-	existing, err := s.Get(ctx, backend.Key(connectionDiagnosticPrefix, name))
+	existing, err := s.Get(ctx, backend.NewKey(connectionDiagnosticPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("connection diagnostic %q doesn't exist", name)
@@ -111,14 +108,13 @@ func (s *ConnectionDiagnosticService) AppendDiagnosticTrace(ctx context.Context,
 	}
 
 	newItem := backend.Item{
-		Key:      backend.Key(connectionDiagnosticPrefix, connectionDiagnostic.GetName()),
+		Key:      backend.NewKey(connectionDiagnosticPrefix, connectionDiagnostic.GetName()),
 		Value:    value,
 		Expires:  connectionDiagnostic.Expiry(),
-		ID:       connectionDiagnostic.GetResourceID(),
 		Revision: existing.Revision,
 	}
 
-	_, err = s.CompareAndSwap(ctx, *existing, newItem)
+	_, err = s.ConditionalUpdate(ctx, newItem)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -130,7 +126,7 @@ func (s *ConnectionDiagnosticService) AppendDiagnosticTrace(ctx context.Context,
 //
 // If not found, a `trace.NotFound` error is returned
 func (s *ConnectionDiagnosticService) GetConnectionDiagnostic(ctx context.Context, name string) (types.ConnectionDiagnostic, error) {
-	item, err := s.Get(ctx, backend.Key(connectionDiagnosticPrefix, name))
+	item, err := s.Get(ctx, backend.NewKey(connectionDiagnosticPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("connection diagnostic %q doesn't exist", name)
@@ -140,7 +136,7 @@ func (s *ConnectionDiagnosticService) GetConnectionDiagnostic(ctx context.Contex
 	}
 
 	connectionDiagnostic, err := services.UnmarshalConnectionDiagnostic(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

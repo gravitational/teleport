@@ -21,6 +21,7 @@ package testenv
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha256"
@@ -31,10 +32,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
+	"github.com/gravitational/teleport/lib/devicetrust/challenge"
 )
 
 // FakeEnrollmentToken is a "free", never spent enrollment token.
@@ -230,7 +235,7 @@ func (s *FakeDeviceService) CreateDeviceEnrollToken(ctx context.Context, req *de
 
 	// Auto-enrollment path.
 	if err := validateCollectedData(req.DeviceData); err != nil {
-		return nil, trace.AccessDenied(err.Error())
+		return nil, trace.AccessDenied("%s", err)
 	}
 
 	return &devicepb.DeviceEnrollToken{
@@ -483,6 +488,58 @@ func enrollMacOS(stream devicepb.DeviceTrustService_EnrollDeviceServer, initReq 
 	}, ecPubKey, nil
 }
 
+// CreateAssertCeremony creates a fake, server-side device assertion ceremony.
+func (s *FakeDeviceService) CreateAssertCeremony() (assertserver.Ceremony, error) {
+	return s, nil
+}
+
+// AssertDevice implements a fake, server-side device assertion ceremony.
+//
+// AssertDevice requires an enrolled device, so the challenge signature
+// can be verified.
+func (s *FakeDeviceService) AssertDevice(ctx context.Context, stream assertserver.AssertDeviceServerStream) (*devicepb.Device, error) {
+	// 1. Init.
+	req, err := stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	initReq := req.GetInit()
+	switch {
+	case initReq == nil:
+		return nil, trace.BadParameter("init required")
+	case initReq.CredentialId == "":
+		return nil, trace.BadParameter("credential ID required")
+	}
+	if err := validateCollectedData(initReq.DeviceData); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	dev, err := s.findDeviceByCredential(initReq.DeviceData, initReq.CredentialId)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch dev.pb.OsType {
+	case devicepb.OSType_OS_TYPE_MACOS:
+		err = authenticateDeviceMacOS(dev, assertStreamAdapter{stream: stream}, nil /*sshCert*/)
+	case devicepb.OSType_OS_TYPE_LINUX, devicepb.OSType_OS_TYPE_WINDOWS:
+		err = authenticateDeviceTPM(assertStreamAdapter{stream: stream}, nil /*sshCert*/)
+	default:
+		err = fmt.Errorf("unrecognized os type %q", dev.pb.OsType)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Success.
+	return dev.pb, trace.Wrap(stream.Send(&devicepb.AssertDeviceResponse{
+		Payload: &devicepb.AssertDeviceResponse_DeviceAsserted{},
+	}))
+}
+
 // AuthenticateDevice implements a fake, server-side device authentication
 // ceremony.
 //
@@ -527,9 +584,9 @@ func (s *FakeDeviceService) AuthenticateDevice(stream devicepb.DeviceTrustServic
 
 	switch dev.pb.OsType {
 	case devicepb.OSType_OS_TYPE_MACOS:
-		err = authenticateDeviceMacOS(dev, stream)
+		err = authenticateDeviceMacOS(dev, stream, initReq.GetUserCertificates().GetSshAuthorizedKey())
 	case devicepb.OSType_OS_TYPE_LINUX, devicepb.OSType_OS_TYPE_WINDOWS:
-		err = authenticateDeviceTPM(stream)
+		err = authenticateDeviceTPM(stream, initReq.GetUserCertificates().GetSshAuthorizedKey())
 	default:
 		err = fmt.Errorf("unrecognized os type %q", dev.pb.OsType)
 	}
@@ -572,11 +629,11 @@ func (s *FakeDeviceService) spendDeviceWebToken(webToken *devicepb.DeviceWebToke
 
 		switch {
 		case storedToken == "": // Invalid attempt state or token already spent.
-			return nil, trace.AccessDenied(invalidWebTokenMessage)
+			return nil, trace.AccessDenied("%s", invalidWebTokenMessage)
 		case storedToken != webToken.Token: // Bad token
-			return nil, trace.AccessDenied(invalidWebTokenMessage)
+			return nil, trace.AccessDenied("%s", invalidWebTokenMessage)
 		case attempt.expectedDeviceID != dev.pb.Id: // Failed expected device check.
-			return nil, trace.AccessDenied(invalidWebTokenMessage)
+			return nil, trace.AccessDenied("%s", invalidWebTokenMessage)
 		}
 
 		// Issue a new confirmation token.
@@ -589,10 +646,14 @@ func (s *FakeDeviceService) spendDeviceWebToken(webToken *devicepb.DeviceWebToke
 	}
 
 	// Token ID not found.
-	return nil, trace.AccessDenied(invalidWebTokenMessage)
+	return nil, trace.AccessDenied("%s", invalidWebTokenMessage)
 }
 
-func authenticateDeviceMacOS(dev *storedDevice, stream devicepb.DeviceTrustService_AuthenticateDeviceServer) error {
+func authenticateDeviceMacOS(
+	dev *storedDevice,
+	stream authenticateDeviceStream,
+	sshCert []byte,
+) error {
 	// 2. Challenge.
 	chal, err := newChallenge()
 	if err != nil {
@@ -620,10 +681,21 @@ func authenticateDeviceMacOS(dev *storedDevice, stream devicepb.DeviceTrustServi
 	case len(chalResp.Signature) == 0:
 		return trace.BadParameter("signature required")
 	}
-	return trace.Wrap(verifyChallenge(chal, chalResp.Signature, dev.pub))
+	if err := challenge.Verify(chal, chalResp.Signature, dev.pub); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Verify SSH challenge signature if augmented SSH cert was requested.
+	if len(sshCert) != 0 {
+		if err := verifySSHChallenge(sshCert, chal, chalResp.SshSignature); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
 }
 
-func authenticateDeviceTPM(stream devicepb.DeviceTrustService_AuthenticateDeviceServer) error {
+func authenticateDeviceTPM(stream authenticateDeviceStream, sshCert []byte) error {
 	// Produce a nonce we can send in the challenge that we expect to see in
 	// the EventLog field of the challenge response.
 	nonce, err := randomBytes()
@@ -652,6 +724,39 @@ func authenticateDeviceTPM(stream devicepb.DeviceTrustService_AuthenticateDevice
 		return trace.BadParameter("missing platform parameters in challenge response")
 	case !bytes.Equal(nonce, chalResp.PlatformParameters.EventLog):
 		return trace.BadParameter("nonce in challenge response did not match expected")
+	}
+
+	// Verify SSH challenge signature if augmented SSH cert was requested.
+	if len(sshCert) != 0 {
+		if err := verifySSHChallenge(sshCert, nonce, chalResp.SshSignature); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+func verifySSHChallenge(sshAuthorizedKey, chal, signature []byte) error {
+	switch {
+	case len(sshAuthorizedKey) == 0:
+		return trace.BadParameter("sshAuthorizedKey required")
+	case len(chal) == 0:
+		return trace.BadParameter("chal required")
+	case len(signature) == 0:
+		return trace.BadParameter("signature required")
+	}
+	sshCert, err := sshutils.ParseCertificate(sshAuthorizedKey)
+	if err != nil {
+		return trace.Wrap(err, "parsing SSH certificate")
+	}
+	var pubKey crypto.PublicKey
+	if cryptoKey, ok := sshCert.Key.(ssh.CryptoPublicKey); ok {
+		pubKey = cryptoKey.CryptoPublicKey()
+	} else {
+		return trace.BadParameter("unsupported SSH public key type %T", sshCert.Key)
+	}
+	if err := challenge.Verify(chal, signature, pubKey); err != nil {
+		return trace.BadParameter("SSH key verification failed: %v", err)
 	}
 	return nil
 }
@@ -717,4 +822,65 @@ func verifyChallenge(chal, sig []byte, pub *ecdsa.PublicKey) error {
 		return trace.BadParameter("signature verification failed")
 	}
 	return nil
+}
+
+type authenticateDeviceStream interface {
+	Recv() (*devicepb.AuthenticateDeviceRequest, error)
+	Send(*devicepb.AuthenticateDeviceResponse) error
+}
+
+// assertStreamAdapter adapts an [assertserver.AssertDeviceServerStream] to an
+// [authenticateDeviceStream].
+type assertStreamAdapter struct {
+	stream assertserver.AssertDeviceServerStream
+}
+
+func (s assertStreamAdapter) Recv() (*devicepb.AuthenticateDeviceRequest, error) {
+	req, err := s.stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Convert AssertDeviceRequest to AuthenticateDeviceRequest.
+	if req == nil || req.Payload == nil {
+		return nil, trace.BadParameter("assert request payload required")
+	}
+	authnReq := &devicepb.AuthenticateDeviceRequest{}
+	switch req.Payload.(type) {
+	case *devicepb.AssertDeviceRequest_ChallengeResponse:
+		authnReq.Payload = &devicepb.AuthenticateDeviceRequest_ChallengeResponse{
+			ChallengeResponse: req.GetChallengeResponse(),
+		}
+	case *devicepb.AssertDeviceRequest_TpmChallengeResponse:
+		authnReq.Payload = &devicepb.AuthenticateDeviceRequest_TpmChallengeResponse{
+			TpmChallengeResponse: req.GetTpmChallengeResponse(),
+		}
+	default:
+		return nil, trace.BadParameter("unexpected assert request payload: %T", req.Payload)
+	}
+
+	return authnReq, nil
+}
+
+func (s assertStreamAdapter) Send(authnResp *devicepb.AuthenticateDeviceResponse) error {
+	if authnResp == nil || authnResp.Payload == nil {
+		return trace.BadParameter("authenticate response payload required")
+	}
+
+	// Convert AuthenticateDeviceResponse to AssertDeviceResponse.
+	resp := &devicepb.AssertDeviceResponse{}
+	switch authnResp.Payload.(type) {
+	case *devicepb.AuthenticateDeviceResponse_Challenge:
+		resp.Payload = &devicepb.AssertDeviceResponse_Challenge{
+			Challenge: authnResp.GetChallenge(),
+		}
+	case *devicepb.AuthenticateDeviceResponse_TpmChallenge:
+		resp.Payload = &devicepb.AssertDeviceResponse_TpmChallenge{
+			TpmChallenge: authnResp.GetTpmChallenge(),
+		}
+	default:
+		return trace.BadParameter("unexpected authentication response payload: %T", authnResp.Payload)
+	}
+
+	return trace.Wrap(s.stream.Send(resp))
 }

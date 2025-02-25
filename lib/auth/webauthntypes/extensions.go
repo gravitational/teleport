@@ -21,3 +21,7 @@ package webauthntypes
 // AppIDExtension is the key for the appid extension.
 // https://www.w3.org/TR/webauthn-2/#sctn-appid-extension.
 const AppIDExtension = "appid"
+
+// CredPropsExtension is the key for the credProps extension.
+// https://w3c.github.io/webauthn/#sctn-authenticator-credential-properties-extension
+const CredPropsExtension = "credProps"

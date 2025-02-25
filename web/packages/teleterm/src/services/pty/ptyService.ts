@@ -19,33 +19,47 @@
 import { ChannelCredentials } from '@grpc/grpc-js';
 
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
+import { ConfigService } from 'teleterm/services/config';
 
 import { buildPtyOptions } from './ptyHost/buildPtyOptions';
 import { createPtyHostClient } from './ptyHost/ptyHostClient';
 import { createPtyProcess } from './ptyHost/ptyProcess';
-import { PtyServiceClient, SshOptions } from './types';
+import { getWindowsPty } from './ptyHost/windowsPty';
+import { PtyServiceClient } from './types';
 
 export function createPtyService(
   address: string,
   credentials: ChannelCredentials,
   runtimeSettings: RuntimeSettings,
-  sshOptions: SshOptions
+  configService: ConfigService
 ): PtyServiceClient {
   const ptyHostClient = createPtyHostClient(address, credentials);
 
   return {
     createPtyProcess: async command => {
-      const { processOptions, creationStatus } = await buildPtyOptions(
-        runtimeSettings,
-        sshOptions,
-        command
-      );
+      const windowsPty = getWindowsPty(runtimeSettings, {
+        windowsBackend: configService.get('terminal.windowsBackend').value,
+      });
+      const { processOptions, creationStatus, shell } = await buildPtyOptions({
+        settings: runtimeSettings,
+        options: {
+          ssh: {
+            noResume: configService.get('ssh.noResume').value,
+            forwardAgent: configService.get('ssh.forwardAgent').value,
+          },
+          customShellPath: configService.get('terminal.customShell').value,
+          windowsPty,
+        },
+        cmd: command,
+      });
       const ptyId = await ptyHostClient.createPtyProcess(processOptions);
 
       // Electron's context bridge doesn't allow to return a class here
       return {
         process: createPtyProcess(ptyHostClient, ptyId),
         creationStatus,
+        shell,
+        windowsPty,
       };
     },
   };

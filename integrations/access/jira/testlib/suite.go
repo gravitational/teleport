@@ -89,8 +89,8 @@ func (s *JiraBaseSuite) SetupTest() {
 
 // startApp starts the discord plugin, waits for it to become ready and returns,
 func (s *JiraBaseSuite) startApp() {
+	s.T().Helper()
 	t := s.T()
-	t.Helper()
 
 	app, err := jira.NewApp(s.appConfig)
 	require.NoError(t, err)
@@ -721,7 +721,7 @@ func (s *JiraSuiteOSS) TestRace() {
 			defer cancel()
 			var lastErr error
 			for {
-				logger.Get(ctx).Infof("Trying to approve issue %q", issue.Key)
+				logger.Get(ctx).InfoContext(ctx, "Trying to approve issue", "issue_key", issue.Key)
 				resp, err := s.postWebhook(ctx, s.webhookURL.String(), issue.ID, "Approved")
 				if err != nil {
 					if lib.IsDeadline(err) {

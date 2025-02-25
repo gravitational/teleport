@@ -16,27 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { ButtonIcon, ButtonPrimary, ButtonSecondary, H2, Link } from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
-import { ButtonIcon, ButtonPrimary, ButtonSecondary, Link, Text } from 'design';
 import { Cross } from 'design/Icon';
+import { P } from 'design/Text/Text';
 
-interface UsageDataProps {
+export function UsageData(props: {
   onCancel(): void;
-
   onAllow(): void;
-
   onDecline(): void;
-}
-
-export function UsageData(props: UsageDataProps) {
+  hidden?: boolean;
+}) {
   return (
     <DialogConfirmation
-      open={true}
+      open={!props.hidden}
+      keepInDOMAfterClose
       onClose={props.onCancel}
       dialogCss={() => ({
         maxWidth: '400px',
@@ -54,9 +52,7 @@ export function UsageData(props: UsageDataProps) {
           mb={0}
           alignItems="baseline"
         >
-          <Text typography="h4" bold>
-            Anonymous usage data
-          </Text>
+          <H2 mb={4}>Anonymous usage data</H2>
           <ButtonIcon
             type="button"
             onClick={props.onCancel}
@@ -66,11 +62,11 @@ export function UsageData(props: UsageDataProps) {
           </ButtonIcon>
         </DialogHeader>
         <DialogContent mb={4}>
-          <Text typography="body1" color="text.slightlyMuted">
+          <P color="text.slightlyMuted">
             Do you agree to Teleport Connect collecting anonymized usage data?
             This will help us improve the product.
-          </Text>
-          <Text typography="body1" color="text.slightlyMuted">
+          </P>
+          <P color="text.slightlyMuted">
             To learn more, see{' '}
             <Link
               href="https://goteleport.com/docs/faq/#teleport-connect"
@@ -79,7 +75,7 @@ export function UsageData(props: UsageDataProps) {
               our documentation
             </Link>
             .
-          </Text>
+          </P>
         </DialogContent>
         <DialogFooter>
           <ButtonPrimary autoFocus mr={3} type="submit">

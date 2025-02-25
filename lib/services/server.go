@@ -21,19 +21,17 @@ package services
 import (
 	"encoding/json"
 	"fmt"
-	"net"
+	"maps"
+	"slices"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
-	ec2v1 "github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	libaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -45,9 +43,6 @@ const (
 	OnlyTimestampsDifferent = iota
 	// Different means that some fields are different
 	Different = iota
-
-	// defaultSSHPort is the default port for the OpenSSH Service.
-	defaultSSHPort = "22"
 )
 
 // CompareServers compares two provided servers.
@@ -104,11 +99,10 @@ func compareServers(a, b types.Server) int {
 	if len(a.GetPublicAddrs()) != len(b.GetPublicAddrs()) {
 		return Different
 	}
-	for i := range a.GetPublicAddrs() {
-		if a.GetPublicAddrs()[i] != b.GetPublicAddrs()[i] {
-			return Different
-		}
+	if !slices.Equal(a.GetPublicAddrs(), b.GetPublicAddrs()) {
+		return Different
 	}
+
 	r := a.GetRotation()
 	if !r.Matches(b.GetRotation()) {
 		return Different
@@ -116,17 +110,25 @@ func compareServers(a, b types.Server) int {
 	if a.GetUseTunnel() != b.GetUseTunnel() {
 		return Different
 	}
-	if !utils.StringMapsEqual(a.GetStaticLabels(), b.GetStaticLabels()) {
+	if !maps.Equal(a.GetStaticLabels(), b.GetStaticLabels()) {
 		return Different
 	}
-	if !cmp.Equal(a.GetCmdLabels(), b.GetCmdLabels()) {
+
+	if !maps.EqualFunc(a.GetCmdLabels(), b.GetCmdLabels(), func(label types.CommandLabel, label2 types.CommandLabel) bool {
+		return slices.Equal(label.GetCommand(), label2.GetCommand()) &&
+			label.GetPeriod() == label2.GetPeriod() &&
+			label.GetResult() == label2.GetResult()
+	}) {
 		return Different
 	}
 	if a.GetTeleportVersion() != b.GetTeleportVersion() {
 		return Different
 	}
 
-	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
+	if !slices.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
+		return Different
+	}
+	if !cmp.Equal(a.GetGitHub(), b.GetGitHub()) {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
@@ -156,7 +158,7 @@ func compareApplicationServers(a, b types.AppServer) int {
 	if !cmp.Equal(a.GetApp(), b.GetApp()) {
 		return Different
 	}
-	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
+	if !slices.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
@@ -176,7 +178,14 @@ func compareDatabaseServices(a, b types.DatabaseService) int {
 	if a.GetNamespace() != b.GetNamespace() {
 		return Different
 	}
-	if !cmp.Equal(a.GetResourceMatchers(), b.GetResourceMatchers()) {
+	if !slices.EqualFunc(a.GetResourceMatchers(), b.GetResourceMatchers(),
+		func(matcher *types.DatabaseResourceMatcher, matcher2 *types.DatabaseResourceMatcher) bool {
+			return matcher.AWS.AssumeRoleARN == matcher2.AWS.AssumeRoleARN &&
+				maps.EqualFunc(matcher.Labels.ToProto().Values, matcher2.Labels.ToProto().Values,
+					func(values wrappers.StringValues, values2 wrappers.StringValues) bool {
+						return slices.Equal(values.Values, values2.Values)
+					})
+		}) {
 		return Different
 	}
 	if !a.Expiry().Equal(b.Expiry()) {
@@ -205,7 +214,7 @@ func compareKubernetesServers(a, b types.KubeServer) int {
 	if !cmp.Equal(a.GetCluster(), b.GetCluster()) {
 		return Different
 	}
-	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
+	if !slices.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
@@ -235,7 +244,7 @@ func compareDatabaseServers(a, b types.DatabaseServer) int {
 	if !cmp.Equal(a.GetDatabase(), b.GetDatabase()) {
 		return Different
 	}
-	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
+	if !slices.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
@@ -258,7 +267,7 @@ func compareWindowsDesktopServices(a, b types.WindowsDesktopService) int {
 	if a.GetTeleportVersion() != b.GetTeleportVersion() {
 		return Different
 	}
-	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
+	if !slices.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
@@ -356,14 +365,11 @@ func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (types.Se
 
 	var s types.ServerV2
 	if err := utils.FastUnmarshal(bytes, &s); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	s.Kind = kind
 	if err := s.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if cfg.ID != 0 {
-		s.SetResourceID(cfg.ID)
 	}
 	if cfg.Revision != "" {
 		s.SetRevision(cfg.Revision)
@@ -394,7 +400,7 @@ func MarshalServer(server types.Server, opts ...MarshalOption) ([]byte, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, server))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, server))
 	default:
 		return nil, trace.BadParameter("unrecognized server version %T", server)
 	}
@@ -432,70 +438,11 @@ func NodeHasMissedKeepAlives(s types.Server) bool {
 	return serverExpiry.Before(time.Now().Add(apidefaults.ServerAnnounceTTL - (apidefaults.ServerKeepAliveTTL() * 2)))
 }
 
-// NewAWSNodeFromEC2Instance creates a Node resource from an EC2 Instance.
-// It has a pre-populated spec which contains info that is not available in the ec2.Instance object.
-func NewAWSNodeFromEC2Instance(instance ec2types.Instance, awsCloudMetadata *types.AWSInfo) (types.Server, error) {
-	labels := libaws.TagsToLabels(instance.Tags)
-	if labels == nil {
-		labels = make(map[string]string)
+// EqualFromBool is a helper function that converts a boolean value to an integer
+// value that represents the equality status.
+func EqualFromBool(b bool) int {
+	if !b {
+		return Different
 	}
-	libaws.AddMetadataLabels(labels, awsCloudMetadata.AccountID, awsCloudMetadata.Region)
-
-	instanceID := aws.ToString(instance.InstanceId)
-	labels[types.AWSInstanceIDLabel] = instanceID
-	labels[types.AWSAccountIDLabel] = awsCloudMetadata.AccountID
-
-	awsCloudMetadata.InstanceID = instanceID
-	awsCloudMetadata.VPCID = aws.ToString(instance.VpcId)
-	awsCloudMetadata.SubnetID = aws.ToString(instance.SubnetId)
-
-	if aws.ToString(instance.PrivateIpAddress) == "" {
-		return nil, trace.BadParameter("private ip address is required from ec2 instance")
-	}
-	// Address requires the Port.
-	// We use the default port for the OpenSSH daemon.
-	addr := net.JoinHostPort(aws.ToString(instance.PrivateIpAddress), defaultSSHPort)
-
-	server, err := types.NewEICENode(
-		types.ServerSpecV2{
-			Hostname: aws.ToString(instance.PrivateDnsName),
-			Addr:     addr,
-			CloudMetadata: &types.CloudMetadata{
-				AWS: awsCloudMetadata,
-			},
-		},
-		labels,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return server, nil
-}
-
-// NewAWSNodeFromEC2v1Instance creates a Node resource from an EC2 Instance.
-// It has a pre-populated spec which contains info that is not available in the ec2.Instance object.
-// Uses AWS SDK Go V1
-func NewAWSNodeFromEC2v1Instance(instance ec2v1.Instance, awsCloudMetadata *types.AWSInfo) (types.Server, error) {
-	server, err := NewAWSNodeFromEC2Instance(ec2InstanceV1ToV2(instance), awsCloudMetadata)
-	return server, trace.Wrap(err)
-}
-
-func ec2InstanceV1ToV2(instance ec2v1.Instance) ec2types.Instance {
-	tags := make([]ec2types.Tag, 0, len(instance.Tags))
-	for _, tag := range instance.Tags {
-		tags = append(tags, ec2types.Tag{
-			Key:   tag.Key,
-			Value: tag.Value,
-		})
-	}
-
-	return ec2types.Instance{
-		InstanceId:       instance.InstanceId,
-		VpcId:            instance.VpcId,
-		SubnetId:         instance.SubnetId,
-		PrivateIpAddress: instance.PrivateIpAddress,
-		PrivateDnsName:   instance.PrivateDnsName,
-		Tags:             tags,
-	}
+	return Equal
 }

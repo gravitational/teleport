@@ -32,6 +32,13 @@ service PresenceService {
   rpc UpdateRemoteCluster(UpdateRemoteClusterRequest) returns (types.RemoteClusterV3);
   // DeleteRemoteCluster removes an existing RemoteCluster by name.
   rpc DeleteRemoteCluster(DeleteRemoteClusterRequest) returns (google.protobuf.Empty);
+
+  // ListReverseTunnels retrieves a page of ReverseTunnels.
+  rpc ListReverseTunnels(ListReverseTunnelsRequest) returns (ListReverseTunnelsResponse);
+  // UpsertReverseTunnel upserts a ReverseTunnel.
+  rpc UpsertReverseTunnel(UpsertReverseTunnelRequest) returns (types.ReverseTunnelV2);
+  // DeleteReverseTunnel removes an existing ReverseTunnel by name.
+  rpc DeleteReverseTunnel(DeleteReverseTunnelRequest) returns (google.protobuf.Empty);
 }
 
 // Request for GetRemoteCluster
@@ -73,5 +80,38 @@ message UpdateRemoteClusterRequest {
 // Request for DeleteRemoteCluster
 message DeleteRemoteClusterRequest {
   // Name is the name of the RemoteCluster to delete.
+  string name = 1;
+}
+
+// Request for ListReverseTunnels
+message ListReverseTunnelsRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+
+  // The page_token is the next_page_token value returned from a previous List
+  // request, if any.
+  string page_token = 2;
+}
+
+// Response for ListReverseTunnels
+message ListReverseTunnelsResponse {
+  // ReverseTunnels is the list of ReverseTunnels that were retrieved.
+  repeated types.ReverseTunnelV2 reverse_tunnels = 1;
+
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+// Request for UpsertReverseTunnel
+message UpsertReverseTunnelRequest {
+  // ReverseTunnel is the ReverseTunnel to upsert.
+  types.ReverseTunnelV2 reverse_tunnel = 1;
+}
+
+// Request for DeleteReverseTunnel
+message DeleteReverseTunnelRequest {
+  // Name is the name of the ReverseTunnel to delete.
   string name = 1;
 }

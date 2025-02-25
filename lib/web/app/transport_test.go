@@ -42,7 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -239,7 +239,7 @@ func TestTransport_DialContextNoServersAvailable(t *testing.T) {
 				&types.AppServerV3{Spec: types.AppServerSpecV3{App: &types.AppV3{}}},
 				&types.AppServerV3{Spec: types.AppServerSpecV3{App: &types.AppV3{}}},
 			},
-			log: utils.NewLoggerForTests(),
+			log: utils.NewSlogLoggerForTests(),
 		},
 	}
 
@@ -352,10 +352,10 @@ func Test_transport_rewriteRequest(t *testing.T) {
 		clientCert, err := x509.ParseCertificate(b.Bytes)
 		require.NoError(t, err)
 
-		wsPrivateKey, err := keys.ParsePrivateKey(appSession.GetPriv())
+		wsPrivateKey, err := keys.ParsePrivateKey(appSession.GetTLSPriv())
 		require.NoError(t, err)
 
-		unknownKey, err := native.GeneratePrivateKey()
+		unknownKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 		require.NoError(t, err)
 
 		for _, tt := range []struct {
@@ -389,7 +389,6 @@ func Test_transport_rewriteRequest(t *testing.T) {
 				jwtKey, err := jwt.New(&jwt.Config{
 					Clock:       tr.c.clock,
 					PrivateKey:  tt.jwtPrivateKey,
-					Algorithm:   defaults.ApplicationTokenAlgorithm,
 					ClusterName: types.TeleportAzureMSIEndpoint,
 				})
 				require.NoError(t, err)
@@ -410,7 +409,6 @@ func Test_transport_rewriteRequest(t *testing.T) {
 				wsJWTKey, err := jwt.New(&jwt.Config{
 					Clock:       tr.c.clock,
 					PrivateKey:  wsPrivateKey,
-					Algorithm:   defaults.ApplicationTokenAlgorithm,
 					ClusterName: types.TeleportAzureMSIEndpoint,
 				})
 				require.NoError(t, err)

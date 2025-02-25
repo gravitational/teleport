@@ -1,6 +1,6 @@
 #
 # Example: Legacy Default Admin Role
-# Tip: For 6.0+ clusters, please use 'editor' for configuring Teleport
+# Tip: Use 'editor' for configuring Teleport
 #
 kind: role
 metadata:
@@ -28,5 +28,9 @@ spec:
     - network
     forward_agent: true
     max_session_ttl: 30h0m0s
-    port_forwarding: true
+    ssh_port_forwarding:
+      remote:
+        enabled: true
+      local:
+        enabled: true
 version: v3

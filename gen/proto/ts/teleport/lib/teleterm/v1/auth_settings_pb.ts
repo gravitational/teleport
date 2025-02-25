@@ -43,18 +43,6 @@ export interface AuthSettings {
      */
     localAuthEnabled: boolean;
     /**
-     * second_factor is the type of second factor to use in authentication.
-     *
-     * @generated from protobuf field: string second_factor = 2;
-     */
-    secondFactor: string;
-    /**
-     * preferred_mfa is the prefered mfa for local logins
-     *
-     * @generated from protobuf field: string preferred_mfa = 3;
-     */
-    preferredMfa: string;
-    /**
      * auth_providers contains a list of auth providers
      *
      * @generated from protobuf field: repeated teleport.lib.teleterm.v1.AuthProvider auth_providers = 4;
@@ -118,8 +106,6 @@ class AuthSettings$Type extends MessageType<AuthSettings> {
     constructor() {
         super("teleport.lib.teleterm.v1.AuthSettings", [
             { no: 1, name: "local_auth_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 2, name: "second_factor", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "preferred_mfa", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "auth_providers", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => AuthProvider },
             { no: 5, name: "has_message_of_the_day", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 6, name: "auth_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
@@ -130,8 +116,6 @@ class AuthSettings$Type extends MessageType<AuthSettings> {
     create(value?: PartialMessage<AuthSettings>): AuthSettings {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.localAuthEnabled = false;
-        message.secondFactor = "";
-        message.preferredMfa = "";
         message.authProviders = [];
         message.hasMessageOfTheDay = false;
         message.authType = "";
@@ -148,12 +132,6 @@ class AuthSettings$Type extends MessageType<AuthSettings> {
             switch (fieldNo) {
                 case /* bool local_auth_enabled */ 1:
                     message.localAuthEnabled = reader.bool();
-                    break;
-                case /* string second_factor */ 2:
-                    message.secondFactor = reader.string();
-                    break;
-                case /* string preferred_mfa */ 3:
-                    message.preferredMfa = reader.string();
                     break;
                 case /* repeated teleport.lib.teleterm.v1.AuthProvider auth_providers */ 4:
                     message.authProviders.push(AuthProvider.internalBinaryRead(reader, reader.uint32(), options));
@@ -185,12 +163,6 @@ class AuthSettings$Type extends MessageType<AuthSettings> {
         /* bool local_auth_enabled = 1; */
         if (message.localAuthEnabled !== false)
             writer.tag(1, WireType.Varint).bool(message.localAuthEnabled);
-        /* string second_factor = 2; */
-        if (message.secondFactor !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.secondFactor);
-        /* string preferred_mfa = 3; */
-        if (message.preferredMfa !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.preferredMfa);
         /* repeated teleport.lib.teleterm.v1.AuthProvider auth_providers = 4; */
         for (let i = 0; i < message.authProviders.length; i++)
             AuthProvider.internalBinaryWrite(message.authProviders[i], writer.tag(4, WireType.LengthDelimited).fork(), options).join();

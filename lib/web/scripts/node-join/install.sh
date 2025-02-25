@@ -17,7 +17,8 @@ SYSTEMD_UNIT_PATH="/lib/systemd/system/teleport.service"
 TARGET_PORT_DEFAULT=443
 TELEPORT_ARCHIVE_PATH='{{.packageName}}'
 TELEPORT_BINARY_DIR="/usr/local/bin"
-TELEPORT_BINARY_LIST="teleport tctl tsh"
+TELEPORT_BINARY_LIST="teleport tctl tsh teleport-update"
+TELEPORT_BINARY_LIST_darwin="teleport" # only install server binaries for macOS
 TELEPORT_CONFIG_PATH="/etc/teleport.yaml"
 TELEPORT_DATA_DIR="/var/lib/teleport"
 TELEPORT_DOCS_URL="https://goteleport.com/docs/"
@@ -230,15 +231,33 @@ log_important() {
 log_cleanup_message() {
     log_only "This script does not overwrite any existing settings or Teleport installations."
     log_only "Please clean up by running any of the following steps as necessary:"
+    if is_using_systemd; then
+        log_only "- stop teleport's service"
+        log_only "  - systemctl stop teleport"
+    fi
     log_only "- stop any running Teleport processes"
     log_only "  - pkill -f teleport"
     log_only "- remove any data under ${TELEPORT_DATA_DIR}, along with the directory itself"
     log_only "  - rm -rf ${TELEPORT_DATA_DIR}"
     log_only "- remove any configuration at ${TELEPORT_CONFIG_PATH}"
     log_only "  - rm -f ${TELEPORT_CONFIG_PATH}"
-    log_only "- remove any Teleport binaries (${TELEPORT_BINARY_LIST}) installed under ${TELEPORT_BINARY_DIR}"
-    for BINARY in ${TELEPORT_BINARY_LIST}; do EXAMPLE_DELETE_COMMAND+="${TELEPORT_BINARY_DIR}/${BINARY} "; done
-    log_only "  - rm -f ${EXAMPLE_DELETE_COMMAND}"
+    if check_exists apt; then
+        log_only "- remove teleport package"
+        log_only "  - apt remove teleport"
+    elif check_exists yum; then
+        log_only "- remove teleport package"
+        log_only "  - yum remove teleport"
+    elif check_exists dnf; then
+        log_only "- remove teleport package"
+        log_only "  - dnf remove teleport"
+    elif check_exists zypper; then
+        log_only "- remove teleport package"
+        log_only "  - zypper remove teleport"
+    else
+        log_only "- remove any Teleport binaries (${TELEPORT_BINARY_LIST}) installed under ${TELEPORT_BINARY_DIR}"
+        for BINARY in ${TELEPORT_BINARY_LIST}; do EXAMPLE_DELETE_COMMAND+="${TELEPORT_BINARY_DIR}/${BINARY} "; done
+        log_only "  - rm -f ${EXAMPLE_DELETE_COMMAND}"
+    fi
     if is_macos_host; then
         log_only "- unload and remove Teleport launchd config ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}"
         log_only "  - launchctl unload ${LAUNCHD_CONFIG_PATH}/${LAUNCHD_PLIST_FILE}"
@@ -423,6 +442,11 @@ get_yaml_list() {
 install_teleport_app_config() {
     log "Writing Teleport app service config to ${TELEPORT_CONFIG_PATH}"
     CA_PINS_CONFIG=$(get_yaml_list "ca_pin" "${CA_PIN_HASHES}" "  ")
+    # This file is processed by `shellschek` as part of the lint step
+    # It detects an issue because of un-set variables - $index and $line. This check is called SC2154.
+    # However, that's not an issue, because those variables are replaced when we run go's text/template engine over it.
+    # When executing the script, those are no long variables but actual values.
+    # shellcheck disable=SC2154
     cat << EOF > ${TELEPORT_CONFIG_PATH}
 version: v3
 teleport:
@@ -445,6 +469,9 @@ app_service:
   - name: "${APP_NAME}"
     uri: "${APP_URI}"
     public_addr: ${APP_PUBLIC_ADDR}
+    labels:{{range $index, $line := .appServerResourceLabels}}
+      {{$line -}}
+{{end}}
 EOF
 }
 # installs the provided teleport config (for database service)
@@ -518,6 +545,7 @@ EOF
 install_teleport_node_config() {
     log "Writing Teleport node service config to ${TELEPORT_CONFIG_PATH}"
     ${TELEPORT_BINARY_DIR}/teleport node configure \
+      --silent \
       --token ${JOIN_TOKEN} \
       ${JOIN_METHOD_FLAG} \
       --ca-pin ${CA_PINS} \
@@ -570,7 +598,7 @@ print_welcome_message() {
         fi
         log_only ""
         log_only "You can see this node connected in the Teleport web UI or 'tsh ls' with the name '${NODENAME}'"
-        log_only "Find more details on how to use Teleport here: https://goteleport.com/docs/user-manual/"
+        log_only "Find more details on how to use Teleport here: https://goteleport.com/docs/"
     else
         log_important "The Teleport service was installed, but it does not appear to have started successfully."
         if is_using_systemd; then
@@ -720,6 +748,7 @@ if [[ "${OSTYPE}" == "linux"* ]]; then
 elif [[ "${OSTYPE}" == "darwin"* ]]; then
     # macOS host, now detect arch
     TELEPORT_BINARY_TYPE="darwin"
+    TELEPORT_BINARY_LIST="${TELEPORT_BINARY_LIST_darwin}"
     ARCH=$(uname -m)
     log "Detected host: ${OSTYPE}, using Teleport binary type ${TELEPORT_BINARY_TYPE}"
     if [[ ${ARCH} == "arm64" ]]; then
@@ -821,7 +850,9 @@ install_from_file() {
         tar -xzf "${TEMP_DIR}/${DOWNLOAD_FILENAME}" -C "${TEMP_DIR}"
         # install binaries to /usr/local/bin
         for BINARY in ${TELEPORT_BINARY_LIST}; do
-            ${COPY_COMMAND} "${TELEPORT_ARCHIVE_PATH}/${BINARY}" "${TELEPORT_BINARY_DIR}/"
+            if [ -e "${TELEPORT_ARCHIVE_PATH}/${BINARY}" ]; then
+                ${COPY_COMMAND} "${TELEPORT_ARCHIVE_PATH}/${BINARY}" "${TELEPORT_BINARY_DIR}/"
+            fi
         done
     elif [[ ${TELEPORT_FORMAT} == "deb" ]]; then
         # convert teleport arch to deb arch
@@ -916,14 +947,18 @@ install_from_repo() {
             curl -fsSL https://apt.releases.teleport.dev/gpg | apt-key add -
             echo "deb https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} ${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
         else
+            mkdir -p /etc/apt/keyrings
             curl -fsSL https://apt.releases.teleport.dev/gpg \
-                -o /usr/share/keyrings/teleport-archive-keyring.asc
-            echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
+                -o /etc/apt/keyrings/teleport-archive-keyring.asc
+            echo "deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc] \
             https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} ${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
         fi
         apt-get update
         apt-get install -y ${PACKAGE_LIST}
-    elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ] || [ "$ID" = "centos" ]; then
+    elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ] || [ "$ID" = "centos" ] || [ "$ID" = "rocky" ] || [ "$ID" = "almalinux" ]; then
+        if [ "$ID" = "rocky" ] || [ "$ID" = "almalinux" ]; then
+            ID="rhel" # Rocky and AlmaLinux are bug-for-bug compatible with rhel (including the VERSION_ID format).
+        fi
         if [ "$ID" = "rhel" ]; then
             VERSION_ID="${VERSION_ID//.*/}" # convert version numbers like '7.2' to only include the major version
         fi
@@ -990,7 +1025,7 @@ is_repo_available() {
 
     # The following distros+version have a Teleport repository to install from.
     case "${ID}-${VERSION_ID}" in
-        ubuntu-16.04* | ubuntu-18.04* | ubuntu-20.04* | ubuntu-22.04* | \
+        ubuntu-16.04* | ubuntu-18.04* | ubuntu-20.04* | ubuntu-22.04* | ubuntu-24.04* |\
         debian-9* | debian-10* | debian-11* | debian-12* | \
         rhel-7* | rhel-8* | rhel-9* | \
         centos-7* | centos-8* | centos-9* | \

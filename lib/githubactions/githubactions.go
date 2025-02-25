@@ -19,8 +19,7 @@
 package githubactions
 
 import (
-	"github.com/gravitational/trace"
-	"github.com/mitchellh/mapstructure"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
 // GitHub Workload Identity
@@ -101,20 +100,23 @@ type IDTokenClaims struct {
 	Workflow string `json:"workflow"`
 }
 
-// JoinAuditAttributes returns a series of attributes that can be inserted into
-// audit events related to a specific join.
-func (c *IDTokenClaims) JoinAuditAttributes() (map[string]interface{}, error) {
-	res := map[string]interface{}{}
-	d, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
-		TagName: "json",
-		Result:  &res,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+// JoinAttrs returns the protobuf representation of the attested identity.
+// This is used for auditing and for evaluation of WorkloadIdentity rules and
+// templating.
+func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsGitHub {
+	attrs := &workloadidentityv1pb.JoinAttrsGitHub{
+		Sub:             c.Sub,
+		Actor:           c.Actor,
+		Environment:     c.Environment,
+		Ref:             c.Ref,
+		RefType:         c.RefType,
+		Repository:      c.Repository,
+		RepositoryOwner: c.RepositoryOwner,
+		Workflow:        c.Workflow,
+		EventName:       c.EventName,
+		Sha:             c.SHA,
+		RunId:           c.RunID,
 	}
 
-	if err := d.Decode(c); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return res, nil
+	return attrs
 }

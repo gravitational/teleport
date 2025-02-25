@@ -16,8 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as tsh from './types';
+import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
+import {
+  ACL,
+  ShowResources,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+
 import { TshdRpcError } from './cloneableClient';
+import * as tsh from './types';
 
 export const rootClusterUri = '/clusters/teleport-local';
 export const leafClusterUri = `${rootClusterUri}/leaves/leaf`;
@@ -70,6 +76,7 @@ export const makeApp = (props: Partial<tsh.App> = {}): tsh.App => ({
   samlApp: false,
   uri: appUri,
   awsRoles: [],
+  tcpPorts: [],
   ...props,
 });
 
@@ -87,6 +94,9 @@ export const makeRootCluster = (
   authClusterId: 'fefe3434-fefe-3434-fefe-3434fefe3434',
   loggedInUser: makeLoggedInUser(),
   proxyVersion: '11.1.0',
+  showResources: ShowResources.REQUESTABLE,
+  profileStatusError: '',
+  ssoHost: 'example.auth0.com',
   ...props,
 });
 
@@ -101,6 +111,118 @@ export const makeLeafCluster = (
   authClusterId: '',
   loggedInUser: makeLoggedInUser(),
   proxyVersion: '',
+  profileStatusError: '',
+  showResources: ShowResources.UNSPECIFIED,
+  ssoHost: 'example.auth0.com',
+  ...props,
+});
+
+export const makeAcl = (props: Partial<ACL> = {}) => ({
+  recordedSessions: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  activeSessions: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  authConnectors: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  roles: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  users: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  trustedClusters: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  events: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  tokens: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  servers: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  apps: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  dbs: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  kubeservers: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  accessRequests: {
+    list: true,
+    read: true,
+    edit: true,
+    create: true,
+    delete: true,
+    use: true,
+  },
+  reviewRequests: true,
   ...props,
 });
 
@@ -109,112 +231,9 @@ export const makeLoggedInUser = (
 ): tsh.LoggedInUser => ({
   activeRequests: [],
   name: 'alice',
-  acl: {
-    recordedSessions: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-    activeSessions: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-    authConnectors: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-    roles: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-    users: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-    trustedClusters: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-    events: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-    tokens: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-    servers: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-    apps: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-    dbs: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-    kubeservers: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-    accessRequests: {
-      list: true,
-      read: true,
-      edit: true,
-      create: true,
-      delete: true,
-      use: true,
-    },
-  },
+  isDeviceTrusted: false,
+  trustedDeviceRequirement: TrustedDeviceRequirement.NOT_REQUIRED,
+  acl: makeAcl(),
   sshLogins: [],
   roles: [],
   requestableRoles: [],
@@ -226,7 +245,7 @@ export const makeLoggedInUser = (
 export const makeDatabaseGateway = (
   props: Partial<tsh.Gateway> = {}
 ): tsh.Gateway => ({
-  uri: '/gateways/foo',
+  uri: '/gateways/db',
   targetName: 'sales-production',
   targetUri: databaseUri,
   targetUser: 'alice',
@@ -246,7 +265,7 @@ export const makeDatabaseGateway = (
 export const makeKubeGateway = (
   props: Partial<tsh.Gateway> = {}
 ): tsh.Gateway => ({
-  uri: '/gateways/foo',
+  uri: '/gateways/kube',
   targetName: 'foo',
   targetUri: kubeUri,
   targetUser: '',
@@ -266,12 +285,12 @@ export const makeKubeGateway = (
 export const makeAppGateway = (
   props: Partial<tsh.Gateway> = {}
 ): tsh.Gateway => ({
-  uri: '/gateways/bar',
+  uri: '/gateways/app',
   targetName: 'sales-production',
   targetUri: appUri,
   localAddress: 'localhost',
   localPort: '1337',
-  targetSubresourceName: 'bar',
+  targetSubresourceName: undefined,
   gatewayCliCommand: {
     path: '',
     preview: 'curl http://localhost:1337',
@@ -288,4 +307,44 @@ export const makeRetryableError = (): TshdRpcError => ({
   isResolvableWithRelogin: true,
   code: 'UNKNOWN',
   message: 'ssh: handshake failed',
+});
+
+export const makeAccessRequest = (
+  props: Partial<tsh.AccessRequest> = {}
+): tsh.AccessRequest => ({
+  id: '01929070-6886-77eb-90aa-c7223dd73f67',
+  state: 'APPROVED',
+  resolveReason: '',
+  requestReason: '',
+  user: makeLoggedInUser().name,
+  roles: ['access', 'searcheable-resources'],
+  reviews: [],
+  suggestedReviewers: ['admin', 'reviewer'],
+  thresholdNames: ['default'],
+  resourceIds: [
+    {
+      kind: 'kube_cluster',
+      name: 'minikube',
+      clusterName: 'main',
+      subResourceName: '',
+    },
+  ],
+  resources: [
+    {
+      id: {
+        kind: 'kube_cluster',
+        name: 'minikube',
+        clusterName: 'main',
+        subResourceName: '',
+      },
+      details: { hostname: '', friendlyName: '' },
+    },
+  ],
+  promotedAccessListTitle: '',
+  created: { seconds: 1729000138n, nanos: 886521000 },
+  expires: { seconds: 1729026573n, nanos: 0 },
+  maxDuration: { seconds: 1729026573n, nanos: 0 },
+  requestTtl: { seconds: 1729026573n, nanos: 0 },
+  sessionTtl: { seconds: 1729026573n, nanos: 0 },
+  ...props,
 });

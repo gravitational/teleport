@@ -18,11 +18,12 @@ package main
 
 import (
 	"context"
+	"os"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/tbot"
-	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/cli"
 )
 
 // onSSHProxyCommand is meant to be used as an OpenSSH/PuTTY proxy command. While this
@@ -30,27 +31,35 @@ import (
 // `tsh proxy ssh` which results in much less memory and cpu consumption. This will
 // eventually supersede `tbot proxy ssh` as it becomes more feature rich and supports
 // all the edge cases.
-func onSSHProxyCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
-	ctx, cancel := context.WithCancel(context.Background())
+func onSSHProxyCommand(ctx context.Context, globalCfg *cli.GlobalArgs, sshProxyCmd *cli.SSHProxyCommand) error {
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	if cf.Port == "" {
-		cf.Port = "0"
+	if sshProxyCmd.Port == "" {
+		sshProxyCmd.Port = "0"
 	}
 
 	proxySSHConfig := tbot.ProxySSHConfig{
-		BotConfig:                 botConfig,
-		ProxyServer:               cf.ProxyServer,
-		Cluster:                   cf.Cluster,
-		User:                      cf.User,
-		Host:                      cf.Host,
-		Port:                      cf.Port,
-		EnableResumption:          cf.EnableResumption,
-		TLSRoutingEnabled:         cf.TLSRoutingEnabled,
-		ConnectionUpgradeRequired: cf.ConnectionUpgradeRequired,
-		TSHConfigPath:             cf.TSHConfigPath,
+		Insecure:                  globalCfg.Insecure,
+		FIPS:                      globalCfg.FIPS,
+		DestinationPath:           sshProxyCmd.DestinationDir,
+		ProxyServer:               sshProxyCmd.ProxyServer,
+		Cluster:                   sshProxyCmd.Cluster,
+		User:                      sshProxyCmd.User,
+		Host:                      sshProxyCmd.Host,
+		Port:                      sshProxyCmd.Port,
+		EnableResumption:          sshProxyCmd.EnableResumption,
+		TLSRoutingEnabled:         sshProxyCmd.TLSRoutingEnabled,
+		ConnectionUpgradeRequired: sshProxyCmd.ConnectionUpgradeRequired,
+		TSHConfigPath:             sshProxyCmd.TSHConfigPath,
 		Log:                       log,
 	}
 
 	return trace.Wrap(tbot.ProxySSH(ctx, proxySSHConfig))
+}
+
+// onSSHMultiplexProxyCommand connects to an existing long-lived SSH multiplexer
+// service as opposed to onSSHProxyCommand which completes this on-the-fly.
+func onSSHMultiplexProxyCommand(ctx context.Context, socketPath string, target string) error {
+	return trace.Wrap(tbot.ConnectToSSHMultiplex(ctx, socketPath, target, os.Stdout))
 }

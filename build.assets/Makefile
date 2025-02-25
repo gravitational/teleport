@@ -8,7 +8,7 @@ HOSTNAME=buildbox
 SRCDIR=/go/src/github.com/gravitational/teleport
 GOMODCACHE ?= /tmp/gomodcache
 # TODO(hugoShaka) remove HELM_PLUGINS with teleport13 buildbox
-DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE) -e HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new
+DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE) -e HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new -e GITHUB_REPOSITORY_OWNER=$(GITHUB_REPOSITORY_OWNER) -e MAKEFLAGS
 # Teleport version - some targets require this to be set
 VERSION ?= $(shell egrep ^VERSION ../Makefile | cut -d= -f2)
 
@@ -35,19 +35,7 @@ ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
 endif
 
-# conditionally force the use of UID/GID 1000:1000 if we're running in Github Actions (in which case CI env var will be set)
 ifeq ("$(CI)","true")
-# The UID/GID of the runner user on ARC runners is 1001, not 1000
-# This var is currently only set for ARC runners via https://github.com/gravitational/cloud-terraform/pull/2473
-ifeq ("$(CI_SYSTEM)","ARC")
-UID := 1001
-GID := 1001
-NOROOT := -u 1001:1001
-else
-UID := 1000
-GID := 1000
-NOROOT := -u 1000:1000
-endif
 # if running in CI and the GOCACHE environment variable is not set, set it to a sensible default
 ifeq ("$(GOCACHE)",)
 GOCACHE := /go/cache
@@ -107,6 +95,64 @@ build-binaries-fips: buildbox-centos7-fips webassets
 		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) PIV=$(PIV) FIPS=yes clean full
 
 #
+# Build the buildbox thirdparty components. This rarely needs to be rebuilt and is
+# slow to build, so it is done separately from the main buildbox
+#
+.PHONY: buildbox-thirdparty
+buildbox-thirdparty:
+	docker buildx build \
+		--cache-from $(BUILDBOX_THIRDPARTY) \
+		--cache-to type=inline \
+		$(if $(PUSH),--push,--load) \
+		--tag $(BUILDBOX_THIRDPARTY) \
+		-f buildbox/Dockerfile-thirdparty \
+		buildbox
+
+#
+# A generic build rule to build a stage of Dockerfile-thirdparty based
+# on the $(STAGE) variable. These stage builds are used for development
+# of the thirdparty buildbox, whether to configure crosstool-NG
+# (see config/buildbox-ng), or when adding additional third party
+# libraries using either the compilers stage or libs stage.
+#
+.PHONY: buildbox-thirdparty-stage
+buildbox-thirdparty-stage:
+	docker buildx build \
+		--load \
+		--tag buildbox-thirdparty-$(STAGE):$(BUILDBOX_VERSION) \
+		-f buildbox/Dockerfile-thirdparty \
+		--target $(STAGE) \
+		buildbox
+
+.PHONY: buildbox-thirdparty-crosstoolng
+buildbox-thirdparty-crosstoolng: STAGE=crosstoolng
+buildbox-thirdparty-crosstoolng: buildbox-thirdparty-stage
+
+.PHONY: buildbox-thirdparty-compilers
+buildbox-thirdparty-compilers: STAGE=compilers
+buildbox-thirdparty-compilers: buildbox-thirdparty-stage
+
+.PHONY: buildbox-thirdparty-libs
+buildbox-thirdparty-libs: STAGE=libs
+buildbox-thirdparty-libs: buildbox-thirdparty-stage
+
+#
+# Build the buildbox-ng using the pre-built third party components from the
+# buildbox-thirdparty image
+#
+.PHONY: buildbox-ng
+buildbox-ng:
+	docker buildx build \
+		--build-arg THIRDPARTY_IMAGE=$(BUILDBOX_THIRDPARTY) \
+		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--cache-from $(BUILDBOX_NG) \
+		--cache-to type=inline \
+		$(if $(PUSH),--push,--load) \
+		--tag $(BUILDBOX_NG) \
+		-f buildbox/Dockerfile \
+		buildbox
+
 # Builds a Docker container which is used for building official Teleport binaries
 # If running in CI and there is no image with the buildbox name:tag combination present locally,
 # the image is pulled from the Docker repository. If this pull fails (i.e. when a new Go runtime is
@@ -212,6 +258,7 @@ buildbox-arm:
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
+		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--cache-to type=inline \
 		--cache-from $(BUILDBOX_ARM) \
 		$(if $(PUSH),--push,--load) \
@@ -246,16 +293,16 @@ buildbox-node:
 .PHONY:teleterm
 teleterm: buildbox-node
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NODE) \
-		bash -c "cd $(SRCDIR) && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
+		bash -c "cd $(SRCDIR) && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && pnpm install --frozen-lockfile && pnpm build-term && pnpm package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
 
 # Builds webassets inside Docker.
 .PHONY:ui
 ui: buildbox
 	docker run -u $(UID):$(GID) -v "$$(pwd)/../":/teleport $(BUILDBOX) \
-		bash -c "cd ../teleport && yarn install --frozen-lockfile && yarn build-ui"
+		bash -c "cd ../teleport && pnpm install --frozen-lockfile && pnpm build-ui"
 
 # Builds webassets inside the buildbox-node container via the
-# Makefile (instead of calling yarn directly as the ui target above does)
+# Makefile (instead of calling pnpm directly as the ui target above does)
 # as that computes a SHA to prevent unnecessary rebuilds. This is used by
 # the CentOS 7 build that does not have a new enough version of node.js
 # to build webassets. Enterprise webassets will only be built if the e
@@ -380,6 +427,52 @@ enter-root: buildbox
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX) /bin/bash
 
 #
+# Reconfigure crosstool-NG for the given ARCH via its menuconfig system.
+# e.g.
+# $ make config/buildbox-ng CROSSTOOLNG_ARCH=arm64
+#
+# After saving and exiting in the menuconfig, you should have an updated
+# defconfig file in build.assets/buildbox/crosstoolng-configs
+#
+# You need to have a local copy of the configuration container image
+# created with: make buildbox-thirdparty-crosstoolng
+#
+.PHONY: config/buildbox-ng
+config/buildbox-ng:
+	@: $(or $(CROSSTOOLNG_ARCH),$(error CROSSTOOLNG_ARCH variable must be set))
+	@: $(or $(wildcard buildbox/crosstoolng-configs/$(CROSSTOOLNG_ARCH).defconfig),\
+		$(error No config for arch $(CROSSTOOLNG_ARCH)))
+	docker run -it --rm \
+		--volume $(shell pwd)/..:/home/teleport \
+		--workdir /home/teleport \
+		buildbox-thirdparty-crosstoolng:$(BUILDBOX_VERSION) \
+		make -C build.assets/buildbox -f crosstoolng.mk crosstoolng-menuconfig \
+		ARCH=$(CROSSTOOLNG_ARCH)
+
+
+#
+# Starts a shell in the buildbox-ng container
+# We don't use $(DOCKERFLAGS) as it contains stuff for the old buildbox which is
+# not relevant or incorrect for this one.
+.PHONY: enter/buildbox-ng
+enter/buildbox-ng:
+	docker run -it --rm \
+		--volume $(shell pwd)/..:/home/teleport \
+		--workdir /home/teleport \
+		--user $(shell id -u):$(shell id -g) \
+		$(BUILDBOX_NG)
+
+#
+# Starts a root shell in the buildbox-ng container
+#
+.PHONY: enter-root/buildbox-ng
+enter-root/buildbox-ng:
+	docker run -it --rm \
+		--volume $(shell pwd)/..:/home/teleport \
+		--workdir /home/teleport \
+		--user 0:0 \
+		$(BUILDBOX_NG)
+#
 # Starts shell inside the centos7 container
 #
 .PHONY:enter/centos7
@@ -485,6 +578,39 @@ release: $(BUILDBOX_TARGET)
 	@echo "Build Assets Release"
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
 		/usr/bin/make $(RELEASE_TARGET) -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=yes
+
+
+.PHONY: release-ng-amd64 release-ng-amd64-fips release-ng-arm64 release-ng-386 release-ng-arm
+release-ng-amd64:
+	$(MAKE) release-ng ARCH=amd64 FIDO2=yes PIV=yes
+release-ng-amd64-fips:
+	$(MAKE) release-ng ARCH=amd64 FIDO2=yes PIV=yes FIPS=yes RELEASE_TARGET=release-ent
+release-ng-arm64:
+	$(MAKE) release-ng ARCH=arm64 FIDO2=yes PIV=yes
+release-ng-arm64-fips:
+	$(MAKE) release-ng ARCH=arm64 FIDO2=yes PIV=yes FIPS=yes RELEASE_TARGET=release-ent
+release-ng-386:
+	$(MAKE) release-ng ARCH=386
+release-ng-arm:
+	$(MAKE) release-ng ARCH=arm
+
+.PHONY: release-ng
+release-ng: RELEASE_TARGET = release-unix-preserving-webassets
+release-ng: webassets buildbox-ng
+	docker run --rm --interactive $(shell test -t 0 && echo --tty) \
+		--volume $(shell pwd)/..:/home/teleport \
+		--workdir /home/teleport \
+		--user $(shell id -u):$(shell id -g) \
+		$(BUILDBOX_NG) \
+		make -e $(RELEASE_TARGET) \
+			ADDFLAGS="$(ADDFLAGS)" \
+			OS="$(OS)" \
+			ARCH="$(ARCH)" \
+			RUNTIME="$(GOLANG_VERSION)" \
+			FIDO2="$(FIDO2)" \
+			PIV="$(PIV)" \
+			FIPS="$(FIPS)" \
+			REPRODUCIBLE=yes
 
 #
 # Create a Teleport FIPS package using the build container.

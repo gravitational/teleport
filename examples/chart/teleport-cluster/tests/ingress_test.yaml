@@ -18,6 +18,16 @@ tests:
       - isKind:
           of: Ingress
 
+  - it: does not create an Ingress when ingress.enabled=true, proxyListenerMode=multiplex but ingress.useExisting is true
+    values:
+      - ../.lint/ingress.yaml
+    set:
+      ingress:
+        useExisting: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
   - it: fails to deploy an Ingress when ingress.enabled=true and proxyListenerMode is not set
     values:
       - ../.lint/ingress.yaml

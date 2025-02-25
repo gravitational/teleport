@@ -1,0 +1,215 @@
+---
+title: Run a Self-Hosted Demo Cluster 
+description: This tutorial will guide you through the steps needed to install and run Teleport on a Linux server
+videoBanner: BJWbSqiDLeU
+tocDepth: 3
+---
+
+See how a self-hosted Teleport deployment works by completing the tutorial
+below. This shows you how to spin up a single-instance Teleport cluster on a
+Linux server using Teleport Community Edition. Once you deploy the cluster, you
+can configure RBAC, register resources, and protect your small-scale demo
+environments or home lab.
+
+You can also get started right away with a production-ready Teleport cluster by
+signing up for a [free trial of Teleport Enterprise
+Cloud](https://goteleport.com/signup/).
+
+<Figure width="700">
+![Architecture of the setup you will complete in this
+guide](../../../img/linux-server-diagram.png)
+</Figure>
+
+We will run the following Teleport services:
+
+- **Teleport Auth Service:** The certificate authority for your cluster. It
+  issues certificates and conducts authentication challenges. The Auth Service
+  is typically inaccessible outside your private network.
+- **Teleport Proxy Service:** The cluster frontend, which handles user requests,
+  forwards user credentials to the Auth Service, and communicates with Teleport
+  instances that enable access to specific resources in your infrastructure.
+- **Teleport SSH Service:** An SSH server implementation that takes advantage of
+  Teleport's short-lived certificates, sophisticated RBAC, session recording,
+  and other features.
+
+## Prerequisites
+
+You will need the following to deploy a demo Teleport cluster. If your
+environment doesn't meet the prerequisites, you can get started with Teleport by
+signing up for a [free trial of Teleport Enterprise
+Cloud](https://goteleport.com/signup/).
+
+If you want to get a feel for Teleport commands and capabilities without setting
+up any infrastructure, take a look at the browser-based [Teleport
+Labs](https://goteleport.com/labs).
+
+- A Linux host with only port `443` open to ingress traffic. You must be able
+  to install and run software on the host. Either configure access to the host
+  via SSH for the initial setup (and open an SSH port in addition port `443`)
+  or enter the commands in this guide into an Amazon EC2 [user data
+  script](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html),
+  Google Compute Engine [startup
+  script](https://cloud.google.com/compute/docs/instances/startup-scripts),
+  or similar.
+
+  For a quick demo environment you can use to follow this guide, consider
+  installing our DigitalOcean 1-Click droplet. View the installation page on
+  [DigitalOcean
+  Marketplace](https://marketplace.digitalocean.com/apps/teleport). Once your
+  droplet is ready, SSH into the droplet and follow the configuration wizard.
+
+- A multi-factor authenticator app such as [Authy](https://authy.com/download/),
+  [Google Authenticator](https://www.google.com/landing/2step/), or
+  [1Password](https://support.1password.com/one-time-passwords/).
+
+You must also have **one** of the following:
+- A registered domain name.
+- An authoritative DNS nameserver managed by your organization, plus an existing
+  certificate authority. If using this approach, ensure that your browser is
+  configured to use your organization's nameserver.
+
+## Step 1/4. Configure DNS
+
+Teleport uses TLS to provide secure access to its Proxy Service and Auth
+Service, and this requires a domain name that clients can use to verify
+Teleport's certificate. Set up two DNS `A` records, each pointing to the IP
+address of your Linux host. Assuming `teleport.example.com` is your domain name,
+set up records for:
+
+|Domain|Reason|
+|---|---|
+|`teleport.example.com`|Traffic to the Proxy Service from users and services.|
+|`*.teleport.example.com`|Traffic to web applications registered with Teleport. Teleport issues a subdomain of your cluster's domain name to each application.|
+
+## Step 2/4. Set up Teleport on your Linux host
+
+In this step, you will log into your Linux host, download the Teleport binary,
+generate a Teleport configuration file, and start the Teleport Auth Service,
+Proxy Service, and SSH Service on the host.
+
+### Install Teleport
+
+On your Linux host, run the following command to install the Teleport binary:
+
+```code
+$ curl (=teleport.teleport_install_script_url=) | bash -s (=teleport.version=)
+```
+
+### Configure Teleport
+
+Generate a configuration file for Teleport using the `teleport configure` command.
+This command requires information about a TLS certificate and private key.
+
+(!docs/pages/includes/tls-certificate-setup.mdx!)
+
+### Start Teleport
+
+(!docs/pages/includes/start-teleport.mdx!)
+
+Access the Teleport Web UI via HTTPS at the domain you created earlier at 
+<Var name="teleport.example.com" /> and accept the terms of using Teleport
+Community Edition.
+
+You should see a welcome screen similar to
+the following:
+
+![Teleport Welcome Screen](../../../img/quickstart/welcome.png)
+
+## Step 3/4. Create a Teleport user and set up multi-factor authentication
+
+In this step, we'll create a new Teleport user, `teleport-admin`, which is
+allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
+`ec2-user`.
+
+On your Linux host, run the following command:
+
+```code
+# tctl is an administrative tool that is used to configure Teleport's auth service.
+$ sudo tctl users add teleport-admin --roles=editor,access --logins=root,ubuntu,ec2-user
+```
+
+The command prints a message similar to the following:
+
+```text
+User "teleport-admin" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
+https://teleport.example.com:443/web/invite/123abc456def789ghi123abc456def78
+
+NOTE: Make sure teleport.example.com:443 points at a Teleport proxy which users can access.
+```
+
+Visit the provided URL in order to create your Teleport user.
+
+<Admonition
+  type="tip"
+  title="OS User Mappings"
+>
+
+  The users that you specify in the `logins` flag (e.g., `root`, `ubuntu` and
+  `ec2-user` in our examples) must exist on your Linux host. Otherwise, you
+  will get authentication errors later in this tutorial.
+
+  If a user does not already exist, you can create it with `adduser <login>` or
+  use [host user creation](../../enroll-resources/server-access/guides/host-user-creation.mdx).
+
+  If you do not have the permission to create new users on the Linux host, run
+  `tctl users add teleport $(whoami)` to explicitly allow Teleport to
+  authenticate as the user that you have currently logged in as.
+
+</Admonition>
+
+Teleport enforces the use of multi-factor authentication by default. It supports
+one-time passwords (OTP) and multi-factor authenticators (WebAuthn). In this
+guide, you will need to enroll an OTP authenticator application using the QR
+code on the Teleport welcome screen.
+
+<Details title="Logging in via the CLI">
+
+In addition to Teleport's Web UI, you can access resources in your
+infrastructure via the `tsh` client tool.
+
+Install `tsh` on your local workstation:
+
+(!docs/pages/includes/install-tsh.mdx!)
+
+Log in to receive short-lived certificates from Teleport. Replace 
+<Var name="teleport.example.com" /> with your Teleport cluster's public address
+as configured above:
+
+```code
+$ tsh login --proxy=<Var name="teleport.example.com" /> --user=teleport-admin
+> Profile URL:        https://teleport.example.com:443
+  Logged in as:       teleport-admin
+  Cluster:            teleport.example.com
+  Roles:              access, editor
+  Logins:             root, ubuntu, ec2-user
+  Kubernetes:         enabled
+  Valid until:        2022-04-26 03:04:46 -0400 EDT [valid for 12h0m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+```
+
+</Details>
+
+## Step 4/4. Enroll your infrastructure
+
+Once you finish setting up your user, you will see your SSH server in the
+Teleport Web UI:
+
+![Teleport Web UI showing an SSH server](../../../img/new-ssh-server.png)
+
+With Teleport, you can protect all of the resources in your infrastructure
+behind a single identity-aware access proxy, including servers, databases,
+applications, Kubernetes clusters, Windows desktops, and cloud provider APIs.
+
+To enroll a resource with Teleport, visit the Web UI and click **Enroll New
+Resource**. The Web UI will show you the steps you can take to enroll your new
+resource.
+
+## Next step: deploy Teleport Agents
+
+Teleport **Agents** proxy traffic to infrastructure resources like servers,
+databases, Kubernetes clusters, cloud provider APIs, and Windows desktops. 
+
+Step 4 showed you how to install agents manually, and you can also launch agents
+and enroll resources with them using infrastructure-as-code tools. For example,
+you can use Terraform to declare a pool of Teleport agents and configure them to
+proxy your infrastructure. Read [Protect Infrastructure with Teleport](../../enroll-resources/agents/introduction.mdx) to get started.

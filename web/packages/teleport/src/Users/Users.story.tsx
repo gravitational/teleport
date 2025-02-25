@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 import { Users } from './Users';
 
@@ -31,11 +31,27 @@ export const Processing = () => {
     isSuccess: false,
     message: '',
   };
-  return <Users {...sample} attempt={attempt} />;
+  return (
+    <MemoryRouter>
+      <Users {...sample} attempt={attempt} />
+    </MemoryRouter>
+  );
 };
 
 export const Loaded = () => {
-  return <Users {...sample} />;
+  return (
+    <MemoryRouter>
+      <Users {...sample} />
+    </MemoryRouter>
+  );
+};
+
+export const UsersNotEqualMauNotice = () => {
+  return (
+    <MemoryRouter>
+      <Users {...sample} showMauInfo={true} />
+    </MemoryRouter>
+  );
 };
 
 export const Failed = () => {
@@ -45,7 +61,11 @@ export const Failed = () => {
     isSuccess: false,
     message: 'some error message',
   };
-  return <Users {...sample} attempt={attempt} />;
+  return (
+    <MemoryRouter>
+      <Users {...sample} attempt={attempt} />
+    </MemoryRouter>
+  );
 };
 
 const users = [
@@ -85,6 +105,13 @@ const users = [
     authType: 'teleport local user',
     isLocal: true,
   },
+  {
+    name: 'bot-little-robot',
+    roles: ['bot-little-robot'],
+    authType: 'teleport local user',
+    isLocal: true,
+    isBot: true,
+  },
 ];
 
 const roles = ['admin', 'testrole'];
@@ -119,4 +146,14 @@ const sample = {
   InviteCollaborators: null,
   onEmailPasswordResetClose: () => null,
   EmailPasswordReset: null,
+  showMauInfo: false,
+  onDismissUsersMauNotice: () => null,
+  canEditUsers: true,
+  usersAcl: {
+    read: true,
+    edit: false,
+    remove: true,
+    list: true,
+    create: true,
+  },
 };

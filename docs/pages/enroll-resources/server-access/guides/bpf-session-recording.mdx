@@ -1,0 +1,403 @@
+---
+title: Enhanced Session Recording for SSH with BPF
+description: How to record your SSH session commands using BPF.
+h1: Enhanced Session Recording with BPF
+videoBanner: 8uO5H-iYw5A
+---
+
+This guide explains Enhanced Session Recording for SSH with BPF and how to set
+it up in your Teleport cluster.
+
+Teleport's default [SSH and Kubernetes session recording](../../../reference/architecture/session-recording.mdx)
+feature captures what is echoed to a terminal.
+
+This has inherent advantages. For example, because no input is captured, Teleport
+session recordings typically do not contain passwords that were entered into a terminal.
+
+The disadvantage is that there are several techniques for rendering session
+recordings less useful:
+
+- **Obfuscation**. For example, even though the command
+  `echo Y3VybCBodHRwOi8vd3d3LmV4YW1wbGUuY29tCg== | base64 --decode | sh` does not contain
+  `curl http://www.example.com`, when decoded, that is what is run.
+- **Shell scripts**. For example, if a user uploads and executes a script, the commands run within the script are not captured, only the output.
+- **Terminal controls**. Terminals support a wide variety of controls including the ability for users to disable terminal echo. This is frequently used when requesting credentials. Disabling terminal echo allows commands to be run without being captured.
+
+Furthermore, due to their unstructured nature, session recordings are difficult to
+ingest and perform monitoring and alerting on.
+
+Teleport Enhanced Session Recording mitigates all three concerns by providing advanced security and greater logging capabilities, and better correlates a user with their activities.
+
+<Admonition type="warning" title="Security Warning">
+
+Teleport Enhanced Session Recording does not provide a secure environment on
+its own and is not a substitute for a Linux Security Module (SELinux, AppArmor,
+etc.). It must be paired with reasonable system hardening practices to enforce
+a trusted host environment, including proper access control on core system
+binaries and libraries and well-designed user management.
+
+Note that privileged users (either as root or via `sudo`) can interfere with
+session recording activities (such as unloading/disabling the necessary
+libraries, altering how Teleport is run, tampering with kernel functionality,
+creating tunnels, or just performing actions outside of the restricted
+session). Also, a local user with both monitored and unmonitored console
+sessions or ptrace privileges may not be fully captured in recordings.
+
+Commands executed via daemons (systemd, crond, atd, etc.) could be outside of
+the recorded session scope. Proper network-based restrictions for ingress
+traffic must also be implemented to prevent possible unauthorized data transfer.
+
+Additionally, certain forensic information such as full binary paths
+(accounting for any potential symbolic links), any modifications via shared
+library preloading, and environment variables may not be captured in session recordings.
+
+</Admonition>
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- At least one host that you will use to run the Teleport Node Service. The host
+  must run Linux kernel 5.8 (or above).
+
+  You can check your kernel version using the `uname` command. The output should look
+  something like the following.
+
+  ```code
+  $ uname -r
+  # 5.8.17
+  ```
+
+  See below for more details on the required versions for your Linux kernel and
+  distribution.
+
+<Notice type="tip">
+
+  Our Standard Session Recording works with older Linux kernels. View [Teleport
+  Session Recording](../../../reference/architecture/session-recording.mdx) for more details.
+
+</Notice>
+
+### Linux distributions and supported kernels
+
+Teleport supports enhanced session recording with BPF on `amd64` and `arm64` architectures.
+
+| Distro name             | Distro version | Kernel Version |
+|:------------------------|:---------------|:---------------|
+| Ubuntu "Groovy Gorilla" | 20.10          | 5.8+           |
+| Fedora                  | 33             | 5.8+           |
+| Arch Linux              | 2020.09.01     | 5.8.5+         |
+| Flatcar                 | 2765.2.2       | 5.10.25+       |
+| Amazon Linux            | 2 and 2023     | 5.10+          |
+
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/2. Configure a Teleport Node
+
+### Install Teleport on your Node
+
+On the host where you will run your Teleport Node, follow the instructions for
+your environment to install Teleport.
+
+(!docs/pages/includes/install-linux.mdx!)
+
+### Generate a token
+
+Use the `tctl` tool to generate an invite token that your Node will use to join
+the cluster. In the following example, a new token is created with a TTL of five
+minutes:
+
+```code
+# Generate a short-lived invitation token for a new node:
+$ tctl nodes add --ttl=5m --roles=node
+# The invite token: (=presets.tokens.first=)
+
+# You can also list all generated non-expired tokens:
+$ tctl tokens ls
+# Token                            Type            Expiry Time
+# ------------------------         -----------     ---------------
+# (=presets.tokens.first=)         Node            25 Sep 18 00:21 UTC
+
+# ... or revoke an invitation token before it's used:
+$ tctl tokens rm (=presets.tokens.first=)
+```
+
+### Create a configuration file
+
+Set up your Teleport Node with the following content in `/etc/teleport.yaml`.
+
+```yaml
+# Example config to be saved as etc/teleport.yaml
+version: v3
+teleport:
+  nodename: graviton-node
+  # The token you created earlier
+  auth_token: (=presets.tokens.first=)
+
+  # Replace with the address of the Teleport Auth Service
+  auth_server: 127.0.0.1:3025
+  # Or specify the Proxy Service address.
+  proxy_server: 127.0.0.1:3080
+
+  data_dir: /var/lib/teleport
+proxy_service:
+  enabled: false
+auth_service:
+  enabled: false
+ssh_service:
+  enabled: true
+  enhanced_recording:
+    # Enable or disable enhanced auditing for this node. Default value: false.
+    enabled: true
+
+    # Optional: command_buffer_size is optional with a default value of 8 pages.
+    command_buffer_size: 8
+
+    # Optional: disk_buffer_size is optional with default value of 128 pages.
+    disk_buffer_size: 128
+
+    # Optional: network_buffer_size is optional with default value of 8 pages.
+    network_buffer_size: 8
+
+    # Optional: Controls where cgroupv2 hierarchy is mounted. Default value:
+    # /cgroup2.
+    cgroup_path: /cgroup2
+
+    # Optional: Controls the path inside cgroupv2 hierarchy where Teleport
+    # cgroups will be placed. Default value: /teleport
+    root_path: /teleport
+```
+
+<Details title="Isolate session system resources">
+
+If you operate multiple Teleport instances on the same system, customize the
+`root_path` configuration to change the base cgroupv2 slice path for session
+system resources. This ensures security isolation between sessions from
+different Teleport instances, allowing you to apply distinct security rules and
+resource controls.
+
+</Details>
+
+### Start Teleport on your Node
+
+(!docs/pages/includes/start-teleport.mdx service="the Teleport SSH Service"!)
+
+## Step 2/2. Inspect the audit log
+
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+
+Enhanced session recording events will be shown in Teleport's audit log, which
+you can inspect by visiting Teleport's Web UI.
+
+Each command run will generate a `session.command` event, similar to
+the following:
+
+```json
+{
+  "argv": [
+    "https://wttr.in"
+  ],
+  "cgroup_id": 2360,
+  "cluster_name": "purple",
+  "code": "T4000I",
+  "ei": 50,
+  "event": "session.command",
+  "login": "ec2-user",
+  "namespace": "default",
+  "path": "/bin/curl",
+  "pid": 5007,
+  "ppid": 4985,
+  "program": "curl",
+  "return_code": 0,
+  "server_hostname": "ip-172-31-34-128.us-east-2.compute.internal",
+  "server_id": "531dc1de-c2c9-49bd-a0e3-4f4f3a523f5f",
+  "sid": "86aca627-971d-4883-854d-d309ba04c658",
+  "time": "2023-07-04T16:42:20.54Z",
+  "uid": "9b825e22-744d-4130-94c5-dea49198ae3d",
+  "user": "alice@goteleport.com"
+}
+```
+
+Network connections will be logged as `session.network` events, similar to the following:
+
+```json
+{
+  "action": 0,
+  "cgroup_id": 2360,
+  "cluster_name": "purple",
+  "code": "T4002I",
+  "dst_addr": "5.9.243.187",
+  "dst_port": 443,
+  "ei": 51,
+  "event": "session.network",
+  "login": "ec2-user",
+  "namespace": "default",
+  "operation": 0,
+  "pid": 5007,
+  "program": "curl",
+  "server_hostname": "ip-172-31-34-128.us-east-2.compute.internal",
+  "server_id": "531dc1de-c2c9-49bd-a0e3-4f4f3a523f5f",
+  "sid": "86aca627-971d-4883-854d-d309ba04c658",
+  "src_addr": "172.31.34.128",
+  "time": "2023-07-04T16:42:20.55Z",
+  "uid": "da151350-bf45-4a04-a62b-7a4fc805e744",
+  "user": "alice@goteleport.com",
+  "version": 4
+}
+```
+
+When Enhanced Session Recording is enabled, the `session.end` event emitted when a session
+ends will also include the `"enhanced_recording": true` field, similar to the following:
+
+```json
+{
+  "code": "T2004I",
+  "ei": 23,
+  "enhanced_recording": true,
+  "event": "session.end",
+  "interactive": true,
+  "namespace": "default",
+  "participants": [
+    "alice@goteleport.com"
+  ],
+  "server_id": "585fc225-5cf9-4e9f-8ff6-1b0fd6885b09",
+  "sid": "ca82b98d-1d30-11ea-8244-cafde5327a6c",
+  "time": "2019-12-12T22:44:46.218Z",
+  "uid": "83e67464-a93a-4c7c-8ce6-5a3d8802c3b2",
+  "user": "alice@goteleport.com"
+}
+```
+
+If your Teleport cluster uses a file-based event log, you can examine your audit
+log on the Teleport Auth Service host.
+
+<Details title="Is my cluster using a file-based event log?">
+
+Teleport's session recordings backend is configured via the
+`teleport.storage.audit_sessions_uri` field. If a provided URI includes a scheme
+that belongs to a cloud-based service (e.g., `s3://` or `dynamodb://`), you will
+not be able to inspect session recordings in the filesystem of your Auth Service
+host.
+
+</Details>
+
+Examine the contents of `/var/lib/teleport/log` as shown below:
+
+```code
+$ teleport-auth ~:  tree /var/lib/teleport/log
+# /var/lib/teleport/log
+# ├── 1048a649-8f3f-4431-9529-0c53339b65a5
+# │   ├── 2020-01-13.00:00:00.log
+# │   └── sessions
+# │       └── default
+# │           ├── fad07202-35bb-11ea-83aa-125400432324-0.chunks.gz
+# │           ├── fad07202-35bb-11ea-83aa-125400432324-0.events.gz
+# │           ├── fad07202-35bb-11ea-83aa-125400432324-0.session.command-events.gz
+# │           ├── fad07202-35bb-11ea-83aa-125400432324-0.session.network-events.gz
+# │           └── fad07202-35bb-11ea-83aa-125400432324.index
+# ├── events.log -> /var/lib/teleport/log/1048a649-8f3f-4431-9529-0c53339b65a5/2020-01-13.00:00:00.log
+# ├── playbacks
+# │   └── sessions
+# │       └── default
+# └── upload
+#    └── sessions
+#        └── default
+```
+
+To quickly check the status of the audit log, you can simply tail the logs with
+`tail -f /var/lib/teleport/log/events.log`. The resulting capture from Teleport will
+be a JSON log for each command and network request.
+</TabItem>
+<TabItem scope={["cloud","team"]} label="Cloud-Hosted">
+
+Enhanced session recording events will be shown in Teleport's audit log, which
+you can inspect by visiting Teleport's Web UI.
+
+Each command run will generate a `session.command` event, similar to
+the following:
+
+```json
+{
+  "argv": [
+    "https://wttr.in"
+  ],
+  "cgroup_id": 2360,
+  "cluster_name": "purple",
+  "code": "T4000I",
+  "ei": 50,
+  "event": "session.command",
+  "login": "ec2-user",
+  "namespace": "default",
+  "path": "/bin/curl",
+  "pid": 5007,
+  "ppid": 4985,
+  "program": "curl",
+  "return_code": 0,
+  "server_hostname": "ip-172-31-34-128.us-east-2.compute.internal",
+  "server_id": "531dc1de-c2c9-49bd-a0e3-4f4f3a523f5f",
+  "sid": "86aca627-971d-4883-854d-d309ba04c658",
+  "time": "2023-07-04T16:42:20.54Z",
+  "uid": "9b825e22-744d-4130-94c5-dea49198ae3d",
+  "user": "alice@goteleport.com"
+}
+```
+
+Network connections will be logged as `session.network` events, similar to the following:
+
+```json
+{
+  "action": 0,
+  "cgroup_id": 2360,
+  "cluster_name": "purple",
+  "code": "T4002I",
+  "dst_addr": "5.9.243.187",
+  "dst_port": 443,
+  "ei": 51,
+  "event": "session.network",
+  "login": "ec2-user",
+  "namespace": "default",
+  "operation": 0,
+  "pid": 5007,
+  "program": "curl",
+  "server_hostname": "ip-172-31-34-128.us-east-2.compute.internal",
+  "server_id": "531dc1de-c2c9-49bd-a0e3-4f4f3a523f5f",
+  "sid": "86aca627-971d-4883-854d-d309ba04c658",
+  "src_addr": "172.31.34.128",
+  "time": "2023-07-04T16:42:20.55Z",
+  "uid": "da151350-bf45-4a04-a62b-7a4fc805e744",
+  "user": "alice@goteleport.com",
+  "version": 4
+}
+```
+
+When Enhanced Session Recording is enabled, the `session.end` event emitted when a session
+ends will also include the `"enhanced_recording": true` field, similar to the following:
+
+```json
+{
+  "code": "T2004I",
+  "ei": 23,
+  "enhanced_recording": true,
+  "event": "session.end",
+  "interactive": true,
+  "namespace": "default",
+  "participants": [
+    "alice@goteleport.com"
+  ],
+  "server_id": "585fc225-5cf9-4e9f-8ff6-1b0fd6885b09",
+  "sid": "ca82b98d-1d30-11ea-8244-cafde5327a6c",
+  "time": "2019-12-12T22:44:46.218Z",
+  "uid": "83e67464-a93a-4c7c-8ce6-5a3d8802c3b2",
+  "user": "alice@goteleport.com"
+}
+```
+</TabItem>
+</Tabs>
+
+## Next steps
+
+- Read more about
+  [session recording](../../../reference/architecture/session-recording.mdx).
+- See all configuration options for Enhanced Session Recording in our
+  [Configuration Reference](../../../reference/config.mdx).

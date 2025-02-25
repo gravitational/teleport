@@ -20,13 +20,17 @@ package service
 
 import (
 	"fmt"
+	"net/http"
+	"os"
 	"sync"
 	"time"
 
+	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/client/debug"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 )
@@ -170,4 +174,34 @@ func (f *processState) getState() componentStateEnum {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.getStateLocked()
+}
+
+func (f *processState) readinessHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch f.getState() {
+		// 503
+		case stateDegraded:
+			roundtrip.ReplyJSON(w, http.StatusServiceUnavailable, debug.Readiness{
+				Status: "teleport is in a degraded state, check logs for details",
+				PID:    os.Getpid(),
+			})
+		// 400
+		case stateRecovering:
+			roundtrip.ReplyJSON(w, http.StatusBadRequest, debug.Readiness{
+				Status: "teleport is recovering from a degraded state, check logs for details",
+				PID:    os.Getpid(),
+			})
+		case stateStarting:
+			roundtrip.ReplyJSON(w, http.StatusBadRequest, debug.Readiness{
+				Status: "teleport is starting and hasn't joined the cluster yet",
+				PID:    os.Getpid(),
+			})
+		// 200
+		case stateOK:
+			roundtrip.ReplyJSON(w, http.StatusOK, debug.Readiness{
+				Status: "ok",
+				PID:    os.Getpid(),
+			})
+		}
+	}
 }

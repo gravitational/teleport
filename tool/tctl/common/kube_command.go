@@ -30,10 +30,12 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // KubeCommand implements "tctl kube" group of commands.
@@ -55,7 +57,7 @@ type KubeCommand struct {
 }
 
 // Initialize allows KubeCommand to plug itself into the CLI parser
-func (c *KubeCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *KubeCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 
 	kube := app.Command("kube", "Operate on registered Kubernetes clusters.")
@@ -68,19 +70,26 @@ func (c *KubeCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 }
 
 // TryRun attempts to run subcommands like "kube ls".
-func (c *KubeCommand) TryRun(ctx context.Context, cmd string, client *auth.Client) (match bool, err error) {
+func (c *KubeCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.kubeList.FullCommand():
-		err = c.ListKube(ctx, client)
+		commandFunc = c.ListKube
 	default:
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
 	return true, trace.Wrap(err)
 }
 
 // ListKube prints the list of kube clusters that have recently sent heartbeats
 // to the cluster.
-func (c *KubeCommand) ListKube(ctx context.Context, clt *auth.Client) error {
+func (c *KubeCommand) ListKube(ctx context.Context, clt *authclient.Client) error {
 	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)
@@ -128,10 +137,11 @@ helm repo update
   --set proxyAddr={{.auth_server}} \
   --set authToken={{.token}} \
   --create-namespace \
-  --namespace=teleport-agent
-        
+  --namespace=teleport-agent \
+  --version={{.version}}
+
 Please note:
-        
+
   - This invitation token will expire in {{.minutes}} minutes.
   - {{.auth_server}} must be reachable from Kubernetes cluster.
   - The token is usable in a standalone Linux server with kubernetes_service.

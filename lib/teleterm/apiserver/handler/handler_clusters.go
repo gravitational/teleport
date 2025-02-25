@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
@@ -99,11 +100,17 @@ func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
 		ProxyHost: cluster.GetProxyHost(),
 		Connected: cluster.Connected(),
 		LoggedInUser: &api.LoggedInUser{
-			Name:           loggedInUser.Name,
-			SshLogins:      loggedInUser.SSHLogins,
-			Roles:          loggedInUser.Roles,
-			ActiveRequests: loggedInUser.ActiveRequests,
+			Name:            loggedInUser.Name,
+			SshLogins:       loggedInUser.SSHLogins,
+			Roles:           loggedInUser.Roles,
+			ActiveRequests:  loggedInUser.ActiveRequests,
+			IsDeviceTrusted: cluster.HasDeviceTrustExtensions(),
 		},
+		SsoHost: cluster.SSOHost,
+	}
+
+	if cluster.GetProfileStatusError() != nil {
+		apiCluster.ProfileStatusError = cluster.GetProfileStatusError().Error()
 	}
 
 	return apiCluster
@@ -125,7 +132,18 @@ func newAPIRootClusterWithDetails(cluster *clusters.ClusterWithDetails) (*api.Cl
 		return nil, trace.Wrap(err)
 	}
 	apiCluster.LoggedInUser.UserType = userType
+	apiCluster.LoggedInUser.TrustedDeviceRequirement = cluster.TrustedDeviceRequirement
 	apiCluster.ProxyVersion = cluster.ProxyVersion
+
+	switch cluster.ShowResources {
+	case constants.ShowResourcesaccessibleOnly:
+		apiCluster.ShowResources = api.ShowResources_SHOW_RESOURCES_ACCESSIBLE_ONLY
+	case constants.ShowResourcesRequestable:
+		apiCluster.ShowResources = api.ShowResources_SHOW_RESOURCES_REQUESTABLE
+	default:
+		// If the UI config for ShowResources is not set, the default is `requestable`.
+		apiCluster.ShowResources = api.ShowResources_SHOW_RESOURCES_REQUESTABLE
+	}
 
 	return apiCluster, nil
 }

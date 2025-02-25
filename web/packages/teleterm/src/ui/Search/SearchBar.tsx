@@ -16,29 +16,33 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useRef, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import styled from 'styled-components';
+
 import { Box, Flex } from 'design';
 
+import { KeyboardShortcutAction } from 'teleterm/services/config';
 import {
   SearchContextProvider,
   useSearchContext,
 } from 'teleterm/ui/Search/SearchContext';
-import { KeyboardShortcutAction } from 'teleterm/services/config';
 import {
   useKeyboardShortcutFormatters,
   useKeyboardShortcuts,
 } from 'teleterm/ui/services/keyboardShortcuts';
 
 import { useAppContext } from '../appContextProvider';
+import { useStoreSelector } from '../hooks/useStoreSelector';
 
 const OPEN_SEARCH_BAR_SHORTCUT_ACTION: KeyboardShortcutAction = 'openSearchBar';
 
 export function SearchBarConnected() {
-  const { workspacesService } = useAppContext();
-  workspacesService.useState();
+  const rootClusterUri = useStoreSelector(
+    'workspacesService',
+    useCallback(state => state.rootClusterUri, [])
+  );
 
-  if (!workspacesService.getRootClusterUri()) {
+  if (!rootClusterUri) {
     return null;
   }
 
@@ -50,7 +54,7 @@ export function SearchBarConnected() {
 }
 
 function SearchBar() {
-  const containerRef = useRef<HTMLElement>();
+  const containerRef = useRef<HTMLDivElement>();
   const { getAccelerator } = useKeyboardShortcutFormatters();
   const {
     activePicker,
@@ -107,7 +111,7 @@ function SearchBar() {
   // clicking on a button outside of the search bar will trigger onBlur and will not trigger
   // onClickOutside.
   const closeIfAnotherElementReceivedFocus = makeEventListener(
-    (event: FocusEvent) => {
+    (event: React.FocusEvent) => {
       const elementReceivingFocus = event.relatedTarget;
 
       if (!(elementReceivingFocus instanceof Node)) {
@@ -205,7 +209,7 @@ const Input = styled.input`
   border-radius: ${props => props.theme.radii[2]}px;
   padding-inline: ${props => props.theme.space[2]}px;
 
-  ::placeholder {
+  &::placeholder {
     color: ${props => props.theme.colors.text.slightlyMuted};
   }
 `;

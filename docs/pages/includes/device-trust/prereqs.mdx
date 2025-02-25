@@ -1,14 +1,22 @@
 - To enroll a macOS device, you need:
-  - A signed and notarized `tsh` binary, v12.0.0 or newer.
+  - A signed and notarized `tsh` binary.
     [Download the macOS tsh installer](../../installation.mdx#macos).
 - To enroll a Windows device, you need:
   - A device with TPM 2.0.
   - A user with administrator privileges. This is only required during enrollment.
-  - `tsh` v13.1.2 or newer. [Download the Windows tsh installer](../../installation.mdx#windows-tsh-client-only).
+  - The `tsh` client. [Download the Windows tsh installer](../../installation.mdx#windows-tsh-and-tctl-clients-only).
 - To enroll a Linux device, you need:
   - A device with TPM 2.0.
   - A user with permissions to use the /dev/tpmrm0 device (typically done by
     assigning the `tss` group to the user).
-  - `tsh` v15.0.0 or newer. [Install tsh for Linux](../../installation.mdx#linux).
+  - The `tsh` client. [Install tsh for Linux](../../installation.mdx#linux).
+
+    WSL users should use the Windows binary instead.
+    [Download the Windows tsh installer](../../installation.mdx#windows-tsh-and-tctl-clients-only).
+
 - To authenticate a Web UI session you need [Teleport Connect](
   ../../connect-your-client/teleport-connect.mdx#installation--upgrade)
+- Correct end-user IP propagation to your Teleport deployment:
+  [X-Forwarded-For header](../../reference/config.mdx#proxy-service) (L7 load
+  balancer) or [PROXY protocol](
+  ../../admin-guides/management/security/proxy-protocol.mdx) (L4 load balancer)

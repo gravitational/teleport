@@ -125,6 +125,11 @@ func QueryWithTPM(
 	if err != nil {
 		return nil, trace.Wrap(err, "querying EKs")
 	}
+	// Be a good citizen and check the slice bounds. This is not expected to
+	// happen.
+	if len(eks) == 0 {
+		return nil, trace.BadParameter("no endorsement keys found in tpm")
+	}
 
 	// The first EK returned by `go-attestation` will be an RSA based EK key or
 	// EK cert. On Windows, ECC certs may also be returned following this. At

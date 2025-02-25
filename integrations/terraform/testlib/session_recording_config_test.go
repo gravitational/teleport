@@ -87,7 +87,7 @@ func (s *TerraformSuiteOSS) TestImportSessionRecordingConfig() {
 		recordingConfigCurrent, err := s.client.GetSessionRecordingConfig(ctx)
 		require.NoError(s.T(), err)
 
-		return recordingConfigBefore.GetMetadata().ID != recordingConfigCurrent.GetMetadata().ID
+		return recordingConfigBefore.GetMetadata().Revision != recordingConfigCurrent.GetMetadata().Revision
 	}, 5*time.Second, time.Second)
 
 	resource.Test(s.T(), resource.TestCase{

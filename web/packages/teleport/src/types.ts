@@ -16,14 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { ReactNode } from 'react';
 
 import { UserPreferences } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 
-import {
-  ManagementSection,
-  NavigationCategory,
-} from 'teleport/Navigation/categories';
+import { NavigationCategory } from './Navigation/categories';
 
 export type NavGroup = 'team' | 'activity' | 'clusters' | 'accessrequests';
 
@@ -34,7 +31,7 @@ export interface Context {
 
 export interface TeleportFeatureNavigationItem {
   title: NavTitle;
-  icon: (props) => JSX.Element;
+  icon: (props) => ReactNode;
   exact?: boolean;
   getLink?(clusterId: string): string;
   isExternalLink?: boolean;
@@ -43,6 +40,8 @@ export interface TeleportFeatureNavigationItem {
    * in the "selected" state in the navigation
    */
   isSelected?: (clusterId: string, pathname: string) => boolean;
+  /** searchableTags is a list of strings by which this feature should be searchable in the nav search. */
+  searchableTags?: string[];
 }
 
 export enum NavTitle {
@@ -59,11 +58,15 @@ export enum NavTitle {
   // Access Management
   Users = 'Users',
   Bots = 'Bots',
-  Roles = 'User Roles',
+  Roles = 'Roles',
+  JoinTokens = 'Join Tokens',
   AuthConnectors = 'Auth Connectors',
+  AuthConnectorsShortened = 'Auth Conn.',
   Integrations = 'Integrations',
-  EnrollNewResource = 'Enroll New Resource',
-  EnrollNewIntegration = 'Enroll New Integration',
+  EnrollNewResource = 'Resource',
+  EnrollNewIntegration = 'Integration',
+  NewAccessList = 'Access List',
+  NewBot = 'Bot',
 
   // Identity Governance & Security
   AccessLists = 'Access Lists',
@@ -74,20 +77,25 @@ export enum NavTitle {
   // Resources Requests
   NewRequest = 'New Request',
   ReviewRequests = 'Review Requests',
-  AccessGraph = 'Access Graph',
+
+  // Access Graph
+  AccessGraphDashboard = 'Dashboard',
+  AccessGraphBrowse = 'Browse',
+  AccessGraphCrownJewels = 'Crown Jewels',
+  AccessGraphGraphExplorer = 'Graph Explorer',
+  AccessGraphSQLEditor = 'SQL Editor',
 
   // Activity
   SessionRecordings = 'Session Recordings',
   AuditLog = 'Audit Log',
 
   // Billing
-  BillingSummary = 'Summary',
-  PaymentsAndInvoices = 'Payments and Invoices',
-  InvoiceSettings = 'Invoice Settings',
+  BillingSummary = 'Billing Summary',
 
   // Clusters
   ManageClusters = 'Manage Clusters',
-  TrustedClusters = 'Trusted Clusters',
+  ManageClustersShortened = 'Clusters',
+  TrustedClusters = 'Trusted Root Clusters',
 
   // Account
   AccountSettings = 'Account Settings',
@@ -107,7 +115,8 @@ export interface TeleportFeatureRoute {
 export interface TeleportFeature {
   parent?: new () => TeleportFeature | null;
   category?: NavigationCategory;
-  section?: ManagementSection;
+  /** standalone is whether this feature has no subsections */
+  standalone?: boolean;
   hasAccess(flags: FeatureFlags): boolean;
   // logoOnlyTopbar is used to optionally hide the elements in the topbar from view except for the logo.
   // The features that use this are supposed to be "full page" features where navigation
@@ -134,6 +143,8 @@ export interface TeleportFeature {
   // if highlightKey is specified, navigating to ?highlight=<highlightKey>
   // will highlight the feature in the navigation, to draw a users attention to it
   highlightKey?: string;
+  /** showInDashboard is whether this page should be shown in the navigation for dashboard tenants. Any feature without this flag will not be shown for dashboards. */
+  showInDashboard?: boolean;
 }
 
 export type StickyCluster = {
@@ -180,16 +191,16 @@ export interface FeatureFlags {
   deviceTrust: boolean;
   locks: boolean;
   newLocks: boolean;
-  assist: boolean;
+  tokens: boolean;
   accessMonitoring: boolean;
-  // Whether or not the management section should be available.
-  managementSection: boolean;
   accessGraph: boolean;
+  accessGraphIntegrations: boolean;
   externalAuditStorage: boolean;
   listBots: boolean;
   addBots: boolean;
   editBots: boolean;
   removeBots: boolean;
+  gitServers: boolean;
 }
 
 // LockedFeatures are used for determining which features are disabled in the user's cluster.

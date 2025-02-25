@@ -32,7 +32,9 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -77,7 +79,7 @@ func TestCreateAuthPreference(t *testing.T) {
 				return authRoleContext, nil
 			}),
 			assertion: func(t *testing.T, created types.AuthPreference, err error) {
-				require.NoError(t, err, "got (%v), expected auth role to create auth preference", err)
+				require.NoError(t, err, "got (%v), expected auth role to create auth mutator", err)
 				require.NotNil(t, created)
 			},
 		},
@@ -106,7 +108,7 @@ func TestCreateAuthPreference(t *testing.T) {
 				pp.Spec.RequireMFAType = types.RequireMFAType_HARDWARE_KEY_PIN
 			},
 			assertion: func(t *testing.T, created types.AuthPreference, err error) {
-				require.NoError(t, err, "got (%v), expected auth role to create auth preference", err)
+				require.NoError(t, err, "got (%v), expected auth role to create auth mutator", err)
 				require.NotNil(t, created)
 			},
 		},
@@ -1387,7 +1389,7 @@ func TestAuditEventsEmitted(t *testing.T) {
 		require.NoError(t, err, "creating test service")
 
 		t.Run("auth preference", func(t *testing.T) {
-			expectedEvent := &apievents.AuthPreferenceUpdate{
+			mfaUnchangedEvent := apievents.AuthPreferenceUpdate{
 				Metadata: apievents.Metadata{
 					Type: events.AuthPreferenceUpdateEvent,
 					Code: events.AuthPreferenceUpdateCode,
@@ -1399,13 +1401,20 @@ func TestAuditEventsEmitted(t *testing.T) {
 					User:     "llama",
 					UserKind: apievents.UserKind_USER_KIND_HUMAN,
 				},
+				AdminActionsMFA: apievents.AdminActionsMFAStatus_ADMIN_ACTIONS_MFA_STATUS_UNCHANGED,
 			}
+
+			mfaEnabledEvent := mfaUnchangedEvent
+			mfaEnabledEvent.AdminActionsMFA = apievents.AdminActionsMFAStatus_ADMIN_ACTIONS_MFA_STATUS_ENABLED
+
+			mfaDisabledEvent := mfaUnchangedEvent
+			mfaDisabledEvent.AdminActionsMFA = apievents.AdminActionsMFAStatus_ADMIN_ACTIONS_MFA_STATUS_DISABLED
 
 			p, err := env.ResetAuthPreference(ctx, &clusterconfigpb.ResetAuthPreferenceRequest{})
 			require.NoError(t, err)
 
 			evt := <-env.emitter.C()
-			require.Empty(t, cmp.Diff(expectedEvent, evt))
+			require.Empty(t, cmp.Diff(&mfaUnchangedEvent, evt))
 
 			p.SetLockingMode(constants.LockingModeStrict)
 
@@ -1413,13 +1422,32 @@ func TestAuditEventsEmitted(t *testing.T) {
 			require.NoError(t, err)
 
 			evt = <-env.emitter.C()
-			require.Empty(t, cmp.Diff(expectedEvent, evt))
+			require.Empty(t, cmp.Diff(&mfaUnchangedEvent, evt))
 
 			_, err = env.UpsertAuthPreference(ctx, &clusterconfigpb.UpsertAuthPreferenceRequest{AuthPreference: p})
 			require.NoError(t, err)
 
 			evt = <-env.emitter.C()
-			require.Empty(t, cmp.Diff(expectedEvent, evt))
+			require.Empty(t, cmp.Diff(&mfaUnchangedEvent, evt))
+
+			p.Spec.SecondFactor = constants.SecondFactorWebauthn
+			p.Spec.Webauthn = &types.Webauthn{
+				RPID: "example.com",
+			}
+
+			p, err = env.UpdateAuthPreference(ctx, &clusterconfigpb.UpdateAuthPreferenceRequest{AuthPreference: p})
+			require.NoError(t, err)
+
+			evt = <-env.emitter.C()
+			require.Empty(t, cmp.Diff(&mfaEnabledEvent, evt))
+
+			p.Spec.SecondFactor = constants.SecondFactorOTP
+
+			_, err = env.UpsertAuthPreference(ctx, &clusterconfigpb.UpsertAuthPreferenceRequest{AuthPreference: p})
+			require.NoError(t, err)
+
+			evt = <-env.emitter.C()
+			require.Empty(t, cmp.Diff(&mfaDisabledEvent, evt))
 		})
 
 		t.Run("cluster networking config", func(t *testing.T) {
@@ -1532,6 +1560,7 @@ func TestAuditEventsEmitted(t *testing.T) {
 					User:     "llama",
 					UserKind: apievents.UserKind_USER_KIND_HUMAN,
 				},
+				AdminActionsMFA: apievents.AdminActionsMFAStatus_ADMIN_ACTIONS_MFA_STATUS_UNCHANGED,
 			}
 
 			_, err := env.ResetAuthPreference(ctx, &clusterconfigpb.ResetAuthPreferenceRequest{})
@@ -1646,13 +1675,14 @@ func (f fakeChecker) CheckAccessToRule(context services.RuleContext, namespace s
 }
 
 type envConfig struct {
-	authorizer              authz.Authorizer
-	emitter                 apievents.Emitter
-	defaultAuthPreference   types.AuthPreference
-	defaultNetworkingConfig types.ClusterNetworkingConfig
-	defaultRecordingConfig  types.SessionRecordingConfig
-	service                 services.ClusterConfiguration
-	accessGraphConfig       clusterconfigv1.AccessGraphConfig
+	authorizer                 authz.Authorizer
+	emitter                    apievents.Emitter
+	defaultAuthPreference      types.AuthPreference
+	defaultNetworkingConfig    types.ClusterNetworkingConfig
+	defaultRecordingConfig     types.SessionRecordingConfig
+	service                    services.ClusterConfiguration
+	accessGraphConfig          clusterconfigv1.AccessGraphConfig
+	defaultAccessGraphSettings *clusterconfigpb.AccessGraphSettings
 }
 type serviceOpt = func(config *envConfig)
 
@@ -1692,12 +1722,19 @@ func withAccessGraphConfig(cfg clusterconfigv1.AccessGraphConfig) serviceOpt {
 	}
 }
 
+func withAccessGraphSettings(cfg *clusterconfigpb.AccessGraphSettings) serviceOpt {
+	return func(config *envConfig) {
+		config.defaultAccessGraphSettings = cfg
+	}
+}
+
 type env struct {
 	*clusterconfigv1.Service
-	emitter                 *eventstest.ChannelEmitter
-	defaultPreference       types.AuthPreference
-	defaultNetworkingConfig types.ClusterNetworkingConfig
-	defaultRecordingConfig  types.SessionRecordingConfig
+	emitter                    *eventstest.ChannelEmitter
+	defaultPreference          types.AuthPreference
+	defaultNetworkingConfig    types.ClusterNetworkingConfig
+	defaultRecordingConfig     types.SessionRecordingConfig
+	defaultAccessGraphSettings *clusterconfigpb.AccessGraphSettings
 }
 
 func newTestEnv(opts ...serviceOpt) (*env, error) {
@@ -1736,7 +1773,7 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 	if cfg.defaultAuthPreference != nil {
 		defaultPreference, err = cfg.service.CreateAuthPreference(ctx, cfg.defaultAuthPreference)
 		if err != nil {
-			return nil, trace.Wrap(err, "creating default auth preference")
+			return nil, trace.Wrap(err, "creating default auth mutator")
 		}
 	}
 
@@ -1756,16 +1793,33 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 		}
 	}
 
+	var defaultAccessGraphSettings *clusterconfigpb.AccessGraphSettings
+	if cfg.defaultAccessGraphSettings != nil {
+		defaultAccessGraphSettings, err = cfg.service.CreateAccessGraphSettings(ctx, cfg.defaultAccessGraphSettings)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating access graph settings")
+		}
+	}
+
 	return &env{
-		Service:                 svc,
-		defaultPreference:       defaultPreference,
-		defaultNetworkingConfig: defaultNetworkingConfig,
-		defaultRecordingConfig:  defaultSessionRecordingConfig,
-		emitter:                 emitter,
+		Service:                    svc,
+		defaultPreference:          defaultPreference,
+		defaultNetworkingConfig:    defaultNetworkingConfig,
+		defaultRecordingConfig:     defaultSessionRecordingConfig,
+		defaultAccessGraphSettings: defaultAccessGraphSettings,
+		emitter:                    emitter,
 	}, nil
 }
 
 func TestGetAccessGraphConfig(t *testing.T) {
+
+	settings, err := clusterconfig.NewAccessGraphSettings(
+		&clusterconfigpb.AccessGraphSettingsSpec{
+			SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED,
+		},
+	)
+	require.NoError(t, err)
+
 	cfgEnabled := clusterconfigv1.AccessGraphConfig{
 		Enabled:  true,
 		Address:  "address",
@@ -1773,12 +1827,13 @@ func TestGetAccessGraphConfig(t *testing.T) {
 		Insecure: true,
 	}
 	cases := []struct {
-		name              string
-		accessGraphConfig clusterconfigv1.AccessGraphConfig
-		role              types.SystemRole
-		testSetup         func(*testing.T)
-		errorAssertion    require.ErrorAssertionFunc
-		responseAssertion *clusterconfigpb.GetClusterAccessGraphConfigResponse
+		name                string
+		accessGraphConfig   clusterconfigv1.AccessGraphConfig
+		role                types.SystemRole
+		testSetup           func(*testing.T)
+		errorAssertion      require.ErrorAssertionFunc
+		responseAssertion   *clusterconfigpb.GetClusterAccessGraphConfigResponse
+		accessGraphSettings *clusterconfigpb.AccessGraphSettings
 	}{
 		{
 			name:              "authorized proxy with non empty access graph config; Policy module is disabled",
@@ -1798,8 +1853,8 @@ func TestGetAccessGraphConfig(t *testing.T) {
 			testSetup: func(t *testing.T) {
 				m := modules.TestModules{
 					TestFeatures: modules.Features{
-						Policy: modules.PolicyFeature{
-							Enabled: true,
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.Policy: {Enabled: true},
 						},
 					},
 				}
@@ -1809,10 +1864,11 @@ func TestGetAccessGraphConfig(t *testing.T) {
 			errorAssertion:    require.NoError,
 			responseAssertion: &clusterconfigpb.GetClusterAccessGraphConfigResponse{
 				AccessGraph: &clusterconfigpb.AccessGraphConfig{
-					Enabled:  true,
-					Insecure: true,
-					Address:  "address",
-					Ca:       []byte("ca"),
+					Enabled:           true,
+					Insecure:          true,
+					Address:           "address",
+					Ca:                []byte("ca"),
+					SecretsScanConfig: &clusterconfigpb.AccessGraphSecretsScanConfiguration{},
 				},
 			},
 		},
@@ -1822,8 +1878,8 @@ func TestGetAccessGraphConfig(t *testing.T) {
 			testSetup: func(t *testing.T) {
 				m := modules.TestModules{
 					TestFeatures: modules.Features{
-						Policy: modules.PolicyFeature{
-							Enabled: true,
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.Policy: {Enabled: true},
 						},
 					},
 				}
@@ -1833,10 +1889,39 @@ func TestGetAccessGraphConfig(t *testing.T) {
 			errorAssertion:    require.NoError,
 			responseAssertion: &clusterconfigpb.GetClusterAccessGraphConfigResponse{
 				AccessGraph: &clusterconfigpb.AccessGraphConfig{
+					Enabled:           true,
+					Insecure:          true,
+					Address:           "address",
+					Ca:                []byte("ca"),
+					SecretsScanConfig: &clusterconfigpb.AccessGraphSecretsScanConfiguration{},
+				},
+			},
+		},
+		{
+			name: "Policy module is enabled with secrets scan option",
+			role: types.RoleDiscovery,
+			testSetup: func(t *testing.T) {
+				m := modules.TestModules{
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.Policy: {Enabled: true},
+						},
+					},
+				}
+				modules.SetTestModules(t, &m)
+			},
+			accessGraphConfig:   cfgEnabled,
+			accessGraphSettings: settings,
+			errorAssertion:      require.NoError,
+			responseAssertion: &clusterconfigpb.GetClusterAccessGraphConfigResponse{
+				AccessGraph: &clusterconfigpb.AccessGraphConfig{
 					Enabled:  true,
 					Insecure: true,
 					Address:  "address",
 					Ca:       []byte("ca"),
+					SecretsScanConfig: &clusterconfigpb.AccessGraphSecretsScanConfiguration{
+						SshScanEnabled: true,
+					},
 				},
 			},
 		},
@@ -1854,13 +1939,390 @@ func TestGetAccessGraphConfig(t *testing.T) {
 			authorizer := authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
 				return authRoleContext, nil
 			})
-			env, err := newTestEnv(withAuthorizer(authorizer), withAccessGraphConfig(test.accessGraphConfig))
+
+			env, err := newTestEnv(withAuthorizer(authorizer), withAccessGraphConfig(test.accessGraphConfig), withAccessGraphSettings(test.accessGraphSettings))
 			require.NoError(t, err, "creating test service")
 
 			got, err := env.GetClusterAccessGraphConfig(context.Background(), &clusterconfigpb.GetClusterAccessGraphConfigRequest{})
 			test.errorAssertion(t, err)
 
 			require.Empty(t, cmp.Diff(test.responseAssertion, got, protocmp.Transform()))
+		})
+	}
+}
+
+func TestGetAccessGraphSettings(t *testing.T) {
+	cases := []struct {
+		name       string
+		authorizer authz.Authorizer
+		assertion  func(t *testing.T, err error)
+	}{
+		{
+			name: "unauthorized",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{},
+				}, nil
+			}),
+			assertion: func(t *testing.T, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected unauthorized user to be prevented from getting access graph settings", err)
+			},
+		}, {
+			name: "authorized",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindAccessGraphSettings: {types.VerbRead}},
+					},
+				}, nil
+			}),
+			assertion: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			settings, err := clusterconfig.NewAccessGraphSettings(
+				&clusterconfigpb.AccessGraphSettingsSpec{
+					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
+				},
+			)
+			require.NoError(t, err)
+			env, err := newTestEnv(withAuthorizer(test.authorizer), withAccessGraphSettings(settings))
+			require.NoError(t, err, "creating test service")
+
+			got, err := env.GetAccessGraphSettings(context.Background(), &clusterconfigpb.GetAccessGraphSettingsRequest{})
+			test.assertion(t, err)
+			if err == nil {
+				require.Empty(t, cmp.Diff(settings, got, cmpopts.IgnoreFields(types.Metadata{}, "Revision"), protocmp.Transform()))
+			}
+		})
+	}
+}
+
+func TestUpdateAccessGraphSettings(t *testing.T) {
+	cases := []struct {
+		name       string
+		mutator    func(p *clusterconfigpb.AccessGraphSettings)
+		authorizer authz.Authorizer
+		testSetup  func(*testing.T)
+		assertion  func(t *testing.T, updated *clusterconfigpb.AccessGraphSettings, err error)
+	}{
+		{
+			name: "unauthorized",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{},
+				}, nil
+			}),
+			assertion: func(t *testing.T, updated *clusterconfigpb.AccessGraphSettings, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected unauthorized user to prevent updating access graph settings", err)
+			},
+		},
+		{
+			name: "no admin action",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindAccessGraphSettings: {types.VerbUpdate}},
+					},
+				}, nil
+			}),
+			assertion: func(t *testing.T, updated *clusterconfigpb.AccessGraphSettings, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected lack of admin action to prevent updating access graph settings", err)
+			},
+		},
+		{
+			name: "update without access graph being enabled",
+
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindAccessGraphSettings: {types.VerbUpdate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+					Identity: authz.LocalUser{
+						Username: "llama",
+						Identity: tlsca.Identity{Username: "llama"},
+					},
+				}, nil
+			}),
+			mutator: func(p *clusterconfigpb.AccessGraphSettings) {
+				p.Spec.SecretsScanConfig = clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED
+			},
+			assertion: func(t *testing.T, updated *clusterconfigpb.AccessGraphSettings, err error) {
+				require.Error(t, err)
+			},
+		},
+		{
+			name: "updated",
+			testSetup: func(t *testing.T) {
+				m := modules.TestModules{
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.Policy: {Enabled: true},
+						},
+					},
+				}
+				modules.SetTestModules(t, &m)
+			},
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindAccessGraphSettings: {types.VerbUpdate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+					Identity: authz.LocalUser{
+						Username: "llama",
+						Identity: tlsca.Identity{Username: "llama"},
+					},
+				}, nil
+			}),
+			mutator: func(p *clusterconfigpb.AccessGraphSettings) {
+				p.Spec.SecretsScanConfig = clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED
+			},
+			assertion: func(t *testing.T, updated *clusterconfigpb.AccessGraphSettings, err error) {
+				require.NoError(t, err)
+				require.Equal(t, clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED, updated.GetSpec().GetSecretsScanConfig())
+			},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			if test.testSetup != nil {
+				test.testSetup(t)
+			}
+			settings, err := clusterconfig.NewAccessGraphSettings(
+				&clusterconfigpb.AccessGraphSettingsSpec{
+					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED,
+				},
+			)
+			require.NoError(t, err)
+			env, err := newTestEnv(withAuthorizer(test.authorizer), withAccessGraphSettings(settings))
+			require.NoError(t, err, "creating test service")
+
+			// Set revisions to allow the update to succeed.
+			pref := env.defaultAccessGraphSettings
+			if test.mutator != nil {
+				test.mutator(pref)
+			}
+
+			updated, err := env.UpdateAccessGraphSettings(context.Background(), &clusterconfigpb.UpdateAccessGraphSettingsRequest{AccessGraphSettings: pref})
+			test.assertion(t, updated, err)
+		})
+	}
+}
+
+func TestUpsertAccessGraphSettings(t *testing.T) {
+	cases := []struct {
+		name       string
+		testSetup  func(*testing.T)
+		mutator    func(p *clusterconfigpb.AccessGraphSettings)
+		authorizer authz.Authorizer
+		assertion  func(t *testing.T, updated *clusterconfigpb.AccessGraphSettings, err error)
+	}{
+		{
+			name: "unauthorized",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{},
+				}, nil
+			}),
+			assertion: func(t *testing.T, updated *clusterconfigpb.AccessGraphSettings, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected unauthorized user to prevent upserting access graph settings", err)
+			},
+		},
+		{
+			name: "access prevented",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindAccessGraphSettings: {types.VerbUpdate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthUnauthorized,
+				}, nil
+			}),
+			assertion: func(t *testing.T, updated *clusterconfigpb.AccessGraphSettings, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected lack of admin action to prevent upserting access graph settings", err)
+			},
+		},
+		{
+			name: "no admin action",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindAccessGraphSettings: {types.VerbCreate, types.VerbUpdate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthUnauthorized,
+				}, nil
+			}),
+			assertion: func(t *testing.T, updated *clusterconfigpb.AccessGraphSettings, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected lack of admin action to prevent upserting access graph settings", err)
+			},
+		},
+		{
+			name: "policy not enabled",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindAccessGraphSettings: {types.VerbCreate, types.VerbUpdate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+				}, nil
+			}),
+			mutator: func(p *clusterconfigpb.AccessGraphSettings) {
+
+			},
+			assertion: func(t *testing.T, updated *clusterconfigpb.AccessGraphSettings, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got (%v), upserting access graph settings must fail when policy isn't enabled", err)
+			},
+		},
+
+		{
+			name: "upserted",
+			testSetup: func(t *testing.T) {
+				m := modules.TestModules{
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.Policy: {Enabled: true},
+						},
+					},
+				}
+				modules.SetTestModules(t, &m)
+			},
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindAccessGraphSettings: {types.VerbUpdate, types.VerbCreate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+					Identity: authz.LocalUser{
+						Username: "llama",
+						Identity: tlsca.Identity{Username: "llama"},
+					},
+				}, nil
+			}),
+			mutator: func(p *clusterconfigpb.AccessGraphSettings) {
+				p.Spec.SecretsScanConfig = clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED
+			},
+			assertion: func(t *testing.T, updated *clusterconfigpb.AccessGraphSettings, err error) {
+				require.NoError(t, err)
+				require.Equal(t, clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED, updated.Spec.SecretsScanConfig)
+			},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			if test.testSetup != nil {
+				test.testSetup(t)
+			}
+			settings, err := clusterconfig.NewAccessGraphSettings(
+				&clusterconfigpb.AccessGraphSettingsSpec{
+					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
+				})
+
+			require.NoError(t, err)
+
+			env, err := newTestEnv(withAuthorizer(test.authorizer), withAccessGraphSettings(settings))
+			require.NoError(t, err, "creating test service")
+
+			// Discard revisions to allow the update to succeed.
+			pref := settings
+			if test.mutator != nil {
+				test.mutator(pref)
+			}
+
+			updated, err := env.UpsertAccessGraphSettings(context.Background(), &clusterconfigpb.UpsertAccessGraphSettingsRequest{AccessGraphSettings: pref})
+			test.assertion(t, updated, err)
+		})
+	}
+}
+
+func TestResetAccessGraphSettings(t *testing.T) {
+	cases := []struct {
+		name       string
+		authorizer authz.Authorizer
+		testSetup  func(*testing.T)
+		assertion  func(t *testing.T, reset *clusterconfigpb.AccessGraphSettings, err error)
+	}{
+		{
+			name: "unauthorized",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{},
+				}, nil
+			}),
+			assertion: func(t *testing.T, reset *clusterconfigpb.AccessGraphSettings, err error) {
+				assert.Nil(t, reset)
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected unauthorized user to prevent resetting access graph settings", err)
+			},
+		},
+		{
+			name: "no admin action",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindAccessGraphSettings: {types.VerbUpdate}},
+					},
+				}, nil
+			}),
+			assertion: func(t *testing.T, reset *clusterconfigpb.AccessGraphSettings, err error) {
+				assert.Nil(t, reset)
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected lack of admin action to prevent resetting access graph settings", err)
+			},
+		},
+		{
+			name: "reset",
+			testSetup: func(t *testing.T) {
+				m := modules.TestModules{
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.Policy: {Enabled: true},
+						},
+					},
+				}
+				modules.SetTestModules(t, &m)
+			},
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindAccessGraphSettings: {types.VerbUpdate, types.VerbCreate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+					Identity: authz.LocalUser{
+						Username: "llama",
+						Identity: tlsca.Identity{Username: "llama"},
+					},
+				}, nil
+			}),
+			assertion: func(t *testing.T, reset *clusterconfigpb.AccessGraphSettings, err error) {
+				require.NoError(t, err)
+				require.Equal(t, clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED, reset.GetSpec().GetSecretsScanConfig())
+			},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			if test.testSetup != nil {
+				test.testSetup(t)
+			}
+			settings, err := clusterconfig.NewAccessGraphSettings(
+				&clusterconfigpb.AccessGraphSettingsSpec{
+					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
+				})
+
+			require.NoError(t, err)
+
+			env, err := newTestEnv(withAuthorizer(test.authorizer), withAccessGraphSettings(settings))
+			require.NoError(t, err, "creating test service")
+
+			reset, err := env.ResetAccessGraphSettings(context.Background(), &clusterconfigpb.ResetAccessGraphSettingsRequest{})
+			test.assertion(t, reset, err)
 		})
 	}
 }

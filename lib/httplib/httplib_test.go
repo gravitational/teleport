@@ -278,7 +278,7 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 		expectedCspVals map[string]string
 	}{
 		{
-			name:     "default (no stripe or wasm)",
+			name:     "default (no wasm)",
 			features: proto.Features{},
 			urlPath:  "/web/index.js",
 			expectedCspVals: map[string]string{
@@ -295,26 +295,8 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 			},
 		},
 		{
-			name:     "for cloud based usage, Stripe managed product (with stripe, no wasm)",
-			features: proto.Features{Cloud: true, IsUsageBased: true, IsStripeManaged: true},
-			urlPath:  "/web/index.js",
-			expectedCspVals: map[string]string{
-				"default-src":     "'self'",
-				"base-uri":        "'self'",
-				"form-action":     "'self'",
-				"frame-ancestors": "'none'",
-				"frame-src":       "https://js.stripe.com",
-				"object-src":      "'none'",
-				"script-src":      "'self' https://js.stripe.com",
-				"style-src":       "'self' 'unsafe-inline'",
-				"img-src":         "'self' data: blob:",
-				"font-src":        "'self' data:",
-				"connect-src":     "'self' wss:",
-			},
-		},
-		{
-			name:     "for cloud based usage, EUB product (no stripe or wasm)",
-			features: proto.Features{Cloud: true, IsUsageBased: true, ProductType: proto.ProductType_PRODUCT_TYPE_EUB},
+			name:     "for cloud based usage, EUB product (no wasm)",
+			features: proto.Features{Cloud: true, IsUsageBased: true, IsStripeManaged: false},
 			urlPath:  "/web/index.js",
 			expectedCspVals: map[string]string{
 				"default-src":     "'self'",
@@ -329,7 +311,7 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 			},
 		},
 		{
-			name:     "for desktop session (no stripe, with wasm)",
+			name:     "for desktop session (with wasm)",
 			features: proto.Features{},
 			urlPath:  "/web/cluster/:clusterId/desktops/:desktopName/:username",
 			expectedCspVals: map[string]string{
@@ -346,7 +328,24 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 			},
 		},
 		{
-			name:     "for cloud based usage & desktop session, Stripe managed product (with stripe, with wasm)",
+			name:     "for web ssh session (with wasm)",
+			features: proto.Features{},
+			urlPath:  "/web/cluster/:clusterId/console/node/:sessionId/:username",
+			expectedCspVals: map[string]string{
+				"default-src":     "'self'",
+				"base-uri":        "'self'",
+				"form-action":     "'self'",
+				"frame-ancestors": "'none'",
+				"object-src":      "'none'",
+				"script-src":      "'self' 'wasm-unsafe-eval'",
+				"style-src":       "'self' 'unsafe-inline'",
+				"img-src":         "'self' data: blob:",
+				"font-src":        "'self' data:",
+				"connect-src":     "'self' wss:",
+			},
+		},
+		{
+			name:     "for cloud based usage & desktop session, with wasm",
 			features: proto.Features{Cloud: true, IsUsageBased: true, IsStripeManaged: true},
 			urlPath:  "/web/cluster/:clusterId/desktops/:desktopName/:username",
 			expectedCspVals: map[string]string{
@@ -355,8 +354,7 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 				"form-action":     "'self'",
 				"frame-ancestors": "'none'",
 				"object-src":      "'none'",
-				"script-src":      "'self' https://js.stripe.com 'wasm-unsafe-eval'",
-				"frame-src":       "https://js.stripe.com",
+				"script-src":      "'self' 'wasm-unsafe-eval'",
 				"style-src":       "'self' 'unsafe-inline'",
 				"img-src":         "'self' data: blob:",
 				"font-src":        "'self' data:",

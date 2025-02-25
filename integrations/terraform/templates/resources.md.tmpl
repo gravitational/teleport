@@ -1,0 +1,27 @@
+---
+title: Reference for the {{.Name}} Terraform resource
+sidebar_label: {{ slice .Name (len "teleport_") }}
+description: This page describes the supported values of the {{.Name}} resource of the Teleport Terraform provider.
+---
+
+{{ "{/*Auto-generated file. Do not edit.*/}" }}
+{{ "{/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}" }}
+
+{{ .Description | trimspace }}
+
+{{ if .HasExample -}}
+## Example Usage
+
+{{tffile .ExampleFile }}
+{{- end }}
+
+{{ .SchemaMarkdown | trimspace }}
+{{- if .HasImport }}
+
+## Import
+
+Import is supported using the following syntax:
+
+{{codefile "shell" .ImportFile }}
+{{- end }}
+

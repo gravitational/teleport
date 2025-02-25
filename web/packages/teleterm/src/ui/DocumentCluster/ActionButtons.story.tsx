@@ -16,64 +16,82 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Flex, Text, Box } from 'design';
+import { Meta } from '@storybook/react';
+
+import { Box, Flex, Text } from 'design';
 
 import {
   makeApp,
-  makeRootCluster,
-  makeServer,
   makeDatabase,
   makeKube,
+  makeRootCluster,
+  makeServer,
 } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 import { VnetContextProvider } from 'teleterm/ui/Vnet';
 
 import {
+  AccessRequestButton,
   ConnectAppActionButton,
-  ConnectServerActionButton,
   ConnectDatabaseActionButton,
   ConnectKubeActionButton,
+  ConnectServerActionButton,
 } from './ActionButtons';
 
-export default {
-  title: 'Teleterm/DocumentCluster/ActionButtons',
+type StoryProps = {
+  vnet: boolean;
+  lotsOfMenuItems: boolean;
 };
 
-export function ActionButtons() {
-  const appContext = new MockAppContext();
-  appContext.configService.set('feature.vnet', true);
+const meta: Meta<StoryProps> = {
+  title: 'Teleterm/DocumentCluster/ActionButtons',
+  component: Buttons,
+  argTypes: {
+    vnet: { control: { type: 'boolean' } },
+    lotsOfMenuItems: {
+      control: { type: 'boolean' },
+      description:
+        // TODO(ravicious): Support this prop in more places than just TCP ports.
+        'Renders long lists of options in menus. Currently works only with ports for multi-port TCP apps.',
+    },
+  },
+  args: {
+    vnet: true,
+    lotsOfMenuItems: false,
+  },
+};
+
+export default meta;
+
+export function Story(props: StoryProps) {
+  const platform = props.vnet ? 'darwin' : 'win32';
+  const appContext = new MockAppContext({ platform });
   prepareAppContext(appContext);
 
   return (
     <MockAppContextProvider appContext={appContext}>
-      <VnetContextProvider>
-        <Buttons />
-      </VnetContextProvider>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Buttons {...props} />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
 }
 
-export function WithoutVnet() {
-  const appContext = new MockAppContext({ platform: 'win32' });
-  prepareAppContext(appContext);
-
-  return (
-    <MockAppContextProvider appContext={appContext}>
-      <VnetContextProvider>
-        <Buttons />
-      </VnetContextProvider>
-    </MockAppContextProvider>
-  );
-}
-
-function Buttons() {
+function Buttons(props: StoryProps) {
   return (
     <Flex gap={4}>
       <Flex gap={3} flexDirection="column">
         <Box>
           <Text>TCP app</Text>
           <TcpApp />
+        </Box>
+        <Box>
+          <Text>multi-port TCP app</Text>
+          <TcpMultiPortApp lotsOfMenuItems={props.lotsOfMenuItems} />
         </Box>
         <Box>
           <Text>Web app</Text>
@@ -100,6 +118,20 @@ function Buttons() {
         <Text>Kube</Text>
         <Kube />
       </Box>
+      <Flex gap={3} flexDirection="column">
+        <Box>
+          <Text>Request not started</Text>
+          <RequestNotStarted />
+        </Box>
+        <Box>
+          <Text>Request started</Text>
+          <RequestStarted />
+        </Box>
+        <Box>
+          <Text>Resource added</Text>
+          <ResourceAdded />
+        </Box>
+      </Flex>
     </Flex>
   );
 }
@@ -122,6 +154,28 @@ function TcpApp() {
     <ConnectAppActionButton
       app={makeApp({
         uri: `${testCluster.uri}/apps/bar`,
+      })}
+    />
+  );
+}
+
+function TcpMultiPortApp(props: { lotsOfMenuItems: boolean }) {
+  let tcpPorts = [
+    { port: 1337, endPort: 0 },
+    { port: 4242, endPort: 0 },
+    { port: 54221, endPort: 61879 },
+  ];
+
+  if (props.lotsOfMenuItems) {
+    tcpPorts = new Array(50).fill(tcpPorts).flat();
+  }
+
+  return (
+    <ConnectAppActionButton
+      app={makeApp({
+        uri: `${testCluster.uri}/apps/bar`,
+        endpointUri: 'tcp://localhost',
+        tcpPorts,
       })}
     />
   );
@@ -202,6 +256,36 @@ function Kube() {
       kube={makeKube({
         uri: `${testCluster.uri}/kubes/bar`,
       })}
+    />
+  );
+}
+
+function RequestNotStarted() {
+  return (
+    <AccessRequestButton
+      requestStarted={false}
+      onClick={() => {}}
+      isResourceAdded={false}
+    />
+  );
+}
+
+function RequestStarted() {
+  return (
+    <AccessRequestButton
+      requestStarted={true}
+      onClick={() => {}}
+      isResourceAdded={false}
+    />
+  );
+}
+
+function ResourceAdded() {
+  return (
+    <AccessRequestButton
+      requestStarted={true}
+      onClick={() => {}}
+      isResourceAdded={true}
     />
   );
 }

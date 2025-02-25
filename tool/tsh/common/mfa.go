@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -198,12 +197,14 @@ type mfaAddCommand struct {
 	devName string
 	devType string
 
-	// allowPasswordless is initially true if --allow-passwordless is set, false
-	// if not explicitly requested.
-	// It can only be set by users if wancli.IsFIDO2Available() is true.
+	// allowPasswordless and allowPasswordlessSet hold the state of the
+	// --(no-)allow-passwordless flag.
+	//
+	// allowPasswordless can only be set by users if wancli.IsFIDO2Available() is
+	// true.
 	// Note that Touch ID registrations are always passwordless-capable,
 	// regardless of other settings.
-	allowPasswordless bool
+	allowPasswordless, allowPasswordlessSet bool
 }
 
 func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
@@ -214,7 +215,9 @@ func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
 	c.Flag("type", fmt.Sprintf("Type of the new MFA device (%s)", strings.Join(defaultDeviceTypes, ", "))).
 		EnumVar(&c.devType, defaultDeviceTypes...)
 	if wancli.IsFIDO2Available() {
-		c.Flag("allow-passwordless", "Allow passwordless logins").BoolVar(&c.allowPasswordless)
+		c.Flag("allow-passwordless", "Allow passwordless logins").
+			IsSetByUser(&c.allowPasswordlessSet).
+			BoolVar(&c.allowPasswordless)
 	}
 	return c
 }
@@ -230,7 +233,7 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 	if !slices.Contains(defaultDeviceTypes, touchIDDeviceType) {
 		diag, err := touchid.Diag()
 		if err == nil && diag.IsClamshellFailure() {
-			log.Warn("Touch ID support disabled, is your MacBook lid closed?")
+			logger.WarnContext(ctx, "Touch ID support disabled, is your MacBook lid closed?")
 		}
 	}
 
@@ -266,9 +269,7 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 	switch c.devType {
 	case webauthnDeviceType:
 		// Ask the user?
-		// c.allowPasswordless=false at this point only means that the flag wasn't
-		// explicitly set.
-		if !c.allowPasswordless && wancli.IsFIDO2Available() {
+		if !c.allowPasswordlessSet && wancli.IsFIDO2Available() {
 			answer, err := prompt.PickOne(ctx, os.Stdout, prompt.Stdin(), "Allow passwordless logins", []string{"YES", "NO"})
 			if err != nil {
 				return trace.Wrap(err)
@@ -279,7 +280,7 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 		// Touch ID is always a resident key/passwordless
 		c.allowPasswordless = true
 	}
-	log.Debugf("tsh using passwordless registration? %v", c.allowPasswordless)
+	logger.DebugContext(ctx, "tsh using passwordless registration?", "allow_passwordless", c.allowPasswordless)
 
 	dev, err := c.addDeviceRPC(ctx, tc)
 	if err != nil {
@@ -333,9 +334,18 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 			usage = proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
 		}
 
-		// Issue the authn challenge.
-		// Required for the registration challenge.
-		authChallenge, err := rootAuthClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+		// Tweak Windows platform messages so it's clear we whether we are prompting
+		// for the *registered* or *new* device.
+		// We do it here, preemptively, because it's the simpler solution (instead
+		// of finding out whether it is a Windows prompt or not).
+		//
+		// TODO(Joerger): this should live in lib/client/mfa/cli.go using the prompt device prefix.
+		const registeredMsg = "Using platform authentication for *registered* device, follow the OS dialogs"
+		const newMsg = "Using platform authentication for *new* device, follow the OS dialogs"
+		wanwin.SetPromptPlatformMessage(registeredMsg)
+		defer wanwin.ResetPromptPlatformMessage()
+
+		mfaResp, err := tc.NewMFACeremony().Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 			ChallengeExtensions: &mfav1.ChallengeExtensions{
 				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
 			},
@@ -344,25 +354,9 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 			return trace.Wrap(err)
 		}
 
-		// Tweak Windows platform messages so it's clear we whether we are prompting
-		// for the *registered* or *new* device.
-		// We do it here, preemptively, because it's the simpler solution (instead
-		// of finding out whether it is a Windows prompt or not).
-		const registeredMsg = "Using platform authentication for *registered* device, follow the OS dialogs"
-		const newMsg = "Using platform authentication for *new* device, follow the OS dialogs"
-		defer wanwin.ResetPromptPlatformMessage()
-		wanwin.PromptPlatformMessage = registeredMsg
-
-		// Prompt for authentication.
-		// Does nothing if no challenges were issued (aka user has no devices).
-		authnResp, err := tc.NewMFAPrompt(mfa.WithPromptDeviceType(mfa.DeviceDescriptorRegistered)).Run(ctx, authChallenge)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
 		// Issue the registration challenge.
 		registerChallenge, err := rootAuthClient.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
-			ExistingMFAResponse: authnResp,
+			ExistingMFAResponse: mfaResp,
 			DeviceType:          devTypePB,
 			DeviceUsage:         usage,
 		})
@@ -371,7 +365,7 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 		}
 
 		// Prompt for registration.
-		wanwin.PromptPlatformMessage = newMsg
+		wanwin.SetPromptPlatformMessage(newMsg)
 		registerResp, registerCallback, err := promptRegisterChallenge(ctx, tc.WebProxyAddr, c.devType, registerChallenge)
 		if err != nil {
 			return trace.Wrap(err)
@@ -474,7 +468,7 @@ func promptTOTPRegisterChallenge(ctx context.Context, c *proto.TOTPRegisterChall
 	var showingQRCode bool
 	closeQR, err := showOTPQRCode(otpKey)
 	if err != nil {
-		log.WithError(err).Debug("Failed to show QR code")
+		logger.DebugContext(ctx, "Failed to show QR code", "error", err)
 	} else {
 		showingQRCode = true
 		defer closeQR()
@@ -521,7 +515,10 @@ func promptTOTPRegisterChallenge(ctx context.Context, c *proto.TOTPRegisterChall
 }
 
 func promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *wantypes.CredentialCreation) (*proto.MFARegisterResponse, error) {
-	log.Debugf("WebAuthn: prompting MFA devices with origin %q", origin)
+	logger.DebugContext(ctx, "prompting MFA devices with origin",
+		teleport.ComponentKey, "WebAuthn",
+		"origin", origin,
+	)
 
 	prompt := wancli.NewDefaultPrompt(ctx, os.Stdout)
 	prompt.PINMessage = "Enter your *new* security key PIN"
@@ -533,7 +530,10 @@ func promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *wan
 }
 
 func promptTouchIDRegisterChallenge(origin string, cc *wantypes.CredentialCreation) (*proto.MFARegisterResponse, registerCallback, error) {
-	log.Debugf("Touch ID: prompting registration with origin %q", origin)
+	logger.DebugContext(context.TODO(), "prompting registration with origin",
+		teleport.ComponentKey, "TouchID",
+		"origin", origin,
+	)
 
 	reg, err := touchid.Register(origin, cc)
 	if err != nil {
@@ -596,11 +596,7 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 			return trace.NotFound("device %q not found", c.name)
 		}
 
-		// Issue and solve authn challenge.
-		authnChal, err := rootAuthClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
-				ContextUser: &proto.ContextUser{},
-			},
+		mfaResponse, err := tc.NewMFACeremony().Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 			ChallengeExtensions: &mfav1.ChallengeExtensions{
 				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
 			},
@@ -608,15 +604,11 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		authnSolved, err := tc.PromptMFA(ctx, authnChal)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 
 		// Delete device.
 		if err := rootAuthClient.DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
 			DeviceName:          c.name,
-			ExistingMFAResponse: authnSolved,
+			ExistingMFAResponse: mfaResponse,
 		}); err != nil {
 			return trace.Wrap(err)
 		}
@@ -676,19 +668,23 @@ func showOTPQRCode(k *otp.Key) (cleanup func(), retErr error) {
 	if err := imageFile.Close(); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
-	log.Debugf("Wrote OTP QR code to %s", imageFile.Name())
+	ctx := context.TODO()
+	logger.DebugContext(ctx, "Wrote OTP QR code to file", "file", imageFile.Name())
 
 	cmd := exec.Command(imageViewer, append(imageViewerArgs, imageFile.Name())...)
 	if err := cmd.Start(); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
-	log.Debugf("Opened QR code via %q", imageViewer)
+	logger.DebugContext(ctx, "Opened QR code via image viewer", "image_viewer", imageViewer)
 	return func() {
 		if err := utils.RemoveSecure(imageFile.Name()); err != nil {
-			log.WithError(err).Debugf("Failed to clean up temporary QR code file %q", imageFile.Name())
+			logger.DebugContext(ctx, "Failed to clean up temporary QR code file",
+				"file", imageFile.Name(),
+				"error", err,
+			)
 		}
 		if err := cmd.Process.Kill(); err != nil {
-			log.WithError(err).Debug("Failed to stop the QR code image viewer")
+			logger.DebugContext(ctx, "Failed to stop the QR code image viewer", "error", err)
 		}
 	}, nil
 }
@@ -698,6 +694,9 @@ func deleteTouchIDCredentialIfApplicable(credentialID string) {
 	case errors.Is(err, &touchid.ErrAttemptFailed{}):
 		// Nothing to do here, just proceed.
 	case err != nil:
-		log.WithError(err).Errorf("Failed to delete credential: %s\n", credentialID)
+		logger.ErrorContext(context.Background(), "Failed to delete credential",
+			"error", err,
+			"credential", credentialID,
+		)
 	}
 }

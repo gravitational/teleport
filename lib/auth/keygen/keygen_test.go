@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -32,10 +33,11 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/test"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/sshca"
 )
 
 type nativeContext struct {
@@ -48,9 +50,15 @@ func setupNativeContext(ctx context.Context, _ *testing.T) *nativeContext {
 	clock := clockwork.NewFakeClockAt(time.Date(2016, 9, 8, 7, 6, 5, 0, time.UTC))
 
 	tt.suite = &test.AuthSuite{
-		A:      New(ctx, SetClock(clock)),
-		Keygen: native.GenerateKeyPair,
-		Clock:  clock,
+		A: New(ctx, SetClock(clock)),
+		Keygen: func() ([]byte, []byte, error) {
+			privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+			return privateKey.PrivateKeyPEM(), privateKey.MarshalSSHPublicKey(), nil
+		},
+		Clock: clock,
 	}
 
 	return &tt
@@ -91,14 +99,16 @@ func TestBuildPrincipals(t *testing.T) {
 
 	tt := setupNativeContext(context.Background(), t)
 
-	caPrivateKey, _, err := native.GenerateKeyPair()
+	caPrivateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	require.NoError(t, err)
+	caSigner, err := ssh.NewSignerFromSigner(caPrivateKey)
 	require.NoError(t, err)
 
-	caSigner, err := ssh.ParsePrivateKey(caPrivateKey)
+	hostKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)
-
-	_, hostPublicKey, err := native.GenerateKeyPair()
+	hostPrivateKey, err := keys.NewSoftwarePrivateKey(hostKey)
 	require.NoError(t, err)
+	hostPublicKey := hostPrivateKey.MarshalSSHPublicKey()
 
 	tests := []struct {
 		desc               string
@@ -165,16 +175,17 @@ func TestBuildPrincipals(t *testing.T) {
 	// run tests
 	for _, tc := range tests {
 		t.Logf("Running test case: %q", tc.desc)
-		hostCertificateBytes, err := tt.suite.A.GenerateHostCert(
-			services.HostCertParams{
-				CASigner:      caSigner,
-				PublicHostKey: hostPublicKey,
-				HostID:        tc.inHostID,
-				NodeName:      tc.inNodeName,
-				ClusterName:   tc.inClusterName,
-				Role:          tc.inRole,
-				TTL:           time.Hour,
-			})
+		hostCertificateBytes, err := tt.suite.A.GenerateHostCert(sshca.HostCertificateRequest{
+			CASigner:      caSigner,
+			PublicHostKey: hostPublicKey,
+			HostID:        tc.inHostID,
+			NodeName:      tc.inNodeName,
+			TTL:           time.Hour,
+			Identity: sshca.Identity{
+				ClusterName: tc.inClusterName,
+				SystemRole:  tc.inRole,
+			},
+		})
 		require.NoError(t, err)
 
 		hostCertificate, err := sshutils.ParseCertificate(hostCertificateBytes)
@@ -191,10 +202,9 @@ func TestUserCertCompatibility(t *testing.T) {
 
 	tt := setupNativeContext(context.Background(), t)
 
-	priv, pub, err := native.GenerateKeyPair()
+	caKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)
-
-	caSigner, err := ssh.ParsePrivateKey(priv)
+	caSigner, err := ssh.NewSignerFromSigner(caKey)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -217,23 +227,24 @@ func TestUserCertCompatibility(t *testing.T) {
 	for i, tc := range tests {
 		comment := fmt.Sprintf("Test %v", i)
 
-		userCertificateBytes, err := tt.suite.A.GenerateUserCert(services.UserCertParams{
-			CASigner:      caSigner,
-			PublicUserKey: pub,
-			Username:      "user",
-			AllowedLogins: []string{"centos", "root"},
-			TTL:           time.Hour,
-			Roles:         []string{"foo"},
-			CertificateExtensions: []*types.CertExtension{{
-				Type:  types.CertExtensionType_SSH,
-				Mode:  types.CertExtensionMode_EXTENSION,
-				Name:  "login@github.com",
-				Value: "hello",
+		userCertificateBytes, err := tt.suite.A.GenerateUserCert(sshca.UserCertificateRequest{
+			CASigner:          caSigner,
+			PublicUserKey:     ssh.MarshalAuthorizedKey(caSigner.PublicKey()),
+			TTL:               time.Hour,
+			CertificateFormat: tc.inCompatibility,
+			Identity: sshca.Identity{
+				Username:   "user",
+				Principals: []string{"centos", "root"},
+				Roles:      []string{"foo"},
+				CertificateExtensions: []*types.CertExtension{{
+					Type:  types.CertExtensionType_SSH,
+					Mode:  types.CertExtensionMode_EXTENSION,
+					Name:  "login@github.com",
+					Value: "hello",
+				}},
+				PermitAgentForwarding: true,
+				PermitPortForwarding:  true,
 			},
-			},
-			CertificateFormat:     tc.inCompatibility,
-			PermitAgentForwarding: true,
-			PermitPortForwarding:  true,
 		})
 		require.NoError(t, err, comment)
 

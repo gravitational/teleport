@@ -16,29 +16,31 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
-import { Indicator, Box, Flex, ButtonSecondary, ButtonPrimary } from 'design';
+import { useEffect, useState } from 'react';
+
+import { Box, ButtonPrimary, ButtonSecondary, Flex, Indicator } from 'design';
 import { Info } from 'design/Alert';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import AuthnDialog from 'teleport/components/AuthnDialog';
+import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
+import type { MfaState } from 'teleport/lib/useMfa';
 
+import TopBar from './TopBar';
 import useDesktopSession, {
+  clipboardSharingMessage,
   directorySharingPossible,
   isSharingClipboard,
   isSharingDirectory,
+  type State,
+  type WebsocketAttempt,
 } from './useDesktopSession';
-import TopBar from './TopBar';
-
-import type { State, WebsocketAttempt } from './useDesktopSession';
-import type { WebAuthnState } from 'teleport/lib/useWebAuthn';
 
 export function DesktopSessionContainer() {
   const state = useDesktopSession();
@@ -53,11 +55,10 @@ declare global {
 
 export function DesktopSession(props: State) {
   const {
-    webauthn,
+    mfa,
     tdpClient,
     username,
     hostname,
-    setClipboardSharingState,
     directorySharingState,
     setDirectorySharingState,
     clientOnPngFrame,
@@ -80,9 +81,11 @@ export function DesktopSession(props: State) {
     windowOnResize,
     clientScreenSpecToRequest,
     clipboardSharingState,
+    setClipboardSharingState,
     onShareDirectory,
-    warnings,
-    onRemoveWarning,
+    onCtrlAltDel,
+    alerts,
+    onRemoveAlert,
     fetchAttempt,
     tdpConnection,
     wsConnection,
@@ -103,7 +106,7 @@ export function DesktopSession(props: State) {
         tdpConnection,
         wsConnection,
         showAnotherSessionActiveDialog,
-        webauthn
+        mfa
       )
     );
   }, [
@@ -111,7 +114,7 @@ export function DesktopSession(props: State) {
     tdpConnection,
     wsConnection,
     showAnotherSessionActiveDialog,
-    webauthn,
+    mfa,
   ]);
 
   return (
@@ -132,15 +135,17 @@ export function DesktopSession(props: State) {
         canShareDirectory={directorySharingPossible(directorySharingState)}
         isSharingDirectory={isSharingDirectory(directorySharingState)}
         isSharingClipboard={isSharingClipboard(clipboardSharingState)}
+        clipboardSharingMessage={clipboardSharingMessage(clipboardSharingState)}
         onShareDirectory={onShareDirectory}
-        warnings={warnings}
-        onRemoveWarning={onRemoveWarning}
+        onCtrlAltDel={onCtrlAltDel}
+        alerts={alerts}
+        onRemoveAlert={onRemoveAlert}
       />
 
       {screenState.screen === 'anotherSessionActive' && (
         <AnotherSessionActiveDialog {...props} />
       )}
-      {screenState.screen === 'mfa' && <MfaDialog webauthn={webauthn} />}
+      {screenState.screen === 'mfa' && <MfaDialog mfa={mfa} />}
       {screenState.screen === 'alert dialog' && (
         <AlertDialog screenState={screenState} />
       )}
@@ -177,20 +182,13 @@ export function DesktopSession(props: State) {
   );
 }
 
-const MfaDialog = ({ webauthn }: { webauthn: WebAuthnState }) => {
+const MfaDialog = ({ mfa }: { mfa: MfaState }) => {
   return (
     <AuthnDialog
-      onContinue={webauthn.authenticate}
-      onCancel={() => {
-        webauthn.setState(prevState => {
-          return {
-            ...prevState,
-            errorText:
-              'This session requires multi factor authentication to continue. Please hit "Retry" and follow the prompts given by your browser to complete authentication.',
-          };
-        });
-      }}
-      errorText={webauthn.errorText}
+      mfaState={mfa}
+      replaceErrorText={
+        'This session requires multi factor authentication to continue. Please hit try again and follow the prompts given by your browser to complete authentication.'
+      }
     />
   );
 };
@@ -278,7 +276,7 @@ const nextScreenState = (
   tdpConnection: Attempt,
   wsConnection: WebsocketAttempt,
   showAnotherSessionActiveDialog: boolean,
-  webauthn: WebAuthnState
+  webauthn: MfaState
 ): ScreenState => {
   // We always want to show the user the first alert that caused the session to fail/end,
   // so if we're already showing an alert, don't change the screen.
@@ -295,7 +293,7 @@ const nextScreenState = (
 
   // Otherwise, calculate a new screen state.
   const showAnotherSessionActive = showAnotherSessionActiveDialog;
-  const showMfa = webauthn.requested;
+  const showMfa = webauthn.challenge;
   const showAlert =
     fetchAttempt.status === 'failed' || // Fetch attempt failed
     tdpConnection.status === 'failed' || // TDP connection failed

@@ -28,9 +28,11 @@ import (
 
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/label"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
@@ -175,6 +177,8 @@ func TestAutoUsersPostgres(t *testing.T) {
 
 			// 2. If there are any database permissions: admin connecting to session database.
 			if len(tc.databasePermissions) > 0 {
+				// expect two connections to be made.
+				requirePostgresConnection(t, testCtx.postgres["postgres"].db.ParametersCh(), "postgres", "user-db")
 				requirePostgresConnection(t, testCtx.postgres["postgres"].db.ParametersCh(), "postgres", "user-db")
 			}
 
@@ -214,6 +218,10 @@ func TestAutoUsersPostgres(t *testing.T) {
 			case <-time.After(5 * time.Second):
 				t.Fatal("user not deactivated after 5s")
 			}
+
+			ev := waitForDatabaseUserDeactivateEvent(t, testCtx)
+			require.Equal(t, "alice", ev.User)
+			require.Equal(t, "alice", ev.DatabaseUser)
 		})
 	}
 }
@@ -368,6 +376,10 @@ func TestAutoUsersMySQL(t *testing.T) {
 			case <-time.After(5 * time.Second):
 				t.Fatal("user not deactivated after 5s")
 			}
+
+			ev := waitForDatabaseUserDeactivateEvent(t, testCtx)
+			require.Equal(t, tc.teleportUser, ev.User)
+			require.Equal(t, tc.expectDatabaseUser, ev.DatabaseUser)
 		})
 	}
 }
@@ -451,6 +463,21 @@ func TestAutoUsersMongoDB(t *testing.T) {
 			case <-time.After(5 * time.Second):
 				t.Fatal("user not deactivated after 5s")
 			}
+
+			ev := waitForDatabaseUserDeactivateEvent(t, testCtx)
+			require.Equal(t, username, ev.User)
+			require.Equal(t, "alice", ev.DatabaseUser)
 		})
 	}
+}
+
+func waitForDatabaseUserDeactivateEvent(t *testing.T, testCtx *testContext) *apievents.DatabaseUserDeactivate {
+	t.Helper()
+	const code = libevents.DatabaseSessionUserDeactivateCode
+	event := waitForEvent(t, testCtx, code)
+	require.Equal(t, code, event.GetCode())
+
+	ev, ok := event.(*apievents.DatabaseUserDeactivate)
+	require.True(t, ok)
+	return ev
 }

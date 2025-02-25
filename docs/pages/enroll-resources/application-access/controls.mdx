@@ -1,0 +1,150 @@
+---
+title: Application Access Role-Based Access Control
+description: Role-Based Access Control (RBAC) for Teleport application access.
+---
+
+This article describes access control concepts particularly relevant to the
+Teleport Application Service.
+
+## Assigning labels to applications
+
+The Teleport Application Service uses labels to control access to the proxied
+web applications.
+
+Teleport administrators can assign static and dynamic labels to apps using
+configuration:
+
+```yaml
+apps:
+- name: "grafana"
+  uri: "http://localhost:3000"
+  # Static labels.
+  labels:
+    env: "prod"
+    group: "metrics"
+  # Teleport periodically executes commands in dynamic labels and uses the
+  # commands output in label values.
+  commands:
+  - name: "arch"
+    command: ["uname", "-p"]
+    period: 1m0s
+```
+
+## Configuring application labels in roles
+
+Teleport administrators can configure roles to allow or deny users' access to
+applications with specific labels using `app_labels` property.
+
+For example, this role will grant access to all applications from the group
+"metrics", except for the production ones:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: dev
+spec:
+  allow:
+    app_labels:
+      group: "metrics"
+  deny:
+    app_labels:
+      env: "prod"
+```
+
+## Integrating with identity providers
+
+You can configure roles to populate app labels dynamically based on the user's
+claims and attributes received from identity providers. This is done by using
+template variables with `external` prefix.
+
+For example, this role will have its `env` and `group` label values set after
+the Okta user's attributes with the same names:
+
+```yaml
+allow:
+  app_labels:
+    env: "{{external.env}}"
+    group: "{{external.group}}"
+```
+
+## Enabling a user to access Azure managed identities
+
+You can authorize your Teleport user to assume an Azure identity and execute
+Azure CLI commands via Teleport. To do so, define a role with the
+`spec.allow.azure_identities` field, as shown below:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: azure-cli-access
+spec:
+  allow:
+    app_labels:
+      '*': '*'
+    azure_identities:
+      - /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure
+
+```
+
+Modify the `spec.allow.azure_identities` field so that each item is the full URI
+of an Azure managed identity that you would like to enable users with this role
+to assume. The example above allows the user to assume the `teleport-azure`
+identity. 
+
+Another approach is to define a user's permitted Azure identities by configuring
+each user separately. To do so, create a role with one element within
+`azure_identities` set to the template variable `{{internal.azure_identities}}`:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: azure-cli-access
+spec:
+  allow:
+    app_labels:
+      '*': '*'
+    azure_identities:
+      - '{{internal.azure_identities}}'
+```
+
+In this case, when a user authenticates to the Azure CLI via Teleport, the
+Teleport Auth Service populates the `{{internal.azure_identities}}` template
+variable with any Azure identities you have assigned to the user.
+
+To assign Azure identities to a user, run a `tctl users update` command similar
+to the following:
+
+```code
+$ tctl users update myuser --set-azure-identities \
+/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id1,\
+/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id2
+```
+
+This command uses the `--set-azure-identities` flag to add Azure identities to a
+user. The value of this flag is a comma-separated list of Azure identity URIs.
+
+See our [Azure
+CLI](./cloud-apis/azure.mdx#step-34-enable-your-user-to-access-azure-clis) guide
+for more information on enabling access to Azure managed identities.
+
+## Next steps
+
+- View access controls [Getting Started](../../admin-guides/access-controls/getting-started.mdx)
+  and other available [guides](../../admin-guides/access-controls/guides/guides.mdx).
+- For full details on how Teleport populates the `internal` and `external`
+  traits we illustrated in this guide, see the [Teleport Access
+  Controls Reference](../../reference/access-controls/roles.mdx).
+- View access controls [Getting Started](../../admin-guides/access-controls/getting-started.mdx)
+  and other available [guides](../../admin-guides/access-controls/guides/guides.mdx).
+- Learn about using [JWT tokens](./jwt/introduction.mdx) to implement access
+  controls in your application.
+- Integrate with your identity provider:
+  - [OIDC](../../admin-guides/access-controls/sso/oidc.mdx)
+  - [ADFS](../../admin-guides/access-controls/sso/adfs.mdx)
+  - [Azure AD](../../admin-guides/access-controls/sso/azuread.mdx)
+  - [Google Workspace](../../admin-guides/access-controls/sso/google-workspace.mdx)
+  - [Onelogin](../../admin-guides/access-controls/sso/one-login.mdx)
+  - [Okta](../../admin-guides/access-controls/sso/okta.mdx)

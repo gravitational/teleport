@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { Cluster } from 'teleport/services/clusters';
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import { Box, Text } from 'design';
+
 import { ContextProvider } from 'teleport/index';
-import { Text, Box } from 'design';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import { Cluster } from 'teleport/services/clusters';
 
 import { ClusterDropdown } from './ClusterDropdown';
 

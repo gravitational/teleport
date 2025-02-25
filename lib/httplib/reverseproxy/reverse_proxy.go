@@ -19,16 +19,17 @@
 package reverseproxy
 
 import (
+	"log"
+	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // X-* Header names.
@@ -61,7 +62,7 @@ type Forwarder struct {
 	passHostHeader bool
 	headerRewriter Rewriter
 	*httputil.ReverseProxy
-	log       logrus.FieldLogger
+	logger    *slog.Logger
 	transport http.RoundTripper
 }
 
@@ -74,22 +75,23 @@ func New(opts ...Option) (*Forwarder, error) {
 		headerRewriter: NewHeaderRewriter(),
 		ReverseProxy: &httputil.ReverseProxy{
 			ErrorHandler: DefaultHandler.ServeHTTP,
+			ErrorLog:     log.Default(),
 		},
-		log: utils.NewLogger(),
+		logger: slog.Default(),
 	}
 	// Apply options.
 	for _, opt := range opts {
 		opt(fwd)
 	}
 
-	// Director is called by the ReverseProxy to modify the request.
-	fwd.Director = func(request *http.Request) {
-		modifyRequest(request)
+	// Rewrite is called by the ReverseProxy to modify the request.
+	fwd.Rewrite = func(request *httputil.ProxyRequest) {
+		modifyRequest(request.Out)
 		if fwd.headerRewriter != nil {
 			fwd.headerRewriter.Rewrite(request)
 		}
 		if !fwd.passHostHeader {
-			request.Host = request.URL.Host
+			request.Out.Host = request.Out.URL.Host
 		}
 	}
 
@@ -102,7 +104,7 @@ func New(opts ...Option) (*Forwarder, error) {
 	}
 	// Set the transport for the reverse proxy to use a round tripper
 	// that logs the request and response.
-	fwd.ReverseProxy.Transport = &roundTripperWithLogger{transport: fwd.transport, log: fwd.log}
+	fwd.ReverseProxy.Transport = &roundTripperWithLogger{transport: fwd.transport, logger: fwd.logger}
 
 	return fwd, nil
 }
@@ -117,11 +119,10 @@ func WithFlushInterval(interval time.Duration) Option {
 	}
 }
 
-// WithLogger sets the logger for the forwarder. It uses the logger.Writer()
-// method to get the io.Writer to use for the stdlib logger.
-func WithLogger(logger logrus.FieldLogger) Option {
+// WithLogger sets the logger for the forwarder.
+func WithLogger(logger *slog.Logger) Option {
 	return func(rp *Forwarder) {
-		rp.log = logger
+		rp.logger = logger
 	}
 }
 
@@ -194,7 +195,7 @@ func getURLFromRequest(req *http.Request) *url.URL {
 }
 
 type roundTripperWithLogger struct {
-	log       logrus.FieldLogger
+	logger    *slog.Logger
 	transport http.RoundTripper
 }
 
@@ -215,20 +216,34 @@ func (r *roundTripperWithLogger) RoundTrip(req *http.Request) (*http.Response, e
 	start := time.Now()
 	rsp, err := r.transport.RoundTrip(req)
 	if err != nil {
-		r.log.Errorf("Error forwarding to %v, err: %v", req.URL, err)
+		r.logger.ErrorContext(req.Context(), "Error forwarding request",
+			"method", req.Method,
+			"url", logutils.StringerAttr(req.URL),
+			"error", err,
+		)
 		return rsp, err
 	}
 
 	if req.TLS != nil {
-		r.log.Infof("Round trip: %v %v, code: %v, duration: %v tls:version: %x, tls:resume:%t, tls:csuite:%x, tls:server:%v",
-			req.Method, req.URL, rsp.StatusCode, time.Now().UTC().Sub(start),
-			req.TLS.Version,
-			req.TLS.DidResume,
-			req.TLS.CipherSuite,
-			req.TLS.ServerName)
+		r.logger.InfoContext(req.Context(), "Round trip completed",
+			slog.String("method", req.Method),
+			slog.Any("url", logutils.StringerAttr(req.URL)),
+			slog.Int("code", rsp.StatusCode),
+			slog.Duration("duration", time.Now().UTC().Sub(start)),
+			slog.Group("tls",
+				"version", req.TLS.Version,
+				"resume", req.TLS.DidResume,
+				"csuite", req.TLS.CipherSuite,
+				"server", req.TLS.ServerName,
+			),
+		)
 	} else {
-		r.log.Infof("Round trip: %v %v, code: %v, duration: %v",
-			req.Method, req.URL, rsp.StatusCode, time.Now().UTC().Sub(start))
+		r.logger.InfoContext(req.Context(), "Round trip completed",
+			"method", req.Method,
+			"url", logutils.StringerAttr(req.URL),
+			"code", rsp.StatusCode,
+			"duration", time.Now().UTC().Sub(start),
+		)
 	}
 
 	return rsp, nil

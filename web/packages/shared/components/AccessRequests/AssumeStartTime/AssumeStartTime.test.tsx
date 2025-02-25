@@ -16,16 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
-import { render, screen, fireEvent } from 'design/utils/testing';
-
-import { Option } from 'shared/components/Select';
-
+import { fireEvent, render, screen } from 'design/utils/testing';
 import { AccessRequest } from 'shared/services/accessRequests';
 
-import { dryRunResponse } from '../fixtures';
 import { AccessDurationRequest, AccessDurationReview } from '../AccessDuration';
-
+import { dryRunResponse } from '../fixtures';
+import { useSpecifiableFields } from '../NewRequest/useSpecifiableFields';
 import { AssumeStartTime } from './AssumeStartTime';
 
 test('assume start time, creating mode', () => {
@@ -44,7 +40,7 @@ test('assume start time, creating mode', () => {
   fireEvent.click(screen.getByText(/15/i));
   expect(screen.queryByText(/immediately/i)).not.toBeInTheDocument();
   expect(screen.queryByTestId('reset-btn')).not.toBeInTheDocument();
-  expect(screen.getByText(/february 15, 2024/i)).toBeInTheDocument();
+  expect(screen.getByText(/feb 15, 2024/i)).toBeInTheDocument();
 
   expect(screen.getByText(/start time/i)).toBeInTheDocument();
   expect(screen.getByText(/3:00 AM/i)).toBeInTheDocument();
@@ -61,7 +57,7 @@ test('assume start time, creating mode', () => {
   expect(screen.getByText('1 day 3 hours 51 minutes')).toBeInTheDocument();
 
   // Clicking "immediately" button goes back to default values.
-  fireEvent.click(screen.getByText(/february 15, 2024/i));
+  fireEvent.click(screen.getByText(/feb 15, 2024/i));
   fireEvent.click(screen.getByText(/immediately/i));
   expect(screen.getByText(/immediately/i)).toBeInTheDocument();
   expect(screen.queryByText(/start time/i)).not.toBeInTheDocument();
@@ -97,7 +93,7 @@ test('assume start time, reviewing mode, with assume start time', () => {
   expect(screen.getByText('2:51 AM (Requested)')).toBeInTheDocument();
 
   // Clicking on "immediately" button, should change time to "now".
-  fireEvent.click(screen.getByText(/february 16, 2024/i));
+  fireEvent.click(screen.getByText(/feb 16, 2024/i));
   fireEvent.click(screen.getByText(/immediately/i));
   expect(screen.getByText(/immediately/i)).toBeInTheDocument();
   expect(screen.getByText(/2 days/i)).toBeInTheDocument();
@@ -128,21 +124,32 @@ const AssumeStartTimeComp = ({
   accessRequest: AccessRequest;
   review?: boolean;
 }) => {
-  const [maxDuration, setMaxDuration] = useState<Option<number>>();
-  const [start, setStart] = useState<Date>();
+  const {
+    onDryRunChange,
+    maxDuration,
+    maxDurationOptions,
+    onMaxDurationChange,
+    startTime,
+    onStartTimeChange,
+    dryRunResponse,
+  } = useSpecifiableFields();
+
+  if (!dryRunResponse) {
+    onDryRunChange(accessRequest);
+  }
 
   if (review) {
     return (
       <>
         <AssumeStartTime
-          start={start}
-          onStartChange={setStart}
-          accessRequest={accessRequest}
+          start={startTime}
+          onStartChange={onStartTimeChange}
+          accessRequest={dryRunResponse}
           reviewing={true}
         />
         <AccessDurationReview
-          assumeStartTime={start}
-          accessRequest={accessRequest}
+          assumeStartTime={startTime}
+          accessRequest={dryRunResponse}
         />
       </>
     );
@@ -151,15 +158,14 @@ const AssumeStartTimeComp = ({
   return (
     <>
       <AssumeStartTime
-        start={start}
-        onStartChange={setStart}
-        accessRequest={accessRequest}
+        start={startTime}
+        onStartChange={onStartTimeChange}
+        accessRequest={dryRunResponse}
       />
       <AccessDurationRequest
-        assumeStartTime={start}
-        accessRequest={accessRequest}
         maxDuration={maxDuration}
-        setMaxDuration={setMaxDuration}
+        onMaxDurationChange={onMaxDurationChange}
+        maxDurationOptions={maxDurationOptions}
       />
     </>
   );

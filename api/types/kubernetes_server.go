@@ -118,16 +118,6 @@ func (s *KubernetesServerV3) SetSubKind(sk string) {
 	s.SubKind = sk
 }
 
-// GetResourceID returns the resource ID.
-func (s *KubernetesServerV3) GetResourceID() int64 {
-	return s.Metadata.ID
-}
-
-// SetResourceID sets the resource ID.
-func (s *KubernetesServerV3) SetResourceID(id int64) {
-	s.Metadata.ID = id
-}
-
 // GetRevision returns the revision
 func (s *KubernetesServerV3) GetRevision() string {
 	return s.Metadata.GetRevision()

@@ -27,6 +27,7 @@ jobs:
           filters: |
             changed:
               - '.github/workflows/doc-tests.yaml'
+              - 'CHANGELOG.md'
               - 'docs/**'
               - 'examples/**'
 
@@ -40,59 +41,105 @@ jobs:
       contents: read
 
     steps:
+      - name: Check out teleport
+        uses: actions/checkout@v4
+        with:
+          repository: 'gravitational/teleport'
+          path: 'teleport'
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          repository: "gravitational/docs"
-          path: "docs"
+          repository: 'gravitational/docs-website'
+          path: 'docs'
+
+      - name: Generate GitHub Token
+        id: generate_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.REVIEWERS_APP_ID }}
+          private-key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
+
+      - name: Check out shared-workflows
+        uses: actions/checkout@v4
+        with:
+          repository: gravitational/shared-workflows
+          path: shared-workflows
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Ensure docs changes include redirects
+        env:
+          TOKEN: ${{ steps.generate_token.outputs.token }}
+          REVIEWERS: ${{ secrets.reviewers }}
+        run: cd shared-workflows/bot && go run main.go -workflow=docpaths -token="${TOKEN}" -teleport-path="${GITHUB_WORKSPACE}/teleport" -reviewers="${REVIEWERS}"
+      # Cache node_modules. Unlike the example in the actions/cache repo, this
+      # caches the node_modules directory instead of the yarn cache. This is
+      # because yarn needs to build fresh packages even when it copies files
+      # from the yarn cache into node_modules.
+      # See:
+      # https://github.com/actions/cache/blob/main/examples.md#node---yarn
+      - uses: actions/cache@v4
+        id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
+        with:
+          path: '${{ github.workspace }}/docs/node_modules'
+          key: ${{ runner.os }}-yarn-${{ hashFiles(format('{0}/docs/yarn.lock', github.workspace)) }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+
+      - name: Install docs site dependencies
+        working-directory: docs
+        if: ${{ steps.yarn-cache.outputs.cache-hit != 'true' }}
+        # Prevent occasional `yarn install` executions that run indefinitely
+        timeout-minutes: 10
+        run: yarn install
 
       - name: Prepare docs site configuration
+        working-directory: docs
         # The environment we use for linting the docs differs from the one we
         # use for the live docs site in that we only test a single version of
         # the content.
         #
-        # To do this, we replace the three submodules we use for building the
-        # live docs site with a single submodule, pointing to the
-        # gravitational/teleport branch we are linting.
-        #
+        # To do this, we delete the three submodules we use for building the
+        # live docs site and copy a gravitational/teleport clone into the
+        # content directory.
+        # 
         # The docs engine expects a config.json file at the root of the
         # gravitational/docs clone that associates directories with git
         # submodules. By default, these directories represent versioned branches
         # of gravitational/teleport. We override this in order to build only a
         # single version of the docs.
+        #
+        # We also replace data fetched from Sanity CMS with hardcoded JSON
+        # objects to remove the need to authenticate with Sanity. Each includes
+        # the minimal set of data required for docs builds to succeed.
         run: |
-          if [ $GITHUB_EVENT_NAME = "pull_request" ]; then
-            BRANCH=$GITHUB_HEAD_REF;
-          elif [ $GITHUB_EVENT_NAME = "merge_group" ]; then
-            # GitHub populates $GITHUB_REF with:
-            # refs/heads/gh-readonly-queue/<base branch>/pr-<PR number>-<SHA>
-            #
-            # We strip the "refs/heads/" prefix so we can check out the branch.
-            BRANCH=$(echo $GITHUB_REF | sed -E "s|refs/heads/(.*)|\1|")
-          else
-            echo "Unexpected event name: $GITHUB_EVENT_NAME";
-            exit 1;
-          fi
-
-          cd $GITHUB_WORKSPACE/docs
           echo "" > .gitmodules
           rm -rf content/*
-          cd content
-          # Add a submodule at docs/content/teleport
-          git submodule add --force -b $BRANCH -- https://github.com/gravitational/teleport
-          cd $GITHUB_WORKSPACE/docs
-          echo "{\"versions\": [{\"name\": \"teleport\", \"branch\": \"$BRANCH\", \"deprecated\": false}]}" > $GITHUB_WORKSPACE/docs/config.json
-          yarn install
-          yarn build-node
+          # Rather than using a submodule, copy the teleport source into the
+          # content directory.
+          cp -r "$GITHUB_WORKSPACE/teleport" "$GITHUB_WORKSPACE/docs/content/current"
+          jq -nr --arg version "current" '{"versions": [{"name": $version,"branch": $version,"deprecated": false,"isDefault": true}]}' > config.json
+          NEW_PACKAGE_JSON=$(jq '.scripts."git-update" = "echo Skipping submodule update"' package.json);
+          NEW_PACKAGE_JSON=$(jq '.scripts."prepare-sanity-data" = "echo Using pre-populated Sanity data"' <<< "$NEW_PACKAGE_JSON");
+          echo "$NEW_PACKAGE_JSON" > package.json;
+          echo "{}" > data/events.json
+          echo '{"bannerButtons":{"second":{"title":"LOG IN","url":"https://teleport.sh"},"first":{"title":"Support","url":"https://goteleport.com/support/"}},"navbarData":{"rightSide":{},"logo":"/favicon.svg","menu":[]}}' > data/navbar.json
 
       - name: Check spelling
-        run: cd $GITHUB_WORKSPACE/docs && yarn spellcheck content/teleport
+        working-directory: 'docs'
+        run: yarn spellcheck content/current
 
-      - name: Lint the docs
-        run: cd $GITHUB_WORKSPACE/docs && yarn markdown-lint
+      - name: Lint docs formatting
+        working-directory: 'docs'
+        run: yarn markdown-lint
 
       - name: Test the docs build
-        run: cd $GITHUB_WORKSPACE/docs && yarn install && yarn build
+        working-directory: docs
+        run: yarn build
 
   stylecheck:
     name: Lint docs prose style
@@ -108,9 +155,9 @@ jobs:
           repository: "gravitational/teleport"
 
       - name: Run the linter
-        uses: errata-ai/vale-action@38bf078c328061f59879b347ca344a718a736018 # v2.1.0
+        uses: errata-ai/vale-action@d89dee975228ae261d22c15adcd03578634d429c # v2.1.1
         with:
-          version: 2.30.0
+          version: 3.9.4
           # Take the comma-separated list of files returned by the "Check for
           # relevant changes" job.
           separator: ","
@@ -119,4 +166,5 @@ jobs:
           # changed files.
           filter_mode: added
           fail_on_error: true
+          vale_flags: "--config=docs/.vale.ini"
 

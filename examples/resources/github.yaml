@@ -10,9 +10,9 @@ spec:
   # GitHub will make a callback to this URL after successful authentication
   # cluster-url is the address the cluster UI is reachable at
   redirect_url: "https://<cluster-url>/v1/webapi/github/callback"
-  # connector display name that will be appended to the title of "Login with"
-  # button on the cluster login screen so it will say "Login with GitHub"
-  display: Github
+  # Connector display name that will become the title of an SSO login button on
+  # the cluster login screen.
+  display: GitHub
   # mapping of GitHub team memberships to Teleport cluster roles
   teams_to_logins:
   - logins:
@@ -20,3 +20,14 @@ spec:
     - editor
     organization: <github-org>
     team: <github-team>
+  client_redirect_settings:
+    # a list of hostnames allowed for HTTPS client redirect URLs
+    # can be a regex pattern
+    allowed_https_hostnames:
+      - remote.machine
+      - '*.app.github.dev'
+      - '^\d+-[a-zA-Z0-9]+\.foo.internal$'
+    # a list of CIDRs allowed for HTTP or HTTPS client redirect URLs
+    insecure_allowed_cidr_ranges:
+      - '192.168.1.0/24'
+      - '2001:db8::/96'

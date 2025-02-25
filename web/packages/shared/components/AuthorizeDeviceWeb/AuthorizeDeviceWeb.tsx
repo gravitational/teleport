@@ -17,29 +17,33 @@
  */
 
 import { useEffect } from 'react';
-import styled from 'styled-components';
-import { Box, Flex, ButtonPrimary, Text, ButtonLink } from 'design';
+import { useLocation, useParams } from 'react-router';
 import { Link } from 'react-router-dom';
-import { useParams } from 'react-router';
+import styled from 'styled-components';
 
-import cfg from 'teleport/config';
-import useTeleport from 'teleport/useTeleport';
+import { Box, ButtonLink, ButtonPrimary, Flex, Text } from 'design';
 import { getPlatform } from 'design/platform';
-import history from 'teleport/services/history/history';
-
 import {
   DownloadConnect,
   DownloadLink,
   getConnectDownloadLinks,
 } from 'shared/components/DownloadConnect/DownloadConnect';
 import { makeDeepLinkWithSafeInput } from 'shared/deepLinks';
+import { processRedirectUri } from 'shared/redirects';
+
+import cfg from 'teleport/config';
+import history from 'teleport/services/history/history';
+import useTeleport from 'teleport/useTeleport';
 
 export const PassthroughPage = () => {
   const ctx = useTeleport();
+  const { search } = useLocation();
   const { id, token } = useParams<{
     id: string;
     token: string;
   }>();
+  const redirect_uri = new URLSearchParams(search).get('redirect_uri');
+
   const { cluster, username } = ctx.storeUser.state;
   const deviceTrustAuthorize = makeDeepLinkWithSafeInput({
     proxyHost: cluster?.publicURL,
@@ -48,6 +52,7 @@ export const PassthroughPage = () => {
     searchParams: {
       id,
       token,
+      redirect_uri,
     },
   });
   const platform = getPlatform();
@@ -70,6 +75,7 @@ export const PassthroughPage = () => {
 
   return (
     <DeviceTrustConnectPassthrough
+      redirectUri={redirect_uri}
       downloadLinks={downloadLinks}
       authorizeWebDeviceDeepLink={deviceTrustAuthorize}
     />
@@ -78,9 +84,11 @@ export const PassthroughPage = () => {
 
 export const DeviceTrustConnectPassthrough = ({
   authorizeWebDeviceDeepLink,
+  redirectUri,
   downloadLinks,
 }: {
   authorizeWebDeviceDeepLink: string;
+  redirectUri?: string;
   downloadLinks: Array<DownloadLink>;
 }) => {
   return (
@@ -123,7 +131,7 @@ export const DeviceTrustConnectPassthrough = ({
               css={`
                 text-decoration: none;
               `}
-              to={cfg.routes.root}
+              to={processRedirectUri(redirectUri)}
             >
               continue without device trust{' '}
             </Link>
@@ -139,8 +147,10 @@ export const DeviceTrustConnectPassthrough = ({
 const SkipAuthNotice = styled(Box)`
   text-align: center;
   width: 100%;
-  position: absolute;
-  bottom: 24px;
+  @media (min-height: 500px) {
+    position: absolute;
+    bottom: 24px;
+  }
 `;
 
 const DownloadButton = styled(ButtonLink)`
@@ -156,5 +166,5 @@ const BoldText = styled.span`
 const Wrapper = styled(Box)`
   text-align: center;
   line-height: 32px;
-  padding-top: 200px;
+  padding-top: 5vh;
 `;

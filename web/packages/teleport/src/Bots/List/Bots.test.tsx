@@ -16,19 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
+
 import { render, screen, userEvent, waitFor } from 'design/utils/testing';
 
-import api from 'teleport/services/api';
 import { botsApiResponseFixture } from 'teleport/Bots/fixtures';
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport/index';
+import {
+  allAccessAcl,
+  createTeleportContext,
+  noAccess,
+} from 'teleport/mocks/contexts';
+import api from 'teleport/services/api';
+import TeleportContext from 'teleport/teleportContext';
 
 import { Bots } from './Bots';
 
-function renderWithContext(element) {
-  const ctx = createTeleportContext();
+function renderWithContext(element, ctx?: TeleportContext) {
+  if (!ctx) {
+    ctx = createTeleportContext();
+  }
   return render(
     <MemoryRouter>
       <ContextProvider ctx={ctx}>{element}</ContextProvider>
@@ -40,13 +47,35 @@ test('fetches bots on load', async () => {
   jest.spyOn(api, 'get').mockResolvedValueOnce({ ...botsApiResponseFixture });
   renderWithContext(<Bots />);
 
-  expect(screen.getByText('Bots')).toBeInTheDocument();
   await waitFor(() => {
     expect(
       screen.getByText(botsApiResponseFixture.items[0].metadata.name)
     ).toBeInTheDocument();
   });
   expect(api.get).toHaveBeenCalledTimes(1);
+});
+
+test('shows empty state when bots are empty', async () => {
+  jest.spyOn(api, 'get').mockResolvedValue({ items: [] });
+  renderWithContext(<Bots />);
+
+  await waitFor(() => {
+    expect(screen.getByTestId('bots-empty-state')).toBeInTheDocument();
+  });
+});
+
+test('shows missing permissions error if user lacks permissions to list', async () => {
+  jest.spyOn(api, 'get').mockResolvedValue({ items: [] });
+  const ctx = createTeleportContext();
+  ctx.storeUser.setState({ acl: { ...allAccessAcl, bots: noAccess } });
+  renderWithContext(<Bots />, ctx);
+
+  await waitFor(() => {
+    expect(screen.getByTestId('bots-empty-state')).toBeInTheDocument();
+  });
+  expect(
+    screen.getByText(/You do not have permission to access Bots/i)
+  ).toBeInTheDocument();
 });
 
 test('calls edit endpoint', async () => {
@@ -57,14 +86,13 @@ test('calls edit endpoint', async () => {
   jest.spyOn(api, 'put').mockResolvedValue({});
   renderWithContext(<Bots />);
 
-  expect(screen.getByText('Bots')).toBeInTheDocument();
   await waitFor(() => {
     expect(
       screen.getByText(botsApiResponseFixture.items[0].metadata.name)
     ).toBeInTheDocument();
   });
 
-  const actionCells = screen.queryAllByRole('button', { name: 'OPTIONS' });
+  const actionCells = screen.queryAllByRole('button', { name: 'Options' });
   expect(actionCells).toHaveLength(botsApiResponseFixture.items.length);
   await userEvent.click(actionCells[0]);
 
@@ -89,14 +117,13 @@ test('calls delete endpoint', async () => {
   jest.spyOn(api, 'delete').mockResolvedValue({});
   renderWithContext(<Bots />);
 
-  expect(screen.getByText('Bots')).toBeInTheDocument();
   await waitFor(() => {
     expect(
       screen.getByText(botsApiResponseFixture.items[0].metadata.name)
     ).toBeInTheDocument();
   });
 
-  const actionCells = screen.queryAllByRole('button', { name: 'OPTIONS' });
+  const actionCells = screen.queryAllByRole('button', { name: 'Options' });
   expect(actionCells).toHaveLength(botsApiResponseFixture.items.length);
   await userEvent.click(actionCells[0]);
 

@@ -20,6 +20,9 @@ package config
 
 import (
 	"testing"
+	"time"
+
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
 
 func ptr[T any](v T) *T {
@@ -33,7 +36,20 @@ func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 		{
 			name: "full",
 			in: SPIFFEWorkloadAPIService{
-				Listen: "unix:///var/run/spiffe.sock",
+				Listen:     "unix:///var/run/spiffe.sock",
+				JWTSVIDTTL: time.Minute * 5,
+				Attestors: workloadattest.Config{
+					Kubernetes: workloadattest.KubernetesAttestorConfig{
+						Enabled: true,
+						Kubelet: workloadattest.KubeletClientConfig{
+							SecurePort: 12345,
+							TokenPath:  "/path/to/token",
+							CAPath:     "/path/to/ca.pem",
+							SkipVerify: true,
+							Anonymous:  true,
+						},
+					},
+				},
 				SVIDs: []SVIDRequestWithRules{
 					{
 						SVIDRequest: SVIDRequest{
@@ -56,9 +72,18 @@ func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 								Unix: SVIDRequestRuleUnix{
 									PID: ptr(100),
 								},
+								Kubernetes: SVIDRequestRuleKubernetes{
+									Namespace:      "my-namespace",
+									PodName:        "my-pod",
+									ServiceAccount: "service-account",
+								},
 							},
 						},
 					},
+				},
+				CredentialLifetime: CredentialLifetime{
+					TTL:             1 * time.Minute,
+					RenewalInterval: 30 * time.Second,
 				},
 			},
 		},
@@ -87,7 +112,8 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 			name: "valid",
 			in: func() *SPIFFEWorkloadAPIService {
 				return &SPIFFEWorkloadAPIService{
-					Listen: "unix:///var/run/spiffe.sock",
+					JWTSVIDTTL: time.Minute,
+					Listen:     "unix:///var/run/spiffe.sock",
 					SVIDs: []SVIDRequestWithRules{
 						{
 							SVIDRequest: SVIDRequest{

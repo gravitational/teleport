@@ -16,37 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useCallback, useState, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
+import { Alert, Box, Flex, H3, Subtitle3, Text } from 'design';
 import { ButtonSecondary } from 'design/Button';
-import { getPlatform } from 'design/platform';
-import { Text, Flex } from 'design';
 import * as Icons from 'design/Icon';
-import { makeDeepLinkWithSafeInput } from 'shared/deepLinks';
-import * as connectMyComputer from 'shared/connectMyComputer';
+import { getPlatform } from 'design/platform';
+import { P } from 'design/Text/Text';
 import {
   DownloadConnect,
   getConnectDownloadLinks,
 } from 'shared/components/DownloadConnect/DownloadConnect';
+import * as connectMyComputer from 'shared/connectMyComputer';
+import { makeDeepLinkWithSafeInput } from 'shared/deepLinks';
 
 import cfg from 'teleport/config';
-import useTeleport from 'teleport/useTeleport';
-import { Node } from 'teleport/services/nodes';
-
-import {
-  ActionButtons,
-  Header,
-  StyledBox,
-  TextIcon,
-} from 'teleport/Discover/Shared';
+import { ActionButtons, Header, StyledBox } from 'teleport/Discover/Shared';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
-
-import {
-  HintBox,
-  SuccessBox,
-  WaitingInfo,
-} from 'teleport/Discover/Shared/HintBox';
+import { Node } from 'teleport/services/nodes';
+import useTeleport from 'teleport/useTeleport';
 
 import type { AgentStepProps } from '../../types';
 
@@ -120,74 +109,75 @@ export function SetupConnect(
 
   let pollingStatus: JSX.Element;
   if (showHint && !node) {
+    const details = (
+      <Flex flexDirection="column" gap={3}>
+        <P>
+          There are a couple of possible reasons for why we haven&apos;t been
+          able to detect your computer.
+        </P>
+
+        <ul
+          css={`
+            margin: 0;
+            padding-left: ${p => p.theme.space[3]}px;
+          `}
+        >
+          <li>
+            <Text>
+              You did not start Connect My Computer in Teleport Connect yet.
+            </Text>
+          </li>
+          <li>
+            <Text>
+              The Teleport agent started by Teleport Connect could not join this
+              Teleport cluster. Check if the Connect My Computer tab in Teleport
+              Connect shows any error messages.
+            </Text>
+          </li>
+          <li>
+            <Text>
+              The computer you are trying to add has already joined the Teleport
+              cluster before you entered this page. If that&apos;s the case, you
+              can go back to the{' '}
+              <Link to={cfg.getUnifiedResourcesRoute(clusterId)}>
+                resources page
+              </Link>{' '}
+              and connect to it.
+            </Text>
+          </li>
+        </ul>
+
+        <P>
+          We&apos;ll continue to look for the computer while you diagnose the
+          issue.
+        </P>
+      </Flex>
+    );
     pollingStatus = (
       // Override max-width to match StyledBox's max-width.
-      <HintBox header="We're still looking for your computer" maxWidth="800px">
-        <Flex flexDirection="column" gap={3}>
-          <Text>
-            There are a couple of possible reasons for why we haven't been able
-            to detect your computer.
-          </Text>
-
-          <ul
-            css={`
-              margin: 0;
-              padding-left: ${p => p.theme.space[3]}px;
-            `}
-          >
-            <li>
-              <Text>
-                You did not start Connect My Computer in Teleport Connect yet.
-              </Text>
-            </li>
-            <li>
-              <Text>
-                The Teleport agent started by Teleport Connect could not join
-                this Teleport cluster. Check if the Connect My Computer tab in
-                Teleport Connect shows any error messages.
-              </Text>
-            </li>
-            <li>
-              <Text>
-                The computer you are trying to add has already joined the
-                Teleport cluster before you entered this page. If that's the
-                case, you can go back to{' '}
-                <Link to={cfg.getUnifiedResourcesRoute(clusterId)}>
-                  the resources
-                </Link>{' '}
-                and connect to it.
-              </Text>
-            </li>
-          </ul>
-
-          <Text>
-            We'll continue to look for the computer whilst you diagnose the
-            issue.
-          </Text>
-        </Flex>
-      </HintBox>
+      <Box maxWidth="800px">
+        <Alert
+          alignItems="flex-start"
+          kind="warning"
+          dismissible={false}
+          details={details}
+        >
+          We&apos;re still looking for your computer
+        </Alert>
+      </Box>
     );
   } else if (node) {
     pollingStatus = (
-      <SuccessBox>
-        <Text>
-          Your computer, <strong>{node.hostname}</strong>, has been detected!
-        </Text>
-      </SuccessBox>
+      <Alert kind="success" dismissible={false}>
+        Your computer, <strong>{node.hostname}</strong>, has been detected!
+      </Alert>
     );
   } else {
     pollingStatus = (
-      <WaitingInfo>
-        <TextIcon
-          css={`
-            white-space: pre;
-          `}
-        >
-          <Icons.Restore size="medium" mr={2} />
-        </TextIcon>
+      <Alert kind="neutral" icon={Icons.Restore} dismissible={false}>
         After your computer is connected to the cluster, we’ll automatically
         detect it.
-      </WaitingInfo>
+      </Alert>
     );
   }
 
@@ -196,33 +186,37 @@ export function SetupConnect(
       <Header>Set Up Teleport Connect</Header>
 
       <StyledBox>
-        <Text bold>Step 1: Download and Install Teleport Connect</Text>
+        <header>
+          <H3>Step 1</H3>
+          <Subtitle3 mb={3}>Download and Install Teleport Connect</Subtitle3>
+        </header>
 
-        <Text typography="subtitle1" mb={2}>
+        <P>
           Teleport Connect is a native desktop application for browsing and
           accessing your resources. It can also connect your computer to the
           cluster as an SSH resource.
-          <br />
-          <br />
+        </P>
+        <P mb={3}>
           Once you’ve downloaded Teleport Connect, run the installer to add it
           to your computer’s applications.
-        </Text>
+        </P>
 
         <Flex flexWrap="wrap" alignItems="baseline" gap={2}>
           <DownloadConnect downloadLinks={downloadLinks} />
-          <Text typography="subtitle1">
-            Already have Teleport Connect? Skip to the next step.
-          </Text>
+          <P>Already have Teleport Connect? Skip to the next step.</P>
         </Flex>
       </StyledBox>
 
       <StyledBox>
-        <Text bold>Step 2: Sign In and Connect My Computer</Text>
+        <header>
+          <H3>Step 2</H3>
+          <Subtitle3 mb={3}>Sign In and Connect My Computer</Subtitle3>
+        </header>
 
-        <Text typography="subtitle1" mb={2}>
+        <P mb={3}>
           The button below will open Teleport Connect. Once you are logged in,
           Teleport Connect will prompt you to connect your computer.
-        </Text>
+        </P>
 
         <ButtonSecondary as="a" href={connectMyComputerDeepLink}>
           Sign In & Connect My Computer

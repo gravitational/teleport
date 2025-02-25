@@ -17,13 +17,14 @@
  */
 
 import { useLayoutEffect } from 'react';
+
 import { Flex, Text } from 'design';
 
+import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import AppContextProvider from 'teleterm/ui/appContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { VnetContextProvider } from 'teleterm/ui/Vnet';
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
-import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 
 import { Connections } from './Connections';
 import { ConnectionsContextProvider } from './connectionsContext';
@@ -40,21 +41,6 @@ export default {
 };
 
 const rootClusterUri = '/clusters/foo';
-
-export function Story() {
-  const appContext = new MockAppContext();
-  prepareAppContext(appContext);
-
-  return (
-    <AppContextProvider value={appContext}>
-      <ConnectionsContextProvider>
-        <VnetContextProvider>
-          <Connections />
-        </VnetContextProvider>
-      </ConnectionsContextProvider>
-    </AppContextProvider>
-  );
-}
 
 export function MultipleClusters() {
   const appContext = new MockAppContext();
@@ -95,7 +81,30 @@ export function MultipleClusters() {
   );
 }
 
-export function JustVnet() {
+export function SingleCluster() {
+  const appContext = new MockAppContext();
+  prepareAppContext(appContext);
+  appContext.clustersService.setState(draft => {
+    const rootCluster1 = makeRootCluster({
+      uri: rootClusterUri,
+      name: 'teleport.example.sh',
+      proxyHost: 'teleport.example.sh:443',
+    });
+    draft.clusters.set(rootCluster1.uri, rootCluster1);
+  });
+
+  return (
+    <AppContextProvider value={appContext}>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
+    </AppContextProvider>
+  );
+}
+
+export function JustVnetWithNoClusters() {
   const appContext = new MockAppContext();
   prepareAppContext(appContext);
   appContext.connectionTracker.getConnections = () => [];
@@ -251,7 +260,6 @@ const prepareAppContext = (appContext: MockAppContext) => {
   appContext.connectionTracker.disconnectItem = async () => {};
   appContext.connectionTracker.removeItem = async () => {};
   appContext.connectionTracker.useState = () => null;
-  appContext.configService.set('feature.vnet', true);
 };
 
 const useOpenConnections = () => {

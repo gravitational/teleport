@@ -38,6 +38,7 @@ func FromProto(msg *userloginstatev1.UserLoginState) (*userloginstate.UserLoginS
 		Roles:          msg.Spec.Roles,
 		Traits:         traitv1.FromProto(msg.Spec.Traits),
 		UserType:       types.UserType(msg.Spec.UserType),
+		GitHubIdentity: externalIdentityFromProto(msg.Spec.GitHubIdentity),
 	})
 
 	return uls, trace.Wrap(err)
@@ -53,6 +54,27 @@ func ToProto(uls *userloginstate.UserLoginState) *userloginstatev1.UserLoginStat
 			Roles:          uls.GetRoles(),
 			Traits:         traitv1.ToProto(uls.GetTraits()),
 			UserType:       string(uls.Spec.UserType),
+			GitHubIdentity: externalIdentityToProto(uls.Spec.GitHubIdentity),
 		},
 	}
+}
+
+func externalIdentityFromProto(identity *userloginstatev1.ExternalIdentity) *userloginstate.ExternalIdentity {
+	if identity != nil {
+		return &userloginstate.ExternalIdentity{
+			UserID:   identity.UserId,
+			Username: identity.Username,
+		}
+	}
+	return nil
+}
+
+func externalIdentityToProto(identity *userloginstate.ExternalIdentity) *userloginstatev1.ExternalIdentity {
+	if identity != nil {
+		return &userloginstatev1.ExternalIdentity{
+			UserId:   identity.UserID,
+			Username: identity.Username,
+		}
+	}
+	return nil
 }

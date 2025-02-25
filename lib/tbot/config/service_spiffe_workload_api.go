@@ -20,9 +20,12 @@ package config
 
 import (
 	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
 
 const SPIFFEWorkloadAPIServiceType = "spiffe-workload-api"
@@ -58,6 +61,27 @@ type SVIDRequestRuleUnix struct {
 	GID *int `yaml:"gid,omitempty"`
 }
 
+// SVIDRequestRuleKubernetes is a workload attestation ruleset for workloads
+// that connect via Unix domain sockets and are running in a Kubernetes pod.
+//
+// Requires the "kubernetes" attestor to be enabled.
+//
+// Fields should be a subset of workloadattest.KubernetesAttestation.
+type SVIDRequestRuleKubernetes struct {
+	// Namespace is the Kubernetes namespace that a workload must be running in
+	// to be issued this SVID.
+	// If unspecified, the namespace is not checked.
+	Namespace string `yaml:"namespace,omitempty"`
+	// ServiceAccount is the Kubernetes service account that a workload must be
+	// running as to be issued this SVID.
+	// If unspecified, the service account is not checked.
+	ServiceAccount string `yaml:"service_account,omitempty"`
+	// PodName is the Kubernetes pod name that a workload must be running in to
+	// be issued this SVID.
+	// If unspecified, the pod name is not checked.
+	PodName string `yaml:"pod_name,omitempty"`
+}
+
 // SVIDRequestRule is an individual workload attestation rule. All values
 // specified within the rule must be satisfied for the rule itself to pass.
 type SVIDRequestRule struct {
@@ -65,6 +89,10 @@ type SVIDRequestRule struct {
 	// Unix domain sockets. If any value here is set, the rule will not pass
 	// unless the workload is connecting via a Unix domain socket.
 	Unix SVIDRequestRuleUnix `yaml:"unix"`
+	// Kubernetes is the workload attestation ruleset for workloads that connect
+	// via the Unix domain socket and are running in a Kubernetes pod.
+	// The "kubernetes" attestor must be enabled or these rules will fail.
+	Kubernetes SVIDRequestRuleKubernetes `yaml:"kubernetes"`
 }
 
 func (o SVIDRequestRule) LogValue() slog.Value {
@@ -92,6 +120,16 @@ type SPIFFEWorkloadAPIService struct {
 	// SVIDs is the list of SVIDs that the SPIFFE Workload API server should
 	// provide.
 	SVIDs []SVIDRequestWithRules `yaml:"svids"`
+	// Attestors is the configuration for the workload attestation process.
+	Attestors workloadattest.Config `yaml:"attestors"`
+	// JWTSVIDTTL specifies how long that JWT SVIDs issued by this SPIFFE
+	// Workload API server are valid for. If unspecified, this falls back to
+	// the globally configured default.
+	JWTSVIDTTL time.Duration `yaml:"jwt_svid_ttl,omitempty"`
+
+	// CredentialLifetime contains configuration for how long X.509 SVIDs will
+	// last and the frequency at which they'll be renewed.
+	CredentialLifetime CredentialLifetime `yaml:",inline"`
 }
 
 func (s *SPIFFEWorkloadAPIService) Type() string {
@@ -121,8 +159,15 @@ func (s *SPIFFEWorkloadAPIService) CheckAndSetDefaults() error {
 	}
 	for i, svid := range s.SVIDs {
 		if err := svid.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err, "validiting svid[%d]", i)
+			return trace.Wrap(err, "validating svid[%d]", i)
 		}
 	}
+	if err := s.Attestors.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating attestor")
+	}
 	return nil
+}
+
+func (o *SPIFFEWorkloadAPIService) GetCredentialLifetime() CredentialLifetime {
+	return o.CredentialLifetime
 }

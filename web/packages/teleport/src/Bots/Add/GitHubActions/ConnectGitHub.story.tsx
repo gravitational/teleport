@@ -16,16 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { ContextProvider } from 'teleport';
-
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { FlowStepProps } from '../Shared/GuidedFlow';
-
 import { ConnectGitHub } from './ConnectGitHub';
+import { Finish } from './Finish';
 import { GitHubFlowProvider } from './useGitHubFlow';
 
 const Provider = ({ children }) => {
@@ -47,6 +45,12 @@ export default {
 export const RepoRules = () => (
   <Provider>
     <ConnectGitHub {...props} />
+  </Provider>
+);
+
+export const Finished = () => (
+  <Provider>
+    <Finish />
   </Provider>
 );
 

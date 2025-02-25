@@ -26,9 +26,9 @@ Auth Service's gRPC endpoint.
 
   By default, `tctl auth sign` produces certificates with a relatively short
   lifetime. For production deployments, we suggest using [Machine
-  ID](../../machine-id/introduction.mdx) to programmatically issue and renew
+  ID](../../enroll-resources/machine-id/introduction.mdx) to programmatically issue and renew
   certificates for your plugin. See our Machine ID [getting started
-  guide](../../machine-id/getting-started.mdx) to learn more.
+  guide](../../enroll-resources/machine-id/getting-started.mdx) to learn more.
 
   Note that you cannot issue certificates that are valid longer than your existing credentials.
   For example, to issue certificates with a 1000-hour TTL, you must be logged in with a session that is
@@ -46,7 +46,7 @@ If you are running the {{ client }} on a Linux server, create a data directory
 to hold certificate files for the {{ client }}:
 
 ```code
-$ sudo mkdir -p /var/lib/teleport/api-credentials
+$ sudo mkdir -p /var/lib/teleport/plugins/api-credentials
 $ sudo mv identity /var/lib/teleport/plugins/api-credentials
 ```
 

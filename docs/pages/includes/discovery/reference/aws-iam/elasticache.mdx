@@ -1,0 +1,28 @@
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "ElastiCacheDiscovery",
+            "Effect": "Allow",
+            "Action": "elasticache:DescribeReplicationGroups",
+            "Resource": "*"
+        },
+        {
+            "Sid": "ElastiCacheFetchMetadata",
+            "Effect": "Allow",
+            "Action": [
+                "elasticache:DescribeCacheClusters",
+                "elasticache:DescribeCacheSubnetGroups",
+                "elasticache:ListTagsForResource"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+| Statement | Purpose |
+| --------- | ------- |
+| `ElastiCacheDiscovery` | Discover ElastiCache replication groups. |
+| `ElastiCacheFetchMetadata` | Import AWS tags and additional metadata for each database as Teleport database labels. |

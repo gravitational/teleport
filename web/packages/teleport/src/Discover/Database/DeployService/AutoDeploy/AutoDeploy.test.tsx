@@ -16,37 +16,36 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
+
 import { act, fireEvent, render, screen } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
-import {
-  AwsRdsDatabase,
-  Integration,
-  IntegrationKind,
-  integrationService,
-  IntegrationStatusCode,
-  Regions,
-} from 'teleport/services/integrations';
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import cfg from 'teleport/config';
-import TeleportContext from 'teleport/teleportContext';
+import {
+  DatabaseEngine,
+  DatabaseLocation,
+} from 'teleport/Discover/SelectResource';
+import { ResourceKind } from 'teleport/Discover/Shared';
+import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
+import { SHOW_HINT_TIMEOUT } from 'teleport/Discover/Shared/useShowHint';
 import {
   DbMeta,
   DiscoverContextState,
   DiscoverProvider,
 } from 'teleport/Discover/useDiscover';
-import {
-  DatabaseEngine,
-  DatabaseLocation,
-} from 'teleport/Discover/SelectResource';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
-import { ResourceKind } from 'teleport/Discover/Shared';
-import { SHOW_HINT_TIMEOUT } from 'teleport/Discover/Shared/useShowHint';
-
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import {
+  AwsRdsDatabase,
+  IntegrationAwsOidc,
+  IntegrationKind,
+  integrationService,
+  IntegrationStatusCode,
+  Regions,
+} from 'teleport/services/integrations';
 import { userEventService } from 'teleport/services/userEvent';
+import TeleportContext from 'teleport/teleportContext';
 
 import { AutoDeploy } from './AutoDeploy';
 
@@ -54,7 +53,7 @@ const mockDbLabels = [{ name: 'env', value: 'prod' }];
 
 const integrationName = 'aws-oidc-integration';
 const region: Regions = 'us-east-2';
-const awsoidcRoleArn = 'role-arn';
+const awsoidcRoleName = 'role-arn';
 
 const mockAwsRdsDb: AwsRdsDatabase = {
   engine: 'postgres',
@@ -65,16 +64,17 @@ const mockAwsRdsDb: AwsRdsDatabase = {
   accountId: 'account-id-1',
   resourceId: 'resource-id-1',
   vpcId: 'vpc-123',
+  securityGroups: ['sg-1', 'sg-2'],
   region: region,
   subnets: ['subnet1', 'subnet2'],
 };
 
-const mocKIntegration: Integration = {
+const mockIntegration: IntegrationAwsOidc = {
   kind: IntegrationKind.AwsOidc,
   name: integrationName,
   resourceType: 'integration',
   spec: {
-    roleArn: `doncare/${awsoidcRoleArn}`,
+    roleArn: `arn:aws:iam::123456789012:role/${awsoidcRoleName}`,
     issuerS3Bucket: '',
     issuerS3Prefix: '',
   },
@@ -85,23 +85,44 @@ describe('test AutoDeploy.tsx', () => {
   jest.useFakeTimers();
 
   beforeEach(() => {
+    jest.spyOn(integrationService, 'fetchAwsSubnets').mockResolvedValue({
+      nextToken: '',
+      subnets: [
+        {
+          name: 'subnet-name',
+          id: 'subnet-id',
+          availabilityZone: 'subnet-az',
+        },
+      ],
+    });
+    jest.spyOn(integrationService, 'fetchSecurityGroups').mockResolvedValue({
+      nextToken: '',
+      securityGroups: [
+        {
+          name: 'sg-name',
+          id: 'sg-id',
+          description: 'sg-desc',
+          inboundRules: [],
+          outboundRules: [],
+        },
+      ],
+    });
+  });
+
+  afterEach(() => {
     jest.restoreAllMocks();
   });
 
-  test('init: labels are rendered, command is not rendered yet', () => {
+  async function waitForSubnetsAndSecurityGroups() {
+    await screen.findByText('sg-id');
+    await screen.findByText('subnet-id');
+  }
+
+  test('clicking button renders command', async () => {
     const { teleCtx, discoverCtx } = getMockedContexts();
 
     renderAutoDeploy(teleCtx, discoverCtx);
-
-    expect(screen.getByText(/env: prod/i)).toBeInTheDocument();
-    expect(screen.queryByText(/copy\/paste/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/curl/i)).not.toBeInTheDocument();
-  });
-
-  test('clicking button renders command', () => {
-    const { teleCtx, discoverCtx } = getMockedContexts();
-
-    renderAutoDeploy(teleCtx, discoverCtx);
+    await waitForSubnetsAndSecurityGroups();
 
     fireEvent.click(screen.getByText(/generate command/i));
 
@@ -113,10 +134,11 @@ describe('test AutoDeploy.tsx', () => {
     ).toBeInTheDocument();
   });
 
-  test('invalid role name', () => {
+  test('invalid role name', async () => {
     const { teleCtx, discoverCtx } = getMockedContexts();
 
     renderAutoDeploy(teleCtx, discoverCtx);
+    await waitForSubnetsAndSecurityGroups();
 
     expect(
       screen.queryByText(/name can only contain/i)
@@ -140,6 +162,23 @@ describe('test AutoDeploy.tsx', () => {
     const { teleCtx, discoverCtx } = getMockedContexts();
 
     renderAutoDeploy(teleCtx, discoverCtx);
+    await waitForSubnetsAndSecurityGroups();
+
+    fireEvent.click(screen.getByText(/Deploy Teleport Service/i));
+
+    // select required subnet
+    expect(
+      screen.getByText(/one subnet selection is required/i)
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId(/subnet-id/i));
+
+    fireEvent.click(screen.getByText(/Deploy Teleport Service/i));
+
+    // select required sg
+    expect(
+      screen.getByText(/one security group selection is required/i)
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId(/sg-id/i));
 
     fireEvent.click(screen.getByText(/Deploy Teleport Service/i));
 
@@ -175,7 +214,7 @@ function getMockedContexts() {
     agentMeta: {
       resourceName: 'db1',
       awsRegion: region,
-      awsIntegration: mocKIntegration,
+      awsIntegration: mockIntegration,
       selectedAwsRdsDb: mockAwsRdsDb,
       agentMatcherLabels: mockDbLabels,
     } as DbMeta,
@@ -200,7 +239,7 @@ function getMockedContexts() {
   };
 
   jest
-    .spyOn(integrationService, 'deployAwsOidcService')
+    .spyOn(integrationService, 'deployDatabaseServices')
     .mockResolvedValue('dashboard-url');
 
   jest.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({

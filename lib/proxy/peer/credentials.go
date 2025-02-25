@@ -20,57 +20,16 @@ package peer
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
+	"log/slog"
 	"net"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/proxy/peer/internal"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
-
-// serverCredentials wraps a [crendentials.TransportCredentials] that
-// extends the ServerHandshake to ensure the credentials contain the proxy system role.
-type serverCredentials struct {
-	credentials.TransportCredentials
-}
-
-// newServerCredentials creates new serverCredentials from the given [crendentials.TransportCredentials].
-func newServerCredentials(creds credentials.TransportCredentials) *serverCredentials {
-	return &serverCredentials{
-		TransportCredentials: creds,
-	}
-}
-
-// ServerHandshake performs the TLS handshake and then verifies that the client
-// attempting to connect is a Proxy.
-func (c *serverCredentials) ServerHandshake(conn net.Conn) (_ net.Conn, _ credentials.AuthInfo, err error) {
-	conn, authInfo, err := c.TransportCredentials.ServerHandshake(conn)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	defer func() {
-		if err != nil {
-			conn.Close()
-		}
-	}()
-
-	identity, err := getIdentity(authInfo)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	if err := checkProxyRole(identity); err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return conn, authInfo, nil
-}
 
 // clientCredentials wraps a [crendentials.TransportCredentials] that
 // extends the ClientHandshake to ensure the credentials contain the proxy system role
@@ -79,21 +38,21 @@ type clientCredentials struct {
 	credentials.TransportCredentials
 	peerID   string
 	peerAddr string
-	logger   logrus.FieldLogger
+	log      *slog.Logger
 }
 
 // newClientCredentials creates new clientCredentials from the given [crendentials.TransportCredentials].
-func newClientCredentials(peerID, peerAddr string, logger logrus.FieldLogger, creds credentials.TransportCredentials) *clientCredentials {
+func newClientCredentials(peerID, peerAddr string, log *slog.Logger, creds credentials.TransportCredentials) *clientCredentials {
 	return &clientCredentials{
 		TransportCredentials: creds,
 		peerID:               peerID,
 		peerAddr:             peerAddr,
-		logger:               logger,
+		log:                  log,
 	}
 }
 
 // ClientHandshake performs the TLS handshake and then verifies that the
-// server is a Proxy and that it's UUID matches the expected id of the peer.
+// server is a Proxy and that its UUID matches the expected id of the peer.
 func (c *clientCredentials) ClientHandshake(ctx context.Context, laddr string, conn net.Conn) (_ net.Conn, _ credentials.AuthInfo, err error) {
 	conn, authInfo, err := c.TransportCredentials.ClientHandshake(ctx, laddr, conn)
 	if err != nil {
@@ -115,9 +74,8 @@ func (c *clientCredentials) ClientHandshake(ctx context.Context, laddr string, c
 		return nil, nil, trace.Wrap(err)
 	}
 
-	const duplicatePeerMsg = "Detected multiple Proxy Peers with the same public address %q when connecting to Proxy %q which can lead to inconsistent state and problems establishing sessions. For best results ensure that `peer_public_addr` is unique per proxy and not a load balancer."
 	if err := validatePeer(c.peerID, identity); err != nil {
-		c.logger.Errorf(duplicatePeerMsg, c.peerAddr, c.peerID)
+		internal.LogDuplicatePeer(ctx, c.log, slog.LevelError, "peer_addr", c.peerAddr, "peer_id", c.peerID)
 		return nil, nil, trace.Wrap(err)
 	}
 
@@ -162,50 +120,5 @@ func validatePeer(peerID string, identity *tlsca.Identity) error {
 		return nil
 	}
 
-	return trace.AccessDenied("connected to unexpected proxy")
-}
-
-// getConfigForClient clones and updates the server's tls config with the
-// appropriate client certificate authorities.
-func getConfigForClient(tlsConfig *tls.Config, ap auth.AccessCache, log logrus.FieldLogger, clusterName string) func(*tls.ClientHelloInfo) (*tls.Config, error) {
-	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
-		tlsCopy := tlsConfig.Clone()
-
-		pool, err := getCertPool(ap, clusterName)
-		if err != nil {
-			log.WithError(err).Error("Failed to retrieve client CA pool.")
-			return tlsCopy, nil
-		}
-
-		tlsCopy.ClientAuth = tls.RequireAndVerifyClientCert
-		tlsCopy.ClientCAs = pool
-		return tlsCopy, nil
-	}
-}
-
-// getConfigForServer clones and updates the client's tls config with the
-// appropriate server certificate authorities.
-func getConfigForServer(tlsConfig *tls.Config, ap auth.AccessCache, log logrus.FieldLogger, clusterName string) func() (*tls.Config, error) {
-	return func() (*tls.Config, error) {
-		tlsCopy := tlsConfig.Clone()
-
-		pool, err := getCertPool(ap, clusterName)
-		if err != nil {
-			log.WithError(err).Error("Failed to retrieve server CA pool.")
-			return tlsCopy, nil
-		}
-
-		tlsCopy.RootCAs = pool
-		return tlsCopy, nil
-	}
-}
-
-// getCertPool returns a new cert pool from cache if any.
-func getCertPool(ap auth.AccessCache, clusterName string) (*x509.CertPool, error) {
-	pool, _, err := auth.ClientCertPool(ap, clusterName, types.HostCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return pool, nil
+	return trace.Wrap(internal.WrongProxyError{})
 }

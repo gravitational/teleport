@@ -22,7 +22,9 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
+	"sync"
 
 	"github.com/gravitational/trace"
 	corev1 "k8s.io/api/core/v1"
@@ -67,7 +69,7 @@ func MarshalApp(app types.Application, opts ...MarshalOption) ([]byte, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, app))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, app))
 	default:
 		return nil, trace.BadParameter("unsupported app resource %T", app)
 	}
@@ -90,13 +92,10 @@ func UnmarshalApp(data []byte, opts ...MarshalOption) (types.Application, error)
 	case types.V3:
 		var app types.AppV3
 		if err := utils.FastUnmarshal(data, &app); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := app.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
-		}
-		if cfg.ID != 0 {
-			app.SetResourceID(cfg.ID)
 		}
 		if cfg.Revision != "" {
 			app.SetRevision(cfg.Revision)
@@ -122,7 +121,7 @@ func MarshalAppServer(appServer types.AppServer, opts ...MarshalOption) ([]byte,
 			return nil, trace.Wrap(err)
 		}
 
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, appServer))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, appServer))
 	default:
 		return nil, trace.BadParameter("unsupported app server resource %T", appServer)
 	}
@@ -145,13 +144,10 @@ func UnmarshalAppServer(data []byte, opts ...MarshalOption) (types.AppServer, er
 	case types.V3:
 		var s types.AppServerV3
 		if err := utils.FastUnmarshal(data, &s); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := s.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
-		}
-		if cfg.ID != 0 {
-			s.SetResourceID(cfg.ID)
 		}
 		if cfg.Revision != "" {
 			s.SetRevision(cfg.Revision)
@@ -168,7 +164,7 @@ func UnmarshalAppServer(data []byte, opts ...MarshalOption) (types.AppServer, er
 // It transforms service fields and annotations into appropriate Teleport app fields.
 // Service labels are copied to app labels.
 func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol string, port corev1.ServicePort) (types.Application, error) {
-	appURI := buildAppURI(protocol, getServiceFQDN(service), port.Port)
+	appURI := buildAppURI(protocol, GetServiceFQDN(service), port.Port)
 
 	rewriteConfig, err := getAppRewriteConfig(service.GetAnnotations())
 	if err != nil {
@@ -202,14 +198,15 @@ func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol
 	return app, nil
 }
 
-func getServiceFQDN(s corev1.Service) string {
+// GetServiceFQDN returns the fully qualified domain name for the service.
+func GetServiceFQDN(service corev1.Service) string {
 	// If service type is ExternalName it points to external DNS name, to keep correct
 	// HOST for HTTP requests we return already final external DNS name.
 	// https://kubernetes.io/docs/concepts/services-networking/service/#externalname
-	if s.Spec.Type == corev1.ServiceTypeExternalName {
-		return s.Spec.ExternalName
+	if service.Spec.Type == corev1.ServiceTypeExternalName {
+		return service.Spec.ExternalName
 	}
-	return fmt.Sprintf("%s.%s.svc.cluster.local", s.GetName(), s.GetNamespace())
+	return fmt.Sprintf("%s.%s.svc.%s", service.GetName(), service.GetNamespace(), clusterDomainResolver())
 }
 
 func buildAppURI(protocol, serviceFQDN string, port int32) string {
@@ -253,7 +250,7 @@ func getAppName(serviceName, namespace, clusterName, portName, nameAnnotation st
 
 		if len(validation.IsDNS1035Label(name)) > 0 {
 			return "", trace.BadParameter(
-				"application name %q must be a valid DNS subdomain: https://goteleport.com/docs/application-access/guides/connecting-apps/#application-name", name)
+				"application name %q must be a valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", name)
 		}
 
 		return name, nil
@@ -279,4 +276,24 @@ func getAppLabels(serviceLabels map[string]string, clusterName string) (map[stri
 	result[types.KubernetesClusterLabel] = clusterName
 
 	return result, nil
+}
+
+var (
+	// clusterDomainResolver is a function that resolves the cluster domain once and caches the result.
+	// It's used to lazily resolve the cluster domain from the env var "TELEPORT_KUBE_CLUSTER_DOMAIN" or fallback to
+	// a default value.
+	// It's only used when agent is running in the Kubernetes cluster.
+	clusterDomainResolver = sync.OnceValue[string](getClusterDomain)
+)
+
+const (
+	// teleportKubeClusterDomain is the environment variable that specifies the cluster domain.
+	teleportKubeClusterDomain = "TELEPORT_KUBE_CLUSTER_DOMAIN"
+)
+
+func getClusterDomain() string {
+	if envDomain := os.Getenv(teleportKubeClusterDomain); envDomain != "" {
+		return envDomain
+	}
+	return "cluster.local"
 }

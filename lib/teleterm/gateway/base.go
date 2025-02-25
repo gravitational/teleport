@@ -22,17 +22,15 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"log/slog"
 	"net"
 	"strconv"
+	"sync"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/api/utils/keys"
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
-	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // New creates an instance of Gateway. It starts a listener on the specified port but it doesn't
@@ -93,6 +91,9 @@ func newBase(cfg Config) (*base, error) {
 
 // Close terminates gateway connection. Fails if called on an already closed gateway.
 func (b *base) Close() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	b.closeCancel()
 
 	var errs []error
@@ -111,8 +112,8 @@ func (b *base) Close() error {
 
 // Serve starts the underlying ALPN proxy. Blocks until closeContext is canceled.
 func (b *base) Serve() error {
-	b.cfg.Log.Info("Gateway is open.")
-	defer b.cfg.Log.Info("Gateway has closed.")
+	b.cfg.Logger.InfoContext(b.closeContext, "Gateway is open")
+	defer b.cfg.Logger.InfoContext(b.closeContext, "Gateway has closed")
 
 	if b.forwardProxy != nil {
 		return trace.Wrap(b.serveWithForwardProxy())
@@ -162,17 +163,29 @@ func (b *base) TargetUser() string {
 }
 
 func (b *base) TargetSubresourceName() string {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
 	return b.cfg.TargetSubresourceName
 }
 
 func (b *base) SetTargetSubresourceName(value string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.cfg.TargetSubresourceName = value
+
+	if b.cfg.ClearCertsOnTargetSubresourceNameChange {
+		b.Log().InfoContext(b.closeContext, "Clearing cert")
+		b.localProxy.SetCert(tls.Certificate{})
+	}
 }
 
-func (b *base) Log() *logrus.Entry {
-	return b.cfg.Log
+func (b *base) Log() *slog.Logger {
+	return b.cfg.Logger
 }
 
+// LocalAddress returns the local host in the net package terms (localhost or 127.0.0.1, depending
+// on the platform).
 func (b *base) LocalAddress() string {
 	return b.cfg.LocalAddress
 }
@@ -190,79 +203,25 @@ func (b *base) LocalPortInt() int {
 	return port
 }
 
-// ReloadCert loads the key pair from cfg.CertPath & cfg.KeyPath and updates the cert of the running
-// local proxy. This is typically done after the cert is reissued and saved to disk.
-//
-// In the future, we're probably going to make this method accept the cert as an arg rather than
-// reading from disk.
-// TODO(ravicious): Remove ReloadCert after adding MFA support to gateways.
-func (b *base) ReloadCert() error {
-	if len(b.onNewCertFuncs) == 0 {
-		return nil
-	}
-	b.cfg.Log.Debug("Reloading cert")
-
-	if b.cfg.CertPath == "" {
-		return trace.Errorf("attempted to reload cert for a gateway, but cert path is empty")
-	}
-
-	if b.cfg.KeyPath == "" {
-		return trace.Errorf("attempted to reload cert for a gateway, but key path is empty")
-	}
-
-	tlsCert, err := keys.LoadX509KeyPair(b.cfg.CertPath, b.cfg.KeyPath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var errs []error
-	for _, onNewCert := range b.onNewCertFuncs {
-		errs = append(errs, onNewCert(tlsCert))
-	}
-
-	return trace.NewAggregate(errs...)
-}
-
 func (b *base) cloneConfig() Config {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
 	return *b.cfg
 }
 
-// checkCertSubject checks if the cert subject matches the expected db route.
-//
-// Database certs are scoped per database server but not per database user or database name.
-// It might happen that after we save the cert but before we load it, another process obtains a
-// cert for another db user.
-//
-// Before using the cert for the proxy, we have to perform this check.
-func checkCertSubject(tlsCert tls.Certificate, dbRoute tlsca.RouteToDatabase) error {
-	cert, err := utils.TLSCertLeaf(tlsCert)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(alpn.CheckDBCertSubject(cert, dbRoute))
-}
-
-// Gateway describes local proxy that creates a gateway to the remote Teleport resource.
-//
-// Gateway is not safe for concurrent use in itself. However, all access to gateways is gated by
-// daemon.Service which obtains a lock for any operation pertaining to gateways.
-//
-// In the future if Gateway becomes more complex it might be worthwhile to add an RWMutex to it.
+// Gateway is a local proxy to a remote Teleport resource.
 type base struct {
 	cfg          *Config
 	localProxy   *alpn.LocalProxy
 	forwardProxy *alpn.ForwardProxy
-	// onNewCertFuncs contains a list of callback functions that update the local
-	// proxy when TLS certificate is reissued.
-	// TODO(ravicious): Remove this field after adding MFA support to gateways.
-	onNewCertFuncs []func(tls.Certificate) error
 	// onCloseFuncs contains a list of extra cleanup functions called during Close.
 	onCloseFuncs []func() error
 	// closeContext and closeCancel are used to signal to any waiting goroutines
 	// that the local proxy is now closed and to release any resources.
 	closeContext context.Context
 	closeCancel  context.CancelFunc
+	mu           sync.RWMutex
 }
 
 type TCPPortAllocator interface {

@@ -46,17 +46,21 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	"github.com/gravitational/teleport/lib/inventory"
 	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/modules"
@@ -69,17 +73,17 @@ import (
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
-	native.PrecomputeTestKeys(m)
+	cryptosuites.PrecomputeRSATestKeys(m)
 	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
 }
 
 type Suite struct {
-	clock        clockwork.FakeClock
+	clock        *clockwork.FakeClock
 	dataDir      string
 	authServer   *auth.TestAuthServer
 	tlsServer    *auth.TestTLSServer
-	authClient   *auth.Client
+	authClient   *authclient.Client
 	appServer    *Server
 	hostCertPool *x509.CertPool
 
@@ -362,8 +366,16 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		CipherSuites:       utils.DefaultCipherSuites(),
 		ServiceComponent:   teleport.ComponentApp,
 		AWSSessionProvider: aws.SessionProviderUsingAmbientCredentials(),
+		AWSConfigProvider:  &mocks.AWSConfigProvider{},
 	})
 	require.NoError(t, err)
+
+	inventoryHandle := inventory.NewDownstreamHandle(s.authClient.InventoryControlStream, proto.UpstreamInventoryHello{
+		ServerID: s.hostUUID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleApp},
+		Hostname: "test",
+	})
 
 	s.appServer, err = New(s.closeContext, &Config{
 		Clock:              s.clock,
@@ -378,13 +390,27 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		OnReconcile:        config.OnReconcile,
 		CloudLabels:        config.CloudImporter,
 		ConnectionsHandler: connectionsHandler,
+		InventoryHandle:    inventoryHandle,
 	})
 	require.NoError(t, err)
 
 	err = s.appServer.Start(s.closeContext)
 	require.NoError(t, err)
-	err = s.appServer.ForceHeartbeat()
-	require.NoError(t, err)
+
+	// Explicitly send a heartbeat for any statically defined apps.
+	for _, app := range apps {
+		select {
+		case sender := <-inventoryHandle.Sender():
+			appServer, err := s.appServer.getServerInfo(app)
+			require.NoError(t, err)
+			require.NoError(t, sender.Send(s.closeContext, proto.InventoryHeartbeat{
+				AppServer: appServer,
+			}))
+		case <-time.After(20 * time.Second):
+			t.Fatal("timed out waiting for inventory handle sender")
+		}
+	}
+
 	t.Cleanup(func() {
 		s.appServer.Close()
 
@@ -397,10 +423,15 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 }
 
 func (s *Suite) generateCertificate(t *testing.T, user types.User, publicAddr, awsRoleARN string) tls.Certificate {
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	require.NoError(t, err)
+	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
+	require.NoError(t, err)
+
 	req := auth.AppTestCertRequest{
-		PublicKey:   publicKey,
+		PublicKey:   publicKeyPEM,
 		Username:    user.GetName(),
 		TTL:         1 * time.Hour,
 		PublicAddr:  publicAddr,
@@ -412,7 +443,7 @@ func (s *Suite) generateCertificate(t *testing.T, user types.User, publicAddr, a
 	}
 	certificate, err := s.tlsServer.Auth().GenerateUserAppTestCert(req)
 	require.NoError(t, err)
-	tlsCertificate, err := tls.X509KeyPair(certificate, privateKey)
+	tlsCertificate, err := tls.X509KeyPair(certificate, privateKeyPEM)
 	require.NoError(t, err)
 
 	return tlsCertificate
@@ -424,8 +455,18 @@ func TestStart(t *testing.T) {
 	s := SetUpSuite(t)
 
 	// Fetch the services.App that the service heartbeat.
-	servers, err := s.authServer.AuthServer.GetApplicationServers(s.closeContext, defaults.Namespace)
-	require.NoError(t, err)
+	var servers []types.AppServer
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		apps, err := s.authServer.AuthServer.GetApplicationServers(s.closeContext, defaults.Namespace)
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		if !assert.Len(t, apps, 3) {
+			return
+		}
+		servers = apps
+	}, 10*time.Second, 100*time.Millisecond)
 
 	// Check that the services.Server sent via heartbeat is correct. For example,
 	// check that the dynamic labels have been evaluated.
@@ -450,7 +491,7 @@ func TestStart(t *testing.T) {
 
 	sort.Sort(types.AppServers(servers))
 	require.Empty(t, cmp.Diff([]types.AppServer{serverAWS, serverAWSWithIntegration, serverFoo}, servers,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Expires")))
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires")))
 
 	// Check the expiry time is correct.
 	for _, server := range servers {
@@ -514,29 +555,47 @@ func TestShutdown(t *testing.T) {
 				Apps: types.Apps{app0},
 			})
 
-			// Validate heartbeat is present after start.
-			s.appServer.ForceHeartbeat()
-			appServers, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
-			require.NoError(t, err)
-			require.Len(t, appServers, 1)
-			require.Equal(t, appServers[0].GetApp(), app0)
+			// Validate that the heartbeat is eventually emitted and that
+			// the configured applications exist in the inventory.
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				appServers, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
+				if !assert.NoError(t, err) {
+					return
+				}
+				if !assert.Len(t, appServers, 1) {
+					return
+				}
+				if !assert.Empty(t, cmp.Diff(appServers[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires"))) {
+					return
+				}
+			}, 10*time.Second, 100*time.Millisecond)
 
 			// Shutdown should not return error.
-			shutdownCtx, cancel := context.WithTimeout(ctx, time.Second*5)
-			t.Cleanup(cancel)
-			if test.hasForkedChild {
-				shutdownCtx = services.ProcessForkedContext(shutdownCtx)
-			}
+			require.NoError(t, s.appServer.Shutdown(ctx))
 
-			require.NoError(t, s.appServer.Shutdown(shutdownCtx))
+			// Send a Goodbye to simulate process shutdown.
+			if !test.hasForkedChild {
+				require.NoError(t, s.appServer.c.InventoryHandle.SendGoodbye(ctx))
+			}
+			require.NoError(t, s.appServer.c.InventoryHandle.Close())
 
 			// Validate app servers based on the test.
-			appServersAfterShutdown, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
-			require.NoError(t, err)
 			if test.wantAppServersAfterShutdown {
-				require.Equal(t, appServers, appServersAfterShutdown)
+				appServersAfterShutdown, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
+				require.NoError(t, err)
+				require.Len(t, appServersAfterShutdown, 1)
+				require.Empty(t, cmp.Diff(appServersAfterShutdown[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 			} else {
-				require.Empty(t, appServersAfterShutdown)
+				require.EventuallyWithT(t, func(t *assert.CollectT) {
+					appServersAfterShutdown, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
+					if !assert.NoError(t, err) {
+						return
+					}
+					if !assert.Empty(t, appServersAfterShutdown) {
+						return
+					}
+				}, 10*time.Second, 100*time.Millisecond)
+
 			}
 		})
 	}

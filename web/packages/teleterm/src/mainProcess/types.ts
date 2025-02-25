@@ -16,14 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
+import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
+import { FileStorage } from 'teleterm/services/fileStorage';
+import { Document } from 'teleterm/ui/services/workspacesService';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
-import { Kind } from 'teleterm/ui/services/workspacesService';
-import { FileStorage } from 'teleterm/services/fileStorage';
-
 import { ConfigService } from '../services/config';
+import { Shell } from './shell';
 
 export type RuntimeSettings = {
   /**
@@ -60,14 +60,15 @@ export type RuntimeSettings = {
   // Before switching to the recommended path, we need to investigate the impact of this change.
   // https://www.electronjs.org/docs/latest/api/app#appgetpathname
   logsDir: string;
-  defaultShell: string;
+  /** Identifier of default OS shell. */
+  defaultOsShellId: string;
+  availableShells: Shell[];
   platform: Platform;
   agentBinaryPath: string;
   tshd: {
     requestedNetworkAddress: string;
     binaryPath: string;
     homeDir: string;
-    flags: string[];
   };
   sharedProcess: {
     requestedNetworkAddress: string;
@@ -114,6 +115,27 @@ export type MainProcessClient = {
   showFileSaveDialog(
     filePath: string
   ): Promise<{ canceled: boolean; filePath: string | undefined }>;
+  /**
+   * saveTextToFile shows the save file dialog that lets the user pick a file location. Once the
+   * location is picked, it saves the text to the location, overwriting an existing file if any.
+   *
+   * If the user closes the dialog, saveTextToFile returns early with canceled set to true. The
+   * caller must inspect this value before assuming that the file was saved.
+   *
+   * If writing to the file fails, saveTextToFile returns a rejected promise.
+   */
+  saveTextToFile(options: {
+    text: string;
+    /**
+     * The name for the file that will be suggested in the save file dialog.
+     */
+    defaultBasename: string;
+  }): Promise<{
+    /**
+     * Whether the dialog was closed by the user or not.
+     */
+    canceled: boolean;
+  }>;
   configService: ConfigService;
   fileStorage: FileStorage;
   removeKubeConfig(options: {
@@ -156,6 +178,10 @@ export type MainProcessClient = {
   tryRemoveConnectMyComputerAgentBinary(): Promise<void>;
   getAgentState(args: { rootClusterUri: RootClusterUri }): AgentProcessState;
   getAgentLogs(args: { rootClusterUri: RootClusterUri }): string;
+  /**
+   * Signals to the windows manager that the UI has been fully initialized, that is the user has
+   * interacted with the relevant modals during startup and is free to use the app.
+   */
   signalUserInterfaceReadiness(args: { success: boolean }): void;
   refreshClusterList(): void;
 };
@@ -208,15 +234,12 @@ export interface ClusterContextMenuOptions {
 }
 
 export interface TabContextMenuOptions {
-  documentKind: Kind;
-
+  document: Document;
   onClose(): void;
-
   onCloseOthers(): void;
-
   onCloseToRight(): void;
-
   onDuplicatePty(): void;
+  onReopenPtyInShell(shell: Shell): void;
 }
 
 export const TerminalContextMenuEventChannel =
@@ -230,6 +253,7 @@ export enum TabContextMenuEventType {
   CloseOthers = 'CloseOthers',
   CloseToRight = 'CloseToRight',
   DuplicatePty = 'DuplicatePty',
+  ReopenPtyInShell = 'ReopenPtyInShell',
 }
 
 export enum ConfigServiceEventType {
@@ -244,6 +268,7 @@ export enum FileStorageEventType {
   Write = 'Write',
   Replace = 'Replace',
   GetFilePath = 'GetFilePath',
+  GetFileName = 'GetFileName',
   GetFileLoadingError = 'GetFileLoadingError',
 }
 
@@ -272,8 +297,18 @@ export enum MainProcessIpc {
   RefreshClusterList = 'main-process-refresh-cluster-list',
   DownloadConnectMyComputerAgent = 'main-process-connect-my-computer-download-agent',
   VerifyConnectMyComputerAgent = 'main-process-connect-my-computer-verify-agent',
+  SaveTextToFile = 'main-process-save-text-to-file',
 }
 
 export enum WindowsManagerIpc {
   SignalUserInterfaceReadiness = 'windows-manager-signal-user-interface-readiness',
 }
+
+/**
+ * A custom message to gracefully quit a process.
+ * It is sent to the child process with `process.send`.
+ *
+ * We need this because `process.kill('SIGTERM')` doesn't work on Windows,
+ * so we couldn't run any cleanup logic.
+ */
+export const TERMINATE_MESSAGE = 'TERMINATE_MESSAGE';

@@ -1,0 +1,140 @@
+# syntax=docker/dockerfile:1
+#
+# Cross-compiling build box.
+#
+# This Dockefile builds a crosstool-NG toolchain (gcc et al) for the four
+# supported Teleport architectures (amd64. arm64 386, arm), as well as the
+# C libraries needed for various Teleport features. The image is not run
+# directly. It is used as an input to the final buildbox image.
+
+ARG BASE_IMAGE=ubuntu:22.04
+
+# Directory where the third-party components are installed. Used in multiple
+# stages, so defined here globally before the first stage.
+ARG THIRDPARTY_DIR=/opt/thirdparty
+
+# -----------------------------------------------------------------------------
+# Install required build tools and install crosstool-ng
+
+FROM ${BASE_IMAGE} AS crosstoolng
+
+# Bash used for some brace expansions in clean-up
+SHELL ["/bin/bash", "-c"]
+
+# Create a buildbox user that owns all the tools installed in /opt. When using the
+# buildbox, a different uid/gid should be used as these tools should not be
+# modifiable when using the buildbox
+ARG BUILDBOX_UID=99
+ARG BUILDBOX_GID=99
+RUN groupadd -g $BUILDBOX_GID buildbox
+RUN useradd -d /home/buildbox -m -g $BUILDBOX_GID -u $BUILDBOX_UID -s /bin/bash buildbox
+
+ARG THIRDPARTY_DIR
+RUN install -d -m 0775 -o buildbox -g buildbox $THIRDPARTY_DIR
+
+# Non-interactive configuration of tzdata
+ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBCONF_NONINTERACTIVE_SEEN=true
+RUN { echo 'tzdata tzdata/Areas select Etc'; echo 'tzdata tzdata/Zones/Etc select UTC'; } | debconf-set-selections
+
+RUN apt-get update
+RUN apt-get install -y \
+	autoconf \
+	autoconf-archive \
+	automake \
+	autopoint \
+	bison \
+	bzip2 \
+	cmake \
+	curl \
+	flex \
+	g++ \
+	gawk \
+	gcc \
+	gettext \
+	git \
+	gperf \
+	help2man \
+	libncurses5-dev \
+	libstdc++6 \
+	libtool \
+	libtool-bin \
+	make \
+	meson \
+	patch \
+	pkg-config \
+	python3-dev \
+	rsync \
+	texinfo \
+	texi2html \
+	unzip \
+	xz-utils
+
+USER buildbox
+WORKDIR /home/buildbox
+
+COPY crosstoolng-configs crosstoolng-configs
+COPY pkgconfig pkgconfig
+COPY buildbox-common.mk crosstoolng.mk .
+
+# Build and install crosstool-ng
+ARG BUILDARCH
+ARG THIRDPARTY_DIR
+ENV THIRDPARTY_DIR=$THIRDPARTY_DIR
+
+RUN make -f crosstoolng.mk install-crosstoolng && \
+	rm -rf ${THIRDPARTY_DIR}/host/src
+
+# -----------------------------------------------------------------------------
+# Build the compilers for the four architecures
+
+FROM crosstoolng AS compilers
+
+# crosstool-NG
+RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
+	make -f crosstoolng.mk crosstoolng-build ARCH=amd64 && \
+	rm -rf ${THIRDPARTY_DIR}/amd64/crosstoolng
+RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
+	make -f crosstoolng.mk crosstoolng-build ARCH=arm64 && \
+	rm -rf ${THIRDPARTY_DIR}/arm64/crosstoolng
+RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
+	make -f crosstoolng.mk crosstoolng-build ARCH=386 && \
+	rm -rf ${THIRDPARTY_DIR}/386/crosstoolng
+RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
+	make -f crosstoolng.mk crosstoolng-build ARCH=arm && \
+	rm -rf ${THIRDPARTY_DIR}/arm/crosstoolng
+
+# -----------------------------------------------------------------------------
+# Build the third-party C libraries for the four architectures
+
+FROM compilers AS libs
+
+COPY cross-compile.mk thirdparty-libs.mk .
+
+ARG THIRDPARTY_DIR
+ENV PATH=${THIRDPARTY_DIR}/host/bin:${PATH}
+
+# Build and install third party C libraries for all architectures
+RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
+	make -f thirdparty-libs.mk thirdparty-build-libs ARCH=amd64 && \
+	rm -rf ${THIRDPARTY_DIR}/amd64/{bin,sbin,src}
+RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
+	make -f thirdparty-libs.mk thirdparty-build-libs ARCH=arm64 && \
+	rm -rf ${THIRDPARTY_DIR}/arm64/{bin,sbin,src}
+RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
+	make -f thirdparty-libs.mk thirdparty-build-libs ARCH=386 && \
+	rm -rf ${THIRDPARTY_DIR}/386/{bin,sbin,src}
+RUN --mount=type=cache,id=download,uid=${BUILDBOX_UID},target=${THIRDPARTY_DIR}/download \
+	make -f thirdparty-libs.mk thirdparty-build-libs ARCH=arm && \
+	rm -rf ${THIRDPARTY_DIR}/arm/{bin,sbin,src}
+
+# -----------------------------------------------------------------------------
+# Start buildbox-thirdparty from a fresh ${BASE_IMAGE} and copy in
+# /opt/thirdparty so as to remove any layers above with the build tools. We
+# copy it into ${BASE_IMAGE} instead of scratch so that we can run the
+# container and easily inspect and work with it for development purposes.
+FROM ${BASE_IMAGE} AS buildbox-thirdparty
+
+# Install third party toolchain and libraries
+ARG THIRDPARTY_DIR
+COPY --from=libs ${THIRDPARTY_DIR} ${THIRDPARTY_DIR}

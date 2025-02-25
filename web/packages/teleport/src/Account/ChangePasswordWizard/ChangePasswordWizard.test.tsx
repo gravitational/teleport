@@ -16,51 +16,49 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen } from 'design/utils/testing';
-import React from 'react';
-
-import { within } from '@testing-library/react';
+import { waitFor, within } from '@testing-library/react';
 import { userEvent, UserEvent } from '@testing-library/user-event';
 
-import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
+import { render, screen } from 'design/utils/testing';
 
+import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import {
-  ChangePasswordWizardProps,
-  createReauthOptions,
-} from './ChangePasswordWizard';
+  MFA_OPTION_TOTP,
+  MFA_OPTION_WEBAUTHN,
+  MfaChallengeResponse,
+} from 'teleport/services/mfa';
 
 import { ChangePasswordWizard } from '.';
+import {
+  ChangePasswordWizardProps,
+  getReauthOptions,
+  REAUTH_OPTION_PASSKEY,
+  REAUTH_OPTION_WEBAUTHN,
+} from './ChangePasswordWizard';
 
-const dummyCredential: Credential = {
-  id: 'cred-id',
-  type: 'public-key',
+const dummyChallengeResponse: MfaChallengeResponse = {
+  webauthn_response: {
+    id: 'cred-id',
+    type: 'public-key',
+    extensions: {
+      appid: true,
+    },
+    rawId: 'rawId',
+    response: {
+      authenticatorData: 'authenticatorData',
+      clientDataJSON: 'clientDataJSON',
+      signature: 'signature',
+      userHandle: 'userHandle',
+    },
+  },
 };
 let user: UserEvent;
 let onSuccess: jest.Mock;
 
-function twice(arr) {
-  return [...arr, ...arr];
-}
-
-// Repeat devices twice to make sure we support multiple devices of the same
-// type and purpose.
-const deviceCases = {
-  all: twice([
-    { type: 'totp', usage: 'mfa' },
-    { type: 'webauthn', usage: 'mfa' },
-    { type: 'webauthn', usage: 'passwordless' },
-  ]),
-  authApps: twice([{ type: 'totp', usage: 'mfa' }]),
-  mfaDevices: twice([{ type: 'webauthn', usage: 'mfa' }]),
-  passkeys: twice([{ type: 'webauthn', usage: 'passwordless' }]),
-};
-
 function TestWizard(props: Partial<ChangePasswordWizardProps> = {}) {
   return (
     <ChangePasswordWizard
-      auth2faType={'optional'}
-      passwordlessEnabled={true}
-      devices={deviceCases.all}
+      hasPasswordless={true}
       onClose={() => {}}
       onSuccess={onSuccess}
       {...props}
@@ -72,9 +70,13 @@ beforeEach(() => {
   user = userEvent.setup();
   onSuccess = jest.fn();
 
+  jest.spyOn(auth, 'getMfaChallenge').mockResolvedValue({
+    totpChallenge: true,
+    webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
+  });
   jest
-    .spyOn(auth, 'fetchWebAuthnChallenge')
-    .mockResolvedValueOnce(dummyCredential);
+    .spyOn(auth, 'getMfaChallengeResponse')
+    .mockResolvedValueOnce(dummyChallengeResponse);
   jest.spyOn(auth, 'changePassword').mockResolvedValueOnce(undefined);
 });
 
@@ -84,15 +86,20 @@ describe('with passwordless reauthentication', () => {
   async function reauthenticate() {
     render(<TestWizard />);
 
-    const reauthenticateStep = within(
-      screen.getByTestId('reauthenticate-step')
-    );
-    await user.click(reauthenticateStep.getByText('Passkey'));
-    await user.click(reauthenticateStep.getByText('Next'));
-    expect(auth.fetchWebAuthnChallenge).toHaveBeenCalledWith({
+    await waitFor(() => {
+      expect(screen.getByTestId('reauthenticate-step')).toBeInTheDocument();
+    });
+    expect(auth.getMfaChallenge).toHaveBeenCalledWith({
+      scope: MfaChallengeScope.CHANGE_PASSWORD,
+    });
+
+    await user.click(screen.getByText('Passkey'));
+    await user.click(screen.getByText('Next'));
+    expect(auth.getMfaChallenge).toHaveBeenCalledWith({
       scope: MfaChallengeScope.CHANGE_PASSWORD,
       userVerificationRequirement: 'required',
     });
+    expect(auth.getMfaChallengeResponse).toHaveBeenCalled();
   }
 
   it('changes password', async () => {
@@ -112,10 +119,30 @@ describe('with passwordless reauthentication', () => {
     expect(auth.changePassword).toHaveBeenCalledWith({
       oldPassword: '',
       newPassword: 'new-pass1234',
-      secondFactorToken: '',
-      credential: dummyCredential,
+      mfaResponse: {
+        totp_code: '',
+        webauthn_response: dummyChallengeResponse.webauthn_response,
+      },
     });
     expect(onSuccess).toHaveBeenCalled();
+  });
+
+  it('cancels changing password', async () => {
+    await reauthenticate();
+    const changePasswordStep = within(
+      screen.getByTestId('change-password-step')
+    );
+    await user.type(
+      changePasswordStep.getByLabelText('New Password'),
+      'new-pass1234'
+    );
+    await user.type(
+      changePasswordStep.getByLabelText('Confirm Password'),
+      'new-pass1234'
+    );
+    await user.click(changePasswordStep.getByText('Back'));
+    expect(auth.changePassword).not.toHaveBeenCalled();
+    expect(onSuccess).not.toHaveBeenCalled();
   });
 
   it('validates the password form', async () => {
@@ -134,20 +161,22 @@ describe('with passwordless reauthentication', () => {
     await user.click(changePasswordStep.getByText('Save Changes'));
     expect(auth.changePassword).not.toHaveBeenCalled();
     expect(onSuccess).not.toHaveBeenCalled();
+    expect(changePasswordStep.getByLabelText('New Password')).toBeInvalid();
     expect(
-      changePasswordStep.getByLabelText('Enter at least 12 characters')
-    ).toBeInTheDocument();
+      changePasswordStep.getByLabelText('New Password')
+    ).toHaveAccessibleDescription('Enter at least 12 characters');
 
     await user.type(
-      changePasswordStep.getByLabelText('Enter at least 12 characters'),
+      changePasswordStep.getByLabelText('New Password'),
       'new-pass1234'
     );
     await user.click(changePasswordStep.getByText('Save Changes'));
     expect(auth.changePassword).not.toHaveBeenCalled();
     expect(onSuccess).not.toHaveBeenCalled();
+    expect(changePasswordStep.getByLabelText('Confirm Password')).toBeInvalid();
     expect(
-      changePasswordStep.getByLabelText('Password does not match')
-    ).toBeInTheDocument();
+      changePasswordStep.getByLabelText('Confirm Password')
+    ).toHaveAccessibleDescription('Password does not match');
   });
 });
 
@@ -155,15 +184,16 @@ describe('with WebAuthn MFA reauthentication', () => {
   async function reauthenticate() {
     render(<TestWizard />);
 
-    const reauthenticateStep = within(
-      screen.getByTestId('reauthenticate-step')
-    );
-    await user.click(reauthenticateStep.getByText('MFA Device'));
-    await user.click(reauthenticateStep.getByText('Next'));
-    expect(auth.fetchWebAuthnChallenge).toHaveBeenCalledWith({
-      scope: MfaChallengeScope.CHANGE_PASSWORD,
-      userVerificationRequirement: 'discouraged',
+    await waitFor(() => {
+      expect(screen.getByTestId('reauthenticate-step')).toBeInTheDocument();
     });
+    expect(auth.getMfaChallenge).toHaveBeenCalledWith({
+      scope: MfaChallengeScope.CHANGE_PASSWORD,
+    });
+
+    await user.click(screen.getByText('Security Key'));
+    await user.click(screen.getByText('Next'));
+    expect(auth.getMfaChallengeResponse).toHaveBeenCalled();
   }
 
   it('changes password', async () => {
@@ -187,10 +217,30 @@ describe('with WebAuthn MFA reauthentication', () => {
     expect(auth.changePassword).toHaveBeenCalledWith({
       oldPassword: 'current-pass',
       newPassword: 'new-pass1234',
-      secondFactorToken: '',
-      credential: dummyCredential,
+      mfaResponse: {
+        totp_code: '',
+        webauthn_response: dummyChallengeResponse.webauthn_response,
+      },
     });
     expect(onSuccess).toHaveBeenCalled();
+  });
+
+  it('cancels changing password', async () => {
+    await reauthenticate();
+    const changePasswordStep = within(
+      screen.getByTestId('change-password-step')
+    );
+    await user.type(
+      changePasswordStep.getByLabelText('New Password'),
+      'new-pass1234'
+    );
+    await user.type(
+      changePasswordStep.getByLabelText('Confirm Password'),
+      'new-pass1234'
+    );
+    await user.click(changePasswordStep.getByText('Back'));
+    expect(auth.changePassword).not.toHaveBeenCalled();
+    expect(onSuccess).not.toHaveBeenCalled();
   });
 
   it('validates the password form', async () => {
@@ -209,27 +259,29 @@ describe('with WebAuthn MFA reauthentication', () => {
     await user.click(changePasswordStep.getByText('Save Changes'));
     expect(auth.changePassword).not.toHaveBeenCalled();
     expect(onSuccess).not.toHaveBeenCalled();
+    expect(changePasswordStep.getByLabelText('New Password')).toBeInvalid();
     expect(
-      changePasswordStep.getByLabelText('Enter at least 12 characters')
-    ).toBeInTheDocument();
+      changePasswordStep.getByLabelText('New Password')
+    ).toHaveAccessibleDescription('Enter at least 12 characters');
+    expect(changePasswordStep.getByLabelText('Current Password')).toBeInvalid();
     expect(
-      changePasswordStep.getByLabelText('Current Password is required')
-    ).toBeInTheDocument();
+      changePasswordStep.getByLabelText('Current Password')
+    ).toHaveAccessibleDescription('Current Password is required');
 
     await user.type(
-      changePasswordStep.getByLabelText('Current Password is required'),
+      changePasswordStep.getByLabelText('Current Password'),
       'current-pass'
     );
     await user.type(
-      changePasswordStep.getByLabelText('Enter at least 12 characters'),
+      changePasswordStep.getByLabelText('New Password'),
       'new-pass1234'
     );
     await user.click(changePasswordStep.getByText('Save Changes'));
     expect(auth.changePassword).not.toHaveBeenCalled();
     expect(onSuccess).not.toHaveBeenCalled();
     expect(
-      changePasswordStep.getByLabelText('Password does not match')
-    ).toBeInTheDocument();
+      changePasswordStep.getByLabelText('Confirm Password')
+    ).toHaveAccessibleDescription('Password does not match');
   });
 });
 
@@ -237,12 +289,11 @@ describe('with OTP MFA reauthentication', () => {
   async function reauthenticate() {
     render(<TestWizard />);
 
-    const reauthenticateStep = within(
-      screen.getByTestId('reauthenticate-step')
-    );
-    await user.click(reauthenticateStep.getByText('Authenticator App'));
-    await user.click(reauthenticateStep.getByText('Next'));
-    expect(auth.fetchWebAuthnChallenge).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByTestId('reauthenticate-step')).toBeInTheDocument();
+    });
+    await user.click(screen.getByText('Authenticator App'));
+    await user.click(screen.getByText('Next'));
   }
 
   it('changes password', async () => {
@@ -270,9 +321,29 @@ describe('with OTP MFA reauthentication', () => {
     expect(auth.changePassword).toHaveBeenCalledWith({
       oldPassword: 'current-pass',
       newPassword: 'new-pass1234',
-      secondFactorToken: '654321',
+      mfaResponse: {
+        totp_code: '654321',
+      },
     });
     expect(onSuccess).toHaveBeenCalled();
+  });
+
+  it('cancels changing password', async () => {
+    await reauthenticate();
+    const changePasswordStep = within(
+      screen.getByTestId('change-password-step')
+    );
+    await user.type(
+      changePasswordStep.getByLabelText('New Password'),
+      'new-pass1234'
+    );
+    await user.type(
+      changePasswordStep.getByLabelText('Confirm Password'),
+      'new-pass1234'
+    );
+    await user.click(changePasswordStep.getByText('Back'));
+    expect(auth.changePassword).not.toHaveBeenCalled();
+    expect(onSuccess).not.toHaveBeenCalled();
   });
 
   it('validates the password form', async () => {
@@ -291,43 +362,24 @@ describe('with OTP MFA reauthentication', () => {
     await user.click(changePasswordStep.getByText('Save Changes'));
     expect(auth.changePassword).not.toHaveBeenCalled();
     expect(onSuccess).not.toHaveBeenCalled();
+    expect(changePasswordStep.getByLabelText('New Password')).toBeInvalid();
     expect(
-      changePasswordStep.getByLabelText('Enter at least 12 characters')
-    ).toBeInTheDocument();
+      changePasswordStep.getByLabelText('New Password')
+    ).toHaveAccessibleDescription('Enter at least 12 characters');
+    expect(changePasswordStep.getByLabelText('Current Password')).toBeInvalid();
     expect(
-      changePasswordStep.getByLabelText('Current Password is required')
-    ).toBeInTheDocument();
+      changePasswordStep.getByLabelText('Current Password')
+    ).toHaveAccessibleDescription('Current Password is required');
     expect(
-      changePasswordStep.getByLabelText(/Authenticator code is required/)
-    ).toBeInTheDocument();
+      changePasswordStep.getByLabelText('Authenticator Code')
+    ).toBeInvalid();
+    expect(
+      changePasswordStep.getByLabelText('Authenticator Code')
+    ).toHaveAccessibleDescription('Authenticator code is required');
 
     await user.type(
-      changePasswordStep.getByLabelText(/Authenticator code is required/),
+      changePasswordStep.getByLabelText('Authenticator Code'),
       '654321'
-    );
-    await user.type(
-      changePasswordStep.getByLabelText('Current Password is required'),
-      'current-pass'
-    );
-    await user.type(
-      changePasswordStep.getByLabelText('Enter at least 12 characters'),
-      'new-pass1234'
-    );
-    await user.click(changePasswordStep.getByText('Save Changes'));
-    expect(auth.changePassword).not.toHaveBeenCalled();
-    expect(onSuccess).not.toHaveBeenCalled();
-    expect(
-      changePasswordStep.getByLabelText('Password does not match')
-    ).toBeInTheDocument();
-  });
-});
-
-describe('without reauthentication', () => {
-  it('changes password', async () => {
-    render(<TestWizard auth2faType="off" passwordlessEnabled={false} />);
-
-    const changePasswordStep = within(
-      screen.getByTestId('change-password-step')
     );
     await user.type(
       changePasswordStep.getByLabelText('Current Password'),
@@ -337,84 +389,27 @@ describe('without reauthentication', () => {
       changePasswordStep.getByLabelText('New Password'),
       'new-pass1234'
     );
-    await user.type(
-      changePasswordStep.getByLabelText('Confirm Password'),
-      'new-pass1234'
-    );
-    await user.click(changePasswordStep.getByText('Save Changes'));
-    expect(auth.fetchWebAuthnChallenge).not.toHaveBeenCalled();
-    expect(auth.changePassword).toHaveBeenCalledWith({
-      oldPassword: 'current-pass',
-      newPassword: 'new-pass1234',
-      credential: undefined,
-      secondFactorToken: '',
-    });
-    expect(onSuccess).toHaveBeenCalled();
-  });
-
-  it('validates the password form', async () => {
-    render(<TestWizard auth2faType="off" passwordlessEnabled={false} />);
-
-    const changePasswordStep = within(
-      screen.getByTestId('change-password-step')
-    );
-    await user.type(
-      changePasswordStep.getByLabelText('New Password'),
-      'new-pass123'
-    );
-    await user.type(
-      changePasswordStep.getByLabelText('Confirm Password'),
-      'new-pass123'
-    );
     await user.click(changePasswordStep.getByText('Save Changes'));
     expect(auth.changePassword).not.toHaveBeenCalled();
     expect(onSuccess).not.toHaveBeenCalled();
+    expect(changePasswordStep.getByLabelText('Confirm Password')).toBeInvalid();
     expect(
-      changePasswordStep.getByLabelText('Enter at least 12 characters')
-    ).toBeInTheDocument();
-    expect(
-      changePasswordStep.getByLabelText('Current Password is required')
-    ).toBeInTheDocument();
-
-    await user.type(
-      changePasswordStep.getByLabelText('Current Password is required'),
-      'current-pass'
-    );
-    await user.type(
-      changePasswordStep.getByLabelText('Enter at least 12 characters'),
-      'new-pass1234'
-    );
-    await user.click(changePasswordStep.getByText('Save Changes'));
-    expect(auth.changePassword).not.toHaveBeenCalled();
-    expect(onSuccess).not.toHaveBeenCalled();
-    expect(
-      changePasswordStep.getByLabelText('Password does not match')
-    ).toBeInTheDocument();
+      changePasswordStep.getByLabelText('Confirm Password')
+    ).toHaveAccessibleDescription('Password does not match');
   });
 });
 
 test.each`
-  auth2faType   | passwordless | deviceCase      | methods
-  ${'otp'}      | ${false}     | ${'all'}        | ${['otp']}
-  ${'off'}      | ${false}     | ${'all'}        | ${[]}
-  ${'optional'} | ${false}     | ${'all'}        | ${['mfaDevice', 'otp']}
-  ${'on'}       | ${false}     | ${'all'}        | ${['mfaDevice', 'otp']}
-  ${'webauthn'} | ${false}     | ${'all'}        | ${['mfaDevice']}
-  ${'optional'} | ${true}      | ${'all'}        | ${['passwordless', 'mfaDevice', 'otp']}
-  ${'on'}       | ${true}      | ${'all'}        | ${['passwordless', 'mfaDevice', 'otp']}
-  ${'webauthn'} | ${true}      | ${'all'}        | ${['passwordless', 'mfaDevice']}
-  ${'optional'} | ${true}      | ${'authApps'}   | ${['otp']}
-  ${'optional'} | ${true}      | ${'mfaDevices'} | ${['mfaDevice']}
-  ${'optional'} | ${true}      | ${'passkeys'}   | ${['passwordless']}
+  mfaOptions                                | hasPasswordless | reauthOptions
+  ${[MFA_OPTION_TOTP]}                      | ${false}        | ${[MFA_OPTION_TOTP]}
+  ${[MFA_OPTION_WEBAUTHN]}                  | ${false}        | ${[REAUTH_OPTION_WEBAUTHN]}
+  ${[MFA_OPTION_TOTP, MFA_OPTION_WEBAUTHN]} | ${false}        | ${[MFA_OPTION_TOTP, REAUTH_OPTION_WEBAUTHN]}
+  ${[MFA_OPTION_WEBAUTHN]}                  | ${true}         | ${[REAUTH_OPTION_PASSKEY, REAUTH_OPTION_WEBAUTHN]}
+  ${[MFA_OPTION_TOTP, MFA_OPTION_WEBAUTHN]} | ${true}         | ${[REAUTH_OPTION_PASSKEY, MFA_OPTION_TOTP, REAUTH_OPTION_WEBAUTHN]}
 `(
-  'createReauthOptions: auth2faType=$auth2faType, passwordless=$passwordless, devices=$deviceCase',
-  ({ auth2faType, passwordless, methods, deviceCase }) => {
-    const devices = deviceCases[deviceCase];
-    const reauthMethods = createReauthOptions(
-      auth2faType,
-      passwordless,
-      devices
-    ).map(o => o.value);
-    expect(reauthMethods).toEqual(methods);
+  'getReauthOptions: mfaOptions=$mfaOptions, hasPasswordless=$hasPasswordless, devices=$deviceCase',
+  ({ mfaOptions, hasPasswordless, reauthOptions }) => {
+    const gotReauthOptions = getReauthOptions(mfaOptions, hasPasswordless);
+    expect(gotReauthOptions).toEqual(reauthOptions);
   }
 );

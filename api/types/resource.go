@@ -60,12 +60,6 @@ type Resource interface {
 	SetExpiry(time.Time)
 	// GetMetadata returns object metadata
 	GetMetadata() Metadata
-	// GetResourceID returns resource ID
-	// Deprecated: use GetRevision instead
-	GetResourceID() int64
-	// SetResourceID sets resource ID
-	// Deprecated: use SetRevision instead
-	SetResourceID(int64)
 	// GetRevision returns the revision
 	GetRevision() string
 	// SetRevision sets the revision
@@ -143,6 +137,20 @@ type EnrichedResource struct {
 	// an access request to access. This is done during `ListUnifiedResources` when
 	// searchAsRoles is true
 	RequiresRequest bool
+}
+
+// EnrichedResources is a wrapper of []*EnrichedResource.
+// A EnrichedResource is a [ResourceWithLabels] wrapped with additional
+// user-specific information.
+type EnrichedResources []*EnrichedResource
+
+// ToResourcesWithLabels converts to ResourcesWithLabels.
+func (r EnrichedResources) ToResourcesWithLabels() ResourcesWithLabels {
+	ret := make(ResourcesWithLabels, 0, len(r))
+	for _, resource := range r {
+		ret = append(ret, resource.ResourceWithLabels)
+	}
+	return ret
 }
 
 // ResourcesWithLabels is a list of labeled resources.
@@ -309,18 +317,6 @@ func (h *ResourceHeader) GetVersion() string {
 	return h.Version
 }
 
-// GetResourceID returns resource ID
-// Deprecated: Use GetRevision instead.
-func (h *ResourceHeader) GetResourceID() int64 {
-	return h.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-// Deprecated: Use SetRevision instead.
-func (h *ResourceHeader) SetResourceID(id int64) {
-	h.Metadata.ID = id
-}
-
 // GetRevision returns the revision
 func (h *ResourceHeader) GetRevision() string {
 	return h.Metadata.GetRevision()
@@ -418,16 +414,6 @@ func (h *ResourceHeader) CheckAndSetDefaults() error {
 	return trace.Wrap(h.Metadata.CheckAndSetDefaults())
 }
 
-// GetID returns resource ID
-func (m *Metadata) GetID() int64 {
-	return m.ID
-}
-
-// SetID sets resource ID
-func (m *Metadata) SetID(id int64) {
-	m.ID = id
-}
-
 // GetRevision returns the revision
 func (m *Metadata) GetRevision() string {
 	return m.Revision
@@ -492,8 +478,12 @@ func (m *Metadata) CheckAndSetDefaults() error {
 	if m.Name == "" {
 		return trace.BadParameter("missing parameter Name")
 	}
+
 	if m.Namespace == "" {
 		m.Namespace = defaults.Namespace
+	}
+	if err := ValidateNamespaceDefault(m.Namespace); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// adjust expires time to UTC if it's set
@@ -537,7 +527,7 @@ func MatchKinds(resource ResourceWithLabels, kinds []string) bool {
 	}
 	resourceKind := resource.GetKind()
 	switch resourceKind {
-	case KindApp, KindSAMLIdPServiceProvider:
+	case KindApp, KindSAMLIdPServiceProvider, KindIdentityCenterAccount:
 		return slices.Contains(kinds, KindApp)
 	default:
 		return slices.Contains(kinds, resourceKind)
@@ -714,8 +704,11 @@ func FriendlyName(resource ResourceWithLabels) string {
 		return resource.GetMetadata().Description
 	}
 
-	if hn, ok := resource.(interface{ GetHostname() string }); ok {
-		return hn.GetHostname()
+	switch rr := resource.(type) {
+	case interface{ GetHostname() string }:
+		return rr.GetHostname()
+	case interface{ GetDisplayName() string }:
+		return rr.GetDisplayName()
 	}
 
 	return ""
@@ -801,22 +794,4 @@ func GetExpiry(v any) (time.Time, error) {
 		return exp.AsTime(), nil
 	}
 	return time.Time{}, trace.BadParameter("unable to determine expiry from resource of type %T", v)
-}
-
-// GetResourceID returns the id, if one can be obtained, otherwise returns
-// zero.
-//
-// Works for both [Resource] and [ResourceMetadata] instances.
-//
-// Deprecated: GetRevision should be used instead.
-func GetResourceID(v any) (int64, error) {
-	switch r := v.(type) {
-	case Resource:
-		//nolint:staticcheck // SA1019. Added for backward compatibility.
-		return r.GetResourceID(), nil
-	case ResourceMetadata:
-		//nolint:staticcheck // SA1019. Added for backward compatibility.
-		return r.GetMetadata().Id, nil
-	}
-	return 0, trace.BadParameter("unable to determine resource ID from resource of type %T", v)
 }

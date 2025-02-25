@@ -45,4 +45,20 @@ To configure the Teleport Database Service to trust a custom CA:
       --labels=env=dev
    ```
 
+
+If your database servers use certificates that are signed by a public CA such
+as ComodoCA or DigiCert, you can use the `trust_system_cert_pool` option
+without exporting the CA:
+```code
+$ sudo teleport db configure create \
+   -o file \
+   --token=/tmp/token \
+   --proxy=<Var name="example.teleport.sh:443" /> \
+   --name={{ dbName }} \
+   --protocol={{ dbProtocol }} \
+   --uri={{ databaseAddress }} \
+   --trust_system_cert_pool \
+   --labels=env=dev
+```
+
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)

@@ -51,6 +51,10 @@ func TestNewUserACL(t *testing.T) {
 			Resources: []string{types.KindIntegration},
 			Verbs:     append(RW(), types.VerbUse),
 		},
+		{
+			Resources: []string{types.KindContact},
+			Verbs:     RW(),
+		},
 	})
 
 	// not setting the rule, or explicitly denying, both denies Access
@@ -93,6 +97,7 @@ func TestNewUserACL(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.Tokens, denied))
 	require.Empty(t, cmp.Diff(userContext.Nodes, denied))
 	require.Empty(t, cmp.Diff(userContext.AccessRequests, denied))
+	require.Empty(t, cmp.Diff(userContext.AccessMonitoringRule, denied))
 	require.Empty(t, cmp.Diff(userContext.ConnectionDiagnostic, denied))
 	require.Empty(t, cmp.Diff(userContext.Desktops, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.ExternalAuditStorage, denied))
@@ -103,6 +108,8 @@ func TestNewUserACL(t *testing.T) {
 	require.True(t, userContext.DesktopSessionRecording)
 	require.Empty(t, cmp.Diff(userContext.License, denied))
 	require.Empty(t, cmp.Diff(userContext.Download, denied))
+	require.Empty(t, cmp.Diff(userContext.Contact, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.GitServers, denied))
 
 	// test enabling of the 'Use' verb
 	require.Empty(t, cmp.Diff(userContext.Integrations, ResourceAccess{true, true, true, true, true, true}))
@@ -113,6 +120,8 @@ func TestNewUserACL(t *testing.T) {
 	// test that desktopRecordingEnabled being false overrides the roleSet.RecordDesktopSession() returning true
 	userContext = NewUserACL(user, roleSet, proto.Features{}, false, false)
 	require.False(t, userContext.DesktopSessionRecording)
+
+	require.False(t, userContext.ReviewRequests)
 }
 
 func TestNewUserACLCloud(t *testing.T) {
@@ -152,6 +161,7 @@ func TestNewUserACLCloud(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.Tokens, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.Nodes, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.AccessRequests, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.AccessMonitoringRule, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.DiscoveryConfig, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.ExternalAuditStorage, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.Bots, allowedRW))
@@ -242,19 +252,40 @@ func TestNewAccessGraph(t *testing.T) {
 		allowed := ResourceAccess{true, true, true, true, true, true}
 		userContext := NewUserACL(user, roleSet, proto.Features{AccessGraph: true}, false, true)
 		require.Empty(t, cmp.Diff(userContext.AccessGraph, allowed))
+		require.Empty(t, cmp.Diff(userContext.AccessGraphSettings, allowed))
 	})
 	t.Run("access graph disabled", func(t *testing.T) {
-		allowed := ResourceAccess{false, false, false, false, false, false}
+		denied := ResourceAccess{false, false, false, false, false, false}
 		userContext := NewUserACL(user, roleSet, proto.Features{}, false, false)
-		require.Empty(t, cmp.Diff(userContext.AccessGraph, allowed))
+		require.Empty(t, cmp.Diff(userContext.AccessGraphSettings, denied))
 	})
 
-	user1 := &types.UserV2{
-		Metadata: types.Metadata{},
-	}
 	t.Run("access graph ACL is false when user doesn't have access even when enabled", func(t *testing.T) {
-		allowed := ResourceAccess{true, true, true, true, true, true}
-		userContext := NewUserACL(user1, roleSet, proto.Features{AccessGraph: true}, false, true)
-		require.Empty(t, cmp.Diff(userContext.AccessGraph, allowed))
+		role.SetRules(types.Allow, nil)
+		denied := ResourceAccess{false, false, false, false, false, false}
+		userContext := NewUserACL(user, roleSet, proto.Features{AccessGraph: true}, false, true)
+		require.Empty(t, cmp.Diff(userContext.AccessGraph, denied))
+		require.Empty(t, cmp.Diff(userContext.AccessGraphSettings, denied))
+	})
+
+	t.Run("access graph ACL is true when user has access", func(t *testing.T) {
+		role.SetRules(types.Allow, []types.Rule{
+			{
+				Resources: []string{types.KindAccessGraph},
+				Verbs:     []string{types.VerbUse},
+			},
+			{
+				Resources: []string{types.KindAccessGraphSettings},
+				Verbs:     []string{types.VerbRead, types.VerbUpdate},
+			},
+		})
+
+		userContext := NewUserACL(user, roleSet, proto.Features{
+			AccessGraph: true,
+		}, false, false)
+		expectedAccessGraph := ResourceAccess{false, false, false, false, false, true}
+		require.Empty(t, cmp.Diff(userContext.AccessGraph, expectedAccessGraph))
+		expectedAccessGraphSettings := ResourceAccess{false, true, true, false, false, false}
+		require.Empty(t, cmp.Diff(userContext.AccessGraphSettings, expectedAccessGraphSettings))
 	})
 }

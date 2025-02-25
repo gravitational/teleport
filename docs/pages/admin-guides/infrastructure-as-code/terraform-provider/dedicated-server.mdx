@@ -1,0 +1,164 @@
+---
+title: Run the Teleport Terraform Provider on a Server
+description: How to manage dynamic resources using the Teleport Terraform provider from a dedicated deployment server with MachineID.
+---
+
+This guide demonstrates how to set up the Terraform provider for Teleport on a persistent Linux or macOS server.
+
+This guide does not cover running the Terraform provider locally, or in temporary environments such as
+CI/CD and short-lived cloud VMs. If you are in one of those cases, please follow the dedicated guides:
+
+- [Run the Terraform Provider in CI or cloud VMs](./ci-or-cloud.mdx)
+- [Run the Terraform Provider locally](./local.mdx)
+
+This guide will setup MachineID on the server. MachineID is Teleport's feature
+for providing identities to machines and services, rather than users.
+
+## How it works
+
+This setup relies on a MachineID daemon (`tbot`) to join the Teleport cluster, obtain and refresh credentials for the
+Terraform provider. The daemon stores its identity on the disk and refresh the terraform credentials, typically every
+30 minutes.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- [Terraform >= (=terraform.version=)+](https://learn.hashicorp.com/tutorials/terraform/install-cli)
+
+  ```code
+  $ terraform version
+  # Terraform v(=terraform.version=)
+  ```
+
+- (!docs/pages/includes/tctl.mdx!)
+
+- A Linux host that you wish to run the Teleport Terraform provider onto.
+
+- A Linux user on that host that you wish Terraform and `tbot` to run as.
+
+## Step 1/4. Install `tbot` on your server
+
+You must install `tbot` and make it join the Teleport cluster.
+To do so, follow [the `tbot` deployment guide for Linux](../../../enroll-resources/machine-id/deployment/linux.mdx)
+until step 3. 
+
+## Step 2/4. Configure RBAC
+
+At this point, `tbot` is installed and configured on the machine that will run Terraform.
+
+(!docs/pages/includes/management/dynamic-resources/terraform-role.mdx!)
+
+Use the `tctl bots update` command to add the role to the Bot. Replace `example`
+with the name of the Bot you created in the deployment guide.
+
+```code
+$ tctl bots update example --add-roles terraform-provider
+```
+
+## Step 3/4. Configure `tbot` output
+
+Now, `tbot` needs to be configured with an output that will produce the
+credentials needed by the Terraform provider. As the Terraform provider will be
+accessing the Teleport API, the correct output type to use is `identity`.
+
+For this guide, the `directory` destination will be used. This will write these
+credentials to a specified directory on disk. Ensure that this directory can
+be written to by the Linux user that `tbot` runs as, and that it can be read by
+the Linux user that Terraform will run as.
+
+Modify your `tbot` configuration to add an `identity` output:
+
+```yaml
+outputs:
+- type: identity
+  destination:
+    type: directory
+    # For this guide, /opt/machine-id is used as the destination directory.
+    # You may wish to customize this. Multiple outputs cannot share the same
+    # destination.
+    path: /opt/machine-id
+```
+
+If operating `tbot` as a background service, restart it. If running `tbot` in
+one-shot mode (which creates credentials and ends the process, rather than running
+a background process), it must be executed before you attempt to execute the
+Terraform plan later.
+
+You should now see an `identity` file under `/opt/machine-id`. This contains
+the private key and signed certificates needed by the Terraform provider to
+authenticate with the Teleport Auth Service.
+
+## Step 4/4. Run Terraform
+
+Start by creating a new Terraform working directory:
+
+```code
+$ mkdir ./my-terraform && cd ./my-terraform
+$ terraform init
+```
+
+In order to configure the Teleport Terraform provider to use the credentials
+output by Machine ID, we use the `identity_file_path` option.
+
+In this directory, create `main.tf`:
+
+```hcl
+terraform {
+  required_providers {
+    teleport = {
+      version = "(=teleport.version=)"
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+    }
+  }
+}
+
+provider "teleport" {
+  # Replace with the address of your Teleport Proxy or Auth Server.
+  addr               = "teleport.example.com:443"
+  # Replace with the directory configured in the identity output in the
+  # previous step.
+  identity_file_path = "/opt/machine-id/identity"
+}
+
+# We must create a test role, if we don't declare resources, Terraform won't try to
+# connect to Teleport and we won't be able to validate the setup.
+resource "teleport_role" "terraform-test" {
+  version = "v7"
+  metadata = {
+    name        = "terraform-test"
+    description = "Example role created by Terraform"
+  }
+
+  spec = {
+    # This role does nothing as it is an example role.
+    allow = {}
+  }
+}
+```
+
+Replace `teleport.example.com:443` with the address of your Teleport Proxy
+Service or Auth Service. If you modified the destination directory from
+`/opt/machine-id`, then this should also be replaced.
+
+Now, execute Terraform to test the configuration:
+
+```code
+$ terraform init
+$ terraform plan
+$ terraform apply
+```
+
+Check your Teleport cluster, ensuring the role has been created:
+
+```code
+$ tctl get role/terraform-test
+```
+
+## Next steps
+
+- Explore the
+  [Terraform provider resource reference](../../../reference/terraform-provider/terraform-provider.mdx)
+  to discover what can be configured with the Teleport Terraform provider.
+- Read the [tbot configuration reference](../../../reference/machine-id/configuration.mdx) to explore
+  all the available `tbot` configuration options.

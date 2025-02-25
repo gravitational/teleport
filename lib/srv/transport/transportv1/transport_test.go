@@ -20,10 +20,6 @@ package transportv1
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -48,6 +44,7 @@ import (
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
@@ -109,7 +106,7 @@ type fakeDialer struct {
 func (f fakeDialer) DialSite(ctx context.Context, clusterName string, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error) {
 	conn, ok := f.siteConns[clusterName]
 	if !ok {
-		return nil, trace.NotFound(clusterName)
+		return nil, trace.NotFound("%s", clusterName)
 	}
 
 	return conn, nil
@@ -119,7 +116,7 @@ func (f fakeDialer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr n
 	key := fmt.Sprintf("%s.%s.%s", host, port, cluster)
 	conn, ok := f.hostConns[key]
 	if !ok {
-		return nil, trace.NotFound(key)
+		return nil, trace.NotFound("%s", key)
 	}
 
 	return conn, nil
@@ -225,7 +222,7 @@ func newServer(t *testing.T, cfg ServerConfig) testPack {
 }
 
 func fakeSigner(authzCtx *authz.Context, clusterName string) agentless.SignerCreator {
-	return func(_ context.Context, _ agentless.CertGenerator) (ssh.Signer, error) {
+	return func(_ context.Context, _ agentless.LocalAccessPoint, _ agentless.CertGenerator) (ssh.Signer, error) {
 		return nil, nil
 	}
 }
@@ -259,7 +256,7 @@ func TestService_GetClusterDetails(t *testing.T) {
 			t.Parallel()
 			srv := newServer(t, ServerConfig{
 				Dialer:            fakeDialer{},
-				Logger:            utils.NewLoggerForTests(),
+				Logger:            utils.NewSlogLoggerForTests(),
 				FIPS:              test.FIPS,
 				SignerFn:          fakeSigner,
 				ConnectionMonitor: fakeMonitor{},
@@ -342,7 +339,7 @@ func TestService_ProxyCluster(t *testing.T) {
 						cluster: conn,
 					},
 				},
-				Logger:            utils.NewLoggerForTests(),
+				Logger:            utils.NewSlogLoggerForTests(),
 				SignerFn:          fakeSigner,
 				ConnectionMonitor: fakeMonitor{},
 				LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
@@ -494,7 +491,7 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 				},
 				SignerFn:          fakeSigner,
 				ConnectionMonitor: fakeMonitor{},
-				Logger:            utils.NewLoggerForTests(),
+				Logger:            utils.NewSlogLoggerForTests(),
 				LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
 				authzContextFn: func(info credentials.AuthInfo) (*authz.Context, error) {
 					checker, err := test.checkerFn(info)
@@ -557,7 +554,7 @@ func TestService_ProxySSH(t *testing.T) {
 	srv := newServer(t, ServerConfig{
 		Dialer:            sshSrv,
 		SignerFn:          fakeSigner,
-		Logger:            utils.NewLoggerForTests(),
+		Logger:            utils.NewSlogLoggerForTests(),
 		LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
 		ConnectionMonitor: fakeMonitor{},
 		agentGetterFn: func(rw io.ReadWriter) teleagent.Getter {
@@ -834,23 +831,17 @@ func (s *sshServer) Stop() error {
 }
 
 func generateSigner(t *testing.T, keyring agent.Agent) ssh.Signer {
-	private, err := rsa.GenerateKey(rand.Reader, 2048)
+	private, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)
 
-	block := &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(private),
-	}
+	signer, err := ssh.NewSignerFromSigner(private)
+	require.NoError(t, err)
 
 	require.NoError(t, keyring.Add(agent.AddedKey{
 		PrivateKey:   private,
 		Comment:      "test",
 		LifetimeSecs: math.MaxUint32,
 	}))
-
-	privatePEM := pem.EncodeToMemory(block)
-	signer, err := ssh.ParsePrivateKey(privatePEM)
-	require.NoError(t, err)
 
 	return signer
 }

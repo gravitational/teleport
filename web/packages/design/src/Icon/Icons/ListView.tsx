@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function ListView({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const ListView = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-listview"
       {...otherProps}
+      ref={ref}
     >
       <path d="M3.75 5.25C3.33579 5.25 3 5.58579 3 6C3 6.41421 3.33579 6.75 3.75 6.75H5.25C5.66421 6.75 6 6.41421 6 6C6 5.58579 5.66421 5.25 5.25 5.25H3.75Z" />
       <path d="M9 5.25C8.58579 5.25 8.25 5.58579 8.25 6C8.25 6.41421 8.58579 6.75 9 6.75H20.25C20.6642 6.75 21 6.41421 21 6C21 5.58579 20.6642 5.25 20.25 5.25H9Z" />
@@ -65,5 +66,5 @@ export function ListView({ size = 24, color, ...otherProps }: IconProps) {
       <path d="M3 12C3 11.5858 3.33579 11.25 3.75 11.25H5.25C5.66421 11.25 6 11.5858 6 12C6 12.4142 5.66421 12.75 5.25 12.75H3.75C3.33579 12.75 3 12.4142 3 12Z" />
       <path d="M3.75 17.25C3.33579 17.25 3 17.5858 3 18C3 18.4142 3.33579 18.75 3.75 18.75H5.25C5.66421 18.75 6 18.4142 6 18C6 17.5858 5.66421 17.25 5.25 17.25H3.75Z" />
     </Icon>
-  );
-}
+  )
+);

@@ -2,9 +2,6 @@ teleport:
 
     # Configuration for the storage back-end used for the cluster state and the
     # audit log. Several back-end types are supported.
-    # See the "Storage backends" (https://goteleport.com/docs/setup/reference/backends)
-    # section of the documentation to learn how to configure
-    # DynamoDB, S3, etcd, and other highly available back-ends.
     storage:
         # By default teleport uses a SQLite database in the `data_dir`
         # directory on a local filesystem
@@ -26,8 +23,6 @@ teleport:
 
         # Use this setting to configure teleport to store the recorded sessions
         # in an AWS S3 bucket or use GCP Storage with 'gs://'.
-        # See the S3 section on "Storage backends" for more information
-        # (https://goteleport.com/docs/setup/reference/backends/#s3).
         audit_sessions_uri: 's3://example.com/path/to/bucket?region=us-east-1'
 
         # SQLite-specific section:
@@ -63,7 +58,7 @@ teleport:
         # consume the retention period via a query parameter in the audit_events_uri. See the examples below
         # for how to configure the retention period for other backends.
         # Firestore: firestore://events_table_name?eventRetentionPeriod=10d
-        # Postgres: postgresql://user_name@database-address/teleport_audit?retention_period=10d
+        # Postgres: postgresql://user_name@database-address/teleport_audit#retention_period=240h
         retention_period: 365d
 
         # minimum/maximum read capacity in units
@@ -155,18 +150,24 @@ auth_service:
 
         # Sets whether local auth is enabled alongside any other authentication
         # type. Default is true. local_auth must be 'false' for FedRAMP / FIPS.
-        # (https://goteleport.com/docs/enterprise/ssh-kubernetes-fedramp/)
         #local_auth: true
 
         # Enforce per-session MFA or PIV-hardware key restrictions on user login sessions.
         # Possible values: true, false, "hardware_key", "hardware_key_touch".
         # Defaults to false.
         require_session_mfa: false
+        
+        # second_factors is the list of allowed second factors for the cluster.
+        # Possible values: "otp", "webauthn", and "sso". Order does not matter.
+        # Defaults to ["otp"].
+        second_factors: ["webauthn", "otp"]
 
         # second_factor can be 'on', 'otp' or 'webauthn'.
         # - 'on' requires either otp or webauthn second factor.
         # - 'otp' and 'webauthn' require the corresponding second factor.
-        second_factor: otp
+        #
+        # Prefer setting second_factors instead.
+        #second_factor: otp
 
         # Sets whether passwordless authentication is allowed.
         # Passwordless requires WebAuthn.
@@ -181,10 +182,8 @@ auth_service:
         # Sets the default authentication connector for the cluster:
         # - 'local' for local authentication (password, WebAuthn, etc.)
         # - 'passwordless' for passwordless authentication
-        #   (http://goteleport.com/docs/access-controls/guides/passwordless/#optional-enable-passwordless-by-default)
         # - 'headless' for headless authentication
-        #   (http://goteleport.com/docs/access-controls/guides/headless-login/#optional-enable-passwordless-by-default)
-        # - A specific SSO connector name - see https://goteleport.com/docs/access-controls/sso/ for details.
+        # - A specific SSO connector name
         # Defaults to "local".
         #connector_name: local
 
@@ -245,14 +244,11 @@ auth_service:
 
         # Locking mode determines how to apply lock views locally available to
         # a Teleport component; can be strict or best_effort.
-        # See the "Locking mode" section for more details
-        # (https://goteleport.com/docs/access-controls/guides/locking/#locking-mode).
         locking_mode: best_effort
 
         # Device Trust configures Teleport's behavior in regards to trusted
         # devices.
         # Device Trust is a Teleport Enterprise feature.
-        # (https://goteleport.com/docs/access-controls/guides/device-trust/)
         device_trust:
           # 'mode' is the cluster-wide device trust mode.
           # The following values are supported:
@@ -269,6 +265,16 @@ auth_service:
         # issued by this auth server, defaults to 12 hours.  Examples:
         # "14h30m", "1h" etc.
         default_session_ttl: 12h
+
+        stable_unix_user_config:
+            # If set to true, SSH instances will use the same UID for each given
+            # username when automatically creating users. Defaults to false.
+            enabled: false
+
+            # The range of UIDs (including both ends) used for automatic UID
+            # assignment. Ignored if enabled is set to false.
+            #first_uid: 90000
+            #last_uid: 95000
 
     # IP and the port to bind to. Other Teleport Nodes will be connecting to
     # this port (AKA "Auth API" or "Cluster API") to validate client
@@ -308,9 +314,7 @@ auth_service:
 
     # This setting determines if a Teleport proxy performs strict host key
     # checks.
-    # Only applicable if session_recording=proxy, see "Recording Proxy Mode"
-    # for details
-    # (https://goteleport.com/docs/architecture/proxy/#recording-proxy-mode).
+    # Only applicable if session_recording=proxy
     proxy_checks_host_keys: yes
 
     # Determines if sessions to cluster resources are forcefully terminated after
@@ -339,6 +343,12 @@ auth_service:
     keep_alive_interval: 5m
     keep_alive_count_max: 3
 
+    # Specifies the cluster wide dial timeout used for establishing SSH connections
+    # via tsh ssh and the Web UI. The default value of 30 seconds should suffice for
+    # most use cases. However, if there are multiple network hops to reach the target
+    # host causing dial timeout failures, this value can be increased as needed.
+    ssh_dial_timeout: 30s
+
     # Determines the internal session control timeout cluster-wide. This value
     # will be used with enterprise max_connections and max_sessions. It's
     # unlikely that you'll need to change this.
@@ -349,8 +359,7 @@ auth_service:
     routing_strategy: unambiguous_match
 
     # License file to start auth server with. Note that this setting is ignored
-    # in the Teleport Community Edition and is required only for Teleport Pro, Business
-    # and Enterprise subscription plans.
+    # in the Teleport Community Edition and is required only for Teleport Enterprise.
     #
     # The path can be either absolute or relative to the configured `data_dir`
     # and should point to the license file obtained from Teleport Download
@@ -411,19 +420,6 @@ auth_service:
     # this to true is necessary if you want to use openssh to access nodes with uppercase
     # characters in their hostnames.
     case_insensitive_routing: false
-
-    # Configuration for the Teleport Assist functionality
-    assist:
-      openai:
-        # An absolute path to the file containing the API token for OpenAI.
-        # This is required for Assist functionality.
-        api_token_path: /etc/teleport/openai_key
-
-      # When executing commands on servers through Teleport Assist,
-      # this is the maximum number of servers that Assist will connect to in parallel.
-      # This only applies in the context of a single command execution -
-      # if multiple users are using Assist concurrently, more connections may be made.
-      command_execution_workers: 30
 
     # AccessMonitoring is a set of options related to the Access Monitoring feature.
     access_monitoring:

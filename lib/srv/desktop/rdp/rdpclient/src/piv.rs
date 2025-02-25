@@ -15,7 +15,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::rdpdr::TeleportRdpdrBackendError;
-use ironrdp_pdu::{custom_err, other_err, PduResult};
+use ironrdp_pdu::{pdu_other_err, PduResult};
 use iso7816::aid::Aid;
 use iso7816::command::instruction::Instruction;
 use iso7816::command::Command;
@@ -58,7 +58,7 @@ pub struct Card<const S: usize> {
 impl<const S: usize> Card<S> {
     pub fn new(uuid: Uuid, cert_der: &[u8], key_der: &[u8], pin: String) -> PduResult<Self> {
         let piv_auth_key = RsaPrivateKey::from_pkcs1_der(key_der)
-            .map_err(|_e| other_err!("failed to parse private key from DER"))?;
+            .map_err(|_e| pdu_other_err!("failed to parse private key from DER"))?;
 
         Ok(Self {
             chuid: Self::build_chuid(uuid),
@@ -79,7 +79,7 @@ impl<const S: usize> Card<S> {
             None => cmd,
             Some(pending) => {
                 pending.extend_from_command(&cmd).map_err(|e| {
-                    custom_err!(TeleportRdpdrBackendError(format!(
+                    pdu_other_err!("", source: TeleportRdpdrBackendError(format!(
                         "could not build chained command: {e:?}"
                     )))
                 })?;
@@ -158,8 +158,9 @@ impl<const S: usize> Card<S> {
         if cmd.p1 != 0x3F && cmd.p2 != 0xFF {
             return Ok(Response::new(Status::NotFound));
         }
-        let request_tlv = Tlv::from_bytes(cmd.data())
-            .map_err(|e| custom_err!(TeleportRdpdrBackendError(format!("TLV invalid: {e:?}"))))?;
+        let request_tlv = Tlv::from_bytes(cmd.data()).map_err(
+            |e| pdu_other_err!("", source:TeleportRdpdrBackendError(format!("TLV invalid: {e:?}"))),
+        )?;
         if *request_tlv.tag() != tlv_tag(0x5C)? {
             return Ok(Response::new(Status::NotFound));
         }
@@ -189,7 +190,9 @@ impl<const S: usize> Card<S> {
             None => Ok(Response::new(Status::NotFound)),
             Some(cursor) => {
                 let mut chunk = [0; CHUNK_SIZE];
-                let n = cursor.read(&mut chunk).map_err(|e| custom_err!(e))?;
+                let n = cursor
+                    .read(&mut chunk)
+                    .map_err(|e| pdu_other_err!("", source:e))?;
                 let mut chunk = chunk.to_vec();
                 chunk.truncate(n);
                 let remaining = cursor.get_ref().len() as u64 - cursor.position();
@@ -237,23 +240,24 @@ impl<const S: usize> Card<S> {
         // https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-78-4.pdf
         // TODO(zmb3): support non-RSA keys, if needed.
         if cmd.p1 != 0x07 {
-            return Err(custom_err!(TeleportRdpdrBackendError(format!(
+            return Err(pdu_other_err!("", source:TeleportRdpdrBackendError(format!(
                 "unsupported algorithm identifier P1:{:#X} in general authenticate command",
                 cmd.p1
             ))));
         }
         // P2='9A' means PIV Authentication Key (matches our cert '5FC105' in handle_get_data).
         if cmd.p2 != 0x9A {
-            return Err(custom_err!(TeleportRdpdrBackendError(format!(
+            return Err(pdu_other_err!("", source:TeleportRdpdrBackendError(format!(
                 "unsupported key reference P2:{:#X} in general authenticate command",
                 cmd.p2
             ))));
         }
 
-        let request_tlv = Tlv::from_bytes(cmd.data())
-            .map_err(|e| custom_err!(TeleportRdpdrBackendError(format!("TLV invalid: {e:?}"))))?;
+        let request_tlv = Tlv::from_bytes(cmd.data()).map_err(
+            |e| pdu_other_err!("", source:TeleportRdpdrBackendError(format!("TLV invalid: {e:?}"))),
+        )?;
         if *request_tlv.tag() != tlv_tag(TLV_TAG_DYNAMIC_AUTHENTICATION_TEMPLATE)? {
-            return Err(custom_err!(TeleportRdpdrBackendError(format!(
+            return Err(pdu_other_err!("", source:TeleportRdpdrBackendError(format!(
                 "general authenticate command TLV invalid: {request_tlv:?}"
             ))));
         }
@@ -261,7 +265,7 @@ impl<const S: usize> Card<S> {
         // Extract the challenge field.
         let request_tlvs = match request_tlv.value() {
             Value::Primitive(_) => {
-                return Err(custom_err!(TeleportRdpdrBackendError(format!(
+                return Err(pdu_other_err!("", source:TeleportRdpdrBackendError(format!(
                     "general authenticate command TLV invalid: {request_tlv:?}"
                 ))));
             }
@@ -275,14 +279,14 @@ impl<const S: usize> Card<S> {
             challenge = match data.value() {
                 Value::Primitive(chal) => Some(chal),
                 Value::Constructed(_) => {
-                    return Err(custom_err!(TeleportRdpdrBackendError(format!(
+                    return Err(pdu_other_err!("", source:TeleportRdpdrBackendError(format!(
                         "general authenticate command TLV invalid: {request_tlv:?}"
                     ))));
                 }
             };
         }
         let challenge = challenge.ok_or_else(|| {
-            custom_err!(TeleportRdpdrBackendError(format!(
+            pdu_other_err!("", source:TeleportRdpdrBackendError(format!(
                 "general authenticate command TLV invalid: {request_tlv:?}, missing challenge data"
             )))
         })?;
@@ -407,7 +411,7 @@ const TLV_TAG_RESPONSE: u8 = 0x82;
 
 fn tlv(tag: u8, value: Value) -> PduResult<Tlv> {
     Tlv::new(tlv_tag(tag)?, value).map_err(|e| {
-        custom_err!(TeleportRdpdrBackendError(format!(
+        pdu_other_err!("", source:TeleportRdpdrBackendError(format!(
             "TLV with tag {tag:#X} invalid: {e:?}"
         )))
     })
@@ -415,7 +419,7 @@ fn tlv(tag: u8, value: Value) -> PduResult<Tlv> {
 
 fn tlv_tag(val: u8) -> PduResult<Tag> {
     Tag::try_from(val).map_err(|e| {
-        custom_err!(TeleportRdpdrBackendError(format!(
+        pdu_other_err!("", source:TeleportRdpdrBackendError(format!(
             "TLV tag {val:#X} invalid: {e:?}"
         )))
     })

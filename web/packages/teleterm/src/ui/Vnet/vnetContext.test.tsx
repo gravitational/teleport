@@ -16,15 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { PropsWithChildren } from 'react';
-import { renderHook, waitFor, act } from '@testing-library/react';
 
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-import { IAppContext } from 'teleterm/ui/types';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { IAppContext } from 'teleterm/ui/types';
 
-import { VnetContextProvider, useVnetContext } from './vnetContext';
+import {
+  useVnetContext,
+  VnetContextProvider,
+  VnetStatus,
+  VnetStoppedReason,
+} from './vnetContext';
 
 describe('autostart', () => {
   it('starts VNet if turned on', async () => {
@@ -141,6 +146,51 @@ describe('autostart', () => {
     expect(err).toBeFalsy();
     expect(statePersistenceService.getState().vnet.autoStart).toEqual(false);
   });
+});
+
+it('registers a callback for unexpected shutdown', async () => {
+  const appContext = new MockAppContext();
+  appContext.workspacesService.setState(draft => {
+    draft.isInitialized = true;
+  });
+  appContext.statePersistenceService.putState({
+    ...appContext.statePersistenceService.getState(),
+    vnet: { autoStart: true },
+  });
+
+  const { result } = renderHook(() => useVnetContext(), {
+    wrapper: createWrapper(Wrapper, { appContext }),
+  });
+
+  await waitFor(
+    () => expect(result.current.startAttempt.status).toEqual('success'),
+    { interval: 5 }
+  );
+
+  // Trigger unexpected shutdown.
+  act(() => {
+    appContext.unexpectedVnetShutdownListener({
+      error: 'lorem ipsum dolor sit amet',
+    });
+  });
+
+  await waitFor(
+    () => {
+      expect(result.current.status.value).toEqual('stopped');
+    },
+    { interval: 5 }
+  );
+
+  const status = result.current.status as Extract<
+    VnetStatus,
+    { value: 'stopped' }
+  >;
+  expect(status.reason.value).toEqual('unexpected-shutdown');
+  const reason = status.reason as Extract<
+    VnetStoppedReason,
+    { value: 'unexpected-shutdown' }
+  >;
+  expect(reason.errorMessage).toEqual('lorem ipsum dolor sit amet');
 });
 
 const Wrapper = (props: PropsWithChildren<{ appContext: IAppContext }>) => (

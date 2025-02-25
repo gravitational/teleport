@@ -9,6 +9,17 @@ data:
     storage = {{ .Values.eventHandler.storagePath | toJson }}
     timeout = {{ .Values.eventHandler.timeout | toJson }}
     batch = {{ .Values.eventHandler.batch }}
+    window-size = {{ default "24h" .Values.eventHandler.windowSize | quote }}
+    debug = {{ default "false" .Values.eventHandler.debug }}
+    {{- if .Values.eventHandler.types }}
+    types = "{{ join "," .Values.eventHandler.types }}"
+    {{- end }}
+    {{- if .Values.eventHandler.skipEventTypes }}
+    skip-event-types = "{{ join "," .Values.eventHandler.skipEventTypes  }}"
+    {{- end }}
+    {{- if .Values.eventHandler.skipSessionTypes  }}
+    skip-session-types = "{{ join "," .Values.eventHandler.skipSessionTypes }}"
+    {{- end }}
 
     [teleport]
     addr = "{{ .Values.teleport.address }}"

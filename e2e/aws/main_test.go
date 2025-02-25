@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -32,15 +33,16 @@ const (
 	// discoveryMatcherLabelsEnv is the env variable that specifies the matcher
 	// labels to use in test discovery services.
 	discoveryMatcherLabelsEnv = "DISCOVERY_MATCHER_LABELS"
-	// rdsAccessRoleEnv is the environment variable that specifies the IAM role
-	// that Teleport Database Service will assume to access RDS databases.
+	// rdsAccessRoleARNEnv is the environment variable that specifies the IAM
+	// role ARN that Teleport Database Service will assume to access RDS
+	// databases.
 	// See modules/databases-ci/ from cloud-terraform repo for more details.
-	rdsAccessRoleEnv = "RDS_ACCESS_ROLE"
-	// rdsDiscoveryRoleEnv is the environment variable that specifies the
-	// IAM role that Teleport Discovery Service will assume to discover
+	rdsAccessRoleARNEnv = "RDS_ACCESS_ROLE"
+	// rdsDiscoveryRoleARNEnv is the environment variable that specifies the
+	// IAM role ARN that Teleport Discovery Service will assume to discover
 	// RDS databases.
 	// See modules/databases-ci/ from cloud-terraform repo for more details.
-	rdsDiscoveryRoleEnv = "RDS_DISCOVERY_ROLE"
+	rdsDiscoveryRoleARNEnv = "RDS_DISCOVERY_ROLE"
 	// rdsPostgresInstanceNameEnv is the environment variable that specifies the
 	// name of the RDS Postgres DB instance that will be created by the Teleport
 	// Discovery Service.
@@ -53,16 +55,16 @@ const (
 	// name of the RDS MariaDB instance that will be created by the Teleport
 	// Discovery Service.
 	rdsMariaDBInstanceNameEnv = "RDS_MARIADB_INSTANCE_NAME"
-	// rssAccessRoleEnv is the environment variable that specifies the IAM role
-	// that Teleport Database Service will assume to access Redshift Serverless
-	// databases.
+	// rssAccessRoleARNEnv is the environment variable that specifies the IAM
+	// role ARN that Teleport Database Service will assume to access Redshift
+	// Serverless databases.
 	// See modules/databases-ci/ from cloud-terraform repo for more details.
-	rssAccessRoleEnv = "REDSHIFT_SERVERLESS_ACCESS_ROLE"
-	// rssDiscoveryRoleEnv is the environment variable that specifies the
-	// IAM role that Teleport Discovery Service will assume to discover
+	rssAccessRoleARNEnv = "REDSHIFT_SERVERLESS_ACCESS_ROLE"
+	// rssDiscoveryRoleARNEnv is the environment variable that specifies the
+	// IAM role ARN that Teleport Discovery Service will assume to discover
 	// Redshift Serverless databases.
 	// See modules/databases-ci/ from cloud-terraform repo for more details.
-	rssDiscoveryRoleEnv = "REDSHIFT_SERVERLESS_DISCOVERY_ROLE"
+	rssDiscoveryRoleARNEnv = "REDSHIFT_SERVERLESS_DISCOVERY_ROLE"
 	// rssNameEnv is the environment variable that specifies the
 	// name of the Redshift Serverless workgroup that will be created by the
 	// Teleport Discovery Service.
@@ -74,6 +76,23 @@ const (
 	// rssDBUserEnv is the name of the IAM role that tests will use as a
 	// database user to connect to Redshift Serverless.
 	rssDBUserEnv = "REDSHIFT_SERVERLESS_IAM_DB_USER"
+	// redshiftAccessRoleARNEnv is the environment variable that specifies the
+	// IAM role ARN that Teleport Database Service will assume to access Redshift
+	// cluster databases.
+	// See modules/databases-ci/ from cloud-terraform repo for more details.
+	redshiftAccessRoleARNEnv = "REDSHIFT_ACCESS_ROLE"
+	// redshiftDiscoveryRoleARNEnv is the environment variable that specifies the
+	// IAM role ARN that Teleport Discovery Service will assume to discover
+	// Redshift cluster databases.
+	// See modules/databases-ci/ from cloud-terraform repo for more details.
+	redshiftDiscoveryRoleARNEnv = "REDSHIFT_DISCOVERY_ROLE"
+	// redshiftNameEnv is the environment variable that specifies the
+	// name of the Redshift cluster db that will be created by the
+	// Teleport Discovery Service.
+	redshiftNameEnv = "REDSHIFT_CLUSTER_NAME"
+	// redshiftIAMDBUserEnv is the name of the IAM role that tests will use as a
+	// database user to connect to Redshift Serverless.
+	redshiftIAMDBUserEnv = "REDSHIFT_IAM_DB_USER"
 	// kubeSvcRoleARNEnv is the environment variable that specifies
 	// the IAM role that Teleport Kubernetes Service will assume to access the EKS cluster.
 	// This role needs to have the following permissions:
@@ -122,6 +141,7 @@ const (
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise, it will run tests as normal.
 func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
 	// agents connect over a reverse tunnel to proxy, so we use insecure mode.
 	lib.SetInsecureDevMode(true)
 	helpers.TestMainImplementation(m)

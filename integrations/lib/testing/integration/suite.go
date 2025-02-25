@@ -93,7 +93,7 @@ func (s *Suite) initContexts(oldT *testing.T, newT *testing.T) {
 	} else {
 		baseCtx = context.Background()
 	}
-	baseCtx, _ = logger.WithField(baseCtx, "test", newT.Name())
+	baseCtx, _ = logger.With(baseCtx, "test", newT.Name())
 	baseCtx, cancel := context.WithCancel(baseCtx)
 	newT.Cleanup(cancel)
 
@@ -108,8 +108,8 @@ func (s *Suite) initContexts(oldT *testing.T, newT *testing.T) {
 
 // SetContextTimeout limits the lifetime of test and app contexts.
 func (s *Suite) SetContextTimeout(timeout time.Duration) context.Context {
+	s.T().Helper()
 	t := s.T()
-	t.Helper()
 
 	contexts, ok := s.contexts[t]
 	require.True(t, ok)
@@ -129,8 +129,8 @@ func (s *Suite) SetContextTimeout(timeout time.Duration) context.Context {
 
 // Context returns a current test context.
 func (s *Suite) Context() context.Context {
+	s.T().Helper()
 	t := s.T()
-	t.Helper()
 	contexts, ok := s.contexts[t]
 	require.True(t, ok)
 	return contexts.testCtx
@@ -138,8 +138,8 @@ func (s *Suite) Context() context.Context {
 
 // NewTmpFile creates a new temporary file.
 func (s *Suite) NewTmpFile(pattern string) *os.File {
+	s.T().Helper()
 	t := s.T()
-	t.Helper()
 
 	file, err := os.CreateTemp("", pattern)
 	require.NoError(t, err)
@@ -152,8 +152,8 @@ func (s *Suite) NewTmpFile(pattern string) *os.File {
 
 // StartApp spawns an app in parallel with the running test/suite.
 func (s *Suite) StartApp(app AppI) {
+	s.T().Helper()
 	t := s.T()
-	t.Helper()
 
 	contexts, ok := s.contexts[t]
 	require.True(t, ok)
@@ -163,7 +163,7 @@ func (s *Suite) StartApp(app AppI) {
 		if err := app.Run(ctx); err != nil {
 			// We're in a goroutine so we can't just require.NoError(t, err).
 			// All we can do is to log an error.
-			logger.Get(ctx).WithError(err).Error("Application failed")
+			logger.Get(ctx).ErrorContext(ctx, "Application failed", "error", err)
 		}
 	}()
 

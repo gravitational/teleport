@@ -21,13 +21,13 @@ package fanoutbuffer
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 )
 
 // ErrGracePeriodExceeded is an error returned by Cursor.Read indicating that the cursor fell
@@ -380,7 +380,7 @@ func finalizeCursor[T any](cursor *Cursor[T]) {
 	}
 
 	cursor.closeLocked()
-	log.Warn("Fanout buffer cursor was never closed. (this is a bug)")
+	slog.WarnContext(context.Background(), "Fanout buffer cursor was never closed. (this is a bug)")
 }
 
 // Close closes the cursor. Close is safe to double-call and should be called as soon as possible if

@@ -20,13 +20,14 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"log/slog"
 	"os"
-	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/email"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
@@ -65,12 +66,13 @@ func main() {
 		if err := run(*path, *debug); err != nil {
 			lib.Bail(err)
 		} else {
-			logger.Standard().Info("Successfully shut down")
+			slog.InfoContext(context.Background(), "Successfully shut down")
 		}
 	}
 }
 
 func run(configPath string, debug bool) error {
+	ctx := context.Background()
 	conf, err := email.LoadConfig(configPath)
 	if err != nil {
 		return trace.Wrap(err)
@@ -84,11 +86,11 @@ func run(configPath string, debug bool) error {
 		return err
 	}
 	if debug {
-		logger.Standard().Debugf("DEBUG logging enabled")
+		slog.DebugContext(ctx, "DEBUG logging enabled")
 	}
 
 	if conf.Delivery.Recipients != nil {
-		logger.Standard().Warn("The delivery.recipients config option is deprecated, set role_to_recipients[\"*\"] instead for the same functionality")
+		slog.WarnContext(ctx, "The delivery.recipients config option is deprecated, set role_to_recipients[\"*\"] instead for the same functionality")
 	}
 
 	app, err := email.NewApp(*conf)
@@ -96,9 +98,11 @@ func run(configPath string, debug bool) error {
 		return trace.Wrap(err)
 	}
 
-	go lib.ServeSignals(app, 15*time.Second)
+	go lib.ServeSignals(app, common.PluginShutdownTimeout)
 
-	return trace.Wrap(
-		app.Run(context.Background()),
+	slog.InfoContext(ctx, "Starting Teleport Access Email Plugin",
+		"version", teleport.Version,
+		"git_ref", teleport.Gitref,
 	)
+	return trace.Wrap(app.Run(ctx))
 }

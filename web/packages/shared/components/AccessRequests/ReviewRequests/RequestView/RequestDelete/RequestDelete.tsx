@@ -16,22 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { ButtonWarning, ButtonSecondary, Flex, Text, Alert } from 'design';
-import TextSelectCopy from 'teleport/components/TextSelectCopy';
-
+import { Alert, ButtonSecondary, ButtonWarning, Flex } from 'design';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
-
+import { P } from 'design/Text/Text';
 import { Attempt } from 'shared/hooks/useAsync';
+import type { RequestState } from 'shared/services/accessRequests';
+
+import TextSelectCopy from 'teleport/components/TextSelectCopy';
 
 import RolesRequested from '../RolesRequested';
-
-import type { RequestState } from 'shared/services/accessRequests';
 
 export interface RequestDeleteProps {
   requestId: string;
@@ -67,20 +65,20 @@ export function RequestDelete({
           <Alert kind="danger" children={deleteRequestAttempt.statusText} />
         )}
         <Flex flexWrap="wrap" gap={1} alignItems="baseline">
-          <Text typography="body2">
+          <P>
             You are about to delete a request from <strong>{user}</strong> for
             the following roles:
-          </Text>
+          </P>
           <RolesRequested roles={roles} />
         </Flex>
         {requestState === 'APPROVED' && (
           <>
-            <Text mt={3} mb={2} typography="body2">
+            <P mt={3} mb={2}>
               Since this access request has already been approved, deleting the
               request now will NOT remove the user's access to these roles. If
               you would like to lock the user's access to the requested roles,
               you can run:
-            </Text>
+            </P>
             <TextSelectCopy
               mt={2}
               text={`tctl lock --access-request ${requestId}`}

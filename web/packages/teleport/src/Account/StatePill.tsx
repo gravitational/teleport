@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled, { css } from 'styled-components';
 
 /** State of an authentication method (password, MFA method, or passkey). */
@@ -45,14 +44,16 @@ export function StatePill({ state, 'data-testid': testId }: StatePillProps) {
 
 const StatePillBody = styled.span<StatePillProps>`
   font-size: 14px;
+  font-weight: 300;
+  line-height: 20px;
   display: inline-block;
-  padding: 0 ${props => props.theme.space[3]}px;
+  padding: 6px ${props => props.theme.space[3]}px;
   border-radius: 1000px;
 
   ${statePillStyles}
 `;
 
-function statePillStyles({ state }: StatePillProps): string {
+function statePillStyles({ state }: StatePillProps): ReturnType<typeof css> {
   switch (state) {
     case 'active':
       return css`

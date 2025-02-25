@@ -116,3 +116,102 @@ export const databases: Database[] = [
     hostname: 'mysql-hostname',
   },
 ];
+
+export const moreDatabases: Database[] = [
+  {
+    kind: 'db',
+    name: 'Puopte',
+    description: 'PostgreSQL 11.6: AWS Aurora ',
+    type: 'RDS PostgreSQL',
+    protocol: 'postgres',
+    labels: [
+      { name: 'cluster', value: 'root' },
+      { name: 'env', value: 'aws' },
+    ],
+    hostname: 'aurora-hostname',
+  },
+  {
+    kind: 'db',
+    name: 'Sujerej',
+    description: 'MongoDB database here',
+    type: 'Self-hosted MongoDB',
+    protocol: 'mongodb',
+    labels: [
+      { name: 'cluster', value: 'root' },
+      { name: 'env', value: 'aws' },
+    ],
+    hostname: 'mongo-bongo',
+  },
+  {
+    kind: 'db',
+    name: 'Zacocmo',
+    description: 'AWS Dynamo',
+    type: 'AWS Dynamo',
+    protocol: 'dynamodb',
+    labels: [
+      { name: 'cluster', value: 'root' },
+      { name: 'env', value: 'aws' },
+    ],
+    hostname: 'dynamo-123',
+  },
+  {
+    kind: 'db',
+    name: 'Capaede',
+    description: 'The Cassandra DB',
+    type: 'Cassandra',
+    protocol: 'cassandra',
+    labels: [
+      { name: 'cluster', value: 'root' },
+      { name: 'env', value: 'aws' },
+    ],
+    hostname: 'cas-123',
+  },
+  {
+    kind: 'db',
+    name: 'Reirwoc',
+    description: 'Snowflake',
+    type: 'Snowflake',
+    protocol: 'snowflake',
+    labels: [
+      { name: 'cluster', value: 'root' },
+      { name: 'env', value: 'aws' },
+    ],
+    hostname: 'snowflake-stuff',
+  },
+  {
+    kind: 'db',
+    name: 'Rowepjez',
+    description: 'Cockroach DB',
+    type: 'Self-hosted CockroachDB',
+    protocol: 'cockroachdb',
+    labels: [
+      { name: 'cluster', value: 'root' },
+      { name: 'env', value: 'aws' },
+    ],
+    hostname: 'cockroach-host',
+  },
+  {
+    kind: 'db',
+    name: 'Sezago',
+    description: 'PostgreSQL 9.6: Google Cloud SQL',
+    type: 'Cloud SQL PostgreSQL',
+    protocol: 'postgres',
+    labels: [
+      { name: 'cluster', value: 'root' },
+      { name: 'env', value: 'gcp' },
+    ],
+    hostname: 'postgres-hostname',
+  },
+  {
+    kind: 'db',
+    name: 'Bepodo',
+    description: 'MySQL 5.6: AWS Aurora Longname For SQL',
+    type: 'Self-hosted MySQL',
+    protocol: 'mysql',
+    labels: [
+      { name: 'cluster', value: 'root' },
+      { name: 'env', value: 'aws' },
+    ],
+    hostname: 'mysql-hostname',
+  },
+];

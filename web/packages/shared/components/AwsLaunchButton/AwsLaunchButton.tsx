@@ -18,15 +18,15 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { space } from 'design/system';
-import { ButtonBorder, Flex, Text, Box } from 'design';
-import Menu, { MenuItem } from 'design/Menu';
-import { ChevronDown } from 'design/Icon';
 
+import { Box, ButtonBorder, Flex, Text } from 'design';
+import { ChevronDown } from 'design/Icon';
+import Menu, { MenuItem } from 'design/Menu';
+import { space, SpaceProps } from 'design/system';
 import { AwsRole } from 'shared/services/apps';
 
 export class AwsLaunchButton extends React.Component<Props> {
-  anchorEl = React.createRef();
+  anchorEl: React.MutableRefObject<HTMLButtonElement> = React.createRef();
 
   state = {
     open: false,
@@ -48,14 +48,15 @@ export class AwsLaunchButton extends React.Component<Props> {
 
   render() {
     const { open } = this.state;
-    const { awsRoles, getLaunchUrl, onLaunchUrl } = this.props;
+    const { awsRoles, getLaunchUrl, onLaunchUrl, isAwsIdentityCenterApp } =
+      this.props;
     return (
       <>
         <ButtonBorder
           textTransform="none"
-          width="90px"
+          width={this.props.width || '90px'}
           size="small"
-          setRef={e => (this.anchorEl = e)}
+          setRef={e => (this.anchorEl.current = e)}
           onClick={this.onOpen}
         >
           Launch
@@ -76,7 +77,7 @@ export class AwsLaunchButton extends React.Component<Props> {
             horizontal: 'right',
           }}
           getContentAnchorEl={null}
-          anchorEl={this.anchorEl}
+          anchorEl={this.anchorEl.current}
           open={open}
           onClose={this.onClose}
         >
@@ -94,6 +95,7 @@ export class AwsLaunchButton extends React.Component<Props> {
             onLaunchUrl={onLaunchUrl}
             closeMenu={this.onClose}
             onChange={this.onChange}
+            isAwsIdentityCenterApp={isAwsIdentityCenterApp}
           />
         </Menu>
       </>
@@ -107,6 +109,7 @@ function RoleItemList({
   closeMenu,
   onChange,
   onLaunchUrl,
+  isAwsIdentityCenterApp,
 }: Props & {
   closeMenu: () => void;
   onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -117,6 +120,9 @@ function RoleItemList({
     let text = `${accountId}: ${display}`;
     if (display !== name) {
       text = `${text} (${name})`;
+    }
+    if (isAwsIdentityCenterApp) {
+      text = name;
     }
     return (
       <StyledMenuItem
@@ -137,17 +143,24 @@ function RoleItemList({
     );
   });
 
+  let selectLabel = 'Select IAM Role';
+  let placeholder = 'Search IAM roles...';
+  if (isAwsIdentityCenterApp) {
+    selectLabel = 'Select Permission Sets';
+    placeholder = 'Search Permission Sets...';
+  }
+
   return (
     <Flex flexDirection="column">
       <Text
         px="2"
-        fontSize="11px"
+        typography="body3"
         css={`
           color: ${props => props.theme.colors.text.main};
           background: ${props => props.theme.colors.spotBackground[2]};
         `}
       >
-        Select IAM Role
+        {selectLabel}
       </Text>
       <StyledInput
         p="2"
@@ -155,7 +168,7 @@ function RoleItemList({
         type="text"
         onChange={onChange}
         autoFocus
-        placeholder={'Search IAM roles...'}
+        placeholder={placeholder}
         autoComplete="off"
       />
       <Box
@@ -180,6 +193,8 @@ type Props = {
   awsRoles: AwsRole[];
   getLaunchUrl(arn: string): string;
   onLaunchUrl?(arn: string): void;
+  width?: string;
+  isAwsIdentityCenterApp?: boolean;
 };
 
 const StyledMenuItem = styled(MenuItem)(
@@ -192,14 +207,14 @@ const StyledMenuItem = styled(MenuItem)(
     color: ${theme.colors.text.main};
   }
 
-  :last-child {
+  &:last-child {
     border-bottom: none;
     margin-bottom: 8px;
   }
 `
 );
 
-const StyledInput = styled.input(
+const StyledInput = styled.input<SpaceProps>(
   ({ theme }) => `
   background: transparent;
   border: 1px solid ${theme.colors.text.muted};
@@ -214,7 +229,7 @@ const StyledInput = styled.input(
     outline: none;
   }
 
-  ::placeholder {
+  &::placeholder {
     color: ${theme.colors.text.muted};
     opacity: 1;
   }

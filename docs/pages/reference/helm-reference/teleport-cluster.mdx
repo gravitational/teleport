@@ -4,8 +4,8 @@ description: Values that can be set using the teleport-cluster Helm chart
 ---
 
 The `teleport-cluster` Helm chart deploys a Teleport cluster on Kubernetes.
-This includes deploying proxies, auth servers, and [kubernetes-access](../../kubernetes-access/introduction.mdx).
-See the [Teleport HA Architecture page](../../deploy-a-cluster/high-availability.mdx)
+This includes deploying proxies, auth servers, and [kubernetes-access](../../enroll-resources/kubernetes-access/introduction.mdx).
+See the [Teleport HA Architecture page](../../admin-guides/deploy-a-cluster/high-availability.mdx)
 for more details.
 
 You can
@@ -15,9 +15,9 @@ The `teleport-cluster` chart runs three Teleport services, split into two sets o
 
 | Teleport service | Running in | Purpose | Documentation |
 | - | - | - | - |
-| `auth_service` | auth `Deployment` | Authenticates users and hosts, and issues certificates. | [Auth documentation](../../architecture/authentication.mdx)
-| `kubernetes_service` | auth `Deployment` | Provides secure access to the Kubernetes<br/>cluster where the Teleport cluster is hosted. | [Kubernetes Access documentation](../../kubernetes-access/introduction.mdx) |
-| `proxy_service` | proxy `Deployment` | Runs the externally-facing parts of a Teleport<br/>cluster, such as the web UI, SSH proxy and reverse tunnel service. | [Proxy documentation](../../architecture/proxy.mdx) |
+| `auth_service` | auth `Deployment` | Authenticates users and hosts, and issues certificates. | [Auth documentation](../architecture/authentication.mdx)
+| `kubernetes_service` | auth `Deployment` | Provides secure access to the Kubernetes<br/>cluster where the Teleport cluster is hosted. | [Enrolling Kubernetes clusters](../../enroll-resources/kubernetes-access/introduction.mdx) |
+| `proxy_service` | proxy `Deployment` | Runs the externally-facing parts of a Teleport<br/>cluster, such as the web UI, SSH proxy and reverse tunnel service. | [Proxy documentation](../architecture/proxy.mdx) |
 
 <Admonition type="tip" title="Additional Kubernetes Clusters and Teleport Services">
 If you want to provide access to resources like Databases, Applications or other
@@ -35,17 +35,11 @@ Get started with a guide for each mode:
 
 | `chartMode` | Purpose | Guide |
 | - | - | - |
-| `standalone` | Runs by relying only on Kubernetes resources. | [Getting Started - Kubernetes with SSO](../../deploy-a-cluster/helm-deployments/kubernetes-cluster.mdx) |
-| `aws` | Leverages AWS managed services to store data. | [Running an HA Teleport cluster using an AWS EKS Cluster](../../deploy-a-cluster/helm-deployments/aws.mdx) |
-| `gcp` | Leverages GCP managed services to store data. | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../deploy-a-cluster/helm-deployments/gcp.mdx) |
-| `azure` | Leverages Azure managed services to store data. | [Running an HA Teleport cluster using a Microsoft Azure AKS cluster](../../deploy-a-cluster/helm-deployments/azure.mdx) |
-| `scratch` (v12 and above) | Generates empty Teleport configuration. User must pass their own config. This is discouraged, use `standalone` mode with [`auth.teleportConfig`](#authteleportconfig) and [`proxy.teleportConfig`](#proxyteleportconfig) instead. | [Running a Teleport cluster with a custom config](../../deploy-a-cluster/helm-deployments/custom.mdx) |
-
-<Admonition type="note" title="Custom mode removal">
-`custom` mode has been removed in Teleport version 12. See the [version 12
-migration guide](../../deploy-a-cluster/helm-deployments/migration-v12.mdx) for
-more information.
-</Admonition>
+| `standalone` | Runs by relying only on Kubernetes resources. | [Getting Started - Kubernetes](../../admin-guides/deploy-a-cluster/helm-deployments/kubernetes-cluster.mdx) |
+| `aws` | Leverages AWS managed services to store data. | [Running an HA Teleport cluster using an AWS EKS Cluster](../../admin-guides/deploy-a-cluster/helm-deployments/aws.mdx) |
+| `gcp` | Leverages GCP managed services to store data. | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../admin-guides/deploy-a-cluster/helm-deployments/gcp.mdx) |
+| `azure` | Leverages Azure managed services to store data. | [Running an HA Teleport cluster using a Microsoft Azure AKS cluster](../../admin-guides/deploy-a-cluster/helm-deployments/azure.mdx) |
+| `scratch` (v12 and above) | Generates empty Teleport configuration. User must pass their own config. This is discouraged, use `standalone` mode with [`auth.teleportConfig`](#authteleportconfig) and [`proxy.teleportConfig`](#proxyteleportconfig) instead. | [Running a Teleport cluster with a custom config](../../admin-guides/deploy-a-cluster/helm-deployments/custom.mdx) |
 
 <Admonition type="warning" title="Version Compatibility">
 The chart is versioned with Teleport. No compatibility guarantees are ensured
@@ -71,7 +65,7 @@ When using a fully qualified domain name as your `clusterName`, you will also
 need to configure the DNS provider for this domain to point to the external
 load balancer address of your Teleport cluster.
 
-(!docs/pages/kubernetes-access/helm/includes/kubernetes-externaladdress.mdx!)
+(!docs/pages/includes/kubernetes-access/helm/kubernetes-externaladdress.mdx!)
 
 You will need to manually add a DNS A record pointing `teleport.example.com` to
 the IP, or a CNAME record pointing to the hostname of the Kubernetes load balancer.
@@ -109,11 +103,13 @@ This is merged with chart-scoped values and takes precedence in case of conflict
 For example, to override the [`postStart`](#postStart) value only for auth pods:
 ```yaml
 # By default all pods postStart command should be "echo starting"
-postStart: ["echo", "starting"]
+postStart:
+  command: ["echo", "starting"]
 
 auth:
   # But we override the `postStart` value specifically for auth pods
-  postStart: ["curl", "http://hook"]
+  postStart:
+    command: ["curl", "http://hook"]
   imagePullPolicy: Always
 ```
 
@@ -144,7 +140,7 @@ If `proxyProtocol` is unspecified, Teleport does not require PROXY header for th
 connection, but will accept it if present. This mode is considered insecure
 and should only be used for testing purposes.
 
-See the [PROXY Protocol security section](../../management/security/proxy-protocol.mdx) for more details.
+See the [PROXY Protocol security section](../../admin-guides/management/security/proxy-protocol.mdx) for more details.
 
 
 ### `auth.teleportConfig`
@@ -193,11 +189,13 @@ For example, to override the [`postStart`](#postStart) value only for Teleport P
 and annotate the Kubernetes Service deployed for the Teleport Proxy Service:
 ```yaml
 # By default all pods postStart command should be "echo starting"
-postStart: ["echo", "starting"]
+postStart:
+  command: ["echo", "starting"]
 
 proxy:
   # But we override the `postStart` value specifically for proxy pods
-  postStart: ["curl", "http://hook"]
+  postStart:
+    command: ["curl", "http://hook"]
   imagePullPolicy: Always
 
   # We also annotate only the Kubernetes Service sending traffic to Proxy Service pods.
@@ -256,12 +254,12 @@ Possible values are `local` and `github` for Teleport Community Edition, plus `o
 | `string` | `""`          | No        | `auth_service.authentication.connector_name` |
 
 `authentication.connectorName` sets the default authentication connector.
-[The SSO documentation](../../access-controls/sso.mdx) explains how to create
+[The SSO documentation](../../admin-guides/access-controls/sso/sso.mdx) explains how to create
 authentication connectors for common identity providers. In addition to SSO
 connector names, the following built-in connectors are supported:
 
-- [`local`](../../management/admin/users.mdx) for local users
-- [`passwordless`](../../access-controls/guides/passwordless.mdx#optional-enable-passwordless-by-default) to enable by
+- [`local`](../../admin-guides/management/admin/users.mdx) for local users
+- [`passwordless`](../../admin-guides/access-controls/guides/passwordless.mdx) to enable by
 default passwordless authentication.
 
 Defaults to `local`.
@@ -275,7 +273,7 @@ Defaults to `local`.
 `authentication.localAuth` controls whether local authentication is enabled.
 When disabled, users can only log in through authentication connectors like `saml`, `oidc` or `github`.
 
-[Disabling local auth is required for FedRAMP / FIPS](../../access-controls/compliance-frameworks/fedramp.mdx#configure-the-teleport-auth-service).
+[Disabling local auth is required for FedRAMP / FIPS](../../admin-guides/access-controls/compliance-frameworks/fedramp.mdx).
 
 ### `authentication.lockingMode`
 
@@ -284,7 +282,7 @@ When disabled, users can only log in through authentication connectors like `sam
 | `string` | `""`          | No        | `auth_service.authentication.locking_mode` |
 
 `authentication.lockingMode` controls the locking mode cluster-wide. Possible values are `best_effort` and `strict`.
-See [the locking modes documentation](../../access-controls/guides/locking.mdx#next-steps-locking-modes) for more
+See [the locking modes documentation](../../admin-guides/access-controls/guides/locking.mdx) for more
 details.
 
 Defaults to Teleport's binary default when empty: `best_effort`.
@@ -297,7 +295,7 @@ Defaults to Teleport's binary default when empty: `best_effort`.
 
 `authentication.passwordless` controls whether passwordless authentication is enabled.
 
-[Can be used to forbid passwordless access to your cluster](../../access-controls/guides/passwordless.mdx#disable-passwordless)
+[Can be used to forbid passwordless access to your cluster](../../admin-guides/access-controls/guides/passwordless.mdx)
 
 ### `authentication.secondFactor`
 
@@ -305,7 +303,7 @@ Defaults to Teleport's binary default when empty: `best_effort`.
 |----------|---------------|-----------|---------------------------------------------|
 | `string` | `otp`         | Yes       | `auth_service.authentication.second_factor` |
 
-`authentication.secondFactor` controls the second factor used for local user authentication. Possible values supported by this chart
+`authentication.secondFactor` configures multi-factor authentication for local users. Possible values supported by this chart
 are `on`, `otp`, and `webauthn`.
 
 When set to `on` or `webauthn`, the `authenticationSecondFactor.webauthn` section can also be used.
@@ -331,7 +329,7 @@ Changing the RP ID will invalidate all already registered webauthn second factor
 
 ### `authentication.webauthn`
 
-See [Second Factor - WebAuthn](../../access-controls/guides/webauthn.mdx) for more details.
+See [Harden your Cluster Against IdP Compromises](../../admin-guides/access-controls/guides/webauthn.mdx) for more details.
 
 #### `authentication.webauthn.attestationAllowedCas`
 
@@ -616,6 +614,22 @@ $ kubectl --namespace teleport create secret generic license --from-file=/path/t
   enterprise: true
   ```
 
+### `licenseSecretName`
+
+| Type     | Default value  |
+|----------|----------------|
+| `string` | `license`      |
+
+`licenseSecretName` controls Kubernetes secret name for the Enterprise license.
+
+By using this value you will update the Kubernetes volume specification to mount Secret based volume to the container using custom name.
+
+`values.yaml` example:
+
+  ```yaml
+  licenseSecretName: enterprise-license
+  ```
+
 ## `installCRDs`
 
 | Type   | Default value |
@@ -639,6 +653,63 @@ the same Kubernetes cluster or installing the CRDs on your own you should not ha
 
 ## `operator`
 
+### `operator.annotations.deployment`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to the `Deployment` created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  operator:
+    annotations:
+      deployment:
+        kubernetes.io/annotation: value
+  ```
+
+### `operator.annotations.pod`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to the `Pod` created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  operator:
+    annotations:
+      pod:
+        kubernetes.io/annotation: value
+  ```
+
+### `operator.annotations.serviceAccount`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to the `ServiceAccount` created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  operator:
+    annotations:
+      serviceAccount:
+        kubernetes.io/annotation: value
+  ```
+
 ### `operator.enabled`
 
 | Type   | Default value |
@@ -655,7 +726,7 @@ If you are deploying multiple releases of the Helm chart in the same cluster you
 
   ```yaml
   operator:
-   enabled: true
+    enabled: true
   ```
 
 ### `operator.image`
@@ -674,6 +745,44 @@ This setting requires [`operator.enabled`](#operatorenabled).
   ```yaml
   operator:
     image: my.docker.registry/teleport-operator-image-name
+  ```
+
+### `operator.labels.deployment`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
+
+Kubernetes labels which should be applied to the `Deployment` created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  operator:
+    labels:
+      deployment:
+        label: value
+  ```
+
+### `operator.labels.pod`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
+
+Kubernetes labels which should be applied to the `Pod` created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  operator:
+    labels:
+      pod:
+        label: value
   ```
 
 ### `operator.resources`
@@ -811,7 +920,7 @@ PodSecurityPolicy resource has been removed in Kubernetes 1.25
 and replaced since 1.23 by PodSecurityAdmission. If you are running on
 Kubernetes 1.23 or later it is recommended to disable PSPs and use PSAs.
 The steps are documented in the
-[PSP removal guide](../../deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp.mdx).
+[PSP removal guide](../../admin-guides/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp.mdx).
 
 To disable PSP creation, you can set `enabled` to `false`.
 
@@ -858,11 +967,11 @@ policies to define access rules for the cluster.
 
 | `chartMode`  | Guide                                                                                                              |
 |--------------|--------------------------------------------------------------------------------------------------------------------|
-| `standalone` | [Getting Started - Kubernetes with SSO](../../deploy-a-cluster/helm-deployments/kubernetes-cluster.mdx)            |
-| `aws`        | [Running an HA Teleport cluster using an AWS EKS Cluster](../../deploy-a-cluster/helm-deployments/aws.mdx)         |
-| `gcp`        | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../deploy-a-cluster/helm-deployments/gcp.mdx) |
-| `azure`      | [Running an HA Teleport cluster using a Microsoft Azure AKS cluster](../../deploy-a-cluster/helm-deployments/azure.mdx) |
-| `scratch`    | [Running a Teleport cluster with a custom config](../../deploy-a-cluster/helm-deployments/custom.mdx)              |
+| `standalone` | [Getting Started - Kubernetes](../../admin-guides/deploy-a-cluster/helm-deployments/kubernetes-cluster.mdx)            |
+| `aws`        | [Running an HA Teleport cluster using an AWS EKS Cluster](../../admin-guides/deploy-a-cluster/helm-deployments/aws.mdx)         |
+| `gcp`        | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../admin-guides/deploy-a-cluster/helm-deployments/gcp.mdx) |
+| `azure`      | [Running an HA Teleport cluster using a Microsoft Azure AKS cluster](../../admin-guides/deploy-a-cluster/helm-deployments/azure.mdx) |
+| `scratch`    | [Running a Teleport cluster with a custom config](../../admin-guides/deploy-a-cluster/helm-deployments/custom.mdx)              |
 
 <Admonition type="warning">
 Using the `scratch` chart mode is discouraged. Precise chart and Teleport
@@ -878,7 +987,7 @@ to inject your custom configuration.
 
 `podMonitor` controls [the PodMonitor CR (from monitoring.coreos.com/v1)
 ](https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#monitoring.coreos.com/v1.PodMonitor)
-that monitors the workload (Auth and Proxy Services) deployed by the chart.
+that monitors the workload (Auth Service and Proxy Service) deployed by the chart.
 This custom resource configures Prometheus and makes it scrape Teleport metrics.
 
 The CRD is deployed by the prometheus-operator and allows workload to
@@ -993,7 +1102,7 @@ You can set `volumeSize` to request a different size of persistent volume when i
 
 ## `aws`
 
-`aws` settings are described in the AWS guide: [Running an HA Teleport cluster using an AWS EKS Cluster](../../deploy-a-cluster/helm-deployments/aws.mdx)
+`aws` settings are described in the AWS guide: [Running an HA Teleport cluster using an AWS EKS Cluster](../../admin-guides/deploy-a-cluster/helm-deployments/aws.mdx)
 
 ### `aws.region`
 
@@ -1077,11 +1186,11 @@ Whether Teleport should configure DynamoDB's autoscaling. Defaults to `false`.
 
 ### `aws.accessMonitoring`
 
-`aws.accessMonitoring` configures the [Access Monitoring](../../access-controls/access-monitoring.mdx)
+`aws.accessMonitoring` configures the [Access Monitoring](../../admin-guides/access-controls/access-monitoring.mdx)
 feature of the Auth Service.
 
 Using this features requires setting up specific AWS infrastructure as described
-in [the AccessMonitoring configuration section](../../access-controls/access-monitoring.mdx#configuration).
+in [the AccessMonitoring configuration section](../../admin-guides/access-controls/access-monitoring.mdx).
 The [Terraform example](https://github.com/gravitational/teleport/tree/v(=teleport.version=)/examples/athena)
 code will output the chart values for this section.
 
@@ -1108,11 +1217,11 @@ queries.
 
 ## `gcp`
 
-`gcp` settings are described in the GCP guide: [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../deploy-a-cluster/helm-deployments/gcp.mdx)
+`gcp` settings are described in the GCP guide: [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../admin-guides/deploy-a-cluster/helm-deployments/gcp.mdx)
 
 ## `azure`
 
-`azure` settings are described in the Azure guide: [Running an HA Teleport cluster using a Microsoft Azure AKS cluster](../../deploy-a-cluster/helm-deployments/azure.mdx)
+`azure` settings are described in the Azure guide: [Running an HA Teleport cluster using a Microsoft Azure AKS cluster](../../admin-guides/deploy-a-cluster/helm-deployments/azure.mdx)
 
 ## `highAvailability`
 
@@ -1236,7 +1345,7 @@ cluster deployed in HA mode.
   You must install and configure `cert-manager` in your Kubernetes cluster yourself.
 
   See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
-  and the relevant sections of the [AWS](../../deploy-a-cluster/helm-deployments/aws.mdx#step-47-configure-tls-certificates-for-teleport) and [GCP](../../deploy-a-cluster/helm-deployments/gcp.mdx#step-36-install-and-configure-cert-manager) guides for more information.
+  and the relevant sections of the [AWS](../../admin-guides/deploy-a-cluster/helm-deployments/aws.mdx) and [GCP](../../admin-guides/deploy-a-cluster/helm-deployments/gcp.mdx) guides for more information.
 </Admonition>
 
 ### `highAvailability.certManager.addCommonName`
@@ -1251,7 +1360,7 @@ Setting `highAvailability.certManager.addCommonName` to `true` will instruct `ce
   You must install and configure `cert-manager` in your Kubernetes cluster yourself.
 
   See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
-  and the relevant sections of the [AWS](../../deploy-a-cluster/helm-deployments/aws.mdx#step-47-configure-tls-certificates-for-teleport) and [GCP](../../deploy-a-cluster/helm-deployments/gcp.mdx#step-36-install-and-configure-cert-manager) guides for more information.
+  and the relevant sections of the [AWS](../../admin-guides/deploy-a-cluster/helm-deployments/aws.mdx) and [GCP](../../admin-guides/deploy-a-cluster/helm-deployments/gcp.mdx) guides for more information.
 </Admonition>
 
 `values.yaml` example:
@@ -1296,7 +1405,7 @@ Sets the name of the `cert-manager` `Issuer` or `ClusterIssuer` to use for issui
   You must install configure an appropriate `Issuer` supporting a DNS01 challenge yourself.
 
   Please see the [cert-manager DNS01 docs](https://cert-manager.io/docs/configuration/acme/dns01/#supported-dns01-providers) and the relevant sections
-  of the [AWS](../../deploy-a-cluster/helm-deployments/aws.mdx#step-47-configure-tls-certificates-for-teleport) and [GCP](../../deploy-a-cluster/helm-deployments/gcp.mdx#step-36-install-and-configure-cert-manager) guides for more information.
+  of the [AWS](../../admin-guides/deploy-a-cluster/helm-deployments/aws.mdx) and [GCP](../../admin-guides/deploy-a-cluster/helm-deployments/gcp.mdx) guides for more information.
 </Admonition>
 
 `values.yaml` example:
@@ -1370,7 +1479,7 @@ set to use a TLS certificate issued by a trusted internal CA rather than a publi
 
 You should create the secret in the same namespace as Teleport using a command like this:
 
-```shell
+```code
 kubectl create secret tls my-tls-secret --cert=/path/to/cert/file --key=/path/to/key/file
 ```
 
@@ -1400,7 +1509,7 @@ in the pod logs.
 
 You should create the secret in the same namespace as Teleport using a command like this:
 
-```shell
+```code
 kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
 ```
 
@@ -1773,6 +1882,14 @@ is true.
 
 `extraLabels.job` are labels to set on the Job run by the Helm hook.
 
+### `extraLabels.jobPod`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+`extraLabels.jobPod` are labels to set on the Pods created by the Job run by the Helm hook.
+
 ### `extraLabels.persistentVolumeClaim`
 
 | Type     | Default value |
@@ -1891,6 +2008,26 @@ Boolean value that specifies whether to generate a Kubernetes `Ingress` for the 
   ingress:
     enabled: true
   ```
+
+## `ingress.useExisting`
+
+| Type      | Default value | Required? |
+|-----------|---------------|-----------|
+| `boolean` | `false`       | No        |
+
+
+`ingress.useExisting` indicates to the chart that you are managing your own ingress
+(or HTTPRoute, or any other LoadBalancing method that terminates TLS).
+The chart will configure Teleport like it's running behind an ingress, but will not
+create the ingress resource. You are responsible for creating and managing the ingress.
+
+`values.yaml` example:
+
+```yaml
+ingress:
+  enabled: true
+  useExisting: true
+```
 
 ## `ingress.suppressAutomaticWildcards`
 

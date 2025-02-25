@@ -19,15 +19,14 @@
 import { AuthenticateWebDeviceDeepURL, DeepURL } from 'shared/deepLinks';
 
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
-import { RootClusterUri, routing } from 'teleterm/ui/uri';
-import { assertUnreachable } from 'teleterm/ui/utils';
 import { RuntimeSettings } from 'teleterm/types';
 import { ClustersService } from 'teleterm/ui/services/clusters';
-import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
+import { assertUnreachable } from 'teleterm/ui/utils';
 
-const confirmPath = 'webapi/devices/webconfirm';
 export class DeepLinksService {
   constructor(
     private runtimeSettings: RuntimeSettings,
@@ -75,6 +74,14 @@ export class DeepLinksService {
       return;
     }
 
+    // Before we start, let's close any open dialogs, for a few reasons:
+    // 1. Activating a deep link may require changing the workspace, and we don't
+    // want to see dialogs from the previous one.
+    // 2. A login dialog could be covered by an important dialog.
+    // 3. The user could be confused, since Connect My Computer or Authorize Web
+    // Session documents would be displayed below a dialog.
+    this.modalsService.cancelAndCloseAll();
+
     // launchDeepLink cannot throw if it receives a pathname that doesn't match any supported
     // pathnames. The user might simply be using a version of Connect that doesn't support the given
     // pathname yet. Generally, such cases should be caught outside of DeepLinksService by
@@ -96,14 +103,14 @@ export class DeepLinksService {
   }
 
   /**
-   * askAuthorizeDeviceTrust opens a dialog asking the user if they'd like to authorize
+   * askAuthorizeDeviceTrust opens a document asking the user if they'd like to authorize
    * a web session with device trust. If confirmed, the web session will be upgraded and the
-   * user will be directed back to the web UI
+   * user will be directed back to the web UI.
    */
   private async askAuthorizeDeviceTrust(
     url: AuthenticateWebDeviceDeepURL
   ): Promise<void> {
-    const { id, token } = url.searchParams;
+    const { id, token, redirect_uri } = url.searchParams;
 
     const result = await this.loginAndSetActiveWorkspace(url);
     if (!result.isAtDesiredWorkspace) {
@@ -111,29 +118,19 @@ export class DeepLinksService {
     }
 
     const { rootClusterUri } = result;
-    const rootCluster = this.clustersService.findCluster(rootClusterUri);
-
-    this.modalsService.openRegularDialog({
-      kind: 'device-trust-authorize',
+    const documentService =
+      this.workspacesService.getWorkspaceDocumentService(rootClusterUri);
+    const doc = documentService.createAuthorizeWebSessionDocument({
       rootClusterUri,
-      onCancel: () => {
-        window.open(`https://${rootCluster.proxyHost}/web`);
-      },
-      onAuthorize: async () => {
-        const result = await this.clustersService.authenticateWebDevice(
-          rootClusterUri,
-          {
-            id,
-            token,
-          }
-        );
-        // open url to confirm the token. This endpoint verifies the token and "upgrades"
-        // the web session and redirects to "/web"
-        window.open(
-          `https://${rootCluster.proxyHost}/${confirmPath}?id=${result.response.confirmationToken.id}&token=${result.response.confirmationToken.token}`
-        );
+      webSessionRequest: {
+        id,
+        token,
+        username: url.username,
+        redirectUri: redirect_uri,
       },
     });
+    documentService.add(doc);
+    documentService.open(doc.uri);
   }
 
   /**
@@ -174,6 +171,16 @@ export class DeepLinksService {
         rootClusterUri: RootClusterUri;
       }
   > {
+    const currentlyActiveWorkspace = this.workspacesService.getRootClusterUri();
+    // If we closed the dialog to reopen documents when launching a deep link,
+    // setting the active workspace again will reopen it.
+    const reopenCurrentlyActiveWorkspace = async () => {
+      if (currentlyActiveWorkspace) {
+        await this.workspacesService.setActiveWorkspace(
+          currentlyActiveWorkspace
+        );
+      }
+    };
     const rootClusterId = url.hostname;
     const clusterAddress = url.host;
     const prefill = {
@@ -197,6 +204,7 @@ export class DeepLinksService {
       });
 
       if (canceled) {
+        await reopenCurrentlyActiveWorkspace();
         return {
           isAtDesiredWorkspace: false,
         };
@@ -212,6 +220,11 @@ export class DeepLinksService {
         prefill
       );
 
-    return { isAtDesiredWorkspace, rootClusterUri };
+    if (isAtDesiredWorkspace) {
+      return { isAtDesiredWorkspace: true, rootClusterUri };
+    }
+
+    await reopenCurrentlyActiveWorkspace();
+    return { isAtDesiredWorkspace: false };
   }
 }

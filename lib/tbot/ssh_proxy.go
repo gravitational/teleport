@@ -23,6 +23,7 @@ import (
 	"log/slog"
 	"net"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -39,14 +40,15 @@ import (
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/teleport/lib/tbot/tshwrap"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ProxySSHConfig contains configuration parameters required
 // to initialize the local ssh proxy.
 type ProxySSHConfig struct {
-	BotConfig                 *config.BotConfig
+	DestinationPath           string
+	Insecure                  bool
+	FIPS                      bool
 	TSHConfigPath             string
 	ProxyServer               string
 	Cluster                   string
@@ -62,17 +64,27 @@ type ProxySSHConfig struct {
 // ProxySSH creates a local ssh proxy, dialing a node and transferring data through
 // stdin and stdout, to be used as an OpenSSH/PuTTY proxy command.
 func ProxySSH(ctx context.Context, proxyConfig ProxySSHConfig) error {
-	tshConfig, err := libclient.LoadTSHConfig(proxyConfig.TSHConfigPath)
-	if err != nil {
-		return trace.Wrap(err)
+	tshConfig := &libclient.TSHConfig{}
+	if proxyConfig.TSHConfigPath != "" {
+		var err error
+		tshConfig, err = libclient.LoadTSHConfig(proxyConfig.TSHConfigPath)
+		if err != nil {
+			return trace.Wrap(err, "loading proxy templates")
+		}
 	}
 
 	proxy := proxyConfig.ProxyServer
 	cluster := proxyConfig.Cluster
 	targetHost := proxyConfig.Host
-	expanded, matched := tshConfig.ProxyTemplates.Apply(net.JoinHostPort(proxyConfig.Host, proxyConfig.Port))
+	expanded, matched := tshConfig.ProxyTemplates.Apply(
+		net.JoinHostPort(proxyConfig.Host, proxyConfig.Port),
+	)
 	if matched {
-		proxyConfig.Log.DebugContext(ctx, "proxy templated matched", "populated_template", expanded)
+		proxyConfig.Log.DebugContext(
+			ctx,
+			"proxy templated matched",
+			"populated_template", expanded,
+		)
 		if expanded.Cluster != "" {
 			cluster = expanded.Cluster
 		}
@@ -89,7 +101,13 @@ func ProxySSH(ctx context.Context, proxyConfig ProxySSHConfig) error {
 		return trace.Wrap(err)
 	}
 
-	facade, keyring, err := parseIdentity(proxyConfig.BotConfig, proxyHost, cluster)
+	facade, keyring, err := parseIdentity(
+		proxyConfig.DestinationPath,
+		proxyHost,
+		cluster,
+		proxyConfig.Insecure,
+		proxyConfig.FIPS,
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -125,7 +143,7 @@ func ProxySSH(ctx context.Context, proxyConfig ProxySSHConfig) error {
 		UnaryInterceptors:       []grpc.UnaryClientInterceptor{interceptors.GRPCClientUnaryErrorInterceptor},
 		StreamInterceptors:      []grpc.StreamClientInterceptor{interceptors.GRPCClientStreamErrorInterceptor},
 		SSHConfig:               sshConfig,
-		InsecureSkipVerify:      proxyConfig.BotConfig.Insecure,
+		InsecureSkipVerify:      proxyConfig.Insecure,
 		ALPNConnUpgradeRequired: proxyConfig.ConnectionUpgradeRequired,
 	})
 	if err != nil {
@@ -197,55 +215,86 @@ func resolveTargetHost(ctx context.Context, cfg client.Config, search, query str
 	}
 	defer apiClient.Close()
 
-	nodes, err := client.GetAllResources[types.Server](ctx, apiClient, &proto.ListResourcesRequest{
-		ResourceType:        types.KindNode,
+	return resolveTargetHostWithClient(ctx, apiClient, search, query)
+}
+
+// resolveTargetHostWithClient resolves the target host using the provided
+// client and search and query parameters.
+func resolveTargetHostWithClient(
+	ctx context.Context, clt *client.Client, search, query string,
+) (types.Server, error) {
+	resp, err := clt.ResolveSSHTarget(ctx, &proto.ResolveSSHTargetRequest{
 		SearchKeywords:      libclient.ParseSearchKeywords(search, ','),
 		PredicateExpression: query,
 	})
-	if err != nil {
+	switch {
+	//TODO(tross): DELETE IN v20.0.0
+	case trace.IsNotImplemented(err):
+		resources, err := client.GetAllUnifiedResources(ctx, clt, &proto.ListUnifiedResourcesRequest{
+			Kinds:               []string{types.KindNode},
+			SearchKeywords:      libclient.ParseSearchKeywords(search, ','),
+			PredicateExpression: query,
+			SortBy:              types.SortBy{Field: types.ResourceMetadataName},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		switch len(resources) {
+		case 0:
+			return nil, trace.NotFound("no matching SSH hosts found for search terms or query expression")
+		case 1:
+			node, ok := resources[0].ResourceWithLabels.(*types.ServerV2)
+			if !ok {
+				return nil, trace.BadParameter("expected node resource, got %T", resources[0].ResourceWithLabels)
+			}
+			return node, nil
+		default:
+			// If routing does not allow choosing the most recent host, then abort with
+			// an ambiguous host error.
+			cnc, err := clt.GetClusterNetworkingConfig(ctx)
+			if err != nil || cnc.GetRoutingStrategy() != types.RoutingStrategy_MOST_RECENT {
+				return nil, trace.BadParameter("found multiple matching SSH hosts %v", resources[:2])
+			}
+
+			// Get the most recent version of the resource.
+			enrichedResource := slices.MaxFunc(resources, func(a, b *types.EnrichedResource) int {
+				return a.Expiry().Compare(b.Expiry())
+			})
+			server, ok := enrichedResource.ResourceWithLabels.(types.Server)
+			if !ok {
+				return nil, trace.BadParameter("received unexpected resource type %T", resources[0].ResourceWithLabels)
+			}
+
+			return server, nil
+		}
+	case err == nil:
+		return resp.GetServer(), nil
+	default:
 		return nil, trace.Wrap(err)
 	}
-
-	if len(nodes) == 0 {
-		return nil, trace.NotFound("no matching SSH hosts found for search terms or query expression")
-	}
-
-	if len(nodes) > 1 {
-		return nil, trace.BadParameter("found multiple matching SSH hosts %v", nodes[:2])
-	}
-
-	return nodes[0], nil
 }
 
-func parseIdentity(botConfig *config.BotConfig, proxy, cluster string) (*identity.Facade, agent.ExtendedAgent, error) {
-	destination, err := tshwrap.GetDestinationDirectory(botConfig)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	identityPath := filepath.Join(destination.Path, config.IdentityFilePath)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	key, err := identityfile.KeyFromIdentityFile(identityPath, proxy, cluster)
+func parseIdentity(destPath, proxy, cluster string, insecure, fips bool) (*identity.Facade, agent.ExtendedAgent, error) {
+	identityPath := filepath.Join(destPath, config.IdentityFilePath)
+	keyRing, err := identityfile.KeyRingFromIdentityFile(identityPath, proxy, cluster)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	i, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
-		PrivateKeyBytes: key.PrivateKeyPEM(),
-		PublicKeyBytes:  key.MarshalSSHPublicKey(),
+		PrivateKeyBytes: keyRing.SSHPrivateKey.PrivateKeyPEM(),
+		PublicKeyBytes:  keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
 	}, &proto.Certs{
-		SSH:        key.Cert,
-		TLS:        key.TLSCert,
-		TLSCACerts: key.TLSCAs(),
+		SSH:        keyRing.Cert,
+		TLS:        keyRing.TLSCert,
+		TLSCACerts: keyRing.TLSCAs(),
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	agentKey, err := key.AsAgentKey()
+	agentKey, err := keyRing.AsAgentKey()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -258,7 +307,7 @@ func parseIdentity(botConfig *config.BotConfig, proxy, cluster string) (*identit
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return identity.NewFacade(botConfig.FIPS, botConfig.Insecure, i), keyring, nil
+	return identity.NewFacade(fips, insecure, i), keyring, nil
 }
 
 func cleanTargetHost(targetHost, proxyHost, siteName string) string {

@@ -22,7 +22,7 @@ import (
 	"context"
 	"os"
 	"os/user"
-	"path"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -38,10 +38,13 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -63,8 +66,8 @@ type SrvCtx struct {
 	srv        *regular.Server
 	signer     ssh.Signer
 	server     *auth.TestServer
-	clock      clockwork.FakeClock
-	nodeClient *auth.Client
+	clock      *clockwork.FakeClock
+	nodeClient *authclient.Client
 	nodeID     string
 	utmpPath   string
 	wtmpPath   string
@@ -115,10 +118,10 @@ func TestRootUTMPEntryExists(t *testing.T) {
 		require.NoError(t, err)
 
 		require.EventuallyWithTf(t, func(collect *assert.CollectT) {
-			require.NoError(collect, uacc.UserWithPtyInDatabase(s.utmpPath, teleportTestUser))
-			require.NoError(collect, uacc.UserWithPtyInDatabase(s.wtmpPath, teleportTestUser))
+			assert.NoError(collect, uacc.UserWithPtyInDatabase(s.utmpPath, teleportTestUser))
+			assert.NoError(collect, uacc.UserWithPtyInDatabase(s.wtmpPath, teleportTestUser))
 			// Ensure than an entry was not written to btmp.
-			require.True(collect, trace.IsNotFound(uacc.UserWithPtyInDatabase(s.btmpPath, teleportTestUser)), "unexpected error: %v", err)
+			assert.True(collect, trace.IsNotFound(uacc.UserWithPtyInDatabase(s.btmpPath, teleportTestUser)), "unexpected error: %v", err)
 		}, 5*time.Minute, time.Second, "did not detect utmp entry within 5 minutes")
 	})
 
@@ -151,10 +154,10 @@ func TestRootUTMPEntryExists(t *testing.T) {
 		require.NoError(t, err)
 
 		require.EventuallyWithT(t, func(collect *assert.CollectT) {
-			require.NoError(collect, uacc.UserWithPtyInDatabase(s.btmpPath, teleportFakeUser))
+			assert.NoError(collect, uacc.UserWithPtyInDatabase(s.btmpPath, teleportFakeUser))
 			// Ensure that entries were not written to utmp and wtmp
-			require.True(collect, trace.IsNotFound(uacc.UserWithPtyInDatabase(s.utmpPath, teleportFakeUser)), "unexpected error: %v", err)
-			require.True(collect, trace.IsNotFound(uacc.UserWithPtyInDatabase(s.wtmpPath, teleportFakeUser)), "unexpected error: %v", err)
+			assert.True(collect, trace.IsNotFound(uacc.UserWithPtyInDatabase(s.utmpPath, teleportFakeUser)), "unexpected error: %v", err)
+			assert.True(collect, trace.IsNotFound(uacc.UserWithPtyInDatabase(s.wtmpPath, teleportFakeUser)), "unexpected error: %v", err)
 		}, 5*time.Minute, time.Second, "did not detect btmp entry within 5 minutes")
 	})
 
@@ -167,8 +170,8 @@ func TestRootUsernameLimit(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	utmpPath := path.Join(dir, "utmp")
-	wtmpPath := path.Join(dir, "wtmp")
+	utmpPath := filepath.Join(dir, "utmp")
+	wtmpPath := filepath.Join(dir, "wtmp")
 
 	err := TouchFile(utmpPath)
 	require.NoError(t, err)
@@ -250,24 +253,28 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	require.NoError(t, err)
 
 	// set up host private key and certificate
-	priv, pub, err := testauthority.New().GenerateKeyPair()
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
-
-	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
 	require.NoError(t, err)
+	tlsPublicKey, err := keys.MarshalPublicKey(key.Public())
+	require.NoError(t, err)
+	sshPub, err := ssh.NewPublicKey(key.Public())
+	require.NoError(t, err)
+	sshPublicKey := ssh.MarshalAuthorizedKey(sshPub)
 
 	certs, err := s.server.Auth().GenerateHostCerts(ctx,
 		&proto.HostCertsRequest{
 			HostID:       hostID,
 			NodeName:     s.server.ClusterName(),
 			Role:         types.RoleNode,
-			PublicSSHKey: pub,
-			PublicTLSKey: tlsPub,
+			PublicSSHKey: sshPublicKey,
+			PublicTLSKey: tlsPublicKey,
 		})
 	require.NoError(t, err)
 
 	// set up user CA and set up a user that has access to the server
-	s.signer, err = sshutils.NewSigner(priv, certs.SSH)
+	s.signer, err = sshutils.NewSigner(privateKeyPEM, certs.SSH)
 	require.NoError(t, err)
 
 	s.nodeID = uuid.New().String()
@@ -280,9 +287,9 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	require.NoError(t, err)
 
 	uaccDir := t.TempDir()
-	utmpPath := path.Join(uaccDir, "utmp")
-	wtmpPath := path.Join(uaccDir, "wtmp")
-	btmpPath := path.Join(uaccDir, "btmp")
+	utmpPath := filepath.Join(uaccDir, "utmp")
+	wtmpPath := filepath.Join(uaccDir, "wtmp")
+	btmpPath := filepath.Join(uaccDir, "btmp")
 	require.NoError(t, TouchFile(utmpPath))
 	require.NoError(t, TouchFile(wtmpPath))
 	require.NoError(t, TouchFile(btmpPath))

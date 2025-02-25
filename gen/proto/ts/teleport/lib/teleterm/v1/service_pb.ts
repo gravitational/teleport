@@ -43,6 +43,7 @@ import { Database } from "./database_pb";
 import { Server } from "./server_pb";
 import { Gateway } from "./gateway_pb";
 import { Cluster } from "./cluster_pb";
+import { KubeResource } from "./kube_pb";
 import { AccessList } from "../../../accesslist/v1/accesslist_pb";
 import { Timestamp } from "../../../../google/protobuf/timestamp_pb";
 import { ResourceID } from "./access_request_pb";
@@ -84,6 +85,20 @@ export interface LogoutRequest {
      * @generated from protobuf field: string cluster_uri = 1;
      */
     clusterUri: string;
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.StartHeadlessWatcherRequest
+ */
+export interface StartHeadlessWatcherRequest {
+    /**
+     * @generated from protobuf field: string root_cluster_uri = 1;
+     */
+    rootClusterUri: string;
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.StartHeadlessWatcherResponse
+ */
+export interface StartHeadlessWatcherResponse {
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.GetAccessRequestRequest
@@ -345,6 +360,76 @@ export interface GetSuggestedAccessListsResponse {
     accessLists: AccessList[];
 }
 /**
+ * @generated from protobuf message teleport.lib.teleterm.v1.ListKubernetesResourcesRequest
+ */
+export interface ListKubernetesResourcesRequest {
+    /**
+     * @generated from protobuf field: string cluster_uri = 1;
+     */
+    clusterUri: string;
+    /**
+     * ResourceType is the Kubernetes resource that is going to be retrieved.
+     *
+     * @generated from protobuf field: string resource_type = 2;
+     */
+    resourceType: string;
+    /**
+     * Limit is the maximum amount of resources to retrieve.
+     *
+     * @generated from protobuf field: int32 limit = 3;
+     */
+    limit: number;
+    /**
+     * NextKey is used to start listing resources from a specific spot. It
+     * should be set to the previous NextKey value if using pagination, or
+     * left empty.
+     *
+     * @generated from protobuf field: string next_key = 4;
+     */
+    nextKey: string;
+    /**
+     * PredicateExpression defines boolean conditions that will be matched against the resource.
+     *
+     * @generated from protobuf field: string predicate_expression = 5;
+     */
+    predicateExpression: string;
+    /**
+     * SearchKeywords is a string containing search keywords to match against resource field values.
+     *
+     * @generated from protobuf field: string search_keywords = 6;
+     */
+    searchKeywords: string;
+    /**
+     * UseSearchAsRoles indicates that the response should include all resources
+     * the caller is able to request access to using search_as_roles
+     *
+     * @generated from protobuf field: bool use_search_as_roles = 7;
+     */
+    useSearchAsRoles: boolean;
+    /**
+     * Cluster is the Kubernetes Cluster to request the resources.
+     *
+     * @generated from protobuf field: string kubernetes_cluster = 8;
+     */
+    kubernetesCluster: string;
+    /**
+     * Namespace is the Kubernetes namespace where the resources must be located.
+     * To search on every Kubernetes Namespace, do not define the value.
+     *
+     * @generated from protobuf field: string kubernetes_namespace = 9;
+     */
+    kubernetesNamespace: string;
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.ListKubernetesResourcesResponse
+ */
+export interface ListKubernetesResourcesResponse {
+    /**
+     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.KubeResource resources = 1;
+     */
+    resources: KubeResource[];
+}
+/**
  * CredentialInfo holds fields related to a user's WebAuthn credential.
  *
  * @generated from protobuf message teleport.lib.teleterm.v1.CredentialInfo
@@ -588,39 +673,6 @@ export interface ListClustersResponse {
     clusters: Cluster[];
 }
 /**
- * @generated from protobuf message teleport.lib.teleterm.v1.GetDatabasesRequest
- */
-export interface GetDatabasesRequest {
-    /**
-     * @generated from protobuf field: string cluster_uri = 1;
-     */
-    clusterUri: string;
-    /**
-     * @generated from protobuf field: int32 limit = 2;
-     */
-    limit: number;
-    /**
-     * @generated from protobuf field: string start_key = 3;
-     */
-    startKey: string;
-    /**
-     * @generated from protobuf field: string search = 4;
-     */
-    search: string;
-    /**
-     * @generated from protobuf field: string query = 5;
-     */
-    query: string;
-    /**
-     * @generated from protobuf field: string sort_by = 6;
-     */
-    sortBy: string;
-    /**
-     * @generated from protobuf field: string search_as_roles = 7;
-     */
-    searchAsRoles: string;
-}
-/**
  * @generated from protobuf message teleport.lib.teleterm.v1.ListLeafClustersRequest
  */
 export interface ListLeafClustersRequest {
@@ -758,123 +810,6 @@ export interface GetServersResponse {
      * @generated from protobuf field: repeated teleport.lib.teleterm.v1.Server agents = 1;
      */
     agents: Server[];
-    /**
-     * @generated from protobuf field: int32 total_count = 2;
-     */
-    totalCount: number;
-    /**
-     * @generated from protobuf field: string start_key = 3;
-     */
-    startKey: string;
-}
-/**
- * @generated from protobuf message teleport.lib.teleterm.v1.GetDatabasesResponse
- */
-export interface GetDatabasesResponse {
-    /**
-     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.Database agents = 1;
-     */
-    agents: Database[];
-    /**
-     * @generated from protobuf field: int32 total_count = 2;
-     */
-    totalCount: number;
-    /**
-     * @generated from protobuf field: string start_key = 3;
-     */
-    startKey: string;
-}
-/**
- * @generated from protobuf message teleport.lib.teleterm.v1.GetKubesRequest
- */
-export interface GetKubesRequest {
-    /**
-     * @generated from protobuf field: string cluster_uri = 1;
-     */
-    clusterUri: string;
-    /**
-     * @generated from protobuf field: int32 limit = 2;
-     */
-    limit: number;
-    /**
-     * @generated from protobuf field: string start_key = 3;
-     */
-    startKey: string;
-    /**
-     * @generated from protobuf field: string search = 4;
-     */
-    search: string;
-    /**
-     * @generated from protobuf field: string query = 5;
-     */
-    query: string;
-    /**
-     * @generated from protobuf field: string sort_by = 6;
-     */
-    sortBy: string;
-    /**
-     * @generated from protobuf field: string search_as_roles = 7;
-     */
-    searchAsRoles: string;
-}
-/**
- * @generated from protobuf message teleport.lib.teleterm.v1.GetKubesResponse
- */
-export interface GetKubesResponse {
-    /**
-     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.Kube agents = 1;
-     */
-    agents: Kube[];
-    /**
-     * @generated from protobuf field: int32 total_count = 2;
-     */
-    totalCount: number;
-    /**
-     * @generated from protobuf field: string start_key = 3;
-     */
-    startKey: string;
-}
-/**
- * @generated from protobuf message teleport.lib.teleterm.v1.GetAppsRequest
- */
-export interface GetAppsRequest {
-    /**
-     * @generated from protobuf field: string cluster_uri = 1;
-     */
-    clusterUri: string;
-    /**
-     * @generated from protobuf field: int32 limit = 2;
-     */
-    limit: number;
-    /**
-     * @generated from protobuf field: string start_key = 3;
-     */
-    startKey: string;
-    /**
-     * @generated from protobuf field: string search = 4;
-     */
-    search: string;
-    /**
-     * @generated from protobuf field: string query = 5;
-     */
-    query: string;
-    /**
-     * @generated from protobuf field: string sort_by = 6;
-     */
-    sortBy: string;
-    /**
-     * @generated from protobuf field: string search_as_roles = 7;
-     */
-    searchAsRoles: string;
-}
-/**
- * @generated from protobuf message teleport.lib.teleterm.v1.GetAppsResponse
- */
-export interface GetAppsResponse {
-    /**
-     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.App agents = 1;
-     */
-    agents: App[];
     /**
      * @generated from protobuf field: int32 total_count = 2;
      */
@@ -1077,6 +1012,12 @@ export interface ListUnifiedResourcesRequest {
      * @generated from protobuf field: bool pinned_only = 9;
      */
     pinnedOnly: boolean;
+    /**
+     * include_requestable indicates that the response should include resources that the user must request access to.
+     *
+     * @generated from protobuf field: bool include_requestable = 10;
+     */
+    includeRequestable: boolean;
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.SortBy
@@ -1145,6 +1086,10 @@ export interface PaginatedResource {
     } | {
         oneofKind: undefined;
     };
+    /**
+     * @generated from protobuf field: bool requires_request = 5;
+     */
+    requiresRequest: boolean;
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.GetUserPreferencesRequest
@@ -1233,6 +1178,24 @@ export interface AuthenticateWebDeviceResponse {
      * @generated from protobuf field: teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token = 1;
      */
     confirmationToken?: DeviceConfirmationToken;
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.GetAppRequest
+ */
+export interface GetAppRequest {
+    /**
+     * @generated from protobuf field: string app_uri = 1;
+     */
+    appUri: string;
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.GetAppResponse
+ */
+export interface GetAppResponse {
+    /**
+     * @generated from protobuf field: teleport.lib.teleterm.v1.App app = 1;
+     */
+    app?: App;
 }
 /**
  * PasswordlessPrompt describes different prompts we need from users
@@ -1473,6 +1436,78 @@ class LogoutRequest$Type extends MessageType<LogoutRequest> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.LogoutRequest
  */
 export const LogoutRequest = new LogoutRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StartHeadlessWatcherRequest$Type extends MessageType<StartHeadlessWatcherRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.StartHeadlessWatcherRequest", [
+            { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<StartHeadlessWatcherRequest>): StartHeadlessWatcherRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.rootClusterUri = "";
+        if (value !== undefined)
+            reflectionMergePartial<StartHeadlessWatcherRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StartHeadlessWatcherRequest): StartHeadlessWatcherRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string root_cluster_uri */ 1:
+                    message.rootClusterUri = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StartHeadlessWatcherRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string root_cluster_uri = 1; */
+        if (message.rootClusterUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUri);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.StartHeadlessWatcherRequest
+ */
+export const StartHeadlessWatcherRequest = new StartHeadlessWatcherRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StartHeadlessWatcherResponse$Type extends MessageType<StartHeadlessWatcherResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.StartHeadlessWatcherResponse", []);
+    }
+    create(value?: PartialMessage<StartHeadlessWatcherResponse>): StartHeadlessWatcherResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<StartHeadlessWatcherResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StartHeadlessWatcherResponse): StartHeadlessWatcherResponse {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: StartHeadlessWatcherResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.StartHeadlessWatcherResponse
+ */
+export const StartHeadlessWatcherResponse = new StartHeadlessWatcherResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class GetAccessRequestRequest$Type extends MessageType<GetAccessRequestRequest> {
     constructor() {
@@ -2402,6 +2437,164 @@ class GetSuggestedAccessListsResponse$Type extends MessageType<GetSuggestedAcces
  */
 export const GetSuggestedAccessListsResponse = new GetSuggestedAccessListsResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class ListKubernetesResourcesRequest$Type extends MessageType<ListKubernetesResourcesRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.ListKubernetesResourcesRequest", [
+            { no: 1, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "resource_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "limit", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 4, name: "next_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "predicate_expression", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "search_keywords", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 7, name: "use_search_as_roles", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 8, name: "kubernetes_cluster", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 9, name: "kubernetes_namespace", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ListKubernetesResourcesRequest>): ListKubernetesResourcesRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.clusterUri = "";
+        message.resourceType = "";
+        message.limit = 0;
+        message.nextKey = "";
+        message.predicateExpression = "";
+        message.searchKeywords = "";
+        message.useSearchAsRoles = false;
+        message.kubernetesCluster = "";
+        message.kubernetesNamespace = "";
+        if (value !== undefined)
+            reflectionMergePartial<ListKubernetesResourcesRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListKubernetesResourcesRequest): ListKubernetesResourcesRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string cluster_uri */ 1:
+                    message.clusterUri = reader.string();
+                    break;
+                case /* string resource_type */ 2:
+                    message.resourceType = reader.string();
+                    break;
+                case /* int32 limit */ 3:
+                    message.limit = reader.int32();
+                    break;
+                case /* string next_key */ 4:
+                    message.nextKey = reader.string();
+                    break;
+                case /* string predicate_expression */ 5:
+                    message.predicateExpression = reader.string();
+                    break;
+                case /* string search_keywords */ 6:
+                    message.searchKeywords = reader.string();
+                    break;
+                case /* bool use_search_as_roles */ 7:
+                    message.useSearchAsRoles = reader.bool();
+                    break;
+                case /* string kubernetes_cluster */ 8:
+                    message.kubernetesCluster = reader.string();
+                    break;
+                case /* string kubernetes_namespace */ 9:
+                    message.kubernetesNamespace = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ListKubernetesResourcesRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string cluster_uri = 1; */
+        if (message.clusterUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.clusterUri);
+        /* string resource_type = 2; */
+        if (message.resourceType !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.resourceType);
+        /* int32 limit = 3; */
+        if (message.limit !== 0)
+            writer.tag(3, WireType.Varint).int32(message.limit);
+        /* string next_key = 4; */
+        if (message.nextKey !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.nextKey);
+        /* string predicate_expression = 5; */
+        if (message.predicateExpression !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.predicateExpression);
+        /* string search_keywords = 6; */
+        if (message.searchKeywords !== "")
+            writer.tag(6, WireType.LengthDelimited).string(message.searchKeywords);
+        /* bool use_search_as_roles = 7; */
+        if (message.useSearchAsRoles !== false)
+            writer.tag(7, WireType.Varint).bool(message.useSearchAsRoles);
+        /* string kubernetes_cluster = 8; */
+        if (message.kubernetesCluster !== "")
+            writer.tag(8, WireType.LengthDelimited).string(message.kubernetesCluster);
+        /* string kubernetes_namespace = 9; */
+        if (message.kubernetesNamespace !== "")
+            writer.tag(9, WireType.LengthDelimited).string(message.kubernetesNamespace);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ListKubernetesResourcesRequest
+ */
+export const ListKubernetesResourcesRequest = new ListKubernetesResourcesRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ListKubernetesResourcesResponse$Type extends MessageType<ListKubernetesResourcesResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.ListKubernetesResourcesResponse", [
+            { no: 1, name: "resources", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => KubeResource }
+        ]);
+    }
+    create(value?: PartialMessage<ListKubernetesResourcesResponse>): ListKubernetesResourcesResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.resources = [];
+        if (value !== undefined)
+            reflectionMergePartial<ListKubernetesResourcesResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListKubernetesResourcesResponse): ListKubernetesResourcesResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated teleport.lib.teleterm.v1.KubeResource resources */ 1:
+                    message.resources.push(KubeResource.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ListKubernetesResourcesResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated teleport.lib.teleterm.v1.KubeResource resources = 1; */
+        for (let i = 0; i < message.resources.length; i++)
+            KubeResource.internalBinaryWrite(message.resources[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ListKubernetesResourcesResponse
+ */
+export const ListKubernetesResourcesResponse = new ListKubernetesResourcesResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class CredentialInfo$Type extends MessageType<CredentialInfo> {
     constructor() {
         super("teleport.lib.teleterm.v1.CredentialInfo", [
@@ -3146,101 +3339,6 @@ class ListClustersResponse$Type extends MessageType<ListClustersResponse> {
  */
 export const ListClustersResponse = new ListClustersResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class GetDatabasesRequest$Type extends MessageType<GetDatabasesRequest> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.GetDatabasesRequest", [
-            { no: 1, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "limit", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 3, name: "start_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "search", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "query", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 6, name: "sort_by", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 7, name: "search_as_roles", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<GetDatabasesRequest>): GetDatabasesRequest {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.clusterUri = "";
-        message.limit = 0;
-        message.startKey = "";
-        message.search = "";
-        message.query = "";
-        message.sortBy = "";
-        message.searchAsRoles = "";
-        if (value !== undefined)
-            reflectionMergePartial<GetDatabasesRequest>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetDatabasesRequest): GetDatabasesRequest {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string cluster_uri */ 1:
-                    message.clusterUri = reader.string();
-                    break;
-                case /* int32 limit */ 2:
-                    message.limit = reader.int32();
-                    break;
-                case /* string start_key */ 3:
-                    message.startKey = reader.string();
-                    break;
-                case /* string search */ 4:
-                    message.search = reader.string();
-                    break;
-                case /* string query */ 5:
-                    message.query = reader.string();
-                    break;
-                case /* string sort_by */ 6:
-                    message.sortBy = reader.string();
-                    break;
-                case /* string search_as_roles */ 7:
-                    message.searchAsRoles = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: GetDatabasesRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string cluster_uri = 1; */
-        if (message.clusterUri !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.clusterUri);
-        /* int32 limit = 2; */
-        if (message.limit !== 0)
-            writer.tag(2, WireType.Varint).int32(message.limit);
-        /* string start_key = 3; */
-        if (message.startKey !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.startKey);
-        /* string search = 4; */
-        if (message.search !== "")
-            writer.tag(4, WireType.LengthDelimited).string(message.search);
-        /* string query = 5; */
-        if (message.query !== "")
-            writer.tag(5, WireType.LengthDelimited).string(message.query);
-        /* string sort_by = 6; */
-        if (message.sortBy !== "")
-            writer.tag(6, WireType.LengthDelimited).string(message.sortBy);
-        /* string search_as_roles = 7; */
-        if (message.searchAsRoles !== "")
-            writer.tag(7, WireType.LengthDelimited).string(message.searchAsRoles);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetDatabasesRequest
- */
-export const GetDatabasesRequest = new GetDatabasesRequest$Type();
-// @generated message type with reflection information, may provide speed optimized methods
 class ListLeafClustersRequest$Type extends MessageType<ListLeafClustersRequest> {
     constructor() {
         super("teleport.lib.teleterm.v1.ListLeafClustersRequest", [
@@ -3839,385 +3937,6 @@ class GetServersResponse$Type extends MessageType<GetServersResponse> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetServersResponse
  */
 export const GetServersResponse = new GetServersResponse$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class GetDatabasesResponse$Type extends MessageType<GetDatabasesResponse> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.GetDatabasesResponse", [
-            { no: 1, name: "agents", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Database },
-            { no: 2, name: "total_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 3, name: "start_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<GetDatabasesResponse>): GetDatabasesResponse {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.agents = [];
-        message.totalCount = 0;
-        message.startKey = "";
-        if (value !== undefined)
-            reflectionMergePartial<GetDatabasesResponse>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetDatabasesResponse): GetDatabasesResponse {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* repeated teleport.lib.teleterm.v1.Database agents */ 1:
-                    message.agents.push(Database.internalBinaryRead(reader, reader.uint32(), options));
-                    break;
-                case /* int32 total_count */ 2:
-                    message.totalCount = reader.int32();
-                    break;
-                case /* string start_key */ 3:
-                    message.startKey = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: GetDatabasesResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* repeated teleport.lib.teleterm.v1.Database agents = 1; */
-        for (let i = 0; i < message.agents.length; i++)
-            Database.internalBinaryWrite(message.agents[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* int32 total_count = 2; */
-        if (message.totalCount !== 0)
-            writer.tag(2, WireType.Varint).int32(message.totalCount);
-        /* string start_key = 3; */
-        if (message.startKey !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.startKey);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetDatabasesResponse
- */
-export const GetDatabasesResponse = new GetDatabasesResponse$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class GetKubesRequest$Type extends MessageType<GetKubesRequest> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.GetKubesRequest", [
-            { no: 1, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "limit", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 3, name: "start_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "search", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "query", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 6, name: "sort_by", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 7, name: "search_as_roles", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<GetKubesRequest>): GetKubesRequest {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.clusterUri = "";
-        message.limit = 0;
-        message.startKey = "";
-        message.search = "";
-        message.query = "";
-        message.sortBy = "";
-        message.searchAsRoles = "";
-        if (value !== undefined)
-            reflectionMergePartial<GetKubesRequest>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetKubesRequest): GetKubesRequest {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string cluster_uri */ 1:
-                    message.clusterUri = reader.string();
-                    break;
-                case /* int32 limit */ 2:
-                    message.limit = reader.int32();
-                    break;
-                case /* string start_key */ 3:
-                    message.startKey = reader.string();
-                    break;
-                case /* string search */ 4:
-                    message.search = reader.string();
-                    break;
-                case /* string query */ 5:
-                    message.query = reader.string();
-                    break;
-                case /* string sort_by */ 6:
-                    message.sortBy = reader.string();
-                    break;
-                case /* string search_as_roles */ 7:
-                    message.searchAsRoles = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: GetKubesRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string cluster_uri = 1; */
-        if (message.clusterUri !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.clusterUri);
-        /* int32 limit = 2; */
-        if (message.limit !== 0)
-            writer.tag(2, WireType.Varint).int32(message.limit);
-        /* string start_key = 3; */
-        if (message.startKey !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.startKey);
-        /* string search = 4; */
-        if (message.search !== "")
-            writer.tag(4, WireType.LengthDelimited).string(message.search);
-        /* string query = 5; */
-        if (message.query !== "")
-            writer.tag(5, WireType.LengthDelimited).string(message.query);
-        /* string sort_by = 6; */
-        if (message.sortBy !== "")
-            writer.tag(6, WireType.LengthDelimited).string(message.sortBy);
-        /* string search_as_roles = 7; */
-        if (message.searchAsRoles !== "")
-            writer.tag(7, WireType.LengthDelimited).string(message.searchAsRoles);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetKubesRequest
- */
-export const GetKubesRequest = new GetKubesRequest$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class GetKubesResponse$Type extends MessageType<GetKubesResponse> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.GetKubesResponse", [
-            { no: 1, name: "agents", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Kube },
-            { no: 2, name: "total_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 3, name: "start_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<GetKubesResponse>): GetKubesResponse {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.agents = [];
-        message.totalCount = 0;
-        message.startKey = "";
-        if (value !== undefined)
-            reflectionMergePartial<GetKubesResponse>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetKubesResponse): GetKubesResponse {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* repeated teleport.lib.teleterm.v1.Kube agents */ 1:
-                    message.agents.push(Kube.internalBinaryRead(reader, reader.uint32(), options));
-                    break;
-                case /* int32 total_count */ 2:
-                    message.totalCount = reader.int32();
-                    break;
-                case /* string start_key */ 3:
-                    message.startKey = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: GetKubesResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* repeated teleport.lib.teleterm.v1.Kube agents = 1; */
-        for (let i = 0; i < message.agents.length; i++)
-            Kube.internalBinaryWrite(message.agents[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* int32 total_count = 2; */
-        if (message.totalCount !== 0)
-            writer.tag(2, WireType.Varint).int32(message.totalCount);
-        /* string start_key = 3; */
-        if (message.startKey !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.startKey);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetKubesResponse
- */
-export const GetKubesResponse = new GetKubesResponse$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class GetAppsRequest$Type extends MessageType<GetAppsRequest> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.GetAppsRequest", [
-            { no: 1, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "limit", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 3, name: "start_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "search", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "query", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 6, name: "sort_by", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 7, name: "search_as_roles", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<GetAppsRequest>): GetAppsRequest {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.clusterUri = "";
-        message.limit = 0;
-        message.startKey = "";
-        message.search = "";
-        message.query = "";
-        message.sortBy = "";
-        message.searchAsRoles = "";
-        if (value !== undefined)
-            reflectionMergePartial<GetAppsRequest>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetAppsRequest): GetAppsRequest {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string cluster_uri */ 1:
-                    message.clusterUri = reader.string();
-                    break;
-                case /* int32 limit */ 2:
-                    message.limit = reader.int32();
-                    break;
-                case /* string start_key */ 3:
-                    message.startKey = reader.string();
-                    break;
-                case /* string search */ 4:
-                    message.search = reader.string();
-                    break;
-                case /* string query */ 5:
-                    message.query = reader.string();
-                    break;
-                case /* string sort_by */ 6:
-                    message.sortBy = reader.string();
-                    break;
-                case /* string search_as_roles */ 7:
-                    message.searchAsRoles = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: GetAppsRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string cluster_uri = 1; */
-        if (message.clusterUri !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.clusterUri);
-        /* int32 limit = 2; */
-        if (message.limit !== 0)
-            writer.tag(2, WireType.Varint).int32(message.limit);
-        /* string start_key = 3; */
-        if (message.startKey !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.startKey);
-        /* string search = 4; */
-        if (message.search !== "")
-            writer.tag(4, WireType.LengthDelimited).string(message.search);
-        /* string query = 5; */
-        if (message.query !== "")
-            writer.tag(5, WireType.LengthDelimited).string(message.query);
-        /* string sort_by = 6; */
-        if (message.sortBy !== "")
-            writer.tag(6, WireType.LengthDelimited).string(message.sortBy);
-        /* string search_as_roles = 7; */
-        if (message.searchAsRoles !== "")
-            writer.tag(7, WireType.LengthDelimited).string(message.searchAsRoles);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetAppsRequest
- */
-export const GetAppsRequest = new GetAppsRequest$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class GetAppsResponse$Type extends MessageType<GetAppsResponse> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.GetAppsResponse", [
-            { no: 1, name: "agents", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => App },
-            { no: 2, name: "total_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 3, name: "start_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<GetAppsResponse>): GetAppsResponse {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.agents = [];
-        message.totalCount = 0;
-        message.startKey = "";
-        if (value !== undefined)
-            reflectionMergePartial<GetAppsResponse>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetAppsResponse): GetAppsResponse {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* repeated teleport.lib.teleterm.v1.App agents */ 1:
-                    message.agents.push(App.internalBinaryRead(reader, reader.uint32(), options));
-                    break;
-                case /* int32 total_count */ 2:
-                    message.totalCount = reader.int32();
-                    break;
-                case /* string start_key */ 3:
-                    message.startKey = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: GetAppsResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* repeated teleport.lib.teleterm.v1.App agents = 1; */
-        for (let i = 0; i < message.agents.length; i++)
-            App.internalBinaryWrite(message.agents[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* int32 total_count = 2; */
-        if (message.totalCount !== 0)
-            writer.tag(2, WireType.Varint).int32(message.totalCount);
-        /* string start_key = 3; */
-        if (message.startKey !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.startKey);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetAppsResponse
- */
-export const GetAppsResponse = new GetAppsResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class GetAuthSettingsRequest$Type extends MessageType<GetAuthSettingsRequest> {
     constructor() {
@@ -4884,7 +4603,8 @@ class ListUnifiedResourcesRequest$Type extends MessageType<ListUnifiedResourcesR
             { no: 6, name: "search", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 7, name: "sort_by", kind: "message", T: () => SortBy },
             { no: 8, name: "search_as_roles", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 9, name: "pinned_only", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 9, name: "pinned_only", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 10, name: "include_requestable", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<ListUnifiedResourcesRequest>): ListUnifiedResourcesRequest {
@@ -4897,6 +4617,7 @@ class ListUnifiedResourcesRequest$Type extends MessageType<ListUnifiedResourcesR
         message.search = "";
         message.searchAsRoles = false;
         message.pinnedOnly = false;
+        message.includeRequestable = false;
         if (value !== undefined)
             reflectionMergePartial<ListUnifiedResourcesRequest>(this, message, value);
         return message;
@@ -4932,6 +4653,9 @@ class ListUnifiedResourcesRequest$Type extends MessageType<ListUnifiedResourcesR
                     break;
                 case /* bool pinned_only */ 9:
                     message.pinnedOnly = reader.bool();
+                    break;
+                case /* bool include_requestable */ 10:
+                    message.includeRequestable = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -4972,6 +4696,9 @@ class ListUnifiedResourcesRequest$Type extends MessageType<ListUnifiedResourcesR
         /* bool pinned_only = 9; */
         if (message.pinnedOnly !== false)
             writer.tag(9, WireType.Varint).bool(message.pinnedOnly);
+        /* bool include_requestable = 10; */
+        if (message.includeRequestable !== false)
+            writer.tag(10, WireType.Varint).bool(message.includeRequestable);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -5099,12 +4826,14 @@ class PaginatedResource$Type extends MessageType<PaginatedResource> {
             { no: 1, name: "database", kind: "message", oneof: "resource", T: () => Database },
             { no: 2, name: "server", kind: "message", oneof: "resource", T: () => Server },
             { no: 3, name: "kube", kind: "message", oneof: "resource", T: () => Kube },
-            { no: 4, name: "app", kind: "message", oneof: "resource", T: () => App }
+            { no: 4, name: "app", kind: "message", oneof: "resource", T: () => App },
+            { no: 5, name: "requires_request", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<PaginatedResource>): PaginatedResource {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.resource = { oneofKind: undefined };
+        message.requiresRequest = false;
         if (value !== undefined)
             reflectionMergePartial<PaginatedResource>(this, message, value);
         return message;
@@ -5138,6 +4867,9 @@ class PaginatedResource$Type extends MessageType<PaginatedResource> {
                         app: App.internalBinaryRead(reader, reader.uint32(), options, (message.resource as any).app)
                     };
                     break;
+                case /* bool requires_request */ 5:
+                    message.requiresRequest = reader.bool();
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -5162,6 +4894,9 @@ class PaginatedResource$Type extends MessageType<PaginatedResource> {
         /* teleport.lib.teleterm.v1.App app = 4; */
         if (message.resource.oneofKind === "app")
             App.internalBinaryWrite(message.resource.app, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        /* bool requires_request = 5; */
+        if (message.requiresRequest !== false)
+            writer.tag(5, WireType.Varint).bool(message.requiresRequest);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -5518,6 +5253,99 @@ class AuthenticateWebDeviceResponse$Type extends MessageType<AuthenticateWebDevi
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse
  */
 export const AuthenticateWebDeviceResponse = new AuthenticateWebDeviceResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetAppRequest$Type extends MessageType<GetAppRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.GetAppRequest", [
+            { no: 1, name: "app_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<GetAppRequest>): GetAppRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.appUri = "";
+        if (value !== undefined)
+            reflectionMergePartial<GetAppRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetAppRequest): GetAppRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string app_uri */ 1:
+                    message.appUri = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetAppRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string app_uri = 1; */
+        if (message.appUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.appUri);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetAppRequest
+ */
+export const GetAppRequest = new GetAppRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetAppResponse$Type extends MessageType<GetAppResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.GetAppResponse", [
+            { no: 1, name: "app", kind: "message", T: () => App }
+        ]);
+    }
+    create(value?: PartialMessage<GetAppResponse>): GetAppResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetAppResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetAppResponse): GetAppResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.lib.teleterm.v1.App app */ 1:
+                    message.app = App.internalBinaryRead(reader, reader.uint32(), options, message.app);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetAppResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.lib.teleterm.v1.App app = 1; */
+        if (message.app)
+            App.internalBinaryWrite(message.app, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetAppResponse
+ */
+export const GetAppResponse = new GetAppResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.v1.TerminalService
  */
@@ -5525,7 +5353,7 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "UpdateTshdEventsServerAddress", options: {}, I: UpdateTshdEventsServerAddressRequest, O: UpdateTshdEventsServerAddressResponse },
     { name: "ListRootClusters", options: {}, I: ListClustersRequest, O: ListClustersResponse },
     { name: "ListLeafClusters", options: {}, I: ListLeafClustersRequest, O: ListClustersResponse },
-    { name: "GetDatabases", options: {}, I: GetDatabasesRequest, O: GetDatabasesResponse },
+    { name: "StartHeadlessWatcher", options: {}, I: StartHeadlessWatcherRequest, O: StartHeadlessWatcherResponse },
     { name: "ListDatabaseUsers", options: {}, I: ListDatabaseUsersRequest, O: ListDatabaseUsersResponse },
     { name: "GetServers", options: {}, I: GetServersRequest, O: GetServersResponse },
     { name: "GetAccessRequests", options: {}, I: GetAccessRequestsRequest, O: GetAccessRequestsResponse },
@@ -5537,8 +5365,7 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "AssumeRole", options: {}, I: AssumeRoleRequest, O: EmptyResponse },
     { name: "PromoteAccessRequest", options: {}, I: PromoteAccessRequestRequest, O: PromoteAccessRequestResponse },
     { name: "GetSuggestedAccessLists", options: {}, I: GetSuggestedAccessListsRequest, O: GetSuggestedAccessListsResponse },
-    { name: "GetKubes", options: {}, I: GetKubesRequest, O: GetKubesResponse },
-    { name: "GetApps", options: {}, I: GetAppsRequest, O: GetAppsResponse },
+    { name: "ListKubernetesResources", options: {}, I: ListKubernetesResourcesRequest, O: ListKubernetesResourcesResponse },
     { name: "AddCluster", options: {}, I: AddClusterRequest, O: Cluster },
     { name: "RemoveCluster", options: {}, I: RemoveClusterRequest, O: EmptyResponse },
     { name: "ListGateways", options: {}, I: ListGatewaysRequest, O: ListGatewaysResponse },
@@ -5562,5 +5389,6 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "ListUnifiedResources", options: {}, I: ListUnifiedResourcesRequest, O: ListUnifiedResourcesResponse },
     { name: "GetUserPreferences", options: {}, I: GetUserPreferencesRequest, O: GetUserPreferencesResponse },
     { name: "UpdateUserPreferences", options: {}, I: UpdateUserPreferencesRequest, O: UpdateUserPreferencesResponse },
-    { name: "AuthenticateWebDevice", options: {}, I: AuthenticateWebDeviceRequest, O: AuthenticateWebDeviceResponse }
+    { name: "AuthenticateWebDevice", options: {}, I: AuthenticateWebDeviceRequest, O: AuthenticateWebDeviceResponse },
+    { name: "GetApp", options: {}, I: GetAppRequest, O: GetAppResponse }
 ]);

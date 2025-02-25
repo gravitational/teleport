@@ -66,7 +66,7 @@ func TestSendTelemetry(t *testing.T) {
 			Onboarding: config.OnboardingConfig{
 				JoinMethod: types.JoinMethodGitHub,
 			},
-			Outputs: []config.Output{
+			Services: config.ServiceConfigs{
 				&config.IdentityOutput{
 					Destination: &config.DestinationDirectory{},
 				},

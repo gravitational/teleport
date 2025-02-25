@@ -78,14 +78,16 @@ export interface App {
      * under the proxy hostname of the cluster to which the app belongs, e.g.,
      * dumper.root-cluster.com, example-app.leaf-cluster.org.
      *
-     * In both cases public_addr does not include a port number. An app resource cannot include a port
-     * number in its public_addr, as the backend will (wrongly) reject such resource with an error
-     * saying "public_addr "example.com:1337" can not contain a port, applications will be available
-     * on the same port as the web proxy". This is obviously not the case for custom public addresses.
-     * Ultimately, it means that public_addr alone is not enough to access the app, unless either the
-     * cluster or the custom domain use the default port of 443.
+     * In both cases public_addr does not include a port number. This is all cool and fine if the
+     * actual public address and the proxy service share the default port 443. In a scenario where the
+     * proxy uses a non-standard port like 3080 and the public address uses 443, it might cause
+     * problems. public_addr of an app resource cannot include a port number. The backend will reject
+     * such app resource with an error saying "public_addr "example.com:1337" can not contain a port,
+     * applications will be available on the same port as the web proxy". This is not always the case
+     * for custom public addresses. Ultimately, it means that public_addr alone might not be enough to
+     * access the app if either the cluster or the custom address use a port number other than 443.
      *
-     * Always empty for SAML applications.
+     * public_addr is always empty for SAML applications.
      *
      * @generated from protobuf field: string public_addr = 6;
      */
@@ -121,17 +123,28 @@ export interface App {
      * proxy hostname] if public_addr is not present.
      * If the app belongs to a leaf cluster, fqdn is equal to [name].[root cluster proxy hostname].
      *
-     * fqdn is not present for SAML applications.
+     * fqdn is not present for SAML applications. Available only when the app was fetched through the
+     * ListUnifiedResources RPC.
      *
      * @generated from protobuf field: string fqdn = 10;
      */
     fqdn: string;
     /**
-     * aws_roles is a list of AWS IAM roles for the application representing AWS console.
+     * aws_roles is a list of AWS IAM roles for the application representing AWS console. Available
+     * only when the app wast fetched through the ListUnifiedResources RPC.
      *
      * @generated from protobuf field: repeated teleport.lib.teleterm.v1.AWSRole aws_roles = 11;
      */
     awsRoles: AWSRole[];
+    /**
+     * TCPPorts is a list of ports and port ranges that an app agent can forward connections to.
+     * Only applicable to TCP App Access.
+     * If this field is not empty, URI is expected to contain no port number and start with the tcp
+     * protocol.
+     *
+     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.PortRange tcp_ports = 12;
+     */
+    tcpPorts: PortRange[];
 }
 /**
  * AwsRole describes AWS IAM role.
@@ -164,6 +177,72 @@ export interface AWSRole {
      */
     accountId: string;
 }
+/**
+ * PortRange describes a port range for TCP apps. The range starts with Port and ends with EndPort.
+ * PortRange can be used to describe a single port in which case the Port field is the port and the
+ * EndPort field is 0.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.PortRange
+ */
+export interface PortRange {
+    /**
+     * Port describes the start of the range. It must be between 1 and 65535.
+     *
+     * @generated from protobuf field: uint32 port = 1;
+     */
+    port: number;
+    /**
+     * EndPort describes the end of the range, inclusive. If set, it must be between 2 and 65535 and
+     * be greater than Port when describing a port range. When omitted or set to zero, it signifies
+     * that the port range defines a single port.
+     *
+     * @generated from protobuf field: uint32 end_port = 2;
+     */
+    endPort: number;
+}
+/**
+ * RouteToApp is used by the auth service and the app service during cert generation and routing.
+ * It's purpose is to point to a specific app within a root cluster. Kind of like an app URI in
+ * Connect, but with extra data attached.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.RouteToApp
+ */
+export interface RouteToApp {
+    /**
+     * name is the name of the app within a cluster.
+     *
+     * @generated from protobuf field: string name = 1;
+     */
+    name: string;
+    /**
+     * public_addr is the address under which the app can be reached. It's just the hostname, it does
+     * not include the schema or the port number. See the docs for public_addr of
+     * the App message for a more thorough description.
+     *
+     * @generated from protobuf field: string public_addr = 2;
+     */
+    publicAddr: string;
+    /**
+     * cluster_name is the name of the cluster that the app belongs to. In the case of the root
+     * cluster, it's not guaranteed to be equal to the proxy hostname – the root cluster might have a
+     * distinct name set.
+     *
+     * @generated from protobuf field: string cluster_name = 3;
+     */
+    clusterName: string;
+    /**
+     * uri is the URI which the app service is going to proxy requests to.
+     *
+     * @generated from protobuf field: string uri = 4;
+     */
+    uri: string;
+    /**
+     * target_port is the port of a multi-port TCP app that the connection is going to be proxied to.
+     *
+     * @generated from protobuf field: uint32 target_port = 5;
+     */
+    targetPort: number;
+}
 // @generated message type with reflection information, may provide speed optimized methods
 class App$Type extends MessageType<App> {
     constructor() {
@@ -178,7 +257,8 @@ class App$Type extends MessageType<App> {
             { no: 8, name: "saml_app", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 9, name: "labels", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Label },
             { no: 10, name: "fqdn", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 11, name: "aws_roles", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => AWSRole }
+            { no: 11, name: "aws_roles", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => AWSRole },
+            { no: 12, name: "tcp_ports", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => PortRange }
         ]);
     }
     create(value?: PartialMessage<App>): App {
@@ -194,6 +274,7 @@ class App$Type extends MessageType<App> {
         message.labels = [];
         message.fqdn = "";
         message.awsRoles = [];
+        message.tcpPorts = [];
         if (value !== undefined)
             reflectionMergePartial<App>(this, message, value);
         return message;
@@ -235,6 +316,9 @@ class App$Type extends MessageType<App> {
                     break;
                 case /* repeated teleport.lib.teleterm.v1.AWSRole aws_roles */ 11:
                     message.awsRoles.push(AWSRole.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* repeated teleport.lib.teleterm.v1.PortRange tcp_ports */ 12:
+                    message.tcpPorts.push(PortRange.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -281,6 +365,9 @@ class App$Type extends MessageType<App> {
         /* repeated teleport.lib.teleterm.v1.AWSRole aws_roles = 11; */
         for (let i = 0; i < message.awsRoles.length; i++)
             AWSRole.internalBinaryWrite(message.awsRoles[i], writer.tag(11, WireType.LengthDelimited).fork(), options).join();
+        /* repeated teleport.lib.teleterm.v1.PortRange tcp_ports = 12; */
+        for (let i = 0; i < message.tcpPorts.length; i++)
+            PortRange.internalBinaryWrite(message.tcpPorts[i], writer.tag(12, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -362,3 +449,137 @@ class AWSRole$Type extends MessageType<AWSRole> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.AWSRole
  */
 export const AWSRole = new AWSRole$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class PortRange$Type extends MessageType<PortRange> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.PortRange", [
+            { no: 1, name: "port", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "end_port", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<PortRange>): PortRange {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.port = 0;
+        message.endPort = 0;
+        if (value !== undefined)
+            reflectionMergePartial<PortRange>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PortRange): PortRange {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 port */ 1:
+                    message.port = reader.uint32();
+                    break;
+                case /* uint32 end_port */ 2:
+                    message.endPort = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: PortRange, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 port = 1; */
+        if (message.port !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.port);
+        /* uint32 end_port = 2; */
+        if (message.endPort !== 0)
+            writer.tag(2, WireType.Varint).uint32(message.endPort);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.PortRange
+ */
+export const PortRange = new PortRange$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class RouteToApp$Type extends MessageType<RouteToApp> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.RouteToApp", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "public_addr", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "cluster_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "target_port", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<RouteToApp>): RouteToApp {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        message.publicAddr = "";
+        message.clusterName = "";
+        message.uri = "";
+        message.targetPort = 0;
+        if (value !== undefined)
+            reflectionMergePartial<RouteToApp>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RouteToApp): RouteToApp {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                case /* string public_addr */ 2:
+                    message.publicAddr = reader.string();
+                    break;
+                case /* string cluster_name */ 3:
+                    message.clusterName = reader.string();
+                    break;
+                case /* string uri */ 4:
+                    message.uri = reader.string();
+                    break;
+                case /* uint32 target_port */ 5:
+                    message.targetPort = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: RouteToApp, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        /* string public_addr = 2; */
+        if (message.publicAddr !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.publicAddr);
+        /* string cluster_name = 3; */
+        if (message.clusterName !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.clusterName);
+        /* string uri = 4; */
+        if (message.uri !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.uri);
+        /* uint32 target_port = 5; */
+        if (message.targetPort !== 0)
+            writer.tag(5, WireType.Varint).uint32(message.targetPort);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.RouteToApp
+ */
+export const RouteToApp = new RouteToApp$Type();

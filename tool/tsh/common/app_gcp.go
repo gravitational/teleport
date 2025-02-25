@@ -19,12 +19,12 @@
 package common
 
 import (
+	"context"
 	"fmt"
 	"hash/fnv"
-	"net"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -32,7 +32,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -40,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/gcp"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -53,14 +53,14 @@ func onGcloud(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	err = app.StartLocalProxies()
+	err = app.StartLocalProxies(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	defer func() {
 		if err := app.Close(); err != nil {
-			log.WithError(err).Error("Failed to close GCP app.")
+			logger.ErrorContext(cf.Context, "Failed to close GCP app", "error", err)
 		}
 	}()
 
@@ -76,14 +76,14 @@ func onGsutil(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	err = app.StartLocalProxies()
+	err = app.StartLocalProxies(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	defer func() {
 		if err := app.Close(); err != nil {
-			log.WithError(err).Error("Failed to close GCP app.")
+			logger.ErrorContext(cf.Context, "Failed to close GCP app", "error", err)
 		}
 	}()
 
@@ -95,20 +95,18 @@ func onGsutil(cf *CLIConf) error {
 
 // gcpApp is an GCP app that can start local proxies to serve GCP APIs.
 type gcpApp struct {
-	cf      *CLIConf
-	profile *client.ProfileStatus
-	app     tlsca.RouteToApp
-	secret  string
+	*localProxyApp
+
+	cf *CLIConf
+
+	secret string
 	// prefix is a prefix added to the name of configuration files, allowing two instances of gcpApp
 	// to run concurrently without overwriting each other files.
 	prefix string
-
-	localALPNProxy    *alpnproxy.LocalProxy
-	localForwardProxy *alpnproxy.ForwardProxy
 }
 
 // newGCPApp creates a new GCP app.
-func newGCPApp(cf *CLIConf, profile *client.ProfileStatus, app tlsca.RouteToApp) (*gcpApp, error) {
+func newGCPApp(tc *client.TeleportClient, cf *CLIConf, appInfo *appInfo) (*gcpApp, error) {
 	secret, err := getGCPSecret()
 	if err != nil {
 		return nil, err
@@ -117,13 +115,16 @@ func newGCPApp(cf *CLIConf, profile *client.ProfileStatus, app tlsca.RouteToApp)
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(secret))
 	prefix := fmt.Sprintf("%x", h.Sum32())
+	localProxyApp, err := newLocalProxyApp(tc, appInfo.profile, appInfo.RouteToApp, cf.LocalProxyPort, cf.InsecureSkipVerify)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return &gcpApp{
-		cf:      cf,
-		profile: profile,
-		app:     app,
-		secret:  secret,
-		prefix:  prefix,
+		localProxyApp: localProxyApp,
+		cf:            cf,
+		secret:        secret,
+		prefix:        prefix,
 	}, nil
 }
 
@@ -144,39 +145,29 @@ func getGCPSecret() (string, error) {
 //
 // The request flow to remote server (i.e. GCP APIs) looks like this:
 // clients -> local forward proxy -> local ALPN proxy -> remote server
-func (a *gcpApp) StartLocalProxies() error {
+func (a *gcpApp) StartLocalProxies(ctx context.Context) error {
 	// configuration files
 	if err := a.writeBotoConfig(); err != nil {
 		return trace.Wrap(err)
 	}
 
+	gcpMiddleware := &alpnproxy.AuthorizationCheckerMiddleware{
+		Secret: a.secret,
+	}
+
 	// HTTPS proxy mode
-	if err := a.startLocalALPNProxy(""); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.startLocalForwardProxy(a.cf.LocalProxyPort); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	err := a.StartLocalProxyWithForwarder(ctx, alpnproxy.MatchGCPRequests, alpnproxy.WithHTTPMiddleware(gcpMiddleware))
+	return trace.Wrap(err)
 }
 
 // Close makes all necessary close calls.
 func (a *gcpApp) Close() error {
-	var errs []error
-	// close proxies
-	if a.localALPNProxy != nil {
-		errs = append(errs, a.localALPNProxy.Close())
-	}
-	if a.localForwardProxy != nil {
-		errs = append(errs, a.localForwardProxy.Close())
-	}
-	// remove boto config
-	errs = append(errs, a.removeBotoConfig()...)
+	errs := append([]error{a.localProxyApp.Close()}, a.removeBotoConfig()...)
 	return trace.NewAggregate(errs...)
 }
 
 func (a *gcpApp) getGcloudConfigPath() string {
-	return path.Join(profile.FullProfilePath(a.cf.HomePath), "gcp", a.app.ClusterName, a.app.Name, "gcloud")
+	return filepath.Join(profile.FullProfilePath(a.cf.HomePath), "gcp", a.routeToApp.ClusterName, a.routeToApp.Name, "gcloud")
 }
 
 // removeBotoConfig removes config files written by WriteBotoConfig.
@@ -189,15 +180,15 @@ func (a *gcpApp) removeBotoConfig() []error {
 }
 
 func (a *gcpApp) getBotoConfigDir() string {
-	return path.Join(profile.FullProfilePath(a.cf.HomePath), "gcp", a.app.ClusterName, a.app.Name)
+	return filepath.Join(profile.FullProfilePath(a.cf.HomePath), "gcp", a.routeToApp.ClusterName, a.routeToApp.Name)
 }
 
 func (a *gcpApp) getBotoConfigPath() string {
-	return path.Join(a.getBotoConfigDir(), a.prefix+"_boto.cfg")
+	return filepath.Join(a.getBotoConfigDir(), a.prefix+"_boto.cfg")
 }
 
 func (a *gcpApp) getExternalAccountFilePath() string {
-	return path.Join(a.getBotoConfigDir(), a.prefix+"_external.json")
+	return filepath.Join(a.getBotoConfigDir(), a.prefix+"_external.json")
 }
 
 // getBotoConfig returns minimal boto configuration, referencing an external account file.
@@ -238,7 +229,7 @@ func (a *gcpApp) writeBotoConfig() error {
 // GetEnvVars returns required environment variables to configure the
 // clients.
 func (a *gcpApp) GetEnvVars() (map[string]string, error) {
-	projectID, err := gcp.ProjectIDFromServiceAccountName(a.app.GCPServiceAccount)
+	projectID, err := gcp.ProjectIDFromServiceAccountName(a.routeToApp.GCPServiceAccount)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -250,7 +241,7 @@ func (a *gcpApp) GetEnvVars() (map[string]string, error) {
 
 		// Set core.custom_ca_certs_file via env variable, customizing the path to CA certs file.
 		// https://cloud.google.com/sdk/gcloud/reference/config/set#:~:text=custom_ca_certs_file
-		"CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE": a.profile.AppLocalCAPath(a.cf.SiteName, a.app.Name),
+		"CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE": a.profile.AppLocalCAPath(a.cf.SiteName, a.routeToApp.Name),
 
 		// We need to set project ID. This is sourced from the account name.
 		// https://cloud.google.com/sdk/gcloud/reference/config#GROUP:~:text=authentication%20to%20gsutil.-,project,-Project%20ID%20of
@@ -279,7 +270,7 @@ func (a *gcpApp) RunCommand(cmd *exec.Cmd) error {
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Running command: %q", cmd)
+	logger.DebugContext(a.cf.Context, "Running gcp command", "command", logutils.StringerAttr(cmd))
 
 	cmd.Stdout = a.cf.Stdout()
 	cmd.Stderr = a.cf.Stderr()
@@ -292,110 +283,6 @@ func (a *gcpApp) RunCommand(cmd *exec.Cmd) error {
 	if err := a.cf.RunCommand(cmd); err != nil {
 		return trace.Wrap(err)
 	}
-	return nil
-}
-
-// startLocalALPNProxy starts the local ALPN proxy.
-func (a *gcpApp) startLocalALPNProxy(port string) error {
-	tc, err := makeClient(a.cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	appCert, err := loadAppCertificateWithAppLogin(a.cf, tc, a.app.Name)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	localCA, err := loadAppSelfSignedCA(a.profile, tc, a.app.Name)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	listenAddr := "localhost:0"
-	if port != "" {
-		listenAddr = fmt.Sprintf("localhost:%s", port)
-	}
-
-	// Create a listener that is able to sign certificates when receiving GCP
-	// requests tunneled from the local forward proxy.
-	listener, err := alpnproxy.NewCertGenListener(alpnproxy.CertGenListenerConfig{
-		ListenAddr: listenAddr,
-		CA:         localCA,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	a.localALPNProxy, err = alpnproxy.NewLocalProxy(
-		makeBasicLocalProxyConfig(a.cf, tc, listener),
-		alpnproxy.WithClientCert(appCert),
-		alpnproxy.WithClusterCAsIfConnUpgrade(a.cf.Context, tc.RootClusterCACertPool),
-		alpnproxy.WithHTTPMiddleware(&alpnproxy.AuthorizationCheckerMiddleware{
-			Secret: a.secret,
-		}),
-	)
-
-	if err != nil {
-		if cerr := listener.Close(); cerr != nil {
-			return trace.NewAggregate(err, cerr)
-		}
-		return trace.Wrap(err)
-	}
-
-	go func() {
-		if err := a.localALPNProxy.StartHTTPAccessProxy(a.cf.Context); err != nil {
-			log.WithError(err).Errorf("Failed to start local ALPN proxy.")
-		}
-	}()
-	return nil
-}
-
-// startLocalForwardProxy starts the local forward proxy.
-func (a *gcpApp) startLocalForwardProxy(port string) error {
-	listenAddr := "localhost:0"
-	if port != "" {
-		listenAddr = fmt.Sprintf("localhost:%s", port)
-	}
-
-	// Note that the created forward proxy serves HTTP instead of HTTPS, to
-	// eliminate the need to install temporary CA for various GCP clients.
-	listener, err := net.Listen("tcp", listenAddr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	a.localForwardProxy, err = alpnproxy.NewForwardProxy(alpnproxy.ForwardProxyConfig{
-		Listener:     listener,
-		CloseContext: a.cf.Context,
-		Handlers: []alpnproxy.ConnectRequestHandler{
-			// Forward GCP requests to ALPN proxy.
-			alpnproxy.NewForwardToHostHandler(alpnproxy.ForwardToHostHandlerConfig{
-				MatchFunc: alpnproxy.MatchGCPRequests,
-				Host:      a.localALPNProxy.GetAddr(),
-			}),
-
-			// Forward non-GCP requests to user's system proxy, if configured.
-			alpnproxy.NewForwardToSystemProxyHandler(alpnproxy.ForwardToSystemProxyHandlerConfig{
-				InsecureSystemProxy: a.cf.InsecureSkipVerify,
-			}),
-
-			// Forward non-GCP requests to their original hosts.
-			alpnproxy.NewForwardToOriginalHostHandler(),
-		},
-	})
-	if err != nil {
-		if cerr := listener.Close(); cerr != nil {
-			return trace.NewAggregate(err, cerr)
-		}
-		return trace.Wrap(err)
-	}
-
-	go func() {
-		if err := a.localForwardProxy.Start(); err != nil {
-			log.WithError(err).Errorf("Failed to start local forward proxy.")
-		}
-	}()
 	return nil
 }
 
@@ -440,7 +327,7 @@ func getGCPServiceAccountFromFlags(cf *CLIConf, profile *client.ProfileStatus) (
 	// if flag is missing, try to find singleton service account; failing that, print available options.
 	if reqAccount == "" {
 		if len(accounts) == 1 {
-			log.Infof("GCP service account %v is selected by default as it is the only one available for this GCP app.", accounts[0])
+			logger.InfoContext(cf.Context, "GCP service account is selected by default as it is the only one available for this GCP app", "service_account", accounts[0])
 			return validate(accounts[0])
 		}
 
@@ -482,6 +369,30 @@ func matchGCPApp(app tlsca.RouteToApp) bool {
 }
 
 func pickGCPApp(cf *CLIConf) (*gcpApp, error) {
-	app, err := pickCloudApp(cf, types.CloudGCP, matchGCPApp, newGCPApp)
-	return app, trace.Wrap(err)
+	tc, err := makeClient(cf)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var appInfo *appInfo
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		var err error
+		profile, err := tc.ProfileStatus()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		appInfo, err = getAppInfo(cf, clusterClient.AuthClient, profile, tc.SiteName, matchGCPApp)
+		return trace.Wrap(err)
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return newGCPApp(tc, cf, appInfo)
 }

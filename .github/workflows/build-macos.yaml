@@ -54,9 +54,10 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Setup yarn
+      - name: Setup pnpm
         run: |
-          corepack enable yarn
+          npm install -g corepack@0.31.0
+          corepack enable pnpm
 
       - name: Install Go Toolchain
         uses: actions/setup-go@v5

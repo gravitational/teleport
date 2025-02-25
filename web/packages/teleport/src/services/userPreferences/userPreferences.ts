@@ -16,41 +16,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ClusterUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/cluster_preferences_pb';
+import { DiscoverResourcePreferences } from 'gen-proto-ts/teleport/userpreferences/v1/discover_resource_preferences_pb';
+import { OnboardUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
+import { SideNavDrawerMode } from 'gen-proto-ts/teleport/userpreferences/v1/sidenav_preferences_pb';
+import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 import {
+  AvailableResourceMode,
   DefaultTab,
   LabelsViewMode,
   UnifiedResourcePreferences,
   ViewMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-
-import {
-  AssistUserPreferences,
-  AssistViewMode,
-} from 'gen-proto-ts/teleport/userpreferences/v1/assist_pb';
-
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
-
-import { ClusterUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/cluster_preferences_pb';
-
-import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
-
-import { OnboardUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
-
-import { KeysEnum } from '../storageService';
+import { getPrefersDark } from 'teleport/ThemeProvider';
 
 interface BackendClusterUserPreferences {
   pinnedResources?: string[];
 }
 
 export interface BackendUserPreferences {
-  assist?: AssistUserPreferences;
   theme: Theme;
+  sideNavDrawerMode: SideNavDrawerMode;
   onboard?: OnboardUserPreferences;
   clusterPreferences?: BackendClusterUserPreferences;
   unifiedResourcePreferences?: UnifiedResourcePreferences;
+  discoverResourcePreferences?: DiscoverResourcePreferences;
 }
 
 export async function getUserPreferences(): Promise<UserPreferences> {
@@ -66,25 +60,7 @@ export async function getUserClusterPreferences(
 ): Promise<ClusterUserPreferences> {
   return await api
     .get(cfg.getUserClusterPreferencesUrl(clusterId))
-    .then((res: BackendClusterUserPreferences) => {
-      // TODO (avatus) DELETE IN 16
-      // this item is used to disabled the pinned resources button if they
-      // haven't upgraded to 14.1.0 yet. Anything lower than 14 doesn't matter
-      // because the unified resource view isn't enabled so pinning isn't there either
-      localStorage.removeItem(KeysEnum.PINNED_RESOURCES_NOT_SUPPORTED);
-      return convertBackendClusterUserPreferences(res);
-    })
-    .catch(res => {
-      if (res.response?.status === 403 || res.response?.status === 404) {
-        localStorage.setItem(KeysEnum.PINNED_RESOURCES_NOT_SUPPORTED, 'true');
-        // we handle this null error in the user context where we cache cluster
-        // preferences. We want to fail gracefully here and use our "not supported"
-        // message instead.
-        return null;
-      }
-      // return all other errors here
-      return res;
-    });
+    .then(convertBackendClusterUserPreferences);
 }
 
 export function updateUserClusterPreferences(
@@ -105,12 +81,9 @@ export function updateUserPreferences(preferences: Partial<UserPreferences>) {
 }
 
 export function makeDefaultUserPreferences(): UserPreferences {
+  const prefersDark = getPrefersDark();
   return {
-    theme: Theme.LIGHT,
-    assist: {
-      viewMode: AssistViewMode.DOCKED,
-      preferredLogins: [],
-    },
+    theme: prefersDark ? Theme.DARK : Theme.LIGHT,
     onboard: {
       preferredResources: [],
       marketingParams: {
@@ -124,8 +97,11 @@ export function makeDefaultUserPreferences(): UserPreferences {
       defaultTab: DefaultTab.ALL,
       viewMode: ViewMode.CARD,
       labelsViewMode: LabelsViewMode.COLLAPSED,
+      availableResourceMode: AvailableResourceMode.ALL,
     },
     clusterPreferences: makeDefaultUserClusterPreferences(),
+    sideNavDrawerMode: SideNavDrawerMode.COLLAPSED,
+    discoverResourcePreferences: {},
   };
 }
 
@@ -158,6 +134,10 @@ export function convertBackendUserPreferences(
     clusterPreferences: convertBackendClusterUserPreferences(
       preferences.clusterPreferences
     ),
+    unifiedResourcePreferences: {
+      availableResourceMode: AvailableResourceMode.NONE,
+      ...preferences.unifiedResourcePreferences,
+    },
   };
 }
 

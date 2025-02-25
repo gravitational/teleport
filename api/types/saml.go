@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"encoding/json"
 	"slices"
 	"strings"
 	"time"
@@ -98,6 +99,22 @@ type SAMLConnector interface {
 	GetAllowIDPInitiated() bool
 	// SetAllowIDPInitiated sets whether the identity provider can initiate a login or not.
 	SetAllowIDPInitiated(bool)
+	// GetClientRedirectSettings returns the client redirect settings.
+	GetClientRedirectSettings() *SSOClientRedirectSettings
+	// GetSingleLogoutURL returns the SAML SLO (single logout) URL for the identity provider.
+	GetSingleLogoutURL() string
+	// SetSingleLogoutURL sets the SAML SLO (single logout) URL for the identity provider.
+	SetSingleLogoutURL(string)
+	// GetMFASettings returns the connector's MFA settings.
+	GetMFASettings() *SAMLConnectorMFASettings
+	// SetMFASettings sets the connector's MFA settings.
+	SetMFASettings(s *SAMLConnectorMFASettings)
+	// IsMFAEnabled returns whether the connector has MFA enabled.
+	IsMFAEnabled() bool
+	// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
+	WithMFASettings() error
+	// GetForceAuthn returns ForceAuthn
+	GetForceAuthn() bool
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -132,16 +149,6 @@ func (o *SAMLConnectorV2) GetSubKind() string {
 // SetSubKind sets resource subkind
 func (o *SAMLConnectorV2) SetSubKind(sk string) {
 	o.SubKind = sk
-}
-
-// GetResourceID returns resource ID
-func (o *SAMLConnectorV2) GetResourceID() int64 {
-	return o.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (o *SAMLConnectorV2) SetResourceID(id int64) {
-	o.Metadata.ID = id
 }
 
 // GetRevision returns the revision
@@ -377,6 +384,68 @@ func (o *SAMLConnectorV2) SetAllowIDPInitiated(allow bool) {
 	o.Spec.AllowIDPInitiated = allow
 }
 
+// GetClientRedirectSettings returns the client redirect settings.
+func (o *SAMLConnectorV2) GetClientRedirectSettings() *SSOClientRedirectSettings {
+	if o == nil {
+		return nil
+	}
+	return o.Spec.ClientRedirectSettings
+}
+
+// GetSingleLogoutURL returns the SAML SLO (single logout) URL for the identity provider.
+func (o *SAMLConnectorV2) GetSingleLogoutURL() string {
+	return o.Spec.SingleLogoutURL
+}
+
+// SetSingleLogoutURL sets the SAML SLO (single logout) URL for the identity provider.
+func (o *SAMLConnectorV2) SetSingleLogoutURL(url string) {
+	o.Spec.SingleLogoutURL = url
+}
+
+// GetMFASettings returns the connector's MFA settings.
+func (o *SAMLConnectorV2) GetMFASettings() *SAMLConnectorMFASettings {
+	return o.Spec.MFASettings
+}
+
+// SetMFASettings sets the connector's MFA settings.
+func (o *SAMLConnectorV2) SetMFASettings(s *SAMLConnectorMFASettings) {
+	o.Spec.MFASettings = s
+}
+
+// IsMFAEnabled returns whether the connector has MFA enabled.
+func (o *SAMLConnectorV2) IsMFAEnabled() bool {
+	mfa := o.GetMFASettings()
+	return mfa != nil && mfa.Enabled
+}
+
+// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
+func (o *SAMLConnectorV2) WithMFASettings() error {
+	if !o.IsMFAEnabled() {
+		return trace.BadParameter("this connector does not have MFA enabled")
+	}
+
+	o.Spec.EntityDescriptor = o.Spec.MFASettings.EntityDescriptor
+	o.Spec.EntityDescriptorURL = o.Spec.MFASettings.EntityDescriptorUrl
+	o.Spec.Issuer = o.Spec.MFASettings.Issuer
+	o.Spec.SSO = o.Spec.MFASettings.Sso
+	o.Spec.Cert = o.Spec.MFASettings.Cert
+
+	switch o.Spec.MFASettings.ForceAuthn {
+	case SAMLForceAuthn_FORCE_AUTHN_UNSPECIFIED:
+		// Default to YES.
+		o.Spec.ForceAuthn = SAMLForceAuthn_FORCE_AUTHN_YES
+	default:
+		o.Spec.ForceAuthn = o.Spec.MFASettings.ForceAuthn
+	}
+
+	return nil
+}
+
+// GetForceAuthn returns ForceAuthn
+func (o *SAMLConnectorV2) GetForceAuthn() bool {
+	return o.Spec.ForceAuthn == SAMLForceAuthn_FORCE_AUTHN_YES
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (o *SAMLConnectorV2) setStaticFields() {
 	o.Kind = KindSAMLConnector
@@ -409,6 +478,9 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 	if o.Spec.EntityDescriptorURL == "" && o.Spec.EntityDescriptor == "" && (o.Spec.Issuer == "" || o.Spec.SSO == "") {
 		return trace.BadParameter("no entity_descriptor set, either provide entity_descriptor or entity_descriptor_url in spec")
 	}
+	if o.IsMFAEnabled() && o.Spec.MFASettings.EntityDescriptorUrl == "" && o.Spec.MFASettings.EntityDescriptor == "" && (o.Spec.MFASettings.Issuer == "" || o.Spec.MFASettings.Sso == "") {
+		return trace.BadParameter("no entity_descriptor set for mfa settings, either provide entity_descriptor or entity_descriptor_url in spec")
+	}
 	// make sure claim mappings have either roles or a role template
 	for _, v := range o.Spec.AttributesToRoles {
 		if len(v.Roles) == 0 {
@@ -419,28 +491,132 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 }
 
 // Check returns nil if all parameters are great, err otherwise
-func (i *SAMLAuthRequest) Check() error {
-	if i.ConnectorID == "" {
+func (r *SAMLAuthRequest) Check() error {
+	switch {
+	case r.ConnectorID == "":
 		return trace.BadParameter("ConnectorID: missing value")
-	}
-	if len(i.PublicKey) != 0 {
-		_, _, _, _, err := ssh.ParseAuthorizedKey(i.PublicKey)
-		if err != nil {
-			return trace.BadParameter("PublicKey: bad key: %v", err)
-		}
-		if (i.CertTTL > defaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
-			return trace.BadParameter("CertTTL: wrong certificate TTL")
-		}
-	}
-
 	// we could collapse these two checks into one, but the error message would become ambiguous.
-	if i.SSOTestFlow && i.ConnectorSpec == nil {
+	case r.SSOTestFlow && r.ConnectorSpec == nil:
 		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
-	}
-
-	if !i.SSOTestFlow && i.ConnectorSpec != nil {
+	case !r.SSOTestFlow && r.ConnectorSpec != nil:
 		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
+	case len(r.PublicKey) != 0 && len(r.SshPublicKey) != 0:
+		return trace.BadParameter("illegal to set both PublicKey and SshPublicKey")
+	case len(r.PublicKey) != 0 && len(r.TlsPublicKey) != 0:
+		return trace.BadParameter("illegal to set both PublicKey and TlsPublicKey")
+	case r.AttestationStatement != nil && r.SshAttestationStatement != nil:
+		return trace.BadParameter("illegal to set both AttestationStatement and SshAttestationStatement")
+	case r.AttestationStatement != nil && r.TlsAttestationStatement != nil:
+		return trace.BadParameter("illegal to set both AttestationStatement and TlsAttestationStatement")
 	}
+	sshPubKey := r.PublicKey
+	if len(sshPubKey) == 0 {
+		sshPubKey = r.SshPublicKey
+	}
+	if len(sshPubKey) > 0 {
+		_, _, _, _, err := ssh.ParseAuthorizedKey(sshPubKey)
+		if err != nil {
+			return trace.BadParameter("bad SSH public key: %v", err)
+		}
+	}
+	if len(r.PublicKey)+len(r.SshPublicKey)+len(r.TlsPublicKey) > 0 &&
+		(r.CertTTL > defaults.MaxCertDuration || r.CertTTL < defaults.MinCertDuration) {
+		return trace.BadParameter("wrong CertTTL")
+	}
+	return nil
+}
 
+// MarshalJSON marshals SAMLForceAuthn to string.
+func (s SAMLForceAuthn) MarshalYAML() (interface{}, error) {
+	val, err := s.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return val, nil
+}
+
+// UnmarshalYAML supports parsing SAMLForceAuthn from string.
+func (s *SAMLForceAuthn) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var val any
+	if err := unmarshal(&val); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(s.decode(val))
+}
+
+// MarshalJSON marshals SAMLForceAuthn to string.
+func (s SAMLForceAuthn) MarshalJSON() ([]byte, error) {
+	val, err := s.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := json.Marshal(val)
+	return out, trace.Wrap(err)
+}
+
+// UnmarshalJSON supports parsing SAMLForceAuthn from string.
+func (s *SAMLForceAuthn) UnmarshalJSON(data []byte) error {
+	var val any
+	if err := json.Unmarshal(data, &val); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(s.decode(val))
+}
+
+func (s *SAMLForceAuthn) encode() (string, error) {
+	switch *s {
+	case SAMLForceAuthn_FORCE_AUTHN_UNSPECIFIED:
+		return "", nil
+	case SAMLForceAuthn_FORCE_AUTHN_NO:
+		return "no", nil
+	case SAMLForceAuthn_FORCE_AUTHN_YES:
+		return "yes", nil
+	default:
+		return "", trace.BadParameter("SAMLForceAuthn invalid value %v", *s)
+	}
+}
+
+func (s *SAMLForceAuthn) decode(val any) error {
+	switch v := val.(type) {
+	case string:
+		// try parsing as a boolean
+		switch strings.ToLower(v) {
+		case "":
+			*s = SAMLForceAuthn_FORCE_AUTHN_UNSPECIFIED
+		case "yes", "yeah", "y", "true", "1", "on":
+			*s = SAMLForceAuthn_FORCE_AUTHN_YES
+		case "no", "nope", "n", "false", "0", "off":
+			*s = SAMLForceAuthn_FORCE_AUTHN_NO
+		default:
+			return trace.BadParameter("SAMLForceAuthn invalid value %v", val)
+		}
+	case bool:
+		if v {
+			*s = SAMLForceAuthn_FORCE_AUTHN_YES
+		} else {
+			*s = SAMLForceAuthn_FORCE_AUTHN_NO
+		}
+	case int32:
+		return trace.Wrap(s.setFromEnum(v))
+	case int64:
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	case int:
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	case float64:
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	case float32:
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	default:
+		return trace.BadParameter("SAMLForceAuthn invalid type %T", val)
+	}
+	return nil
+}
+
+// setFromEnum sets the value from enum value as int32.
+func (s *SAMLForceAuthn) setFromEnum(val int32) error {
+	if _, ok := SAMLForceAuthn_name[val]; !ok {
+		return trace.BadParameter("invalid SAMLForceAuthn enum %v", val)
+	}
+	*s = SAMLForceAuthn(val)
 	return nil
 }

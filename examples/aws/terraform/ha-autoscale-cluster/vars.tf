@@ -38,6 +38,12 @@ variable "node_instance_type" {
   default = "t4g.medium"
 }
 
+// Instance type used for bastion server
+variable "bastion_instance_type" {
+  type    = string
+  default = "t4g.medium"
+}
+
 // SSH key name to provision instances withx
 variable "key_name" {
   type = string
@@ -239,4 +245,34 @@ variable "route53_domain_acm_nlb_alias" {
 variable "teleport_auth_type" {
   type    = string
   default = "local"
+}
+
+// (optional) Change the default tags applied to all resources.
+variable "default_tags" {
+  type    = map(string)
+  default = {}
+}
+
+// Whether to trigger instance refresh rollout for Teleport Auth servers when
+// servers when the launch template or configuration changes.
+// Enable this with caution - upgrading Teleport version will trigger an
+// instance refresh and auth servers must be scaled down to only one instance
+// before upgrading your Teleport cluster.
+variable "enable_auth_asg_instance_refresh" {
+  type    = bool
+  default = false
+}
+
+// Whether to trigger instance refresh rollout for Teleport Proxy servers when
+// servers when the launch template or configuration changes.
+variable "enable_proxy_asg_instance_refresh" {
+  type    = bool
+  default = false
+}
+
+// Whether to trigger instance refresh rollout for Teleport Node servers when
+// servers when the launch template or configuration changes.
+variable "enable_node_asg_instance_refresh" {
+  type    = bool
+  default = false
 }

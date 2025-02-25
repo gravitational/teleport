@@ -1,0 +1,350 @@
+---
+title: Configuring Workload Identity and AWS Roles Anywhere
+description: Configuring AWS to accept Workload Identity certificates as authentication using AWS Roles Anywhere
+---
+
+(!/docs/pages/includes/workload-id-preview.mdx!)
+
+Teleport Workload Identity issues flexible short-lived identities in X.509
+certificates. AWS Roles Anywhere allows you to use these certificates to
+authenticate to AWS services.
+
+This can be useful in cases where a machine needs to securely authenticate with
+AWS services without the use of a long-lived credential. This is because the
+machine can authenticate with Teleport without using any shared secrets by
+using one of our delegated join methods.
+
+## How it works
+
+This implementation differs from using the Teleport Application Service to protect
+AWS APIs in a few ways:
+
+- Requests to AWS are not proxied through the Teleport Proxy Service, meaning
+  reduced latency but also less visibility, as these requests will not be
+  recorded in Teleport's audit log.
+- Workload Identity works with any AWS client, including the command-line tool
+  but also
+  their SDKs.
+- Using the Teleport Application Service to access AWS does not work with Machine ID
+  and therefore cannot be used when a machine needs to authenticate with AWS.
+
+Whilst this guide is primarily aimed at allowing a machine to access AWS,
+the `tsh svid issue` command can be used in place of Machine ID to allow a human
+user to authenticate with using AWS Roles Anywhere.
+
+## OIDC Federation vs Roles Anywhere
+
+The AWS platform offers two routes for workload identity federation: OIDC
+Federation and Roles Anywhere. Teleport Workload Identity supports both of these
+methods.
+
+There are a number of differences between the two methods:
+
+- Roles Anywhere exchanges an X509 SVID for an AWS credential, whereas OIDC
+  Federation exchanges a JWT SVID for an AWS credential. The use of X509 SVIDs
+  is generally considered more secure.
+- Roles Anywhere requires the installation of an AWS credential helper alongside
+  the workloads, whereas OIDC Federation does not.
+- Roles Anywhere does not require the Teleport Proxy Service to be reachable by
+  AWS, whereas OIDC Federation does.
+
+This guide covers configuring Roles Anywhere, for OIDC federation, see
+[Configuring Workload Identity and AWS OIDC Federation](./aws-oidc-federation.mdx).
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- `tbot` must already be installed and configured on the host where the
+workloads which need to access Teleport Workload Identity will run. For more
+information, see the [deployment guides](../machine-id/deployment/deployment.mdx).
+
+### Deciding on a SPIFFE ID structure
+
+Within Teleport Workload Identity, all identities are represented using a
+SPIFFE ID. This is a URI that uniquely identifies the entity that the identity
+represents. The scheme is always `spiffe://`, and the host will be the name of
+your Teleport cluster. The structure of the path of this URI is up to you.
+
+For the purposes of this guide, we will be granting access to AWS to the
+`spiffe://example.teleport.sh/svc/example-service` SPIFFE ID.
+
+If you have already deployed Teleport Workload Identity, then you will already
+have a SPIFFE ID structure in place. If you have not, then you will need to
+decide on a structure for your SPIFFE IDs.
+
+If you are only using Teleport Workload Identity with AWS Roles Anywhere, you may
+structure your SPIFFE IDs so that they explicitly specify the AWS role they are
+allowed to assume. However, it often makes more sense to name the workload or
+person that will use the SPIFFE ID. See the
+[best practices guide](./best-practices.mdx) for further advice.
+
+## Step 1/4. Configure AWS Roles Anywhere
+
+Configuring AWS Roles Anywhere for the first time involves a few steps. Some
+of these may not be necessary if you have previously configured AWS Roles
+Anywhere for your Teleport cluster.
+
+### Configure a Roles Anywhere Trust Anchor
+
+If you have previously configured AWS Roles Anywhere for your Teleport cluster,
+you can skip this step.
+
+First, we must establish trust between your Teleport cluster and your AWS
+Roles Anywhere. This will allow AWS to validate X.509 certificates that are
+issued by your Teleport cluster. This is done by configuring the Teleport
+cluster's SPIFFE certificate authority as the trust anchor for AWS Roles
+Anywhere.
+
+First, you must obtain your Teleport cluster's SPIFFE CA:
+
+```code
+$ tctl auth export --type tls-spiffe
+```
+
+Now, navigate to "Roles Anywhere" in the AWS console and click "Create a trust
+anchor". You will need to give it a descriptive name, we suggest using the
+name of your Teleport cluster with "spiffe" appended.
+
+Select "External certificate bundle" and then paste the output you received
+from the `tctl` command into the text box.
+
+You can now click the "Create trust anchor" button.
+
+### Create a Role
+
+Next, we must create a role in AWS for your workload to assume. You may also
+modify the trust policy of an existing role if you prefer.
+
+Navigate to the "Roles" section of the AWS IAM console and click "Create role".
+
+For the "Trusted entity type" select "Custom trust policy".
+
+You will now enter the following:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "Service": "rolesanywhere.amazonaws.com"
+            },
+            "Action": [
+                "sts:AssumeRole",
+                "sts:TagSession",
+                "sts:SetSourceIdentity"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "aws:PrincipalTag/x509SAN/URI": "spiffe://example.teleport.sh/svc/example-service"
+                },
+                "ArnEquals": {
+                    "aws:SourceArn": "arn:aws:rolesanywhere:us-east-1:12345789:trust-anchor/0000000-0000-0000-0000-000000000000"
+                }
+            }
+        }
+    ]
+}
+```
+
+Replace:
+
+- `spiffe://example.teleport.sh/my-workload` with the SPIFFE ID you have chosen
+  for your workload.
+- `arn:aws:rolesanywhere:us-east-1:12345789:trust-anchor/0000000-0000-0000-0000-000000000000`
+  with the ARN of the trust anchor you created in the previous step.
+
+Click "Next" to proceed to the "Add permissions" page. Now select the
+permissions you wish to grant to your workload on AWS.
+
+Click "Next" to proceed to the "Name, review, and create" page. Give your role
+a descriptive name, e.g "my-workload-roles-anywhere".
+
+Click "Create role".
+
+### Create a Roles Anywhere Profile
+
+Finally, you must create a Roles Anywhere profile.
+
+Navigate back to the "Roles Anywhere" section of the AWS IAM console and click
+"Create a profile".
+
+Give your profile a descriptive name, e.g "my-workload".
+
+Select the role you created in the previous step.
+
+Click "Create profile".
+
+## Step 2/4. Configure Teleport RBAC
+
+Now we need to configure Teleport to allow a X.509 certificate to be issued
+containing the SPIFFE ID we have chosen.
+
+First, you'll create a Workload Identity resource to define the identity and
+its characteristics. Create a new file called `workload-identity.yaml`:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: example-workload-identity
+  labels:
+    example: getting-started
+spec:
+  spiffe:
+    id: /svc/example-service
+```
+
+Replace:
+
+- `example-workload-identity` with a descriptive name for the Workload Identity.
+- `/svc/example-service` with the path part of the SPIFFE ID you have chosen.
+
+Apply this to your cluster using `tctl`:
+
+```code
+$ tctl create -f workload-identity.yaml
+```
+
+Next, you'll create a role which grants access to this Workload Identity. Create
+`role.yaml` with the following content:
+
+```yaml
+kind: role
+version: v6
+metadata:
+  name: example-workload-identity-issuer
+spec:
+  allow:
+    workload_identity_labels:
+      example: ["getting-started"]
+    rules:
+    - resources:
+      - workload_identity
+      verbs:
+      - list
+      - read
+```
+
+Replace:
+
+- `example-workload-identity-issuer` with a descriptive name for the role.
+- The labels selector if you have modified the labels of the Workload Identity.
+
+Apply this role to your Teleport cluster using `tctl`:
+
+```code
+$ tctl create -f role.yaml
+```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
+
+If you intend this SPIFFE ID to be issued by a human, you now need to assign
+this role to their user:
+
+```code
+$ tctl edit user/my-user
+# And add the role to the user's roles list
+```
+
+If you intend this SPIFFE ID to be issued by a machine, you now need to assign
+this role to the bot:
+
+```code
+$ tctl bots update my-bot --add-roles example-workload-identity-issuer
+```
+
+## Step 3/4. Issue Workload Identity certificates
+
+### For machines using `tbot`
+
+For machines, the `tbot` service can be used to issue and renew SPIFFE SVIDs
+as a background process.
+
+Take your already deployed `tbot` service and configure it to issue SPIFFE SVIDs
+by adding the following to the `tbot` configuration file:
+
+```yaml
+outputs:
+  - type: workload-identity-x509
+    destination:
+      type: directory
+      path: /opt/roles-anywhere-svid
+    selector:
+      name: example-workload-identity
+```
+Replace:
+
+- /opt/roles-anywhere-svid with the directory where you want the X509 to be
+  written.
+- example-workload-identity with the name of the Workload Identity you have
+  created
+
+Restart your `tbot` service to apply the new configuration.
+
+### For humans using `tsh`
+
+For humans, the `tsh` CLI can be used to issue a SPIFFE SVID using their
+pre-existing authentication session.
+
+The `tsh` command will need to be re-invoked when the SVID expires. By default,
+SVIDs are issued with a TTL of 1 hour, but this can be configured to be up to
+24 hours. It can be convenient to configure this to around 8 hours to allow
+an engineer to run the command once at the start of their working day.
+
+For example, to issue a SPIFFE SVID for `/svc/example-service` with an 8 hour
+TTL:
+
+```code
+$ tsh workload-identity issue-x509 --name-selector example-workload-identity --credential-ttl 8h --output /opt/roles-anywhere-svid
+```
+
+## Step 4/4. Configure the AWS CLI and SDKs to use Roles Anywhere to authenticate
+
+In order for AWS to use the SVID for authentication, you must also install the
+AWS Roles Anywhere credential helper. This is a small utility that the AWS
+CLI and SDKs will use to exchange the SVID for a temporary AWS credential.
+
+Obtain the latest release of the credential helper from the
+[Obtaining temporary security credentials from AWS Identity and Access Management Roles Anywhere](https://docs.aws.amazon.com/rolesanywhere/latest/userguide/credential-helper.html)
+guide.
+
+Now, you need to configure a profile that leverages this credential helper.
+
+Add the following to your `~/.aws/config` file:
+
+```ini
+[profile use-roles-anywhere]
+credential_process = ./aws_signing_helper credential-process --certificate /opt/roles-anywhere-svid/svid.pem --private-key /opt/roles-anywhere-svid/svid_key.pem --profile-arn $PROFILE_ARN --trust-anchor-arn $TRUST_ANCHOR_ARN --role-arn $ROLE_ARN
+```
+
+Replace $PROFILE_ARN, $TRUST_ANCHOR_ARN, and $ROLE_ARN with the ARNs of the
+profile, trust anchor, and role you created in the previous steps.
+
+You can now use the `use-roles-anywhere` profile with the AWS CLI, for example:
+
+```code
+$ aws --profile use-roles-anywhere s3 ls
+```
+
+You can also use this profile with the AWS SDKs by setting the `AWS_PROFILE`
+environment variable:
+
+```code
+$ export AWS_PROFILE=use-roles-anywhere
+$ ./my-app
+```
+
+## Next steps
+
+- [AWS Roles Anywhere documentation](https://docs.aws.amazon.com/rolesanywhere/latest/userguide/introduction.html):
+The official AWS documentation for Roles Anywhere.
+- [Workload Identity Overview](./introduction.mdx): Overview of Teleport
+Workload Identity.
+- [Best Practices](./best-practices.mdx): Best practices for using Workload
+Identity in Production.
+- Read the [configuration reference](../../reference/machine-id/configuration.mdx) to explore
+all the available configuration options.

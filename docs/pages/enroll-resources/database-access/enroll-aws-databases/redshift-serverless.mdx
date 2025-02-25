@@ -1,0 +1,265 @@
+---
+title: Database Access with Amazon Redshift Serverless
+description: How to configure Teleport database access with Amazon Redshift Serverless.
+---
+
+(!docs/pages/includes/database-access/db-introduction.mdx dbType="Amazon Redshift Serverless" dbConfigure="with IAM authentication"!)
+
+This guide will help you to:
+
+- Set up Teleport to access your Amazon Redshift Serverless workgroups.
+- Connect to your databases through Teleport.
+
+## How it works
+
+(!docs/pages/includes/database-access/how-it-works/iam.mdx db="Redshift Serverless" cloud="AWS"!)
+
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+![Enroll Redshift with a Self-Hosted Teleport Cluster](../../../../img/database-access/guides/redshift_selfhosted_serverless.png)
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+![Enroll Redshift with a Cloud-Hosted Teleport Cluster](../../../../img/database-access/guides/redshift_cloud_serverless.png)
+</TabItem>
+
+</Tabs>
+
+(!docs/pages/includes/database-access/auto-discovery-tip.mdx dbType="Amazon Redshift Serverless database" providerType="AWS"!)
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- AWS account with a Redshift Serverless configuration and permissions to create
+  and attach IAM policies.
+- Command-line client `psql` installed and added to your system's `PATH` environment variable.
+- A host where you will run the Teleport Database Service. This guide assumes an
+  EC2 instance, and provides a corresponding example of access control.
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/5. Create an IAM Role for user access
+
+Create an AWS IAM role to provide user access to Redshift Serverless. This role
+will be granted to Teleport users via a corresponding Teleport role. In this
+guide we will give this role the name `teleport-redshift-serverless-access`.
+
+Configure the role's trust policy to trust the AWS account.  This will be
+sufficient to allow the Teleport Database Service to assume the role, which
+we'll be setting up in the next step. Assign <Var name="aws-account-id"/> to
+your AWS account ID:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "Statement1",
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "arn:aws:iam::<Var name="aws-account-id"/>:root"
+            },
+            "Action": "sts:AssumeRole"
+        }
+    ]
+}
+```
+
+Remember to replace the example AWS account ID.
+
+Attach a permission policy to the role to allow it to connect to Redshift
+Serverless databases:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "redshift-serverless:GetCredentials",
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+The resource ARN string has the following format and can be more specific if
+you only want to allow access to specific work groups:
+
+```
+arn:aws:redshift-serverless:{Region}:{AccountID}:workgroup/{WorkgroupID}
+```
+
+See
+[Identity and access management in Amazon Redshift Serverless](https://docs.aws.amazon.com/redshift/latest/mgmt/serverless-iam.html)
+for more information about configuring Redshift Serverless permissions.
+
+## Step 2/5. Configure Database Service IAM permissions
+
+(!docs/pages/includes/database-access/create-iam-role-step-description.mdx accessFor="Redshift Serverless databases" !)
+
+### Create an IAM role for Teleport
+
+(!docs/pages/includes/aws-credentials.mdx service="the Database Service"!)
+
+### Grant permissions
+
+Attach the following AWS IAM permissions to the Database Service IAM role:
+
+(!docs/pages/includes/database-access/reference/aws-iam/redshift-serverless/access-policy.mdx dbUserRole="teleport-redshift-serverless-access" !)
+
+## Step 3/5. Deploy a Database Service
+
+The Teleport Database Service needs network connectivity to the Redshift
+Serverless endpoint and to your Teleport cluster.
+
+If you are deploying it in AWS, make sure that its deployed in a subnet with the
+necessary routes and make sure that its security group(s) allow the outbound
+traffic.
+
+Also, ensure that the security group(s) attached to your Redshift
+Serverless workgroup allows inbound traffic from the Teleport Database Service
+host.
+
+### Install Teleport
+
+(!docs/pages/includes/install-linux.mdx!)
+
+### Generate a config file
+
+Update <Var name="REDSHIFT_SERVERLESS_URI" /> to the domain name and port of the
+cluster.  On the node that is running the Database Service, create a
+configuration file, replacing <Var name="example.teleport.sh:443" /> with the
+host and web port of your Teleport Proxy Service (e.g., `example.teleport.sh` if
+using Teleport Cloud):
+
+```code
+$ sudo teleport db configure create \
+   -o file \
+   --name="redshift-serverless" \
+   --proxy=<Var name="example.teleport.sh:443" />  \
+   --protocol=postgres \
+   --uri=<Var name="REDSHIFT_SERVERLESS_URI" /> \
+   --token=/tmp/token
+```
+
+The command will generate a Database Service configuration to proxy your AWS
+Redshift Serverless instance and place it at the `/etc/teleport.yaml` location.
+
+### Create a join token
+
+(!docs/pages/includes/tctl-token.mdx serviceName="Database" tokenType="db" tokenFile="/tmp/token"!)
+
+(!docs/pages/includes/database-access/alternative-methods-join.mdx!)
+
+### Start the Database service
+
+(!docs/pages/includes/start-teleport.mdx service="the Database Service"!)
+
+## Step 4/5. Create a Teleport role
+
+On your workstation logged in to your Teleport cluster with `tsh`, define a new
+role to provide access to Redshift Serverless. Our example file is
+`redshift-role.yaml`:
+
+```yaml
+version: v5
+kind: role
+metadata:
+  name: redshift-serverless-access
+spec:
+  allow:
+    db_labels:
+      '*': '*'
+    db_names:
+    - dev
+    db_users:
+    - 'teleport-redshift-serverless-access'
+```
+
+- The value of `db_users` corresponds to the IAM role created in
+  [the previous step](#step-15-create-an-iam-role-for-user-access).
+  You can provide either the role name or the full AWS ARN of the IAM role.
+- The value(s) for `db_names` will depend on your Redshift Serverless configuration,
+  but `dev` is the default name applied by AWS. You can also provide `*` to grant
+  access to all instances.
+
+Save this file and apply it to your Teleport cluster:
+
+```code
+$ tctl create -f redshift-role.yaml
+role 'redshift-serverless-access' has been created
+```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
+
+(!docs/pages/includes/add-role-to-user.mdx role="redshift-serverless-access"!)
+
+## Step 5/5. Connect
+
+Once the Database Service has started and joined the cluster, log in to see the
+registered databases. Replace `--proxy` with the address of your Teleport Proxy
+Service or cloud tenant:
+
+```code
+$ tsh login --proxy=mytenant.teleport.sh --user=alice
+$ tsh db ls
+Name        Description                    Labels
+----------- ------------------------------ --------
+my-redshift                                ...
+```
+
+To connect to the Redshift Serverless instance:
+
+```code
+$ tsh db connect my-redshift --db-user=teleport-redshift-serverless-access --db-name=dev
+psql (15.1, server 8.0.2)
+WARNING: psql major version 15, server major version 8.0.
+         Some psql features might not work.
+SSL connection (protocol: TLSv1.3, cipher: TLS_CHACHA20_POLY1305_SHA256, compression: off)
+Type "help" for help.
+
+dev=>
+```
+
+(!docs/pages/includes/database-access/pg-access-webui.mdx!)
+
+To log out of the database and remove credentials:
+
+```code
+$ tsh db logout my-redshift
+```
+
+## Troubleshooting
+
+### User permission errors
+
+The IAM role `teleport-redshift-serverless-access` will be automatically mapped
+as `IAMR:teleport-redshift-serverless-access` inside the Redshift Serverless database.
+
+Users (database admins) can optionally set up this database user's permissions
+prior to logging in as this new IAM role to avoid or resolve user permission issues:
+
+1. Connect to the Redshift Serverless workgroup as the admin user, and execute:
+
+   ```sql
+   CREATE USER "IAMR:teleport-redshift-serverless-access" WITH PASSWORD DISABLE;
+   ```
+
+1. Grant this user appropriate in-database permissions. For example:
+
+   ```sql
+   GRANT SELECT ON TABLE users TO "IAMR:teleport-redshift-serverless-access";
+   ```
+
+(!docs/pages/includes/database-access/aws-troubleshooting.mdx!)
+
+(!docs/pages/includes/database-access/pg-cancel-request-limitation.mdx PIDQuery="SELECT session_id AS pid, database_name,start_time,trim(query_text) AS query FROM SYS_QUERY_HISTORY WHERE status = 'running';"!)
+
+## Next steps
+
+- Learn more about [using IAM authentication to generate database user
+  credentials](https://docs.aws.amazon.com/redshift/latest/mgmt/generating-user-credentials.html) for Amazon Redshift.
+- Learn how to [restrict access](../rbac.mdx) to certain users and databases.
+- View the [High Availability (HA)](../guides/ha.mdx) guide.
+- Take a look at the YAML configuration [reference](../../../reference/agent-services/database-access-reference/configuration.mdx).
+

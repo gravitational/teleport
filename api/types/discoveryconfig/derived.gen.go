@@ -116,7 +116,9 @@ func deriveTeleportEqual_5(this, that []types.KubernetesMatcher) bool {
 func deriveTeleportEqual_6(this, that *types.AccessGraphSync) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
-			deriveTeleportEqual_12(this.AWS, that.AWS)
+			deriveTeleportEqual_12(this.AWS, that.AWS) &&
+			this.PollInterval == that.PollInterval &&
+			deriveTeleportEqual_13(this.Azure, that.Azure)
 }
 
 // deriveTeleportEqual_7 returns whether this and that are equal.
@@ -143,48 +145,49 @@ func deriveTeleportEqual_7(this, that map[string]string) bool {
 func deriveTeleportEqual_8(this, that *types.AWSMatcher) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
-			deriveTeleportEqual_13(this.Types, that.Types) &&
-			deriveTeleportEqual_13(this.Regions, that.Regions) &&
-			deriveTeleportEqual_14(this.AssumeRole, that.AssumeRole) &&
-			deriveTeleportEqual_15(this.Tags, that.Tags) &&
-			deriveTeleportEqual_16(this.Params, that.Params) &&
-			deriveTeleportEqual_17(this.SSM, that.SSM) &&
+			deriveTeleportEqual_14(this.Types, that.Types) &&
+			deriveTeleportEqual_14(this.Regions, that.Regions) &&
+			deriveTeleportEqual_15(this.AssumeRole, that.AssumeRole) &&
+			deriveTeleportEqual_16(this.Tags, that.Tags) &&
+			deriveTeleportEqual_17(this.Params, that.Params) &&
+			deriveTeleportEqual_18(this.SSM, that.SSM) &&
 			this.Integration == that.Integration &&
-			this.KubeAppDiscovery == that.KubeAppDiscovery
+			this.KubeAppDiscovery == that.KubeAppDiscovery &&
+			this.SetupAccessForARN == that.SetupAccessForARN
 }
 
 // deriveTeleportEqual_9 returns whether this and that are equal.
 func deriveTeleportEqual_9(this, that *types.AzureMatcher) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
-			deriveTeleportEqual_13(this.Subscriptions, that.Subscriptions) &&
-			deriveTeleportEqual_13(this.ResourceGroups, that.ResourceGroups) &&
-			deriveTeleportEqual_13(this.Types, that.Types) &&
-			deriveTeleportEqual_13(this.Regions, that.Regions) &&
-			deriveTeleportEqual_15(this.ResourceTags, that.ResourceTags) &&
-			deriveTeleportEqual_16(this.Params, that.Params)
+			deriveTeleportEqual_14(this.Subscriptions, that.Subscriptions) &&
+			deriveTeleportEqual_14(this.ResourceGroups, that.ResourceGroups) &&
+			deriveTeleportEqual_14(this.Types, that.Types) &&
+			deriveTeleportEqual_14(this.Regions, that.Regions) &&
+			deriveTeleportEqual_16(this.ResourceTags, that.ResourceTags) &&
+			deriveTeleportEqual_17(this.Params, that.Params)
 }
 
 // deriveTeleportEqual_10 returns whether this and that are equal.
 func deriveTeleportEqual_10(this, that *types.GCPMatcher) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
-			deriveTeleportEqual_13(this.Types, that.Types) &&
-			deriveTeleportEqual_13(this.Locations, that.Locations) &&
-			deriveTeleportEqual_15(this.Tags, that.Tags) &&
-			deriveTeleportEqual_13(this.ProjectIDs, that.ProjectIDs) &&
-			deriveTeleportEqual_13(this.ServiceAccounts, that.ServiceAccounts) &&
-			deriveTeleportEqual_16(this.Params, that.Params) &&
-			deriveTeleportEqual_15(this.Labels, that.Labels)
+			deriveTeleportEqual_14(this.Types, that.Types) &&
+			deriveTeleportEqual_14(this.Locations, that.Locations) &&
+			deriveTeleportEqual_16(this.Tags, that.Tags) &&
+			deriveTeleportEqual_14(this.ProjectIDs, that.ProjectIDs) &&
+			deriveTeleportEqual_14(this.ServiceAccounts, that.ServiceAccounts) &&
+			deriveTeleportEqual_17(this.Params, that.Params) &&
+			deriveTeleportEqual_16(this.Labels, that.Labels)
 }
 
 // deriveTeleportEqual_11 returns whether this and that are equal.
 func deriveTeleportEqual_11(this, that *types.KubernetesMatcher) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
-			deriveTeleportEqual_13(this.Types, that.Types) &&
-			deriveTeleportEqual_13(this.Namespaces, that.Namespaces) &&
-			deriveTeleportEqual_15(this.Labels, that.Labels)
+			deriveTeleportEqual_14(this.Types, that.Types) &&
+			deriveTeleportEqual_14(this.Namespaces, that.Namespaces) &&
+			deriveTeleportEqual_16(this.Labels, that.Labels)
 }
 
 // deriveTeleportEqual_12 returns whether this and that are equal.
@@ -196,7 +199,7 @@ func deriveTeleportEqual_12(this, that []*types.AccessGraphAWSSync) bool {
 		return false
 	}
 	for i := 0; i < len(this); i++ {
-		if !(deriveTeleportEqual_18(this[i], that[i])) {
+		if !(deriveTeleportEqual_19(this[i], that[i])) {
 			return false
 		}
 	}
@@ -204,7 +207,23 @@ func deriveTeleportEqual_12(this, that []*types.AccessGraphAWSSync) bool {
 }
 
 // deriveTeleportEqual_13 returns whether this and that are equal.
-func deriveTeleportEqual_13(this, that []string) bool {
+func deriveTeleportEqual_13(this, that []*types.AccessGraphAzureSync) bool {
+	if this == nil || that == nil {
+		return this == nil && that == nil
+	}
+	if len(this) != len(that) {
+		return false
+	}
+	for i := 0; i < len(this); i++ {
+		if !(deriveTeleportEqual_20(this[i], that[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+// deriveTeleportEqual_14 returns whether this and that are equal.
+func deriveTeleportEqual_14(this, that []string) bool {
 	if this == nil || that == nil {
 		return this == nil && that == nil
 	}
@@ -219,16 +238,16 @@ func deriveTeleportEqual_13(this, that []string) bool {
 	return true
 }
 
-// deriveTeleportEqual_14 returns whether this and that are equal.
-func deriveTeleportEqual_14(this, that *types.AssumeRole) bool {
+// deriveTeleportEqual_15 returns whether this and that are equal.
+func deriveTeleportEqual_15(this, that *types.AssumeRole) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
 			this.RoleARN == that.RoleARN &&
 			this.ExternalID == that.ExternalID
 }
 
-// deriveTeleportEqual_15 returns whether this and that are equal.
-func deriveTeleportEqual_15(this, that map[string]utils.Strings) bool {
+// deriveTeleportEqual_16 returns whether this and that are equal.
+func deriveTeleportEqual_16(this, that map[string]utils.Strings) bool {
 	if this == nil || that == nil {
 		return this == nil && that == nil
 	}
@@ -240,15 +259,15 @@ func deriveTeleportEqual_15(this, that map[string]utils.Strings) bool {
 		if !ok {
 			return false
 		}
-		if !(deriveTeleportEqual_13(v, thatv)) {
+		if !(deriveTeleportEqual_14(v, thatv)) {
 			return false
 		}
 	}
 	return true
 }
 
-// deriveTeleportEqual_16 returns whether this and that are equal.
-func deriveTeleportEqual_16(this, that *types.InstallerParams) bool {
+// deriveTeleportEqual_17 returns whether this and that are equal.
+func deriveTeleportEqual_17(this, that *types.InstallerParams) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
 			this.JoinMethod == that.JoinMethod &&
@@ -257,28 +276,36 @@ func deriveTeleportEqual_16(this, that *types.InstallerParams) bool {
 			this.InstallTeleport == that.InstallTeleport &&
 			this.SSHDConfig == that.SSHDConfig &&
 			this.PublicProxyAddr == that.PublicProxyAddr &&
-			deriveTeleportEqual_19(this.Azure, that.Azure) &&
+			deriveTeleportEqual_21(this.Azure, that.Azure) &&
 			this.EnrollMode == that.EnrollMode
 }
 
-// deriveTeleportEqual_17 returns whether this and that are equal.
-func deriveTeleportEqual_17(this, that *types.AWSSSM) bool {
+// deriveTeleportEqual_18 returns whether this and that are equal.
+func deriveTeleportEqual_18(this, that *types.AWSSSM) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
 			this.DocumentName == that.DocumentName
 }
 
-// deriveTeleportEqual_18 returns whether this and that are equal.
-func deriveTeleportEqual_18(this, that *types.AccessGraphAWSSync) bool {
+// deriveTeleportEqual_19 returns whether this and that are equal.
+func deriveTeleportEqual_19(this, that *types.AccessGraphAWSSync) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
-			deriveTeleportEqual_13(this.Regions, that.Regions) &&
-			deriveTeleportEqual_14(this.AssumeRole, that.AssumeRole) &&
+			deriveTeleportEqual_14(this.Regions, that.Regions) &&
+			deriveTeleportEqual_15(this.AssumeRole, that.AssumeRole) &&
 			this.Integration == that.Integration
 }
 
-// deriveTeleportEqual_19 returns whether this and that are equal.
-func deriveTeleportEqual_19(this, that *types.AzureInstallerParams) bool {
+// deriveTeleportEqual_20 returns whether this and that are equal.
+func deriveTeleportEqual_20(this, that *types.AccessGraphAzureSync) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			this.SubscriptionID == that.SubscriptionID &&
+			this.Integration == that.Integration
+}
+
+// deriveTeleportEqual_21 returns whether this and that are equal.
+func deriveTeleportEqual_21(this, that *types.AzureInstallerParams) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
 			this.ClientID == that.ClientID

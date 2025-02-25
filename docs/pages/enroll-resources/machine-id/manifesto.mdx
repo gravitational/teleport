@@ -1,0 +1,52 @@
+---
+title: Machine ID Manifesto
+description: A manifesto for Machine Identity
+---
+
+The world of machine identity is changing. Machines are trusted to complete
+ever more privileged tasks, and these tasks are no longer confined within the
+boundaries of a single organization or network. AI agents, once merely science
+fiction, are common-place and growing more autonomous at an accelerating rate.
+
+This has made machines the regular target of attacks, with hackers stealing
+secrets and exploiting vulnerabilities to get access to sensitive data and to
+disrupt mission-critical systems. The potential cost of a successful attack
+has never been higher.
+
+This creates an urgent need for trusted computing that rests on three pillars.
+
+### Strong identity-based authentication
+
+Legacy systems rely on shared secrets, such as API keys, to authenticate. These
+shared secrets suffer from a number of problems: they do not provide a distinct
+identity for each service or machine, and their long-lived and shared nature
+makes them liable to be exfiltrated.
+
+Instead, each service and machine should have a strong, cryptographic identity
+(e.g. an X.509 certificate) that is verifiable by other services inside and
+outside the organization. This identity should be used for authentication and
+form the basis of authorization decisions.
+
+### Trusted execution
+
+Before an identity is issued, the integrity and authenticity of the subject
+machine should be verified. The chain of trust of the code running on the
+machine must be verified to guard against tampering prior to startup, and the
+code should be executed in a trusted execution environment to prevent tampering
+at runtime.
+
+### Complete visibility and unified access control
+
+There must be a unified way to reason about and express the properties of the
+entire ecosystem of services: what data they have access to and why, what
+permissions they have, and what data have they accessed and modified with
+tamper-proof evidence of their execution.
+
+### Summary
+
+Together, these three pillars create a strong foundation for AI, automations and
+other workloads running together in a predictable way that is secure and
+possible to reason about and maintain.
+
+Teleport Workload & Machine Identity is on a mission to make this vision a
+reality.

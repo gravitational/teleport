@@ -16,19 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
-import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
-
-import { routing } from 'teleterm/ui/uri';
-import { IAppContext } from 'teleterm/ui/types';
 
 import {
-  getWebAppLaunchUrl,
-  isWebApp,
   getAwsAppLaunchUrl,
   getSamlAppSsoUrl,
+  getWebAppLaunchUrl,
+  isWebApp,
 } from 'teleterm/services/tshd/app';
+import { IAppContext } from 'teleterm/ui/types';
+import { AppUri, routing } from 'teleterm/ui/uri';
 
 import { DocumentOrigin } from './types';
 
@@ -107,34 +104,54 @@ export async function connectToApp(
 
   // TCP app
   if (launchVnet) {
-    await connectToAppWithVnet(ctx, launchVnet, target);
+    await connectToAppWithVnet(
+      ctx,
+      launchVnet,
+      target,
+      // We don't let the user pick the target port through the search bar on purpose. If an app
+      // allows a port range, we'd need to allow the user to input any number from the range.
+      undefined /* targetPort */
+    );
     return;
   }
 
-  await setUpAppGateway(ctx, target, telemetry);
+  let targetPort: number;
+  if (target.tcpPorts.length > 0) {
+    targetPort = target.tcpPorts[0].port;
+  }
+
+  await setUpAppGateway(ctx, target.uri, { telemetry, targetPort });
 }
 
 export async function setUpAppGateway(
   ctx: IAppContext,
-  target: App,
-  telemetry: { origin: DocumentOrigin }
+  targetUri: AppUri,
+  options: {
+    telemetry: { origin: DocumentOrigin };
+    /**
+     * targetPort allows the caller to preselect the target port for the gateway. Should be passed
+     * only for multi-port TCP apps.
+     */
+    targetPort?: number;
+  }
 ) {
-  const rootClusterUri = routing.ensureRootClusterUri(target.uri);
+  const rootClusterUri = routing.ensureRootClusterUri(targetUri);
 
   const documentsService =
     ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
   const doc = documentsService.createGatewayDocument({
-    targetUri: target.uri,
-    origin: telemetry.origin,
-    targetName: routing.parseAppUri(target.uri).params.appId,
+    targetUri: targetUri,
+    origin: options.telemetry.origin,
+    targetName: routing.parseAppUri(targetUri).params.appId,
     targetUser: '',
+    targetSubresourceName: options.targetPort?.toString(),
   });
 
   const connectionToReuse = ctx.connectionTracker.findConnectionByDocument(doc);
 
   if (connectionToReuse) {
     await ctx.connectionTracker.activateItem(connectionToReuse.id, {
-      origin: telemetry.origin,
+      origin: options.telemetry.origin,
     });
   } else {
     await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
@@ -146,43 +163,37 @@ export async function setUpAppGateway(
 export async function connectToAppWithVnet(
   ctx: IAppContext,
   launchVnet: () => Promise<[void, Error]>,
-  target: App
+  target: App,
+  targetPort: number | undefined
 ) {
-  const cluster = ctx.clustersService.findClusterByResource(target.uri);
-
   const [, err] = await launchVnet();
   if (err) {
     return;
   }
 
-  const addrToCopy = getVnetAddr(cluster, target);
-  await copyToClipboard(addrToCopy);
+  let addrToCopy = target.publicAddr;
+  if (targetPort) {
+    addrToCopy = `${addrToCopy}:${targetPort}`;
+  }
 
-  ctx.notificationsService.notifyInfo(`Copied ${addrToCopy} to clipboard`);
+  try {
+    await navigator.clipboard.writeText(addrToCopy);
+  } catch (error) {
+    // On macOS, if the user uses the mouse rather than the keyboard to proceed with the osascript
+    // prompt, the Electron app throws an error about clipboard write permission being denied.
+    if (error['name'] === 'NotAllowedError') {
+      console.error(error);
+      ctx.notificationsService.notifyInfo(
+        `Connect via VNet by using ${addrToCopy}.`
+      );
+      return;
+    }
+    throw error;
+  }
+  ctx.notificationsService.notifyInfo(
+    `Connect via VNet by using ${addrToCopy} (copied to clipboard).`
+  );
 }
-
-// TODO(ravicious): Check whether the domain from public addr is configured as a custom DNS zone in
-// VNet.
-//
-// For apps from a root cluster, the copied address needs to be:
-// * publicAddr if the domain from the public addr is configured as a DNS zone.
-// * fqdn if the domain from the public addr is not configured as a DNS zone.
-//
-// For apps from a leaf cluster, it needs to be:
-// * publicAddr if the domain from the public addr is configured as a DNS zone.
-// * <app name>.<leaf cluster proxy host> if the domain from the public addr is not configured as
-// a DNS zone.
-//
-// For now, it can be just fqdn for root apps and the latter form for leaf apps, however…
-//
-// TODO(ravicious): Figure out a way to provide proxy hostname for leaf apps.
-//
-// A root cluster has no idea of the proxy host of any given leaf. Thus, for now we depend on
-// publicAddr. However, if an app resource has publicAddr set to a domain which has not
-// been configured as a custom DNZ zone, then accessing an app over that publicAddr through VNet
-// will simply not work.
-const getVnetAddr = (cluster: Cluster, target: App): string =>
-  cluster.leaf ? target.publicAddr : target.fqdn;
 
 /**
  * When the app is opened outside Connect,

@@ -21,6 +21,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 import { ServiceType } from "@protobuf-ts/runtime-rpc";
+import { WireType } from "@protobuf-ts/runtime";
 import type { BinaryWriteOptions } from "@protobuf-ts/runtime";
 import type { IBinaryWriter } from "@protobuf-ts/runtime";
 import { UnknownFieldHandler } from "@protobuf-ts/runtime";
@@ -29,6 +30,7 @@ import type { IBinaryReader } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
+import { Report } from "../../../vnet/diag/v1/diag_pb";
 /**
  * Request for Start.
  *
@@ -56,6 +58,97 @@ export interface StopRequest {
  * @generated from protobuf message teleport.lib.teleterm.vnet.v1.StopResponse
  */
 export interface StopResponse {
+}
+/**
+ * Request for ListDNSZones.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.ListDNSZonesRequest
+ */
+export interface ListDNSZonesRequest {
+}
+/**
+ * Response for ListDNSZones.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.ListDNSZonesResponse
+ */
+export interface ListDNSZonesResponse {
+    /**
+     * dns_zones is a deduplicated list of DNS zones.
+     *
+     * @generated from protobuf field: repeated string dns_zones = 1;
+     */
+    dnsZones: string[];
+}
+/**
+ * Request for GetBackgroundItemStatus.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest
+ */
+export interface GetBackgroundItemStatusRequest {
+}
+/**
+ * Response for GetBackgroundItemStatus.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse
+ */
+export interface GetBackgroundItemStatusResponse {
+    /**
+     * @generated from protobuf field: teleport.lib.teleterm.vnet.v1.BackgroundItemStatus status = 1;
+     */
+    status: BackgroundItemStatus;
+}
+/**
+ * Request for RunDiagnostics.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest
+ */
+export interface RunDiagnosticsRequest {
+}
+/**
+ * Response for RunDiagnostics.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse
+ */
+export interface RunDiagnosticsResponse {
+    /**
+     * @generated from protobuf field: teleport.lib.vnet.diag.v1.Report report = 1;
+     */
+    report?: Report;
+}
+/**
+ * BackgroundItemStatus maps to SMAppServiceStatus of the Service Management framework in macOS.
+ * https://developer.apple.com/documentation/servicemanagement/smappservice/status-swift.enum?language=objc
+ *
+ * @generated from protobuf enum teleport.lib.teleterm.vnet.v1.BackgroundItemStatus
+ */
+export enum BackgroundItemStatus {
+    /**
+     * @generated from protobuf enum value: BACKGROUND_ITEM_STATUS_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * @generated from protobuf enum value: BACKGROUND_ITEM_STATUS_NOT_REGISTERED = 1;
+     */
+    NOT_REGISTERED = 1,
+    /**
+     * This is the status the background item should have before tsh attempts to send a message to the
+     * daemon.
+     *
+     * @generated from protobuf enum value: BACKGROUND_ITEM_STATUS_ENABLED = 2;
+     */
+    ENABLED = 2,
+    /**
+     * @generated from protobuf enum value: BACKGROUND_ITEM_STATUS_REQUIRES_APPROVAL = 3;
+     */
+    REQUIRES_APPROVAL = 3,
+    /**
+     * @generated from protobuf enum value: BACKGROUND_ITEM_STATUS_NOT_FOUND = 4;
+     */
+    NOT_FOUND = 4,
+    /**
+     * @generated from protobuf enum value: BACKGROUND_ITEM_STATUS_NOT_SUPPORTED = 5;
+     */
+    NOT_SUPPORTED = 5
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class StartRequest$Type extends MessageType<StartRequest> {
@@ -157,10 +250,228 @@ class StopResponse$Type extends MessageType<StopResponse> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.StopResponse
  */
 export const StopResponse = new StopResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ListDNSZonesRequest$Type extends MessageType<ListDNSZonesRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.ListDNSZonesRequest", []);
+    }
+    create(value?: PartialMessage<ListDNSZonesRequest>): ListDNSZonesRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<ListDNSZonesRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListDNSZonesRequest): ListDNSZonesRequest {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: ListDNSZonesRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.ListDNSZonesRequest
+ */
+export const ListDNSZonesRequest = new ListDNSZonesRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ListDNSZonesResponse$Type extends MessageType<ListDNSZonesResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.ListDNSZonesResponse", [
+            { no: 1, name: "dns_zones", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ListDNSZonesResponse>): ListDNSZonesResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.dnsZones = [];
+        if (value !== undefined)
+            reflectionMergePartial<ListDNSZonesResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListDNSZonesResponse): ListDNSZonesResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated string dns_zones */ 1:
+                    message.dnsZones.push(reader.string());
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ListDNSZonesResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated string dns_zones = 1; */
+        for (let i = 0; i < message.dnsZones.length; i++)
+            writer.tag(1, WireType.LengthDelimited).string(message.dnsZones[i]);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.ListDNSZonesResponse
+ */
+export const ListDNSZonesResponse = new ListDNSZonesResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetBackgroundItemStatusRequest$Type extends MessageType<GetBackgroundItemStatusRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest", []);
+    }
+    create(value?: PartialMessage<GetBackgroundItemStatusRequest>): GetBackgroundItemStatusRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetBackgroundItemStatusRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetBackgroundItemStatusRequest): GetBackgroundItemStatusRequest {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: GetBackgroundItemStatusRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest
+ */
+export const GetBackgroundItemStatusRequest = new GetBackgroundItemStatusRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetBackgroundItemStatusResponse$Type extends MessageType<GetBackgroundItemStatusResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse", [
+            { no: 1, name: "status", kind: "enum", T: () => ["teleport.lib.teleterm.vnet.v1.BackgroundItemStatus", BackgroundItemStatus, "BACKGROUND_ITEM_STATUS_"] }
+        ]);
+    }
+    create(value?: PartialMessage<GetBackgroundItemStatusResponse>): GetBackgroundItemStatusResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.status = 0;
+        if (value !== undefined)
+            reflectionMergePartial<GetBackgroundItemStatusResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetBackgroundItemStatusResponse): GetBackgroundItemStatusResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.lib.teleterm.vnet.v1.BackgroundItemStatus status */ 1:
+                    message.status = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetBackgroundItemStatusResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.lib.teleterm.vnet.v1.BackgroundItemStatus status = 1; */
+        if (message.status !== 0)
+            writer.tag(1, WireType.Varint).int32(message.status);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse
+ */
+export const GetBackgroundItemStatusResponse = new GetBackgroundItemStatusResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class RunDiagnosticsRequest$Type extends MessageType<RunDiagnosticsRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest", []);
+    }
+    create(value?: PartialMessage<RunDiagnosticsRequest>): RunDiagnosticsRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<RunDiagnosticsRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RunDiagnosticsRequest): RunDiagnosticsRequest {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: RunDiagnosticsRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest
+ */
+export const RunDiagnosticsRequest = new RunDiagnosticsRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class RunDiagnosticsResponse$Type extends MessageType<RunDiagnosticsResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse", [
+            { no: 1, name: "report", kind: "message", T: () => Report }
+        ]);
+    }
+    create(value?: PartialMessage<RunDiagnosticsResponse>): RunDiagnosticsResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<RunDiagnosticsResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RunDiagnosticsResponse): RunDiagnosticsResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.lib.vnet.diag.v1.Report report */ 1:
+                    message.report = Report.internalBinaryRead(reader, reader.uint32(), options, message.report);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: RunDiagnosticsResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.lib.vnet.diag.v1.Report report = 1; */
+        if (message.report)
+            Report.internalBinaryWrite(message.report, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse
+ */
+export const RunDiagnosticsResponse = new RunDiagnosticsResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.vnet.v1.VnetService
  */
 export const VnetService = new ServiceType("teleport.lib.teleterm.vnet.v1.VnetService", [
     { name: "Start", options: {}, I: StartRequest, O: StartResponse },
-    { name: "Stop", options: {}, I: StopRequest, O: StopResponse }
+    { name: "Stop", options: {}, I: StopRequest, O: StopResponse },
+    { name: "ListDNSZones", options: {}, I: ListDNSZonesRequest, O: ListDNSZonesResponse },
+    { name: "GetBackgroundItemStatus", options: {}, I: GetBackgroundItemStatusRequest, O: GetBackgroundItemStatusResponse },
+    { name: "RunDiagnostics", options: {}, I: RunDiagnosticsRequest, O: RunDiagnosticsResponse }
 ]);

@@ -33,9 +33,10 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -176,7 +177,7 @@ func TestUpdate(t *testing.T) {
 		clusterAddr = "https://1.2.3.6:3080"
 	)
 	kubeconfigPath, initialConfig := setup(t)
-	creds, caCertPEM, err := genUserKey("localhost")
+	creds, caCertPEM, err := genUserKeyRing("localhost")
 	require.NoError(t, err)
 	err = Update(kubeconfigPath, Values{
 		TeleportClusterName: clusterName,
@@ -197,7 +198,7 @@ func TestUpdate(t *testing.T) {
 	}
 	wantConfig.AuthInfos[clusterName] = &clientcmdapi.AuthInfo{
 		ClientCertificateData: creds.TLSCert,
-		ClientKeyData:         creds.PrivateKeyPEM(),
+		ClientKeyData:         creds.TLSPrivateKey.PrivateKeyPEM(),
 		LocationOfOrigin:      kubeconfigPath,
 		Extensions:            map[string]runtime.Object{},
 	}
@@ -225,7 +226,7 @@ func TestUpdateWithExec(t *testing.T) {
 		namespace   = "kubeNamespace"
 	)
 
-	creds, caCertPEM, err := genUserKey("localhost")
+	creds, caCertPEM, err := genUserKeyRing("localhost")
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -350,7 +351,7 @@ func TestUpdateWithExecAndProxy(t *testing.T) {
 		home        = "/alt/home"
 	)
 	kubeconfigPath, initialConfig := setup(t)
-	creds, caCertPEM, err := genUserKey("localhost")
+	creds, caCertPEM, err := genUserKeyRing("localhost")
 	require.NoError(t, err)
 	err = Update(kubeconfigPath, Values{
 		TeleportClusterName: clusterName,
@@ -415,12 +416,12 @@ func TestUpdateLoadAllCAs(t *testing.T) {
 		clusterAddr     = "https://1.2.3.6:3080"
 	)
 	kubeconfigPath, _ := setup(t)
-	creds, _, err := genUserKey("localhost")
+	creds, _, err := genUserKeyRing("localhost")
 	require.NoError(t, err)
-	_, leafCACertPEM, err := genUserKey("example.com")
+	_, leafCACertPEM, err := genUserKeyRing("example.com")
 	require.NoError(t, err)
 	creds.TrustedCerts[0].ClusterName = clusterName
-	creds.TrustedCerts = append(creds.TrustedCerts, auth.TrustedCerts{
+	creds.TrustedCerts = append(creds.TrustedCerts, authclient.TrustedCerts{
 		ClusterName:     leafClusterName,
 		TLSCertificates: [][]byte{leafCACertPEM},
 	})
@@ -455,7 +456,7 @@ func TestRemoveByClusterName(t *testing.T) {
 	)
 	kubeconfigPath, initialConfig := setup(t)
 
-	creds, _, err := genUserKey("localhost")
+	creds, _, err := genUserKeyRing("localhost")
 	require.NoError(t, err)
 
 	// Add teleport-generated entries to kubeconfig.
@@ -518,7 +519,7 @@ func TestRemoveByServerAddr(t *testing.T) {
 	)
 
 	kubeconfigPath, initialConfig := setup(t)
-	creds, _, err := genUserKey("localhost")
+	creds, _, err := genUserKeyRing("localhost")
 	require.NoError(t, err)
 
 	// Add teleport-generated entries to kubeconfig.
@@ -551,7 +552,7 @@ func TestRemoveByServerAddr(t *testing.T) {
 	require.Equal(t, wantConfig, config)
 }
 
-func genUserKey(hostname string) (*client.Key, []byte, error) {
+func genUserKeyRing(hostname string) (*client.KeyRing, []byte, error) {
 	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
 		CommonName:   hostname,
 		Organization: []string{hostname},
@@ -564,8 +565,11 @@ func genUserKey(hostname string) (*client.Key, []byte, error) {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	keygen := testauthority.New()
-	priv, err := keygen.GeneratePrivateKey()
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	priv, err := keys.NewSoftwarePrivateKey(key)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -583,10 +587,10 @@ func genUserKey(hostname string) (*client.Key, []byte, error) {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return &client.Key{
-		PrivateKey: priv,
-		TLSCert:    tlsCert,
-		TrustedCerts: []auth.TrustedCerts{{
+	return &client.KeyRing{
+		TLSPrivateKey: priv,
+		TLSCert:       tlsCert,
+		TrustedCerts: []authclient.TrustedCerts{{
 			TLSCertificates: [][]byte{caCert},
 		}},
 	}, caCert, nil

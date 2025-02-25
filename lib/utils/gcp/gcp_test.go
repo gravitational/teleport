@@ -192,3 +192,73 @@ func TestProjectIDFromServiceAccountName(t *testing.T) {
 		})
 	}
 }
+
+func TestGetServiceAccountFromCredentialsJSON(t *testing.T) {
+	tests := []struct {
+		name               string
+		credentialsJSON    []byte
+		checkError         require.ErrorAssertionFunc
+		wantServiceAccount string
+	}{
+		{
+			name:               "service_account credentials",
+			credentialsJSON:    []byte(fakeServiceAccountCredentialsJSON),
+			checkError:         require.NoError,
+			wantServiceAccount: "my-service-account@teleport-example-123456.iam.gserviceaccount.com",
+		},
+		{
+			name:               "external_account credentials with sa impersonation",
+			credentialsJSON:    []byte(fakeExternalAccountCredentialsJSON),
+			checkError:         require.NoError,
+			wantServiceAccount: "my-service-account@teleport-example-987654.iam.gserviceaccount.com",
+		},
+		{
+			name:            "unknown credentials",
+			credentialsJSON: []byte(`{}`),
+			checkError:      require.Error,
+		},
+		{
+			name:            "bad json",
+			credentialsJSON: []byte(`{}`),
+			checkError:      require.Error,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			sa, err := GetServiceAccountFromCredentialsJSON(tc.credentialsJSON)
+			tc.checkError(t, err)
+			require.Equal(t, tc.wantServiceAccount, sa)
+		})
+	}
+}
+
+const (
+	fakeServiceAccountCredentialsJSON = `{
+  "type": "service_account",
+  "project_id": "teleport-example-123456",
+  "private_key_id": "1234569890abcdef1234567890abcdef12345678",
+  "private_key": "fake-private-key",
+  "client_email": "my-service-account@teleport-example-123456.iam.gserviceaccount.com",
+  "client_id": "111111111111111111111",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/my-service-account%40teleport-example-123456.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}`
+	fakeExternalAccountCredentialsJSON = `{
+  "type": "external_account",
+  "audience": "//iam.googleapis.com/projects/111111111111/locations/global/workloadIdentityPools/my-identity-pool/providers/my-provider",
+  "subject_token_type": "urn:ietf:params:aws:token-type:aws4_request",
+  "service_account_impersonation_url": "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/my-service-account@teleport-example-987654.iam.gserviceaccount.com:generateAccessToken",
+  "token_url": "https://sts.googleapis.com/v1/token",
+  "credential_source": {
+    "environment_id": "aws1",
+    "region_url": "http://169.254.169.254/latest/meta-data/placement/availability-zone",
+    "url": "http://169.254.169.254/latest/meta-data/iam/security-credentials",
+    "regional_cred_verification_url": "https://sts.{region}.amazonaws.com?Action=GetCallerIdentity&Version=2011-06-15",
+    "imdsv2_session_token_url": "http://169.254.169.254/latest/api/token"
+  }
+}`
+)

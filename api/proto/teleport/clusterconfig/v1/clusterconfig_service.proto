@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.clusterconfig.v1;
 
 import "teleport/clusterconfig/v1/access_graph.proto";
+import "teleport/clusterconfig/v1/access_graph_settings.proto";
 import "teleport/legacy/types/types.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1;clusterconfigv1";
@@ -53,8 +54,19 @@ service ClusterConfigService {
   // GetClusterAuditConfig retrieves the active cluster audit configuration.
   rpc GetClusterAuditConfig(GetClusterAuditConfigRequest) returns (types.ClusterAuditConfigV2);
 
-  // GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
+  // GetClusterAccessGraphConfig retrieves the cluster Access Graph configuration from Auth service.
   rpc GetClusterAccessGraphConfig(GetClusterAccessGraphConfigRequest) returns (GetClusterAccessGraphConfigResponse);
+
+  // GetAccessGraphSettings updates the cluster Access Graph configuration.
+  rpc GetAccessGraphSettings(GetAccessGraphSettingsRequest) returns (teleport.clusterconfig.v1.AccessGraphSettings);
+  // CreateAccessGraphSettings creates the cluster Access Graph configuration.
+  rpc CreateAccessGraphSettings(CreateAccessGraphSettingsRequest) returns (teleport.clusterconfig.v1.AccessGraphSettings);
+  // UpdateAccessGraphSettings updates the cluster Access Graph configuration.
+  rpc UpdateAccessGraphSettings(UpdateAccessGraphSettingsRequest) returns (teleport.clusterconfig.v1.AccessGraphSettings);
+  // UpsertAccessGraphSettings overwrites the active cluster Access Graph configuration.
+  rpc UpsertAccessGraphSettings(UpsertAccessGraphSettingsRequest) returns (teleport.clusterconfig.v1.AccessGraphSettings);
+  // ResetAccessGraphSettings restores the active cluster Access Graph to default settings.
+  rpc ResetAccessGraphSettings(ResetAccessGraphSettingsRequest) returns (teleport.clusterconfig.v1.AccessGraphSettings);
 }
 
 // Request for GetClusterNetworkingConfig
@@ -116,3 +128,24 @@ message GetClusterAccessGraphConfigResponse {
   // access_graph holds the information about Access Graph service.
   teleport.clusterconfig.v1.AccessGraphConfig access_graph = 1;
 }
+
+// Request for GetAccessGraphSettings
+message GetAccessGraphSettingsRequest {}
+
+// Request for CreateAccessGraphSettings
+message CreateAccessGraphSettingsRequest {
+  teleport.clusterconfig.v1.AccessGraphSettings access_graph_settings = 1;
+}
+
+// Request for UpdateAccessGraphSettings
+message UpdateAccessGraphSettingsRequest {
+  teleport.clusterconfig.v1.AccessGraphSettings access_graph_settings = 1;
+}
+
+// Request for UpsertAccessGraphSettings
+message UpsertAccessGraphSettingsRequest {
+  teleport.clusterconfig.v1.AccessGraphSettings access_graph_settings = 1;
+}
+
+// Request for ResetAccessGraphSettings
+message ResetAccessGraphSettingsRequest {}

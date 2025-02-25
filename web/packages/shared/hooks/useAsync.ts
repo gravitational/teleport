@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useState, useRef, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
  * `useAsync` lets you represent the state of an async operation as data. It accepts an async function
@@ -46,7 +46,6 @@ import { useCallback, useState, useRef, useEffect } from 'react';
  *
  *   return { fetchUserProfileAttempt, fetchUserProfile };
  * }
- *
  *
  * @example In the view layer you can use it like this:
  * function UserProfile(props) {
@@ -92,7 +91,7 @@ export function useAsync<Args extends unknown[], AttemptData>(
   const isMounted = useIsMounted();
   const asyncTask = useRef<Promise<AttemptData>>();
 
-  const run = useCallback(
+  const run: (...args: Args) => RunFuncReturnValue<AttemptData> = useCallback(
     (...args: Args) => {
       setState(prevState => ({
         status: 'processing',
@@ -256,21 +255,64 @@ export function makeErrorAttemptWithStatusText<T>(
 }
 
 /**
- * mapAttempt maps attempt data but only if the attempt is successful.
+ * mapAttempt maps attempt data if the attempt is successful or in progress and contains data.
  */
 export function mapAttempt<A, B>(
   attempt: Attempt<A>,
   mapFunction: (attemptData: A) => B
 ): Attempt<B> {
-  if (attempt.status !== 'success') {
+  if (
+    attempt.status === 'success' ||
+    (attempt.status === 'processing' && attempt.data)
+  ) {
     return {
       ...attempt,
-      data: null,
+      data: mapFunction(attempt.data),
     };
   }
 
   return {
     ...attempt,
-    data: mapFunction(attempt.data),
+    data: null,
   };
 }
+
+/**
+ * useDelayedRepeatedAttempt makes it so that on repeated calls to `run`, the attempt changes its
+ * state to 'processing' only after a delay. This can be used to mask repeated calls and
+ * optimistically show stale results.
+ *
+ * @example
+ * const [eagerFetchUserProfileAttempt, fetchUserProfile] = useAsync(async () => {
+ *   return await fetch(`/users/${userId}`);
+ * })
+ * const fetchUserProfileAttempt = useDelayedRepeatedAttempt(eagerFetchUserProfileAttempt, 600)
+ */
+export function useDelayedRepeatedAttempt<Data>(
+  attempt: Attempt<Data>,
+  delayMs = 400
+): Attempt<Data> {
+  const [currentAttempt, setCurrentAttempt] = useState(attempt);
+
+  useEffect(() => {
+    if (
+      currentAttempt.status === 'success' &&
+      attempt.status === 'processing'
+    ) {
+      const timeout = setTimeout(() => {
+        setCurrentAttempt(attempt);
+      }, delayMs);
+      return () => {
+        clearTimeout(timeout);
+      };
+    }
+
+    if (currentAttempt !== attempt) {
+      setCurrentAttempt(attempt);
+    }
+  }, [attempt, currentAttempt, delayMs]);
+
+  return currentAttempt;
+}
+
+export type RunFuncReturnValue<AttemptData> = Promise<[AttemptData, Error]>;

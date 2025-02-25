@@ -7,10 +7,8 @@ the problem.
 ### "unauthorized device" errors using a trusted device
 
 A trusted device needs to be registered and enrolled before it is recognized by
-Teleport as such. Follow the [registration](
-../../access-controls/device-trust/device-management.mdx#register-a-trusted-device) and
-[enrollment](
-../../access-controls/device-trust/device-management.mdx#enroll-a-trusted-device) steps
+Teleport as such. Follow the [registration](../../admin-guides/access-controls/device-trust/device-management.mdx) and
+[enrollment](../../admin-guides/access-controls/device-trust/device-management.mdx) steps
 and make sure to `tsh logout` and `tsh login` after enrollment is done.
 
 ### "Failed to open the TPM device" on Linux
@@ -24,14 +22,34 @@ for a different solution, we recommend creating udev rules similar to the ones
 shipped by the [TPM2 Software Stack](
 https://github.com/tpm2-software/tpm2-tss/blob/ede63dd1ac1f0a46029d457304edcac2162bfab8/dist/tpm-udev.rules#L4).
 
+### Auto enrollment not working
+
+Auto-enrollment ceremonies, due to their automated nature, are stricter than
+regular enrollment. Additional auto-enrollment checks include:
+
+1. Verifying device profile data, such as data originated from Jamf, against the
+   actual device
+2. Verifying that the device is not enrolled by another user (auto-enroll cannot
+   take devices that are already enrolled)
+
+Check you audit log for clues: look for failed "Device Enroll Token Created"
+events and see the "message" field in the details.
+
+If you suspect (1) is the issue, compare the actual device against its inventory
+definition (`tsh device collect` executed in the actual device vs `tctl get
+device/<asset_tag>`). Tweaking the device profile, manual enrollment or waiting
+for the next MDM sync may solve the issue.
+
+If you suspect (2), you can unenroll the device using `tctl edit
+device/<asset_tag>` and changing the "enroll_status" field to "not_enrolled".
+
 ### App access and "access to this app requires a trusted device"
 
 Follow the instructions in the [Web UI troubleshooting section](
 #web-ui-fails-to-authenticate-trusted-device) below (Teleport v16 or later).
 
 Alternatively, you may use one of the tsh commands described by
-[App Access support](
-../../access-controls/device-trust/enforcing-device-trust.mdx#app-access-support).
+[App Access support](../../admin-guides/access-controls/device-trust/enforcing-device-trust.mdx).
 For example, for an app called `myapp`, run `tsh proxy app myapp -p 8888`, then
 open http://localhost:8888 in your browser.
 
@@ -52,13 +70,45 @@ login. If you are not asked to authenticate your device immediately after login,
 follow the steps below:
 
 1. Make sure your device is [registered and enrolled](
-   ../../access-controls/device-trust/device-management.mdx#register-a-trusted-device)
+   ../../admin-guides/access-controls/device-trust/device-management.mdx#register-a-trusted-device)
 2. Install [Teleport Connect](
-   ../../connect-your-client/teleport-connect.mdx#installation--upgrade)
+   ../../connect-your-client/teleport-connect.mdx#installation--upgrade).
+   Use the DEB or RPM packages on Linux (the tarball doesn't register the custom
+   URL handler).
 3. Make sure Teleport Connect can access the same resource you are trying to
    access on the Web
-4. Ask your cluster administrator if device trust is enabled (cluster mode
+4. Ask your cluster administrator if Device Trust is enabled (cluster mode
    "optional" or higher)
 
-If all of the above steps are done, try logging out from the Web UI and logging
-in again.
+After the steps above are done try logging out from the Web UI and logging in
+again. If the error persists, check your audit log for failed "device
+authenticated" or "device web" events and look for failure details within the
+events.
+
+### "device web authentication IP mismatch" errors
+
+"IP mismatch" errors in audit logs indicate that the IP checks performed by the
+device web authentication ceremony failed. In this case it's likely that
+end-user IPs are not propagated correctly to your Teleport deployment.
+
+* L7 load balancer: make sure it propagates the [X-Forwarded-For header](
+  ../../reference/config.mdx#proxy-service)
+* L4 load balancer: enable [PROXY protocol](
+  ../../admin-guides/management/security/proxy-protocol.mdx)
+
+### Checking Device Trust authorization status in the web UI
+
+When successfully authorized to use Device Trust in the web UI, the user will see a green
+shield icon next to the logged-in username at the top right of the screen. Additionally, clicking
+on the username to show the user menu will indicate that the session is authorized with Device Trust.
+
+If the user is not authorized to use Device Trust in the web UI, but either the cluster-wide
+configuration or their assigned role(s) require the use of a trusted device, the user will see a
+yellow warning shield next to the logged-in username at the top right of the screen. Additionally,
+clicking on the username to show the user menu will indicate that the session is not authorized
+with Device Trust, so the user's access is restricted.
+
+| Theme | Session authorized with Device Trust | Session not authorized with Device Trust |
+| - | - | - |
+| Light | ![device-trust-trusted-shield-light-success.png](../../../img/device-trust/device-trust-shield-light-success.png) | ![device-trust-trusted-shield-light-failure.png](../../../img/device-trust/device-trust-shield-light-failure.png) |
+| Dark | ![device-trust-trusted-shield-dark-success.png](../../../img/device-trust/device-trust-shield-dark-success.png) | ![device-trust-trusted-shield-dark-failure.png](../../../img/device-trust/device-trust-shield-dark-failure.png) |

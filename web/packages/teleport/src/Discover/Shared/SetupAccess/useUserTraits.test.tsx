@@ -16,32 +16,34 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { renderHook, act, waitFor } from '@testing-library/react';
 
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import { AwsRole } from 'shared/services/apps';
+
 import { ContextProvider } from 'teleport';
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import { DiscoverProvider } from 'teleport/Discover/useDiscover';
 import cfg from 'teleport/config';
-import { userEventService } from 'teleport/services/userEvent';
+import { app } from 'teleport/Discover/AwsMangementConsole/fixtures';
 import {
   defaultDiscoverContext,
   defaultResourceSpec,
 } from 'teleport/Discover/Fixtures/fixtures';
+import {
+  DiscoverProvider,
+  type AppMeta,
+  type DbMeta,
+  type DiscoverContextState,
+  type KubeMeta,
+  type NodeMeta,
+} from 'teleport/Discover/useDiscover';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import { ExcludeUserField } from 'teleport/services/user';
+import { userEventService } from 'teleport/services/userEvent';
 import TeleportContext from 'teleport/teleportContext';
 
 import { ResourceKind } from '../ResourceKind';
-
 import { useUserTraits } from './useUserTraits';
-
-import type {
-  DbMeta,
-  DiscoverContextState,
-  KubeMeta,
-  NodeMeta,
-} from 'teleport/Discover/useDiscover';
 
 describe('onProceed correctly deduplicates, removes static traits, updates meta, and calls updateUser', () => {
   const teleCtx = createTeleportContext();
@@ -60,6 +62,7 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     const discoverCtx = defaultDiscoverContext({
       resourceSpec: defaultResourceSpec(ResourceKind.Kubernetes),
     });
+    discoverCtx.nextStep = jest.fn();
     discoverCtx.agentMeta = {
       ...discoverCtx.agentMeta,
       ...getMeta(ResourceKind.Kubernetes),
@@ -126,10 +129,13 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
 
     // Test that we are updating the user with the correct traits.
     const mockUser = getMockUser();
-    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith({
-      ...mockUser,
-      traits: { ...mockUser.traits, ...expected },
-    });
+    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith(
+      {
+        ...mockUser,
+        traits: { ...mockUser.traits, ...expected },
+      },
+      ExcludeUserField.AllTraits
+    );
 
     // Test that updating meta correctly updated the dynamic traits.
     const updatedMeta = spyUpdateAgentMeta.mock.results[0].value as KubeMeta;
@@ -147,6 +153,7 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     const discoverCtx = defaultDiscoverContext({
       resourceSpec: defaultResourceSpec(ResourceKind.Kubernetes),
     });
+    discoverCtx.nextStep = jest.fn();
     discoverCtx.agentMeta = {
       ...discoverCtx.agentMeta,
       ...getMeta(ResourceKind.Kubernetes),
@@ -213,20 +220,24 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
 
     // Test that we are updating the user with the correct traits.
     const mockUser = getMockUser();
-    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith({
-      ...mockUser,
-      traits: {
-        ...result.current.dynamicTraits,
-        kubeGroups: ['dynamicKbGroup3', 'dynamicKbGroup4'],
-        kubeUsers: ['dynamicKbUser3', 'dynamicKbUser4'],
+    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith(
+      {
+        ...mockUser,
+        traits: {
+          ...result.current.dynamicTraits,
+          kubeGroups: ['dynamicKbGroup3', 'dynamicKbGroup4'],
+          kubeUsers: ['dynamicKbUser3', 'dynamicKbUser4'],
+        },
       },
-    });
+      ExcludeUserField.AllTraits
+    );
   });
 
   test('database', async () => {
     const discoverCtx = defaultDiscoverContext({
       resourceSpec: defaultResourceSpec(ResourceKind.Database),
     });
+    discoverCtx.nextStep = jest.fn();
     discoverCtx.agentMeta = {
       ...discoverCtx.agentMeta,
       ...getMeta(ResourceKind.Database),
@@ -289,10 +300,13 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
 
     // Test that we are updating the user with the correct traits.
     const mockUser = getMockUser();
-    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith({
-      ...mockUser,
-      traits: { ...mockUser.traits, ...expected },
-    });
+    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith(
+      {
+        ...mockUser,
+        traits: { ...mockUser.traits, ...expected },
+      },
+      ExcludeUserField.AllTraits
+    );
 
     // Test that updating meta correctly updated the dynamic traits.
     const updatedMeta = spyUpdateAgentMeta.mock.results[0].value as DbMeta;
@@ -310,6 +324,7 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     const discoverCtx = defaultDiscoverContext({
       resourceSpec: defaultResourceSpec(ResourceKind.Database),
     });
+    discoverCtx.nextStep = jest.fn();
     discoverCtx.agentMeta = {
       ...discoverCtx.agentMeta,
       ...getMeta(ResourceKind.Database),
@@ -365,20 +380,24 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
 
     // Test that we are updating the user with the correct traits.
     const mockUser = getMockUser();
-    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith({
-      ...mockUser,
-      traits: {
-        ...result.current.dynamicTraits,
-        databaseNames: ['banana', 'carrot'],
-        databaseUsers: ['apple'],
+    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith(
+      {
+        ...mockUser,
+        traits: {
+          ...result.current.dynamicTraits,
+          databaseNames: ['banana', 'carrot'],
+          databaseUsers: ['apple'],
+        },
       },
-    });
+      ExcludeUserField.AllTraits
+    );
   });
 
   test('node', async () => {
     const discoverCtx = defaultDiscoverContext({
       resourceSpec: defaultResourceSpec(ResourceKind.Server),
     });
+    discoverCtx.nextStep = jest.fn();
     discoverCtx.agentMeta = {
       ...discoverCtx.agentMeta,
       ...getMeta(ResourceKind.Server),
@@ -433,10 +452,13 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
 
     // Test that we are updating the user with the correct traits.
     const mockUser = getMockUser();
-    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith({
-      ...mockUser,
-      traits: { ...mockUser.traits, ...expected },
-    });
+    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith(
+      {
+        ...mockUser,
+        traits: { ...mockUser.traits, ...expected },
+      },
+      ExcludeUserField.AllTraits
+    );
 
     // Test that updating meta correctly updated the dynamic traits.
     const updatedMeta = spyUpdateAgentMeta.mock.results[0].value as NodeMeta;
@@ -446,10 +468,108 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     ]);
   });
 
+  test('only update user traits with dynamic awsRoleArns', async () => {
+    const staticAwsRoles: AwsRole[] = [
+      {
+        name: 'static-arn1',
+        arn: 'arn:aws:iam::123456789012:role/static-arn1',
+        display: 'static-arn1',
+        accountId: '123456789012',
+      },
+      {
+        name: 'static-arn2',
+        arn: 'arn:aws:iam::123456789012:role/static-arn2',
+        display: 'static-arn2',
+        accountId: '123456789012',
+      },
+    ];
+    const discoverCtx = defaultDiscoverContext({
+      resourceSpec: {
+        ...defaultResourceSpec(ResourceKind.Application),
+        appMeta: { awsConsole: true },
+      },
+      agentMeta: {
+        app: {
+          ...app,
+          awsRoles: staticAwsRoles,
+        },
+      },
+    });
+    discoverCtx.nextStep = jest.fn();
+    const spyUpdateAgentMeta = jest
+      .spyOn(discoverCtx, 'updateAgentMeta')
+      .mockImplementation(x => x);
+
+    const { result } = renderHook(() => useUserTraits(), {
+      wrapper: wrapperFn(discoverCtx, teleCtx),
+    });
+
+    await waitFor(() =>
+      expect(result.current.staticTraits.awsRoleArns.length).toBeGreaterThan(0)
+    );
+
+    const dynamicTraits = result.current.dynamicTraits;
+    const staticTraits = result.current.staticTraits;
+    const mockedSelectedOptions = {
+      awsRoleArns: [
+        {
+          isFixed: false,
+          label: staticTraits.awsRoleArns[0],
+          value: staticTraits.awsRoleArns[0],
+        },
+        {
+          isFixed: false,
+          label: dynamicTraits.awsRoleArns[0],
+          value: dynamicTraits.awsRoleArns[0],
+        },
+        // duplicate
+        {
+          isFixed: false,
+          label: dynamicTraits.awsRoleArns[0],
+          value: dynamicTraits.awsRoleArns[0],
+        },
+      ],
+    };
+
+    act(() => {
+      result.current.onProceed(mockedSelectedOptions);
+    });
+
+    await waitFor(() => {
+      expect(teleCtx.userService.reloadUser).toHaveBeenCalledTimes(1);
+    });
+
+    // Test that we are updating the user with the correct traits.
+    const mockUser = getMockUser();
+    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith(
+      {
+        ...mockUser,
+        traits: {
+          ...mockUser.traits,
+          awsRoleArns: [dynamicTraits.awsRoleArns[0]],
+        },
+      },
+      ExcludeUserField.AllTraits
+    );
+
+    // Test that app's awsRoles field got updated with the dynamic trait.
+    const updatedMeta = spyUpdateAgentMeta.mock.results[0].value as AppMeta;
+    expect(updatedMeta.app.awsRoles).toStrictEqual([
+      ...staticAwsRoles,
+      {
+        name: 'dynamicArn1',
+        display: 'dynamicArn1',
+        arn: 'arn:aws:iam::123456789012:role/dynamicArn1',
+        accountId: '123456789012',
+      },
+    ]);
+  });
+
   test('node with auto discover preserves existing + new dynamic traits', async () => {
     const discoverCtx = defaultDiscoverContext({
       resourceSpec: defaultResourceSpec(ResourceKind.Server),
     });
+    discoverCtx.nextStep = jest.fn();
     discoverCtx.agentMeta = {
       ...discoverCtx.agentMeta,
       ...getMeta(ResourceKind.Server),
@@ -494,13 +614,16 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     });
     // Test that we are updating the user with the correct traits.
     const mockUser = getMockUser();
-    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith({
-      ...mockUser,
-      traits: {
-        ...result.current.dynamicTraits,
-        logins: ['banana', 'carrot'],
+    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith(
+      {
+        ...mockUser,
+        traits: {
+          ...result.current.dynamicTraits,
+          logins: ['banana', 'carrot'],
+        },
       },
-    });
+      ExcludeUserField.AllTraits
+    );
   });
 });
 
@@ -521,6 +644,7 @@ describe('static and dynamic traits are correctly separated and correctly create
     const discoverCtx = defaultDiscoverContext({
       resourceSpec: defaultResourceSpec(resourceKind),
     });
+    discoverCtx.nextStep = jest.fn();
     discoverCtx.agentMeta = {
       ...discoverCtx.agentMeta,
       ...getMeta(resourceKind),
@@ -607,6 +731,7 @@ describe('calls to nextStep respects number of steps to skip', () => {
     const discoverCtx = defaultDiscoverContext({
       resourceSpec: defaultResourceSpec(ResourceKind.Database),
     });
+    discoverCtx.nextStep = jest.fn();
     discoverCtx.agentMeta.autoDiscovery = {
       config: { name: '', discoveryGroup: '', aws: [] },
     };
@@ -639,7 +764,10 @@ function getMockUser() {
       kubeUsers: ['dynamicKbUser1', 'dynamicKbUser2'],
       kubeGroups: ['dynamicKbGroup1', 'dynamicKbGroup2'],
       windowsLogins: [],
-      awsRoleArns: [],
+      awsRoleArns: [
+        'arn:aws:iam::123456789012:role/dynamicArn1',
+        'arn:aws:iam::123456789012:role/dynamicArn2',
+      ],
     },
   };
 }

@@ -500,6 +500,54 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should mount jamfCredentialsSecret.name when role is jamf and action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/jamf-service.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: jamf-api-credentials
+            secret:
+              secretName: teleport-jamf-api-credentials
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-jamf-api-credentials
+            name: jamf-api-credentials
+            readOnly: true
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should mount jamfCredentialsSecret if it already exists and when role is jamf and action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/jamf-service-existing-secret.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: jamf-api-credentials
+            secret:
+              secretName: existing-teleport-jamf-secret
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-jamf-api-credentials
+            name: jamf-api-credentials
+            readOnly: true
+      - matchSnapshot:
+          path: spec.template.spec
+
   - it: should mount tls.existingCASecretName and set environment when set in values if action is Upgrade
     template: deployment.yaml
     set:

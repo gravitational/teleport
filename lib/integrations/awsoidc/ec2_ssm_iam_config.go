@@ -20,10 +20,8 @@ package awsoidc
 
 import (
 	"context"
-	"errors"
-	"log/slog"
+	"io"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
@@ -31,6 +29,11 @@ import (
 	"github.com/gravitational/trace"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/provisioning"
+	"github.com/gravitational/teleport/lib/cloud/provisioning/awsactions"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
+	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 const (
@@ -60,6 +63,22 @@ type EC2SSMIAMConfigureRequest struct {
 	// No trailing / is expected.
 	// Eg https://tenant.teleport.sh
 	ProxyPublicURL string
+
+	// ClusterName is the Teleport cluster name.
+	// Used for resource tagging.
+	ClusterName string
+	// IntegrationName is the Teleport AWS OIDC Integration name.
+	// Used for resource tagging.
+	IntegrationName string
+	// AccountID is the AWS Account ID.
+	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
+	// stdout is used to override stdout output in tests.
+	stdout io.Writer
+	// insecureSkipInstallPathRandomization is set to true under output test to
+	// produce consistent output.
+	insecureSkipInstallPathRandomization bool
 }
 
 // CheckAndSetDefaults ensures the required fields are present.
@@ -84,21 +103,28 @@ func (r *EC2SSMIAMConfigureRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("proxy public url is required")
 	}
 
+	if r.ClusterName == "" {
+		return trace.BadParameter("cluster name is required")
+	}
+
+	if r.IntegrationName == "" {
+		return trace.BadParameter("integration name is required")
+	}
+
 	return nil
 }
 
 // EC2SSMConfigureClient describes the required methods to create the IAM Policies and SSM Document required for installing Teleport in EC2 instances.
 type EC2SSMConfigureClient interface {
-	// PutRolePolicy creates or replaces a Policy by its name in a IAM Role.
-	PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
-
-	// CreateDocument creates a Amazon Web Services Systems Manager (SSM document).
-	CreateDocument(ctx context.Context, params *ssm.CreateDocumentInput, optFns ...func(*ssm.Options)) (*ssm.CreateDocumentOutput, error)
+	CallerIdentityGetter
+	awsactions.RolePolicyPutter
+	awsactions.DocumentCreator
 }
 
 type defaultEC2SSMConfigureClient struct {
 	*iam.Client
 	ssmClient *ssm.Client
+	CallerIdentityGetter
 }
 
 // CreateDocument creates a Amazon Web Services Systems Manager (SSM document).
@@ -118,20 +144,25 @@ func NewEC2SSMConfigureClient(ctx context.Context, region string) (EC2SSMConfigu
 	}
 
 	return &defaultEC2SSMConfigureClient{
-		Client:    iam.NewFromConfig(cfg),
-		ssmClient: ssm.NewFromConfig(cfg),
+		Client:               iamutils.NewFromConfig(cfg),
+		ssmClient:            ssm.NewFromConfig(cfg),
+		CallerIdentityGetter: stsutils.NewFromConfig(cfg),
 	}, nil
 }
 
 // ConfigureEC2SSM creates the required resources in AWS to enable EC2 Auto Discover using script mode..
-// It creates an embedded policy with the following permissions:
+// It creates an inline policy with the following permissions:
 //
 // Action: List EC2 instances where teleport is going to be installed.
 //   - ec2:DescribeInstances
 //
+// Action: Get SSM Agent Status
+//   - ssm:DescribeInstanceInformation
+//
 // Action: Run a command and get its output.
 //   - ssm:SendCommand
 //   - ssm:GetCommandInvocation
+//   - ssm:ListCommandInvocations
 //
 // Besides setting up the required IAM policies, this method also adds the SSM Document.
 // This SSM Document downloads and runs the Teleport Installer Script, which installs teleport in the target EC2 instance.
@@ -140,44 +171,34 @@ func ConfigureEC2SSM(ctx context.Context, clt EC2SSMConfigureClient, req EC2SSMI
 		return trace.Wrap(err)
 	}
 
-	ec2ICEPolicyDocument, err := awslib.NewPolicyDocument(
+	if err := CheckAccountID(ctx, clt, req.AccountID); err != nil {
+		return trace.Wrap(err)
+	}
+
+	policy := awslib.NewPolicyDocument(
 		awslib.StatementForEC2SSMAutoDiscover(),
-	).Marshal()
+	)
+	putRolePolicy, err := awsactions.PutRolePolicy(clt, req.IntegrationRoleEC2SSMPolicy, req.IntegrationRole, policy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	_, err = clt.PutRolePolicy(ctx, &iam.PutRolePolicyInput{
-		PolicyName:     &req.IntegrationRoleEC2SSMPolicy,
-		RoleName:       &req.IntegrationRole,
-		PolicyDocument: &ec2ICEPolicyDocument,
-	})
+	content := awslib.EC2DiscoverySSMDocument(req.ProxyPublicURL,
+		awslib.WithInsecureSkipInstallPathRandomization(req.insecureSkipInstallPathRandomization),
+	)
+	tags := tags.DefaultResourceCreationTags(req.ClusterName, req.IntegrationName)
+	createDoc, err := awsactions.CreateDocument(clt, req.SSMDocumentName, content, ssmtypes.DocumentTypeCommand, ssmtypes.DocumentFormatYaml, tags)
 	if err != nil {
-		if trace.IsNotFound(awslib.ConvertIAMv2Error(err)) {
-			return trace.NotFound("role %q not found", req.IntegrationRole)
-		}
 		return trace.Wrap(err)
 	}
 
-	slog.InfoContext(ctx, "IntegrationRole: IAM Policy added to Role", "policy", req.IntegrationRoleEC2SSMPolicy, "role", req.IntegrationRole)
-
-	_, err = clt.CreateDocument(ctx, &ssm.CreateDocumentInput{
-		Name:           aws.String(req.SSMDocumentName),
-		DocumentType:   ssmtypes.DocumentTypeCommand,
-		DocumentFormat: ssmtypes.DocumentFormatYaml,
-		Content:        aws.String(awslib.EC2DiscoverySSMDocument(req.ProxyPublicURL)),
-	})
-	if err != nil {
-		var docAlreadyExistsError *ssmtypes.DocumentAlreadyExists
-		if errors.As(err, &docAlreadyExistsError) {
-			slog.InfoContext(ctx, "SSM Document already exists", "name", req.SSMDocumentName)
-			return nil
-		}
-
-		return trace.Wrap(err)
-	}
-
-	slog.InfoContext(ctx, "SSM Document created", "name", req.SSMDocumentName)
-
-	return nil
+	return trace.Wrap(provisioning.Run(ctx, provisioning.OperationConfig{
+		Name: "ec2-ssm-iam",
+		Actions: []provisioning.Action{
+			*putRolePolicy,
+			*createDoc,
+		},
+		AutoConfirm: req.AutoConfirm,
+		Output:      req.stdout,
+	}))
 }

@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package postgres
 
@@ -22,7 +26,7 @@ import (
 	"github.com/jackc/pgx/v4"
 
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
-	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 )
@@ -36,11 +40,9 @@ type schema struct {
 }
 
 // schemaInfoQuery is a query to return the schema info.
-// TODO(Tener): for very large schemas adding a filtering right into this query could improve performance.
-// It doesn't appear necessary right now.
 const schemaInfoQuery = "SELECT schemaname, tablename FROM pg_catalog.pg_tables"
 
-func fetchDatabaseObjects(ctx context.Context, session *common.Session, conn *pgx.Conn) ([]*dbobjectv1.DatabaseObject, error) {
+func fetchDatabaseObjects(ctx context.Context, database types.Database, databaseName string, conn *pgx.Conn) ([]*dbobjectv1.DatabaseObject, error) {
 	s, err := getSchemaInfo(ctx, conn)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -51,20 +53,20 @@ func fetchDatabaseObjects(ctx context.Context, session *common.Session, conn *pg
 	for schemaName, schemaVal := range s {
 		for _, table := range schemaVal.tables {
 			name := strings.Join([]string{
-				session.Database.GetProtocol(),
-				session.Database.GetType(),
-				session.Database.GetName(),
+				database.GetProtocol(),
+				database.GetType(),
+				database.GetName(),
 				databaseobjectimportrule.ObjectKindTable,
-				session.DatabaseName,
+				databaseName,
 				schemaName,
 				table,
-			}, "/")
+			}, "::")
 
 			obj, err := databaseobject.NewDatabaseObject(name, &dbobjectv1.DatabaseObjectSpec{
 				ObjectKind:          databaseobjectimportrule.ObjectKindTable,
-				DatabaseServiceName: session.Database.GetName(),
-				Protocol:            session.Database.GetProtocol(),
-				Database:            session.DatabaseName,
+				DatabaseServiceName: database.GetName(),
+				Protocol:            database.GetProtocol(),
+				Database:            databaseName,
 				Schema:              schemaName,
 				Name:                table,
 			})

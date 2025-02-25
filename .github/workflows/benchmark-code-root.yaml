@@ -1,0 +1,71 @@
+name: Benchmarks (Root) (Go)
+run-name: Benchmarks (Root) (Go) - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  pull_request:
+
+  merge_group:
+
+jobs:
+  changes:
+    name: Check for relevant changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
+    steps:
+      - name: Checkout
+        if: ${{ github.event_name == 'merge_group' }}
+        uses: actions/checkout@v4
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: changes
+        with:
+          base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+          filters: |
+            changed:
+              - '.github/workflows/benchmark-code-root.yaml'
+              - '**.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'build.assets/Makefile'
+              - 'build.assets/Dockerfile*'
+              - 'Makefile'
+
+  test:
+    name: Benchmarks (Root)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' }}
+    runs-on: ubuntu-22.04-32core
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport17
+      options: --cap-add=SYS_ADMIN --privileged
+      env:
+        WEBASSETS_SKIP_BUILD: 1
+        TELEPORT_XAUTH_TEST: yes
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v4
+
+      - name: Prepare workspace
+        uses: ./.github/actions/prepare-workspace
+
+      # Run benchmarks once to make sure they don't break
+      # Must be run separate since gotestsum is not compatible with benchmark output
+      - name: Run Benchmarks Once
+        timeout-minutes: 5
+        shell: bash # Overriding default shell which is `sh -e`
+        run: make test-go-bench-root | sed -u -E "s/^(FAIL\s+github)/::error title=Benchmark Failed::\1/"
+
+      - name: Construct Summary
+        shell: bash
+        run: |
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          go run golang.org/x/perf/cmd/benchstat@latest test-logs/bench.txt \
+          | sed -E -e 's/^pkg:\s+(github.*)/\n```\n## \1\n\n```/'  >> "$GITHUB_STEP_SUMMARY"

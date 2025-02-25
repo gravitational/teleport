@@ -1,0 +1,249 @@
+---
+title: TeleportProvisionToken
+description: Provides a comprehensive list of fields in the TeleportProvisionToken resource available through the Teleport Kubernetes operator
+tocDepth: 3
+---
+
+{/*Auto-generated file. Do not edit.*/}
+{/*To regenerate, navigate to integrations/operator and run "make crd-docs".*/}
+
+This guide is a comprehensive reference to the fields in the `TeleportProvisionToken`
+resource, which you can apply after installing the Teleport Kubernetes operator.
+
+
+## resources.teleport.dev/v2
+
+**apiVersion:** resources.teleport.dev/v2
+
+|Field|Type|Description|
+|---|---|---|
+|apiVersion|string|APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources|
+|kind|string|Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds|
+|metadata|object||
+|spec|[object](#spec)|ProvisionToken resource definition v2 from Teleport|
+
+### spec
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specallow-items)|Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.|
+|aws_iid_ttl|string|AWSIIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used to join the cluster with this token.|
+|azure|[object](#specazure)|Azure allows the configuration of options specific to the "azure" join method.|
+|bitbucket|[object](#specbitbucket)|Bitbucket allows the configuration of options specific to the "bitbucket" join method.|
+|bot_name|string|BotName is the name of the bot this token grants access to, if any|
+|circleci|[object](#speccircleci)|CircleCI allows the configuration of options specific to the "circleci" join method.|
+|gcp|[object](#specgcp)|GCP allows the configuration of options specific to the "gcp" join method.|
+|github|[object](#specgithub)|GitHub allows the configuration of options specific to the "github" join method.|
+|gitlab|[object](#specgitlab)|GitLab allows the configuration of options specific to the "gitlab" join method.|
+|join_method|string|JoinMethod is the joining method required in order to use this token. Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm|
+|kubernetes|[object](#speckubernetes)|Kubernetes allows the configuration of options specific to the "kubernetes" join method.|
+|oracle|[object](#specoracle)|Oracle allows the configuration of options specific to the "oracle" join method.|
+|roles|[]string|Roles is a list of roles associated with the token, that will be converted to metadata in the SSH and X509 certificates issued to the user of the token|
+|spacelift|[object](#specspacelift)|Spacelift allows the configuration of options specific to the "spacelift" join method.|
+|suggested_agent_matcher_labels|object|SuggestedAgentMatcherLabels is a set of labels to be used by agents to match on resources. When an agent uses this token, the agent should monitor resources that match those labels. For databases, this means adding the labels to `db_service.resources.labels`. Currently, only node-join scripts create a configuration according to the suggestion.|
+|suggested_labels|object|SuggestedLabels is a set of labels that resources should set when using this token to enroll themselves in the cluster. Currently, only node-join scripts create a configuration according to the suggestion.|
+|terraform_cloud|[object](#specterraform_cloud)|TerraformCloud allows the configuration of options specific to the "terraform_cloud" join method.|
+|tpm|[object](#spectpm)|TPM allows the configuration of options specific to the "tpm" join method.|
+
+### spec.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|aws_account|string|AWSAccount is the AWS account ID.|
+|aws_arn|string|AWSARN is used for the IAM join method, the AWS identity of joining nodes must match this ARN. Supports wildcards "*" and "?".|
+|aws_regions|[]string|AWSRegions is used for the EC2 join method and is a list of AWS regions a node is allowed to join from.|
+|aws_role|string|AWSRole is used for the EC2 join method and is the ARN of the AWS role that the Auth Service will assume in order to call the ec2 API.|
+
+### spec.azure
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specazureallow-items)|Allow is a list of Rules, nodes using this token must match one allow rule to use this token.|
+
+### spec.azure.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|resource_groups|[]string||
+|subscription|string||
+
+### spec.bitbucket
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specbitbucketallow-items)|Allow is a list of Rules, nodes using this token must match one allow rule to use this token.|
+|audience|string|Audience is a Bitbucket-specified audience value for this token. It is unique to each Bitbucket repository, and must be set to the value as written in the Pipelines -> OpenID Connect section of the repository settings.|
+|identity_provider_url|string|IdentityProviderURL is a Bitbucket-specified issuer URL for incoming OIDC tokens. It is unique to each Bitbucket repository, and must be set to the value as written in the Pipelines -> OpenID Connect section of the repository settings.|
+
+### spec.bitbucket.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|branch_name|string||
+|deployment_environment_uuid|string||
+|repository_uuid|string||
+|workspace_uuid|string||
+
+### spec.circleci
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#speccircleciallow-items)|Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.|
+|organization_id|string||
+
+### spec.circleci.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|context_id|string||
+|project_id|string||
+
+### spec.gcp
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specgcpallow-items)|Allow is a list of Rules, nodes using this token must match one allow rule to use this token.|
+
+### spec.gcp.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|locations|[]string||
+|project_ids|[]string||
+|service_accounts|[]string||
+
+### spec.github
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specgithuballow-items)|Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.|
+|enterprise_server_host|string|EnterpriseServerHost allows joining from runners associated with a GitHub Enterprise Server instance. When unconfigured, tokens will be validated against github.com, but when configured to the host of a GHES instance, then the tokens will be validated against host.  This value should be the hostname of the GHES instance, and should not include the scheme or a path. The instance must be accessible over HTTPS at this hostname and the certificate must be trusted by the Auth Service.|
+|enterprise_slug|string|EnterpriseSlug allows the slug of a GitHub Enterprise organisation to be included in the expected issuer of the OIDC tokens. This is for compatibility with the `include_enterprise_slug` option in GHE.  This field should be set to the slug of your enterprise if this is enabled. If this is not enabled, then this field must be left empty. This field cannot be specified if `enterprise_server_host` is specified.  See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise for more information about customized issuer values.|
+|static_jwks|string|StaticJWKS disables fetching of the GHES signing keys via the JWKS/OIDC endpoints, and allows them to be directly specified. This allows joining from GitHub Actions in GHES instances that are not reachable by the Teleport Auth Service.|
+
+### spec.github.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|actor|string||
+|environment|string||
+|ref|string||
+|ref_type|string||
+|repository|string||
+|repository_owner|string||
+|sub|string||
+|workflow|string||
+
+### spec.gitlab
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specgitlaballow-items)|Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.|
+|domain|string|Domain is the domain of your GitLab instance. This will default to `gitlab.com` - but can be set to the domain of your self-hosted GitLab e.g `gitlab.example.com`.|
+
+### spec.gitlab.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|ci_config_ref_uri|string||
+|ci_config_sha|string||
+|deployment_tier|string||
+|environment|string||
+|environment_protected|boolean||
+|namespace_path|string||
+|pipeline_source|string||
+|project_path|string||
+|project_visibility|string||
+|ref|string||
+|ref_protected|boolean||
+|ref_type|string||
+|sub|string||
+|user_email|string||
+|user_id|string||
+|user_login|string||
+
+### spec.kubernetes
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#speckubernetesallow-items)|Allow is a list of Rules, nodes using this token must match one allow rule to use this token.|
+|static_jwks|[object](#speckubernetesstatic_jwks)|StaticJWKS is the configuration specific to the `static_jwks` type.|
+|type|string|Type controls which behavior should be used for validating the Kubernetes Service Account token. Support values: - `in_cluster` - `static_jwks` If unset, this defaults to `in_cluster`.|
+
+### spec.kubernetes.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|service_account|string||
+
+### spec.kubernetes.static_jwks
+
+|Field|Type|Description|
+|---|---|---|
+|jwks|string||
+
+### spec.oracle
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specoracleallow-items)|Allow is a list of Rules, nodes using this token must match one allow rule to use this token.|
+
+### spec.oracle.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|parent_compartments|[]string||
+|regions|[]string||
+|tenancy|string||
+
+### spec.spacelift
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specspaceliftallow-items)|Allow is a list of Rules, nodes using this token must match one allow rule to use this token.|
+|hostname|string|Hostname is the hostname of the Spacelift tenant that tokens will originate from. E.g `example.app.spacelift.io`|
+
+### spec.spacelift.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|caller_id|string||
+|caller_type|string||
+|scope|string||
+|space_id|string||
+
+### spec.terraform_cloud
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specterraform_cloudallow-items)|Allow is a list of Rules, nodes using this token must match one allow rule to use this token.|
+|audience|string|Audience is the JWT audience as configured in the TFC_WORKLOAD_IDENTITY_AUDIENCE(_$TAG) variable in Terraform Cloud. If unset, defaults to the Teleport cluster name. For example, if `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT=foo` is set in Terraform Cloud, this value should be `foo`. If the variable is set to match the cluster name, it does not need to be set here.|
+|hostname|string|Hostname is the hostname of the Terraform Enterprise instance expected to issue JWTs allowed by this token. This may be unset for regular Terraform Cloud use, in which case it will be assumed to be `app.terraform.io`. Otherwise, it must both match the `iss` (issuer) field included in JWTs, and provide standard JWKS endpoints.|
+
+### spec.terraform_cloud.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|organization_id|string||
+|organization_name|string||
+|project_id|string||
+|project_name|string||
+|run_phase|string||
+|workspace_id|string||
+|workspace_name|string||
+
+### spec.tpm
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#spectpmallow-items)|Allow is a list of Rules, the presented delegated identity must match one allow rule to permit joining.|
+|ekcert_allowed_cas|[]string|EKCertAllowedCAs is a list of CA certificates that will be used to validate TPM EKCerts. When specified, joining TPMs must present an EKCert signed by one of the specified CAs. TPMs that do not present an EKCert will be not permitted to join. When unspecified, TPMs will be allowed to join with either an EKCert or an EKPubHash.|
+
+### spec.tpm.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|description|string||
+|ek_certificate_serial|string||
+|ek_public_hash|string||
+

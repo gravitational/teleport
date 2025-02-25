@@ -26,6 +26,8 @@ service WorkloadIdentityService {
   // SignX509SVIDs generates signed x509 SVIDs based on the SVIDs provided in
   // the request.
   rpc SignX509SVIDs(SignX509SVIDsRequest) returns (SignX509SVIDsResponse) {}
+  // SignJWTSVIDs generates signed JWT SVIDs based on the requested SVIDs.
+  rpc SignJWTSVIDs(SignJWTSVIDsRequest) returns (SignJWTSVIDsResponse) {}
 }
 
 // The request for an individual x509 SVID.
@@ -78,4 +80,49 @@ message SignX509SVIDsRequest {
 message SignX509SVIDsResponse {
   // The generated SVIDs.
   repeated SVIDResponse svids = 1;
+}
+
+// The request for an individual JWT SVID.
+message JWTSVIDRequest {
+  // The path that should be included in the SPIFFE ID.
+  // This should have a preceding slash and should not have a trailing slash.
+  // Required.
+  string spiffe_id_path = 1;
+  // The value that should be included in the JWT SVID as the `aud` claim.
+  // Required.
+  repeated string audiences = 2;
+  // The TTL to use for the x509 SVID. A maximum value is enforced on this
+  // field. Callers should inspect the returned cert to determine if their
+  // requested TTL has been met, and if not, adjust their behaviour. If not
+  // supplied, the default TTL will be the maximum value.
+  google.protobuf.Duration ttl = 3;
+  // A hint that provides a way of distinguishing between SVIDs. These are
+  // user configured and are sent back to the actual workload.
+  // Optional.
+  string hint = 4;
+}
+
+// The generated JWT SVID.
+message JWTSVIDResponse {
+  // The JWT SVID.
+  string jwt = 1;
+  // The JTI that was included in the JWT.
+  string jti = 2;
+  // The full SPIFFE ID that was included in the x509 SVID.
+  string spiffe_id = 3;
+  // The audiences that were included in the JWT.
+  repeated string audiences = 4;
+  // The hint that was included in SVIDRequest in order to allow a workload to
+  // distinguish an individual SVID.
+  string hint = 5;
+}
+
+// The request for SignJWTSVIDs.
+message SignJWTSVIDsRequest {
+  repeated JWTSVIDRequest svids = 1;
+}
+
+// The response for SignJWTSVIDs.
+message SignJWTSVIDsResponse {
+  repeated JWTSVIDResponse svids = 1;
 }

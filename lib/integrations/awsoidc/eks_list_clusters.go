@@ -72,6 +72,16 @@ type EKSCluster struct {
 
 	// Status is a current status of an EKS cluster in AWS.
 	Status string
+
+	// AuthenticationMode contains the authentication mode of the cluster.
+	// Expected values are: API, API_AND_CONFIG_MAP, CONFIG_MAP.
+	// Only API and API_AND_CONFIG_MAP are supported when installing the Teleport Helm chart.
+	// https://aws.amazon.com/blogs/containers/a-deep-dive-into-simplified-amazon-eks-access-management-controls/
+	AuthenticationMode string
+
+	// EndpointPublicAccess indicates whether the Cluster's VPC Config has its endpoint as a public address.
+	// For Teleport Cloud, this is required to access the cluster and proceed with the installation.
+	EndpointPublicAccess bool
 }
 
 // ListEKSClustersResponse contains a page of AWS EKS Clusters.
@@ -152,19 +162,23 @@ func ListEKSClusters(ctx context.Context, clt ListEKSClustersClient, req ListEKS
 				return nil
 			}
 
-			extraLabels, err := getExtraEKSLabels(eksClusterInfo.Cluster)
+			cluster := eksClusterInfo.Cluster
+
+			extraLabels, err := getExtraEKSLabels(cluster)
 			if err != nil {
 				ret.ClusterFetchingErrors[clusterName] = err
 				return nil
 			}
 
 			ret.Clusters = append(ret.Clusters, EKSCluster{
-				Name:       aws.ToString(eksClusterInfo.Cluster.Name),
-				Region:     req.Region,
-				Arn:        aws.ToString(eksClusterInfo.Cluster.Arn),
-				Labels:     eksClusterInfo.Cluster.Tags,
-				JoinLabels: extraLabels,
-				Status:     strings.ToLower(string(eksClusterInfo.Cluster.Status)),
+				Name:                 aws.ToString(cluster.Name),
+				Region:               req.Region,
+				Arn:                  aws.ToString(cluster.Arn),
+				Labels:               cluster.Tags,
+				JoinLabels:           extraLabels,
+				Status:               strings.ToLower(string(cluster.Status)),
+				AuthenticationMode:   string(cluster.AccessConfig.AuthenticationMode),
+				EndpointPublicAccess: cluster.ResourcesVpcConfig.EndpointPublicAccess,
 			})
 			return nil
 		})

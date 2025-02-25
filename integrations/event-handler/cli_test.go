@@ -18,7 +18,7 @@ package main
 
 import (
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -36,38 +36,122 @@ func TestStartCmdConfig(t *testing.T) {
 		name string
 		args []string
 
-		want StartCmdConfig
+		want CLI
 	}{
 		{
 			name: "standard",
 			args: []string{"start", "--config", "testdata/config.toml"},
-			want: StartCmdConfig{
-				FluentdConfig: FluentdConfig{
-					FluentdURL:        "https://localhost:8888/test.log",
-					FluentdSessionURL: "https://localhost:8888/session",
-					FluentdCert:       path.Join(wd, "testdata", "fake-file"),
-					FluentdKey:        path.Join(wd, "testdata", "fake-file"),
-					FluentdCA:         path.Join(wd, "testdata", "fake-file"),
-				},
-				TeleportConfig: TeleportConfig{
-					TeleportAddr:            "localhost:3025",
-					TeleportIdentityFile:    path.Join(wd, "testdata", "fake-file"),
-					TeleportRefreshEnabled:  true,
-					TeleportRefreshInterval: 2 * time.Minute,
-				},
-				IngestConfig: IngestConfig{
-					StorageDir:          "./storage",
-					BatchSize:           20,
-					SkipSessionTypesRaw: []string{"print"},
-					SkipSessionTypes: map[string]struct{}{
-						"print": {},
+			want: CLI{
+				Debug: false,
+				Start: StartCmdConfig{
+					FluentdConfig: FluentdConfig{
+						FluentdURL:            "https://localhost:8888/test.log",
+						FluentdSessionURL:     "https://localhost:8888/session",
+						FluentdCert:           filepath.Join(wd, "testdata", "fake-file"),
+						FluentdKey:            filepath.Join(wd, "testdata", "fake-file"),
+						FluentdCA:             filepath.Join(wd, "testdata", "fake-file"),
+						FluentdMaxConnections: 10,
 					},
-					Timeout:     10 * time.Second,
-					Concurrency: 5,
+					TeleportConfig: TeleportConfig{
+						TeleportAddr:            "localhost:3025",
+						TeleportIdentityFile:    filepath.Join(wd, "testdata", "fake-file"),
+						TeleportRefreshEnabled:  true,
+						TeleportRefreshInterval: 2 * time.Minute,
+					},
+					IngestConfig: IngestConfig{
+						StorageDir:          "./storage",
+						BatchSize:           20,
+						SkipEventTypes:      map[string]struct{}{},
+						SkipSessionTypesRaw: []string{"print"},
+						SkipSessionTypes: map[string]struct{}{
+							"print": {},
+						},
+						Timeout:     10 * time.Second,
+						Concurrency: 5,
+						WindowSize:  24 * time.Hour,
+					},
+					LockConfig: LockConfig{
+						LockFailedAttemptsCount: 3,
+						LockPeriod:              time.Minute,
+					},
 				},
-				LockConfig: LockConfig{
-					LockFailedAttemptsCount: 3,
-					LockPeriod:              time.Minute,
+			},
+		},
+		{
+			name: "standard with debug enabled flag",
+			args: []string{"--debug", "start", "--config", "testdata/config.toml"},
+			want: CLI{
+				Debug: true,
+				Start: StartCmdConfig{
+					FluentdConfig: FluentdConfig{
+						FluentdURL:            "https://localhost:8888/test.log",
+						FluentdSessionURL:     "https://localhost:8888/session",
+						FluentdCert:           filepath.Join(wd, "testdata", "fake-file"),
+						FluentdKey:            filepath.Join(wd, "testdata", "fake-file"),
+						FluentdCA:             filepath.Join(wd, "testdata", "fake-file"),
+						FluentdMaxConnections: 10,
+					},
+					TeleportConfig: TeleportConfig{
+						TeleportAddr:            "localhost:3025",
+						TeleportIdentityFile:    filepath.Join(wd, "testdata", "fake-file"),
+						TeleportRefreshEnabled:  true,
+						TeleportRefreshInterval: 2 * time.Minute,
+					},
+					IngestConfig: IngestConfig{
+						StorageDir:          "./storage",
+						BatchSize:           20,
+						SkipEventTypes:      map[string]struct{}{},
+						SkipSessionTypesRaw: []string{"print"},
+						SkipSessionTypes: map[string]struct{}{
+							"print": {},
+						},
+						Timeout:     10 * time.Second,
+						Concurrency: 5,
+						WindowSize:  24 * time.Hour,
+					},
+					LockConfig: LockConfig{
+						LockFailedAttemptsCount: 3,
+						LockPeriod:              time.Minute,
+					},
+				},
+			},
+		},
+		{
+			name: "debug enabled",
+			args: []string{"start", "--config", "testdata/config-debug.toml"},
+			want: CLI{
+				Debug: true,
+				Start: StartCmdConfig{
+					FluentdConfig: FluentdConfig{
+						FluentdURL:            "https://localhost:8888/test.log",
+						FluentdSessionURL:     "https://localhost:8888/session",
+						FluentdCert:           filepath.Join(wd, "testdata", "fake-file"),
+						FluentdKey:            filepath.Join(wd, "testdata", "fake-file"),
+						FluentdCA:             filepath.Join(wd, "testdata", "fake-file"),
+						FluentdMaxConnections: 10,
+					},
+					TeleportConfig: TeleportConfig{
+						TeleportAddr:            "localhost:3025",
+						TeleportIdentityFile:    filepath.Join(wd, "testdata", "fake-file"),
+						TeleportRefreshEnabled:  true,
+						TeleportRefreshInterval: 2 * time.Minute,
+					},
+					IngestConfig: IngestConfig{
+						StorageDir:          "./storage",
+						BatchSize:           20,
+						SkipEventTypes:      map[string]struct{}{},
+						SkipSessionTypesRaw: []string{"print"},
+						SkipSessionTypes: map[string]struct{}{
+							"print": {},
+						},
+						Timeout:     10 * time.Second,
+						Concurrency: 5,
+						WindowSize:  24 * time.Hour,
+					},
+					LockConfig: LockConfig{
+						LockFailedAttemptsCount: 3,
+						LockPeriod:              time.Minute,
+					},
 				},
 			},
 		},
@@ -86,8 +170,10 @@ func TestStartCmdConfig(t *testing.T) {
 			require.NoError(t, err)
 			_, err = parser.Parse(tc.args)
 			require.NoError(t, err)
-
-			require.Equal(t, tc.want, cli.Start)
+			// reset config file and configure values since we only want to verify Start and Debug fields
+			cli.Config = ""
+			cli.Configure = ConfigureCmdConfig{}
+			require.Equal(t, tc.want, cli)
 		})
 	}
 }

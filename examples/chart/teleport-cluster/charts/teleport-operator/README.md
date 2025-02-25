@@ -13,12 +13,12 @@ operator version is deployed, use the `--version` Helm flag.
 
 The chart can be deployed in two ways:
 - in standalone mode by running
-  ```shell
+  ```code
   helm install teleport/teleport-operator teleport-operator --set authAddr=teleport.example.com:443 --set token=my-operator-token
   ```
-  See [the standalone guide](https://goteleport.com/docs/management/dynamic-resources/teleport-operator-standalone/) for more details.
+  See [the standalone guide](https://goteleport.com/docs/admin-guides/infrastructure-as-code/teleport-operator/teleport-operator-standalone/) for more details.
 - as a dependency of the `teleport-cluster` Helm chart by adding `--set operator.enabled=true`. See
-  [the operator within teleport-cluster chart guide](https://goteleport.com/docs/management/dynamic-resources/teleport-operator-helm/).
+  [the operator within teleport-cluster chart guide](https://goteleport.com/docs/admin-guides/infrastructure-as-code/teleport-operator/teleport-operator-helm/).
 
 ## Values and reference
 

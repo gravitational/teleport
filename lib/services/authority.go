@@ -22,22 +22,16 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
-	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"golang.org/x/crypto/ssh"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -49,7 +43,7 @@ import (
 func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
 	return cmp.Equal(lhs, rhs,
 		ignoreProtoXXXFields(),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		// Optimize types.CAKeySet comparison.
 		cmp.Comparer(func(a, b types.CAKeySet) bool {
 			// Note that Clone drops XXX_ fields. And it's benchmarked that cloning
@@ -74,7 +68,7 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 		err = checkDatabaseCA(ca)
 	case types.OpenSSHCA:
 		err = checkOpenSSHCA(ca)
-	case types.JWTSigner, types.OIDCIdPCA:
+	case types.JWTSigner, types.OIDCIdPCA, types.OktaCA:
 		err = checkJWTKeys(ca)
 	case types.SAMLIDPCA:
 		err = checkSAMLIDPCA(ca)
@@ -143,7 +137,7 @@ func checkDatabaseCA(cai types.CertAuthority) error {
 			if len(pair.Cert) > 0 {
 				_, err = tls.X509KeyPair(pair.Cert, pair.Key)
 			} else {
-				_, err = utils.ParsePrivateKey(pair.Key)
+				_, err = keys.ParsePrivateKey(pair.Key)
 			}
 			if err != nil {
 				return trace.Wrap(err)
@@ -199,17 +193,16 @@ func checkJWTKeys(cai types.CertAuthority) error {
 	for _, pair := range ca.GetTrustedJWTKeyPairs() {
 		// TODO(nic): validate PKCS11 private keys
 		if len(pair.PrivateKey) > 0 && pair.PrivateKeyType == types.PrivateKeyType_RAW {
-			privateKey, err = utils.ParsePrivateKey(pair.PrivateKey)
+			privateKey, err = keys.ParsePrivateKey(pair.PrivateKey)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 		}
-		publicKey, err := utils.ParsePublicKey(pair.PublicKey)
+		publicKey, err := keys.ParsePublicKey(pair.PublicKey)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg := &jwt.Config{
-			Algorithm:   defaults.ApplicationTokenAlgorithm,
 			ClusterName: ca.GetClusterName(),
 			PrivateKey:  privateKey,
 			PublicKey:   publicKey,
@@ -240,7 +233,7 @@ func checkSAMLIDPCA(cai types.CertAuthority) error {
 			if len(pair.Cert) > 0 {
 				_, err = tls.X509KeyPair(pair.Cert, pair.Key)
 			} else {
-				_, err = utils.ParsePrivateKey(pair.Key)
+				_, err = keys.ParsePrivateKey(pair.Key)
 			}
 			if err != nil {
 				return trace.Wrap(err)
@@ -257,7 +250,6 @@ func checkSAMLIDPCA(cai types.CertAuthority) error {
 func GetJWTSigner(signer crypto.Signer, clusterName string, clock clockwork.Clock) (*jwt.Key, error) {
 	key, err := jwt.New(&jwt.Config{
 		Clock:       clock,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: clusterName,
 		PrivateKey:  signer,
 	})
@@ -282,134 +274,6 @@ func GetSSHCheckingKeys(ca types.CertAuthority) [][]byte {
 		out = append(out, append([]byte{}, pair.PublicKey...))
 	}
 	return out
-}
-
-// HostCertParams defines all parameters needed to generate a host certificate
-type HostCertParams struct {
-	// CASigner is the signer that will sign the public key of the host with the CA private key.
-	CASigner ssh.Signer
-	// PublicHostKey is the public key of the host
-	PublicHostKey []byte
-	// HostID is used by Teleport to uniquely identify a node within a cluster
-	HostID string
-	// Principals is a list of additional principals to add to the certificate.
-	Principals []string
-	// NodeName is the DNS name of the node
-	NodeName string
-	// ClusterName is the name of the cluster within which a node lives
-	ClusterName string
-	// Role identifies the role of a Teleport instance
-	Role types.SystemRole
-	// TTL defines how long a certificate is valid for
-	TTL time.Duration
-}
-
-// Check checks parameters for errors
-func (c HostCertParams) Check() error {
-	if c.CASigner == nil {
-		return trace.BadParameter("CASigner is required")
-	}
-	if c.HostID == "" && len(c.Principals) == 0 {
-		return trace.BadParameter("HostID [%q] or Principals [%q] are required",
-			c.HostID, c.Principals)
-	}
-	if c.ClusterName == "" {
-		return trace.BadParameter("ClusterName [%q] is required", c.ClusterName)
-	}
-
-	if err := c.Role.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// UserCertParams defines OpenSSH user certificate parameters
-type UserCertParams struct {
-	// CASigner is the signer that will sign the public key of the user with the CA private key
-	CASigner ssh.Signer
-	// PublicUserKey is the public key of the user
-	PublicUserKey []byte
-	// TTL defines how long a certificate is valid for
-	TTL time.Duration
-	// Username is teleport username
-	Username string
-	// Impersonator is set when a user requests certificate for another user
-	Impersonator string
-	// AllowedLogins is a list of SSH principals
-	AllowedLogins []string
-	// PermitX11Forwarding permits X11 forwarding for this cert
-	PermitX11Forwarding bool
-	// PermitAgentForwarding permits agent forwarding for this cert
-	PermitAgentForwarding bool
-	// PermitPortForwarding permits port forwarding.
-	PermitPortForwarding bool
-	// PermitFileCopying permits the use of SCP/SFTP.
-	PermitFileCopying bool
-	// Roles is a list of roles assigned to this user
-	Roles []string
-	// CertificateFormat is the format of the SSH certificate.
-	CertificateFormat string
-	// RouteToCluster specifies the target cluster
-	// if present in the certificate, will be used
-	// to route the requests to
-	RouteToCluster string
-	// Traits hold claim data used to populate a role at runtime.
-	Traits wrappers.Traits
-	// ActiveRequests tracks privilege escalation requests applied during
-	// certificate construction.
-	ActiveRequests RequestIDs
-	// MFAVerified is the UUID of an MFA device when this Identity was
-	// confirmed immediately after an MFA check.
-	MFAVerified string
-	// PreviousIdentityExpires is the expiry time of the identity/cert that this
-	// identity/cert was derived from. It is used to determine a session's hard
-	// deadline in cases where both require_session_mfa and disconnect_expired_cert
-	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
-	PreviousIdentityExpires time.Time
-	// LoginIP is an observed IP of the client on the moment of certificate creation.
-	LoginIP string
-	// PinnedIP is an IP from which client must communicate with Teleport.
-	PinnedIP string
-	// DisallowReissue flags that any attempt to request new certificates while
-	// authenticated with this cert should be denied.
-	DisallowReissue bool
-	// CertificateExtensions are user configured ssh key extensions
-	CertificateExtensions []*types.CertExtension
-	// Renewable indicates this certificate is renewable.
-	Renewable bool
-	// Generation counts the number of times a certificate has been renewed.
-	Generation uint64
-	// BotName is set to the name of the bot, if the user is a Machine ID bot user.
-	// Empty for human users.
-	BotName string
-	// AllowedResourceIDs lists the resources the user should be able to access.
-	AllowedResourceIDs string
-	// ConnectionDiagnosticID references the ConnectionDiagnostic that we should use to append traces when testing a Connection.
-	ConnectionDiagnosticID string
-	// PrivateKeyPolicy is the private key policy supported by this certificate.
-	PrivateKeyPolicy keys.PrivateKeyPolicy
-	// DeviceID is the trusted device identifier.
-	DeviceID string
-	// DeviceAssetTag is the device inventory identifier.
-	DeviceAssetTag string
-	// DeviceCredentialID is the identifier for the credential used by the device
-	// to authenticate itself.
-	DeviceCredentialID string
-}
-
-// CheckAndSetDefaults checks the user certificate parameters
-func (c *UserCertParams) CheckAndSetDefaults() error {
-	if c.CASigner == nil {
-		return trace.BadParameter("CASigner is required")
-	}
-	if c.TTL < apidefaults.MinCertDuration {
-		c.TTL = apidefaults.MinCertDuration
-	}
-	if len(c.AllowedLogins) == 0 {
-		return trace.BadParameter("AllowedLogins are required")
-	}
-	return nil
 }
 
 // CertPoolFromCertAuthorities returns a certificate pool from the TLS certificates
@@ -453,24 +317,6 @@ func CertPool(ca types.CertAuthority) (*x509.CertPool, error) {
 	return certPool, nil
 }
 
-// MarshalCertRoles marshal roles list to OpenSSH
-func MarshalCertRoles(roles []string) (string, error) {
-	out, err := json.Marshal(types.CertRoles{Version: types.V1, Roles: roles})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return string(out), err
-}
-
-// UnmarshalCertRoles marshals roles list to OpenSSH format
-func UnmarshalCertRoles(data string) ([]string, error) {
-	var certRoles types.CertRoles
-	if err := utils.FastUnmarshal([]byte(data), &certRoles); err != nil {
-		return nil, trace.BadParameter(err.Error())
-	}
-	return certRoles.Roles, nil
-}
-
 // UnmarshalCertAuthority unmarshals the CertAuthority resource to JSON.
 func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (types.CertAuthority, error) {
 	cfg, err := CollectOptions(opts)
@@ -486,14 +332,11 @@ func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (types.CertAuth
 	case types.V2:
 		var ca types.CertAuthorityV2
 		if err := utils.FastUnmarshal(bytes, &ca); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 
 		if err := ValidateCertAuthority(&ca); err != nil {
 			return nil, trace.Wrap(err)
-		}
-		if cfg.ID != 0 {
-			ca.SetResourceID(cfg.ID)
 		}
 		if cfg.Revision != "" {
 			ca.SetRevision(cfg.Revision)
@@ -529,7 +372,7 @@ func MarshalCertAuthority(certAuthority types.CertAuthority, opts ...MarshalOpti
 
 	switch certAuthority := certAuthority.(type) {
 	case *types.CertAuthorityV2:
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, certAuthority))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, certAuthority))
 	default:
 		return nil, trace.BadParameter("unrecognized certificate authority version %T", certAuthority)
 	}

@@ -20,13 +20,14 @@ package db
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	discovery "github.com/gravitational/teleport/lib/srv/discovery/common"
 	dbfetchers "github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/utils"
@@ -39,11 +40,11 @@ func (s *Server) startReconciler(ctx context.Context) error {
 	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.Database]{
 		Matcher:             s.matcher,
 		GetCurrentResources: s.getResources,
-		GetNewResources:     s.monitoredDatabases.get,
+		GetNewResources:     s.monitoredDatabases.getLocked,
 		OnCreate:            s.onCreate,
 		OnUpdate:            s.onUpdate,
 		OnDelete:            s.onDelete,
-		Log:                 s.log,
+		Logger:              s.log.With("kind", types.KindDatabase),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -52,14 +53,17 @@ func (s *Server) startReconciler(ctx context.Context) error {
 		for {
 			select {
 			case <-s.reconcileCh:
+				// don't let monitored dbs change during reconciliation
+				s.monitoredDatabases.mu.RLock()
 				if err := reconciler.Reconcile(ctx); err != nil {
-					s.log.WithError(err).Error("Failed to reconcile.")
+					s.log.ErrorContext(ctx, "Failed to reconcile.", "error", err)
 				}
 				if s.cfg.OnReconcile != nil {
 					s.cfg.OnReconcile(s.getProxiedDatabases())
 				}
+				s.monitoredDatabases.mu.RUnlock()
 			case <-ctx.Done():
-				s.log.Debug("Reconciler done.")
+				s.log.DebugContext(ctx, "Reconciler done.")
 				return
 			}
 		}
@@ -69,28 +73,29 @@ func (s *Server) startReconciler(ctx context.Context) error {
 
 // startResourceWatcher starts watching changes to database resources and
 // registers/unregisters the proxied databases accordingly.
-func (s *Server) startResourceWatcher(ctx context.Context) (*services.DatabaseWatcher, error) {
+func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWatcher[types.Database, readonly.Database], error) {
 	if len(s.cfg.ResourceMatchers) == 0 {
-		s.log.Debug("Not starting database resource watcher.")
+		s.log.DebugContext(ctx, "Not starting database resource watcher.")
 		return nil, nil
 	}
-	s.log.Debug("Starting database resource watcher.")
+	s.log.DebugContext(ctx, "Starting database resource watcher.")
 	watcher, err := services.NewDatabaseWatcher(ctx, services.DatabaseWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentDatabase,
-			Log:       s.log,
+			Logger:    s.log,
 			Client:    s.cfg.AccessPoint,
 		},
+		DatabaseGetter: s.cfg.AccessPoint,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	go func() {
-		defer s.log.Debug("Database resource watcher done.")
+		defer s.log.DebugContext(ctx, "Database resource watcher done.")
 		defer watcher.Close()
 		for {
 			select {
-			case databases := <-watcher.DatabasesC:
+			case databases := <-watcher.ResourcesC:
 				s.monitoredDatabases.setResources(databases)
 				select {
 				case s.reconcileCh <- struct{}{}:
@@ -108,24 +113,24 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.DatabaseWa
 // startCloudWatcher starts fetching cloud databases according to the
 // selectors and register/unregister them appropriately.
 func (s *Server) startCloudWatcher(ctx context.Context) error {
-	awsFetchers, err := dbfetchers.MakeAWSFetchers(ctx, s.cfg.CloudClients, s.cfg.AWSMatchers)
+	awsFetchers, err := s.cfg.AWSDatabaseFetcherFactory.MakeFetchers(ctx, s.cfg.AWSMatchers, "" /* discovery config */)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	azureFetchers, err := dbfetchers.MakeAzureFetchers(s.cfg.CloudClients, s.cfg.AzureMatchers)
+	azureFetchers, err := dbfetchers.MakeAzureFetchers(s.cfg.CloudClients, s.cfg.AzureMatchers, "" /* discovery config */)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	allFetchers := append(awsFetchers, azureFetchers...)
 	if len(allFetchers) == 0 {
-		s.log.Debugf("Not starting cloud database watcher: %v.", err)
+		s.log.DebugContext(ctx, "Not starting cloud database watcher.", "error", err)
 		return nil
 	}
 
 	watcher, err := discovery.NewWatcher(ctx, discovery.WatcherConfig{
 		FetchersFn: discovery.StaticFetchers(allFetchers),
-		Log:        logrus.WithField(teleport.ComponentKey, "watcher:cloud"),
+		Logger:     slog.With(teleport.ComponentKey, "watcher:cloud"),
 		Origin:     types.OriginCloud,
 	})
 	if err != nil {
@@ -133,7 +138,7 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 	}
 	go watcher.Start()
 	go func() {
-		defer s.log.Debug("Cloud database watcher done.")
+		defer s.log.DebugContext(ctx, "Cloud database watcher done.")
 		for {
 			select {
 			case resources := <-watcher.ResourcesC():
@@ -141,7 +146,7 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 				if err == nil {
 					s.monitoredDatabases.setCloud(databases)
 				} else {
-					s.log.WithError(err).Warnf("Failed to convert resources to databases.")
+					s.log.WarnContext(ctx, "Failed to convert resources to databases.", "error", err)
 				}
 				select {
 				case s.reconcileCh <- struct{}{}:
@@ -167,11 +172,15 @@ func (s *Server) onCreate(ctx context.Context, database types.Database) error {
 	// copy here so that any attribute changes to the proxied database will not
 	// affect database objects tracked in s.monitoredDatabases.
 	databaseCopy := database.Copy()
-	applyResourceMatchersToDatabase(databaseCopy, s.cfg.ResourceMatchers)
+
+	// only apply resource matcher settings to dynamic resources.
+	if s.monitoredDatabases.isResource_Locked(database) {
+		s.applyAWSResourceMatcherSettings(databaseCopy)
+	}
 
 	// Run DiscoveryResourceChecker after resource matchers are applied to make
 	// sure the correct AssumeRoleARN is used.
-	if s.monitoredDatabases.isDiscoveryResource(database) {
+	if s.monitoredDatabases.isDiscoveryResource_Locked(database) {
 		if err := s.cfg.discoveryResourceChecker.Check(ctx, databaseCopy); err != nil {
 			return trace.Wrap(err)
 		}
@@ -185,7 +194,11 @@ func (s *Server) onUpdate(ctx context.Context, database, _ types.Database) error
 	// copy here so that any attribute changes to the proxied database will not
 	// affect database objects tracked in s.monitoredDatabases.
 	databaseCopy := database.Copy()
-	applyResourceMatchersToDatabase(databaseCopy, s.cfg.ResourceMatchers)
+
+	// only apply resource matcher settings to dynamic resources.
+	if s.monitoredDatabases.isResource_Locked(database) {
+		s.applyAWSResourceMatcherSettings(databaseCopy)
+	}
 	return s.updateDatabase(ctx, databaseCopy)
 }
 
@@ -198,7 +211,7 @@ func (s *Server) onDelete(ctx context.Context, database types.Database) error {
 func (s *Server) matcher(database types.Database) bool {
 	// In the case of databases discovered by this database server, matchers
 	// should be skipped.
-	if s.monitoredDatabases.isCloud(database) {
+	if s.monitoredDatabases.isCloud_Locked(database) {
 		return true // Cloud fetchers return only matching databases.
 	}
 
@@ -207,12 +220,18 @@ func (s *Server) matcher(database types.Database) bool {
 	return services.MatchResourceLabels(s.cfg.ResourceMatchers, database.GetAllLabels())
 }
 
-func applyResourceMatchersToDatabase(database types.Database, resourceMatchers []services.ResourceMatcher) {
-	for _, matcher := range resourceMatchers {
+func (s *Server) applyAWSResourceMatcherSettings(database types.Database) {
+	if !database.IsAWSHosted() {
+		// dynamic matchers only apply AWS settings (for now), so skip non-AWS
+		// databases.
+		return
+	}
+	dbLabels := database.GetAllLabels()
+	for _, matcher := range s.cfg.ResourceMatchers {
 		if len(matcher.Labels) == 0 || matcher.AWS.AssumeRoleARN == "" {
 			continue
 		}
-		if match, _, _ := services.MatchLabels(matcher.Labels, database.GetAllLabels()); !match {
+		if match, _, _ := services.MatchLabels(matcher.Labels, dbLabels); !match {
 			continue
 		}
 

@@ -32,6 +32,7 @@ import (
 // Plugins is the plugin service
 type Plugins interface {
 	CreatePlugin(ctx context.Context, plugin types.Plugin) error
+	UpdatePlugin(ctx context.Context, plugin types.Plugin) (types.Plugin, error)
 	DeleteAllPlugins(ctx context.Context) error
 	DeletePlugin(ctx context.Context, name string) error
 	GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error)
@@ -55,7 +56,7 @@ func MarshalPlugin(plugin types.Plugin, opts ...MarshalOption) ([]byte, error) {
 		}
 
 		var buf bytes.Buffer
-		err := (&jsonpb.Marshaler{}).Marshal(&buf, maybeResetProtoResourceID(cfg.PreserveResourceID, plugin))
+		err := (&jsonpb.Marshaler{}).Marshal(&buf, maybeResetProtoRevision(cfg.PreserveRevision, plugin))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -81,14 +82,12 @@ func UnmarshalPlugin(data []byte, opts ...MarshalOption) (types.Plugin, error) {
 	switch h.Version {
 	case types.V1:
 		var plugin types.PluginV1
-		if err := jsonpb.Unmarshal(bytes.NewReader(data), &plugin); err != nil {
-			return nil, trace.BadParameter(err.Error())
+		m := jsonpb.Unmarshaler{AllowUnknownFields: true}
+		if err := m.Unmarshal(bytes.NewReader(data), &plugin); err != nil {
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := plugin.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
-		}
-		if cfg.ID != 0 {
-			plugin.SetResourceID(cfg.ID)
 		}
 		if cfg.Revision != "" {
 			plugin.SetRevision(cfg.Revision)

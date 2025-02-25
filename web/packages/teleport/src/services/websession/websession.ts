@@ -19,8 +19,8 @@
 import Logger from 'shared/libs/logger';
 
 import cfg from 'teleport/config';
-import history from 'teleport/services/history';
 import api from 'teleport/services/api';
+import history from 'teleport/services/history';
 import { KeysEnum, storageService } from 'teleport/services/storageService';
 
 import makeBearerToken from './makeBearerToken';
@@ -36,11 +36,29 @@ let sesstionCheckerTimerId = null;
 
 const session = {
   logout(rememberLocation = false) {
-    api.delete(cfg.api.webSessionPath).finally(() => {
-      history.goToLogin(rememberLocation);
+    api.delete(cfg.api.webSessionPath).then(response => {
+      this.clear();
+      if (response.samlSloUrl) {
+        window.open(response.samlSloUrl, '_self');
+      } else {
+        history.goToLogin({ rememberLocation });
+      }
     });
+  },
 
+  logoutWithoutSlo({
+    rememberLocation = false,
+    withAccessChangedMessage = false,
+  } = {}) {
+    api.delete(cfg.api.webSessionPath).finally(() => {
+      this.clear();
+      history.goToLogin({ rememberLocation, withAccessChangedMessage });
+    });
+  },
+
+  clearBrowserSession(rememberLocation = false) {
     this.clear();
+    history.goToLogin({ rememberLocation });
   },
 
   clear() {
@@ -128,7 +146,30 @@ const session = {
       return false;
     }
 
-    // Renew session if token expiry time is less than 3 minutes.
+    const token = this._getBearerToken();
+    if (!token) {
+      return false;
+    }
+    // Convert seconds to millis.
+    const expiresIn = (token.expiresIn ?? 0) * 1000;
+    const sessionExpiresIn = (token.sessionExpiresIn ?? 0) * 1000;
+
+    // Session TTL decreases on every renewal, up to a point where it doesn't
+    // make sense to renew anymore, as we won't gain any extra time from it.
+    // Once values are low enough both expiresIn (token expiration) and
+    // sessionExpiresIn are set in lockstep.
+    if (
+      expiresIn > 0 &&
+      sessionExpiresIn > 0 &&
+      expiresIn >= sessionExpiresIn &&
+      sessionExpiresIn <= RENEW_TOKEN_TIME
+    ) {
+      logger.warn(
+        `Session TTL is only ${sessionExpiresIn}ms, the session will expire soon.`
+      );
+      return false;
+    }
+
     // Browsers have js timer throttling behavior in inactive tabs that can go
     // up to 100s between timer calls from testing. 3 minutes seems to be a safe number
     // with extra padding.
@@ -160,6 +201,14 @@ const session = {
 
   _getIsRenewing() {
     return !!this._isRenewing;
+  },
+
+  setDeviceTrustRequired() {
+    this._isDeviceTrustRequired = true;
+  },
+
+  getDeviceTrustRequired() {
+    return !!this._isDeviceTrustRequired;
   },
 
   getIsDeviceTrusted() {
@@ -210,7 +259,7 @@ const session = {
     this.validateCookieAndSession().catch(err => {
       // this indicates that session is no longer valid (caused by server restarts or updates)
       if (err.response.status == 403) {
-        this.logout();
+        this.clearBrowserSession();
       }
     });
   },
@@ -243,12 +292,12 @@ const session = {
   },
 };
 
-function receiveMessage(event) {
+function receiveMessage(event: StorageEvent) {
   const { key, newValue } = event;
 
   // check if logout was triggered from other tabs
   if (storageService.getBearerToken() === null) {
-    session.logout();
+    session.clearBrowserSession();
   }
 
   // check if token is being renewed from another tab

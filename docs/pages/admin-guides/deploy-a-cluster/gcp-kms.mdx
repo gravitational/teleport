@@ -1,0 +1,259 @@
+---
+title: Google Cloud KMS
+description: Configure Teleport to store CA private keys in the Google Cloud Key Management Service
+h1: Store Teleport Private Keys in Google Cloud KMS
+---
+
+This guide will show you how to set up your Teleport Cluster to use the Google
+Cloud Key Management Service (KMS) to store and handle the CA private key
+material used to sign all certificates issued by your Teleport cluster.
+
+## How it works
+
+Teleport generates private key material for its internal Certificate Authorities
+(CAs) during the first Auth Service instance's initial startup.
+These CAs are used to sign all certificates issued to clients and hosts in the
+Teleport cluster.
+When configured to use Google Cloud KMS, all private key material for these CAs
+will be generated, stored, and used for signing inside of Google Cloud KMS.
+Instead of the actual private key, Teleport will only store the ID of the KMS
+key.
+In short, private key material will never leave Google Cloud KMS.
+
+If launching a new Teleport cluster this will all be handled during initial
+startup with no specific interventions required after configuration.
+For existing Teleport clusters that already have already generated software
+private keys, a CA rotation must be performed.
+Read on to [migrating an existing cluster](#migrating-an-existing-cluster) to
+learn more.
+
+## Prerequisites
+
+- Teleport v(=teleport.version=) Enterprise (self-hosted).
+- (!docs/pages/includes/tctl.mdx!)
+- A Google Cloud account.
+
+(!docs/pages/includes/enterprise/hsm-warning.mdx!)
+
+## Step 1/5. Create a key ring in GCP
+
+Each Teleport Auth Service instance will need to be configured to use a GCP key
+ring which will hold all keys generated and used by that Auth Service instance.
+If running a High-Availability Teleport cluster with two or more Auth Servers,
+every Auth Service instance can be configured to use the same key ring, or if
+desired each can be configured to use a unique key ring in a different region
+(for redundancy or to decrease latency).
+
+It is recommended to create a dedicated key ring for use by Teleport to logically
+separate it from any other keys in your cloud account.
+Choose a supported
+[KMS location](https://cloud.google.com/kms/docs/locations)
+for the key ring which is geographically near to your Teleport Auth Servers.
+
+You can create a key ring from the Google Cloud Console or from the `gcloud` CLI
+tool. Follow
+[this guide](https://cloud.google.com/kms/docs/creating-asymmetric-keys#create_a_key_ring)
+or run the following command if you have the `gcloud` CLI configured:
+
+```code
+$ gcloud kms keyrings create "<Var name="teleport-keyring" description="The name for your teleport-specific keyring"/>" --location <Var name="location" description="The GCP location for your Teleport keyring"/>
+```
+
+## Step 2/5. Create a GCP service account
+
+Teleport needs permissions to create, list, destroy, sign with, and view KMS
+keys in your key ring. Start by defining the following custom IAM role.
+
+```yaml
+# teleport_kms_role.yaml
+title: teleport_kms_role
+description: 'Teleport permissions for using KMS keys'
+stage: ALPHA
+includedPermissions:
+- cloudkms.cryptoKeys.create
+- cloudkms.cryptoKeys.list
+- cloudkms.cryptoKeyVersions.create
+- cloudkms.cryptoKeyVersions.destroy
+- cloudkms.cryptoKeyVersions.useToSign
+- cloudkms.cryptoKeyVersions.viewPublicKey
+```
+
+Create the role, assigning <Var name="GCP-Project-ID" /> to your Google Cloud project ID:
+
+```code
+$ gcloud iam roles create teleport_kms_role \
+    --project <Var name="GCP-Project-ID" description="Your GCP project ID"/> \
+    --file teleport_kms_role.yaml \
+    --format yaml
+```
+
+Note the `name` field in the output which is the fully qualified name for the
+custom role and must be used in later steps.
+
+```code
+$ export IAM_ROLE=<role name output from above>
+```
+
+If you don't already have a GCP service account for your Teleport Auth Service
+you can create one with the following command, otherwise use your existing
+service account.
+
+```code
+$ gcloud iam service-accounts create teleport-auth-server \
+    --description="Service account for Teleport Auth Server" \
+    --display-name="Teleport Auth Server" \
+    --format=yaml
+```
+
+Note the `email` field in the output, this must be used as the identifier for
+the service account.
+
+```code
+$ export SERVICE_ACCOUNT=<email output from above command>
+```
+
+Create the IAM policy binding to grant the role to the service account for this
+keyring.
+
+```code
+$ gcloud kms keyrings add-iam-policy-binding <Var name="teleport-keyring"/> \
+    --location <Var name="location"/> \
+    --member "serviceAccount:${SERVICE_ACCOUNT}" \
+    --role "${IAM_ROLE}"
+```
+
+<Admonition type="warning">
+Be aware that anyone with access to this service account will be able to create
+signatures as if they are the Teleport CA.
+It should be considered highly privileged and access should be restricted as
+much as possible.
+</Admonition>
+
+## Step 3/5. Provide the service account credentials to the Auth Service
+
+The Teleport Auth Service will use Application Default Credentials to make
+requests to the GCP KMS service.
+Provide credentials for the `teleport-auth-server` service account created in
+step 2 to the Application Default Credentials of the environment you are running
+your Teleport Auth Service in.
+Supported environments include GCE VMs, GKE pods, and others.
+
+See the GCP docs for
+[Application Default Credentials](https://cloud.google.com/docs/authentication/provide-credentials-adc)
+to learn how to provide them for your preferred environment.
+
+<Details title="Manually checking permissions">
+
+To make sure the credentials have been configured correctly, you can run the
+`gcloud` CLI tool from your Teleport Auth Service's environment. Some example
+commands you could use to debug are listed here:
+
+```code
+$ gcloud kms keys list --location <Var name="location"/> --keyring "<Var name="teleport-keyring"/>"
+Listed 0 items.
+$ gcloud kms keys create --location <Var name="location"/> --keyring "<Var name="teleport-keyring"/>" \
+    --purpose asymmetric-signing \
+    --default-algorithm rsa-sign-pkcs1-4096-sha512 \
+    test-key
+$ gcloud kms keys list --location <Var name="location"/> --keyring "<Var name="teleport-keyring"/>"
+NAME                                                                                   PURPOSE          ALGORITHM                   PROTECTION_LEVEL
+projects/my-gcp-account/locations/global/keyRings/teleport-keyring/cryptoKeys/test-key ASYMMETRIC_SIGN  RSA_SIGN_PKCS1_4096_SHA512  SOFTWARE
+$ echo hello > /tmp/hello.txt
+$ gcloud kms asymmetric-sign --keyring "<Var name="teleport-keyring"/>" --location <Var name="location"/> \
+    --key "test-key" --version 1 \
+    --input-file /tmp/hello.txt --signature-file /tmp/hello.sig
+$ gcloud kms keys versions destroy --keyring "<Var name="teleport-keyring"/>" --location <Var name="location"/> --key "test-key" 1
+```
+
+</Details>
+
+## Step 4/5. Configure the Auth Service to use KMS keys
+
+CA key parameters are statically configured in the `teleport.yaml` configuration
+file of the Teleport Auth Service instances in your cluster.
+
+Find the fully qualified name of the KMS key ring you created in
+[step 1](#step-15-create-a-key-ring-in-gcp)
+in the GCP Console or by running:
+
+```code
+$ gcloud kms keyrings list --location <Var name="location"/>
+```
+
+<Details title="Choosing a protection level">
+
+Supported KMS protection levels are `SOFTWARE` and `HSM`.
+If you choose `SOFTWARE`, GCP KMS will performs all cryptographic operations in
+software (Teleport performs no cryptographic operations).
+If you choose `HSM`, GCP KMS will perform all cryptographic operations in a
+Hardware Security Module.
+
+Both protection levels are considered secure by Google and Teleport, you should
+evaluate your own organization's requirements and security policies when making
+your decision.
+
+One relevant difference is the usage quotas available to keys of each protection
+level.
+At the time of writing, software keys have a project-wide quota of 60k
+cryptographic operations per minute, while asymmetric HSM keys have a quota of
+3k operations per minute.
+See the [KMS docs](https://cloud.google.com/kms/quotas) for updated numbers.
+If your cluster will have many thousands of hosts or active users, the higher
+quota software keys have may help to avoid any potential throttling, especially
+during CA rotations where many new certificates must be signed.
+
+</Details>
+
+Include the following `ca_key_params` configuration in the `auth_service` section.
+
+```yaml
+# /etc/teleport.yaml
+auth_service:
+  # ...
+  ca_key_params:
+    gcp_kms:
+      keyring: "projects/<your-gcp-project>/locations/<location>/keyRings/<your-teleport-keyring>"
+      protection_level: "SOFTWARE"
+```
+
+If configuring this before the first start of a new Teleport cluster, the
+initial CA keys will be generated in GCP and no additional steps are necessary.
+If you wish to migrate an existing Teleport cluster from software keys to GCP
+KMS keys, read on to
+[migrating an existing cluster](#migrating-an-existing-cluster).
+
+## Step 5/5. Make sure everything is working
+
+After starting up your Auth Service with the `gcp_kms` configuration, you can
+confirm that Teleport has generated keys in your keyring in the GCP Console or
+by running:
+
+```code
+$ gcloud kms keys list --keyring "<Var name="teleport-keyring"/>" --location <Var name="location"/>
+```
+
+Try logging in to the cluster with a Teleport user to make sure that new
+certificates can be signed without error.
+
+`tctl status` should also show `GCP KMS` as the `storage` method for all
+Certificate Authority keys.
+
+## Migrating an existing cluster
+
+If you have an existing Teleport cluster it will have already created software
+CA keys during its first start.
+Those existing CA keys will have been used to sign all existing user and host
+certificates, and will be trusted by all other services in your cluster.
+
+In order for the Teleport Auth Service to generate new keys in GCP KMS and have
+them trusted by the rest of the cluster, you will need to rotate all of your
+Teleport CAs.
+
+`teleport start` will print a warning during startup if any CA needs to be rotated.
+Any users allowed the `update` verb for `cert_authority` resources in any of
+their Teleport roles will also see a cluster alert reminding them to rotate the
+CAs.
+
+CA rotation can be performed manually or semi-automatically, see our admin guide
+on [Certificate rotation](../management/operations/ca-rotation.mdx).
+All CAs listed in the output of `tctl status` must be rotated.

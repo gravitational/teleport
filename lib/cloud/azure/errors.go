@@ -19,7 +19,6 @@
 package azure
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -42,26 +41,14 @@ func ConvertResponseError(err error) error {
 	case errors.As(err, &responseErr):
 		switch responseErr.StatusCode {
 		case http.StatusForbidden:
-			return trace.AccessDenied(responseErr.Error())
+			return trace.AccessDenied("%s", responseErr)
 		case http.StatusConflict:
-			return trace.AlreadyExists(responseErr.Error())
+			return trace.AlreadyExists("%s", responseErr)
 		case http.StatusNotFound:
-			return trace.NotFound(responseErr.Error())
+			return trace.NotFound("%s", responseErr)
 		}
 	case errors.As(err, &authenticationFailedErr):
-		return trace.AccessDenied(authenticationFailedErr.Error())
+		return trace.AccessDenied("%s", authenticationFailedErr)
 	}
 	return err // Return unmodified.
-}
-
-// parseMetadataClientError converts a failed instance metadata service call to a trace error.
-func parseMetadataClientError(statusCode int, body []byte) error {
-	err := trace.ReadError(statusCode, body)
-	azureError := struct {
-		Error string `json:"error"`
-	}{}
-	if json.Unmarshal(body, &azureError) != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(err, azureError.Error)
 }

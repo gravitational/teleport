@@ -23,12 +23,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"net"
+	"os"
 	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -39,10 +40,11 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/agentless"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -108,10 +110,12 @@ type SiteGetter interface {
 	GetSite(clusterName string) (reversetunnelclient.RemoteSite, error)
 }
 
-// RemoteClusterGetter provides access to remote cluster resources
-type RemoteClusterGetter interface {
+// LocalAccessPoint provides access to remote cluster resources
+type LocalAccessPoint interface {
 	// GetRemoteCluster returns a remote cluster by name
 	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
+	// GetAuthPreference returns the local cluster auth preference.
+	GetAuthPreference(context.Context) (types.AuthPreference, error)
 }
 
 // RouterConfig contains all the dependencies required
@@ -119,10 +123,8 @@ type RemoteClusterGetter interface {
 type RouterConfig struct {
 	// ClusterName indicates which cluster the router is for
 	ClusterName string
-	// Log is the logger to use
-	Log *logrus.Entry
-	// AccessPoint is the proxy cache
-	RemoteClusterGetter RemoteClusterGetter
+	// LocalAccessPoint is the proxy cache
+	LocalAccessPoint LocalAccessPoint
 	// SiteGetter allows looking up sites
 	SiteGetter SiteGetter
 	// TracerProvider allows tracers to be created
@@ -134,16 +136,12 @@ type RouterConfig struct {
 
 // CheckAndSetDefaults ensures the required items were populated
 func (c *RouterConfig) CheckAndSetDefaults() error {
-	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, "Router")
-	}
-
 	if c.ClusterName == "" {
 		return trace.BadParameter("ClusterName must be provided")
 	}
 
-	if c.RemoteClusterGetter == nil {
-		return trace.BadParameter("RemoteClusterGetter must be provided")
+	if c.LocalAccessPoint == nil {
+		return trace.BadParameter("LocalAccessPoint must be provided")
 	}
 
 	if c.SiteGetter == nil {
@@ -164,13 +162,12 @@ func (c *RouterConfig) CheckAndSetDefaults() error {
 // Router is used by the proxy to establish connections to both
 // nodes and other clusters.
 type Router struct {
-	clusterName    string
-	log            *logrus.Entry
-	clusterGetter  RemoteClusterGetter
-	localSite      reversetunnelclient.RemoteSite
-	siteGetter     SiteGetter
-	tracer         oteltrace.Tracer
-	serverResolver serverResolverFn
+	clusterName      string
+	localAccessPoint LocalAccessPoint
+	localSite        reversetunnelclient.RemoteSite
+	siteGetter       SiteGetter
+	tracer           oteltrace.Tracer
+	serverResolver   serverResolverFn
 }
 
 // NewRouter creates and returns a Router that is populated
@@ -186,13 +183,12 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 	}
 
 	return &Router{
-		clusterName:    cfg.ClusterName,
-		log:            cfg.Log,
-		clusterGetter:  cfg.RemoteClusterGetter,
-		localSite:      localSite,
-		siteGetter:     cfg.SiteGetter,
-		tracer:         cfg.TracerProvider.Tracer("Router"),
-		serverResolver: cfg.serverResolver,
+		clusterName:      cfg.ClusterName,
+		localAccessPoint: cfg.LocalAccessPoint,
+		localSite:        localSite,
+		siteGetter:       cfg.SiteGetter,
+		tracer:           cfg.TracerProvider.Tracer("Router"),
+		serverResolver:   cfg.serverResolver,
 	}, nil
 }
 
@@ -276,13 +272,12 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				sshSigner, err = signer(ctx, client)
+				sshSigner, err = signer(ctx, r.localAccessPoint, client)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
 			}
 		}
-
 	} else {
 		return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
 	}
@@ -365,7 +360,7 @@ func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, check
 		return nil, utils.OpaqueAccessDenied(err)
 	}
 
-	rc, err := r.clusterGetter.GetRemoteCluster(ctx, clusterName)
+	rc, err := r.localAccessPoint.GetRemoteCluster(ctx, clusterName)
 	if err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
 	}
@@ -380,8 +375,9 @@ func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, check
 // site is the minimum interface needed to match servers
 // for a reversetunnelclient.RemoteSite. It makes testing easier.
 type site interface {
-	GetNodes(ctx context.Context, fn func(n services.Node) bool) ([]types.Server, error)
+	GetNodes(ctx context.Context, fn func(n readonly.Server) bool) ([]types.Server, error)
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
+	GetGitServers(context.Context, func(readonly.Server) bool) ([]types.Server, error)
 }
 
 // remoteSite is a site implementation that wraps
@@ -391,13 +387,24 @@ type remoteSite struct {
 }
 
 // GetNodes uses the wrapped sites NodeWatcher to filter nodes
-func (r remoteSite) GetNodes(ctx context.Context, fn func(n services.Node) bool) ([]types.Server, error) {
+func (r remoteSite) GetNodes(ctx context.Context, fn func(n readonly.Server) bool) ([]types.Server, error) {
 	watcher, err := r.site.NodeWatcher()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return watcher.GetNodes(ctx, fn), nil
+	servers, err := watcher.CurrentResourcesWithFilter(ctx, fn)
+	return servers, trace.Wrap(err)
+}
+
+// GetGitServers uses the wrapped sites GitServerWatcher to filter git servers.
+func (r remoteSite) GetGitServers(ctx context.Context, fn func(n readonly.Server) bool) ([]types.Server, error) {
+	watcher, err := r.site.GitServerWatcher()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return watcher.CurrentResourcesWithFilter(ctx, fn)
 }
 
 // GetClusterNetworkingConfig uses the wrapped sites cache to retrieve the ClusterNetworkingConfig
@@ -414,8 +421,13 @@ func (r remoteSite) GetClusterNetworkingConfig(ctx context.Context) (types.Clust
 // getServer attempts to locate a node matching the provided host and port in
 // the provided site.
 func getServer(ctx context.Context, host, port string, site site) (types.Server, error) {
+	if org, ok := types.GetGitHubOrgFromNodeAddr(host); ok {
+		return getGitHubServer(ctx, org, site)
+	}
 	return getServerWithResolver(ctx, host, port, site, nil /* use default resolver */)
 }
+
+var disableUnqualifiedLookups = os.Getenv("TELEPORT_UNSTABLE_DISABLE_UNQUALIFIED_LOOKUPS") == "yes"
 
 // getServerWithResolver attempts to locate a node matching the provided host and port in
 // the provided site. The resolver argument is used in certain tests to mock DNS resolution
@@ -433,10 +445,11 @@ func getServerWithResolver(ctx context.Context, host, port string, site site, re
 	}
 
 	routeMatcher, err := apiutils.NewSSHRouteMatcherFromConfig(apiutils.SSHRouteMatcherConfig{
-		Host:            host,
-		Port:            port,
-		CaseInsensitive: caseInsensitiveRouting,
-		Resolver:        resolver,
+		Host:                      host,
+		Port:                      port,
+		CaseInsensitive:           caseInsensitiveRouting,
+		Resolver:                  resolver,
+		DisableUnqualifiedLookups: disableUnqualifiedLookups,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -444,7 +457,7 @@ func getServerWithResolver(ctx context.Context, host, port string, site site, re
 
 	var maxScore int
 	scores := make(map[string]int)
-	matches, err := site.GetNodes(ctx, func(server services.Node) bool {
+	matches, err := site.GetNodes(ctx, func(server readonly.Server) bool {
 		score := routeMatcher.RouteToServerScore(server)
 		if score < 1 {
 			return false
@@ -494,7 +507,10 @@ func getServerWithResolver(ctx context.Context, host, port string, site site, re
 			}
 		}
 	case len(matches) > 1:
-		return nil, trace.NotFound(teleport.NodeIsAmbiguous)
+		// TODO(tross) DELETE IN V20.0.0
+		// NodeIsAmbiguous is included in the error message for backwards compatibility
+		// with older nodes that expect to see that string in the error message.
+		return nil, trace.Wrap(teleport.ErrNodeIsAmbiguous, teleport.NodeIsAmbiguous)
 	case len(matches) == 1:
 		server = matches[0]
 	}
@@ -550,7 +566,7 @@ func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr
 }
 
 // GetSiteClient returns an auth client for the provided cluster.
-func (r *Router) GetSiteClient(ctx context.Context, clusterName string) (auth.ClientI, error) {
+func (r *Router) GetSiteClient(ctx context.Context, clusterName string) (authclient.ClientI, error) {
 	if clusterName == r.clusterName {
 		return r.localSite.GetClient()
 	}
@@ -560,4 +576,26 @@ func (r *Router) GetSiteClient(ctx context.Context, clusterName string) (auth.Cl
 		return nil, trace.Wrap(err)
 	}
 	return site.GetClient()
+}
+
+func getGitHubServer(ctx context.Context, gitHubOrg string, site site) (types.Server, error) {
+	servers, err := site.GetGitServers(ctx, func(s readonly.Server) bool {
+		github := s.GetGitHub()
+		return github != nil && github.Organization == gitHubOrg
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch len(servers) {
+	case 0:
+		return nil, trace.NotFound("unable to locate Git server for GitHub organization %s", gitHubOrg)
+	case 1:
+		return servers[0], nil
+	default:
+		// It's unusual but possible to have multiple servers per organization
+		// (e.g. possibly a second Git server for a manual CA rotation). Pick a
+		// random one.
+		return servers[rand.N(len(servers))], nil
+	}
 }

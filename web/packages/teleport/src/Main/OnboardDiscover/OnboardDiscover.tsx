@@ -16,16 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { ButtonPrimary, ButtonText, Image, Text } from 'design';
+import { ButtonPrimary, ButtonText, H2, Image, Text } from 'design';
 import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
 } from 'design/Dialog';
 
-import { CaptureEvent } from 'teleport/services/userEvent/types';
 import { userEventService } from 'teleport/services/userEvent';
+import { CaptureEvent } from 'teleport/services/userEvent/types';
 
 import resourcesPng from './resources.png';
 
@@ -65,9 +64,7 @@ export function OnboardDiscover({
         <Image src={resourcesPng} width="350px" height="218.97px" />
       </DialogHeader>
       <DialogContent textAlign="center">
-        <Text bold typography="h4">
-          Start by adding your first resource
-        </Text>
+        <H2>Start by adding your first resource</H2>
         <Text mt={3}>
           Teleport allows users to access a wide variety of resources, from
           Linux servers to Kubernetes clusters.
@@ -75,9 +72,9 @@ export function OnboardDiscover({
       </DialogContent>
       <DialogFooter>
         <ButtonPrimary width="100%" size="large" onClick={handleOnboard}>
-          add my first resource
+          Add my first resource
         </ButtonPrimary>
-        <ButtonText pt={2} width="100%" size="large" onClick={handleClose}>
+        <ButtonText mt={2} width="100%" size="large" onClick={handleClose}>
           I'll do that later
         </ButtonText>
       </DialogFooter>

@@ -26,10 +26,13 @@ option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib
 message AuthSettings {
   // local_auth_enabled is a flag that enables local authentication
   bool local_auth_enabled = 1;
-  // second_factor is the type of second factor to use in authentication.
-  string second_factor = 2;
-  // preferred_mfa is the prefered mfa for local logins
-  string preferred_mfa = 3;
+
+  reserved "second_factor";
+  reserved 2; // second_factor
+
+  reserved "preferred_mfa";
+  reserved 3; // preferred_mfa
+
   // auth_providers contains a list of auth providers
   repeated AuthProvider auth_providers = 4;
   // has_message_of_the_day is a flag indicating that the cluster has MOTD

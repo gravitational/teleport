@@ -20,18 +20,19 @@ package awsoidc
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
-	"github.com/aws/aws-sdk-go/aws/awsutil"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 )
 
 // waitDuration specifies the amount of time to wait for a service to become healthy after an update.
@@ -44,7 +45,7 @@ type UpdateServiceRequest struct {
 	// TeleportVersionTag specifies the desired teleport version in the format "13.4.0"
 	TeleportVersionTag string
 	// OwnershipTags specifies ownership tags
-	OwnershipTags AWSTags
+	OwnershipTags tags.AWSTags
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -70,7 +71,10 @@ func UpdateDeployService(ctx context.Context, clt DeployServiceClient, log *slog
 		return trace.Wrap(err)
 	}
 
-	teleportImage := getDistrolessTeleportImage(req.TeleportVersionTag)
+	teleportImage, err := getDistrolessTeleportImage(req.TeleportVersionTag)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	services, err := getManagedServices(ctx, clt, log, req.TeleportClusterName, req.OwnershipTags)
 	if err != nil {
 		return trace.Wrap(err)
@@ -90,7 +94,7 @@ func UpdateDeployService(ctx context.Context, clt DeployServiceClient, log *slog
 	return nil
 }
 
-func updateServiceContainerImage(ctx context.Context, clt DeployServiceClient, log *slog.Logger, service *ecsTypes.Service, teleportImage string, ownershipTags AWSTags) error {
+func updateServiceContainerImage(ctx context.Context, clt DeployServiceClient, log *slog.Logger, service *ecsTypes.Service, teleportImage string, ownershipTags tags.AWSTags) error {
 	taskDefinition, err := getManagedTaskDefinition(ctx, clt, aws.ToString(service.TaskDefinition), ownershipTags)
 	if err != nil {
 		return trace.Wrap(err)
@@ -104,6 +108,7 @@ func updateServiceContainerImage(ctx context.Context, clt DeployServiceClient, l
 	// There is no need to update the ecs service if the ecs service is already
 	// running the latest stable version of teleport.
 	if currentTeleportImage == teleportImage {
+		log.InfoContext(ctx, "ECS service version already matches, not updating")
 		return nil
 	}
 
@@ -126,7 +131,11 @@ func updateServiceContainerImage(ctx context.Context, clt DeployServiceClient, l
 	oldTaskDefinitionARN := aws.ToString(service.TaskDefinition)
 
 	// Update service with new task definition
-	serviceNewVersion, err := clt.UpdateService(ctx, generateServiceWithTaskDefinition(service, aws.ToString(newTaskDefinitionARN)))
+	targetNewServiceVersion, err := generateServiceWithTaskDefinition(service, aws.ToString(newTaskDefinitionARN))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	serviceNewVersion, err := clt.UpdateService(ctx, targetNewServiceVersion)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -149,7 +158,7 @@ func getAllServiceNamesForCluster(ctx context.Context, clt DeployServiceClient, 
 			NextToken: aws.String(nextToken),
 		})
 		if err != nil {
-			return nil, awslib.ConvertIAMv2Error(err)
+			return nil, awslib.ConvertIAMError(err)
 		}
 
 		ret = append(ret, resp.ServiceArns...)
@@ -162,7 +171,7 @@ func getAllServiceNamesForCluster(ctx context.Context, clt DeployServiceClient, 
 	return ret, nil
 }
 
-func getManagedServices(ctx context.Context, clt DeployServiceClient, log *slog.Logger, teleportClusterName string, ownershipTags AWSTags) ([]ecsTypes.Service, error) {
+func getManagedServices(ctx context.Context, clt DeployServiceClient, log *slog.Logger, teleportClusterName string, ownershipTags tags.AWSTags) ([]ecsTypes.Service, error) {
 	// The Cluster name is created using the Teleport Cluster Name.
 	// Check the DeployDatabaseServiceRequest.CheckAndSetDefaults
 	// and DeployServiceRequest.CheckAndSetDefaults.
@@ -220,7 +229,7 @@ func getManagedServices(ctx context.Context, clt DeployServiceClient, log *slog.
 	return ecsServices, nil
 }
 
-func getManagedTaskDefinition(ctx context.Context, clt DeployServiceClient, taskDefinitionName string, ownershipTags AWSTags) (*ecsTypes.TaskDefinition, error) {
+func getManagedTaskDefinition(ctx context.Context, clt DeployServiceClient, taskDefinitionName string, ownershipTags tags.AWSTags) (*ecsTypes.TaskDefinition, error) {
 	describeTaskDefinitionOut, err := clt.DescribeTaskDefinition(ctx, &ecs.DescribeTaskDefinitionInput{
 		TaskDefinition: aws.String(taskDefinitionName),
 		Include:        []ecsTypes.TaskDefinitionField{ecsTypes.TaskDefinitionFieldTags},
@@ -262,7 +271,14 @@ func waitServiceStableOrRollback(ctx context.Context, clt DeployServiceClient, l
 	}
 
 	log.WarnContext(ctx, "ECS Service is not stable, restarting the service with its previous TaskDefinition", "error", waitErr)
-	_, rollbackErr := clt.UpdateService(ctx, generateServiceWithTaskDefinition(service, oldTaskDefinitionARN))
+
+	rollbackServiceInput, err := generateServiceWithTaskDefinition(service, oldTaskDefinitionARN)
+	if err != nil {
+		log.WarnContext(ctx, "Failed to generate UpdateServiceInput targeting its previous version", "error", err)
+		return
+	}
+
+	_, rollbackErr := clt.UpdateService(ctx, rollbackServiceInput)
 	if rollbackErr != nil {
 		log.WarnContext(ctx, "Failed to update ECS Service with its previous version", "error", rollbackErr)
 	}
@@ -275,13 +291,23 @@ func generateTaskDefinitionWithImage(taskDefinition *ecsTypes.TaskDefinition, te
 	}
 
 	// Copy container definition and replace the teleport image with desired version
-	newContainerDefinition := new(ecsTypes.ContainerDefinition)
-	awsutil.Copy(newContainerDefinition, &taskDefinition.ContainerDefinitions[0])
+	newContainerDefinition := &taskDefinition.ContainerDefinitions[0]
 	newContainerDefinition.Image = aws.String(teleportImage)
 
 	// Copy task definition and replace container definitions
-	registerTaskDefinitionIn := new(ecs.RegisterTaskDefinitionInput)
-	awsutil.Copy(registerTaskDefinitionIn, taskDefinition)
+	//
+	// AWS SDK Go v1 had a `awsutil.Copy` which we could use to copy all the values from one struct into another one.
+	// AWS SDK Go v2 does not expose such method: https://github.com/aws/aws-sdk-go-v2/blob/9005edfbb1194c8f340b9bb7288698b58fc7274a/internal/awsutil/copy.go#L15
+	// To solve this, the TaskDefinition is json marshaled and unmarshalled into a RegisterTaskDefinitionInput.
+	registerTaskDefinitionIn := &ecs.RegisterTaskDefinitionInput{}
+	taskDefinitionJSON, err := json.Marshal(taskDefinition)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := json.Unmarshal(taskDefinitionJSON, registerTaskDefinitionIn); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	registerTaskDefinitionIn.ContainerDefinitions = []ecsTypes.ContainerDefinition{*newContainerDefinition}
 	registerTaskDefinitionIn.Tags = tags
 
@@ -319,11 +345,21 @@ func ensureUpgraderEnvironmentVariables(taskDefinition *ecs.RegisterTaskDefiniti
 }
 
 // generateServiceWithTaskDefinition returns new update service input with the desired task definition
-func generateServiceWithTaskDefinition(service *ecsTypes.Service, taskDefinitionName string) *ecs.UpdateServiceInput {
-	updateServiceIn := new(ecs.UpdateServiceInput)
-	awsutil.Copy(updateServiceIn, service)
+func generateServiceWithTaskDefinition(service *ecsTypes.Service, taskDefinitionName string) (*ecs.UpdateServiceInput, error) {
+	// AWS SDK Go v1 had a `awsutil.Copy` which we could use to copy all the values from one struct into another one.
+	// AWS SDK Go v2 does not expose such method: https://github.com/aws/aws-sdk-go-v2/blob/9005edfbb1194c8f340b9bb7288698b58fc7274a/internal/awsutil/copy.go#L15
+	// To solve this, the Service is json marshaled and unmarshalled into a UpdateServiceInput.
+	updateServiceIn := &ecs.UpdateServiceInput{}
+	serviceJSON, err := json.Marshal(service)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := json.Unmarshal(serviceJSON, updateServiceIn); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	updateServiceIn.Service = service.ServiceName
 	updateServiceIn.Cluster = service.ClusterArn
 	updateServiceIn.TaskDefinition = aws.String(taskDefinitionName)
-	return updateServiceIn
+	return updateServiceIn, nil
 }

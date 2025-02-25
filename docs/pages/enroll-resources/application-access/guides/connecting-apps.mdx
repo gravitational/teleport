@@ -1,0 +1,497 @@
+---
+title: Web Application Access
+description: In this getting started guide, learn how to connect an application to your Teleport cluster by running the Teleport Application Service.
+---
+
+This guide shows you how to enroll a web application with your Teleport cluster
+in order to set up role-based access controls, audit logging, and other Teleport
+capabilities.
+
+## How it works
+
+To enroll a web application with your Teleport cluster, you deploy the Teleport
+Application Service, which uses a join token to establish trust with the
+Teleport Auth Service. Users visit Teleport-protected web applications through
+the Teleport Web UI. The Teleport Proxy Service routes browser traffic to the
+Teleport Application Service, which forwards HTTP requests to and from target
+applications. 
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- A web application that you want to protect with Teleport. The web application
+  should be running in a private network. In this guide, we assume that the web
+  application is available on `app.example.com:3000`.
+- A Linux server where you will run the Teleport Application Service. Your
+  network must enable the server to connect to your web application.
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/3. Deploy the Teleport Application Service
+
+In this step, you will configure the Teleport Application Service to proxy a
+target application, then deploy a Teleport Agent to run the service.
+
+### Generate a token
+
+A join token is required to authorize a Teleport Application Service to
+join the cluster. 
+
+1. Generate a short-lived join token. Make sure to change `app-name` to the name
+   of your application and `app-uri` to the application's domain name and port:
+
+   ```code
+   $ tctl tokens add \
+       --type=app \
+       --app-name=my-app \
+       --app-uri=app.example.com:3000 \
+       --ttl=1h
+   ```
+
+   This command creates a join token with a TTL of 1 hour.
+
+1. Copy the token and save it in `/tmp/token` on the Linux server that will run
+   the Teleport Application Service.
+
+### Install the Teleport Application Service
+
+Follow the instructions below on the host where you will install the Teleport
+Application Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+### Configure the Teleport Application Service
+
+1. On the host where you will run the Teleport Application Service, create a
+   file at `/etc/teleport.yaml` with the following content:
+
+   ```yaml
+   version: v3
+   teleport:
+     join_params:
+       token_name: "/tmp/token"
+       method: token
+     proxy_server: "teleport.example.com:443"
+   auth_service:
+     enabled: off
+   proxy_service:
+     enabled: off
+   ssh_service:
+     enabled: off
+   app_service:
+     enabled: true
+     apps:
+     - name: my-app
+       uri: "app.example.com:3000"
+       labels:
+         env: "demo"
+   ```
+
+1. Edit `/etc/teleport.yaml` to replace `teleport.example.com:443` with the host
+   and port of your Teleport Proxy Service or Teleport Enterprise (Cloud)
+   account, e.g., `example.teleport.sh:443`.
+
+1. Change `app.example.com:3000` to match the host and port of your own web
+   application.
+
+   The `app_service` field configures the Teleport Application Service. Each
+   item within `app_service.apps` is an application configuration. The `labels`
+   field assigns a label to each application. You can use Teleport labels to
+   allow and deny users access to resources, as we will demonstrate later in
+   this guide.
+
+### Run the Teleport Application Service
+
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Application Service"!)
+
+## Step 2/3. [Optional] Configure TLS and DNS for your web applications
+
+Once the Teleport Application Service is proxying traffic to your web
+application, the Teleport Proxy Service makes the application available at the
+following URL:
+
+```text
+https://<APPLICATION_NAME>.<TELEPORT_DOMAIN>
+```
+
+For example, if your Teleport domain name is `teleport.example.com`, the
+application named `my-app` would be available at
+`https://my-app.teleport.example.com`. The Proxy Service presents a TLS
+certificate for this domain name that browsers can verify against a certificate
+authority.
+
+If you are using Teleport Enterprise (Cloud), DNS records and TLS certificates
+for this domain name are provisioned automatically. If you are self-hosting
+Teleport, you must configure these yourself:
+
+1. Create either:
+   - A DNS A record that associates a wildcard subdomain of your Teleport Proxy
+     Service domain, e.g., `*.teleport.example.com`, with the IP address of the
+     Teleport Proxy Service.
+   - A DNS CNAME record that associates a wildcard subdomain of your Proxy
+     Service domain, e.g., `*.teleport.example.com`, with the domain name of the
+     Teleport Proxy Service.
+
+1. Ensure that your system provisions TLS certificates for Teleport-registered
+   applications. The method to use depends on how you originally set up TLS for
+   your self-hosted Teleport deployment, and is outside the scope of this guide. 
+
+   In general, the same system that provisions TLS certificates signed for the
+   web address of the Proxy Service (e.g., `teleport.example.com`) must also
+   provision certificates for the wildcard address used for applications (e.g.,
+   `*.teleport.example.com`).
+
+## Step 3/3. Configure RBAC and access the application
+
+1. Create a role called `demo-app-access` that allows access to applications
+   with the `env:demo` label that you assigned to the application that you
+   enrolled earlier:
+
+   ```yaml
+   kind: role
+   version: v7
+   metadata:
+     name: demo-app-access
+   spec:
+     allow:
+       app_labels:
+         env: "demo"
+   ```
+
+1. Create a user called `appuser` with the `demo-app-access` role:
+
+   ```code
+   $ tctl users add --roles=demo-app-access appuser
+   ```
+
+   (!docs/pages/includes/create-role-using-web.mdx!)
+
+   When `appuser` attempts to access the application you enrolled earlier
+   through the Teleport Web UI, the the Teleport Proxy Service forwards the
+   request with a Teleport-signed JSON web token to the Teleport Application
+   Service. The Application Service checks the user's roles and, since the value
+   of `allow.app_labels` matches one of the labels assigned to the application,
+   the Application Service forwards the request to the application.
+
+1. Sign in to the Teleport Web UI as `appuser`. You should see the option to
+   visit the web application that you enrolled.
+
+## Advanced options
+
+### Application name
+
+{/*
+Note: this section of the docs is linked to from error messages in the product.
+Please make sure to update lib/srv/servicecfg/app.go if you change this section
+header or move this page.
+*/}
+
+An application name should make a valid sub-domain (\<=63 characters, no spaces, only `a-z 0-9 -` allowed).
+
+After Teleport is running, users can access the app at `app-name.proxy_public_addr.com`
+e.g. `grafana.teleport.example.com`. You can also override `public_addr` e.g
+`grafana.acme.com` if you configure the appropriate DNS entry to point to the
+Teleport proxy server.
+
+### Running the dumper application
+
+For testing and debugging purposes, we provide a built-in debug app called "dumper".
+It can be turned on using `debug_app: true`.
+
+```yaml
+app_service:
+   enabled: yes
+   debug_app: true
+```
+
+The dumper app will dump all the request headers in the response.
+
+### Customize public address
+
+<Admonition
+  type="note"
+  title="For self-hosted environments only"
+>
+  The public address of apps cannot be changed or overridden on cloud-hosted Teleport tenants, due to TLS
+  certificate limitations.
+
+  For cloud-hosted customers, apps will always be available at `https://<app-name>.example.teleport.sh`, where `example`
+  is the name chosen for your cloud-hosted Teleport tenant.
+</Admonition>
+
+By default applications are available at `<app-name>.<proxy-host>:<proxy-port>`
+address. To override the public address, specify the `public_addr` field:
+
+```yaml
+- name: "jira"
+  uri: "https://localhost:8001"
+  public_addr: "jira.example.com"
+```
+
+### Skip TLS certificate verification
+
+<Admonition
+  type="warning"
+  title="Danger Zone"
+>
+  This is insecure and not recommended for use in production.
+</Admonition>
+
+Teleport checks if the certificates presented by the applications are signed
+by a trusted Certificate Authority. When using self-signed certificates for
+internal applications, use `insecure_skip_verify: true` to skip this
+verification step:
+
+```yaml
+- name: "app"
+  uri: "https://localhost:8443"
+  public_addr: "app.example.com"
+  insecure_skip_verify: true
+```
+
+### Deeplink to a subdirectory
+
+Some applications are available in a subdirectory. Examples include the
+[Kubernetes Dashboard.](https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/).
+The URI should be updated to include the subdirectory:
+
+```yaml
+- name: "k8s"
+  uri: "http://10.0.1.60:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/#/overview"
+  public_addr: "k8s.example.com"
+```
+
+### Rewrite redirect
+
+To support web apps that perform internal redirects, application access
+provides an option to rewrite the hostname of the `Location` header on
+redirect responses to the application's public address:
+
+```yaml
+- name: "jenkins"
+  uri: "https://localhost:8001"
+  public_addr: "jenkins.example.com"
+  rewrite:
+    # Rewrite the "Location" header on redirect responses replacing the
+    # host with the public address of this application.
+    redirect:
+    - "localhost"
+    - "jenkins.internal.dev"
+```
+
+### Headers passthrough
+
+You can configure application access to inject additional headers in the
+requests forwarded to a web application.
+
+<Tabs>
+<TabItem label="teleport.yaml syntax">
+
+For apps defined in the `teleport.yaml` configuration, the `headers` field of
+each app is a list of strings. Be careful to quote the entire value to ensure it
+is parsed correctly.
+
+```yaml
+- name: "dashboard"
+  uri: https://localhost:4321
+  public_addr: dashboard.example.com
+  rewrite:
+    headers:
+    # Inject a static header.
+    - "X-Custom-Header: example"
+    # Inject headers with internal/external user traits.
+    - "X-Internal-Trait: {{internal.logins}}"
+    - "X-External-Trait: {{external.env}}"
+    # Inject header with Teleport-signed JWT token.
+    - "Authorization: Bearer {{internal.jwt}}"
+    # Override Host header.
+    - "Host: dashboard.example.com"
+```
+
+</TabItem>
+<TabItem label="Dynamic registration syntax">
+
+In a dynamic `app` resource, configure header rewrites with the
+`spec.rewrite.headers` field. The value is a list of mappings that specify the
+name and value of each header you would like to rewrite.
+
+```yaml
+kind: app
+version: v3
+metadata:
+  name: "dashboard"
+spec:
+  uri: https://localhost:4321
+  public_addr: dashboard.example.com
+  rewrite:
+    headers:
+      # Inject a static header.
+      - name: X-Custom-Header
+        value: example
+      # Inject headers with internal/external user traits.
+      - name: X-Internal-Trait
+        value: "{{internal.logins}}"
+      - name: X-External-Trait
+        value: "{{external.env}}"
+      # Inject header with Teleport-signed JWT token.
+      - name: Authorization
+        value: "Bearer {{internal.jwt}}"
+      # Override Host header.
+      - name: Host
+        value: dashboard.example.com
+```
+
+</TabItem>
+</Tabs>
+
+Headers injected this way override any headers with the same names that may
+be sent by an application. The following headers are reserved and can't be
+rewritten:
+
+- `Teleport-Jwt-Assertion`
+- `Cf-Access-Token`
+- Any header matching the pattern `X-Teleport-*`
+- Any header matching the pattern `X-Forwarded-*`
+
+Rewritten header values support the same templating variables as
+[role templates](../../../admin-guides/access-controls/guides/role-templates.mdx). In the
+example above, `X-Internal-Trait` header will be populated with the value of
+internal user trait `logins` and `X-External-Trait` header will get the value of
+the user's external `env` trait coming from the identity provider.
+
+Additionally, the `{{internal.jwt}}` template variable will be replaced with
+a JWT token signed by Teleport that contains user identity information. See
+[Integrating with JWTs](../jwt/introduction.mdx) for more details.
+
+For full details on configuring Teleport roles, including how Teleport
+populates the `external` and `internal` traits, see the [Teleport Access
+Controls Reference](../../../reference/access-controls/roles.mdx).
+
+### Configuring the JWT token
+
+By default, Teleport includes a user's roles and traits in the JWT
+generated for application access. If your application doesn't care
+about these values, or you are encountering an error due to exceeding
+the size limit of HTTP headers, you can configure Teleport to omit
+this information from the token.
+
+```yaml
+- name: "dashboard"
+  uri: https://localhost:4321
+  public_addr: dashboard.example.com
+  rewrite:
+    # Specify whether to include roles or traits in the JWT.
+    # Options:
+    # - roles-and-traits: include both roles and traits
+    # - roles: include only roles
+    # - traits: include only traits
+    # - none: exclude both roles and traits from the JWT token
+    # Default: roles-and-traits
+    jwt_claims: roles-and-traits
+    headers:
+    # Inject header with Teleport-signed JWT token.
+    - "Authorization: Bearer {{internal.jwt}}"
+```
+
+### Backends-for-Frontends support
+
+By default, Teleport will only attempt to authenticate the user for the
+requested app when launched from the Web UI. If this is a client application
+that makes requests to a different backend application that is also protected by
+Teleport, then the client application will not be able to make requests to that
+backend application until a user has authenticated with both apps. In order to
+remedy this, you can add the backend application name in the `required_apps`
+field in the client app's spec which will then automatically attempt
+authentication with each of the listed required apps when a user launches the
+client application.
+
+```yaml
+- name: 'dashboard'
+  uri: https://localhost:4321
+  public_addr: dashboard.example.com
+  # Optional list of Teleport application names that require a session for this app to function correctly.
+  # When launching this app, any app listed here will also be launched, and a session will be created.
+  # These sessions follow their respective RBAC policies.
+  required_apps:
+    - 'my-api'
+    - 'prod-database'
+    # Add more required app names as needed
+```
+
+### CORS support for preflight requests
+
+Teleport does not send any unauthenticated requests to the destination app. This
+means that any preflight requests sent by an application to another application
+within Teleport for an API request will return an error and fail. You can
+specify a CORS spec per application that will respond to these preflight
+requests. This does not overwrite the destination app's CORS policy for the
+requested route, but is only used for the OPTION requests sent to the requested
+route.
+
+```yaml
+- name: 'dashboard'
+  uri: https://localhost:4321
+  public_addr: dashboard.example.com
+  # Optional CORS policy is used for preflight requests only. It does not overwrite the contained
+  # app's CORS policy per route but is used by Teleport to respond to unauthenticated OPTION requests.
+  # Important Notes:
+  # - Each field in the CORS spec is optional.
+  # - The allowed_headers field accepts wildcard entries. However, in requests with "allow_credentials: true",
+  #   a wildcard is treated as the literal header name "*" without special semantics.
+  # - The Authorization header can't be set with a wildcard and always needs to be listed explicitly.
+  cors:
+    # Specifies which origins are allowed to make cross-origin requests.
+    allowed_origins:
+      - 'https://example.com'
+      - 'https://app.example.com'
+    # HTTP methods that are allowed when accessing the resource.
+    allowed_methods:
+      - 'GET'
+      - 'POST'
+      - 'PUT'
+      - 'DELETE'
+      - 'OPTIONS'
+    # HTTP headers that can be used during the actual request.
+    allowed_headers:
+      - 'Content-Type'
+      - 'Authorization'
+      - 'X-Custom-Header'
+    # Headers that browsers are allowed to access.
+    exposed_headers:
+      - 'Content-Type'
+      - 'X-Custom-Response-Header'
+    # Indicates whether the request can include credentials.
+    allow_credentials: true
+    # Indicates how long (in seconds) the results of a preflight request can be cached.
+    max_age: 3600
+```
+<Admonition type="warning">
+
+Teleport requires that credentials are sent with every request to your applications. This is
+necessary so that Teleport can determine whether you have an authenticated session, allowing it to
+properly verify and route your requests. Please ensure that your client fetch requests include
+`credentials: include`, even if your backend application doesn't require credentials.
+
+</Admonition>
+
+## View applications in Teleport
+
+Teleport provides a UI for quickly launching connected applications.
+
+They can be viewed by navigating to a cluster's web UI and selecting the "Applications" tab.
+The URL structure looks like this:
+
+`https://[cluster-url:cluster-port]/web/cluster/[cluster-name]/apps`
+
+## Logging out of applications
+
+When you log into an application, you'll get a certificate and login session
+per your defined RBAC. If you want to force log out before this period you can
+do so by hitting the `/teleport-logout` endpoint:
+
+- `https://internal-app.teleport.example.com/teleport-logout`
+
+## Next steps
+
+- Learn how to [configure web apps as TCP apps to access them through
+  VNet](vnet.mdx#accessing-web-apps-through-vnet).

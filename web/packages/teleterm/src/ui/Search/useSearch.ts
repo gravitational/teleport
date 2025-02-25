@@ -18,24 +18,25 @@
 
 import { useCallback } from 'react';
 
-import { assertUnreachable } from 'teleterm/ui/utils';
+import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import type * as resourcesServiceTypes from 'teleterm/ui/services/resources';
+import { assertUnreachable } from 'teleterm/ui/utils';
 
 import {
-  isResourceTypeSearchFilter,
+  FilterSearchResult,
   isClusterSearchFilter,
-  SearchFilter,
+  isResourceTypeSearchFilter,
   LabelMatch,
   mainResourceField,
   mainResourceName,
   ResourceMatch,
-  searchableFields,
   ResourceSearchResult,
-  FilterSearchResult,
   ResourceTypeFilter,
+  searchableFields,
+  SearchFilter,
 } from './searchResult';
-
-import type * as resourcesServiceTypes from 'teleterm/ui/services/resources';
 
 export type CrossClusterResourceSearchResult = {
   results: resourcesServiceTypes.SearchResult[];
@@ -118,14 +119,20 @@ export function useResourceSearch() {
         : connectedClusters;
 
       const promiseResults = await Promise.allSettled(
-        clustersToSearch.map(cluster =>
-          resourcesService.searchResources({
+        clustersToSearch.map(cluster => {
+          const rootCluster = clustersService.findRootClusterByResource(
+            cluster.uri
+          );
+          return resourcesService.searchResources({
             clusterUri: cluster.uri,
             search,
             filters: resourceTypeSearchFilters.map(f => f.resourceType),
             limit,
-          })
-        )
+            includeRequestable:
+              rootCluster?.showResources === ShowResources.REQUESTABLE &&
+              !!rootCluster?.features?.advancedAccessWorkflows,
+          });
+        })
       );
 
       const results: resourcesServiceTypes.SearchResult[] = [];
@@ -358,6 +365,11 @@ function calculateScore(
 
     const resourceMatchScore = getLengthScore(searchTerm, field) * weight;
     searchResultScore += resourceMatchScore;
+  }
+
+  // Show resources that require access lower in the results.
+  if (searchResult.requiresRequest) {
+    searchResultScore *= 0.95;
   }
 
   return { ...searchResult, labelMatches, score: searchResultScore };

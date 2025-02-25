@@ -19,8 +19,9 @@
 package gateway
 
 import (
+	"log/slog"
+
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -33,9 +34,6 @@ type Gateway interface {
 	Serve() error
 	// Close terminates gateway connection.
 	Close() error
-	// ReloadCert loads the key pair from cfg.CertPath & cfg.KeyPath and
-	// updates the cert of the running local proxy.
-	ReloadCert() error
 
 	URI() uri.ResourceURI
 	TargetURI() uri.ResourceURI
@@ -44,7 +42,9 @@ type Gateway interface {
 	TargetUser() string
 	TargetSubresourceName() string
 	SetTargetSubresourceName(value string)
-	Log() *logrus.Entry
+	Log() *slog.Logger
+	// LocalAddress returns the local host in the net package terms (localhost or 127.0.0.1, depending
+	// on the platform).
 	LocalAddress() string
 	LocalPort() string
 	LocalPortInt() int
@@ -92,12 +92,12 @@ type Kube interface {
 	// KubeconfigPath returns the path to the kubeconfig used to connect the
 	// local proxy.
 	KubeconfigPath() string
+	// ClearCerts clears the local proxy middleware certs.
+	// It will try to reissue them when a new request comes in.
+	ClearCerts()
 }
 
 // App defines an app gateway.
 type App interface {
 	Gateway
-
-	// LocalProxyURL returns the URL of the local proxy.
-	LocalProxyURL() string
 }

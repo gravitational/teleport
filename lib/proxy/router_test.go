@@ -21,39 +21,51 @@ package proxy
 import (
 	"bytes"
 	"context"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/agentless"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 type testSite struct {
-	cfg   types.ClusterNetworkingConfig
-	nodes []types.Server
+	cfg        types.ClusterNetworkingConfig
+	nodes      []types.Server
+	gitServers []types.Server
 }
 
 func (t testSite) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	return t.cfg, nil
 }
 
-func (t testSite) GetNodes(ctx context.Context, fn func(n services.Node) bool) ([]types.Server, error) {
+func (t testSite) GetNodes(ctx context.Context, fn func(n readonly.Server) bool) ([]types.Server, error) {
 	var out []types.Server
 	for _, s := range t.nodes {
+		if fn(s) {
+			out = append(out, s)
+		}
+	}
+
+	return out, nil
+}
+func (t testSite) GetGitServers(ctx context.Context, fn func(n readonly.Server) bool) ([]types.Server, error) {
+	var out []types.Server
+	for _, s := range t.gitServers {
 		if fn(s) {
 			out = append(out, s)
 		}
@@ -133,6 +145,11 @@ func TestRouteScoring(t *testing.T) {
 			hostname: "blue.example.com",
 			addr:     "2.3.4.5:22",
 		},
+		{
+			name:     "not-a-uuid",
+			hostname: "test.example.com",
+			addr:     "3.4.5.6:22",
+		},
 	})
 
 	// scoring behavior is independent of routing strategy so we just
@@ -205,13 +222,18 @@ func TestRouteScoring(t *testing.T) {
 			host:   "red.example.com",
 			expect: "blue.example.com",
 		},
+		{
+			desc:   "non-uuid name",
+			host:   "not-a-uuid",
+			expect: "test.example.com",
+		},
 	}
 
 	for _, tt := range tts {
 		t.Run(tt.desc, func(t *testing.T) {
 			srv, err := getServerWithResolver(ctx, tt.host, tt.port, site, resolver)
 			if tt.ambiguous {
-				require.ErrorIs(t, err, trace.NotFound(teleport.NodeIsAmbiguous))
+				require.ErrorIs(t, err, teleport.ErrNodeIsAmbiguous)
 				return
 			}
 			require.Equal(t, tt.expect, srv.GetHostname())
@@ -326,6 +348,26 @@ func TestGetServers(t *testing.T) {
 		},
 	})
 
+	servers = append(servers,
+		&types.ServerV2{
+			Kind:    types.KindNode,
+			SubKind: types.SubKindOpenSSHNode,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name: "agentless-node-1",
+			},
+			Spec: types.ServerSpecV2{
+				Addr:     "1.2.3.4:22",
+				Hostname: "agentless-1",
+			},
+		},
+	)
+
+	gitServers := []types.Server{
+		makeGitHubServer(t, "org1"),
+		makeGitHubServer(t, "org2"),
+	}
+
 	// ensure tests don't have order-dependence
 	rand.Shuffle(len(servers), func(i, j int) {
 		servers[i], servers[j] = servers[j], servers[i]
@@ -375,7 +417,7 @@ func TestGetServers(t *testing.T) {
 			site: testSite{cfg: &unambiguousCfg, nodes: servers},
 			host: "sheep",
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.NotFound(teleport.NodeIsAmbiguous))
+				require.ErrorIs(t, err, teleport.ErrNodeIsAmbiguous)
 			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
 				require.Empty(t, srv)
@@ -433,15 +475,6 @@ func TestGetServers(t *testing.T) {
 			},
 		},
 		{
-			name:         "failure on invalid addresses",
-			site:         testSite{cfg: &unambiguousCfg, nodes: servers},
-			host:         "lion",
-			errAssertion: require.NoError,
-			serverAssertion: func(t *testing.T, srv types.Server) {
-				require.Empty(t, srv)
-			},
-		},
-		{
 			name:         "case-insensitive match",
 			site:         testSite{cfg: &unambiguousInsensitiveCfg, nodes: servers},
 			host:         "capybara",
@@ -456,10 +489,43 @@ func TestGetServers(t *testing.T) {
 			site: testSite{cfg: &unambiguousInsensitiveCfg, nodes: servers},
 			host: "platypus",
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.NotFound(teleport.NodeIsAmbiguous))
+				require.ErrorIs(t, err, teleport.ErrNodeIsAmbiguous)
 			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
 				require.Empty(t, srv)
+			},
+		},
+		{
+			name:         "agentless match by non-uuid name",
+			site:         testSite{cfg: &unambiguousCfg, nodes: servers},
+			host:         "agentless-node-1",
+			errAssertion: require.NoError,
+			serverAssertion: func(t *testing.T, srv types.Server) {
+				require.NotNil(t, srv)
+				require.Equal(t, "agentless-1", srv.GetHostname())
+				require.True(t, srv.IsOpenSSHNode())
+			},
+		},
+		{
+			name:         "git server",
+			site:         testSite{cfg: &unambiguousCfg, gitServers: gitServers},
+			host:         "org2.teleport-github-org",
+			errAssertion: require.NoError,
+			serverAssertion: func(t *testing.T, srv types.Server) {
+				require.NotNil(t, srv)
+				require.NotNil(t, srv.GetGitHub())
+				assert.Equal(t, "org2", srv.GetGitHub().Organization)
+			},
+		},
+		{
+			name: "git server not found",
+			site: testSite{cfg: &unambiguousCfg, gitServers: gitServers},
+			host: "org-not-found.teleport-github-org",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsNotFound(err), i...)
+			},
+			serverAssertion: func(t *testing.T, srv types.Server) {
+				require.Nil(t, srv)
 			},
 		},
 	}
@@ -590,7 +656,7 @@ func (r testRemoteSite) DialAuthServer(reversetunnelclient.DialParams) (net.Conn
 	return r.conn, r.err
 }
 
-func (r testRemoteSite) GetClient() (auth.ClientI, error) {
+func (r testRemoteSite) GetClient() (authclient.ClientI, error) {
 	return nil, nil
 }
 
@@ -609,8 +675,6 @@ type fakeConn struct {
 func TestRouter_DialHost(t *testing.T) {
 	t.Parallel()
 
-	logger := utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test")
-
 	srv := &types.ServerV2{
 		Kind:    types.KindNode,
 		Version: types.V2,
@@ -627,7 +691,7 @@ func TestRouter_DialHost(t *testing.T) {
 		SubKind: types.SubKindOpenSSHNode,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name: uuid.NewString(),
+			Name: "agentless",
 		},
 		Spec: types.ServerSpecV2{
 			Addr:     "127.0.0.1:9001",
@@ -651,8 +715,8 @@ func TestRouter_DialHost(t *testing.T) {
 	agentGetter := func() (teleagent.Agent, error) {
 		return nil, nil
 	}
-	createSigner := func(_ context.Context, _ agentless.CertGenerator) (ssh.Signer, error) {
-		key, err := native.GeneratePrivateKey()
+	createSigner := func(_ context.Context, _ agentless.LocalAccessPoint, _ agentless.CertGenerator) (ssh.Signer, error) {
+		key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
 		if err != nil {
 			return nil, err
 		}
@@ -668,9 +732,8 @@ func TestRouter_DialHost(t *testing.T) {
 			name: "failure resolving node",
 			router: Router{
 				clusterName:    "test",
-				log:            logger,
 				tracer:         tracing.NoopTracer("test"),
-				serverResolver: serverResolver(nil, trace.NotFound(teleport.NodeIsAmbiguous)),
+				serverResolver: serverResolver(nil, teleport.ErrNodeIsAmbiguous),
 			},
 			assertion: func(t *testing.T, params reversetunnelclient.DialParams, conn net.Conn, err error) {
 				require.Error(t, err)
@@ -682,7 +745,6 @@ func TestRouter_DialHost(t *testing.T) {
 			router: Router{
 				clusterName: "leaf",
 				siteGetter:  tunnel{err: trace.NotFound("unknown cluster")},
-				log:         logger,
 				tracer:      tracing.NoopTracer("test"),
 			},
 			assertion: func(t *testing.T, params reversetunnelclient.DialParams, conn net.Conn, err error) {
@@ -695,7 +757,6 @@ func TestRouter_DialHost(t *testing.T) {
 			name: "dial failure",
 			router: Router{
 				clusterName:    "test",
-				log:            logger,
 				localSite:      &testRemoteSite{err: trace.ConnectionProblem(context.DeadlineExceeded, "connection refused")},
 				tracer:         tracing.NoopTracer("test"),
 				serverResolver: serverResolver(srv, nil),
@@ -710,7 +771,6 @@ func TestRouter_DialHost(t *testing.T) {
 			name: "dial success",
 			router: Router{
 				clusterName:    "test",
-				log:            logger,
 				localSite:      &testRemoteSite{conn: fakeConn{}},
 				tracer:         tracing.NoopTracer("test"),
 				serverResolver: serverResolver(srv, nil),
@@ -727,7 +787,6 @@ func TestRouter_DialHost(t *testing.T) {
 			name: "dial success to agentless node",
 			router: Router{
 				clusterName:    "test",
-				log:            logger,
 				localSite:      &testRemoteSite{conn: fakeConn{}},
 				siteGetter:     &testSiteGetter{site: &testRemoteSite{conn: fakeConn{}}},
 				tracer:         tracing.NoopTracer("test"),
@@ -746,7 +805,6 @@ func TestRouter_DialHost(t *testing.T) {
 			name: "dial success to agentless node using EC2 Instance Connect Endpoint",
 			router: Router{
 				clusterName:    "test",
-				log:            logger,
 				localSite:      &testRemoteSite{conn: fakeConn{}},
 				siteGetter:     &testSiteGetter{site: &testRemoteSite{conn: fakeConn{}}},
 				tracer:         tracing.NoopTracer("test"),
@@ -783,7 +841,6 @@ func TestRouter_DialSite(t *testing.T) {
 	t.Parallel()
 
 	const cluster = "test"
-	logger := utils.NewLoggerForTests().WithField(teleport.ComponentKey, cluster)
 
 	cases := []struct {
 		name      string
@@ -863,7 +920,6 @@ func TestRouter_DialSite(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			router := Router{
 				clusterName: cluster,
-				log:         logger,
 				localSite:   &tt.localSite,
 				siteGetter:  tt.tunnel,
 				tracer:      tracing.NoopTracer(cluster),
@@ -873,4 +929,14 @@ func TestRouter_DialSite(t *testing.T) {
 			tt.assertion(t, conn, err)
 		})
 	}
+}
+
+func makeGitHubServer(t *testing.T, org string) types.Server {
+	t.Helper()
+	server, err := types.NewGitHubServer(types.GitHubServerMetadata{
+		Integration:  org,
+		Organization: org,
+	})
+	require.NoError(t, err)
+	return server
 }

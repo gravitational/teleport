@@ -20,6 +20,7 @@ import "google/protobuf/empty.proto";
 import "google/protobuf/field_mask.proto";
 import "google/protobuf/timestamp.proto";
 import "google/rpc/status.proto";
+import "teleport/devicetrust/v1/authenticate_challenge.proto";
 import "teleport/devicetrust/v1/device.proto";
 import "teleport/devicetrust/v1/device_collected_data.proto";
 import "teleport/devicetrust/v1/device_confirmation_token.proto";
@@ -96,6 +97,9 @@ service DeviceTrustService {
 
   // ListDevices lists all registered devices.
   rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
+
+  // ListDevicesByUser lists all devices owned by the user
+  rpc ListDevicesByUser(ListDevicesByUserRequest) returns (ListDevicesByUserResponse);
 
   // BulkCreateDevices is a bulk variant of CreateDevice.
   //
@@ -258,6 +262,31 @@ message ListDevicesRequest {
 // Response for ListDevices.
 message ListDevicesResponse {
   // Devices that matched the search.
+  repeated Device devices = 1;
+
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+// Request for ListDevicesByUser.
+//
+// Follows the pagination semantics of
+// https://cloud.google.com/apis/design/standard_methods#list.
+message ListDevicesByUserRequest {
+  reserved 3;
+  reserved "view";
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+// Response for ListDevicesByUser.
+message ListDevicesByUserResponse {
+  // Devices owned by the user.
   repeated Device devices = 1;
 
   // Token to retrieve the next page of results, or empty if there are no
@@ -512,8 +541,11 @@ message AuthenticateDeviceInit {
   // - The x509 certificate is acquired from the mTLS connection, thus the
   //   in-band certificate is ignored.
   // - All certificates must be valid and issued by the Teleport CA.
-  // - All certificates must match (same public key, same Teleport user, plus
-  //   whatever additional checks the backend sees fit).
+  // - TLS and SSH certificates must match (same Teleport user, plus whatever
+  //   additional checks the backend sees fit).
+  // - TLS and SSH certificates must either have matching public keys, or
+  //   (TPM)AuthenticateDeviceChallengeResponse.SshSignature must be a valid
+  //   signature over the challenge by the SSH private key.
   // - Augmented certificates have the same expiration as the original
   //   certificates.
   UserCertificates user_certificates = 1;
@@ -533,35 +565,6 @@ message AuthenticateDeviceInit {
   //
   // See ConfirmDeviceWebAuthentication.
   DeviceWebToken device_web_token = 4;
-}
-
-// TPMAuthenticateDeviceChallenge carries the authentication challenge
-// specific to TPMs.
-message TPMAuthenticateDeviceChallenge {
-  // Randomly-generated nonce to be used during platform attestation by the
-  // TPM.
-  bytes attestation_nonce = 1;
-}
-
-// TPMAuthenticateDeviceChallengeResponse carries the authentication challenge
-// response specific to TPMs.
-message TPMAuthenticateDeviceChallengeResponse {
-  // The result of the client's platform attestation with the nonce provided
-  // in `TPMAuthenticateDeviceChallenge`.
-  TPMPlatformParameters platform_parameters = 1;
-}
-
-// AuthenticateDeviceChallenge carries the authentication challenge.
-message AuthenticateDeviceChallenge {
-  // Randomly-generated, opaque challenge to be signed using the device key.
-  bytes challenge = 1;
-}
-
-// AuthenticateDeviceChallengeResponse carries the authentication challenge
-// response.
-message AuthenticateDeviceChallengeResponse {
-  // Signature over the challenge, using the device key.
-  bytes signature = 1;
 }
 
 // Request for ConfirmDeviceWebAuthentication.

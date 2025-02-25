@@ -21,20 +21,22 @@ package accessmonitoring
 import (
 	"context"
 	"io"
+	"maps"
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // Command implements `tctl audit` group of commands.
@@ -44,7 +46,7 @@ type Command struct {
 }
 
 // Initialize allows to implement Command interface.
-func (c *Command) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
+func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) {
 	c.innerCmdMap = map[string]runFunc{}
 
 	auditCmd := app.Command("audit", "Audit command.")
@@ -112,15 +114,21 @@ func (c *Command) initAuditReportsCommands(auditCmd *kingpin.CmdClause, cfg *ser
 	})
 }
 
-type runFunc func(context.Context, *auth.Client) error
+type runFunc func(context.Context, *authclient.Client) error
 
-func (c *Command) TryRun(ctx context.Context, selectedCommand string, authClient *auth.Client) (match bool, err error) {
-	handler, ok := c.innerCmdMap[selectedCommand]
+func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	handler, ok := c.innerCmdMap[cmd]
 	if !ok {
 		return false, nil
 	}
 
-	switch err := trail.FromGRPC(handler(ctx, authClient)); {
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	defer closeFn(ctx)
+
+	switch err := trail.FromGRPC(handler(ctx, client)); {
 	case trace.IsNotImplemented(err):
 		return true, trace.AccessDenied("Access Monitoring requires a Teleport Enterprise Auth Server.")
 	default:
@@ -128,7 +136,7 @@ func (c *Command) TryRun(ctx context.Context, selectedCommand string, authClient
 	}
 }
 
-func (c *cmdHandler) onAuditQueryExec(ctx context.Context, authClient *auth.Client) error {
+func (c *cmdHandler) onAuditQueryExec(ctx context.Context, authClient *authclient.Client) error {
 	if c.auditQuery == "" {
 		buff, err := io.ReadAll(os.Stdin)
 		if err != nil {
@@ -146,7 +154,7 @@ func (c *cmdHandler) onAuditQueryExec(ctx context.Context, authClient *auth.Clie
 	return nil
 }
 
-func (c *cmdHandler) onAuditQueryGet(ctx context.Context, authClient *auth.Client) error {
+func (c *cmdHandler) onAuditQueryGet(ctx context.Context, authClient *authclient.Client) error {
 	auditQuery, err := authClient.SecReportsClient().GetSecurityAuditQuery(ctx, c.name)
 	if err != nil {
 		return trace.Wrap(err)
@@ -157,7 +165,7 @@ func (c *cmdHandler) onAuditQueryGet(ctx context.Context, authClient *auth.Clien
 	return nil
 }
 
-func (c *cmdHandler) onAuditQueryLs(ctx context.Context, authClient *auth.Client) error {
+func (c *cmdHandler) onAuditQueryLs(ctx context.Context, authClient *authclient.Client) error {
 	auditQueries, err := authClient.SecReportsClient().GetSecurityAuditQueries(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -168,14 +176,14 @@ func (c *cmdHandler) onAuditQueryLs(ctx context.Context, authClient *auth.Client
 	return nil
 }
 
-func (c *cmdHandler) onAuditQueryRm(ctx context.Context, authClient *auth.Client) error {
+func (c *cmdHandler) onAuditQueryRm(ctx context.Context, authClient *authclient.Client) error {
 	if err := authClient.SecReportsClient().DeleteSecurityAuditQuery(ctx, c.name); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func (c *cmdHandler) onAuditQuerySchema(ctx context.Context, authClient *auth.Client) error {
+func (c *cmdHandler) onAuditQuerySchema(ctx context.Context, authClient *authclient.Client) error {
 	resp, err := authClient.SecReportsClient().GetSchema(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -193,7 +201,7 @@ func (c *cmdHandler) onAuditQuerySchema(ctx context.Context, authClient *auth.Cl
 	return nil
 }
 
-func (c *cmdHandler) onAuditQueryCreate(ctx context.Context, authClient *auth.Client) error {
+func (c *cmdHandler) onAuditQueryCreate(ctx context.Context, authClient *authclient.Client) error {
 	if c.auditQuery == "" {
 		return trace.BadParameter("audit query required")
 	}
@@ -213,7 +221,7 @@ func (c *cmdHandler) onAuditQueryCreate(ctx context.Context, authClient *auth.Cl
 	return nil
 }
 
-func (c *cmdHandler) onAuditReportLs(ctx context.Context, authClient *auth.Client) error {
+func (c *cmdHandler) onAuditReportLs(ctx context.Context, authClient *authclient.Client) error {
 	reports, err := authClient.SecReportsClient().GetSecurityReports(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -224,7 +232,7 @@ func (c *cmdHandler) onAuditReportLs(ctx context.Context, authClient *auth.Clien
 	return trace.Wrap(err)
 }
 
-func (c *cmdHandler) onAuditReportGet(ctx context.Context, authClient *auth.Client) error {
+func (c *cmdHandler) onAuditReportGet(ctx context.Context, authClient *authclient.Client) error {
 	details, err := authClient.SecReportsClient().GetSecurityReportResult(ctx, c.name, c.days)
 	if err != nil {
 		return trace.Wrap(err)
@@ -235,7 +243,7 @@ func (c *cmdHandler) onAuditReportGet(ctx context.Context, authClient *auth.Clie
 	return nil
 }
 
-func (c *cmdHandler) onAuditReportRun(ctx context.Context, authClient *auth.Client) error {
+func (c *cmdHandler) onAuditReportRun(ctx context.Context, authClient *authclient.Client) error {
 	err := authClient.SecReportsClient().RunSecurityReport(ctx, c.name, c.days)
 	if err != nil {
 		return trace.Wrap(err)
@@ -243,7 +251,7 @@ func (c *cmdHandler) onAuditReportRun(ctx context.Context, authClient *auth.Clie
 	return nil
 }
 
-func (c *cmdHandler) onAuditReportState(ctx context.Context, authClient *auth.Client) error {
+func (c *cmdHandler) onAuditReportState(ctx context.Context, authClient *authclient.Client) error {
 	state, err := authClient.SecReportsClient().GetSecurityReportExecutionState(ctx, c.name, int32(c.days))
 	if err != nil {
 		return trace.Wrap(err)

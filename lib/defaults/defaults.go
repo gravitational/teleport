@@ -28,7 +28,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
@@ -372,9 +371,6 @@ const (
 	// LimiterMaxConnections Number of max. simultaneous connections to a service
 	LimiterMaxConnections = 15000
 
-	// LimiterMaxConcurrentUsers Number of max. simultaneous connected users/logins
-	LimiterMaxConcurrentUsers = 250
-
 	// LimiterMaxConcurrentSignatures limits maximum number of concurrently
 	// generated signatures by the auth server
 	LimiterMaxConcurrentSignatures = 10
@@ -627,7 +623,6 @@ const (
 // ConfigureLimiter assigns the default parameters to a connection throttler (AKA limiter)
 func ConfigureLimiter(lc *limiter.Config) {
 	lc.MaxConnections = LimiterMaxConnections
-	lc.MaxNumberOfUsers = LimiterMaxConcurrentUsers
 }
 
 // AuthListenAddr returns the default listening address for the Auth service
@@ -712,8 +707,8 @@ const (
 	// made for an existing file transfer request
 	WebsocketFileTransferDecision = "t"
 
-	// WebsocketWebauthnChallenge is sending a webauthn challenge.
-	WebsocketWebauthnChallenge = "n"
+	// WebsocketMFAChallenge is sending an MFA challenge. Only supports WebAuthn and SSO MFA.
+	WebsocketMFAChallenge = "n"
 
 	// WebsocketSessionMetadata is sending the data for a ssh session.
 	WebsocketSessionMetadata = "s"
@@ -723,10 +718,17 @@ const (
 
 	// WebsocketLatency provides latency information for a session.
 	WebsocketLatency = "l"
+
+	// WebsocketKubeExec provides latency information for a session.
+	WebsocketKubeExec = "k"
+
+	// WebsocketDatabaseSessionRequest is received when a new database session
+	// is requested.
+	WebsocketDatabaseSessionRequest = "d"
 )
 
 // The following are cryptographic primitives Teleport does not support in
-// it's default configuration.
+// its default configuration.
 const (
 	DiffieHellmanGroup14SHA1 = "diffie-hellman-group14-sha1"
 	DiffieHellmanGroup1SHA1  = "diffie-hellman-group1-sha1"
@@ -735,13 +737,6 @@ const (
 )
 
 const (
-	// ApplicationTokenKeyType is the type of asymmetric key used to sign tokens.
-	// See https://tools.ietf.org/html/rfc7518#section-6.1 for possible values.
-	ApplicationTokenKeyType = "RSA"
-	// ApplicationTokenAlgorithm is the default algorithm used to sign
-	// application access tokens.
-	ApplicationTokenAlgorithm = jose.RS256
-
 	// JWTUse is the default usage of the JWT.
 	// See https://www.rfc-editor.org/rfc/rfc7517#section-4.2 for more information.
 	JWTUse = "sig"

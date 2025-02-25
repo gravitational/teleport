@@ -1,13 +1,14 @@
 include install.mk
 
 LOCALDIR := $(dir $(CURDIR)/$(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST)))
-GENTERRAFORMPATH := $(shell go env GOPATH)/bin
+PROTOC_GEN_TERRAFORM:= $(shell command -v protoc-gen-terraform)
 
 BUILDDIR ?= build
 TFDIR ?= example
 
 ADDFLAGS ?=
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
+BUILDFLAGS ?= $(ADDFLAGS) -trimpath -ldflags '-w -s'
+# CGO must NOT be enabled as hashicorp cloud does not support running providers using on CGO.
 CGOFLAG ?= CGO_ENABLED=0
 
 RELEASE = terraform-provider-teleport-v$(VERSION)-$(OS)-$(ARCH)-bin
@@ -28,7 +29,8 @@ clean: tfclean
 
 .PHONY: build
 build: clean
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -o $(BUILDDIR)/terraform-provider-teleport $(BUILDFLAGS)
+# Turning off GOWORK to prevent missing package errors.
+	GOWORK=off GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "kustomize_disable_go_plugin_support" -o $(BUILDDIR)/terraform-provider-teleport $(BUILDFLAGS)
 
 build-darwin-universal: $(addprefix $(BUILDDIR)/terraform-provider-teleport_,arm64 amd64)
 	lipo -create -output $(BUILDDIR)/terraform-provider-teleport $^
@@ -44,8 +46,9 @@ $(BUILDDIR)/terraform-provider-teleport_%: terraform-provider-teleport-v$(VERSIO
 	mv $(BUILDDIR)/$(OS)/$*/terraform-provider-teleport $@
 
 CUSTOM_IMPORTS_TMP_DIR ?= /tmp/protoc-gen-terraform/custom-imports
-PROTOC_GEN_TERRAFORM_VERSION ?= v2.2.0
-PROTOC_GEN_TERRAFORM_EXISTS := $(shell protoc-gen-terraform version 2>&1 >/dev/null | grep 'protoc-gen-terraform $(PROTOC_GEN_TERRAFORM_VERSION)')
+# This version must match the version installed by .github/workflows/lint.yaml
+PROTOC_GEN_TERRAFORM_VERSION ?= v3.0.2
+PROTOC_GEN_TERRAFORM_EXISTS := $(shell $(PROTOC_GEN_TERRAFORM) version 2>&1 >/dev/null | grep 'protoc-gen-terraform $(PROTOC_GEN_TERRAFORM_VERSION)')
 
 .PHONY: gen-tfschema
 gen-tfschema:
@@ -56,12 +59,12 @@ endif
 
 # The wrappers.proto file needed for this generator exist only inside the go mod cache,
 # so we retrieve the file path for the cached proto files with go mod tools.
-	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | jq .Dir))
+	$(eval PROTOBUF_MOD_PATH := $(shell go list -m -u -f '{{.Dir}}' github.com/gogo/protobuf))
 
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
 		--terraform_out=config=protoc-gen-terraform-teleport.yaml:./tfschema \
 		teleport/legacy/types/types.proto
 
@@ -70,7 +73,7 @@ endif
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
 		--terraform_out=config=protoc-gen-terraform-teleport-token.yaml:./tfschema \
 		teleport/legacy/types/types.proto
 
@@ -80,34 +83,68 @@ endif
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
 		--terraform_out=config=protoc-gen-terraform-loginrule.yaml:./tfschema \
 		teleport/loginrule/v1/loginrule.proto
 
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
 		--terraform_out=config=protoc-gen-terraform-devicetrust.yaml:./tfschema \
 		teleport/legacy/types/device.proto
 
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
 		--terraform_out=config=protoc-gen-terraform-accesslist.yaml:./tfschema \
 		teleport/accesslist/v1/accesslist.proto
 
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-accessmonitoringrules.yaml:./tfschema \
+		teleport/accessmonitoringrules/v1/access_monitoring_rules.proto
+
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-statichostuser.yaml:./tfschema \
+		teleport/userprovisioning/v2/statichostuser.proto
+
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-workloadidentity.yaml:./tfschema \
+		teleport/workloadidentity/v1/resource.proto
+
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1/loginrule_terraform.go ./tfschema/loginrule/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1/accesslist_terraform.go ./tfschema/accesslist/v1/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1/access_monitoring_rules_terraform.go ./tfschema/accessmonitoringrules/v1/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2/statichostuser_terraform.go ./tfschema/userprovisioning/v2/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1/resource_terraform.go ./tfschema/workloadidentity/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/types/device_terraform.go ./tfschema/devicetrust/v1/
 	rm -r ./tfschema/github.com/
 	@go run ./gen/main.go
-	@go run ./gen/main.go docs
+
+# darwin-signed-build is a wrapper around the build target that ensures it is codesigned
+include ../../darwin-signing.mk
+.PHONY: darwin-signed-build
+darwin-signed-build: BINARIES=$(BUILDDIR)/terraform-provider-teleport
+ifeq ($(OS)-$(ARCH),darwin-universal)
+darwin-signed-build: build-darwin-universal
+else
+darwin-signed-build: build
+endif
+	$(NOTARIZE_BINARIES)
 
 .PHONY: release
-ifeq ($(OS)-$(ARCH),darwin-universal)
-release: build-darwin-universal
+ifeq ($(OS),darwin)
+release: darwin-signed-build
 else
 release: build
 endif
@@ -155,3 +192,7 @@ destroy:
 .PHONY: lint
 lint:
 	golangci-lint run -c ../../.golangci.yml
+
+.PHONY: docs
+docs: gen-tfschema install
+	./gen/docs.sh $(VERSION)

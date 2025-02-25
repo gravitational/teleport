@@ -6,6 +6,7 @@ metadata:
   name: {{ include "teleport-cluster.operator.fullname" . }}
   namespace: {{ .Release.Namespace }}
 rules:
+  # Rights to manage the Teleport CRs
   - apiGroups:
       - "resources.teleport.dev"
     resources:
@@ -35,12 +36,15 @@ rules:
       - teleportopensshserversv2/status
       - teleportopenssheiceserversv2
       - teleportopenssheiceserversv2/status
+      - teleporttrustedclustersv2
+      - teleporttrustedclustersv2/status
     verbs:
       - get
       - list
       - patch
       - update
       - watch
+  # Used to perform leader election when running with multiple replicas
   - apiGroups:
       - "coordination.k8s.io"
     resources:
@@ -49,11 +53,21 @@ rules:
       - create
       - get
       - update
+  # Ability to emit reconciliation events
   - apiGroups:
       - ""
     resources:
       - events
     verbs:
       - create
+  # Ability to lookup sensitive values from secrets rather than CRs
+  - apiGroups:
+      - ""
+    resources:
+      - "secrets"
+    verbs:
+      - "get"
+      - "list"
+      - "watch"
 {{- end -}}
 {{- end -}}

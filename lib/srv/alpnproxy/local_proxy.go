@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -33,7 +34,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgproto3/v2"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -43,6 +43,7 @@ import (
 	commonApp "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // LocalProxy allows upgrading incoming connection to TLS where custom TLS values are set SNI ALPN and
@@ -81,7 +82,7 @@ type LocalProxyConfig struct {
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
 	// Log is the Logger.
-	Log logrus.FieldLogger
+	Log *slog.Logger
 	// CheckCertNeeded determines if the local proxy will check if it should
 	// load cert for dialing upstream. Defaults to false, in which case
 	// the local proxy will always use whatever cert it has to dial upstream.
@@ -92,6 +93,8 @@ type LocalProxyConfig struct {
 	CheckCertNeeded bool
 	// verifyUpstreamConnection is a callback function to verify upstream connection state.
 	verifyUpstreamConnection func(tls.ConnectionState) error
+	// onSetCert is a callback when lp.SetCert is called.
+	onSetCert func(tls.Certificate)
 }
 
 // LocalProxyMiddleware provides callback functions for LocalProxy.
@@ -99,7 +102,7 @@ type LocalProxyMiddleware interface {
 	// OnNewConnection is a callback triggered when a new downstream connection is
 	// accepted by the local proxy. If an error is returned, the connection will be closed
 	// by the local proxy.
-	OnNewConnection(ctx context.Context, lp *LocalProxy, conn net.Conn) error
+	OnNewConnection(ctx context.Context, lp *LocalProxy) error
 	// OnStart is a callback triggered when the local proxy starts.
 	OnStart(ctx context.Context, lp *LocalProxy) error
 }
@@ -119,7 +122,7 @@ func (cfg *LocalProxyConfig) CheckAndSetDefaults() error {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 	if cfg.Log == nil {
-		cfg.Log = logrus.WithField(teleport.ComponentKey, "localproxy")
+		cfg.Log = slog.With(teleport.ComponentKey, "localproxy")
 	}
 
 	// set tls cert chain leaf to reduce per-handshake processing.
@@ -165,20 +168,21 @@ func NewLocalProxy(cfg LocalProxyConfig, opts ...LocalProxyConfigOpt) (*LocalPro
 
 // Start starts the LocalProxy.
 func (l *LocalProxy) Start(ctx context.Context) error {
-	if l.cfg.HTTPMiddleware != nil {
-		return trace.Wrap(l.StartHTTPAccessProxy(ctx))
+	if l.cfg.Middleware != nil {
+		if err := l.cfg.Middleware.OnStart(ctx, l); err != nil {
+			return trace.Wrap(err)
+		}
 	}
+
+	if l.cfg.HTTPMiddleware != nil {
+		return trace.Wrap(l.startHTTPAccessProxy(ctx))
+	}
+
 	return trace.Wrap(l.start(ctx))
 }
 
 // start starts the LocalProxy for raw TCP or raw TLS (non-HTTP) connections.
 func (l *LocalProxy) start(ctx context.Context) error {
-	if l.cfg.Middleware != nil {
-		err := l.cfg.Middleware.OnStart(ctx, l)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -191,16 +195,16 @@ func (l *LocalProxy) start(ctx context.Context) error {
 			if utils.IsOKNetworkError(err) {
 				return nil
 			}
-			l.cfg.Log.WithError(err).Error("Failed to accept client connection.")
+			l.cfg.Log.ErrorContext(ctx, "Failed to accept client connection", "error", err)
 			return trace.Wrap(err)
 		}
-		l.cfg.Log.Debug("Accepted downstream connection.")
+		l.cfg.Log.DebugContext(ctx, "Accepted downstream connection")
 
 		if l.cfg.Middleware != nil {
-			if err := l.cfg.Middleware.OnNewConnection(ctx, l, conn); err != nil {
-				l.cfg.Log.WithError(err).Error("Middleware failed to handle client connection.")
+			if err := l.cfg.Middleware.OnNewConnection(ctx, l); err != nil {
+				l.cfg.Log.ErrorContext(ctx, "Middleware failed to handle client connection", "error", err)
 				if err := conn.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
-					l.cfg.Log.WithError(err).Debug("Failed to close client connection.")
+					l.cfg.Log.DebugContext(ctx, "Failed to close client connection", "error", err)
 				}
 				continue
 			}
@@ -211,7 +215,7 @@ func (l *LocalProxy) start(ctx context.Context) error {
 				if utils.IsOKNetworkError(err) {
 					return
 				}
-				l.cfg.Log.WithError(err).Error("Failed to handle connection.")
+				l.cfg.Log.ErrorContext(ctx, "Failed to handle connection", "error", err)
 			}
 		}()
 	}
@@ -232,19 +236,57 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 		return trace.Wrap(err)
 	}
 
-	tlsConn, err := client.DialALPN(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig(cert))
+	upstreamConn, err := dialALPNMaybePing(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig(cert))
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer tlsConn.Close()
-
-	var upstreamConn net.Conn = tlsConn
-	if common.IsPingProtocol(common.Protocol(tlsConn.ConnectionState().NegotiatedProtocol)) {
-		l.cfg.Log.Debug("Using ping connection")
-		upstreamConn = pingconn.NewTLS(tlsConn)
-	}
+	defer upstreamConn.Close()
 
 	return trace.Wrap(utils.ProxyConn(ctx, downstreamConn, upstreamConn))
+}
+
+// HandleTCPConnector injects an inbound TCP connection (via [connector]) that doesn't come in through any
+// net.Listener. It is used by VNet to share the common local proxy code. [connector] should be called as late
+// as possible so that in case of error VNet clients get a failed TCP dial (with RST) rather than a successful
+// dial with an immediately closed connection.
+func (l *LocalProxy) HandleTCPConnector(ctx context.Context, connector func() (net.Conn, error)) error {
+	if l.cfg.Middleware != nil {
+		if err := l.cfg.Middleware.OnNewConnection(ctx, l); err != nil {
+			return trace.Wrap(err, "middleware failed to handle client connection")
+		}
+	}
+
+	cert, err := l.getCertWithoutConn()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	upstreamConn, err := dialALPNMaybePing(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig(cert))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer upstreamConn.Close()
+
+	downstreamConn, err := connector()
+	if err != nil {
+		return trace.Wrap(err, "getting downstream conn")
+	}
+	defer downstreamConn.Close()
+
+	return trace.Wrap(utils.ProxyConn(ctx, downstreamConn, upstreamConn))
+}
+
+// dialALPNMaybePing is a helper to dial using an ALPNDialer, it wraps the tls conn in a ping conn if
+// necessary, and returns a net.Conn if successful.
+func dialALPNMaybePing(ctx context.Context, addr string, cfg client.ALPNDialerConfig) (net.Conn, error) {
+	tlsConn, err := client.DialALPN(ctx, addr, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if common.IsPingProtocol(common.Protocol(tlsConn.ConnectionState().NegotiatedProtocol)) {
+		return pingconn.NewTLS(tlsConn), nil
+	}
+	return tlsConn, nil
 }
 
 func (l *LocalProxy) Close() error {
@@ -282,10 +324,10 @@ func (l *LocalProxy) makeHTTPReverseProxy(certs ...tls.Certificate) *httputil.Re
 				// TODO: find a cleaner way of formatting the error.
 				errHeader = strings.Replace(errHeader, " \t", "\n\t", -1)
 				errHeader = strings.Replace(errHeader, " User Message:", "\n\n\tUser Message:", -1)
-				l.cfg.Log.Warn(errHeader)
+				l.cfg.Log.WarnContext(response.Request.Context(), "Server response contained an error header", "error_header", errHeader)
 			}
 			for _, infoHeader := range response.Header.Values(commonApp.TeleportAPIInfoHeader) {
-				l.cfg.Log.Infof("Server response info: %v.", infoHeader)
+				l.cfg.Log.InfoContext(response.Request.Context(), "Server response info", "header", infoHeader)
 			}
 
 			if err := l.cfg.HTTPMiddleware.HandleResponse(response); err != nil {
@@ -294,7 +336,7 @@ func (l *LocalProxy) makeHTTPReverseProxy(certs ...tls.Certificate) *httputil.Re
 			return nil
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
-			l.cfg.Log.WithError(err).Warnf("Failed to handle request %v %v.", r.Method, r.URL)
+			l.cfg.Log.WarnContext(r.Context(), "Failed to handle request ", "error", err, "method", r.Method, "url", logutils.StringerAttr(r.URL))
 			code := trace.ErrorToCode(err)
 			http.Error(w, http.StatusText(code), code)
 		},
@@ -304,23 +346,26 @@ func (l *LocalProxy) makeHTTPReverseProxy(certs ...tls.Certificate) *httputil.Re
 	}
 }
 
-// StartHTTPAccessProxy starts the local HTTP access proxy.
-func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
-	if l.cfg.HTTPMiddleware == nil {
-		return trace.BadParameter("Missing HTTPMiddleware in configuration")
-	}
-
+// startHTTPAccessProxy starts the local HTTP access proxy.
+func (l *LocalProxy) startHTTPAccessProxy(ctx context.Context) error {
 	if err := l.cfg.HTTPMiddleware.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	l.cfg.Log.Info("Starting HTTP access proxy")
-	defer l.cfg.Log.Info("HTTP access proxy stopped")
-	defaultProxy := l.makeHTTPReverseProxy(l.getCert())
+	l.cfg.Log.InfoContext(ctx, "Starting HTTP access proxy")
+	defer l.cfg.Log.InfoContext(ctx, "HTTP access proxy stopped")
 
 	server := &http.Server{
 		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
 		Handler: http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			if l.cfg.Middleware != nil {
+				if err := l.cfg.Middleware.OnNewConnection(ctx, l); err != nil {
+					l.cfg.Log.ErrorContext(ctx, "Middleware failed to handle client request", "error", err)
+					trace.WriteError(rw, trace.Wrap(err))
+					return
+				}
+			}
+
 			if l.cfg.HTTPMiddleware.HandleRequest(rw, req) {
 				return
 			}
@@ -333,9 +378,9 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 				req.Header.Del("X-Forwarded-Host")
 			}
 
-			proxy, err := l.getHTTPReverseProxyForReq(req, defaultProxy)
+			proxy, err := l.getHTTPReverseProxyForReq(req)
 			if err != nil {
-				l.cfg.Log.Warnf("Failed to get reverse proxy: %v.", err)
+				l.cfg.Log.WarnContext(ctx, "Failed to get reverse proxy", "error", err)
 				trace.WriteError(rw, trace.Wrap(err))
 				return
 			}
@@ -358,52 +403,28 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 	return nil
 }
 
-func (l *LocalProxy) getHTTPReverseProxyForReq(req *http.Request, defaultProxy *httputil.ReverseProxy) (*httputil.ReverseProxy, error) {
+func (l *LocalProxy) getHTTPReverseProxyForReq(req *http.Request) (*httputil.ReverseProxy, error) {
 	certs, err := l.cfg.HTTPMiddleware.OverwriteClientCerts(req)
-	if err != nil {
-		if trace.IsNotImplemented(err) {
-			return defaultProxy, nil
-		}
+	if trace.IsNotImplemented(err) {
+		return l.makeHTTPReverseProxy(l.getCert()), nil
+	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	l.cfg.Log.DebugContext(req.Context(), "overwrote certs")
 	return l.makeHTTPReverseProxy(certs...), nil
 }
 
-// getCerts returns the local proxy's configured TLS certificates.
-// For thread-safety, it is important that the returned slice and its contents
-// are not be mutated by callers, therefore this method is not exported.
+// getCert returns the local proxy's configured TLS certificate.
 func (l *LocalProxy) getCert() tls.Certificate {
 	l.certMu.RLock()
 	defer l.certMu.RUnlock()
 	return l.cfg.Cert
 }
 
-// CheckCertExpiry checks the proxy certificates for expiration and runs given checking function.
-func (l *LocalProxy) CheckCert(checkCert func(cert *x509.Certificate) error) error {
-	l.cfg.Log.Debug("checking local proxy certs")
-	l.certMu.RLock()
-	defer l.certMu.RUnlock()
-
-	if len(l.cfg.Cert.Certificate) == 0 {
-		return trace.NotFound("local proxy has no TLS certificates configured")
-	}
-
-	cert, err := utils.TLSCertLeaf(l.cfg.Cert)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Check for cert expiration.
-	if err := utils.VerifyCertificateExpiry(cert, l.cfg.Clock); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(checkCert(cert))
-}
-
 // CheckDBCert checks the proxy certificates for expiration and that the cert subject matches a database route.
-func (l *LocalProxy) CheckDBCert(dbRoute tlsca.RouteToDatabase) error {
-	l.cfg.Log.Debug("checking local proxy database certs")
+func (l *LocalProxy) CheckDBCert(ctx context.Context, dbRoute tlsca.RouteToDatabase) error {
+	l.cfg.Log.DebugContext(ctx, "checking local proxy database certs")
 	l.certMu.RLock()
 	defer l.certMu.RUnlock()
 
@@ -425,8 +446,8 @@ func (l *LocalProxy) CheckDBCert(dbRoute tlsca.RouteToDatabase) error {
 }
 
 // CheckCertExpiry checks the proxy certificates for expiration.
-func (l *LocalProxy) CheckCertExpiry() error {
-	l.cfg.Log.Debug("checking local proxy certs")
+func (l *LocalProxy) CheckCertExpiry(ctx context.Context) error {
+	l.cfg.Log.DebugContext(ctx, "checking local proxy certs")
 	l.certMu.RLock()
 	defer l.certMu.RUnlock()
 
@@ -466,6 +487,11 @@ func (l *LocalProxy) SetCert(cert tls.Certificate) {
 	l.certMu.Lock()
 	defer l.certMu.Unlock()
 	l.cfg.Cert = cert
+
+	// Callback, if any.
+	if l.cfg.onSetCert != nil {
+		l.cfg.onSetCert(cert)
+	}
 }
 
 // getCertForConn determines if certificates should be used when dialing
@@ -499,6 +525,13 @@ func (l *LocalProxy) getCertForConn(downstreamConn net.Conn) (tls.Certificate, n
 		return cert, conn, nil
 	}
 	return tls.Certificate{}, downstreamConn, nil
+}
+
+func (l *LocalProxy) getCertWithoutConn() (tls.Certificate, error) {
+	if l.cfg.CheckCertNeeded {
+		return tls.Certificate{}, trace.BadParameter("getCertWithoutConn called while CheckCertNeeded is true: this is a bug")
+	}
+	return l.getCert(), nil
 }
 
 func (l *LocalProxy) isPostgresProxy() bool {

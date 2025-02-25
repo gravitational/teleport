@@ -33,11 +33,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/smithy-go/middleware"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgproto3/v2"
 	"github.com/jonboulle/clockwork"
@@ -48,77 +50,68 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestHandleAWSAccessSigVerification tests if LocalProxy verifies the AWS SigV4 signature of incoming request.
 func TestHandleAWSAccessSigVerification(t *testing.T) {
 	var (
-		firstAWSCred  = credentials.NewStaticCredentials("userID", "firstSecret", "")
-		secondAWSCred = credentials.NewStaticCredentials("userID", "secondSecret", "")
-		thirdAWSCred  = credentials.NewStaticCredentials("userID2", "firstSecret", "")
+		firstAWSCred  = credentials.NewStaticCredentialsProvider("userID", "firstSecret", "")
+		secondAWSCred = credentials.NewStaticCredentialsProvider("userID", "secondSecret", "")
+		thirdAWSCred  = credentials.NewStaticCredentialsProvider("userID2", "firstSecret", "")
 
-		awsService = "s3"
-		awsRegion  = "eu-central-1"
+		awsRegion = "eu-central-1"
 	)
 
 	testCases := []struct {
 		name       string
-		proxyCred  *credentials.Credentials
-		signFunc   func(*http.Request, io.ReadSeeker, string, string, time.Time) (http.Header, error)
-		wantErr    require.ErrorAssertionFunc
+		proxyCred  aws.CredentialsProvider
+		clientCred aws.CredentialsProvider
+		apiOpts    []func(*middleware.Stack) error
 		wantStatus int
 	}{
 		{
 			name:       "valid signature",
 			proxyCred:  firstAWSCred,
-			signFunc:   v4.NewSigner(firstAWSCred).Sign,
-			wantErr:    require.NoError,
+			clientCred: firstAWSCred,
 			wantStatus: http.StatusOK,
 		},
 		{
 			name:       "different aws secret access key",
 			proxyCred:  secondAWSCred,
-			signFunc:   v4.NewSigner(firstAWSCred).Sign,
+			clientCred: firstAWSCred,
 			wantStatus: http.StatusForbidden,
 		},
 		{
 			name:       "different aws access key ID",
 			proxyCred:  thirdAWSCred,
-			signFunc:   v4.NewSigner(firstAWSCred).Sign,
+			clientCred: firstAWSCred,
 			wantStatus: http.StatusForbidden,
 		},
 		{
-			name:      "unsigned request",
-			proxyCred: firstAWSCred,
-			signFunc: func(*http.Request, io.ReadSeeker, string, string, time.Time) (http.Header, error) {
-				// no-op
-				return nil, nil
-			},
+			name:       "unsigned request",
+			proxyCred:  firstAWSCred,
+			clientCred: nil,
 			wantStatus: http.StatusForbidden,
 		},
 		{
-			name:      "signed with User-Agent header",
-			proxyCred: secondAWSCred,
-			signFunc: func(r *http.Request, body io.ReadSeeker, service, region string, signTime time.Time) (http.Header, error) {
-				// Simulate a case where "User-Agent" is part of the "SignedHeaders".
-				// The signature does not have to be valid as it will not be compared.
-				header, err := v4.NewSigner(firstAWSCred).Sign(r, body, service, region, signTime)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				authHeader := r.Header.Get("Authorization")
-				authHeader = strings.Replace(authHeader, "SignedHeaders=", "SignedHeaders=user-agent;", 1)
-				r.Header.Set("Authorization", authHeader)
-				return header, nil
+			name:       "signed with User-Agent header",
+			proxyCred:  secondAWSCred,
+			clientCred: firstAWSCred,
+			apiOpts: []func(*middleware.Stack) error{
+				func(stack *middleware.Stack) error {
+					stack.Finalize.Insert(
+						addUserAgentSignedHeaderMiddleware{},
+						"Signing",
+						middleware.After,
+					)
+					return nil
+				},
 			},
 			wantStatus: http.StatusOK,
 		},
 	}
 
-	httpClient := &http.Client{
-		Timeout: 5 * time.Second,
-	}
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -132,45 +125,50 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 				Path:   "/",
 			}
 
-			payload := []byte("payload content")
-			req, err := http.NewRequest(http.MethodGet, url.String(), bytes.NewReader(payload))
-			require.NoError(t, err)
+			//nolint:forbidigo // OK to not use "stsutils" on tests.
+			clt := sts.New(sts.Options{
+				APIOptions:       tc.apiOpts,
+				Region:           awsRegion,
+				Credentials:      tc.clientCred,
+				BaseEndpoint:     aws.String(url.String()),
+				HTTPClient:       &http.Client{Timeout: 5 * time.Second},
+				RetryMaxAttempts: 0,
+			})
+			_, err := clt.GetCallerIdentity(context.Background(), nil)
+			if tc.wantStatus == http.StatusOK {
+				require.NoError(t, err)
+				return
+			}
 
-			tc.signFunc(req, bytes.NewReader(payload), awsService, awsRegion, time.Now())
-
-			resp, err := httpClient.Do(req)
-			require.NoError(t, err)
-			require.Equal(t, tc.wantStatus, resp.StatusCode)
-			require.NoError(t, resp.Body.Close())
+			require.Error(t, err)
+			var serr *awshttp.ResponseError
+			require.ErrorAs(t, err, &serr)
+			require.Equal(t, tc.wantStatus, serr.HTTPStatusCode())
 		})
 	}
 }
 
 // Verifies s3 requests are signed without URL escaping to match AWS SDKs.
 func TestHandleAWSAccessS3Signing(t *testing.T) {
-	cred := credentials.NewStaticCredentials("access-key", "secret-key", "")
-	lp := createAWSAccessProxySuite(t, cred)
+	provider := credentials.NewStaticCredentialsProvider("access-key", "secret-key", "")
+	lp := createAWSAccessProxySuite(t, provider)
 
 	// Avoid loading extra things.
 	t.Setenv("AWS_SDK_LOAD_CONFIG", "false")
 
 	// Create a real AWS SDK s3 client.
-	awsConfig := aws.NewConfig().
-		WithDisableSSL(true).
-		WithRegion("local").
-		WithCredentials(cred).
-		WithEndpoint(lp.GetAddr()).
-		WithS3ForcePathStyle(true)
-
-	s3client := s3.New(session.Must(session.NewSession(awsConfig)),
-		&aws.Config{
-			HTTPClient: &http.Client{Timeout: 5 * time.Second},
-			MaxRetries: aws.Int(0),
-		})
+	s3client := s3.New(s3.Options{
+		Region:           "local",
+		Credentials:      provider,
+		BaseEndpoint:     aws.String("http://" + lp.GetAddr()),
+		UsePathStyle:     true,
+		HTTPClient:       &http.Client{Timeout: 5 * time.Second},
+		RetryMaxAttempts: 0,
+	})
 
 	// Use a bucket name with special charaters. AWS SDK actually signs the
 	// request with the unescaped bucket name.
-	_, err := s3client.ListObjects(&s3.ListObjectsInput{
+	_, err := s3client.ListObjects(context.Background(), &s3.ListObjectsInput{
 		Bucket: aws.String("=bucket=name="),
 	})
 
@@ -198,7 +196,7 @@ func (m *mockMiddlewareCounter) onStateChange() {
 	}
 }
 
-func (m *mockMiddlewareCounter) OnNewConnection(_ context.Context, _ *LocalProxy, _ net.Conn) error {
+func (m *mockMiddlewareCounter) OnNewConnection(_ context.Context, _ *LocalProxy) error {
 	m.Lock()
 	defer m.Unlock()
 	m.connCount++
@@ -292,7 +290,7 @@ type mockCertRenewer struct {
 	cert tls.Certificate
 }
 
-func (m *mockCertRenewer) OnNewConnection(_ context.Context, lp *LocalProxy, _ net.Conn) error {
+func (m *mockCertRenewer) OnNewConnection(_ context.Context, lp *LocalProxy) error {
 	lp.SetCert(m.cert)
 	return nil
 }
@@ -420,7 +418,7 @@ func TestCheckDBCerts(t *testing.T) {
 				withClock(tt.clock),
 			)
 			lp.SetCert(tlsCert)
-			tt.errAssertFn(t, lp.CheckDBCert(tt.dbRoute))
+			tt.errAssertFn(t, lp.CheckDBCert(context.Background(), tt.dbRoute))
 		})
 	}
 }
@@ -428,7 +426,7 @@ func TestCheckDBCerts(t *testing.T) {
 type mockMiddlewareConnUnauth struct {
 }
 
-func (m *mockMiddlewareConnUnauth) OnNewConnection(_ context.Context, _ *LocalProxy, _ net.Conn) error {
+func (m *mockMiddlewareConnUnauth) OnNewConnection(_ context.Context, _ *LocalProxy) error {
 	return trace.AccessDenied("access denied.")
 }
 
@@ -475,7 +473,7 @@ func TestKubeMiddleware(t *testing.T) {
 
 	now := time.Now()
 	clock := clockwork.NewFakeClockAt(now)
-	var certReissuer KubeCertReissuer
+	teleportCluster := "localhost"
 
 	ca := mustGenSelfSignedCert(t)
 	kube1Cert := mustGenCertSignedWithCA(t, ca,
@@ -503,10 +501,68 @@ func TestKubeMiddleware(t *testing.T) {
 		withClock(clock),
 	)
 
-	certReissuer = func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
-		return newCert, nil
+	certReissuer := func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
+		select {
+		case <-ctx.Done():
+			return tls.Certificate{}, ctx.Err()
+		default:
+			return newCert, nil
+		}
 	}
 
+	t.Run("expired certificate is still reissued if request context expires", func(t *testing.T) {
+		req := &http.Request{
+			TLS: &tls.ConnectionState{
+				ServerName: common.KubeLocalProxySNI(teleportCluster, "kube1"),
+			},
+		}
+		// we set request context to a context that is already canceled, so handler function will start reissuing
+		// certificate goroutine and then will exit immediately.
+		reqCtx, cancel := context.WithCancel(context.Background())
+		cancel()
+		req = req.WithContext(reqCtx)
+
+		startCerts := KubeClientCerts{}
+		startCerts.Add(teleportCluster, "kube1", kube1Cert)
+		km := NewKubeMiddleware(KubeMiddlewareConfig{
+			Certs:        startCerts,
+			CertReissuer: certReissuer,
+			Clock:        clockwork.NewFakeClockAt(now.Add(time.Hour * 2)),
+			CloseContext: context.Background(),
+		})
+		err := km.CheckAndSetDefaults()
+		require.NoError(t, err)
+
+		var rw *responsewriters.MemoryResponseWriter
+		// We use `require.Eventually` to avoid a very rare test flakiness case when reissue goroutine manages to
+		// successfully finish before the parent goroutine has a chance to check the context (and see that it's expired).
+		require.Eventually(t, func() bool {
+			rw = responsewriters.NewMemoryResponseWriter()
+			// HandleRequest will reissue certificate if needed.
+			km.HandleRequest(rw, req)
+
+			// request timed out.
+			return rw.Status() == http.StatusInternalServerError
+
+		}, 5*time.Second, 100*time.Millisecond)
+		require.Contains(t, rw.Buffer().String(), "context canceled")
+
+		// just let the reissuing goroutine some time to replace certs.
+		time.Sleep(10 * time.Millisecond)
+
+		// but certificate still was reissued.
+		certs, err := km.OverwriteClientCerts(req)
+		require.NoError(t, err)
+		require.Len(t, certs, 1)
+		require.Equal(t, newCert, certs[0], "certificate was not reissued")
+	})
+
+	getStartCerts := func() KubeClientCerts {
+		certs := KubeClientCerts{}
+		certs.Add(teleportCluster, "kube1", kube1Cert)
+		certs.Add(teleportCluster, "kube2", kube2Cert)
+		return certs
+	}
 	testCases := []struct {
 		name            string
 		reqClusterName  string
@@ -516,32 +572,33 @@ func TestKubeMiddleware(t *testing.T) {
 		wantErr         string
 	}{
 		{
-			name:           "kube cluster not found",
-			reqClusterName: "kube3",
-			startCerts:     KubeClientCerts{"kube1": kube1Cert, "kube2": kube2Cert},
-			clock:          clockwork.NewFakeClockAt(now),
-			wantErr:        "no client cert found for kube3",
+			name:            "reissue cert when not found",
+			reqClusterName:  "kube3",
+			startCerts:      getStartCerts(),
+			clock:           clockwork.NewFakeClockAt(now),
+			overwrittenCert: newCert,
+			wantErr:         "",
 		},
 		{
-			name:            "expired cert reissued",
+			name:            "expired cert is reissued",
 			reqClusterName:  "kube1",
-			startCerts:      KubeClientCerts{"kube1": kube1Cert, "kube2": kube2Cert},
+			startCerts:      getStartCerts(),
 			clock:           clockwork.NewFakeClockAt(now.Add(time.Hour * 2)),
 			overwrittenCert: newCert,
 			wantErr:         "",
 		},
 		{
-			name:            "success kube1",
+			name:            "valid cert for kube1 is returned",
 			reqClusterName:  "kube1",
-			startCerts:      KubeClientCerts{"kube1": kube1Cert, "kube2": kube2Cert},
+			startCerts:      getStartCerts(),
 			clock:           clockwork.NewFakeClockAt(now),
 			overwrittenCert: kube1Cert,
 			wantErr:         "",
 		},
 		{
-			name:            "success kube2",
+			name:            "valid cert for kube2 is returned",
 			reqClusterName:  "kube2",
-			startCerts:      KubeClientCerts{"kube1": kube1Cert, "kube2": kube2Cert},
+			startCerts:      getStartCerts(),
 			clock:           clockwork.NewFakeClockAt(now),
 			overwrittenCert: kube2Cert,
 			wantErr:         "",
@@ -552,13 +609,15 @@ func TestKubeMiddleware(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			req := http.Request{
 				TLS: &tls.ConnectionState{
-					ServerName: tt.reqClusterName,
+					ServerName: common.KubeLocalProxySNI(teleportCluster, tt.reqClusterName),
 				},
 			}
 			km := NewKubeMiddleware(KubeMiddlewareConfig{
 				Certs:        tt.startCerts,
 				CertReissuer: certReissuer,
+				Logger:       utils.NewSlogLoggerForTests(),
 				Clock:        tt.clock,
+				CloseContext: context.Background(),
 			})
 
 			// HandleRequest will reissue certificate if needed
@@ -577,7 +636,7 @@ func TestKubeMiddleware(t *testing.T) {
 	}
 }
 
-func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *LocalProxy {
+func createAWSAccessProxySuite(t *testing.T, provider aws.CredentialsProvider) *LocalProxy {
 	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
 
 	lp, err := NewLocalProxy(LocalProxyConfig{
@@ -586,7 +645,7 @@ func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *Loc
 		Protocols:          []common.Protocol{common.ProtocolHTTP},
 		ParentContext:      context.Background(),
 		InsecureSkipVerify: true,
-		HTTPMiddleware:     &AWSAccessMiddleware{AWSCredentials: cred},
+		HTTPMiddleware:     &AWSAccessMiddleware{AWSCredentialsProvider: provider},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -595,7 +654,7 @@ func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *Loc
 		hs.Close()
 	})
 	go func() {
-		err := lp.StartHTTPAccessProxy(context.Background())
+		err := lp.Start(context.Background())
 		assert.NoError(t, err)
 	}()
 	return lp
@@ -715,4 +774,24 @@ func TestGetCertsForConn(t *testing.T) {
 			}
 		})
 	}
+}
+
+type addUserAgentSignedHeaderMiddleware struct {
+}
+
+func (m addUserAgentSignedHeaderMiddleware) ID() string { return "AddUserAgentSignedHeader" }
+func (m addUserAgentSignedHeaderMiddleware) HandleFinalize(
+	ctx context.Context,
+	in middleware.FinalizeInput,
+	next middleware.FinalizeHandler,
+) (out middleware.FinalizeOutput, metadata middleware.Metadata, err error) {
+	req, ok := in.Request.(*smithyhttp.Request)
+	if !ok {
+		return out, metadata, trace.Errorf("unexpected request middleware type %T", in.Request)
+	}
+
+	authHeader := req.Header.Get("Authorization")
+	authHeader = strings.Replace(authHeader, "SignedHeaders=", "SignedHeaders=user-agent;", 1)
+	req.Header.Set("Authorization", authHeader)
+	return next.HandleFinalize(ctx, in)
 }

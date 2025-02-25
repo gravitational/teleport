@@ -34,12 +34,17 @@ import (
 )
 
 type mockJoinServiceServer struct {
-	*proto.UnimplementedJoinServiceServer
-	registerUsingTPMMethod func(srv proto.JoinService_RegisterUsingTPMMethodServer) error
+	proto.UnimplementedJoinServiceServer
+	registerUsingTPMMethod    func(srv proto.JoinService_RegisterUsingTPMMethodServer) error
+	registerUsingOracleMethod func(srv proto.JoinService_RegisterUsingOracleMethodServer) error
 }
 
 func (m *mockJoinServiceServer) RegisterUsingTPMMethod(srv proto.JoinService_RegisterUsingTPMMethodServer) error {
 	return m.registerUsingTPMMethod(srv)
+}
+
+func (m *mockJoinServiceServer) RegisterUsingOracleMethod(srv proto.JoinService_RegisterUsingOracleMethodServer) error {
+	return m.registerUsingOracleMethod(srv)
 }
 
 func TestJoinServiceClient_RegisterUsingTPMMethod(t *testing.T) {
@@ -109,16 +114,21 @@ func TestJoinServiceClient_RegisterUsingTPMMethod(t *testing.T) {
 	proto.RegisterJoinServiceServer(srv, mockService)
 
 	go func() {
+		defer cancel()
 		err := srv.Serve(lis)
 		if err != nil && !errors.Is(err, grpc.ErrServerStopped) {
 			assert.NoError(t, err)
 		}
-		cancel()
 	}()
 
-	c, err := grpc.NewClient("unused.com", grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-		return lis.DialContext(ctx)
-	}), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// grpc.NewClient attempts to DNS resolve addr, whereas grpc.Dial doesn't.
+	c, err := grpc.Dial(
+		"bufconn",
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return lis.DialContext(ctx)
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 	require.NoError(t, err)
 
 	joinClient := NewJoinServiceClient(proto.NewJoinServiceClient(c))
@@ -129,6 +139,110 @@ func TestJoinServiceClient_RegisterUsingTPMMethod(t *testing.T) {
 		func(challenge *proto.TPMEncryptedCredential) (*proto.RegisterUsingTPMMethodChallengeResponse, error) {
 			assert.Empty(t, cmp.Diff(mockChallenge, challenge))
 			return mockChallengeResp, nil
+		},
+	)
+	if assert.NoError(t, err) {
+		assert.Empty(t, cmp.Diff(mockCerts, certs))
+	}
+}
+
+func TestJoinServiceClient_RegisterUsingOracleMethod(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	lis := bufconn.Listen(100)
+	t.Cleanup(func() {
+		assert.NoError(t, lis.Close())
+	})
+
+	tokenReq := &types.RegisterUsingTokenRequest{
+		Token: "token",
+	}
+	mockTokenRequest := &proto.RegisterUsingOracleMethodRequest{
+		Request: &proto.RegisterUsingOracleMethodRequest_RegisterUsingTokenRequest{
+			RegisterUsingTokenRequest: tokenReq,
+		},
+	}
+	mockChallenge := "challenge"
+	oracleReq := &proto.OracleSignedRequest{
+		Headers: map[string]string{
+			"x-teleport-challenge": mockChallenge,
+		},
+		PayloadHeaders: map[string]string{
+			"x-teleport-challenge": mockChallenge,
+		},
+	}
+
+	mockOracleRequest := &proto.RegisterUsingOracleMethodRequest{
+		Request: &proto.RegisterUsingOracleMethodRequest_OracleRequest{
+			OracleRequest: oracleReq,
+		},
+	}
+	mockCerts := &proto.Certs{
+		TLS: []byte("cert"),
+	}
+	mockService := &mockJoinServiceServer{
+		registerUsingOracleMethod: func(srv proto.JoinService_RegisterUsingOracleMethodServer) error {
+			tokenReq, err := srv.Recv()
+			if !assert.NoError(t, err) {
+				return err
+			}
+			assert.Empty(t, cmp.Diff(mockTokenRequest, tokenReq))
+			err = srv.Send(&proto.RegisterUsingOracleMethodResponse{
+				Response: &proto.RegisterUsingOracleMethodResponse_Challenge{
+					Challenge: mockChallenge,
+				},
+			})
+			if !assert.NoError(t, err) {
+				return err
+			}
+			headerReq, err := srv.Recv()
+			if !assert.NoError(t, err) {
+				return err
+			}
+			assert.Empty(t, cmp.Diff(mockOracleRequest, headerReq))
+
+			err = srv.Send(&proto.RegisterUsingOracleMethodResponse{
+				Response: &proto.RegisterUsingOracleMethodResponse_Certs{
+					Certs: mockCerts,
+				},
+			})
+			if !assert.NoError(t, err) {
+				return err
+			}
+			return nil
+		},
+	}
+	srv := grpc.NewServer()
+	t.Cleanup(srv.Stop)
+	proto.RegisterJoinServiceServer(srv, mockService)
+
+	go func() {
+		defer cancel()
+		err := srv.Serve(lis)
+		if err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+			assert.NoError(t, err)
+		}
+	}()
+
+	// grpc.NewClient attempts to DNS resolve addr, whereas grpc.Dial doesn't.
+	c, err := grpc.Dial(
+		"bufconn",
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return lis.DialContext(ctx)
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	require.NoError(t, err)
+
+	joinClient := NewJoinServiceClient(proto.NewJoinServiceClient(c))
+	certs, err := joinClient.RegisterUsingOracleMethod(
+		ctx,
+		tokenReq,
+		func(challenge string) (*proto.OracleSignedRequest, error) {
+			assert.Equal(t, mockChallenge, challenge)
+			return oracleReq, nil
 		},
 	)
 	if assert.NoError(t, err) {

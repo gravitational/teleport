@@ -20,8 +20,12 @@ syntax = "proto3";
 
 package accessgraph.v1alpha;
 
+import "teleport/access_graph/v1/authorized_key.proto";
+import "teleport/access_graph/v1/private_key.proto";
 import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/crownjewel/v1/crownjewel.proto";
+import "teleport/dbobject/v1/dbobject.proto";
+import "teleport/devicetrust/v1/device.proto";
 import "teleport/legacy/types/types.proto";
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
@@ -76,5 +80,13 @@ message ResourceEntry {
     teleport.accesslist.v1.AccessList access_list = 9;
     // crown_jewel is a resource for crown jewels.
     teleport.crownjewel.v1.CrownJewel crown_jewel = 10;
+    // database_object is a resource for database objects.
+    teleport.dbobject.v1.DatabaseObject database_object = 11;
+    // device is a device trust resource.
+    teleport.devicetrust.v1.Device device = 12;
+    // private_key represents a private key resource found in user's laptops.
+    teleport.access_graph.v1.PrivateKey private_key = 13;
+    // authorized_key represents a authorized key for a server.
+    teleport.access_graph.v1.AuthorizedKey authorized_key = 14;
   }
 }

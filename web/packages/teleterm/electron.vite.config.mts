@@ -16,31 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { resolve } from 'path';
+import path from 'node:path';
 
-import { existsSync, readFileSync } from 'fs';
-
-import react from '@vitejs/plugin-react-swc';
-import tsconfigPaths from 'vite-tsconfig-paths';
 import { defineConfig, externalizeDepsPlugin, UserConfig } from 'electron-vite';
+import type { Plugin } from 'vite';
 
-import { cspPlugin } from '../build/vite/csp';
-
-import { getStyledComponentsConfig } from '../build/vite/styled';
+import { reactPlugin } from '@gravitational/build/vite/react.mjs';
+import { tsconfigPathsPlugin } from '@gravitational/build/vite/tsconfigPaths.mjs';
 
 import { getConnectCsp } from './csp';
 
-const rootDirectory = resolve(__dirname, '../../..');
-const outputDirectory = resolve(__dirname, 'build', 'app');
+const rootDirectory = path.resolve(__dirname, '../../..');
+const outputDirectory = path.resolve(__dirname, 'build', 'app');
 
 // these dependencies don't play well unless they're externalized
 // if Vite complains about a dependency, add it here
 const externalizeDeps = ['strip-ansi', 'ansi-regex', 'd3-color'];
 
 const config = defineConfig(env => {
-  const tsConfigPathsPlugin = tsconfigPaths({
-    projects: [resolve(rootDirectory, 'tsconfig.json')],
-  });
+  const tsConfigPathsPlugin = tsconfigPathsPlugin();
 
   const commonPlugins = [
     externalizeDepsPlugin({ exclude: externalizeDeps }),
@@ -50,15 +44,15 @@ const config = defineConfig(env => {
   const config: UserConfig = {
     main: {
       build: {
-        outDir: resolve(outputDirectory, 'main'),
+        outDir: path.resolve(outputDirectory, 'main'),
         rollupOptions: {
           input: {
-            index: resolve(__dirname, 'src/main.ts'),
-            sharedProcess: resolve(
+            index: path.resolve(__dirname, 'src/main.ts'),
+            sharedProcess: path.resolve(
               __dirname,
               'src/sharedProcess/sharedProcess.ts'
             ),
-            agentCleanupDaemon: resolve(
+            agentCleanupDaemon: path.resolve(
               __dirname,
               'src/agentCleanupDaemon/agentCleanupDaemon.js'
             ),
@@ -80,10 +74,10 @@ const config = defineConfig(env => {
     },
     preload: {
       build: {
-        outDir: resolve(outputDirectory, 'preload'),
+        outDir: path.resolve(outputDirectory, 'preload'),
         rollupOptions: {
           input: {
-            index: resolve(__dirname, 'src/preload.ts'),
+            index: path.resolve(__dirname, 'src/preload.ts'),
           },
           output: {
             manualChunks,
@@ -99,10 +93,10 @@ const config = defineConfig(env => {
     renderer: {
       root: '.',
       build: {
-        outDir: resolve(outputDirectory, 'renderer'),
+        outDir: path.resolve(outputDirectory, 'renderer'),
         rollupOptions: {
           input: {
-            index: resolve(__dirname, 'index.html'),
+            index: path.resolve(__dirname, 'index.html'),
           },
         },
       },
@@ -114,14 +108,7 @@ const config = defineConfig(env => {
         },
       },
       plugins: [
-        react({
-          plugins: [
-            [
-              '@swc/plugin-styled-components',
-              getStyledComponentsConfig(env.mode),
-            ],
-          ],
-        }),
+        reactPlugin(env.mode),
         cspPlugin(getConnectCsp(env.mode === 'development')),
         tsConfigPathsPlugin,
       ],
@@ -130,31 +117,6 @@ const config = defineConfig(env => {
       },
     },
   };
-
-  if (env.mode === 'development') {
-    if (process.env.VITE_HTTPS_KEY && process.env.VITE_HTTPS_CERT) {
-      config.renderer.server.https = {
-        key: readFileSync(process.env.VITE_HTTPS_KEY),
-        cert: readFileSync(process.env.VITE_HTTPS_CERT),
-      };
-    } else {
-      const certsDirectory = resolve(rootDirectory, 'web/certs');
-
-      if (!existsSync(certsDirectory)) {
-        throw new Error(
-          'Could not find SSL certificates. Please follow web/README.md to generate certificates.'
-        );
-      }
-
-      const keyPath = resolve(certsDirectory, 'server.key');
-      const certPath = resolve(certsDirectory, 'server.crt');
-
-      config.renderer.server.https = {
-        key: readFileSync(keyPath),
-        cert: readFileSync(certPath),
-      };
-    }
-  }
 
   return config;
 });
@@ -167,4 +129,24 @@ function manualChunks(id: string) {
       return dep;
     }
   }
+}
+
+function cspPlugin(csp: string): Plugin {
+  return {
+    name: 'teleport-connect-html-plugin',
+    transformIndexHtml(html) {
+      return {
+        html,
+        tags: [
+          {
+            tag: 'meta',
+            attrs: {
+              'http-equiv': 'Content-Security-Policy',
+              content: csp,
+            },
+          },
+        ],
+      };
+    },
+  };
 }

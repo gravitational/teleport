@@ -50,12 +50,12 @@ export const Dropdown = styled.div<OpenProps>`
   @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
     top: ${p => p.theme.topBarHeight[1]}px;
   }
-  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
-    top: ${p => p.theme.topBarHeight[2]}px;
-  }
 `;
 
-export const DropdownItem = styled.div`
+export const DropdownItem = styled.div<{
+  open?: boolean;
+  $transitionDelay: number;
+}>`
   line-height: 1;
   font-size: ${p => p.theme.fontSizes[2]}px;
   color: ${props => props.theme.colors.text.main};
@@ -69,7 +69,8 @@ export const DropdownItem = styled.div`
   transform: translate3d(${p => (p.open ? 0 : '20px')}, 0, 0);
   transition-delay: ${p => p.$transitionDelay}ms;
 
-  &:hover {
+  &:hover,
+  &:focus-within {
     background: ${props => props.theme.colors.spotBackground[0]};
   }
 
@@ -84,6 +85,7 @@ export const commonDropdownItemStyles = css`
   padding: ${p => p.theme.space[1] * 3}px;
   color: ${props => props.theme.colors.text.main};
   text-decoration: none;
+  outline: none;
 
   svg {
     height: 18px;

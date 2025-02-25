@@ -34,6 +34,9 @@ import (
 // when setting up an enterprise application.
 const azureDefaultJWTAudience = "api://AzureADTokenExchange"
 
+// azureSubject is the subject of our choosing for the OIDC credential.
+const azureSubject = "teleport-azure"
+
 // KeyStoreManager defines methods to get signers using the server's keystore.
 type KeyStoreManager interface {
 	// GetJWTSigner selects a usable JWT keypair from the given keySet and returns a [crypto.Signer].
@@ -67,7 +70,7 @@ func GenerateEntraOIDCToken(ctx context.Context, cache Cache, manager KeyStoreMa
 		return "", trace.Wrap(err)
 	}
 
-	issuer, err := oidc.IssuerForCluster(ctx, cache)
+	issuer, err := oidc.IssuerForCluster(ctx, cache, "")
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -84,7 +87,7 @@ func GenerateEntraOIDCToken(ctx context.Context, cache Cache, manager KeyStoreMa
 
 	token, err := privateKey.SignEntraOIDC(jwt.SignParams{
 		Audience: azureDefaultJWTAudience,
-		Subject:  "teleport-azure", // TODO(justinas): consider moving this to a constant or a field in the integration settings
+		Subject:  azureSubject,
 		Issuer:   issuer,
 		Expires:  clock.Now().Add(time.Hour),
 	})

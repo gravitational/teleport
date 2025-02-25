@@ -65,6 +65,7 @@ func TestUnmarshalCrownJewel(t *testing.T) {
 			},
 		},
 		Spec: &crownjewelv1.CrownJewelSpec{
+			Query: "SELECT * FROM nodes",
 			TeleportMatchers: []*crownjewelv1.TeleportMatcher{
 				{
 					Kinds: []string{"node"},
@@ -106,6 +107,7 @@ metadata:
     env: example
   name: example-crown-jewel
 spec:
+  query: "SELECT * FROM nodes"
   aws_matchers:
     - regions:
         - us-west-1

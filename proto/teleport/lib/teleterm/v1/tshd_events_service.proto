@@ -20,6 +20,8 @@ syntax = "proto3";
 
 package teleport.lib.teleterm.v1;
 
+import "teleport/lib/teleterm/v1/app.proto";
+
 option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
 
 // TshdEventsService is served by the Electron app. The tsh daemon calls this service to notify the
@@ -28,23 +30,60 @@ service TshdEventsService {
   // Relogin makes the Electron app display a login modal for the specific root cluster. The request
   // returns a response after the relogin procedure has been successfully finished.
   rpc Relogin(ReloginRequest) returns (ReloginResponse);
+
   // SendNotification causes the Electron app to display a notification in the UI. The request
   // accepts a specific message rather than a generic string so that the Electron is in control as
   // to what message is displayed and how exactly it looks.
   rpc SendNotification(SendNotificationRequest) returns (SendNotificationResponse);
+
   // SendPendingHeadlessAuthentication notifies the Electron app of a pending headless authentication,
   // which it can use to initiate headless authentication resolution in the UI.
   rpc SendPendingHeadlessAuthentication(SendPendingHeadlessAuthenticationRequest) returns (SendPendingHeadlessAuthenticationResponse);
-  // PromptMFA notifies the Electron app that the daemon is waiting for the user to answer an MFA prompt.
+
+  // PromptMFA notifies the Electron app that the daemon wants to prompt for MFA.
+  // If TOTP is supported, the Electron app can return a totp code to complete the ceremony.
+  // If Webauthn or SSO are supported, tsh daemon waits for the Electron App to choose
+  // an option in the response before prompting for either.
+  //
+  // In order for the WebAuthn and SSO prompts to be reflected in the Electron App, the
+  // Electron app can display a waiting screen and listen for the tsh daemon to send a
+  // notification to close the screen.
   rpc PromptMFA(PromptMFARequest) returns (PromptMFAResponse);
+
+  // PromptHardwareKeyPIN notifies the Electron app that the daemon is waiting for the user to
+  // provide the hardware key PIN.
+  rpc PromptHardwareKeyPIN(PromptHardwareKeyPINRequest) returns (PromptHardwareKeyPINResponse);
+
+  // PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to touch the hardware key.
+  // When the daemon detects the touch, it cancels the prompt.
+  rpc PromptHardwareKeyTouch(PromptHardwareKeyTouchRequest) returns (PromptHardwareKeyTouchResponse);
+
+  // PromptHardwareKeyPINChange notifies the Electron app that the daemon is waiting for the user to
+  // change the hardware key PIN.
+  rpc PromptHardwareKeyPINChange(PromptHardwareKeyPINChangeRequest) returns (PromptHardwareKeyPINChangeResponse);
+
+  // ConfirmHardwareKeySlotOverwrite displays a dialog prompting the user to confirm whether
+  // the slot's private key and certificate should be overwritten.
+  rpc ConfirmHardwareKeySlotOverwrite(ConfirmHardwareKeySlotOverwriteRequest) returns (ConfirmHardwareKeySlotOverwriteResponse);
+
+  // GetUsageReportingSettings returns the current state of usage reporting.
+  // At the moment, the user cannot toggle usage reporting on and off without shutting down the app,
+  // with the only exception being the first start of the app when they're prompted about telemetry.
+  // Hence why this is an RPC and not information passed over argv to tsh daemon.
+  rpc GetUsageReportingSettings(GetUsageReportingSettingsRequest) returns (GetUsageReportingSettingsResponse);
+
+  // ReportUnexpectedVnetShutdown is sent by tsh daemon when VNet exits outside of the
+  // request-response cycle of Start and Stop RPCs of VnetService. The Electron app is then able to
+  // update the state of VNet in the UI.
+  rpc ReportUnexpectedVnetShutdown(ReportUnexpectedVnetShutdownRequest) returns (ReportUnexpectedVnetShutdownResponse);
 }
 
-// Relogin
-
+// Request for Relogin.
 message ReloginRequest {
   string root_cluster_uri = 1;
   oneof reason {
     GatewayCertExpired gateway_cert_expired = 2;
+    VnetCertExpired vnet_cert_expired = 3;
   }
 }
 
@@ -59,13 +98,28 @@ message GatewayCertExpired {
   string target_uri = 2;
 }
 
+// VnetCertExpired describes which app the user was trying to reach with an expired cert.
+message VnetCertExpired {
+  // target_uri for now points solely at apps, but it's not called app_uri to make it future-proof.
+  string target_uri = 1;
+  reserved 2;
+  reserved "public_addr";
+  // route_to_app is the metadata associated with the app that the user was trying to reach.
+  RouteToApp route_to_app = 3;
+}
+
+// Response for Relogin.
 message ReloginResponse {}
 
-// SendNotification
-
+// SendNotificationRequest includes details behind a notification.
+//
+// Rather than including arbitrary text strings, SendNotificationRequest should contain minimal
+// details. The Electron app can then consume and format them as needed, without having to change
+// what is sent over the wire.
 message SendNotificationRequest {
   oneof subject {
     CannotProxyGatewayConnection cannot_proxy_gateway_connection = 1;
+    CannotProxyVnetConnection cannot_proxy_vnet_connection = 2;
   }
 }
 
@@ -79,27 +133,143 @@ message CannotProxyGatewayConnection {
   string error = 3;
 }
 
+// CannotProxyVnetConnection describes which app couldn't have been proxied through VNet and why.
+message CannotProxyVnetConnection {
+  string target_uri = 1;
+  reserved 2;
+  reserved "error";
+  reserved 3;
+  reserved "public_addr";
+  // route_to_app is the metadata associated with the app that the user was trying to reach.
+  RouteToApp route_to_app = 4;
+  oneof reason {
+    CertReissueError cert_reissue_error = 5;
+    InvalidLocalPort invalid_local_port = 6;
+  }
+}
+
+// CertReissueError is sent as reason in CannotProxyVnetConnection when VNet wasn't able to reissue
+// a cert for a local proxy.
+message CertReissueError {
+  string error = 1;
+}
+
+// InvalidLocalPort is sent as reason in CannotProxyVnetConnection when VNet refused a connection
+// because its local port did not match any TCP ports in the spec of the app. The port is included
+// in route_to_app as target_port.
+message InvalidLocalPort {
+  // tcp_ports represents valid port ranges for the app. Sent only if there's less than 10 port
+  // ranges to keep the UI clean and to limit how much data is sent on each failed attempt.
+  repeated PortRange tcp_ports = 1;
+}
+
+// Response for SendNotification.
 message SendNotificationResponse {}
 
-// SendPendingHeadlessAuthentication
-
+// Request for SendPendingHeadlessAuthentication.
 message SendPendingHeadlessAuthenticationRequest {
   string root_cluster_uri = 1;
   string headless_authentication_id = 2;
   string headless_authentication_client_ip = 3;
 }
 
+// Response for SendPendingHeadlessAuthentication.
 message SendPendingHeadlessAuthenticationResponse {}
 
-// PromptMFA
-
+// Request for PromptMFA.
 message PromptMFARequest {
-  string root_cluster_uri = 1;
+  reserved 1; // root_cluster_uri
+  reserved "root_cluster_uri";
   string reason = 2;
   bool totp = 3;
   bool webauthn = 4;
+  string cluster_uri = 5;
+  SSOChallenge sso = 6;
 }
 
+// SSOChallenge contains SSO challenge details.
+message SSOChallenge {
+  string connector_id = 1;
+  string connector_type = 2;
+  string display_name = 3;
+  string redirect_url = 4;
+}
+
+// Response for PromptMFA.
 message PromptMFAResponse {
   string totp_code = 1;
 }
+
+// Request for PromptHardwareKeyPIN.
+message PromptHardwareKeyPINRequest {
+  string root_cluster_uri = 1;
+  // Specifies if a PIN is optional, allowing the user to set it up if left empty.
+  bool pin_optional = 2;
+}
+
+// Response for PromptHardwareKeyPIN.
+message PromptHardwareKeyPINResponse {
+  // pin as inputted by the user in the Electron app.
+  string pin = 1;
+}
+
+// Request for PromptHardwareKeyTouchRequest.
+message PromptHardwareKeyTouchRequest {
+  string root_cluster_uri = 1;
+}
+
+// Response for PromptHardwareKeyTouch.
+message PromptHardwareKeyTouchResponse {}
+
+// Response for PromptHardwareKeyPINChange.
+message PromptHardwareKeyPINChangeRequest {
+  string root_cluster_uri = 1;
+}
+
+// Response for PromptHardwareKeyPINChange.
+message PromptHardwareKeyPINChangeResponse {
+  // New pin set by the user.
+  string pin = 1;
+  // PUK is needed to change the PIN.
+  // This is a new PUK if it has not been changed from the default PUK.
+  string puk = 2;
+  // puk_changed is true if the user changed the default PUK.
+  bool puk_changed = 3;
+}
+
+// Request for ConfirmHardwareKeySlotOverwrite.
+message ConfirmHardwareKeySlotOverwriteRequest {
+  string root_cluster_uri = 1;
+  // Message to display in the prompt.
+  string message = 2;
+}
+
+// Response for ConfirmHardwareKeySlotOverwrite.
+message ConfirmHardwareKeySlotOverwriteResponse {
+  // If true, the slot will be overridden.
+  bool confirmed = 1;
+}
+
+// Request for GetUsageReportingSettings.
+message GetUsageReportingSettingsRequest {}
+
+// Response for GetUsageReportingSettings.
+message GetUsageReportingSettingsResponse {
+  UsageReportingSettings usage_reporting_settings = 1;
+}
+
+// UsageReportingSettings contains information about usage reporting as understood by the Electron
+// app.
+message UsageReportingSettings {
+  bool enabled = 1;
+}
+
+// Request for ReportUnexpectedVnetShutdown.
+message ReportUnexpectedVnetShutdownRequest {
+  // error is the error message with which VNet was shut down. Technically it can be empty, so
+  // consumers should account for that.
+  string error = 1;
+}
+
+// Response for ReportUnexpectedVnetShutdown.
+message ReportUnexpectedVnetShutdownResponse {}

@@ -15,6 +15,7 @@
 package utils
 
 import (
+	"cmp"
 	"context"
 	"testing"
 
@@ -273,6 +274,7 @@ func TestSSHRouteMatcherScoring(t *testing.T) {
 	tts := []struct {
 		desc     string
 		hostname string
+		name     string
 		addrs    []string
 		score    int
 	}{
@@ -309,17 +311,91 @@ func TestSSHRouteMatcherScoring(t *testing.T) {
 			},
 			score: notMatch,
 		},
+		{
+			desc:     "non-uuid name",
+			name:     "foo.example.com",
+			hostname: "foo.com",
+			addrs: []string{
+				"0.0.0.0:0",
+				"1.1.1.1:0",
+			},
+			score: indirectMatch,
+		},
 	}
 
 	for _, tt := range tts {
 		t.Run(tt.desc, func(t *testing.T) {
+			name := cmp.Or(tt.name, uuid.NewString())
 			score := matcher.RouteToServerScore(mockRouteableServer{
-				name:       uuid.NewString(),
+				name:       name,
 				hostname:   tt.hostname,
 				publicAddr: tt.addrs,
 			})
 
 			require.Equal(t, tt.score, score)
+		})
+	}
+}
+
+type recordingHostResolver struct {
+	didLookup bool
+}
+
+func (r *recordingHostResolver) LookupHost(ctx context.Context, host string) (addrs []string, err error) {
+	r.didLookup = true
+	return nil, nil
+}
+
+// TestDisableUnqualifiedLookups verifies that unqualified lookups being disabled results
+// in single-element/tld style hostname targets not being resolved.
+func TestDisableUnqualifiedLookups(t *testing.T) {
+	tts := []struct {
+		desc   string
+		target string
+		lookup bool
+	}{
+		{
+			desc:   "qualified hostname",
+			target: "example.com",
+			lookup: true,
+		},
+		{
+			desc:   "unqualified hostname",
+			target: "example",
+			lookup: false,
+		},
+		{
+			desc:   "localhost",
+			target: "localhost",
+			lookup: false,
+		},
+		{
+			desc:   "foo.localhost",
+			target: "foo.localhost",
+			lookup: true,
+		},
+		{
+			desc:   "uuid",
+			target: uuid.NewString(),
+			lookup: false,
+		},
+		{
+			desc:   "qualified uuid",
+			target: "foo." + uuid.NewString(),
+			lookup: true,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.desc, func(t *testing.T) {
+			resolver := &recordingHostResolver{}
+			_, err := NewSSHRouteMatcherFromConfig(SSHRouteMatcherConfig{
+				Host:                      tt.target,
+				Resolver:                  resolver,
+				DisableUnqualifiedLookups: true,
+			})
+			require.NoError(t, err)
+			require.Equal(t, tt.lookup, resolver.didLookup)
 		})
 	}
 }

@@ -1,0 +1,37 @@
+# This style enforces numbering in "## Step [0-9]+/[0-9]+" H2-level headings in
+# the docs (e.g., "Step 1/3"). It expects steps to have sequential numbering and
+# for total step counts to be equal to the actual total number of steps.
+# 
+# It is up to other vale styles to enforce other rules related to step headings,
+# such as the presence of step headings in how-to guides and the formatting of
+# step headings.
+extends: script
+level: error
+message: Guides that include H2 sections named after numbered steps (e.g., "Step 1/5") must have the expected sequence of numbers and accurate total numbers of steps. This heading either has an unexpected step number or an unexpected total number of steps.
+scope: raw
+script: |
+  text := import("text")
+  getMatches := func() {
+    // Get all sections named "Step n/d"
+    stepH2s := text.re_find(`\n## Step ([0-9]+)/([0-9]+)`, scope, -1)
+    if stepH2s == undefined {
+      return []
+    }
+
+    for i, h2 in stepH2s {
+      // Get the step number and total step count. Since this already matches the regular expression
+      // for step numbers, we know there must be one integer on either side of "/".
+      if text.atoi(h2[1].text) != i+1 || 
+        text.atoi(h2[2].text) != len(stepH2s) {
+        return [{
+          // The step number pattern begins with a newline character since the 
+          // input text is concatenated, so exclude the newline from the error
+          // for more accurate messaging.
+          begin: h2[0].begin+1,
+          end: h2[0].end
+        }]
+      }
+    }
+  }
+
+  matches := getMatches()

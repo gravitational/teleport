@@ -50,7 +50,7 @@ func (c *Client) ListCrownJewels(ctx context.Context, pageSize int64, nextToken 
 // CreateCrownJewel creates a new Crown Jewel.
 func (c *Client) CreateCrownJewel(ctx context.Context, req *crownjewelv1.CrownJewel) (*crownjewelv1.CrownJewel, error) {
 	rsp, err := c.grpcClient.CreateCrownJewel(ctx, &crownjewelv1.CreateCrownJewelRequest{
-		CrownJewels: req,
+		CrownJewel: req,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -72,7 +72,7 @@ func (c *Client) GetCrownJewel(ctx context.Context, name string) (*crownjewelv1.
 // UpdateCrownJewel updates an existing Crown Jewel.
 func (c *Client) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.CrownJewel) (*crownjewelv1.CrownJewel, error) {
 	rsp, err := c.grpcClient.UpdateCrownJewel(ctx, &crownjewelv1.UpdateCrownJewelRequest{
-		CrownJewels: req,
+		CrownJewel: req,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -83,7 +83,7 @@ func (c *Client) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.CrownJe
 // UpsertCrownJewel upserts a Crown Jewel.
 func (c *Client) UpsertCrownJewel(ctx context.Context, req *crownjewelv1.CrownJewel) (*crownjewelv1.CrownJewel, error) {
 	rsp, err := c.grpcClient.UpsertCrownJewel(ctx, &crownjewelv1.UpsertCrownJewelRequest{
-		CrownJewels: req,
+		CrownJewel: req,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

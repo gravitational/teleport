@@ -19,14 +19,14 @@
 import React, { PropsWithChildren } from 'react';
 
 import { TeleportProvider } from 'teleport/Discover/Fixtures/fixtures';
-import { ResourceKind } from 'teleport/Discover/Shared';
 import { KubeLocation, ResourceSpec } from 'teleport/Discover/SelectResource';
+import { KUBERNETES } from 'teleport/Discover/SelectResource/resources';
+import { ResourceKind } from 'teleport/Discover/Shared';
 import { EksMeta } from 'teleport/Discover/useDiscover';
 import {
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
-import { KUBERNETES } from 'teleport/Discover/SelectResource/resources';
 
 export function getKubeResourceSpec(location?: KubeLocation): ResourceSpec {
   return {

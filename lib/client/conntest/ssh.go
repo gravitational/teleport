@@ -33,10 +33,12 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/connectmycomputer"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	libsshutils "github.com/gravitational/teleport/lib/sshutils"
 )
 
@@ -44,7 +46,7 @@ import (
 type SSHConnectionTesterConfig struct {
 	// UserClient is an auth client that has a User's identity.
 	// This is the user that is running the SSH Connection Test.
-	UserClient auth.ClientI
+	UserClient authclient.ClientI
 
 	// ProxyHostPort is the proxy to use in the `--proxy` format (host:webPort,sshPort)
 	ProxyHostPort string
@@ -106,7 +108,19 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return nil, trace.Wrap(err)
 	}
 
-	key, err := client.GenerateRSAKey()
+	key, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromAuthPreference(s.cfg.UserClient),
+		cryptosuites.UserSSH)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	privateKey, err := keys.NewSoftwarePrivateKey(key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	keyRing := client.NewKeyRing(privateKey, privateKey)
+
+	tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -122,7 +136,8 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	}
 
 	certs, err := s.cfg.UserClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey:              key.MarshalSSHPublicKey(),
+		SSHPublicKey:           keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
+		TLSPublicKey:           tlsPub,
 		Username:               currentUser.GetName(),
 		Expires:                time.Now().Add(time.Minute).UTC(),
 		ConnectionDiagnosticID: connectionDiagnosticID,
@@ -132,8 +147,8 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return nil, trace.Wrap(err)
 	}
 
-	key.Cert = certs.SSH
-	key.TLSCert = certs.TLS
+	keyRing.Cert = certs.SSH
+	keyRing.TLSCert = certs.TLS
 
 	certAuths, err := s.cfg.UserClient.GetCertAuthorities(ctx, types.HostCA, false /* loadKeys */)
 	if err != nil {
@@ -145,9 +160,9 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return nil, trace.Wrap(err)
 	}
 
-	key.TrustedCerts = auth.AuthoritiesToTrustedCerts(certAuths)
+	keyRing.TrustedCerts = authclient.AuthoritiesToTrustedCerts(certAuths)
 
-	keyAuthMethod, err := key.AsAuthMethod()
+	keyAuthMethod, err := keyRing.AsAuthMethod()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -157,12 +172,12 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return nil, trace.Wrap(err)
 	}
 
-	clientConfTLS, err := key.TeleportClientTLSConfig(nil, []string{clusterName.GetClusterName()})
+	clientConfTLS, err := keyRing.TeleportClientTLSConfig(nil, []string{clusterName.GetClusterName()})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	key.KeyIndex = client.KeyIndex{
+	keyRing.KeyRingIndex = client.KeyRingIndex{
 		Username:    req.SSHPrincipal,
 		ProxyHost:   s.webProxyAddr,
 		ClusterName: clusterName.GetClusterName(),
@@ -195,7 +210,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	ctxWithTimeout, cancelFunc := context.WithTimeout(ctx, req.DialTimeout)
 	defer cancelFunc()
 
-	if err := tc.SSH(ctxWithTimeout, []string{"whoami"}, false); err != nil {
+	if err := tc.SSH(ctxWithTimeout, []string{"whoami"}); err != nil {
 		return s.handleErrFromSSH(ctx, connectionDiagnosticID, req.SSHPrincipal, err, processStdout, currentUser, req)
 	}
 

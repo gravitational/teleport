@@ -19,13 +19,14 @@
 package db
 
 import (
+	"context"
+	"log/slog"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -49,17 +50,20 @@ func (f *azurePostgresFlexServerFetcher) GetServerLocation(server *armpostgresql
 }
 
 // NewDatabaseFromServer converts an Azure PostgreSQL server to a Teleport database.
-func (f *azurePostgresFlexServerFetcher) NewDatabaseFromServer(server *armpostgresqlflexibleservers.Server, log logrus.FieldLogger) types.Database {
-	if !f.isAvailable(server, log) {
-		log.Debugf("The current status of Azure PostgreSQL Flexible server %q is %q. Skipping.",
+func (f *azurePostgresFlexServerFetcher) NewDatabaseFromServer(ctx context.Context, server *armpostgresqlflexibleservers.Server, logger *slog.Logger) types.Database {
+	if !f.isAvailable(server, logger) {
+		logger.DebugContext(ctx, "Skipping unavailable Azure PostgreSQL Flexible server",
 			azure.StringVal(server.Name),
 			azure.StringVal(server.Properties.State))
 		return nil
 	}
 
-	database, err := services.NewDatabaseFromAzurePostgresFlexServer(server)
+	database, err := common.NewDatabaseFromAzurePostgresFlexServer(server)
 	if err != nil {
-		log.Warnf("Could not convert Azure PostgreSQL server %q to database resource: %v.", azure.StringVal(server.Name), err)
+		logger.WarnContext(ctx, "Could not convert Azure PostgreSQL server to database resource",
+			"server", azure.StringVal(server.Name),
+			"error", err,
+		)
 		return nil
 	}
 	return database
@@ -67,7 +71,7 @@ func (f *azurePostgresFlexServerFetcher) NewDatabaseFromServer(server *armpostgr
 
 // isAvailable checks the status of the server and returns true if the server
 // is available.
-func (f *azurePostgresFlexServerFetcher) isAvailable(server *armpostgresqlflexibleservers.Server, log logrus.FieldLogger) bool {
+func (f *azurePostgresFlexServerFetcher) isAvailable(server *armpostgresqlflexibleservers.Server, logger *slog.Logger) bool {
 	state := armpostgresqlflexibleservers.ServerState(azure.StringVal(server.Properties.State))
 	switch state {
 	case armpostgresqlflexibleservers.ServerStateReady, armpostgresqlflexibleservers.ServerStateUpdating:
@@ -80,8 +84,9 @@ func (f *azurePostgresFlexServerFetcher) isAvailable(server *armpostgresqlflexib
 		// server state is known and it's not available.
 		return false
 	}
-	log.Warnf("Unknown status type: %q. Assuming Azure PostgreSQL Flexible server %q is available.",
-		state,
-		azure.StringVal(server.Name))
+	logger.WarnContext(context.Background(), "Assuming Azure PostgreSQL Flexible server with unknown status is available",
+		"status", state,
+		"server", azure.StringVal(server.Name),
+	)
 	return true
 }

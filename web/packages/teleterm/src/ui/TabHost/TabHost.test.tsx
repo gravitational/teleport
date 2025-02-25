@@ -16,16 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createRef } from 'react';
-import { fireEvent, render, screen } from 'design/utils/testing';
+import 'jest-canvas-mock';
 
-import { TabHost } from 'teleterm/ui/TabHost/TabHost';
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-import { Document } from 'teleterm/ui/services/workspacesService';
+import { createRef } from 'react';
+
+import { act, fireEvent, render, screen } from 'design/utils/testing';
+
 import { TabContextMenuOptions } from 'teleterm/mainProcess/types';
-import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
+import {
+  makeRootCluster,
+  rootClusterUri,
+} from 'teleterm/services/tshd/testHelpers';
+import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { Document } from 'teleterm/ui/services/workspacesService';
+import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
+import { TabHost } from 'teleterm/ui/TabHost/TabHost';
+import { routing } from 'teleterm/ui/uri';
 
 function getMockDocuments(): Document[] {
   return [
@@ -42,30 +50,11 @@ function getMockDocuments(): Document[] {
   ];
 }
 
-const rootClusterUri = '/clusters/test_uri';
-
-function getTestSetup({ documents }: { documents: Document[] }) {
+async function getTestSetup({ documents }: { documents: Document[] }) {
   const appContext = new MockAppContext();
   jest.spyOn(appContext.mainProcessClient, 'openTabContextMenu');
 
-  appContext.clustersService.setState(draft => {
-    draft.clusters.set(
-      rootClusterUri,
-      makeRootCluster({
-        uri: rootClusterUri,
-      })
-    );
-  });
-
-  appContext.workspacesService.setState(draft => {
-    draft.rootClusterUri = rootClusterUri;
-    draft.workspaces[rootClusterUri] = {
-      documents,
-      location: documents[0]?.uri,
-      localClusterUri: rootClusterUri,
-      accessRequests: undefined,
-    };
-  });
+  appContext.addRootClusterWithDoc(makeRootCluster(), documents);
 
   const docsService =
     appContext.workspacesService.getActiveWorkspaceDocumentService();
@@ -78,21 +67,30 @@ function getTestSetup({ documents }: { documents: Document[] }) {
   jest.spyOn(docsService, 'closeToRight');
   jest.spyOn(docsService, 'duplicatePtyAndActivate');
 
-  const utils = render(
+  render(
     <MockAppContextProvider appContext={appContext}>
-      <TabHost ctx={appContext} topBarContainerRef={createRef()} />
+      <ResourcesContextProvider>
+        <TabHost
+          ctx={appContext}
+          topBarConnectMyComputerRef={createRef()}
+          topBarAccessRequestRef={createRef()}
+        />
+      </ResourcesContextProvider>
     </MockAppContextProvider>
   );
 
+  // Mostly a bogus await just so that all useEffects in all of the mounted contexts have time to be
+  // processed and not throw an error due to a state update outside of `act`.
+  expect(await screen.findByTitle(/New Tab/)).toBeInTheDocument();
+
   return {
-    ...utils,
     docsService,
     mainProcessClient: appContext.mainProcessClient,
   };
 }
 
-test('render documents', () => {
-  const { docsService } = getTestSetup({
+test('render documents', async () => {
+  const { docsService } = await getTestSetup({
     documents: getMockDocuments(),
   });
   const documents = docsService.getDocuments();
@@ -101,21 +99,21 @@ test('render documents', () => {
   expect(screen.getByTitle(documents[1].title)).toBeInTheDocument();
 });
 
-test('open tab on click', () => {
-  const { getByTitle, docsService } = getTestSetup({
+test('open tab on click', async () => {
+  const { docsService } = await getTestSetup({
     documents: [getMockDocuments()[0]],
   });
   const documents = docsService.getDocuments();
   const { open } = docsService;
-  const $tabTitle = getByTitle(documents[0].title);
+  const $tabTitle = screen.getByTitle(documents[0].title);
 
   fireEvent.click($tabTitle);
 
   expect(open).toHaveBeenCalledWith(documents[0].uri);
 });
 
-test('open context menu', () => {
-  const { getByTitle, docsService, mainProcessClient } = getTestSetup({
+test('open context menu', async () => {
+  const { docsService, mainProcessClient } = await getTestSetup({
     documents: [getMockDocuments()[0]],
   });
   const { openTabContextMenu } = mainProcessClient;
@@ -124,36 +122,52 @@ test('open context menu', () => {
   const documents = docsService.getDocuments();
   const document = documents[0];
 
-  const $tabTitle = getByTitle(documents[0].title);
+  const $tabTitle = screen.getByTitle(documents[0].title);
 
   fireEvent.contextMenu($tabTitle);
   expect(openTabContextMenu).toHaveBeenCalled();
 
   // @ts-expect-error `openTabContextMenu` doesn't know about jest
   const options: TabContextMenuOptions = openTabContextMenu.mock.calls[0][0];
-  expect(options.documentKind).toBe(document.kind);
+  expect(options.document).toEqual(document);
 
-  options.onClose();
+  act(() => {
+    options.onClose();
+  });
   expect(close).toHaveBeenCalledWith(document.uri);
 
-  options.onCloseOthers();
+  act(() => {
+    options.onCloseOthers();
+  });
   expect(closeOthers).toHaveBeenCalledWith(document.uri);
 
-  options.onCloseToRight();
+  act(() => {
+    options.onCloseToRight();
+  });
   expect(closeToRight).toHaveBeenCalledWith(document.uri);
 
-  options.onDuplicatePty();
+  act(() => {
+    options.onDuplicatePty();
+  });
   expect(duplicatePtyAndActivate).toHaveBeenCalledWith(document.uri);
 });
 
-test('open new tab', () => {
-  const { getByTitle, docsService } = getTestSetup({
+test('open new tab', async () => {
+  const { docsService } = await getTestSetup({
     documents: [getMockDocuments()[0]],
   });
   const { add, open } = docsService;
-  const mockedClusterDocument = makeDocumentCluster();
+  // Use a URI of a cluster that's not in ClustersService so that DocumentCluster doesn't render
+  // UnifiedResources for it. UnifiedResources requires a lot of mocks to be set up.
+  const nonExistentClusterUri = routing.getClusterUri({
+    ...routing.parseClusterUri(rootClusterUri).params,
+    leafClusterId: 'nonexistent-leaf',
+  });
+  const mockedClusterDocument = makeDocumentCluster({
+    clusterUri: nonExistentClusterUri,
+  });
   docsService.createClusterDocument = () => mockedClusterDocument;
-  const $newTabButton = getByTitle('New Tab', { exact: false });
+  const $newTabButton = screen.getByTitle('New Tab', { exact: false });
 
   fireEvent.click($newTabButton);
 
@@ -161,13 +175,13 @@ test('open new tab', () => {
   expect(open).toHaveBeenCalledWith(mockedClusterDocument.uri);
 });
 
-test('swap tabs', () => {
-  const { getByTitle, docsService } = getTestSetup({
+test('swap tabs', async () => {
+  const { docsService } = await getTestSetup({
     documents: getMockDocuments(),
   });
   const documents = docsService.getDocuments();
-  const $firstTab = getByTitle(documents[0].title);
-  const $secondTab = getByTitle(documents[1].title);
+  const $firstTab = screen.getByTitle(documents[0].title);
+  const $secondTab = screen.getByTitle(documents[1].title);
 
   fireEvent.dragStart($secondTab);
   fireEvent.drop($firstTab);

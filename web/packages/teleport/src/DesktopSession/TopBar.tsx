@@ -16,28 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { useTheme } from 'styled-components';
-import { Text, TopNav, Flex } from 'design';
-import { Clipboard, FolderShared } from 'design/Icon';
 
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { Flex, Text, TopNav } from 'design';
+import { Clipboard, FolderShared } from 'design/Icon';
+import { HoverTooltip } from 'design/Tooltip';
+import type { NotificationItem } from 'shared/components/Notification';
 
 import ActionMenu from './ActionMenu';
-import { WarningDropdown } from './WarningDropdown';
-
-import type { NotificationItem } from 'shared/components/Notification';
+import { AlertDropdown } from './AlertDropdown';
 
 export default function TopBar(props: Props) {
   const {
     userHost,
     isSharingClipboard,
+    clipboardSharingMessage,
     onDisconnect,
     canShareDirectory,
     isSharingDirectory,
     onShareDirectory,
-    warnings,
-    onRemoveWarning,
+    onCtrlAltDel,
+    alerts,
+    onRemoveAlert,
   } = props;
   const theme = useTheme();
 
@@ -66,31 +66,20 @@ export default function TopBar(props: Props) {
               canShareDirectory,
               isSharingDirectory
             )}
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-            transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+            position="bottom"
           >
             <FolderShared style={primaryOnTrue(isSharingDirectory)} pr={3} />
           </HoverTooltip>
-          <HoverTooltip
-            tipContent={
-              isSharingClipboard
-                ? 'Clipboard Sharing Enabled'
-                : 'Clipboard Sharing Disabled'
-            }
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-            transformOrigin={{ vertical: 'top', horizontal: 'center' }}
-          >
+          <HoverTooltip tipContent={clipboardSharingMessage} position="bottom">
             <Clipboard style={primaryOnTrue(isSharingClipboard)} pr={3} />
           </HoverTooltip>
-          <WarningDropdown
-            warnings={warnings}
-            onRemoveWarning={onRemoveWarning}
-          />
+          <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />
         </Flex>
         <ActionMenu
           onDisconnect={onDisconnect}
           showShareDirectory={canShareDirectory && !isSharingDirectory}
           onShareDirectory={onShareDirectory}
+          onCtrlAltDel={onCtrlAltDel}
         />
       </Flex>
     </TopNav>
@@ -115,10 +104,12 @@ export const TopBarHeight = 40;
 type Props = {
   userHost: string;
   isSharingClipboard: boolean;
+  clipboardSharingMessage: string;
   canShareDirectory: boolean;
   isSharingDirectory: boolean;
   onDisconnect: VoidFunction;
   onShareDirectory: VoidFunction;
-  warnings: NotificationItem[];
-  onRemoveWarning(id: string): void;
+  onCtrlAltDel: VoidFunction;
+  alerts: NotificationItem[];
+  onRemoveAlert(id: string): void;
 };

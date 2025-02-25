@@ -66,6 +66,12 @@ message DiscoveryConfigStatus {
   uint64 discovered_resources = 3;
   // last_sync_time is the timestamp when the Discovery Config was last sync.
   google.protobuf.Timestamp last_sync_time = 4;
+
+  reserved 5;
+  reserved "aws_ec2_instances_discovered";
+
+  // IntegrationDiscoveredResources maps an integration to discovered resources summary.
+  map<string, IntegrationDiscoveredSummary> integration_discovered_resources = 6;
 }
 
 // DiscoveryConfigState is the state of the discovery config resource.
@@ -79,4 +85,27 @@ enum DiscoveryConfigState {
   DISCOVERY_CONFIG_STATE_ERROR = 2;
   // DISCOVERY_CONFIG_STATE_SYNCING is used when the discovery process has started but didn't finished yet.
   DISCOVERY_CONFIG_STATE_SYNCING = 3;
+}
+
+// IntegrationDiscoveredSummary contains the a summary for each resource type that was discovered.
+message IntegrationDiscoveredSummary {
+  // AWSEC2 contains the summary for the AWS EC2 discovered instances.
+  ResourcesDiscoveredSummary aws_ec2 = 1;
+
+  // AWSRDS contains the summary for the AWS RDS discovered databases.
+  ResourcesDiscoveredSummary aws_rds = 2;
+
+  // AWSEKS contains the summary for the AWS EKS discovered clusters.
+  ResourcesDiscoveredSummary aws_eks = 3;
+}
+
+// ResourcesDiscoveredSummary represents the AWS resources that were discovered.
+message ResourcesDiscoveredSummary {
+  // Found holds the count of resources found.
+  // After a resource is found, it starts the sync process and ends in either an enrolled or a failed resource.
+  uint64 found = 1;
+  // Enrolled holds the count of the resources that were successfully enrolled.
+  uint64 enrolled = 2;
+  // Failed holds the count of the resources that failed to enroll.
+  uint64 failed = 3;
 }

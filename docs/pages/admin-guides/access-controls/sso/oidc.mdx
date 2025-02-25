@@ -1,0 +1,295 @@
+---
+title: OAuth2 and OIDC authentication
+description: How to configure Teleport access with OAuth2 or OpenID connect (OIDC)
+---
+
+This guide will explain how to configure an SSO provider using [OpenID
+Connect](http://openid.net/connect/) (also known as OIDC) to issue Teleport
+credentials to specific groups of users. When used in combination with role-based 
+access control (RBAC), OIDC allows Teleport administrators to define
+policies like:
+
+- Only members of the "DBA" group can connect to PostgreSQL databases.
+- Developers must never SSH into production servers.
+
+## Prerequisites
+
+- Admin access to the SSO/IdP being integrated with users assigned to groups/roles.
+- Teleport role with permission to maintain `oidc` resources. This permission is available
+  in the default `editor` role.
+
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+
+## Identity Providers
+
+Register Teleport with the external identity provider you will be using and
+obtain your `client_id` and `client_secret`. This information should be
+documented on the identity providers website. Here are a few links:
+
+- [Auth0 Client Configuration](https://auth0.com/docs/applications)
+- [Google Identity Platform](https://developers.google.com/identity/protocols/OpenIDConnect)
+- [Keycloak Client Registration](https://www.keycloak.org/docs/latest/securing_apps/index.html#\_client_registration)
+
+<Admonition type="tip" title="Google Workspace">
+For Google Workspace, see [Teleport Authentication with Google Workspace](google-workspace.mdx)
+</Admonition>
+
+Save the relevant information from your identity provider. To make following
+this guide easier, you can add the Client ID here and it will be included in the
+example commands below:
+
+Client ID: <Var name="<CLIENT-ID>" description="The Client ID for your Teleport
+application, provided by your IdP"/>
+
+## OIDC Redirect URL
+
+OIDC relies on HTTP redirects to return control back to Teleport after
+authentication is complete. The redirect URL must be selected by a Teleport
+administrator in advance.
+
+The redirect URL for OIDC authentication in Teleport is <nobr><Var
+name="mytenant.teleport.sh" description="Your Teleport Cloud tenant or Proxy
+Service address"/>`/v1/webapi/oidc/callback`</nobr>. Replace `mytenant.teleport.sh`
+with your Teleport Cloud tenant or Proxy Service address.
+
+## OIDC connector configuration
+
+The next step is to add an OIDC connector to Teleport. The connectors are
+created, tested, and added or removed using `tctl` [resource
+commands](../../../reference/resources.mdx) or the Teleport Web UI.
+
+On your workstation, create a file called `client-secret.txt` consisting only of
+your client secret.
+
+To create a new connector, use `tctl sso configure`. The following example creates a
+connector resource file in YAML format named `oidc-connector.yaml`:
+
+```code
+$ tctl sso configure oidc --name <CONNECTOR-NAME> \
+  --issuer-url <PATH-TO-PROVIDER> \
+  --id <CLIENT-ID> \
+  --secret $(cat client-secret.txt) \
+  --claims-to-roles <CLAIM-KEY>,<CLAIM-VALUE>,access \
+  --claims-to-roles <CLAIM-KEY>,<CLAIM-VALUE>,editor > oidc-connector.yaml
+```
+
+- `--name`: Usually the name of the IdP, this is how the connector will be
+  identified in Teleport.
+- `--issuer-url`: This is the base path to the IdP's OIDC configuration endpoint,
+  excluding `.well-known/openid-configuration`. If, for example, the endpoint
+  is `https://example.com/.well-known/openid-configuration`, you would use
+  `https://example.com`.
+- `--id`: The client ID as defined in the IdP. Depending on your identity
+  provider this may be something you can define (for example, `teleport`), or may be an
+  assigned string.
+- `--secret`: The client token/secret provided by the IdP to authorize this client.
+- `--claims-to-roles`: A mapping of OIDC claims/values to be associated with
+  Teleport roles.
+
+For more information on these and all available flags, see the [tctl sso configure
+oidc](../../../reference/cli/tctl.mdx) section of the Teleport CLI
+Reference page.
+
+The file created should look like the example below. This connector requests
+the scope `<CLAIM-KEY>` from the identity provider, then maps the value to
+either the `access` or the `editor` role depending on the value returned for
+that key within the claims:
+
+```yaml
+(!examples/resources/oidc-connector.yaml!)
+```
+
+<Details title="Practical Example: Keycloak">
+The following example was generated using Keycloak as the identity provider.
+Keycloak is being served at `keycloak.example.com`, and the Teleport Proxy
+Service is listening at `teleport.example.com`. In Keycloak, the client is
+named `teleport`. Under the `teleport-dedicated` client scope, we've added
+the "Group Membership" mapper:
+
+```yaml
+kind: oidc
+metadata:
+  name: keycloak
+spec:
+  claims_to_roles:
+  - claim: groups
+    roles:
+    - access
+    value: /users
+  - claim: groups
+    roles:
+    - editor
+    value: /admins
+  client_id: teleport
+  client_secret: abc123...
+  issuer_url: https://keycloak.example.com/realms/master
+  redirect_url: https://teleport.example.com:443/v1/webapi/oidc/callback
+version: v3
+
+```
+
+</Details>
+
+Before applying the connector to your cluster, you can test that it's configured
+correctly:
+
+```code
+$ cat oidc-connector | tctl sso test
+```
+
+This should open up your web browser and attempt to log you in to the Teleport
+cluster through your IdP. If it fails, review the output of this command for
+troubleshooting details.
+
+<Admonition type="tip">
+The "[OIDC] Claims" section of the CLI output provides all the details of your
+user provided by the IdP. This is a good starting point while troubleshooting
+errors like `Failed to calculate user attributes.`
+</Admonition>
+
+After your tests are successful, create the connector:
+
+```code
+$ tctl create -f oidc-connector.yaml
+```
+
+### Optional: ACR Values
+
+Teleport supports sending Authentication Context Class Reference (ACR) values
+when obtaining an authorization code from an OIDC provider. By default ACR
+values are not set. However, if the `acr_values` field is set, Teleport expects
+to receive the same value in the `acr` claim, otherwise it will consider the
+callback invalid.
+
+In addition, Teleport supports OIDC provider specific ACR value processing
+which can be enabled by setting the `provider` field in OIDC configuration. At
+the moment, the only build-in support is for NetIQ.
+
+A example of using ACR values and provider specific processing is below:
+
+```yaml
+# example connector which uses ACR values
+kind: oidc
+version: v2
+metadata:
+  name: "oidc-connector"
+spec:
+  issuer_url: "https://oidc.example.com"
+  client_id: "xxxxxxxxxxxxxxxxxxxxxxx.example.com"
+  client_secret: "zzzzzzzzzzzzzzzzzzzzzzzz"
+  redirect_url: "https://mytenant.teleport.sh/v1/webapi/oidc/callback"
+  display: "Login with Example"
+  acr_values: "foo/bar"
+  provider: netiq
+  scope: [ "group" ]
+  claims_to_roles:
+     - claim: "group"
+       value: "editor"
+       roles: [ "editor" ]
+     - claim: "group"
+       value: "user"
+       roles: [ "access" ]
+```
+
+### Optional: Max age
+
+The `max_age` field controls the maximum age of users' sessions before they will
+be forced to reauthenticate. By default `max_age` is unset, meaning once a user
+authenticates using OIDC they will not have to reauthenticate unless the
+configured OIDC provider forces them to. This can be set to a duration of time
+to force users to reauthenticate more often. If `max_age` is set to zero
+seconds, users will be forced to reauthenticate with their OIDC provider every
+time they authenticate with Teleport.
+
+Note that the specified duration must be in whole seconds. `24h` works because that's
+the same as `1440s`, but `60s500ms` would not be allowed as that is 60.5 seconds.
+
+```yaml
+# Extra parts of OIDC yaml have been removed.
+spec:
+  max_age: 24h
+```
+
+Note that not all OIDC providers support setting `max_age`. Google and GitLab are
+both known not to support it and authentication with those providers will not work
+when the `max_age` field is set.
+
+### Optional: Prompt
+
+Set the Authorization Server prompt for the End-User for reauthentication and consent
+per the OIDC protocol. If no `prompt` value is set, Teleport uses `select_account` as
+default.
+
+```yaml
+# Extra parts of OIDC yaml have been removed.
+spec:
+  # Valid values as defined from https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
+  # none: The Authorization Server must not display any authentication or consent user interface pages.
+  # select_account: The Authorization Server should prompt the End-User to select a user account.
+  # login: The Authorization Server should prompt the End-User for reauthentication.
+  # consent: The Authorization Server should prompt the End-User for consent before returning information to the Client.
+  prompt: 'login'
+```
+
+### Optional: Redirect URL and Timeout
+
+The redirect URL must be accessible by all user, optional redirect timeout.
+
+```yaml
+# Extra parts of OIDC yaml have been removed.
+spec:
+  redirect_url: https://<cluster-url>.example.com:3080/v1/webapi/oidc/callback
+  # Optional Redirect Timeout.
+  # redirect_timeout: 90s
+```
+
+### Optional: Disable email verification
+
+By default, Teleport validates the `email_verified` claim, and users who
+attempt to sign in without a verified email address are prevented from doing so:
+
+```text
+ERROR: SSO flow failed.
+identity provider callback failed with error: OIDC provider did not verify email.
+        email not verified by OIDC provider
+```
+
+For testing and other purposes, you can opt out of this behavior by enabling
+`allow_unverified_email` in your OIDC connector. This option weakens the overall
+security of the system, so we do not recommend enabling it.
+
+```yaml
+kind: oidc
+version: v2
+metadata:
+  name: connector
+spec:
+  allow_unverified_email: true
+```
+
+### Optional: Specify a claim to use as the username
+
+By default, Teleport will use the user's email as their Teleport username.
+
+You can define a `username_claim` to specify the claim that should be used as
+the username instead:
+
+```yaml
+kind: oidc
+version: v2
+metadata:
+  name: connector
+spec:
+  # Use the `preferred_username` claim as the user's Teleport username.
+  username_claim: preferred_username
+```
+
+## Enable default OIDC authentication
+
+(!docs/pages/includes/enterprise/oidcauthentication.mdx!)
+
+## Troubleshooting
+
+(!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
