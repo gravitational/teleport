@@ -99,7 +99,11 @@ func (c *Config) loadEnvVarOverrides(ctx context.Context) {
 	}
 
 	if needInfo {
-		c.Log.InfoContext(ctx, "Applied env var overrides.", "scan_interval", c.ScanInterval, "object_ttl", c.ObjectTTL, "refresh_threshold", c.RefreshThreshold)
+		c.Log.InfoContext(ctx, "Applied env var overrides",
+			"scan_interval", c.ScanInterval.String(),
+			"object_ttl", c.ObjectTTL.String(),
+			"refresh_threshold", c.RefreshThreshold.String(),
+		)
 	}
 }
 

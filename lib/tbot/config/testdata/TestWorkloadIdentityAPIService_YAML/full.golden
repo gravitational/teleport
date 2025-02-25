@@ -9,6 +9,8 @@ attestors:
       ca_path: /path/to/ca.pem
       skip_verify: true
       anonymous: true
+  podman:
+    enabled: false
 selector:
   name: my-workload-identity
 credential_ttl: 1m0s

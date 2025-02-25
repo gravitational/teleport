@@ -1066,22 +1066,6 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 	}, nil
 }
 
-func eventDeviceMetadataFromIdentity(ident *sshca.Identity) *apievents.DeviceMetadata {
-	if ident == nil {
-		return nil
-	}
-
-	if ident.DeviceID == "" && ident.DeviceAssetTag == "" && ident.DeviceCredentialID == "" {
-		return nil
-	}
-
-	return &apievents.DeviceMetadata{
-		DeviceId:     ident.DeviceID,
-		AssetTag:     ident.DeviceAssetTag,
-		CredentialId: ident.DeviceCredentialID,
-	}
-}
-
 func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 	userKind := apievents.UserKind_USER_KIND_HUMAN
 	if id.BotName != "" {
@@ -1093,7 +1077,7 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 		User:           id.TeleportUser,
 		Impersonator:   id.Impersonator,
 		AccessRequests: id.ActiveRequests,
-		TrustedDevice:  eventDeviceMetadataFromIdentity(id.UnmappedIdentity),
+		TrustedDevice:  id.UnmappedIdentity.GetDeviceMetadata(),
 		UserKind:       userKind,
 		BotName:        id.BotName,
 		BotInstanceID:  id.BotInstanceID,

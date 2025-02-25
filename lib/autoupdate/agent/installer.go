@@ -67,10 +67,8 @@ const (
 type LocalInstaller struct {
 	// InstallDir contains each installation, named by version.
 	InstallDir string
-	// LinkBinDir contains symlinks to the linked installation's binaries.
-	LinkBinDir string
-	// CopyServiceFile contains a copy of the linked installation's systemd service.
-	CopyServiceFile string
+	// TargetServiceFile contains a copy of the linked installation's systemd service.
+	TargetServiceFile string
 	// SystemBinDir contains binaries for the system (packaged) install of Teleport.
 	SystemBinDir string
 	// SystemServiceFile contains the systemd service file for the system (packaged) install of Teleport.
@@ -105,14 +103,6 @@ func (li *LocalInstaller) Remove(ctx context.Context, rev Revision) error {
 		return trace.Wrap(err)
 	}
 
-	linked, err := li.isLinked(filepath.Join(versionDir, "bin"))
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return trace.Wrap(err, "failed to determine if linked")
-	}
-	if linked {
-		return trace.Wrap(ErrLinked, "refusing to remove")
-	}
-
 	// invalidate checksum first, to protect against partially-removed
 	// directory with valid checksum.
 	err = os.Remove(filepath.Join(versionDir, checksumType))
@@ -128,7 +118,7 @@ func (li *LocalInstaller) Remove(ctx context.Context, rev Revision) error {
 // Install a Teleport version directory in InstallDir.
 // This function is idempotent.
 // See Installer interface for additional specs.
-func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL string) (err error) {
+func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL string, force bool) (err error) {
 	versionDir, err := li.revisionDir(rev)
 	if err != nil {
 		return trace.Wrap(err)
@@ -149,19 +139,23 @@ func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL str
 		return trace.Wrap(err, "failed to download checksum from %s", checksumURI)
 	}
 	oldSum, err := readChecksum(sumPath)
-	if err == nil {
-		if bytes.Equal(oldSum, newSum) {
-			li.Log.InfoContext(ctx, "Version already present.", "version", rev)
-			return nil
-		}
+	versionPresent := err == nil
+	if versionPresent && bytes.Equal(oldSum, newSum) {
+		li.Log.InfoContext(ctx, "Version already present.", "version", rev)
+		return nil
+	}
+	if versionPresent {
 		li.Log.WarnContext(ctx, "Removing version that does not match checksum.", "version", rev)
-		if err := li.Remove(ctx, rev); err != nil {
-			return trace.Wrap(err)
-		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		li.Log.WarnContext(ctx, "Removing version with unreadable checksum.", "version", rev, "error", err)
-		if err := li.Remove(ctx, rev); err != nil {
-			return trace.Wrap(err)
+	}
+	if versionPresent || !errors.Is(err, os.ErrNotExist) {
+		if force {
+			if err := li.Remove(ctx, rev); err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			return trace.Errorf("refusing to remove linked installation of Teleport")
 		}
 	}
 
@@ -410,10 +404,11 @@ func (li *LocalInstaller) List(ctx context.Context) (revs []Revision, err error)
 	return revs, nil
 }
 
-// Link the specified version into the system LinkBinDir and CopyServiceFile.
+// Link the specified version into pathDir and TargetServiceFile.
 // The revert function restores the previous linking.
+// If force is true, Link will overwrite files that are not symlinks.
 // See Installer interface for additional specs.
-func (li *LocalInstaller) Link(ctx context.Context, rev Revision, force bool) (revert func(context.Context) bool, err error) {
+func (li *LocalInstaller) Link(ctx context.Context, rev Revision, pathDir string, force bool) (revert func(context.Context) bool, err error) {
 	revert = func(context.Context) bool { return true }
 	versionDir, err := li.revisionDir(rev)
 	if err != nil {
@@ -422,6 +417,7 @@ func (li *LocalInstaller) Link(ctx context.Context, rev Revision, force bool) (r
 	revert, err = li.forceLinks(ctx,
 		filepath.Join(versionDir, "bin"),
 		filepath.Join(versionDir, serviceDir, serviceName),
+		pathDir,
 		force,
 	)
 	if err != nil {
@@ -430,27 +426,19 @@ func (li *LocalInstaller) Link(ctx context.Context, rev Revision, force bool) (r
 	return revert, nil
 }
 
-func emptyRevert(_ context.Context) bool {
-	return true
-}
-
-// LinkSystem links the system (package) version into LinkBinDir and CopyServiceFile.
-// LinkSystem returns ErrInvalid if LinkBinDir is not DefaultLinkDir.
+// LinkSystem links the system (package) version into defaultPathDir and TargetServiceFile.
 // This prevents namespaced installations in /opt/teleport from linking to the system package.
 // The revert function restores the previous linking.
 // See Installer interface for additional specs.
 func (li *LocalInstaller) LinkSystem(ctx context.Context) (revert func(context.Context) bool, err error) {
-	if filepath.Clean(li.LinkBinDir) != filepath.Clean(DefaultLinkDir) {
-		return emptyRevert, trace.Wrap(ErrInvalid, "refusing to link into %s instead of %s", li.LinkBinDir, DefaultLinkDir)
-	}
-	revert, err = li.forceLinks(ctx, li.SystemBinDir, li.SystemServiceFile, false)
+	revert, err = li.forceLinks(ctx, li.SystemBinDir, li.SystemServiceFile, defaultPathDir, false)
 	return revert, trace.Wrap(err)
 }
 
-// TryLink links the specified version, but only in the case that
+// TryLink links the specified version into pathDir, but only in the case that
 // no installation of Teleport is already linked or partially linked.
 // See Installer interface for additional specs.
-func (li *LocalInstaller) TryLink(ctx context.Context, revision Revision) error {
+func (li *LocalInstaller) TryLink(ctx context.Context, revision Revision, pathDir string) error {
 	versionDir, err := li.revisionDir(revision)
 	if err != nil {
 		return trace.Wrap(err)
@@ -458,23 +446,20 @@ func (li *LocalInstaller) TryLink(ctx context.Context, revision Revision) error 
 	return trace.Wrap(li.tryLinks(ctx,
 		filepath.Join(versionDir, "bin"),
 		filepath.Join(versionDir, serviceDir, serviceName),
+		pathDir,
 	))
 }
 
-// TryLinkSystem links the system installation, but only in the case that
+// TryLinkSystem links the system installation to defaultPathDir, but only in the case that
 // no installation of Teleport is already linked or partially linked.
-// TryLinkSystem returns ErrInvalid if LinkBinDir is not DefaultLinkDir.
 // See Installer interface for additional specs.
 func (li *LocalInstaller) TryLinkSystem(ctx context.Context) error {
-	if filepath.Clean(li.LinkBinDir) != filepath.Clean(DefaultLinkDir) {
-		return trace.Wrap(ErrInvalid, "refusing to link into %s instead of %s", li.LinkBinDir, DefaultLinkDir)
-	}
-	return trace.Wrap(li.tryLinks(ctx, li.SystemBinDir, li.SystemServiceFile))
+	return trace.Wrap(li.tryLinks(ctx, li.SystemBinDir, li.SystemServiceFile, defaultPathDir))
 }
 
-// Unlink unlinks a version from LinkBinDir and CopyServiceFile.
+// Unlink unlinks a version from pathDir and TargetServiceFile.
 // See Installer interface for additional specs.
-func (li *LocalInstaller) Unlink(ctx context.Context, rev Revision) error {
+func (li *LocalInstaller) Unlink(ctx context.Context, rev Revision, pathDir string) error {
 	versionDir, err := li.revisionDir(rev)
 	if err != nil {
 		return trace.Wrap(err)
@@ -482,13 +467,14 @@ func (li *LocalInstaller) Unlink(ctx context.Context, rev Revision) error {
 	return trace.Wrap(li.removeLinks(ctx,
 		filepath.Join(versionDir, "bin"),
 		filepath.Join(versionDir, serviceDir, serviceName),
+		pathDir,
 	))
 }
 
-// UnlinkSystem unlinks the system (package) version from LinkBinDir and CopyServiceFile.
+// UnlinkSystem unlinks the system (package) version from defaultPathDir and TargetServiceFile.
 // See Installer interface for additional specs.
 func (li *LocalInstaller) UnlinkSystem(ctx context.Context) error {
-	return trace.Wrap(li.removeLinks(ctx, li.SystemBinDir, li.SystemServiceFile))
+	return trace.Wrap(li.removeLinks(ctx, li.SystemBinDir, li.SystemServiceFile, defaultPathDir))
 }
 
 // symlink from oldname to newname
@@ -508,7 +494,8 @@ type smallFile struct {
 // forceLinks will revert any overridden links or files if it hits an error.
 // If successful, forceLinks may also be reverted after it returns by calling revert.
 // The revert function returns true if reverting succeeds.
-func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcPath string, force bool) (revert func(context.Context) bool, err error) {
+// If force is true, non-link files will be overwritten.
+func (li *LocalInstaller) forceLinks(ctx context.Context, srcBinDir, srcSvcFile, dstBinDir string, force bool) (revert func(context.Context) bool, err error) {
 	// setup revert function
 	var (
 		revertLinks []symlink
@@ -547,7 +534,7 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcPath string
 	}()
 
 	// ensure source directory exists
-	entries, err := os.ReadDir(binDir)
+	entries, err := os.ReadDir(srcBinDir)
 	if errors.Is(err, os.ErrNotExist) {
 		return revert, trace.Wrap(ErrNoBinaries)
 	}
@@ -556,11 +543,11 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcPath string
 	}
 
 	// ensure target directories exist before trying to create links
-	err = os.MkdirAll(li.LinkBinDir, systemDirMode)
+	err = os.MkdirAll(dstBinDir, systemDirMode)
 	if err != nil {
 		return revert, trace.Wrap(err)
 	}
-	err = os.MkdirAll(filepath.Dir(li.CopyServiceFile), systemDirMode)
+	err = os.MkdirAll(filepath.Dir(li.TargetServiceFile), systemDirMode)
 	if err != nil {
 		return revert, trace.Wrap(err)
 	}
@@ -571,8 +558,8 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcPath string
 		if entry.IsDir() {
 			continue
 		}
-		oldname := filepath.Join(binDir, entry.Name())
-		newname := filepath.Join(li.LinkBinDir, entry.Name())
+		oldname := filepath.Join(srcBinDir, entry.Name())
+		newname := filepath.Join(dstBinDir, entry.Name())
 		exec, err := li.ValidateBinary(ctx, oldname)
 		if err != nil {
 			return revert, trace.Wrap(err)
@@ -598,7 +585,7 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcPath string
 
 	// create systemd service file
 
-	orig, err := li.forceCopyService(li.CopyServiceFile, svcPath, maxServiceFileSize)
+	orig, err := li.forceCopyService(li.TargetServiceFile, srcSvcFile, maxServiceFileSize)
 	if err != nil && !errors.Is(err, os.ErrExist) {
 		return revert, trace.Wrap(err, "failed to copy service")
 	}
@@ -620,7 +607,7 @@ func (li *LocalInstaller) forceCopyService(dst, src string, n int64) (orig *smal
 }
 
 // forceLink attempts to create a symlink, atomically replacing an existing link if already present.
-// If a non-symlink file or directory exists in newname already, forceLink errors with ErrFilePresent.
+// If a non-symlink file or directory exists in newname already and force is false, forceLink errors with ErrFilePresent.
 // If the link is already present with the desired oldname, forceLink returns os.ErrExist.
 func forceLink(oldname, newname string, force bool) (orig string, err error) {
 	orig, err = os.Readlink(newname)
@@ -697,9 +684,9 @@ func readFileAtMost(name string, n int64) ([]byte, error) {
 	return data, trace.Wrap(err)
 }
 
-func (li *LocalInstaller) removeLinks(ctx context.Context, binDir, svcPath string) error {
+func (li *LocalInstaller) removeLinks(ctx context.Context, srcBinDir, srcSvcFile, dstBinDir string) error {
 	removeService := false
-	entries, err := os.ReadDir(binDir)
+	entries, err := os.ReadDir(srcBinDir)
 	if err != nil {
 		return trace.Wrap(err, "failed to find Teleport binary directory")
 	}
@@ -707,8 +694,8 @@ func (li *LocalInstaller) removeLinks(ctx context.Context, binDir, svcPath strin
 		if entry.IsDir() {
 			continue
 		}
-		oldname := filepath.Join(binDir, entry.Name())
-		newname := filepath.Join(li.LinkBinDir, entry.Name())
+		oldname := filepath.Join(srcBinDir, entry.Name())
+		newname := filepath.Join(dstBinDir, entry.Name())
 		v, err := os.Readlink(newname)
 		if errors.Is(err, os.ErrNotExist) ||
 			errors.Is(err, os.ErrInvalid) ||
@@ -736,13 +723,13 @@ func (li *LocalInstaller) removeLinks(ctx context.Context, binDir, svcPath strin
 		li.Log.DebugContext(ctx, "Teleport binary not unlinked. Skipping removal of teleport.service.")
 		return nil
 	}
-	srcBytes, err := readFileAtMost(svcPath, maxServiceFileSize)
+	srcBytes, err := readFileAtMost(srcSvcFile, maxServiceFileSize)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	dstBytes, err := readFileAtMost(li.CopyServiceFile, maxServiceFileSize)
+	dstBytes, err := readFileAtMost(li.TargetServiceFile, maxServiceFileSize)
 	if errors.Is(err, os.ErrNotExist) {
-		li.Log.DebugContext(ctx, "Service not present.", "path", li.CopyServiceFile)
+		li.Log.DebugContext(ctx, "Service not present.", "path", li.TargetServiceFile)
 		return nil
 	}
 	if err != nil {
@@ -752,8 +739,8 @@ func (li *LocalInstaller) removeLinks(ctx context.Context, binDir, svcPath strin
 		li.Log.WarnContext(ctx, "Removed teleport binary link, but skipping removal of custom teleport.service: the service file does not match the reference file for this version. The file might have been manually edited.")
 		return nil
 	}
-	if err := os.Remove(li.CopyServiceFile); err != nil {
-		return trace.Wrap(err, "error removing copy of %s", filepath.Base(li.CopyServiceFile))
+	if err := os.Remove(li.TargetServiceFile); err != nil {
+		return trace.Wrap(err, "error removing copy of %s", filepath.Base(li.TargetServiceFile))
 	}
 	return nil
 }
@@ -762,9 +749,9 @@ func (li *LocalInstaller) removeLinks(ctx context.Context, binDir, svcPath strin
 // Existing links that point to files outside binDir or svcDir, as well as existing non-link files, will error.
 // tryLinks will not attempt to create any links if linking could result in an error.
 // However, concurrent changes to links may result in an error with partially-complete linking.
-func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcPath string) error {
+func (li *LocalInstaller) tryLinks(ctx context.Context, srcBinDir, srcSvcFile, dstBinDir string) error {
 	// ensure source directory exists
-	entries, err := os.ReadDir(binDir)
+	entries, err := os.ReadDir(srcBinDir)
 	if errors.Is(err, os.ErrNotExist) {
 		return trace.Wrap(ErrNoBinaries)
 	}
@@ -773,11 +760,11 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcPath string) 
 	}
 
 	// ensure target directories exist before trying to create links
-	err = os.MkdirAll(li.LinkBinDir, systemDirMode)
+	err = os.MkdirAll(dstBinDir, systemDirMode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = os.MkdirAll(filepath.Dir(li.CopyServiceFile), systemDirMode)
+	err = os.MkdirAll(filepath.Dir(li.TargetServiceFile), systemDirMode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -789,8 +776,8 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcPath string) 
 		if entry.IsDir() {
 			continue
 		}
-		oldname := filepath.Join(binDir, entry.Name())
-		newname := filepath.Join(li.LinkBinDir, entry.Name())
+		oldname := filepath.Join(srcBinDir, entry.Name())
+		newname := filepath.Join(dstBinDir, entry.Name())
 		exec, err := li.ValidateBinary(ctx, oldname)
 		if err != nil {
 			return trace.Wrap(err)
@@ -819,8 +806,8 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcPath string) 
 		}
 	}
 
-	// if any binaries are linked from binDir, always link the service from svcDir
-	_, err = li.forceCopyService(li.CopyServiceFile, svcPath, maxServiceFileSize)
+	// if any binaries are linked from srcBinDir, always link the service from svcDir
+	_, err = li.forceCopyService(li.TargetServiceFile, srcSvcFile, maxServiceFileSize)
 	if err != nil && !errors.Is(err, os.ErrExist) {
 		return trace.Wrap(err, "failed to copy service")
 	}
@@ -865,10 +852,18 @@ func (li *LocalInstaller) revisionDir(rev Revision) (string, error) {
 	return versionDir, nil
 }
 
-// isLinked returns true if any binaries in binDir are linked.
-// Returns os.ErrNotExist error if the binDir does not exist.
-func (li *LocalInstaller) isLinked(binDir string) (bool, error) {
+// IsLinked returns true if any binaries for Revision rev are linked to pathDir.
+// Returns os.ErrNotExist error if the revision does not exist.
+func (li *LocalInstaller) IsLinked(ctx context.Context, rev Revision, pathDir string) (bool, error) {
+	versionDir, err := li.revisionDir(rev)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	binDir := filepath.Join(versionDir, "bin")
 	entries, err := os.ReadDir(binDir)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -876,7 +871,7 @@ func (li *LocalInstaller) isLinked(binDir string) (bool, error) {
 		if entry.IsDir() {
 			continue
 		}
-		v, err := os.Readlink(filepath.Join(li.LinkBinDir, entry.Name()))
+		v, err := os.Readlink(filepath.Join(pathDir, entry.Name()))
 		if err != nil {
 			continue
 		}

@@ -297,22 +297,23 @@ another dedicated mode instead.
 
 ### Flags
 
-| Flag                 | Description                                                                                    |
-|----------------------|------------------------------------------------------------------------------------------------|
-| `-d/--debug`         | Enable verbose logging to stderr.                                                              |
-| `-c/--config`        | Path to a Machine ID configuration file.                                                       |
-| `--[no-]fips`        | Whether to run tbot in FIPS compliance mode. This requires the FIPS `tbot` binary. |
-| `-a/--auth-server`   | Address of the Teleport Auth Service. Prefer using --proxy-server where possible                |
-| `--proxy-server`     | Address of the Teleport Proxy Server.                                                          |
-| `--token`            | A bot join token, if attempting to onboard a new bot; used on first connect. Can also be an absolute path to a file containing the token. |
-| `--ca-pin`           | CA pin to validate the Teleport Auth Service; used on first connect.                            |
+| Flag                 | Description                                                                                                                                                                     |
+|----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `-d/--debug`         | Enable verbose logging to stderr. Can also be configured using the `TBOT_DEBUG` environment variable.                                                                           |
+| `-c/--config`        | Path to a tbot configuration file. Mutually exclusive with `--config-string`. Can also be configured with the `TBOT_CONFIG_PATH` environment variable.                          |
+| `--config-string`    | Allows the tbot configuration to be provided as a base 64 string directly via this flag or the `TBOT_CONFIG` environment variable. Mutually exclusive with `--config`           |
+| `--[no-]fips`        | Whether to run tbot in FIPS compliance mode. This requires the FIPS `tbot` binary.                                                                                              |
+| `-a/--auth-server`   | Address of the Teleport Auth Service. Prefer using --proxy-server where possible                                                                                                |
+| `--proxy-server`     | Address of the Teleport Proxy Server.                                                                                                                                           |
+| `--token`            | A bot join token, if attempting to onboard a new bot; used on first connect. Can also be an absolute path to a file containing the token.                                       |
+| `--ca-pin`           | CA pin to validate the Teleport Auth Service; used on first connect.                                                                                                            |
 | `--data-dir`         | Directory to store internal bot data. In production environments access to this directory should be limited only to an isolated linux user as an owner with `0600` permissions. |
-| `--destination-dir`  | Directory to write short-lived machine certificates.                                           |
-| `--certificate-ttl`  | TTL of short-lived machine certificates.                                                       |
-| `--renewal-interval` | Interval at which short-lived certificates are renewed; must be less than the certificate TTL. |
-| `--join-method`      | Method to use to join the cluster. Can be `token`, `azure`, `circleci`, `gcp`, `github`, `gitlab` or `iam`. |
-| `--oneshot`          | If set, quit after the first renewal.                                                          |
-| `--log-format`       | Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.               |
+| `--destination-dir`  | Directory to write short-lived machine certificates.                                                                                                                            |
+| `--certificate-ttl`  | TTL of short-lived machine certificates.                                                                                                                                        |
+| `--renewal-interval` | Interval at which short-lived certificates are renewed; must be less than the certificate TTL.                                                                                  |
+| `--join-method`      | Method to use to join the cluster. Can be `token`, `azure`, `circleci`, `gcp`, `github`, `gitlab` or `iam`.                                                                     |
+| `--oneshot`          | If set, quit after the first renewal.                                                                                                                                           |
+| `--log-format`       | Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.                                                                                                |
 
 ### Examples
 <Tabs>

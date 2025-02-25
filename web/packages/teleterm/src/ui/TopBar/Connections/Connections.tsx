@@ -71,10 +71,9 @@ export function Connections() {
         onClose={close}
       >
         {/*
-          324px matches the total width when the outer div inside Popover used to have 12px of
-          padding (so 24px on both sides) and ConnectionsFilterableList had 300px of width.
+          It needs to be wide enough for the diag warning in the VNet panel to not be squished too much.
         */}
-        <Box width="324px" bg="levels.elevated">
+        <Box width="396px" bg="levels.elevated">
           <StepSlider
             tDuration={250}
             currFlow="default"
