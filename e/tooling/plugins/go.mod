@@ -1,8 +1,6 @@
 module github.com/gravitational/teleport.e/tooling/plugins
 
-go 1.23
-
-toolchain go1.23.2
+go 1.23.0
 
 require (
 	github.com/ProtonMail/go-crypto v1.0.0
@@ -24,8 +22,8 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/sergi/go-diff v1.3.1 // indirect
-	golang.org/x/crypto v0.32.0 // indirect
+	golang.org/x/crypto v0.35.0 // indirect
 	golang.org/x/net v0.34.0 // indirect
-	golang.org/x/sys v0.29.0 // indirect
+	golang.org/x/sys v0.30.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
