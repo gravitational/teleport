@@ -1944,6 +1944,113 @@ $ tctl users update priya --set-azure-identities \
  `/subscriptions/${SUBSCRIPTION_ID?}/resourceGroups/${MY_RESOURCE_GROUP?}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dba
 ```
 
+## tctl autoupdate client-tools status
+
+```code
+$ tctl autoupdate client-tools status [<flags>]
+```
+
+Requests the current status of client tools managed updates, indicating whether managed updates are enabled and displaying the target version for the update.
+If the `--proxy` flag is defined, tctl sends a request to an unauthenticated endpoint to retrieve the data.
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--proxy` | none | none | Address of the Teleport proxy. When defined this address will be used to retrieve client tools auto update configuration. |
+| `--format` | yaml | `json`, `yaml` | Output format: 'yaml' or 'json'. |
+
+### Examples
+
+```code
+$ tctl autoupdate client-tools status
+mode: enabled
+target_version: 17.2.7
+
+$ tctl autoupdate client-tools status --format json
+{
+    "mode": "enabled",
+    "target_version": "17.2.7"
+}
+
+# Request to an unauthenticated endpoint.
+$ tctl autoupdate client-tools status --proxy proxy.example.com
+mode: enabled
+target_version: 17.2.7
+```
+
+## tctl autoupdate client-tools enable
+
+Enables client tools managed updates in the cluster. If the target version is not set, the proxy version will be advertised.
+
+### Examples
+
+```code
+$ tctl autoupdate client-tools enable
+client tools auto update mode has been changed
+```
+
+## tctl autoupdate client-tools disable
+
+Disables client tools managed updates in the cluster.
+
+### Examples
+
+```code
+$ tctl autoupdate client-tools disable
+client tools auto update mode has been changed
+```
+
+## tctl autoupdate client-tools target
+
+```code
+$ tctl autoupdate client-tools target [<flags>] <target-version>
+```
+
+Sets the target version for client tools in the cluster. After login, client tools will be advertised to this version and initiate the update process.
+
+### Arguments
+
+- `<target-version>` - Client tools target version. Clients will be told to update to this version.
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--clear` | none | none | Removes the target version, Teleport will default to its current proxy version. |
+
+### Examples
+
+```code
+$ tctl autoupdate client-tools target 17.2.7
+client tools auto update target version has been set
+
+$ tctl autoupdate client-tools target --clear
+client tools auto update target version has been cleared
+```
+
+## tctl autoupdate agent status
+
+Prints agents auto update status.
+
+### Examples
+
+```code
+$ tctl autoupdate agents status
+Agent autoupdate mode: enabled
+Rollout creation date: 2025-01-14 16:17:36
+Start version: 17.0.1
+Target version: 17.1.5
+Rollout state: Done
+
+Group Name State Start Time          State Reason
+---------- ----- ------------------- --------------
+dev        Done  2025-01-15 12:00:08 outside_window
+stage      Done  2025-01-15 16:17:45 outside_window
+prod       Done  2025-01-15 18:00:12 outside_window
+backup     Done  2025-01-14 20:00:31 outside_window
+```
+
 ## tctl version
 
 Print the version of your `tctl` binary:
