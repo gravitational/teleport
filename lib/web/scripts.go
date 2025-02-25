@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
@@ -108,7 +109,7 @@ func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScri
 		teleportFlavor = types.PackageNameOSS
 	}
 
-	cdnBaseURL, err := getCDNBaseURL()
+	cdnBaseURL, err := getCDNBaseURL(version)
 	if err != nil {
 		h.logger.WarnContext(ctx, "Failed to get CDN base URL", "error", err)
 		return scripts.InstallScriptOptions{}, trace.Wrap(err)
@@ -133,10 +134,15 @@ func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScri
 // - "https://cdn.cloud.gravitational.io" (dev builds/staging)
 const EnvVarCDNBaseURL = "TELEPORT_CDN_BASE_URL"
 
-func getCDNBaseURL() (string, error) {
+func getCDNBaseURL(version string) (string, error) {
 	// If the user explicitly overrides the CDN base URL, we use it.
 	if override := os.Getenv(EnvVarCDNBaseURL); override != "" {
 		return override, nil
+	}
+
+	v, err := semver.NewVersion(version)
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
 
 	// If this is an AGPL build, we don't want to automatically install binaries distributed under a more restrictive
@@ -150,5 +156,5 @@ func getCDNBaseURL() (string, error) {
 			teleportassets.CDNBaseURL())
 	}
 
-	return teleportassets.CDNBaseURL(), nil
+	return teleportassets.CDNBaseURLForVersion(v), nil
 }
