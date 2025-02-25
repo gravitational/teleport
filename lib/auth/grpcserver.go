@@ -5295,7 +5295,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Emitter:             cfg.Emitter,
 		Clock:               cfg.AuthServer.GetClock(),
 		Store:               cfg.AuthServer.Services.WorkloadIdentityX509Revocations,
-		KeyStorer:           cfg.AuthServer.keyStore,
+		KeyStore:            cfg.AuthServer.keyStore,
 		CertAuthorityGetter: cfg.AuthServer.Cache,
 		EventsWatcher:       cfg.AuthServer.Services,
 		ClusterName:         clusterName.GetClusterName(),

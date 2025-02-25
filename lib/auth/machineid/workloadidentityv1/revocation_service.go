@@ -71,9 +71,9 @@ type RevocationServiceConfig struct {
 	// ClusterName is the name of the cluster that the service is running in,
 	// used to fetch the correct CA for signing the CRL.
 	ClusterName string
-	// KeyStorer is the key storer used to store and retrieve keys for the
+	// KeyStore is the key storer used to store and retrieve keys for the
 	// signing of the CRL.
-	KeyStorer KeyStorer
+	KeyStore KeyStorer
 }
 
 // RevocationService is the gRPC service for managing workload identity
@@ -88,7 +88,7 @@ type RevocationService struct {
 	emitter             apievents.Emitter
 	logger              *slog.Logger
 	certAuthorityGetter certAuthorityGetter
-	keyStorer           KeyStorer
+	keyStore            KeyStorer
 	clusterName         string
 	eventsWatcher       eventsWatcher
 
@@ -114,7 +114,7 @@ func NewRevocationService(cfg *RevocationServiceConfig) (*RevocationService, err
 		return nil, trace.BadParameter("emitter is required")
 	case cfg.ClusterName == "":
 		return nil, trace.BadParameter("cluster name is required")
-	case cfg.KeyStorer == nil:
+	case cfg.KeyStore == nil:
 		return nil, trace.BadParameter("key storer is required")
 	case cfg.EventsWatcher == nil:
 		return nil, trace.BadParameter("events watcher is required")
@@ -134,7 +134,7 @@ func NewRevocationService(cfg *RevocationServiceConfig) (*RevocationService, err
 		logger:              cfg.Logger,
 		clusterName:         cfg.ClusterName,
 		certAuthorityGetter: cfg.CertAuthorityGetter,
-		keyStorer:           cfg.KeyStorer,
+		keyStore:            cfg.KeyStore,
 		eventsWatcher:       cfg.EventsWatcher,
 		crlSigningDebounce:  5 * time.Second,
 		crlFailureBackoff:   30 * time.Second,
@@ -594,7 +594,7 @@ func (s *RevocationService) signCRL(
 	if err != nil {
 		return nil, trace.Wrap(err, "getting CA")
 	}
-	tlsCert, tlsSigner, err := s.keyStorer.GetTLSCertAndSigner(ctx, ca)
+	tlsCert, tlsSigner, err := s.keyStore.GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting CA cert and key")
 	}
