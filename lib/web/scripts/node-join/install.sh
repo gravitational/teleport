@@ -1006,7 +1006,7 @@ install_from_repo() {
 
 install_from_updater() {
     SCRIPT_URL="https://$TARGET_HOSTNAME:$TARGET_PORT/scripts/install.sh"
-    CURL_COMMAND="curl -fsl"
+    CURL_COMMAND="curl -fsS"
     if [[ ${DISABLE_TLS_VERIFICATION} == "true" ]]; then
         CURL_COMMAND+=" -k"
         SCRIPT_URL+="?insecure=true"
@@ -1015,8 +1015,13 @@ install_from_updater() {
     log "Requesting the install script: $SCRIPT_URL"
     $CURL_COMMAND "$SCRIPT_URL" -o "$TEMP_DIR/install.sh" || (log "Failed to retrieve the install script." && exit 1)
 
+    chmod +x "$TEMP_DIR/install.sh"
+
     log "Executing the install script"
-    bash "$TEMP_DIR/install.sh"
+    # We execute the install script because it might be a bash or sh script depending on the install script served.
+    # This might cause issues if tmp is mounted with noexec, but the oneoff.sh script will also download and exec
+    # binaries from tmp
+    "$TEMP_DIR/install.sh"
 }
 
 # package_list returns the list of packages to install.
