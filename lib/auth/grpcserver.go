@@ -4516,18 +4516,15 @@ func (g *GRPCServer) DeleteUIConfig(ctx context.Context, _ *emptypb.Empty) (*emp
 }
 
 func (g *GRPCServer) defaultInstaller(ctx context.Context) (*types.InstallerV1, error) {
-	var defaultInstaller *types.InstallerV1
-
 	_, err := g.AuthServer.GetAutoUpdateAgentRollout(ctx)
 	switch {
 	case trace.IsNotFound(err):
-		defaultInstaller = installer.LegacyDefaultInstaller
+		return installer.LegacyDefaultInstaller, nil
 	case err != nil:
 		return nil, trace.Wrap(err, "failed to get query autoupdate state to build installer")
 	default:
-		defaultInstaller = installer.NewDefaultInstaller
+		return installer.NewDefaultInstaller, nil
 	}
-	return defaultInstaller, nil
 }
 
 // GetInstaller retrieves the installer script resource
