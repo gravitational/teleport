@@ -4,6 +4,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 
 import useTeleport from 'e-teleport/useTeleportE';
 import cfg from 'teleport/config';
+import { DeleteRequestOptions } from 'teleport/Integrations/Operations/IntegrationOperations';
 import {
   EditableIntegrationFields,
   ExternalAuditStorageOpType,
@@ -198,8 +199,8 @@ export function useIntegrations() {
     setPluginOps({ type: 'delete', item: plugin });
   }
 
-  function removeIntegration() {
-    return integrationOps.remove().then(() => {
+  function removeIntegration(opts: DeleteRequestOptions = {}) {
+    return integrationOps.remove(opts).then(() => {
       const updatedItems = items.filter(
         i => i.resourceType === 'plugin' || i.name !== integrationOps.item.name
       );

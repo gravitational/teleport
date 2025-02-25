@@ -1,11 +1,11 @@
-import { ExternalAuditStorageDelete } from './ExternalAuditStorageDelete';
+import { ExternalAuditStorageDelete } from './IntegrationEnroll/DeleteDialogs/ExternalAuditStorageDelete';
 import { PluginDelete } from './PluginDelete';
 
 export default {
-  title: 'TeleportE/Integrations',
+  title: 'TeleportE/Integrations/Delete',
 };
 
-export function DeleteExternalAuditStorage() {
+export function ExternalAuditStorage() {
   return (
     <ExternalAuditStorageDelete
       onClose={() => {}}
@@ -15,7 +15,7 @@ export function DeleteExternalAuditStorage() {
   );
 }
 
-export function DeletePlugin() {
+export function Plugin() {
   return (
     <PluginDelete
       onClose={() => {}}

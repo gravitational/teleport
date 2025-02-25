@@ -13,7 +13,7 @@ import {
 } from 'teleport/Integrations/Operations/useIntegrationOperation';
 import { Plugin } from 'teleport/services/integrations';
 
-import { ExternalAuditStorageDelete } from './ExternalAuditStorageDelete';
+import { ExternalAuditStorageDelete } from './IntegrationEnroll/DeleteDialogs/ExternalAuditStorageDelete';
 import { IntegrationOperationsE } from './IntegrationOperationsE';
 import { IntegrationsSplash } from './IntegrationsSplash';
 import { PluginDelete } from './PluginDelete';
