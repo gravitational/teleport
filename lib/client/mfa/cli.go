@@ -185,14 +185,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		fmt.Fprintf(c.writer(), msg, strings.Join(availableMethods, ", "), strings.Join(chosenMethods, " and "))
 	}
 
-	// DELETE IN v18.0 after TOTP session MFA support is removed (codingllama)
-	// Technically we could remove api/mfa.WithPromptChallengeExtensions along
-	// with this, as it's likely its only use, although arguably keeping it could
-	// prove useful.
-	usageSessionMFA := c.cfg.Extensions.GetScope() == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION
-	if promptOTP && usageSessionMFA {
-		fmt.Fprint(c.writer(), "\nWARNING: Starting with Teleport 18, OTP will not be accepted for per-session MFA.\n\n")
-	}
+	useSessionMFA := c.cfg.Extensions.GetScope() == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION
 
 	switch {
 	case promptOTP && promptWebauthn:
@@ -204,6 +197,8 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	case promptSSO:
 		resp, err := c.promptSSO(ctx, chal)
 		return resp, trace.Wrap(err)
+	case promptOTP && useSessionMFA:
+		return nil, trace.AccessDenied("only WebAuthn and SSO MFA methods are supported with per-session MFA, please register a supported MFA method to connect to this server")
 	case promptOTP:
 		resp, err := c.promptOTP(ctx, c.cfg.Quiet)
 		return resp, trace.Wrap(err)

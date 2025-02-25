@@ -618,6 +618,11 @@ func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *authpb.UserCert
 	}
 
 	if req.Purpose == authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
+		if req.MFAResponse != nil {
+			if _, ok := req.MFAResponse.Response.(*authpb.MFAAuthenticateResponse_TOTP); ok {
+				return nil, trace.BadParameter("per-session MFA is not satisfied by 'otp' devices, please update your configuration to use WebAuthn")
+			}
+		}
 		certs, err := g.generateUserSingleUseCerts(ctx, auth, req)
 		return certs, trace.Wrap(err)
 	}

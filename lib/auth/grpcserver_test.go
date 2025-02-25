@@ -1612,6 +1612,28 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			},
 		},
 		{
+			desc: "fail - single use ssh using totp",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					SSHPublicKey: sshPub,
+					Username:     user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires:  clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:    proto.UserCertsRequest_SSH,
+					NodeName: "node-a",
+					SSHLogin: "role",
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
+				},
+				authnHandler: registered.totpAuthHandler,
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "per-session MFA is not satisfied by 'otp' devices")
+				},
+			},
+		},
+		{
 			desc: "k8s",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
