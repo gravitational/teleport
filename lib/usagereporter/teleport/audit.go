@@ -78,6 +78,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			ConnectorType:            e.Method,
 			DeviceId:                 deviceID,
 			RequiredPrivateKeyPolicy: e.RequiredPrivateKeyPolicy,
+			UserOrigin:               prehogv1a.UserOrigin(e.UserOrigin),
 		}
 
 	case *apievents.SessionStart:

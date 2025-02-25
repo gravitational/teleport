@@ -48,6 +48,29 @@ message UserLoginEvent {
 
   // the required private key policy for this login.
   string required_private_key_policy = 4;
+
+  // UserOrigin specifies the origin of this user account.
+  //
+  // PostHog property: tp.user_origin
+  UserOrigin user_origin = 5;
+}
+
+// UserOrigin is the origin of a user account.
+// Keep the values in sync with UserOrigin enum defined in
+// API events and prehogv1.
+enum UserOrigin {
+  // Indicates a legacy cluster emitting events without a defined user origin.
+  USER_ORIGIN_UNSPECIFIED = 0;
+  // Indicates a local user.
+  USER_ORIGIN_LOCAL = 1;
+  // Indicates an SSO user originated from the SAML or OIDC connector.
+  USER_ORIGIN_SSO = 2;
+  // Indicates a user originated from the Okta integration.
+  USER_ORIGIN_OKTA = 3;
+  // Indicates a user originated from the SCIM integration.
+  USER_ORIGIN_SCIM = 4;
+  // Indicates a user originated from the EntraID integration.
+  USER_ORIGIN_ENTRAID = 5;
 }
 
 // MFAAuthenticationEvent is emitted when a user performs MFA authentication.

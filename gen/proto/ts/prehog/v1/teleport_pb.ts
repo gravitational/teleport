@@ -204,6 +204,12 @@ export interface UserActivityRecord {
      * @generated from protobuf field: repeated prehog.v1.SPIFFEIDRecord spiffe_ids_issued = 18;
      */
     spiffeIdsIssued: SPIFFEIDRecord[];
+    /**
+     * Indicates origin of user account.
+     *
+     * @generated from protobuf field: prehog.v1.UserOrigin user_origin = 19;
+     */
+    userOrigin: UserOrigin;
 }
 /**
  * @generated from protobuf message prehog.v1.ResourcePresenceReport
@@ -445,6 +451,51 @@ export enum UserKind {
     BOT = 2
 }
 /**
+ * UserOrigin is the origin of a user account.
+ * Keep the values in sync with UserOrigin enum defined in
+ * API events and prehogv1alpha.
+ *
+ * @generated from protobuf enum prehog.v1.UserOrigin
+ */
+export enum UserOrigin {
+    /**
+     * Indicates a legacy cluster emitting events without a defined user origin.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * Indicates a local user.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_LOCAL = 1;
+     */
+    LOCAL = 1,
+    /**
+     * Indicates an SSO user originated from the SAML or OIDC connector.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_SSO = 2;
+     */
+    SSO = 2,
+    /**
+     * Indicates a user originated from the Okta integration.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_OKTA = 3;
+     */
+    OKTA = 3,
+    /**
+     * Indicates a user originated from the SCIM integration.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_SCIM = 4;
+     */
+    SCIM = 4,
+    /**
+     * Indicates a user originated from the EntraID integration.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_ENTRAID = 5;
+     */
+    ENTRAID = 5
+}
+/**
  * the kind of a "resource" (e.g. a node, a database, a desktop, etc.)
  * Keep in sync with prehog/v1alpha/teleport.proto
  *
@@ -605,7 +656,8 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
             { no: 15, name: "spiffe_svids_issued", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 16, name: "bot_joins", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 17, name: "certificates_issued", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
-            { no: 18, name: "spiffe_ids_issued", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SPIFFEIDRecord }
+            { no: 18, name: "spiffe_ids_issued", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SPIFFEIDRecord },
+            { no: 19, name: "user_origin", kind: "enum", T: () => ["prehog.v1.UserOrigin", UserOrigin, "USER_ORIGIN_"] }
         ]);
     }
     create(value?: PartialMessage<UserActivityRecord>): UserActivityRecord {
@@ -628,6 +680,7 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         message.botJoins = 0n;
         message.certificatesIssued = 0n;
         message.spiffeIdsIssued = [];
+        message.userOrigin = 0;
         if (value !== undefined)
             reflectionMergePartial<UserActivityRecord>(this, message, value);
         return message;
@@ -690,6 +743,9 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
                     break;
                 case /* repeated prehog.v1.SPIFFEIDRecord spiffe_ids_issued */ 18:
                     message.spiffeIdsIssued.push(SPIFFEIDRecord.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* prehog.v1.UserOrigin user_origin */ 19:
+                    message.userOrigin = reader.int32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -757,6 +813,9 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         /* repeated prehog.v1.SPIFFEIDRecord spiffe_ids_issued = 18; */
         for (let i = 0; i < message.spiffeIdsIssued.length; i++)
             SPIFFEIDRecord.internalBinaryWrite(message.spiffeIdsIssued[i], writer.tag(18, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1.UserOrigin user_origin = 19; */
+        if (message.userOrigin !== 0)
+            writer.tag(19, WireType.Varint).int32(message.userOrigin);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
