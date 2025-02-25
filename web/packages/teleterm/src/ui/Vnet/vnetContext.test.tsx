@@ -26,14 +26,11 @@ import {
   useImperativeHandle,
 } from 'react';
 
-import { CheckReportStatus } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
-
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import {
-  makeCheckAttempt,
-  makeCheckReport,
   makeReport,
+  makeReportWithIssuesFound,
 } from 'teleterm/services/vnet/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -217,15 +214,7 @@ it('registers a callback for unexpected shutdown', async () => {
 /* eslint-disable jest/no-standalone-expect */
 describe('diag notification', () => {
   const noIssuesFoundReport = makeReport();
-  const issuesFoundReport = makeReport({
-    checks: [
-      makeCheckAttempt({
-        checkReport: makeCheckReport({
-          status: CheckReportStatus.ISSUES_FOUND,
-        }),
-      }),
-    ],
-  });
+  const issuesFoundReport = makeReportWithIssuesFound();
   const tests: Array<{
     it: string;
     /** Ref for opening/closing the connections panel. If provided, the panel will be open by default. */
