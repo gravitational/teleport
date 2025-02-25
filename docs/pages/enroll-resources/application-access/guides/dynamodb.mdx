@@ -91,80 +91,42 @@ so:
 $ tsh apps login --aws-role ExampleTeleportDynamoDBRole aws
 ```
 
-To connect your DynamoDB application, you can start either a local HTTPS proxy
-or a local AWS Service Endpoint proxy.
+To connect your DynamoDB application, start a local HTTPS proxy that forwards
+AWS requests to the Teleport Proxy Service, enabling you to access AWS
+applications.
 
-<Tabs>
-  <TabItem label="HTTPS proxy">
-  By default, starting the AWS app proxy creates a local HTTPS proxy server
-  that forwards AWS requests to the Teleport Proxy Service, enabling you to
-  access AWS applications.
+Use the following command to start the proxy your applications will be
+connecting to:
 
-  Now, use the following command to start the proxy your applications will be
-  connecting to:
+```code
+$ tsh proxy aws -p 23456
+Started AWS proxy on http://127.0.0.1:23456.
 
-  ```code
-  $ tsh proxy aws -p 23456
-  Started AWS proxy on http://127.0.0.1:23456.
+Use the following credentials and HTTPS proxy setting to connect to the proxy:
+  AWS_ACCESS_KEY_ID=(=aws.aws_access_key=)
+  AWS_SECRET_ACCESS_KEY=(=aws.aws_secret_access_key=)
+  AWS_CA_BUNDLE=<local-ca-bundle-path>
+  HTTPS_PROXY=http://127.0.0.1:23456
+```
 
-  Use the following credentials and HTTPS proxy setting to connect to the proxy:
-    AWS_ACCESS_KEY_ID=(=aws.aws_access_key=)
-    AWS_SECRET_ACCESS_KEY=(=aws.aws_secret_access_key=)
-    AWS_CA_BUNDLE=<local-ca-bundle-path>
-    HTTPS_PROXY=http://127.0.0.1:23456
-  ```
+Use the displayed AWS credentials and HTTPS proxy settings when configuring
+your application.
 
-  Use the displayed AWS credentials and HTTPS proxy settings when configuring
-  your application.
+For example, you can assign the AWS credentials and the HTTPS proxy address
+to environment variables for Python AWS SDK:
 
-  For example, you can assign the AWS credentials and the HTTPS proxy address
-  to environment variables for Python AWS SDK:
+```code
+$ export AWS_ACCESS_KEY_ID=(=aws.aws_access_key=)
+$ export AWS_SECRET_ACCESS_KEY=(=aws.aws_secret_access_key=)
+$ export AWS_CA_BUNDLE=<local-ca-bundle-path>
+$ export HTTPS_PROXY=http://127.0.0.1:23456
+$ python3
+>>> import boto3
+>>> boto3.client('dynamodb').list_tables()
+{'TableNames': ['my-dynamodb-table'], 'ResponseMetadata': {...}}
 
-  ```code
-  $ export AWS_ACCESS_KEY_ID=(=aws.aws_access_key=)
-  $ export AWS_SECRET_ACCESS_KEY=(=aws.aws_secret_access_key=)
-  $ export AWS_CA_BUNDLE=<local-ca-bundle-path>
-  $ export HTTPS_PROXY=http://127.0.0.1:23456
-  $ python3
-  >>> import boto3
-  >>> boto3.client('dynamodb').list_tables()
-  {'TableNames': ['my-dynamodb-table'], 'ResponseMetadata': {...}}
+```
 
-  ```
-
-  </TabItem>
-  <TabItem label="AWS Service Endpoint proxy">
-  If your application cannot use a HTTPS proxy, start the AWS app proxy with
-  the `--endpoint-url` flag to create a local server that can be used as an
-  AWS Service Endpoint.
-
-  ```code
-  $ tsh proxy aws --endpoint-url -p 23457
-  Started AWS proxy which serves as an AWS endpoint URL at https://localhost:23457
-
-  In addition to the endpoint URL, use the following credentials to connect to the proxy:
-    AWS_ACCESS_KEY_ID=(=aws.aws_access_key=)
-    AWS_SECRET_ACCESS_KEY=(=aws.aws_secret_access_key=)
-    AWS_CA_BUNDLE=<local-ca-bundle-path>
-  ```
-
-  For example, to connect the GUI tool `dynamodb-admin` to the local AWS
-  Service Endpoint proxy:
-  ```code
-  $ export AWS_ACCESS_KEY_ID=(=aws.aws_access_key=)
-  $ export AWS_SECRET_ACCESS_KEY=(=aws.aws_secret_access_key=)
-  $ export NODE_EXTRA_CA_CERTS=<local-ca-bundle-path>
-  $ export DYNAMO_ENDPOINT=https://127.0.0.1:23457
-  $ dynamodb-admin
-  database endpoint:     https://127.0.0.1:23457
-  region:                ca-central-1
-  accessKey:             <access-key-id>
-
-  dynamodb-admin listening on http://localhost:8001 (alternatively http://0.0.0.0:8001)
-  ```
-
-  </TabItem>
-</Tabs>
 To log out of the `aws` application and remove credentials:
 
 ```code

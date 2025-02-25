@@ -780,6 +780,20 @@ instance and attach an IAM role to it.
 
 (!docs/pages/includes/aws-no-credential-provider.mdx service="Application"!)
 
+### Missing X-Forwarded-Host HTTP header
+
+You may enconter the error `proxied requests must include X-Forwarded-Host header`
+when making requests to your `tsh` local proxy. This is due to Telepor's
+expecting the HTTP requests to include the `X-Forwarded-Host` header, containing
+a valid AWS endpoint.
+
+Ensure the application using the Teleport's AWS local proxy supports HTTPS proxy
+setting. Passing the local proxy address to applications as the AWS endpoint URL
+is no longer supported.
+
+If you were previously using the `--endpoint-url` flag on `tsh proxy aws`
+command, you must update your applications to use HTTP Proxy instead.
+
 ## Next steps
 
 Now that you know how to set up Teleport to protect access to the AWS Management
