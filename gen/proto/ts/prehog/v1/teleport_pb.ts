@@ -205,15 +205,21 @@ export interface UserActivityRecord {
      */
     spiffeIdsIssued: SPIFFEIDRecord[];
     /**
+     * Indicates origin of user account.
+     *
+     * @generated from protobuf field: prehog.v1.UserOrigin user_origin = 19;
+     */
+    userOrigin: UserOrigin;
+    /**
      * counter of Access Requests created by this user.
      *
-     * @generated from protobuf field: uint64 access_requests_created = 19;
+     * @generated from protobuf field: uint64 access_requests_created = 20;
      */
     accessRequestsCreated: bigint;
     /**
      * counter of Access Requests reviewed by this user.
      *
-     * @generated from protobuf field: uint64 access_requests_reviewed = 20;
+     * @generated from protobuf field: uint64 access_requests_reviewed = 21;
      */
     accessRequestsReviewed: bigint;
 }
@@ -457,6 +463,51 @@ export enum UserKind {
     BOT = 2
 }
 /**
+ * UserOrigin is the origin of a user account.
+ * Keep the values in sync with UserOrigin enum defined in
+ * API events and prehogv1alpha.
+ *
+ * @generated from protobuf enum prehog.v1.UserOrigin
+ */
+export enum UserOrigin {
+    /**
+     * Indicates a legacy cluster emitting events without a defined user origin.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * Indicates a local user.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_LOCAL = 1;
+     */
+    LOCAL = 1,
+    /**
+     * Indicates an SSO user originated from the SAML or OIDC connector.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_SSO = 2;
+     */
+    SSO = 2,
+    /**
+     * Indicates a user originated from the Okta integration.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_OKTA = 3;
+     */
+    OKTA = 3,
+    /**
+     * Indicates a user originated from the SCIM integration.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_SCIM = 4;
+     */
+    SCIM = 4,
+    /**
+     * Indicates a user originated from the EntraID integration.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_ENTRAID = 5;
+     */
+    ENTRAID = 5
+}
+/**
  * the kind of a "resource" (e.g. a node, a database, a desktop, etc.)
  * Keep in sync with prehog/v1alpha/teleport.proto
  *
@@ -618,8 +669,9 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
             { no: 16, name: "bot_joins", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 17, name: "certificates_issued", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 18, name: "spiffe_ids_issued", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SPIFFEIDRecord },
-            { no: 19, name: "access_requests_created", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
-            { no: 20, name: "access_requests_reviewed", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+            { no: 19, name: "user_origin", kind: "enum", T: () => ["prehog.v1.UserOrigin", UserOrigin, "USER_ORIGIN_"] },
+            { no: 20, name: "access_requests_created", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 21, name: "access_requests_reviewed", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
         ]);
     }
     create(value?: PartialMessage<UserActivityRecord>): UserActivityRecord {
@@ -642,6 +694,7 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         message.botJoins = 0n;
         message.certificatesIssued = 0n;
         message.spiffeIdsIssued = [];
+        message.userOrigin = 0;
         message.accessRequestsCreated = 0n;
         message.accessRequestsReviewed = 0n;
         if (value !== undefined)
@@ -707,10 +760,13 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
                 case /* repeated prehog.v1.SPIFFEIDRecord spiffe_ids_issued */ 18:
                     message.spiffeIdsIssued.push(SPIFFEIDRecord.internalBinaryRead(reader, reader.uint32(), options));
                     break;
-                case /* uint64 access_requests_created */ 19:
+                case /* prehog.v1.UserOrigin user_origin */ 19:
+                    message.userOrigin = reader.int32();
+                    break;
+                case /* uint64 access_requests_created */ 20:
                     message.accessRequestsCreated = reader.uint64().toBigInt();
                     break;
-                case /* uint64 access_requests_reviewed */ 20:
+                case /* uint64 access_requests_reviewed */ 21:
                     message.accessRequestsReviewed = reader.uint64().toBigInt();
                     break;
                 default:
@@ -779,12 +835,15 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         /* repeated prehog.v1.SPIFFEIDRecord spiffe_ids_issued = 18; */
         for (let i = 0; i < message.spiffeIdsIssued.length; i++)
             SPIFFEIDRecord.internalBinaryWrite(message.spiffeIdsIssued[i], writer.tag(18, WireType.LengthDelimited).fork(), options).join();
-        /* uint64 access_requests_created = 19; */
+        /* prehog.v1.UserOrigin user_origin = 19; */
+        if (message.userOrigin !== 0)
+            writer.tag(19, WireType.Varint).int32(message.userOrigin);
+        /* uint64 access_requests_created = 20; */
         if (message.accessRequestsCreated !== 0n)
-            writer.tag(19, WireType.Varint).uint64(message.accessRequestsCreated);
-        /* uint64 access_requests_reviewed = 20; */
+            writer.tag(20, WireType.Varint).uint64(message.accessRequestsCreated);
+        /* uint64 access_requests_reviewed = 21; */
         if (message.accessRequestsReviewed !== 0n)
-            writer.tag(20, WireType.Varint).uint64(message.accessRequestsReviewed);
+            writer.tag(21, WireType.Varint).uint64(message.accessRequestsReviewed);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

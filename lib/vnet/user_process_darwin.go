@@ -130,7 +130,8 @@ func runPlatformUserProcess(ctx context.Context, cfg *UserProcessConfig) (pm *Pr
 	})
 
 	nsi = NetworkStackInfo{
-		IfaceName: tunDeviceName,
+		IfaceName:  tunDeviceName,
+		IPv6Prefix: ipv6Prefix.String(),
 	}
 
 	return pm, nsi, nil
