@@ -23,9 +23,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/utils/typical"
-	"github.com/gravitational/trace"
 )
 
 // RenderTemplate parses the given template and renders a string using the given

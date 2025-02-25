@@ -19,8 +19,9 @@
 package expression
 
 import (
-	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/trace"
+
+	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
 // Evaluate the given boolean expression against the given attributes.

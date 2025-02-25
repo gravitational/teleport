@@ -21,10 +21,11 @@ package expression_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	traitv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/expression"
-	"github.com/stretchr/testify/require"
 )
 
 func TestEvaluate(t *testing.T) {

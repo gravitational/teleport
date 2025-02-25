@@ -21,10 +21,11 @@ package expression_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	traitv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/expression"
-	"github.com/stretchr/testify/require"
 )
 
 func TestTemplate_Success(t *testing.T) {
@@ -157,4 +158,63 @@ func TestTemplate_MultipleTraitValues(t *testing.T) {
 		},
 	})
 	require.ErrorContains(t, err, "multiple values")
+}
+
+func TestTemplate_MissingSubmessage(t *testing.T) {
+	tmpl, err := expression.NewTemplate(`{{workload.podman.container.name}}`)
+	require.NoError(t, err)
+
+	_, err = tmpl.Render(&workloadidentityv1.Attrs{
+		Workload: &workloadidentityv1.WorkloadAttrs{},
+	})
+	require.ErrorContains(t, err, "workload.podman is unset")
+}
+
+func TestTemplate_MissingMapValue(t *testing.T) {
+	tmpl, err := expression.NewTemplate(`{{workload.podman.container.labels.foo}}`)
+	require.NoError(t, err)
+
+	_, err = tmpl.Render(&workloadidentityv1.Attrs{
+		Workload: &workloadidentityv1.WorkloadAttrs{
+			Podman: &workloadidentityv1.WorkloadAttrsPodman{
+				Container: &workloadidentityv1.WorkloadAttrsPodmanContainer{
+					Labels: map[string]string{"bar": "baz"},
+				},
+			},
+		},
+	})
+	require.ErrorContains(t, err, `no value for key: "foo"`)
+}
+
+func TestTemplate_MissingTrait(t *testing.T) {
+	tmpl, err := expression.NewTemplate(`{{user.traits.foo}}`)
+	require.NoError(t, err)
+
+	_, err = tmpl.Render(&workloadidentityv1.Attrs{
+		User: &workloadidentityv1.UserAttrs{
+			Traits: []*traitv1.Trait{
+				{
+					Key:    "bar",
+					Values: []string{"baz"},
+				},
+			},
+		},
+	})
+	require.ErrorContains(t, err, `no value for trait: "foo"`)
+}
+
+func TestTemplate_UnsetValue(t *testing.T) {
+	tmpl, err := expression.NewTemplate(`{{workload.podman.container.name}}`)
+	require.NoError(t, err)
+
+	_, err = tmpl.Render(&workloadidentityv1.Attrs{
+		Workload: &workloadidentityv1.WorkloadAttrs{
+			Podman: &workloadidentityv1.WorkloadAttrsPodman{
+				Container: &workloadidentityv1.WorkloadAttrsPodmanContainer{
+					Name: "",
+				},
+			},
+		},
+	})
+	require.ErrorContains(t, err, "workload.podman.container.name is unset")
 }

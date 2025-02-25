@@ -21,10 +21,11 @@ package expression
 import (
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/expression"
 	"github.com/gravitational/teleport/lib/utils/typical"
-	"github.com/gravitational/trace"
 )
 
 var (
@@ -32,7 +33,7 @@ var (
 	booleanExpressionParser  = must(expression.NewTraitsExpressionParser[*workloadidentityv1pb.Attrs](expressionVars))
 
 	templateVars = func() map[string]typical.Variable {
-		vars := protoMessageVariables[*workloadidentityv1pb.Attrs]()
+		vars := protoMessageVariables[*workloadidentityv1pb.Attrs](true)
 
 		// In the context of a template, traits must be single-valued and we
 		// return an error if they're not. For completeness, it might better if
@@ -48,10 +49,10 @@ var (
 			vals := traits[key]
 
 			switch len(vals) {
-			case 0:
-				return "", nil
 			case 1:
 				return vals[0], nil
+			case 0:
+				return "", trace.Errorf("no value for trait: %q", key)
 			default:
 				return "", trace.Errorf(
 					"trait `%s` has multiple values (%s), only single-value traits may be used in a template",
@@ -64,7 +65,7 @@ var (
 	}()
 
 	expressionVars = func() map[string]typical.Variable {
-		vars := protoMessageVariables[*workloadidentityv1pb.Attrs]()
+		vars := protoMessageVariables[*workloadidentityv1pb.Attrs](false)
 
 		// In the context of a binary expression, we support multi-valued traits
 		// so you can use `contains`.

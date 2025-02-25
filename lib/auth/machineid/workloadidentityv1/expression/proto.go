@@ -19,13 +19,18 @@
 package expression
 
 import (
-	"github.com/gravitational/teleport/lib/utils/typical"
+	"strings"
+
+	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
+
+	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
 // protoMessageVariables builds a map of `typical.Variable`s for the given proto
-// message type.
+// message type. If zeroValError is true, accessing an "unset" string field will
+// return an error instead of the zero value.
 //
 // We currently only support the following field types, and all other fields will
 // be ignored:
@@ -42,7 +47,7 @@ import (
 //
 // Note: we do not support self-referential messages or circular references, these
 // fields will also be ignored.
-func protoMessageVariables[TEnv proto.Message]() map[string]typical.Variable {
+func protoMessageVariables[TEnv proto.Message](zeroValError bool) map[string]typical.Variable {
 	// addMessageFields adds each of a messages fields as variables. If it
 	// encounters a sub-message, it recursively calls itself to add the sub
 	// message's fields, prefixed its ancestors' names.
@@ -71,12 +76,20 @@ func protoMessageVariables[TEnv proto.Message]() map[string]typical.Variable {
 
 			// Read the field value from the given TEnv by reading each of the
 			// ancestor messages.
-			get := func(env TEnv) protoreflect.Value {
+			get := func(env TEnv) (protoreflect.Value, error) {
 				msg := env.ProtoReflect()
+				names := make([]string, 0)
 				for _, ancestor := range ancestors {
 					msg = msg.Get(ancestor).Message()
+					names = append(names, ancestor.TextName())
+
+					// Accessing a field on an unset sub-message is always an error.
+					if !msg.IsValid() {
+						return protoreflect.Value{}, trace.Errorf("%s is unset", strings.Join(names, "."))
+					}
 				}
-				return msg.Get(field)
+
+				return msg.Get(field), nil
 			}
 
 			if field.IsMap() {
@@ -87,14 +100,17 @@ func protoMessageVariables[TEnv proto.Message]() map[string]typical.Variable {
 				}
 				vars[name] = typical.DynamicMapFunction(func(env TEnv, key string) (string, error) {
 					mapKey := protoreflect.ValueOf(key).MapKey()
-					mapVal := get(env).Map().Get(mapKey)
 
-					// We currently return an empty string if the map does not
-					// contain the requested key.
+					val, err := get(env)
+					if err != nil {
+						return "", nil
+					}
+					mapVal := val.Map().Get(mapKey)
+
 					if mapVal.IsValid() {
 						return mapVal.String(), nil
 					}
-					return "", nil
+					return "", trace.Errorf("no value for key: %q", key)
 				})
 			}
 
@@ -103,19 +119,39 @@ func protoMessageVariables[TEnv proto.Message]() map[string]typical.Variable {
 				addMessageFields(name, append(ancestors, field), field.Message())
 			case protoreflect.StringKind:
 				vars[name] = typical.DynamicVariable(func(env TEnv) (string, error) {
-					return get(env).String(), nil
+					v, err := get(env)
+					if err != nil {
+						return "", err
+					}
+					s := v.String()
+					if s == "" && zeroValError {
+						return "", trace.Errorf("%s is unset", name)
+					}
+					return s, nil
 				})
 			case protoreflect.Int32Kind, protoreflect.Int64Kind:
 				vars[name] = typical.DynamicVariable(func(env TEnv) (int, error) {
-					return int(get(env).Int()), nil
+					if v, err := get(env); err == nil {
+						return int(v.Int()), nil
+					} else {
+						return 0, err
+					}
 				})
 			case protoreflect.Uint32Kind, protoreflect.Uint64Kind:
 				vars[name] = typical.DynamicVariable(func(env TEnv) (uint64, error) {
-					return get(env).Uint(), nil
+					if v, err := get(env); err == nil {
+						return v.Uint(), nil
+					} else {
+						return 0, err
+					}
 				})
 			case protoreflect.BoolKind:
 				vars[name] = typical.DynamicVariable(func(env TEnv) (bool, error) {
-					return get(env).Bool(), nil
+					if v, err := get(env); err == nil {
+						return v.Bool(), nil
+					} else {
+						return false, err
+					}
 				})
 			}
 		}
