@@ -54,8 +54,7 @@ func (h *Handler) installScriptHandle(w http.ResponseWriter, r *http.Request, pa
 		return nil, trace.Wrap(err, "Failed to build install script options")
 	}
 
-	insecure := r.URL.Query().Get(insecureParamName)
-	if insecure != "" {
+	if insecure := r.URL.Query().Get(insecureParamName); insecure != "" {
 		v, err := strconv.ParseBool(insecure)
 		if err != nil {
 			return nil, trace.BadParameter("failed to parse insecure flag %q: %v", insecure, err)

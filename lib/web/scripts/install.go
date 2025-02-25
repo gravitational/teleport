@@ -138,7 +138,7 @@ func (o *InstallScriptOptions) oneOffParams() (params oneoff.OneOffScriptParams)
 	successMessage := "Teleport successfully installed."
 	if o.Insecure {
 		args = append(args, "--insecure")
-		successMessage += " --insecure was used during installation, automatic updates will not work unless the Proxy Service exposes a trusted certificate."
+		successMessage += " --insecure was used during installation, automatic updates will not work unless the Proxy Service presents a certificate trusted by the system."
 	}
 
 	return oneoff.OneOffScriptParams{
