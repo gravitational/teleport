@@ -4774,6 +4774,7 @@ message OneOf {
     events.WorkloadIdentityX509RevocationCreate WorkloadIdentityX509RevocationCreate = 201;
     events.WorkloadIdentityX509RevocationDelete WorkloadIdentityX509RevocationDelete = 202;
     events.WorkloadIdentityX509RevocationUpdate WorkloadIdentityX509RevocationUpdate = 203;
+    events.AWSICResourceSync AWSICResourceSync = 204;
   }
 }
 
@@ -8101,4 +8102,30 @@ message StableUNIXUserCreate {
 message StableUNIXUser {
   string username = 1;
   int32 uid = 2;
+}
+
+// AWSICResourceSync is emitted when the AWS Identity Center integration
+// imports resources from Identity Center and reconciles them to Teleport.
+message AWSICResourceSync {
+  // Metadata is the event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Total imported AWS accounts.
+  int32 total_accounts = 2 [(gogoproto.jsontag) = "total_accounts,omitempty"];
+  // Total account assignments imported from Identity Center. Account assignments
+  // are permissions assigned to users or groups.
+  int32 total_account_assignments = 3 [(gogoproto.jsontag) = "total_account_assignments,omitempty"];
+  // Total user groups imported from Identity Center.
+  int32 total_user_groups = 4 [(gogoproto.jsontag) = "total_user_groups,omitempty"];
+  // Total permission sets imported from Identity Center.
+  int32 total_permission_sets = 5 [(gogoproto.jsontag) = "total_permission_sets,omitempty"];
+  // Status is a resource sync status.
+  Status Status = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }

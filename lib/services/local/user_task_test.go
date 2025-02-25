@@ -225,7 +225,7 @@ func TestListUserTask(t *testing.T) {
 
 			t.Run("one page", func(t *testing.T) {
 				// Fetch all objects.
-				elements, nextToken, err := service.ListUserTasks(ctx, 200, "")
+				elements, nextToken, err := service.ListUserTasks(ctx, 200, "", &usertasksv1.ListUserTasksFilters{})
 				require.NoError(t, err)
 				require.Empty(t, nextToken)
 				require.Len(t, elements, count)
@@ -239,7 +239,7 @@ func TestListUserTask(t *testing.T) {
 				elements := make([]*usertasksv1.UserTask, 0)
 				nextToken := ""
 				for {
-					out, token, err := service.ListUserTasks(ctx, 2, nextToken)
+					out, token, err := service.ListUserTasks(ctx, 2, nextToken, &usertasksv1.ListUserTasksFilters{})
 					require.NoError(t, err)
 					nextToken = token
 

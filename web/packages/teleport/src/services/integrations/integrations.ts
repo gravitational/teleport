@@ -24,7 +24,10 @@ import api from 'teleport/services/api';
 import { App } from '../apps';
 import makeApp from '../apps/makeApps';
 import auth, { MfaChallengeScope } from '../auth/auth';
-import { withUnsupportedLabelFeatureErrorConversion } from '../version/unsupported';
+import {
+  withGenericUnsupportedError,
+  withUnsupportedLabelFeatureErrorConversion,
+} from '../version/unsupported';
 import {
   AwsDatabaseVpcsResponse,
   AwsOidcDeployDatabaseServicesRequest,
@@ -42,6 +45,7 @@ import {
   Integration,
   IntegrationCreateRequest,
   IntegrationCreateResult,
+  IntegrationDeleteRequest,
   IntegrationDiscoveryRules,
   IntegrationKind,
   IntegrationListResponse,
@@ -127,8 +131,10 @@ export const integrationService = {
       .then(makeIntegration);
   },
 
-  deleteIntegration(name: string): Promise<void> {
-    return api.delete(cfg.getIntegrationsUrl(name));
+  deleteIntegration(req: IntegrationDeleteRequest): Promise<void> {
+    return api
+      .delete(cfg.getDeleteIntegrationUrlV2(req))
+      .catch(err => withGenericUnsupportedError(err, 'v17.3.0'));
   },
 
   fetchThumbprint(): Promise<string> {
@@ -590,7 +596,7 @@ function makeIntegration(json: any): Integration {
     return {
       ...commonFields,
       resourceType: 'integration',
-      details: `GitHub Organization "${github.organization}"`,
+      details: `GitHub repository access for organization "${github.organization}"`,
       spec: {
         organization: github.organization,
       },

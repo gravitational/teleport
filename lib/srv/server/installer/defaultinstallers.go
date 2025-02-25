@@ -40,7 +40,7 @@ func oneoffScriptToDefaultInstaller() *types.InstallerV1 {
 	}
 
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
-		TeleportArgs:          strings.Join(argsList, " "),
+		EntrypointArgs:        strings.Join(argsList, " "),
 		SuccessMessage:        "Teleport is installed and running.",
 		TeleportCommandPrefix: oneoff.PrefixSUDO,
 	})

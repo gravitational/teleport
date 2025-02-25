@@ -121,7 +121,7 @@ func (b *WorkloadIdentityService) UpdateWorkloadIdentity(
 
 func newWorkloadIdentityParser() *workloadIdentityParser {
 	return &workloadIdentityParser{
-		baseParser: newBaseParser(backend.NewKey(workloadIdentityPrefix)),
+		baseParser: newBaseParser(backend.ExactKey(workloadIdentityPrefix)),
 	}
 }
 
