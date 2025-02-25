@@ -95,6 +95,7 @@ func (s *heartbeatService) OneShot(ctx context.Context) error {
 func (s *heartbeatService) Run(ctx context.Context) error {
 	isStartup := true
 	err := runOnInterval(ctx, runOnIntervalConfig{
+		service:    s.String(),
 		name:       "submit-heartbeat",
 		log:        s.log,
 		interval:   s.interval,
