@@ -194,6 +194,10 @@ function setPointer(canvas: HTMLCanvasElement, pointer: Pointer): void {
   canvas.style.cursor = `url(${cursor.toDataURL()}) ${pointer.hotspot_x} ${pointer.hotspot_y}, auto`;
 }
 
+//TODO(gzdunek): renderBuffer is called  even when the buffer is empty.
+// This causes the function to run in a loop, 60 times per second
+// (actually x2 because we have two frame renderers).
+// Fix it in the both renderers, check if it improves performance.
 function makePngFrameRenderer(
   canvas: HTMLCanvasElement
 ): (frame: PngFrame) => void {
