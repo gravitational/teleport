@@ -1579,6 +1579,12 @@ message UserTaskStateEvent {
   int32 instances_count = 4;
 }
 
+// AccessRequestEvent emitted for Access Request audit events.
+message AccessRequestEvent {
+  // Teleport user name. Anonymized.
+  string user_name = 1;
+}
+
 message SubmitEventRequest {
   // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
   //
@@ -1746,6 +1752,9 @@ message SubmitEventRequest {
     // note that 95 is used for "teleport_version" above.
 
     UIIntegrationEnrollStepEvent ui_integration_enroll_step_event = 96;
+
+    AccessRequestEvent access_request_create_event = 97;
+    AccessRequestEvent access_request_review_event = 98;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

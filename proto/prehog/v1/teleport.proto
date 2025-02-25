@@ -144,6 +144,10 @@ message UserActivityRecord {
   repeated SPIFFEIDRecord spiffe_ids_issued = 18;
   // Indicates origin of user account.
   UserOrigin user_origin = 19;
+  // counter of Access Requests created by this user.
+  uint64 access_requests_created = 20;
+  // counter of Access Requests reviewed by this user.
+  uint64 access_requests_reviewed = 21;
 }
 
 // the kind of a "resource" (e.g. a node, a database, a desktop, etc.)
