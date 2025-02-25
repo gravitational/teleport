@@ -115,6 +115,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		return &proto.MFAAuthenticateResponse{}, nil
 	}
 
+	isPerSessionMFA := c.cfg.Extensions.GetScope() == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION
 	var availableMethods []string
 	if promptWebauthn {
 		availableMethods = append(availableMethods, cliMFATypeWebauthn)
@@ -122,7 +123,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	if promptSSO {
 		availableMethods = append(availableMethods, cliMFATypeSSO)
 	}
-	if promptOTP {
+	if promptOTP && !isPerSessionMFA {
 		availableMethods = append(availableMethods, cliMFATypeOTP)
 	}
 
@@ -135,6 +136,11 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	if promptSSO && c.cfg.SSOMFACeremony == nil {
 		promptSSO = false
 		slog.DebugContext(ctx, "SSO MFA not supported by this client, this is likely a bug")
+	}
+
+	// Short circuit if OTP was preferred by --mfa-mode during per-session MFA
+	if c.cfg.PreferOTP && promptOTP && isPerSessionMFA {
+		return nil, trace.AccessDenied("only WebAuthn and SSO MFA methods are supported with per-session MFA, can not specify --mfa-mode=otp")
 	}
 
 	// Prefer whatever method is requested by the client.
@@ -181,17 +187,16 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	if len(availableMethods) > len(chosenMethods) && len(chosenMethods) > 0 && !userSpecifiedMethod {
 		const msg = "" +
 			"Available MFA methods [%v]. Continuing with %v.\n" +
-			"If you wish to perform MFA with another method, specify with flag --mfa-mode=<sso,otp>.\n\n"
-		fmt.Fprintf(c.writer(), msg, strings.Join(availableMethods, ", "), strings.Join(chosenMethods, " and "))
+			"If you wish to perform MFA with another method, specify with flag --mfa-mode=<%v>.\n\n"
+
+		fmt.Fprintf(c.writer(), msg, strings.Join(availableMethods, ", "), strings.Join(chosenMethods, " and "), strings.ToLower(strings.Join(availableMethods, ",")))
 	}
 
-	// DELETE IN v18.0 after TOTP session MFA support is removed (codingllama)
-	// Technically we could remove api/mfa.WithPromptChallengeExtensions along
-	// with this, as it's likely its only use, although arguably keeping it could
-	// prove useful.
-	usageSessionMFA := c.cfg.Extensions.GetScope() == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION
-	if promptOTP && usageSessionMFA {
-		fmt.Fprint(c.writer(), "\nWARNING: Starting with Teleport 18, OTP will not be accepted for per-session MFA.\n\n")
+	// We should never prompt for OTP when per-session MFA is enabled. As long as other MFA methods are available,
+	// we can completely ignore OTP. The promptOTP case below will return an error in the case that no other methods
+	// are available.
+	if isPerSessionMFA && (promptWebauthn || promptSSO) {
+		promptOTP = false
 	}
 
 	switch {
@@ -205,6 +210,10 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		resp, err := c.promptSSO(ctx, chal)
 		return resp, trace.Wrap(err)
 	case promptOTP:
+		if isPerSessionMFA {
+			return nil, trace.AccessDenied("only WebAuthn and SSO MFA methods are supported with per-session MFA")
+		}
+
 		resp, err := c.promptOTP(ctx, c.cfg.Quiet)
 		return resp, trace.Wrap(err)
 	default:
