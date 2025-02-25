@@ -26,6 +26,20 @@ import (
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 )
 
+const (
+	scriptShebangAndSetOptions = `#!/bin/bash
+set -euo pipefail`
+	execGenericInstallScript = `
+INSTALL_SCRIPT_URL="https://{{.PublicProxyAddr}}/scripts/install.sh"
+
+echo "Offloading the installation part to the generic Teleport install script hosted at: $INSTALL_SCRIPT_URL"
+
+TEMP_INSTALLER_SCRIPT="$(mktemp)"
+curl -sSf "$INSTALL_SCRIPT_URL" -o "$TEMP_INSTALLER_SCRIPT"
+sudo bash "$TEMP_INSTALLER_SCRIPT" || (echo "The install script ($TEMP_INSTALLER_SCRIPT) returned a non-zero exit code" && exit 1)
+rm "$TEMP_INSTALLER_SCRIPT"`
+)
+
 // LegacyDefaultInstaller represents the default installer script provided by teleport.
 var (
 	// LegacyDefaultInstaller uses oneoff.sh to download the Teleport tarball and run `teleport install`.
@@ -42,15 +56,6 @@ var (
 			"\n\n",
 		),
 	)
-
-	scriptShebangAndSetOptions = `#!/bin/bash
-set -euo pipefail`
-	execGenericInstallScript = `
-INSTALL_SCRIPT_URL="https://{{.PublicProxyAddr}}/scripts/install.sh"
-
-echo "Offloading the installation part to the generic Teleport install script hosted at: $INSTALL_SCRIPT_URL"
-
-curl -sSf "$INSTALL_SCRIPT_URL" | sudo bash || (echo "The install.sh script returned a non-zero exit code" && exit 1)`
 	configureTeleport = `
 echo "Configuring the Teleport agent"
 
