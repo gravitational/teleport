@@ -51,6 +51,10 @@ export type VnetContext = {
    * Describes whether the given OS can run VNet.
    */
   isSupported: boolean;
+  /**
+   * Describes whether the given OS can run VNet diagnostics.
+   */
+  isDiagSupported: boolean;
   status: VnetStatus;
   start: () => Promise<[void, Error]>;
   startAttempt: Attempt<void>;
@@ -118,13 +122,8 @@ export const VnetContextProvider: FC<
     reason: { value: 'regular-shutdown-or-not-started' },
   });
   const appCtx = useAppContext();
-  const {
-    vnet,
-    mainProcessClient,
-    notificationsService,
-    workspacesService,
-    configService,
-  } = appCtx;
+  const { vnet, mainProcessClient, notificationsService, workspacesService } =
+    appCtx;
   const isWorkspaceStateInitialized = useStoreSelector(
     'workspacesService',
     useCallback(state => state.isInitialized, [])
@@ -134,10 +133,12 @@ export const VnetContextProvider: FC<
   });
   const { isOpenRef: isConnectionsPanelOpenRef } = useConnectionsContext();
 
-  const isSupported = useMemo(() => {
-    const { platform } = mainProcessClient.getRuntimeSettings();
-    return platform === 'darwin' || platform === 'win32';
-  }, [mainProcessClient]);
+  const platform = useMemo(
+    () => mainProcessClient.getRuntimeSettings().platform,
+    [mainProcessClient]
+  );
+  const isSupported = platform === 'darwin' || platform === 'win32';
+  const isDiagSupported = platform === 'darwin';
 
   const [startAttempt, start] = useAsync(
     useCallback(async () => {
@@ -404,7 +405,7 @@ export const VnetContextProvider: FC<
 
   useEffect(
     function periodicallyRunDiagnostics() {
-      if (!configService.get('unstable.vnetDiag').value) {
+      if (!isDiagSupported) {
         return;
       }
 
@@ -429,7 +430,7 @@ export const VnetContextProvider: FC<
       };
     },
     [
-      configService,
+      isDiagSupported,
       diagnosticsIntervalMs,
       runDiagnosticsAndShowNotification,
       status.value,
@@ -441,6 +442,7 @@ export const VnetContextProvider: FC<
     <VnetContext.Provider
       value={{
         isSupported,
+        isDiagSupported,
         status,
         start,
         startAttempt,
