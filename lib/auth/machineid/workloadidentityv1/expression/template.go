@@ -28,6 +28,16 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// RenderTemplate parses the given template and renders a string using the given
+// attributes.
+func RenderTemplate(tmpl string, attrs *workloadidentityv1pb.Attrs) (string, error) {
+	t, err := NewTemplate(tmpl)
+	if err != nil {
+		return "", err
+	}
+	return t.Render(attrs)
+}
+
 // Template represents a string template with typical/predicate expressions in
 // curly braces.
 //

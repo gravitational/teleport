@@ -19,6 +19,8 @@
 package expression
 
 import (
+	"strings"
+
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/expression"
 	"github.com/gravitational/teleport/lib/utils/typical"
@@ -51,7 +53,11 @@ var (
 			case 1:
 				return vals[0], nil
 			default:
-				return "", trace.Errorf("trait %s has multiple values, only single-value traits may be used in a template", key)
+				return "", trace.Errorf(
+					"trait `%s` has multiple values (%s), only single-value traits may be used in a template",
+					key,
+					strings.Join(vals, ", "),
+				)
 			}
 		})
 		return vars

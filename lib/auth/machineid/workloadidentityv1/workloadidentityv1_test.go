@@ -197,7 +197,7 @@ func TestIssueWorkloadIdentityE2E(t *testing.T) {
 				},
 			},
 			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
-				Id: "/example/{{ user.name }}/{{ join.kubernetes.service_account.namespace }}/{{ join.kubernetes.pod.name }}/{{ workload.unix.pid }}",
+				Id: `/example/{{ user.name }}/{{ user.traits["organizational-unit"] }}/{{ join.kubernetes.service_account.namespace }}/{{ join.kubernetes.pod.name }}/{{ workload.unix.pid }}`,
 			},
 		},
 	})
@@ -212,6 +212,12 @@ func TestIssueWorkloadIdentityE2E(t *testing.T) {
 		Spec: &machineidv1.BotSpec{
 			Roles: []string{
 				role.GetName(),
+			},
+			Traits: []*machineidv1.Trait{
+				{
+					Name:   "organizational-unit",
+					Values: []string{"finance-department"},
+				},
 			},
 		},
 	}
@@ -334,7 +340,7 @@ func TestIssueWorkloadIdentityE2E(t *testing.T) {
 	require.NoError(t, err)
 	// Check included public key matches
 	require.Equal(t, workloadKey.Public(), cert.PublicKey)
-	require.Equal(t, "spiffe://localhost/example/bot-my-bot/my-namespace/my-pod/123", cert.URIs[0].String())
+	require.Equal(t, "spiffe://localhost/example/bot-my-bot/finance-department/my-namespace/my-pod/123", cert.URIs[0].String())
 }
 
 func TestIssueWorkloadIdentity(t *testing.T) {

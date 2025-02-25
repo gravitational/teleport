@@ -18,7 +18,6 @@ package workloadidentityv1
 
 import (
 	"context"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -27,6 +26,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/expression"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -52,14 +52,14 @@ func decide(
 	}
 
 	// Now we can cook up some templating...
-	templated, err := templateString(wi.GetSpec().GetSpiffe().GetId(), attrs)
+	templated, err := expression.RenderTemplate(wi.GetSpec().GetSpiffe().GetId(), attrs)
 	if err != nil {
 		d.reason = trace.Wrap(err, "templating spec.spiffe.id")
 		return d
 	}
 	d.templatedWorkloadIdentity.Spec.Spiffe.Id = templated
 
-	templated, err = templateString(wi.GetSpec().GetSpiffe().GetHint(), attrs)
+	templated, err = expression.RenderTemplate(wi.GetSpec().GetSpiffe().GetHint(), attrs)
 	if err != nil {
 		d.reason = trace.Wrap(err, "templating spec.spiffe.hint")
 		return d
@@ -67,7 +67,7 @@ func decide(
 	d.templatedWorkloadIdentity.Spec.Spiffe.Hint = templated
 
 	for i, san := range wi.GetSpec().GetSpiffe().GetX509().GetDnsSans() {
-		templated, err = templateString(san, attrs)
+		templated, err = expression.RenderTemplate(san, attrs)
 		if err != nil {
 			d.reason = trace.Wrap(err, "templating spec.spiffe.x509.dns_sans[%d]", i)
 			return d
@@ -87,7 +87,7 @@ func decide(
 	if st != nil {
 		dst := d.templatedWorkloadIdentity.Spec.Spiffe.X509.SubjectTemplate
 
-		templated, err = templateString(st.CommonName, attrs)
+		templated, err = expression.RenderTemplate(st.CommonName, attrs)
 		if err != nil {
 			d.reason = trace.Wrap(
 				err,
@@ -97,7 +97,7 @@ func decide(
 		}
 		dst.CommonName = templated
 
-		templated, err = templateString(st.Organization, attrs)
+		templated, err = expression.RenderTemplate(st.Organization, attrs)
 		if err != nil {
 			d.reason = trace.Wrap(
 				err,
@@ -107,7 +107,7 @@ func decide(
 		}
 		dst.Organization = templated
 
-		templated, err = templateString(st.OrganizationalUnit, attrs)
+		templated, err = expression.RenderTemplate(st.OrganizationalUnit, attrs)
 		if err != nil {
 			d.reason = trace.Wrap(
 				err,
@@ -165,40 +165,6 @@ func getFieldStringValue(attrs *workloadidentityv1pb.Attrs, attr string) (string
 		message = message.Get(fieldDesc).Message()
 	}
 	return "", nil
-}
-
-// templateString takes a given input string and replaces any values within
-// {{ }} with values from the attribute set.
-//
-// If the specified value is not found in the attribute set, an error is
-// returned.
-//
-// TODO(noah): In a coming PR, this will be replaced by evaluating the values
-// within the handlebars as expressions.
-func templateString(in string, attrs *workloadidentityv1pb.Attrs) (string, error) {
-	if len(in) == 0 {
-		return in, nil
-	}
-
-	re := regexp.MustCompile(`\{\{([^{}]+?)\}\}`)
-	matches := re.FindAllStringSubmatch(in, -1)
-
-	for _, match := range matches {
-		attrKey := strings.TrimSpace(match[1])
-		value, err := getFieldStringValue(attrs, attrKey)
-		if err != nil {
-			return "", trace.Wrap(err, "fetching attribute value for %q", attrKey)
-		}
-		// We want to have an implicit rule here that if an attribute is
-		// included in the template, but is not set, we should refuse to issue
-		// the credential.
-		if value == "" {
-			return "", trace.NotFound("attribute %q unset", attrKey)
-		}
-		in = strings.Replace(in, match[0], value, 1)
-	}
-
-	return in, nil
 }
 
 func evaluateRules(
