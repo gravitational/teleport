@@ -27,6 +27,7 @@ import (
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/utils/teleportassets"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 )
 
@@ -45,6 +46,8 @@ const (
 	// updater).
 	// See RFD-184 for more details: https://github.com/gravitational/teleport/blob/master/rfd/0184-agent-auto-updates.md
 	UpdaterBinaryAutoupdate
+
+	teleportUpdateDefaultCDN = teleportassets.TeleportReleaseCDN
 )
 
 // InstallScriptOptions contains the Teleport installation options used to generate installation scripts.
@@ -112,7 +115,8 @@ func (o *InstallScriptOptions) oneOffParams() (params oneoff.OneOffScriptParams)
 	}
 
 	args := []string{"enable", "--proxy", shsprintf.EscapeDefaultContext(o.ProxyAddr)}
-	if o.CDNBaseURL != "" {
+	// Pass the base-url override if the base url is set and is not the default one.
+	if o.CDNBaseURL != "" && o.CDNBaseURL != teleportUpdateDefaultCDN {
 		args = append(args, "--base-url", shsprintf.EscapeDefaultContext(o.CDNBaseURL))
 	}
 
