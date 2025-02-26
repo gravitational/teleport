@@ -105,10 +105,10 @@ Azure must be given the right permissions to fetch Azure resources. Within the
 command.
 
 You'll need to specify the following in the commands/configuration below:
-- <Var name="teleport-version"/>
-- <Var name="azure-subscription-id"/>
-- <Var name="azure-principal-id"/>
-- <Var name="azure-discovery-role"/>
+- <Var name="teleport-version"/> - The version of Teleport to run the integration command
+- <Var name="azure-subscription-id"/> - The ID of the Azure subscription to fetch resources from
+- <Var name="azure-principal-id"/> - The managed identity (for VM-assigned credentials) or application object ID (for OIDC credentials) that will run the Discovery service
+- <Var name="azure-discovery-role"/> - The name of the new role to create and attach to the above principal (managed identity or application) for permissions to fetch Azure resources
 
 Download and extract the Teleport binary:
 ```shell
