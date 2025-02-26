@@ -343,7 +343,6 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			UserName:    e.User,
 			Format:      e.Format,
 		}
-
 	case *apievents.GitCommand:
 		// Only count when a command is executed on remote Git server and ignore
 		// errors that happen before that.
