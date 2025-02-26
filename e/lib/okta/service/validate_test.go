@@ -142,6 +142,23 @@ func Test_validateUpdateIntegrationRequest(t *testing.T) {
 			expectedErr: "update integration request enables sync but does not provide API credentials, and the plugin has no Okta credentials configured",
 		},
 		{
+			name: "require plugin credentials or request credentials when sync is enabled with nil credentials info",
+			req: &oktapb.UpdateIntegrationRequest{
+				EnableAccessListSync: true,
+			},
+			plugin: &types.PluginV1{
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Okta{
+						Okta: &types.PluginOktaSettings{
+							// nil credentials info
+							CredentialsInfo: nil,
+						},
+					},
+				},
+			},
+			expectedErr: "update integration request enables sync but does not provide API credentials, and the plugin has no Okta credentials configured",
+		},
+		{
 			name: "enabling sync with provided API credentials is ok",
 			req: &oktapb.UpdateIntegrationRequest{
 				EnableAccessListSync: true,
@@ -175,6 +192,44 @@ func Test_validateUpdateIntegrationRequest(t *testing.T) {
 							CredentialsInfo: &types.PluginOktaCredentialsInfo{
 								HasOauthCredentials: true,
 							},
+						},
+					},
+				},
+			},
+			expectedErr: "",
+		},
+		{
+			name: "for legacy plugins without credentials info set, assume valid credentials when user sync is enabled in the plugin",
+			req: &oktapb.UpdateIntegrationRequest{
+				EnableAccessListSync: true,
+			},
+			plugin: &types.PluginV1{
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Okta{
+						Okta: &types.PluginOktaSettings{
+							SyncSettings: &types.PluginOktaSyncSettings{
+								SyncUsers: true,
+							},
+							CredentialsInfo: nil,
+						},
+					},
+				},
+			},
+			expectedErr: "",
+		},
+		{
+			name: "for legacy plugins without credentials info empty, assume valid credentials when user sync is enabled in the plugin",
+			req: &oktapb.UpdateIntegrationRequest{
+				EnableAccessListSync: true,
+			},
+			plugin: &types.PluginV1{
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Okta{
+						Okta: &types.PluginOktaSettings{
+							SyncSettings: &types.PluginOktaSyncSettings{
+								SyncUsers: true,
+							},
+							CredentialsInfo: &types.PluginOktaCredentialsInfo{},
 						},
 					},
 				},

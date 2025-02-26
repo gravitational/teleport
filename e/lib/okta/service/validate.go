@@ -81,11 +81,24 @@ func validateCreateIntegrationRequest(req *oktapb.CreateIntegrationRequest, saml
 // be updated.
 func validateUpdateIntegrationRequest(req *oktapb.UpdateIntegrationRequest, plugin *types.PluginV1) error {
 	oktaSettings := plugin.Spec.GetOkta()
+	credentialsInfo := oktaSettings.GetCredentialsInfo()
+	syncSettings := oktaSettings.GetSyncSettings()
 
-	syncEnabled := req.EnableAccessListSync || req.EnableUserSync || req.EnableAppGroupSync
-	pluginHasCredentials := oktaSettings.CredentialsInfo.HasSsmToken || oktaSettings.CredentialsInfo.HasOauthCredentials
+	requestSyncEnabled := req.GetEnableAccessListSync() || req.GetEnableUserSync() || req.GetEnableAppGroupSync()
 
-	if syncEnabled && req.ApiCredentials == nil && !pluginHasCredentials {
+	pluginHasCredentials := false
+	if credentialsInfo != nil {
+		pluginHasCredentials = credentialsInfo.HasSsmToken || credentialsInfo.HasOauthCredentials
+	}
+	// This is the situation for the legacy plugins where sync is enabled but CredentialsInfo
+	// is not always set. It can be assumed that the plugin has credentials if sync
+	// (specifically user sync) is enabled.
+	// TODO(kopiczko) implement plugin migration and remove it
+	if syncSettings != nil && syncSettings.SyncUsers {
+		pluginHasCredentials = true
+	}
+
+	if requestSyncEnabled && req.GetApiCredentials() == nil && !pluginHasCredentials {
 		return trace.BadParameter("update integration request enables sync but does not provide API credentials, and the plugin has no Okta credentials configured")
 	}
 
