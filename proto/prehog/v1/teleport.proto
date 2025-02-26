@@ -142,15 +142,17 @@ message UserActivityRecord {
   uint64 certificates_issued = 17;
   // counter of SVIDs issued for each SPIFFE ID.
   repeated SPIFFEIDRecord spiffe_ids_issued = 18;
-  // Indicates origin of user account.
+  // Indicates origin of this user account. Only
+  // recorded for the user login event.
   UserOrigin user_origin = 19;
   // counter of Access Requests created by this user.
   uint64 access_requests_created = 20;
   // counter of Access Requests reviewed by this user.
   uint64 access_requests_reviewed = 21;
-  // counter of Access List review.
+  // counter of Access Lists reviewed by this user.
   uint64 access_lists_reviewed = 22;
-  // counter of roles or traits grant event based on Access List membership.
+  // counter of roles or traits granted to this user based on
+  // the Access List membership.
   uint64 access_lists_grants = 23;
   // counter of successful SAML IdP authentication by this user.
   uint64 saml_idp_sessions = 24;

@@ -397,15 +397,17 @@ type UserActivityRecord struct {
 	CertificatesIssued uint64 `protobuf:"varint,17,opt,name=certificates_issued,json=certificatesIssued,proto3" json:"certificates_issued,omitempty"`
 	// counter of SVIDs issued for each SPIFFE ID.
 	SpiffeIdsIssued []*SPIFFEIDRecord `protobuf:"bytes,18,rep,name=spiffe_ids_issued,json=spiffeIdsIssued,proto3" json:"spiffe_ids_issued,omitempty"`
-	// Indicates origin of user account.
+	// Indicates origin of this user account. Only
+	// recorded for the user login event.
 	UserOrigin UserOrigin `protobuf:"varint,19,opt,name=user_origin,json=userOrigin,proto3,enum=prehog.v1.UserOrigin" json:"user_origin,omitempty"`
 	// counter of Access Requests created by this user.
 	AccessRequestsCreated uint64 `protobuf:"varint,20,opt,name=access_requests_created,json=accessRequestsCreated,proto3" json:"access_requests_created,omitempty"`
 	// counter of Access Requests reviewed by this user.
 	AccessRequestsReviewed uint64 `protobuf:"varint,21,opt,name=access_requests_reviewed,json=accessRequestsReviewed,proto3" json:"access_requests_reviewed,omitempty"`
-	// counter of Access List review.
+	// counter of Access Lists reviewed by this user.
 	AccessListsReviewed uint64 `protobuf:"varint,22,opt,name=access_lists_reviewed,json=accessListsReviewed,proto3" json:"access_lists_reviewed,omitempty"`
-	// counter of roles or traits grant event based on Access List membership.
+	// counter of roles or traits granted to this user based on
+	// the Access List membership.
 	AccessListsGrants uint64 `protobuf:"varint,23,opt,name=access_lists_grants,json=accessListsGrants,proto3" json:"access_lists_grants,omitempty"`
 	// counter of successful SAML IdP authentication by this user.
 	SamlIdpSessions uint64 `protobuf:"varint,24,opt,name=saml_idp_sessions,json=samlIdpSessions,proto3" json:"saml_idp_sessions,omitempty"`
