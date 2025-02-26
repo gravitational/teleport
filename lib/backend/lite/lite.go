@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"iter"
 	"log/slog"
 	"net/url"
 	"os"
@@ -629,6 +630,95 @@ func (l *Backend) getInTransaction(ctx context.Context, key backend.Key, tx *sql
 	return nil
 }
 
+func (l *Backend) Items(ctx context.Context, params backend.IterateParams) iter.Seq2[backend.Item, error] {
+	if params.StartKey.IsZero() {
+		err := trace.BadParameter("missing parameter startKey")
+		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
+	}
+	if params.EndKey.IsZero() {
+		err := trace.BadParameter("missing parameter endKey")
+		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
+	}
+
+	const (
+		queryAsc        = "SELECT key, value, expires, revision FROM kv WHERE (key >= ? and key <= ? and key > ?) AND (expires is NULL or expires > ?) ORDER BY key ASC LIMIT ?"
+		queryDesc       = "SELECT key, value, expires, revision FROM kv WHERE (key >= ? and key <= ? and key < ?) AND (expires is NULL or expires > ?) ORDER BY key DESC LIMIT ?"
+		defaultPageSize = 1000
+	)
+	return func(yield func(backend.Item, error) bool) {
+		limit := params.Limit
+		if limit <= 0 {
+			limit = backend.DefaultRangeLimit
+		}
+
+		var exclusiveStartKey string
+		startKey := params.StartKey.String()
+		endKey := params.EndKey.String()
+
+		query := queryAsc
+		if params.Descending {
+			exclusiveStartKey = endKey
+			query = queryDesc
+		}
+
+		var pageLimit, pageCount, totalCount int
+		items := make([]backend.Item, defaultPageSize)
+		for {
+			pageLimit = min(limit-totalCount, defaultPageSize)
+			if err := l.inTransaction(ctx, func(tx *sql.Tx) error {
+				q, err := tx.PrepareContext(ctx, query)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				defer q.Close()
+
+				rows, err := q.QueryContext(ctx, startKey, endKey, exclusiveStartKey, l.clock.Now().UTC(), pageLimit)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				defer rows.Close()
+
+				pageCount = 0
+				for rows.Next() {
+					var item backend.Item
+					var expires sql.NullTime
+					if err := rows.Scan(&item.Key, &item.Value, &expires, &item.Revision); err != nil {
+						return trace.Wrap(err)
+					}
+					item.Expires = expires.Time
+					if item.Revision == "" {
+						item.Revision = backend.BlankRevision
+					}
+
+					items[pageCount] = item
+					pageCount++
+				}
+				return nil
+			}); err != nil {
+				yield(backend.Item{}, err)
+				return
+			}
+
+			for _, item := range items[:pageCount] {
+				if !yield(item, nil) {
+					return
+				}
+
+				totalCount++
+				if limit != backend.NoLimit && totalCount >= limit {
+					return
+				}
+			}
+
+			if pageCount < pageLimit {
+				return
+			}
+
+			exclusiveStartKey = items[pageCount-1].Key.String()
+		}
+	}
+}
+
 // GetRange returns query range
 func (l *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
 	if startKey.IsZero() {
@@ -642,37 +732,13 @@ func (l *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, li
 	}
 
 	var result backend.GetResult
-	err := l.inTransaction(ctx, func(tx *sql.Tx) error {
-		q, err := tx.PrepareContext(ctx,
-			"SELECT key, value, expires, revision FROM kv WHERE (key >= ? and key <= ?) AND (expires is NULL or expires > ?) ORDER BY key LIMIT ?")
+	for item, err := range l.Items(ctx, backend.IterateParams{StartKey: startKey, EndKey: endKey, Limit: limit}) {
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
-		defer q.Close()
-
-		rows, err := q.QueryContext(ctx, startKey.String(), endKey.String(), l.clock.Now().UTC(), limit)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var i backend.Item
-			var expires sql.NullTime
-			if err := rows.Scan(&i.Key, &i.Value, &expires, &i.Revision); err != nil {
-				return trace.Wrap(err)
-			}
-			i.Expires = expires.Time
-			if i.Revision == "" {
-				i.Revision = backend.BlankRevision
-			}
-			result.Items = append(result.Items, i)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+		result.Items = append(result.Items, item)
 	}
+
 	if len(result.Items) == backend.DefaultRangeLimit {
 		l.logger.WarnContext(ctx, "Range query hit backend limit. (this is a bug!)", "start_key", startKey, "limit", backend.DefaultRangeLimit)
 	}
@@ -791,17 +857,13 @@ func (l *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key)
 			return trace.Wrap(err)
 		}
 		defer rows.Close()
-		var keys []backend.Key
 		for rows.Next() {
 			var key backend.Key
 			if err := rows.Scan(&key); err != nil {
 				return trace.Wrap(err)
 			}
-			keys = append(keys, key)
-		}
 
-		for i := range keys {
-			if err := l.deleteInTransaction(l.ctx, keys[i], tx); err != nil {
+			if err := l.deleteInTransaction(l.ctx, key, tx); err != nil {
 				return trace.Wrap(err)
 			}
 		}

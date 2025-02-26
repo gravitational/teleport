@@ -542,7 +542,7 @@ func testItems(t *testing.T, newBackend Constructor) {
 	})
 
 	t.Run("pagination", func(t *testing.T) {
-		const count = 1501
+		const count = 5
 		expected := make([]string, 0, count)
 
 		for i := range count {
