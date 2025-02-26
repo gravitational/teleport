@@ -7,8 +7,8 @@ should match the snapshot:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-slack
-        app.kubernetes.io/version: 17.2.9
-        helm.sh/chart: teleport-plugin-slack-17.2.9
+        app.kubernetes.io/version: 17.3.0-dev.hugoau.3
+        helm.sh/chart: teleport-plugin-slack-17.3.0-dev.hugoau.3
       name: RELEASE-NAME-teleport-plugin-slack
     spec:
       replicas: 1
@@ -22,8 +22,8 @@ should match the snapshot:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-plugin-slack
-            app.kubernetes.io/version: 17.2.9
-            helm.sh/chart: teleport-plugin-slack-17.2.9
+            app.kubernetes.io/version: 17.3.0-dev.hugoau.3
+            helm.sh/chart: teleport-plugin-slack-17.3.0-dev.hugoau.3
         spec:
           containers:
           - command:
