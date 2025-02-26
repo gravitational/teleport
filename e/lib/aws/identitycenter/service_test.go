@@ -34,6 +34,24 @@ func TestUserCreation(t *testing.T) {
 	svc := newTestService(t, fixture)
 	go svc.Run(ctx)
 
+	// GIVEN a cluster clock running faster than real time. (The IC event handler
+	// throws away duplicate events in a given time window, so it needs a
+	// running clock or nothing will get done)
+	go func() {
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+
+			case <-ticker.C:
+				fixture.Clock.Advance(1 * time.Minute)
+			}
+		}
+	}()
+
 	// EXPECT that the AWS resource sync will eventually complete at least one
 	// pass, indicating that the setver is up and running.
 	downstream := fixture.SCIMClient
