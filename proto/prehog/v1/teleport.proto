@@ -152,6 +152,8 @@ message UserActivityRecord {
   uint64 access_lists_reviewed = 22;
   // counter of roles or traits grant event based on Access List membership.
   uint64 access_lists_grants = 23;
+  // counter of successful SAML IdP authentication by this user.
+  uint64 saml_idp_sessions = 24;
 }
 
 // the kind of a "resource" (e.g. a node, a database, a desktop, etc.)
