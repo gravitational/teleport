@@ -18,7 +18,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // stopAllHeartbeats cleans up any active heartbeats at the end of a test,
@@ -610,86 +609,6 @@ func verifyEventResources(t *testing.T, resources []*apievents.OktaResource, off
 	return resources
 }
 
-func TestFetchUsers(t *testing.T) {
-	ctx := context.Background()
-	testClient := newTestClient()
-	testClient.OktaUsers = []*okta.User{
-		{
-			Id:      "00000001",
-			Profile: &okta.UserProfile{},
-		},
-		{
-			Id:      "00000002",
-			Profile: nil,
-		}, {
-			Id:      "00000003",
-			Profile: &okta.UserProfile{},
-		}, {
-			Id:      "00000004",
-			Profile: &okta.UserProfile{},
-			Status:  userStatusSuspended,
-		},
-	}
-
-	converter := func(u *okta.User) (types.User, error) {
-		if u.Profile == nil {
-			return nil, trace.BadParameter("missing user profile")
-		}
-		return types.NewUser(u.Id)
-	}
-
-	users, err := fetchOktaUsers(ctx, testClient, converter, utils.NewSlogLoggerForTests())
-	require.NoError(t, err)
-
-	require.Len(t, users, 2)
-	require.Contains(t, users, "00000001")
-	require.Contains(t, users, "00000003")
-	require.NotContains(t, users, "00000002")
-}
-
-func TestFetchAppUsers(t *testing.T) {
-	ctx := context.Background()
-	testClient := newTestClient()
-	testClient.OktaAppUsers = []*okta.AppUser{
-		{
-			Id:         "00000001",
-			ExternalId: "alpha@example.org",
-			Profile:    map[string]any{},
-			Credentials: &okta.AppUserCredentials{
-				UserName: "alpha@example.org",
-			},
-		},
-		{
-			Id:         "00000002",
-			ExternalId: "missing-credentials@example.org",
-			Profile:    map[string]any{},
-		}, {
-			Id:         "00000003",
-			ExternalId: "beta@example.org",
-			Profile:    map[string]any{},
-			Credentials: &okta.AppUserCredentials{
-				UserName: "beta@example.org",
-			},
-		},
-	}
-
-	converter := func(u *okta.AppUser) (types.User, error) {
-		if u.Credentials == nil {
-			return nil, trace.BadParameter("missing AppUser credentials")
-		}
-		return types.NewUser(u.ExternalId)
-	}
-
-	users, err := fetchOktaAppUsers(ctx, testClient, "blahblahblah", converter, utils.NewSlogLoggerForTests())
-	require.NoError(t, err)
-
-	require.Len(t, users, 2)
-	require.Contains(t, users, "alpha@example.org")
-	require.Contains(t, users, "beta@example.org")
-
-	require.NotContains(t, users, "missing-credentials@example.org")
-}
-
 const entityDescriptor = `
 <?xml version="1.0"?>
 <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" validUntil="2021-02-26T15:57:24Z" cacheDuration="PT1614787044S" entityID="http://some.entity.id">
@@ -749,7 +668,7 @@ func TestSynchronizeUsers(t *testing.T) {
 		require.NoError(subtestT, err, "registering SAML connector")
 
 		svc, client, _ := newTestService(subtestT, ap,
-			withUserSyncEnabled,
+			withUserSyncEnabled(types.OktaUserSyncSourceSamlApp),
 			withOktaAppID(oktaSAMLAppID),
 			withSSOConnector(samlConnectorName),
 			withClock(ap.Clock()),
@@ -835,4 +754,190 @@ func TestSynchronizeUsers(t *testing.T) {
 
 	// TODO(tcsc): figure out how to force a reconciliation failure to assert
 	// that the status is updated in that case
+}
+
+func Test_fetchOktaUsers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	oktaUsers := []*okta.User{
+		{
+			Id: "org-user-00000001",
+			Profile: &okta.UserProfile{
+				"login": "org.user1@example.org",
+			},
+			Status: userStatusActive,
+		},
+		{
+			Id:      "org-user-00000002",
+			Profile: nil,
+			Status:  userStatusActive,
+		},
+		{
+			Id: "org-user-00000003",
+			Profile: &okta.UserProfile{
+				"login": "org.user3@example.org",
+			},
+			Status: userStatusActive,
+		},
+		{
+			Id: "org-user-00000004",
+			Profile: &okta.UserProfile{
+				"login": "org.user4.suspended@example.org",
+			},
+			Status: userStatusSuspended,
+		},
+	}
+
+	validOktaUsers := []string{
+		"org.user1@example.org",
+		"org.user3@example.org",
+	}
+
+	// In real life app users should be a subset of the org users, but for this tests it does
+	// not matter and trying to mimic that would make the test more blurry.
+	oktaAppUsers := []*okta.AppUser{
+		{
+			Id:         "okta-app-user-00000001",
+			ExternalId: "alpha@example.org",
+			Profile:    map[string]any{},
+			Credentials: &okta.AppUserCredentials{
+				UserName: "alpha@example.org",
+			},
+			Status: userStatusActive,
+		},
+		{
+			Id:          "okta-app-user-00000002",
+			ExternalId:  "missing-credentials@example.org",
+			Profile:     map[string]any{},
+			Credentials: &okta.AppUserCredentials{},
+			Status:      userStatusActive,
+		},
+		{
+			Id:         "okta-app-user-00000003",
+			ExternalId: "beta@example.org",
+			Profile:    map[string]any{},
+			Credentials: &okta.AppUserCredentials{
+				UserName: "beta@example.org",
+			},
+			Status: userStatusActive,
+		},
+		{
+			Id:         "okta-app-user-00000004",
+			ExternalId: "missing-status@example.org",
+			Profile:    map[string]any{},
+			Credentials: &okta.AppUserCredentials{
+				UserName: "missing-status@example.org",
+			},
+		},
+	}
+
+	validOktaAppUsers := []string{
+		"alpha@example.org",
+		"beta@example.org",
+	}
+
+	testCases := []struct {
+		name                   string
+		appId                  string
+		userSyncSource         types.OktaUserSyncSource
+		expectedUsers          []string
+		expectedUserSyncSource types.OktaUserSyncSource
+		expectedErr            string
+	}{
+		{
+			name:                   "org sync source",
+			appId:                  "",
+			userSyncSource:         types.OktaUserSyncSourceOrg,
+			expectedUsers:          validOktaUsers,
+			expectedUserSyncSource: types.OktaUserSyncSourceOrg,
+			expectedErr:            "",
+		},
+		{
+			name:                   "org sync source even if app ID is set",
+			appId:                  "non-empty-app-id",
+			userSyncSource:         types.OktaUserSyncSourceOrg,
+			expectedUsers:          validOktaUsers,
+			expectedUserSyncSource: types.OktaUserSyncSourceOrg,
+			expectedErr:            "",
+		},
+		{
+			name:                   "SAML app sync source",
+			appId:                  "non-empty-app-id",
+			userSyncSource:         types.OktaUserSyncSourceSamlApp,
+			expectedUsers:          validOktaAppUsers,
+			expectedUserSyncSource: types.OktaUserSyncSourceSamlApp,
+			expectedErr:            "",
+		},
+		{
+			name:                   "SAML app sync source, but app ID missing",
+			appId:                  "",
+			userSyncSource:         types.OktaUserSyncSourceSamlApp,
+			expectedUsers:          nil,
+			expectedUserSyncSource: types.OktaUserSyncSourceSamlApp,
+			expectedErr:            `user sync source = "saml_app", but Okta SAML app ID is empty`,
+		},
+		{
+			name:                   "unknown sync source and no app ID means org sync source",
+			appId:                  "",
+			userSyncSource:         types.OktaUserSyncSourceUnknown,
+			expectedUsers:          validOktaUsers,
+			expectedUserSyncSource: types.OktaUserSyncSourceOrg,
+			expectedErr:            "",
+		},
+		{
+			name:                   "unknown sync source and non-empty app ID means SAML app sync source",
+			appId:                  "some-app-id",
+			userSyncSource:         types.OktaUserSyncSourceUnknown,
+			expectedUsers:          validOktaAppUsers,
+			expectedUserSyncSource: types.OktaUserSyncSourceSamlApp,
+			expectedErr:            "",
+		},
+		{
+			name:                   "empty sync source and no app ID means org sync source",
+			appId:                  "",
+			userSyncSource:         types.OktaUserSyncSource(""),
+			expectedUsers:          validOktaUsers,
+			expectedUserSyncSource: types.OktaUserSyncSourceOrg,
+			expectedErr:            "",
+		},
+		{
+			name:                   "empty sync source and no non-empty app ID means SAML app sync source",
+			appId:                  "some-app-id",
+			userSyncSource:         types.OktaUserSyncSource(""),
+			expectedUsers:          validOktaAppUsers,
+			expectedUserSyncSource: types.OktaUserSyncSourceSamlApp,
+			expectedErr:            "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ap := newTestAccessPoint(t, clockwork.NewRealClock())
+			svc, client, _ := newTestService(t, ap,
+				withUserSyncEnabled(tc.userSyncSource),
+				withOktaAppID("to-be-replaced-below-app-id"),
+				withSSOConnector("fetchOktaUsers-test-sso-connector"),
+				withClock(ap.Clock()),
+			)
+			// Setup App ID. Needs to be set outside constructor to bypass validation.
+			svc.oktaSAMLAppID = tc.appId
+			// Setup Okta.
+			client.OktaUsers = oktaUsers
+			client.OktaAppUsers = oktaAppUsers
+
+			users, userSyncSource, err := svc.fetchOktaUsers(ctx)
+			require.Equal(t, tc.expectedUserSyncSource, userSyncSource)
+			if tc.expectedErr != "" {
+				require.ErrorContains(t, err, tc.expectedErr)
+			} else {
+				require.NoError(t, err)
+
+				require.Len(t, users, len(tc.expectedUsers))
+				for _, u := range tc.expectedUsers {
+					require.Contains(t, users, u, "expected user = %q", u)
+				}
+			}
+		})
+	}
 }

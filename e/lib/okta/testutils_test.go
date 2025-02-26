@@ -177,9 +177,11 @@ func (t *testProxyGetter) GetProxyIDs() []string {
 
 type testServiceOpt func(*Config)
 
-func withUserSyncEnabled(cfg *Config) {
-	cfg.SyncSettings.SyncUsers = true
-	cfg.SyncSettings.UserSyncSource = string(types.OktaUserSyncSourceSamlApp)
+func withUserSyncEnabled(syncSource types.OktaUserSyncSource) testServiceOpt {
+	return func(cfg *Config) {
+		cfg.SyncSettings.SyncUsers = true
+		cfg.SyncSettings.UserSyncSource = string(syncSource)
+	}
 }
 
 func withOktaAppID(appID string) testServiceOpt {

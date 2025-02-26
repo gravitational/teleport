@@ -598,23 +598,9 @@ func (s *Service) syncUsers(ctx context.Context) (err error) {
 		return nil
 	}
 
-	var oktaUsers map[string]types.User
-	if s.userSyncSource == types.OktaUserSyncSourceSamlApp {
-		if s.oktaSAMLAppID == "" {
-			return trace.Errorf("user sync source = %q, but Okta SAML app ID is empty", s.userSyncSource)
-		}
-		s.logger.DebugContext(ctx, "Fetching app users", "app_id", s.oktaSAMLAppID)
-		convertUser := func(oktaUser *okta.AppUser) (types.User, error) {
-			return ConvertAppUser(oktaUser, s.clock, s.ssoConnectorID, s.orgURL)
-		}
-		oktaUsers, err = fetchOktaAppUsers(ctx, s.client, s.oktaSAMLAppID, convertUser, s.logger)
-	} else {
-		s.logger.DebugContext(ctx, "Fetching org users")
-		convertUser := makeUserConverter(s.clock, s.ssoConnectorID, s.orgURL)
-		oktaUsers, err = fetchOktaUsers(ctx, s.client, convertUser, s.logger)
-	}
+	oktaUsers, userSyncSource, err := s.fetchOktaUsers(ctx)
 	if err != nil {
-		return trace.Wrap(err, "enumerating Okta users")
+		return trace.Wrap(err, "fetching Okta users")
 	}
 
 	teleportUsers, err := listTeleportUsers(ctx, s.accessPoint, s.orgURL)
@@ -635,6 +621,7 @@ func (s *Service) syncUsers(ctx context.Context) (err error) {
 	s.logger.InfoContext(ctx, "Reconciling Okta and Teleport users",
 		"okta_user_count", len(oktaUsers),
 		"teleport_user_count", len(teleportUsers),
+		"user_sync_source", userSyncSource,
 	)
 	stats, err := s.userReconciler.reconcileUsers(ctx, oktaUsers, teleportUsers)
 	if err != nil {
@@ -642,6 +629,41 @@ func (s *Service) syncUsers(ctx context.Context) (err error) {
 	}
 	s.serviceStatus.UpdateUserSync(ctx, s.clock.Now(), stats.total(), nil)
 	return nil
+}
+
+func (s *Service) fetchOktaUsers(ctx context.Context) (map[string]types.User, types.OktaUserSyncSource, error) {
+	switch syncSource := sanitizeUserSyncSource(s.userSyncSource, s.oktaSAMLAppID); syncSource {
+	case types.OktaUserSyncSourceSamlApp:
+		if s.oktaSAMLAppID == "" {
+			return nil, syncSource, trace.Errorf("user sync source = %q, but Okta SAML app ID is empty", s.userSyncSource)
+		}
+		s.logger.DebugContext(ctx, "Fetching app users", "app_id", s.oktaSAMLAppID)
+		convertUser := func(oktaUser *okta.AppUser) (types.User, error) {
+			return ConvertAppUser(oktaUser, s.clock, s.ssoConnectorID, s.orgURL)
+		}
+		oktaUsers, err := fetchOktaAppUsers(ctx, s.client, s.oktaSAMLAppID, convertUser, s.logger)
+		return oktaUsers, syncSource, trace.Wrap(err, "fetching Okta SAML app users")
+	case types.OktaUserSyncSourceOrg:
+		s.logger.DebugContext(ctx, "Fetching org users")
+		convertUser := makeUserConverter(s.clock, s.ssoConnectorID, s.orgURL)
+		oktaUsers, err := fetchOktaUsers(ctx, s.client, convertUser, s.logger)
+		return oktaUsers, syncSource, trace.Wrap(err, "fetching all Okta org users")
+	default:
+		return nil, syncSource, trace.BadParameter("unknown user sync source %q", syncSource)
+	}
+}
+
+func sanitizeUserSyncSource(userSyncSource types.OktaUserSyncSource, samlAppId string) types.OktaUserSyncSource {
+	if userSyncSource.IsUnknown() {
+		// After Teleport upgrade if the plugin wasn't updated yet user sync source may not
+		// be set. In that case, if SAML app ID is not empty we consider the SAML app to be
+		// the source for the user sync.
+		if samlAppId == "" {
+			return types.OktaUserSyncSourceOrg
+		}
+		return types.OktaUserSyncSourceSamlApp
+	}
+	return userSyncSource
 }
 
 func (s *Service) calcUserTraits(ctx context.Context, connector types.SAMLConnector, user types.User) error {
