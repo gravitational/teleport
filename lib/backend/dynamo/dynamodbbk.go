@@ -558,8 +558,13 @@ func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
 	}
 
+	limit := params.Limit
+	if limit <= 0 {
+		limit = backend.DefaultRangeLimit
+	}
+
 	const (
-		query = "HashKey = :hashKey AND FullPath BETWEEN :fullPath AND :rangeEnd"
+		query = "HashKey = :hashKey AND FullPath BETWEEN :rangeStart AND :rangeEnd"
 
 		// filter out expired items, otherwise they might show up in the query
 		// http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/howitworks-ttl.html
@@ -567,10 +572,10 @@ func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 	)
 
 	attrV := map[string]interface{}{
-		":fullPath":  prependPrefix(params.StartKey),
-		":hashKey":   hashKey,
-		":timestamp": b.clock.Now().UTC().Unix(),
-		":rangeEnd":  prependPrefix(params.EndKey),
+		":rangeStart": prependPrefix(params.StartKey),
+		":hashKey":    hashKey,
+		":timestamp":  b.clock.Now().UTC().Unix(),
+		":rangeEnd":   prependPrefix(params.EndKey),
 	}
 
 	av, err := attributevalue.MarshalMap(attrV)
@@ -585,9 +590,7 @@ func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 		FilterExpression:          aws.String(filter),
 		ConsistentRead:            aws.Bool(true),
 		ScanIndexForward:          aws.Bool(!params.Descending),
-	}
-	if params.Limit > 0 {
-		input.Limit = aws.Int32(int32(params.Limit))
+		Limit:                     aws.Int32(int32(limit)),
 	}
 
 	return func(yield func(backend.Item, error) bool) {
@@ -629,7 +632,7 @@ func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 					return
 				}
 				count++
-				if count == backend.DefaultRangeLimit || (params.Limit != backend.NoLimit && count >= params.Limit) {
+				if params.Limit != backend.NoLimit && count >= params.Limit {
 					return
 				}
 			}
@@ -679,8 +682,12 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key)
 	// DeleteRange call to avoid racing with additional records being added.
 	const maxDeletions = backend.DefaultRangeLimit / 100
 	requests := make([]types.WriteRequest, batchOperationItemsLimit)
-	pageCount, totalCount := 0, 0
-	for item := range b.Items(ctx, backend.IterateParams{StartKey: startKey, EndKey: endKey}) {
+	var pageCount, totalCount int
+	for item, err := range b.Items(ctx, backend.IterateParams{StartKey: startKey, EndKey: endKey}) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		if totalCount >= maxDeletions {
 			break
 		}
