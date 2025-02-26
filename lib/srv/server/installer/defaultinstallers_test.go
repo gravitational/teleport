@@ -20,11 +20,13 @@ package installer_test
 
 import (
 	"bytes"
-	"github.com/gravitational/teleport/api/types/installers"
-	"github.com/gravitational/teleport/lib/srv/server/installer"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"text/template"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/lib/srv/server/installer"
 )
 
 const defaultInstallerSnapshot = `#!/usr/bin/env sh
