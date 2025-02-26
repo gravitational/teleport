@@ -642,7 +642,7 @@ func (h *Handler) awsOIDCConfigureEICEIAM(w http.ResponseWriter, r *http.Request
 		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
-		TeleportArgs:   strings.Join(argsList, " "),
+		EntrypointArgs: strings.Join(argsList, " "),
 		SuccessMessage: "Success! You can now go back to the Teleport Web UI to complete the EC2 enrollment.",
 	})
 	if err != nil {
