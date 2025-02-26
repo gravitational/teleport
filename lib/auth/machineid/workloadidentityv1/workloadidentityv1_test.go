@@ -25,6 +25,7 @@ import (
 	"crypto/x509/pkix"
 	"errors"
 	"fmt"
+	"math/big"
 	"net"
 	"os"
 	"slices"
@@ -2990,4 +2991,167 @@ func TestRevocationService_UpsertWorkloadIdentityX509Revocation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRevocationService_CRL(t *testing.T) {
+	t.Parallel()
+	srv, _ := newTestTLSServer(t)
+	ctx := context.Background()
+	fakeClock := srv.Clock().(*clockwork.FakeClock)
+
+	authorizedUser, _, err := auth.CreateUserAndRole(
+		srv.Auth(),
+		"authorized",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindWorkloadIdentityX509Revocation},
+				Verbs: []string{
+					types.VerbRead,
+					types.VerbList,
+					types.VerbCreate,
+					types.VerbUpdate,
+					types.VerbDelete,
+				},
+			},
+		})
+	require.NoError(t, err)
+	authorizedClient, err := srv.NewClient(auth.TestUser(authorizedUser.GetName()))
+	require.NoError(t, err)
+	revocationsClient := authorizedClient.WorkloadIdentityRevocationServiceClient()
+
+	// Fetch the SPIFFE CA so we can validate CRL signature.
+	ca, err := srv.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.SPIFFECA,
+		DomainName: srv.ClusterName(),
+	}, false)
+	require.NoError(t, err)
+	caCert, err := tlsca.ParseCertificatePEM(ca.GetActiveKeys().TLS[0].Cert)
+	require.NoError(t, err)
+
+	checkCRL := func(
+		t *testing.T,
+		crlBytes []byte,
+		wantEntries []x509.RevocationListEntry,
+	) {
+		require.NotEmpty(t, crlBytes)
+
+		// Expect a DER encoded CRL directly (e.g no PEM)
+		parsed, err := x509.ParseRevocationList(crlBytes)
+		require.NoError(t, err)
+
+		// Check CRL has a valid signature
+		require.NoError(t, parsed.CheckSignatureFrom(caCert))
+
+		diff := cmp.Diff(
+			wantEntries,
+			parsed.RevokedCertificateEntries,
+			cmp.Comparer(func(a, b *big.Int) bool {
+				return a.Cmp(b) == 0
+			}),
+			cmpopts.IgnoreFields(x509.RevocationListEntry{}, "Raw"),
+			cmpopts.SortSlices(func(a, b x509.RevocationListEntry) bool {
+				return a.SerialNumber.Cmp(b.SerialNumber) < 0
+			}),
+		)
+		require.Empty(t, diff)
+	}
+
+	revokedAt := srv.Clock().Now()
+	createRevocation := func(t *testing.T, name string) {
+		_, err = revocationsClient.CreateWorkloadIdentityX509Revocation(
+			ctx,
+			&workloadidentityv1pb.CreateWorkloadIdentityX509RevocationRequest{
+				WorkloadIdentityX509Revocation: &workloadidentityv1pb.WorkloadIdentityX509Revocation{
+					Kind:    types.KindWorkloadIdentityX509Revocation,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name:    name,
+						Expires: timestamppb.New(srv.Clock().Now().Add(time.Hour)),
+					},
+					Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
+						Reason:    "compromised",
+						RevokedAt: timestamppb.New(revokedAt),
+					},
+				},
+			},
+		)
+		require.NoError(t, err)
+	}
+	deleteRevocation := func(t *testing.T, name string) {
+		_, err = revocationsClient.DeleteWorkloadIdentityX509Revocation(
+			ctx,
+			&workloadidentityv1pb.DeleteWorkloadIdentityX509RevocationRequest{
+				Name: name,
+			},
+		)
+		require.NoError(t, err)
+	}
+
+	// Fetch the initial, empty, CRL
+	stream, err := revocationsClient.StreamSignedCRL(
+		ctx, &workloadidentityv1pb.StreamSignedCRLRequest{},
+	)
+	require.NoError(t, err)
+	res, err := stream.Recv()
+	require.NoError(t, err)
+	checkCRL(t, res.Crl, nil)
+
+	// Create new revocations
+	createRevocation(t, "ff")
+	createRevocation(t, "aa")
+	require.NoError(t, fakeClock.BlockUntilContext(ctx, 2))
+	t.Log("Advancing fake clock to pass debounce period")
+	fakeClock.Advance(6 * time.Second)
+	// The client should now receive a new CRL
+	res, err = stream.Recv()
+	require.NoError(t, err)
+	checkCRL(t, res.Crl, []x509.RevocationListEntry{
+		{
+			SerialNumber:   big.NewInt(170),
+			RevocationTime: revokedAt,
+		},
+		{
+			SerialNumber:   big.NewInt(255),
+			RevocationTime: revokedAt,
+		},
+	})
+
+	// Add another revocation, delete one revocation
+	createRevocation(t, "bb")
+	deleteRevocation(t, "aa")
+	require.NoError(t, fakeClock.BlockUntilContext(ctx, 2))
+	t.Log("Advancing fake clock to pass debounce period")
+	fakeClock.Advance(6 * time.Second)
+	// The client should now receive a new CRL
+	res, err = stream.Recv()
+	require.NoError(t, err)
+	checkCRL(t, res.Crl, []x509.RevocationListEntry{
+		{
+			SerialNumber:   big.NewInt(255),
+			RevocationTime: revokedAt,
+		},
+		{
+			SerialNumber:   big.NewInt(187),
+			RevocationTime: revokedAt,
+		},
+	})
+
+	// Delete all remaining CRL
+	deleteRevocation(t, "bb")
+	deleteRevocation(t, "ff")
+	require.NoError(t, fakeClock.BlockUntilContext(ctx, 2))
+	t.Log("Advancing fake clock to pass debounce period")
+	fakeClock.Advance(6 * time.Second)
+	// The client should now receive a new CRL
+	res, err = stream.Recv()
+	require.NoError(t, err)
+	checkCRL(t, res.Crl, nil)
+
+	// Wait ten minutes to see if the periodic CRL is sent.
+	t.Log("Advancing fake clock to pass the periodic timer")
+	fakeClock.Advance(11 * time.Minute)
+	res, err = stream.Recv()
+	require.NoError(t, err)
+	checkCRL(t, res.Crl, nil)
 }
