@@ -66,5 +66,5 @@ export function useStateRef<T>(
     }
   }, []);
 
-  return [state, stateRef, setStateAndRef] as const;
+  return [state, stateRef, setStateAndRef];
 }
