@@ -235,7 +235,7 @@ export interface UserActivityRecord {
      */
     accessListsGrants: bigint;
     /**
-     * counter of saml.idp.auth events
+     * counter of saml.idp.auth events.
      *
      * @generated from protobuf field: uint64 saml_idp_sessions = 24;
      */

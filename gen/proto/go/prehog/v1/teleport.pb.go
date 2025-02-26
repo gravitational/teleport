@@ -404,7 +404,7 @@ type UserActivityRecord struct {
 	AccessListsReviewed uint64 `protobuf:"varint,22,opt,name=access_lists_reviewed,json=accessListsReviewed,proto3" json:"access_lists_reviewed,omitempty"`
 	// counter of roles or traits grant event based on Access List membership.
 	AccessListsGrants uint64 `protobuf:"varint,23,opt,name=access_lists_grants,json=accessListsGrants,proto3" json:"access_lists_grants,omitempty"`
-	// counter of saml.idp.auth events
+	// counter of saml.idp.auth events.
 	SamlIdpSessions uint64 `protobuf:"varint,24,opt,name=saml_idp_sessions,json=samlIdpSessions,proto3" json:"saml_idp_sessions,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
