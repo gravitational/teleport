@@ -2046,7 +2046,40 @@ func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6,
 	}
 
 	role = maybeDowngradeRoleSSHPortForwarding(role, clientVersion)
+	role = maybeDowngradeRoleVersionToV7(role, clientVersion)
 	return role, nil
+}
+
+var minSupportedRoleV8Version = semver.New(utils.VersionBeforeAlpha("18.0.0"))
+
+// maybeDowngradeRoleVersionToV7 downgrades the role version to V7 if
+// the client version passed through the gRPC metadata is below the version
+// specified in minSupportedRoleV8Version.
+func maybeDowngradeRoleVersionToV7(role *types.RoleV6, clientVersion *semver.Version) *types.RoleV6 {
+	switch role.GetVersion() {
+	case types.V1, types.V2, types.V3, types.V4, types.V5, types.V6, types.V7:
+		return role
+	}
+	if supported, err := utils.MinVerWithoutPreRelease(
+		clientVersion.String(),
+		minSupportedRoleV8Version.String()); supported || err != nil {
+		return role
+	}
+
+	// Make a shallow copy of the role so that we don't mutate the original.
+	// This is necessary because the role is shared
+	// between multiple clients sessions when notifying about changes in watchers.
+	// If we mutate the original role, it will be mutated for all clients
+	// which can cause panics since it causes a race condition.
+	role = apiutils.CloneProtoMsg(role)
+	role.Version = types.V7
+
+	reason := fmt.Sprintf(`Role V8 is only supported from the client version %q and above.`, minSupportedRoleV8Version)
+	if role.Metadata.Labels == nil {
+		role.Metadata.Labels = make(map[string]string, 1)
+	}
+	role.Metadata.Labels[types.TeleportDowngradedLabel] = reason
+	return role
 }
 
 var minSupportedSSHPortForwardingVersion = semver.Version{Major: 17, Minor: 1, Patch: 0}
