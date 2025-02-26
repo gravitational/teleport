@@ -58,8 +58,7 @@ func TestLabelExpressions(t *testing.T) {
 			desc: "wrong type",
 			expr: `user.spec.traits["allow-env"] == "staging"`,
 			expectParseError: []string{
-				"parsing lhs of (==) operator",
-				"expected type string, got expression returning type ([]string)",
+				"operator (==) not supported for type: []string",
 			},
 		},
 		{
