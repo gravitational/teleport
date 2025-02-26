@@ -194,13 +194,13 @@ extraLabels:
 EOF
 ```
 
-Install the Helm chart for Teleport agent services, `teleport-kube-agent`:
+Install the Helm chart for Teleport Agent services, `teleport-kube-agent`:
 ```code
 $ helm -n <Var name="teleport-ns" /> install teleport-azure-access-agent \
   teleport/teleport-kube-agent --values azure_access_agent.values.yaml
 ```
 
-Make sure that the Teleport agent pod is running. You should see one
+Make sure that the Teleport Agent pod is running. You should see one
 `teleport-azure-access-agent` pod with a single ready container:
 
 ```code

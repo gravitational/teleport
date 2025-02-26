@@ -187,6 +187,8 @@ func (r *Reporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
 			*usagereporter.UserCertificateIssuedEvent,
 			*usagereporter.BotJoinEvent,
 			*usagereporter.SPIFFESVIDIssuedEvent,
+			*usagereporter.AccessRequestCreateEvent,
+			*usagereporter.AccessRequestReviewEvent,
 			*usagereporter.AccessListReviewCreateEvent,
 			*usagereporter.AccessListGrantsToUserEvent:
 			filtered = append(filtered, event)
@@ -271,6 +273,17 @@ func (r *Reporter) run(ctx context.Context) {
 			}
 		}
 
+		return record
+	}
+	userRecordWithOrigin := func(userName string, v1AlphaUserKind prehogv1alpha.UserKind, v1AlphaUserOrigin prehogv1alpha.UserOrigin) *prehogv1.UserActivityRecord {
+		record := userRecord(userName, v1AlphaUserKind)
+		if v1AlphaUserOrigin == prehogv1alpha.UserOrigin_USER_ORIGIN_UNSPECIFIED {
+			// Ignore unspecified value cause the request may be coming from an
+			// older auth that does not process user_origin.
+			return record
+		}
+		// Allow overriding origin value with a new value.
+		record.UserOrigin = prehogv1.UserOrigin(v1AlphaUserOrigin)
 		return record
 	}
 	// userSPIFFEIDActivity is map[username]map[spiffeid]count
@@ -389,7 +402,7 @@ Ingest:
 		switch te := ae.(type) {
 		case *usagereporter.UserLoginEvent:
 			// Bots never generate tp.user.login events.
-			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).Logins++
+			userRecordWithOrigin(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN, te.UserOrigin).Logins++
 		case *usagereporter.SessionStartEvent:
 			switch te.SessionType {
 			case string(types.SSHSessionKind):
@@ -440,6 +453,10 @@ Ingest:
 			if te.BotInstanceId != "" {
 				botInstanceRecord(te.UserName, te.BotInstanceId).CertificatesIssued++
 			}
+		case *usagereporter.AccessRequestCreateEvent:
+			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessRequestsCreated++
+		case *usagereporter.AccessRequestReviewEvent:
+			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessRequestsReviewed++
 		case *usagereporter.AccessListReviewCreateEvent:
 			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessListsReviewed++
 		case *usagereporter.AccessListGrantsToUserEvent:
