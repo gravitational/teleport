@@ -2997,7 +2997,7 @@ func TestRevocationService_CRL(t *testing.T) {
 	t.Parallel()
 	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
-	fakeClock := srv.Clock().(*clockwork.FakeClock)
+	fakeClock := srv.Clock().(clockwork.FakeClock)
 
 	authorizedUser, _, err := auth.CreateUserAndRole(
 		srv.Auth(),
@@ -3100,7 +3100,7 @@ func TestRevocationService_CRL(t *testing.T) {
 	// Create new revocations
 	createRevocation(t, "ff")
 	createRevocation(t, "aa")
-	require.NoError(t, fakeClock.BlockUntilContext(ctx, 2))
+	fakeClock.BlockUntil(2)
 	t.Log("Advancing fake clock to pass debounce period")
 	fakeClock.Advance(6 * time.Second)
 	// The client should now receive a new CRL
@@ -3120,7 +3120,7 @@ func TestRevocationService_CRL(t *testing.T) {
 	// Add another revocation, delete one revocation
 	createRevocation(t, "bb")
 	deleteRevocation(t, "aa")
-	require.NoError(t, fakeClock.BlockUntilContext(ctx, 2))
+	fakeClock.BlockUntil(2)
 	t.Log("Advancing fake clock to pass debounce period")
 	fakeClock.Advance(6 * time.Second)
 	// The client should now receive a new CRL
@@ -3140,7 +3140,7 @@ func TestRevocationService_CRL(t *testing.T) {
 	// Delete all remaining CRL
 	deleteRevocation(t, "bb")
 	deleteRevocation(t, "ff")
-	require.NoError(t, fakeClock.BlockUntilContext(ctx, 2))
+	fakeClock.BlockUntil(2)
 	t.Log("Advancing fake clock to pass debounce period")
 	fakeClock.Advance(6 * time.Second)
 	// The client should now receive a new CRL
