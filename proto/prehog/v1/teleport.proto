@@ -152,7 +152,7 @@ message UserActivityRecord {
   uint64 access_lists_reviewed = 22;
   // counter of roles or traits grant event based on Access List membership.
   uint64 access_lists_grants = 23;
-  // counter of saml.idp.auth events.
+  // counter of successful SAML IdP authentication by this user.
   uint64 saml_idp_sessions = 24;
 }
 
