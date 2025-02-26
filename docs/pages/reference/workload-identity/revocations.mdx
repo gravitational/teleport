@@ -1,0 +1,36 @@
+---
+title: Workload Identity Revocations
+description: Information about performing revocations for issued workload identity credentials
+---
+
+The revocations mechanism provides a way to mark an issued X509 workload
+identity credential as revoked - indicating to workloads that this credential
+should no longer be considered valid.
+
+Typically, the short-lived nature of the X509 SVIDs issued by Teleport Workload
+Identity means that revocations are not required. However, in some cases, you
+may still desire to revoke an issued credential prior to its expiry.
+
+When an X509 SVID is revoked, a signed Certificate Revocation List will be
+distributed to workloads via the Workload API or via a `svid-crl.pem` file
+written to a `workload-identity-x509` output.
+
+Workloads and third party services must have explicit support for CRLs to
+support them. Support for this functionality can be limited in some
+environments, so it is recommended to audit the support for CRLs prior to
+leveraging this feature.
+
+## Using `tctl` to revoke an X509 SVID
+
+Before revoking an X509 SVID, you must have the serial number of the X509 SVID
+that you wish to revoke. This can be determined via the Teleport audit log.
+
+When creating a revocation, you will also need to provide a reason for the
+revocation. This is a free-form string that can be used to provide additional
+context for the revocation.
+
+Use `tctl workload-identity revocations add` to create a new revocation:
+
+```code
+$ tctl workload-identity revocations add --serial 1234567890 --reason compromised
+```
