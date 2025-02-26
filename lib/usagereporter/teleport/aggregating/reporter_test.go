@@ -280,6 +280,14 @@ func TestReporterMachineWorkloadIdentityActivity(t *testing.T) {
 		UserKind:      prehogv1a.UserKind_USER_KIND_BOT,
 		SpiffeId:      "spiffe://clustername/bot/bob",
 	})
+	r.AnonymizeAndSubmit(&usagereporter.AccessRequestCreateEvent{
+		UserName: "alice",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.AccessRequestReviewEvent{
+		UserName: "alice",
+	})
+	recvIngested()
+	recvIngested()
 	recvIngested()
 	recvIngested()
 	recvIngested()
