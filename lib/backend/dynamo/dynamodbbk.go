@@ -642,18 +642,11 @@ func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 
 // GetRange returns range of elements
 func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
-	if startKey.IsZero() {
-		return nil, trace.BadParameter("missing parameter startKey")
-	}
-	if endKey.IsZero() {
-		return nil, trace.BadParameter("missing parameter endKey")
-	}
-	if limit <= 0 {
-		limit = backend.DefaultRangeLimit
-	}
-
 	var result backend.GetResult
-	for i := range b.Items(ctx, backend.IterateParams{StartKey: startKey, EndKey: endKey, Limit: limit}) {
+	for i, err := range b.Items(ctx, backend.IterateParams{StartKey: startKey, EndKey: endKey, Limit: limit}) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		result.Items = append(result.Items, i)
 	}
 	return &result, nil
@@ -669,13 +662,6 @@ const (
 
 // DeleteRange deletes range of items with keys between startKey and endKey
 func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key) error {
-	if startKey.IsZero() {
-		return trace.BadParameter("missing parameter startKey")
-	}
-	if endKey.IsZero() {
-		return trace.BadParameter("missing parameter endKey")
-	}
-
 	// Attempt to pull all existing items and delete them in batches
 	// in accordance with the BatchWriteItem limits. There is a hard
 	// cap on the total number of items that can be deleted in a single
