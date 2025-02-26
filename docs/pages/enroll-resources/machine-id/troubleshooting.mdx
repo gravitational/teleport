@@ -47,7 +47,7 @@ renewable certificate, the Auth Service increments the counter, stores it on the
 backend, and embeds a copy of the counter in the certificate.
 
 If the counter embedded in your bot certificate doesn't match the counter
-stored in Teleport's Auth Server, the renewal will fail and the bot user will
+stored in Teleport's Auth Service, the renewal will fail and the bot user will
 be automatically [locked](../../admin-guides/access-controls/guides/locking.mdx).
 
 Renewable certificates are exclusively stored in the bot's internal data
@@ -219,8 +219,9 @@ $ pkill -sigusr1 tbot
 
 ### Symptoms
 
-When requesting [Database Access](../database-access/database-access.mdx)
-certificates, the certificate request fails with an error like the following:
+When requesting certificates for Teleport-protected
+[databases](../database-access/database-access.mdx), the certificate request
+fails with an error like the following:
 
 ```text
 ERROR: Failed to generate impersonated certs for directory /opt/machine-id: database "example" not found
@@ -245,9 +246,11 @@ or more roles.
 
 ### Resolution
 
+{/* vale messaging.protocol-products = NO */}
 Per the [Machine ID Database Access Guide](./access-guides/databases.mdx), ensure at
 least one role providing database permissions has been granted to the
 output listed in the error.
+{/* vale messaging.protocol-products = YES */}
 
 For example, note the `rules` section in the following example role:
 ```yaml

@@ -36,7 +36,7 @@ a single join token. These services are:
   [GCP Workload Identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity)
   is configured for the cluster, it is possible to use the `gcp` join method.
   See the [GCP Platform Guide](./gcp.mdx) for further information.
-- AWS Elastic Kubernetes Service: Where
+- Amazon Elastic Kubernetes Service: Where
   [IAM Roles for Service Accounts (IRSA)](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html)
   is configured for the cluster, it is possible to use the `iam` join method.
   See the [AWS Platform Guide](./aws.mdx) for further information.
@@ -75,7 +75,7 @@ Create a file called `k8s-rbac.yaml`:
 
 ```yaml
 # This ServiceAccount will be used to give the `tbot` pods a discrete identity
-# which can be validated by the Teleport Auth Server.
+# which can be validated by the Teleport Auth Service.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -154,14 +154,14 @@ spec:
   bot_name: example
   join_method: kubernetes
   kubernetes:
-    # static_jwks configures the Auth Server to validate the JWT presented by
+    # static_jwks configures the Auth Service to validate the JWT presented by
     # `tbot` using the public key from a statically configured JWKS.
     type: static_jwks
     static_jwks:
       jwks: |
         # Place the data returned by the curl command here
         {"keys":[--snip--]}
-    # allow specifies the rules by which the Auth Server determines if `tbot`
+    # allow specifies the rules by which the Auth Service determines if `tbot`
     # should be allowed to join.
     allow:
     - service_account: "default:tbot" # service_account
