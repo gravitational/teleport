@@ -75,6 +75,14 @@ export interface UserLoginEvent {
      * @generated from protobuf field: string required_private_key_policy = 4;
      */
     requiredPrivateKeyPolicy: string;
+    /**
+     * UserOrigin specifies the origin of this user account.
+     *
+     * PostHog property: tp.user_origin
+     *
+     * @generated from protobuf field: prehog.v1alpha.UserOrigin user_origin = 5;
+     */
+    userOrigin: UserOrigin;
 }
 /**
  * MFAAuthenticationEvent is emitted when a user performs MFA authentication.
@@ -3370,6 +3378,51 @@ export interface HelloTeleportRequest {
 export interface HelloTeleportResponse {
 }
 /**
+ * UserOrigin is the origin of a user account.
+ * Keep the values in sync with UserOrigin enum defined in
+ * API events and prehogv1.
+ *
+ * @generated from protobuf enum prehog.v1alpha.UserOrigin
+ */
+export enum UserOrigin {
+    /**
+     * Indicates a legacy cluster emitting events without a defined user origin.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * Indicates a local user.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_LOCAL = 1;
+     */
+    LOCAL = 1,
+    /**
+     * Indicates an SSO user originated from the SAML or OIDC connector.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_SSO = 2;
+     */
+    SSO = 2,
+    /**
+     * Indicates a user originated from the Okta integration.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_OKTA = 3;
+     */
+    OKTA = 3,
+    /**
+     * Indicates a user originated from the SCIM integration.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_SCIM = 4;
+     */
+    SCIM = 4,
+    /**
+     * Indicates a user originated from the EntraID integration.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_ENTRAID = 5;
+     */
+    ENTRAID = 5
+}
+/**
  * the kind of a "resource" as intended by ResourceHeartbeatEvent
  * Keep in sync with prehog/v1/teleport.proto
  *
@@ -4024,7 +4077,8 @@ class UserLoginEvent$Type extends MessageType<UserLoginEvent> {
             { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "connector_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "device_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "required_private_key_policy", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 4, name: "required_private_key_policy", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "user_origin", kind: "enum", T: () => ["prehog.v1alpha.UserOrigin", UserOrigin, "USER_ORIGIN_"] }
         ]);
     }
     create(value?: PartialMessage<UserLoginEvent>): UserLoginEvent {
@@ -4033,6 +4087,7 @@ class UserLoginEvent$Type extends MessageType<UserLoginEvent> {
         message.connectorType = "";
         message.deviceId = "";
         message.requiredPrivateKeyPolicy = "";
+        message.userOrigin = 0;
         if (value !== undefined)
             reflectionMergePartial<UserLoginEvent>(this, message, value);
         return message;
@@ -4053,6 +4108,9 @@ class UserLoginEvent$Type extends MessageType<UserLoginEvent> {
                     break;
                 case /* string required_private_key_policy */ 4:
                     message.requiredPrivateKeyPolicy = reader.string();
+                    break;
+                case /* prehog.v1alpha.UserOrigin user_origin */ 5:
+                    message.userOrigin = reader.int32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -4078,6 +4136,9 @@ class UserLoginEvent$Type extends MessageType<UserLoginEvent> {
         /* string required_private_key_policy = 4; */
         if (message.requiredPrivateKeyPolicy !== "")
             writer.tag(4, WireType.LengthDelimited).string(message.requiredPrivateKeyPolicy);
+        /* prehog.v1alpha.UserOrigin user_origin = 5; */
+        if (message.userOrigin !== 0)
+            writer.tag(5, WireType.Varint).int32(message.userOrigin);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

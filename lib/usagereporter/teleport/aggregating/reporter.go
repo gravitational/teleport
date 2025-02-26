@@ -271,6 +271,17 @@ func (r *Reporter) run(ctx context.Context) {
 
 		return record
 	}
+	userRecordWithOrigin := func(userName string, v1AlphaUserKind prehogv1alpha.UserKind, v1AlphaUserOrigin prehogv1alpha.UserOrigin) *prehogv1.UserActivityRecord {
+		record := userRecord(userName, v1AlphaUserKind)
+		if v1AlphaUserOrigin == prehogv1alpha.UserOrigin_USER_ORIGIN_UNSPECIFIED {
+			// Ignore unspecified value cause the request may be coming from an
+			// older auth that does not process user_origin.
+			return record
+		}
+		// Allow overriding origin value with a new value.
+		record.UserOrigin = prehogv1.UserOrigin(v1AlphaUserOrigin)
+		return record
+	}
 	// userSPIFFEIDActivity is map[username]map[spiffeid]count
 	userSPIFFEIDActivity := make(map[string]map[string]uint32)
 	incrementUserSPIFFEIDActivity := func(userName string, spiffeID string) {
@@ -387,7 +398,7 @@ Ingest:
 		switch te := ae.(type) {
 		case *usagereporter.UserLoginEvent:
 			// Bots never generate tp.user.login events.
-			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).Logins++
+			userRecordWithOrigin(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN, te.UserOrigin).Logins++
 		case *usagereporter.SessionStartEvent:
 			switch te.SessionType {
 			case string(types.SSHSessionKind):
