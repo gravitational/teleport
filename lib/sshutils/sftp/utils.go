@@ -24,28 +24,19 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"sync/atomic"
+
+	"github.com/pkg/sftp"
 )
 
 // fileWrapper provides minimal required file interface for SFTP package
 // including WriteTo() method required for concurrent data transfer.
 type fileWrapper struct {
-	file *os.File
-}
-
-func (wt *fileWrapper) Read(p []byte) (n int, err error) {
-	return wt.file.Read(p)
-}
-
-func (wt *fileWrapper) Close() error {
-	return wt.file.Close()
+	*os.File
 }
 
 func (wt *fileWrapper) WriteTo(w io.Writer) (n int64, err error) {
-	return io.Copy(w, wt.file)
-}
-
-func (wt *fileWrapper) Stat() (os.FileInfo, error) {
-	return wt.file.Stat()
+	return io.Copy(w, wt.File)
 }
 
 // fileStreamReader is a thin wrapper around fs.File with additional streams.
@@ -94,4 +85,33 @@ func (c *cancelWriter) Write(b []byte) (int, error) {
 		return 0, err
 	}
 	return c.stream.Write(b)
+}
+
+type File interface {
+	sftp.WriterAtReaderAt
+	io.ReadWriteCloser
+	Name() string
+	Stat() (fs.FileInfo, error)
+}
+
+type TrackedFile struct {
+	File         File
+	BytesRead    atomic.Uint64
+	BytesWritten atomic.Uint64
+}
+
+func (t *TrackedFile) ReadAt(b []byte, off int64) (int, error) {
+	n, err := t.File.ReadAt(b, off)
+	t.BytesRead.Add(uint64(n))
+	return n, err
+}
+
+func (t *TrackedFile) WriteAt(b []byte, off int64) (int, error) {
+	n, err := t.File.WriteAt(b, off)
+	t.BytesWritten.Add(uint64(n))
+	return n, err
+}
+
+func (t *TrackedFile) Close() error {
+	return t.File.Close()
 }

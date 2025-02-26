@@ -20,8 +20,6 @@ package sftp
 
 import (
 	"context"
-	"io"
-	"io/fs"
 	"os"
 	portablepath "path"
 	"time"
@@ -88,7 +86,7 @@ func (r *remoteFS) ReadDir(ctx context.Context, path string) ([]os.FileInfo, err
 	return fileInfos, nil
 }
 
-func (r *remoteFS) Open(ctx context.Context, path string) (fs.File, error) {
+func (r *remoteFS) Open(ctx context.Context, path string) (File, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -101,7 +99,7 @@ func (r *remoteFS) Open(ctx context.Context, path string) (fs.File, error) {
 	return f, nil
 }
 
-func (r *remoteFS) Create(ctx context.Context, path string, _ int64) (io.WriteCloser, error) {
+func (r *remoteFS) Create(ctx context.Context, path string, _ int64) (File, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -141,4 +139,75 @@ func (r *remoteFS) Chtimes(ctx context.Context, path string, atime, mtime time.T
 	}
 
 	return trace.Wrap(r.c.Chtimes(path, atime, mtime))
+}
+
+func (r *remoteFS) Rename(ctx context.Context, oldpath, newpath string) error {
+	if err := ctx.Err(); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(r.c.Rename(oldpath, newpath))
+}
+
+func (r *remoteFS) Lstat(ctx context.Context, name string) (os.FileInfo, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	fi, err := r.c.Lstat(name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return fi, nil
+}
+
+func (r *remoteFS) RemoveAll(ctx context.Context, path string) error {
+	if err := ctx.Err(); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(r.c.RemoveAll(path))
+}
+
+func (r *remoteFS) Link(ctx context.Context, oldname, newname string) error {
+	if err := ctx.Err(); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(r.c.Link(oldname, newname))
+}
+
+func (r *remoteFS) Symlink(ctx context.Context, oldname, newname string) error {
+	if err := ctx.Err(); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(r.c.Symlink(oldname, newname))
+}
+
+func (r *remoteFS) Remove(ctx context.Context, name string) error {
+	if err := ctx.Err(); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(r.c.Remove(name))
+}
+
+func (r *remoteFS) Chown(ctx context.Context, name string, uid, gid int) error {
+	if err := ctx.Err(); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(r.c.Chown(name, uid, gid))
+}
+
+func (r *remoteFS) Truncate(ctx context.Context, name string, size int64) error {
+	if err := ctx.Err(); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(r.c.Truncate(name, size))
+}
+
+func (r *remoteFS) Readlink(ctx context.Context, name string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", trace.Wrap(err)
+	}
+	dest, err := r.c.ReadLink(name)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return dest, nil
 }
