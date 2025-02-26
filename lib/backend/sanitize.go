@@ -33,7 +33,7 @@ const errorMessage = "special characters are not allowed in resource names, plea
 
 // allowPattern is the pattern of allowed characters for each key within
 // the path.
-var allowPattern = regexp.MustCompile(`^[0-9A-Za-z@_:.\-/+]*$`)
+var allowPattern = regexp.MustCompile(`^[0-9A-Za-z@_:.\-+]*$`)
 
 // IsKeySafe checks if the passed in key conforms to whitelist
 func IsKeySafe(key Key) bool {
