@@ -48,7 +48,7 @@ export function AwsOidcTitle({
       <Text bold fontSize={6} mx={2}>
         {content.content}
       </Text>
-      <Label kind={labelKind} aria-label="status" px={3} ml={3}>
+      <Label kind={labelKind} aria-label="status" px={3}>
         {status}
       </Label>
     </Flex>

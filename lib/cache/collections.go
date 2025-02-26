@@ -102,8 +102,7 @@ type crownjewelsGetter interface {
 }
 
 type userTasksGetter interface {
-	ListUserTasks(ctx context.Context, pageSize int64, nextToken string) ([]*usertasksv1.UserTask, string, error)
-	ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertasksv1.UserTask, string, error)
+	ListUserTasks(ctx context.Context, pageSize int64, nextToken string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error)
 	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
 }
 
@@ -2565,7 +2564,7 @@ func (userTasksExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets b
 	for {
 		var page []*usertasksv1.UserTask
 		var err error
-		page, nextToken, err = cache.UserTasks.ListUserTasks(ctx, 0 /* page size */, nextToken)
+		page, nextToken, err = cache.UserTasks.ListUserTasks(ctx, 0 /* page size */, nextToken, &usertasksv1.ListUserTasksFilters{})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

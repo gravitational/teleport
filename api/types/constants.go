@@ -1229,6 +1229,7 @@ const (
 	InstanceMetadataTypeEC2      InstanceMetadataType = "EC2"
 	InstanceMetadataTypeAzure    InstanceMetadataType = "Azure"
 	InstanceMetadataTypeGCP      InstanceMetadataType = "GCP"
+	InstanceMetadataTypeOracle   InstanceMetadataType = "Oracle"
 )
 
 // OriginValues lists all possible origin values.

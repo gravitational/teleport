@@ -2131,9 +2131,8 @@ func benchmarkListNodes(
 	require.NoError(b, err)
 
 	b.ReportAllocs()
-	b.ResetTimer()
 
-	for n := 0; n < b.N; n++ {
+	for b.Loop() {
 		var resources []types.ResourceWithLabels
 		req := proto.ListResourcesRequest{
 			ResourceType: types.KindNode,
@@ -5584,13 +5583,12 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 		require.Equal(t, types.KindDatabaseServer, r.GetKind())
 	}
 
-	// Check for invalid sort error message
+	// Check that sorting is not required
 	_, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-		Kinds:  []string{types.KindDatabase},
-		Limit:  5,
-		SortBy: types.SortBy{},
+		Kinds: []string{types.KindDatabase},
+		Limit: 5,
 	})
-	require.ErrorContains(t, err, "sort field is required")
+	require.NoError(t, err, "sort field is not required")
 }
 
 func TestListUnifiedResources_WithPinnedResources(t *testing.T) {
@@ -6480,9 +6478,8 @@ func benchmarkListUnifiedResources(
 	require.NoError(b, err)
 
 	b.ReportAllocs()
-	b.ResetTimer()
 
-	for n := 0; n < b.N; n++ {
+	for b.Loop() {
 		var resources []*proto.PaginatedResource
 		req := &proto.ListUnifiedResourcesRequest{
 			SortBy: types.SortBy{IsDesc: false, Field: types.ResourceMetadataName},

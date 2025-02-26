@@ -77,6 +77,24 @@ enum UserKind {
   USER_KIND_BOT = 2;
 }
 
+// UserOrigin is the origin of a user account.
+// Keep the values in sync with UserOrigin enum defined in
+// API events and prehogv1alpha.
+enum UserOrigin {
+  // Indicates a legacy cluster emitting events without a defined user origin.
+  USER_ORIGIN_UNSPECIFIED = 0;
+  // Indicates a local user.
+  USER_ORIGIN_LOCAL = 1;
+  // Indicates an SSO user originated from the SAML or OIDC connector.
+  USER_ORIGIN_SSO = 2;
+  // Indicates a user originated from the Okta integration.
+  USER_ORIGIN_OKTA = 3;
+  // Indicates a user originated from the SCIM integration.
+  USER_ORIGIN_SCIM = 4;
+  // Indicates a user originated from the EntraID integration.
+  USER_ORIGIN_ENTRAID = 5;
+}
+
 // a set of activity counters for a single user; some old versions report
 // "ssh_port_sessions", counting both SSH port forwards and kubectl port-forward
 // connections in a single counter
@@ -124,6 +142,18 @@ message UserActivityRecord {
   uint64 certificates_issued = 17;
   // counter of SVIDs issued for each SPIFFE ID.
   repeated SPIFFEIDRecord spiffe_ids_issued = 18;
+  // Indicates origin of user account.
+  UserOrigin user_origin = 19;
+  // counter of Access Requests created by this user.
+  uint64 access_requests_created = 20;
+  // counter of Access Requests reviewed by this user.
+  uint64 access_requests_reviewed = 21;
+  // counter of Access List review.
+  uint64 access_lists_reviewed = 22;
+  // counter of roles or traits grant event based on Access List membership.
+  uint64 access_lists_grants = 23;
+  // counter of successful SAML IdP authentication by this user.
+  uint64 saml_idp_sessions = 24;
 }
 
 // the kind of a "resource" (e.g. a node, a database, a desktop, etc.)

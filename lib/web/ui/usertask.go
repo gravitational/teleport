@@ -49,6 +49,8 @@ type UserTask struct {
 type UserTaskDetail struct {
 	// UserTask has the basic fields that all tasks include.
 	UserTask
+	// Title is the issue title.
+	Title string `json:"title,omitempty"`
 	// Description is a markdown document that explains the issue and how to fix it.
 	Description string `json:"description,omitempty"`
 	// DiscoverEC2 contains the task details for the DiscoverEC2 tasks.
@@ -97,6 +99,7 @@ func MakeUserTasks(uts []*usertasksv1.UserTask) []UserTask {
 
 // MakeDetailedUserTask creates a UI UserTask representation containing all the details.
 func MakeDetailedUserTask(ut *usertasksv1.UserTask) UserTaskDetail {
+	var title string
 	var description string
 
 	var discoverEC2 *usertasks.UserTaskDiscoverEC2WithURLs
@@ -105,20 +108,21 @@ func MakeDetailedUserTask(ut *usertasksv1.UserTask) UserTaskDetail {
 
 	switch ut.GetSpec().GetTaskType() {
 	case apiusertasks.TaskTypeDiscoverEC2:
-		description = usertasks.DescriptionForDiscoverEC2Issue(ut.GetSpec().GetIssueType())
+		title, description = usertasks.DescriptionForDiscoverEC2Issue(ut.GetSpec().GetIssueType())
 		discoverEC2 = usertasks.EC2InstancesWithURLs(ut)
 
 	case apiusertasks.TaskTypeDiscoverEKS:
-		description = usertasks.DescriptionForDiscoverEKSIssue(ut.GetSpec().GetIssueType())
+		title, description = usertasks.DescriptionForDiscoverEKSIssue(ut.GetSpec().GetIssueType())
 		discoverEKS = usertasks.EKSClustersWithURLs(ut)
 
 	case apiusertasks.TaskTypeDiscoverRDS:
-		description = usertasks.DescriptionForDiscoverRDSIssue(ut.GetSpec().GetIssueType())
+		title, description = usertasks.DescriptionForDiscoverRDSIssue(ut.GetSpec().GetIssueType())
 		discoverRDS = usertasks.RDSDatabasesWithURLs(ut)
 	}
 
 	return UserTaskDetail{
 		UserTask:    MakeUserTask(ut),
+		Title:       title,
 		Description: description,
 		DiscoverEC2: discoverEC2,
 		DiscoverEKS: discoverEKS,

@@ -33,6 +33,7 @@ import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants'
 import type { SortType } from 'teleport/services/agents';
 import {
   AwsOidcPolicyPreset,
+  IntegrationDeleteRequest,
   IntegrationKind,
   PluginKind,
   Regions,
@@ -360,7 +361,13 @@ const cfg = {
       export: '/v1/webapi/sites/:clusterId/integrations/:name/ca',
     },
 
+    // TODO(kimlisa): move integrationsPath into integration: {...}
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
+    integration: {
+      deleteV2:
+        '/v2/webapi/sites/:clusterId/integrations/:name?associatedresources=:associatedresources',
+    },
+
     integrationStatsPath:
       '/v1/webapi/sites/:clusterId/integrations/:name/stats',
     integrationRulesPath:
@@ -1103,6 +1110,20 @@ const cfg = {
       clusterId,
       name: integrationName,
     });
+  },
+
+  getDeleteIntegrationUrlV2(req: IntegrationDeleteRequest) {
+    // Not using generatePath here because it doesn't work
+    // when a dynamic path and a query param is next to each other.
+    // eg: some/path/:name?queryParmKey=queryParamValue it will
+    // remove the required ? in the path.
+    return cfg.api.integration.deleteV2
+      .replace(':clusterId', req.clusterId)
+      .replace(':name', req.name)
+      .replace(
+        ':associatedresources',
+        req.deleteAssociatedResources ? 'true' : 'false'
+      );
   },
 
   getIntegrationStatsUrl(name: string) {

@@ -60,6 +60,7 @@ export function TaskAlert({
     <Alert
       kind="warning"
       icon={BellRinging}
+      mb={0}
       primaryAction={{
         content: (
           <>

@@ -35,7 +35,7 @@ To complete the steps in this guide, verify your environment meets the following
   edition you use.
 
 - A Linux server to run the Teleport Windows Desktop Service.
-  You can use an existing server that runs the Teleport agent for other resources.
+  You can use an existing server that runs the Teleport Agent for other resources.
 
 - An Active Directory domain that is configured for LDAPS. Because Teleport requires an
   encrypted LDAP connection, you should verify that your domain uses Active Directory
@@ -777,7 +777,7 @@ To change the default domain policy:
 
 Each `windows_desktop_service` is designed to support connecting to hosts in a
 single Active Directory domain. If you have multiple independent domains, you
-can deploy multiple Teleport agents to service them.
+can deploy multiple Teleport Agents to service them.
 
 If you have multiple domains with a trust relationship between them, you can
 configure Teleport to perform PKI operations against one domain, while generating

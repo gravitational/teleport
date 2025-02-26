@@ -59,6 +59,8 @@ type UpdateConfig struct {
 type UpdateSpec struct {
 	// Proxy address
 	Proxy string `yaml:"proxy"`
+	// Path is the location the Teleport binaries are linked into.
+	Path string `yaml:"path"`
 	// Group specifies the update group identifier for the agent.
 	Group string `yaml:"group,omitempty"`
 	// BaseURL is CDN base URL used for the Teleport tgz download URL.
@@ -202,6 +204,9 @@ func writeConfig(filename string, cfg *UpdateConfig) error {
 func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 	if override.Proxy != "" {
 		spec.Proxy = override.Proxy
+	}
+	if override.Path != "" {
+		spec.Path = override.Path
 	}
 	if override.Group != "" {
 		spec.Group = override.Group

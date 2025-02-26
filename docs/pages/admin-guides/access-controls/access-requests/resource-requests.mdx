@@ -544,7 +544,7 @@ spec:
 ### Request access to Kubernetes resources
 
 Teleport users can request access to a Kubernetes resources by running the following
-command:
+command, where <Var name="resource-id" /> is the ID of the resource:
 
 ```code
 $ tsh request create <Var name="resource-id" />
@@ -626,8 +626,10 @@ spec:
 
 #### Search for Kubernetes resources
 
-If a user has no access to a Kubernetes cluster, they can search the list of resources
-in the cluster by running the following command:
+If a user has no access to a Kubernetes cluster, they can search the list of
+resources in the cluster by running the following command, replacing 
+<Var name="kube-cluster" /> with the name of the Kubernetes cluster and 
+<Var name="namespace" /> with the name of a Kubernetes namespace:
 
 ```code
 $ tsh request search --kind=<kind> --kube-cluster=<Var name="kube-cluster" /> \

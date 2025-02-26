@@ -73,6 +73,7 @@ func (s *IdentityOutputService) Run(ctx context.Context) error {
 	defer unsubscribe()
 
 	err := runOnInterval(ctx, runOnIntervalConfig{
+		service:    s.String(),
 		name:       "output-renewal",
 		f:          s.generate,
 		interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
@@ -256,11 +257,10 @@ func renderSSHConfig(
 	)
 	defer span.End()
 
-	proxyAddr, err := proxyPing.proxyWebAddr()
+	proxyAddr, err := proxyPing.proxySSHAddr()
 	if err != nil {
-		return trace.Wrap(err, "determining proxy web addr")
+		return trace.Wrap(err, "determining proxy ssh addr")
 	}
-
 	proxyHost, proxyPort, err := utils.SplitHostPort(proxyAddr)
 	if err != nil {
 		return trace.BadParameter(
