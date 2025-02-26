@@ -26,7 +26,7 @@ import (
 )
 
 func init() {
-	SchemeBuilder.Register(&TeleportRoleV7{}, &TeleportRoleV7List{})
+	SchemeBuilder.Register(&TeleportRoleV8{}, &TeleportRoleV8List{})
 }
 
 // TeleportRoleV8Spec defines the desired state of TeleportRoleV8
