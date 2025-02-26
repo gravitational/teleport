@@ -1436,7 +1436,8 @@ metadata:
   name: autoupdate-config
   revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
 spec:
-  tools_autoupdate: true
+  tools:
+    mode: enabled
 version: v1
 `
 	_, err := runResourceCommand(t, fc, []string{"get", types.KindAutoUpdateConfig, "--format=json"})
@@ -1463,6 +1464,12 @@ version: v1
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
 		protocmp.Transform(),
 	))
+
+	// Delete the resource
+	_, err = runResourceCommand(t, fc, []string{"rm", types.KindAutoUpdateConfig})
+	require.NoError(t, err)
+	_, err = runResourceCommand(t, fc, []string{"get", types.KindAutoUpdateConfig})
+	require.ErrorContains(t, err, "autoupdate_config \"autoupdate-config\" doesn't exist")
 }
 
 func testCreateAutoUpdateVersion(t *testing.T, fc *config.FileConfig) {
@@ -1471,7 +1478,8 @@ metadata:
   name: autoupdate-version
   revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
 spec:
-  tools_version: 1.2.3
+  tools:
+    target_version: 1.2.3
 version: v1
 `
 	_, err := runResourceCommand(t, fc, []string{"get", types.KindAutoUpdateVersion, "--format=json"})
@@ -1498,4 +1506,10 @@ version: v1
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
 		protocmp.Transform(),
 	))
+
+	// Delete the resource
+	_, err = runResourceCommand(t, fc, []string{"rm", types.KindAutoUpdateVersion})
+	require.NoError(t, err)
+	_, err = runResourceCommand(t, fc, []string{"get", types.KindAutoUpdateVersion})
+	require.ErrorContains(t, err, "autoupdate_version \"autoupdate-version\" doesn't exist")
 }

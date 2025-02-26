@@ -27,8 +27,11 @@ import (
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/autoupdate"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -43,13 +46,17 @@ func TestAutoUpdateCRUD(t *testing.T) {
 		}
 	}
 
-	ctx, localClient, resourceSvc := initSvc(t, "test-cluster")
+	ctx, localClient, resourceSvc := initSvc(t, "test-cluster", &eventstest.MockRecorderEmitter{})
 	initialConfig, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
-		ToolsAutoupdate: true,
+		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
+			Mode: "enabled",
+		},
 	})
 	require.NoError(t, err)
 	initialVersion, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{
-		ToolsVersion: "1.2.3",
+		Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
+			TargetVersion: "1.2.3",
+		},
 	})
 	require.NoError(t, err)
 
@@ -270,6 +277,108 @@ func TestAutoUpdateCRUD(t *testing.T) {
 	}
 }
 
+func TestAutoUpdateConfigEvents(t *testing.T) {
+	role := types.RoleSpecV6{
+		Allow: types.RoleConditions{Rules: []types.Rule{{
+			Resources: []string{types.KindAutoUpdateConfig},
+			Verbs:     []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete},
+		}}},
+	}
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	ctx, localClient, service := initSvc(t, "test-cluster", mockEmitter)
+	localCtx := authorizerForDummyUser(t, ctx, role, localClient)
+
+	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
+		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
+			Mode: autoupdate.ToolsUpdateModeEnabled,
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = service.CreateAutoUpdateConfig(localCtx, &autoupdatev1pb.CreateAutoUpdateConfigRequest{Config: config})
+	require.NoError(t, err)
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateConfigCreateEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateConfigCreateCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateConfig, mockEmitter.LastEvent().(*apievents.AutoUpdateConfigCreate).Name)
+	mockEmitter.Reset()
+
+	_, err = service.UpdateAutoUpdateConfig(localCtx, &autoupdatev1pb.UpdateAutoUpdateConfigRequest{Config: config})
+	require.NoError(t, err)
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateConfigUpdateEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateConfigUpdateCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateConfig, mockEmitter.LastEvent().(*apievents.AutoUpdateConfigUpdate).Name)
+	mockEmitter.Reset()
+
+	_, err = service.UpsertAutoUpdateConfig(localCtx, &autoupdatev1pb.UpsertAutoUpdateConfigRequest{Config: config})
+	require.NoError(t, err)
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateConfigUpdateEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateConfigUpdateCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateConfig, mockEmitter.LastEvent().(*apievents.AutoUpdateConfigUpdate).Name)
+	mockEmitter.Reset()
+
+	_, err = service.DeleteAutoUpdateConfig(localCtx, &autoupdatev1pb.DeleteAutoUpdateConfigRequest{})
+	require.NoError(t, err)
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateConfigDeleteEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateConfigDeleteCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateConfig, mockEmitter.LastEvent().(*apievents.AutoUpdateConfigDelete).Name)
+	mockEmitter.Reset()
+}
+
+func TestAutoUpdateVersionEvents(t *testing.T) {
+	role := types.RoleSpecV6{
+		Allow: types.RoleConditions{Rules: []types.Rule{{
+			Resources: []string{types.KindAutoUpdateVersion},
+			Verbs:     []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete},
+		}}},
+	}
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	ctx, localClient, service := initSvc(t, "test-cluster", mockEmitter)
+	localCtx := authorizerForDummyUser(t, ctx, role, localClient)
+
+	config, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{
+		Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
+			TargetVersion: "1.2.3",
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = service.CreateAutoUpdateVersion(localCtx, &autoupdatev1pb.CreateAutoUpdateVersionRequest{Version: config})
+	require.NoError(t, err)
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateVersionCreateEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateVersionCreateCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateVersion, mockEmitter.LastEvent().(*apievents.AutoUpdateVersionCreate).Name)
+	mockEmitter.Reset()
+
+	_, err = service.UpdateAutoUpdateVersion(localCtx, &autoupdatev1pb.UpdateAutoUpdateVersionRequest{Version: config})
+	require.NoError(t, err)
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateVersionUpdateEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateVersionUpdateCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateVersion, mockEmitter.LastEvent().(*apievents.AutoUpdateVersionUpdate).Name)
+	mockEmitter.Reset()
+
+	_, err = service.UpsertAutoUpdateVersion(localCtx, &autoupdatev1pb.UpsertAutoUpdateVersionRequest{Version: config})
+	require.NoError(t, err)
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateVersionUpdateEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateVersionUpdateCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateVersion, mockEmitter.LastEvent().(*apievents.AutoUpdateVersionUpdate).Name)
+	mockEmitter.Reset()
+
+	_, err = service.DeleteAutoUpdateVersion(localCtx, &autoupdatev1pb.DeleteAutoUpdateVersionRequest{})
+	require.NoError(t, err)
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateVersionDeleteEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateVersionDeleteCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateVersion, mockEmitter.LastEvent().(*apievents.AutoUpdateVersionDelete).Name)
+	mockEmitter.Reset()
+}
+
 func authorizerForDummyUser(t *testing.T, ctx context.Context, roleSpec types.RoleSpecV6, localClient localClient) context.Context {
 	// Create role
 	roleName := "role-" + uuid.NewString()
@@ -301,7 +410,7 @@ type localClient interface {
 	services.AutoUpdateService
 }
 
-func initSvc(t *testing.T, clusterName string) (context.Context, localClient, *Service) {
+func initSvc(t *testing.T, clusterName string, emitter apievents.Emitter) (context.Context, localClient, *Service) {
 	ctx := context.Background()
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -354,6 +463,7 @@ func initSvc(t *testing.T, clusterName string) (context.Context, localClient, *S
 		Backend:    localResourceService,
 		Cache:      localResourceService,
 		Authorizer: authorizer,
+		Emitter:    emitter,
 	})
 	require.NoError(t, err)
 

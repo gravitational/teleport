@@ -169,6 +169,8 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindAuditQuery, append(RW(), types.VerbUse)),
 					types.NewRule(types.KindAccessGraph, RW()),
 					types.NewRule(types.KindServerInfo, RW()),
+					types.NewRule(types.KindAutoUpdateVersion, RW()),
+					types.NewRule(types.KindAutoUpdateConfig, RW()),
 				},
 			},
 		},

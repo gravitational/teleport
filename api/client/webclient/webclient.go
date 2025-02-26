@@ -296,6 +296,8 @@ type PingResponse struct {
 	ServerVersion string `json:"server_version"`
 	// MinClientVersion is the minimum client version required by the server.
 	MinClientVersion string `json:"min_client_version"`
+	// AutoUpdateSettings contains the auto update settings.
+	AutoUpdate AutoUpdateSettings `json:"auto_update"`
 	// ClusterName contains the name of the Teleport cluster.
 	ClusterName string `json:"cluster_name"`
 
@@ -327,6 +329,14 @@ type ProxySettings struct {
 	TLSRoutingEnabled bool `json:"tls_routing_enabled"`
 	// AssistEnabled is true when Teleport Assist is enabled.
 	AssistEnabled bool `json:"assist_enabled"`
+}
+
+// AutoUpdateSettings contains information about the auto update requirements.
+type AutoUpdateSettings struct {
+	// ToolsVersion defines the version of {tsh, tctl} for client auto update.
+	ToolsVersion string `json:"tools_version"`
+	// ToolsAutoUpdate indicates if the requesting tools client should be updated.
+	ToolsAutoUpdate bool `json:"tools_auto_update"`
 }
 
 // KubeProxySettings is kubernetes proxy settings

@@ -15,12 +15,18 @@
 package main
 
 import (
+	"context"
+
+	"github.com/gravitational/teleport/lib/utils/signal"
 	"github.com/gravitational/teleport/tool/tctl/common"
 )
 
 func main() {
+	ctx, cancel := signal.GetSignalHandler().NotifyContext(context.Background())
+	defer cancel()
+
 	// aggregate common and oss-specific command variants
 	commands := common.Commands()
 	commands = append(commands, common.OSSCommands()...)
-	common.Run(commands)
+	common.Run(ctx, commands)
 }

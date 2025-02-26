@@ -20,13 +20,17 @@ package autoupdatev1
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -47,6 +51,8 @@ type ServiceConfig struct {
 	Backend services.AutoUpdateService
 	// Cache is the cache used to store AutoUpdate resources.
 	Cache Cache
+	// Emitter is the event emitter.
+	Emitter apievents.Emitter
 }
 
 // Service implements the gRPC API layer for the AutoUpdate.
@@ -55,6 +61,7 @@ type Service struct {
 
 	authorizer authz.Authorizer
 	backend    services.AutoUpdateService
+	emitter    apievents.Emitter
 	cache      Cache
 }
 
@@ -67,11 +74,14 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("authorizer is required")
 	case cfg.Cache == nil:
 		return nil, trace.BadParameter("cache is required")
+	case cfg.Emitter == nil:
+		return nil, trace.BadParameter("Emitter is required")
 	}
 	return &Service{
 		authorizer: cfg.Authorizer,
 		backend:    cfg.Backend,
 		cache:      cfg.Cache,
+		emitter:    cfg.Emitter,
 	}, nil
 }
 
@@ -106,6 +116,27 @@ func (s *Service) CreateAutoUpdateConfig(ctx context.Context, req *autoupdate.Cr
 	}
 
 	config, err := s.backend.CreateAutoUpdateConfig(ctx, req.Config)
+	var errMsg string
+	if err != nil {
+		errMsg = err.Error()
+	}
+	userMetadata := authz.ClientUserMetadata(ctx)
+	s.emitEvent(ctx, &apievents.AutoUpdateConfigCreate{
+		Metadata: apievents.Metadata{
+			Type: events.AutoUpdateConfigCreateEvent,
+			Code: events.AutoUpdateConfigCreateCode,
+		},
+		UserMetadata: userMetadata,
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:      types.MetaNameAutoUpdateConfig,
+			UpdatedBy: userMetadata.User,
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: err == nil,
+			Error:   errMsg,
+		},
+	})
 	return config, trace.Wrap(err)
 }
 
@@ -121,6 +152,27 @@ func (s *Service) UpdateAutoUpdateConfig(ctx context.Context, req *autoupdate.Up
 	}
 
 	config, err := s.backend.UpdateAutoUpdateConfig(ctx, req.Config)
+	var errMsg string
+	if err != nil {
+		errMsg = err.Error()
+	}
+	userMetadata := authz.ClientUserMetadata(ctx)
+	s.emitEvent(ctx, &apievents.AutoUpdateConfigUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.AutoUpdateConfigUpdateEvent,
+			Code: events.AutoUpdateConfigUpdateCode,
+		},
+		UserMetadata: userMetadata,
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:      types.MetaNameAutoUpdateConfig,
+			UpdatedBy: userMetadata.User,
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: err == nil,
+			Error:   errMsg,
+		},
+	})
 	return config, trace.Wrap(err)
 }
 
@@ -136,6 +188,27 @@ func (s *Service) UpsertAutoUpdateConfig(ctx context.Context, req *autoupdate.Up
 	}
 
 	config, err := s.backend.UpsertAutoUpdateConfig(ctx, req.Config)
+	var errMsg string
+	if err != nil {
+		errMsg = err.Error()
+	}
+	userMetadata := authz.ClientUserMetadata(ctx)
+	s.emitEvent(ctx, &apievents.AutoUpdateConfigUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.AutoUpdateConfigUpdateEvent,
+			Code: events.AutoUpdateConfigUpdateCode,
+		},
+		UserMetadata: userMetadata,
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:      types.MetaNameAutoUpdateConfig,
+			UpdatedBy: userMetadata.User,
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: err == nil,
+			Error:   errMsg,
+		},
+	})
 	return config, trace.Wrap(err)
 }
 
@@ -150,10 +223,29 @@ func (s *Service) DeleteAutoUpdateConfig(ctx context.Context, req *autoupdate.De
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.backend.DeleteAutoUpdateConfig(ctx); err != nil {
-		return nil, trace.Wrap(err)
+	err = s.backend.DeleteAutoUpdateConfig(ctx)
+	var errMsg string
+	if err != nil {
+		errMsg = err.Error()
 	}
-	return &emptypb.Empty{}, nil
+	userMetadata := authz.ClientUserMetadata(ctx)
+	s.emitEvent(ctx, &apievents.AutoUpdateConfigDelete{
+		Metadata: apievents.Metadata{
+			Type: events.AutoUpdateConfigDeleteEvent,
+			Code: events.AutoUpdateConfigDeleteCode,
+		},
+		UserMetadata: userMetadata,
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:      types.MetaNameAutoUpdateConfig,
+			UpdatedBy: userMetadata.User,
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: err == nil,
+			Error:   errMsg,
+		},
+	})
+	return &emptypb.Empty{}, trace.Wrap(err)
 }
 
 // GetAutoUpdateVersion gets the current AutoUpdateVersion singleton.
@@ -182,11 +274,37 @@ func (s *Service) CreateAutoUpdateVersion(ctx context.Context, req *autoupdate.C
 		return nil, trace.Wrap(err)
 	}
 
+	if err := checkAdminCloudAccess(authCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateVersion, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	autoUpdateVersion, err := s.backend.CreateAutoUpdateVersion(ctx, req.Version)
+	var errMsg string
+	if err != nil {
+		errMsg = err.Error()
+	}
+	userMetadata := authz.ClientUserMetadata(ctx)
+	s.emitEvent(ctx, &apievents.AutoUpdateVersionCreate{
+		Metadata: apievents.Metadata{
+			Type: events.AutoUpdateVersionCreateEvent,
+			Code: events.AutoUpdateVersionCreateCode,
+		},
+		UserMetadata: userMetadata,
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:      types.MetaNameAutoUpdateVersion,
+			UpdatedBy: userMetadata.User,
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: err == nil,
+			Error:   errMsg,
+		},
+	})
+
 	return autoUpdateVersion, trace.Wrap(err)
 }
 
@@ -197,11 +315,37 @@ func (s *Service) UpdateAutoUpdateVersion(ctx context.Context, req *autoupdate.U
 		return nil, trace.Wrap(err)
 	}
 
+	if err := checkAdminCloudAccess(authCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateVersion, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	autoUpdateVersion, err := s.backend.UpdateAutoUpdateVersion(ctx, req.Version)
+	var errMsg string
+	if err != nil {
+		errMsg = err.Error()
+	}
+	userMetadata := authz.ClientUserMetadata(ctx)
+	s.emitEvent(ctx, &apievents.AutoUpdateVersionUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.AutoUpdateVersionUpdateEvent,
+			Code: events.AutoUpdateVersionUpdateCode,
+		},
+		UserMetadata: userMetadata,
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:      types.MetaNameAutoUpdateVersion,
+			UpdatedBy: userMetadata.User,
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: err == nil,
+			Error:   errMsg,
+		},
+	})
+
 	return autoUpdateVersion, trace.Wrap(err)
 }
 
@@ -212,11 +356,37 @@ func (s *Service) UpsertAutoUpdateVersion(ctx context.Context, req *autoupdate.U
 		return nil, trace.Wrap(err)
 	}
 
+	if err := checkAdminCloudAccess(authCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateVersion, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	autoUpdateVersion, err := s.backend.UpsertAutoUpdateVersion(ctx, req.Version)
+	var errMsg string
+	if err != nil {
+		errMsg = err.Error()
+	}
+	userMetadata := authz.ClientUserMetadata(ctx)
+	s.emitEvent(ctx, &apievents.AutoUpdateVersionUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.AutoUpdateVersionUpdateEvent,
+			Code: events.AutoUpdateVersionUpdateCode,
+		},
+		UserMetadata: userMetadata,
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:      types.MetaNameAutoUpdateVersion,
+			UpdatedBy: userMetadata.User,
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: err == nil,
+			Error:   errMsg,
+		},
+	})
+
 	return autoUpdateVersion, trace.Wrap(err)
 }
 
@@ -227,12 +397,55 @@ func (s *Service) DeleteAutoUpdateVersion(ctx context.Context, req *autoupdate.D
 		return nil, trace.Wrap(err)
 	}
 
+	if err := checkAdminCloudAccess(authCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateVersion, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.backend.DeleteAutoUpdateVersion(ctx); err != nil {
-		return nil, trace.Wrap(err)
+	err = s.backend.DeleteAutoUpdateVersion(ctx)
+	var errMsg string
+	if err != nil {
+		errMsg = err.Error()
 	}
-	return &emptypb.Empty{}, nil
+	userMetadata := authz.ClientUserMetadata(ctx)
+	s.emitEvent(ctx, &apievents.AutoUpdateVersionDelete{
+		Metadata: apievents.Metadata{
+			Type: events.AutoUpdateVersionDeleteEvent,
+			Code: events.AutoUpdateVersionDeleteCode,
+		},
+		UserMetadata: userMetadata,
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:      types.MetaNameAutoUpdateVersion,
+			UpdatedBy: userMetadata.User,
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: err == nil,
+			Error:   errMsg,
+		},
+	})
+	return &emptypb.Empty{}, trace.Wrap(err)
+}
+
+func (s *Service) emitEvent(ctx context.Context, e apievents.AuditEvent) {
+	if err := s.emitter.EmitAuditEvent(ctx, e); err != nil {
+		slog.WarnContext(ctx, "Failed to emit audit event",
+			"type", e.GetType(),
+			"error", err,
+		)
+	}
+}
+
+// checkAdminCloudAccess validates if the given context has the builtin admin role if cloud feature is enabled.
+func checkAdminCloudAccess(authCtx *authz.Context) error {
+	if modules.GetModules().Features().Cloud && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
+		return trace.AccessDenied("This Teleport instance is running on Teleport Cloud. "+
+			"The %q resource is managed by the Teleport Cloud team. You can use the %q resource to opt-in, "+
+			"opt-out or configure update schedules.",
+			types.KindAutoUpdateVersion, types.KindAutoUpdateConfig)
+	}
+	return nil
 }

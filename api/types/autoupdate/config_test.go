@@ -41,7 +41,9 @@ func TestNewAutoUpdateConfig(t *testing.T) {
 		{
 			name: "success tools autoupdate disabled",
 			spec: &autoupdate.AutoUpdateConfigSpec{
-				ToolsAutoupdate: false,
+				Tools: &autoupdate.AutoUpdateConfigSpecTools{
+					Mode: ToolsUpdateModeDisabled,
+				},
 			},
 			assertErr: func(t *testing.T, err error, a ...any) {
 				require.NoError(t, err)
@@ -53,14 +55,18 @@ func TestNewAutoUpdateConfig(t *testing.T) {
 					Name: types.MetaNameAutoUpdateConfig,
 				},
 				Spec: &autoupdate.AutoUpdateConfigSpec{
-					ToolsAutoupdate: false,
+					Tools: &autoupdate.AutoUpdateConfigSpecTools{
+						Mode: ToolsUpdateModeDisabled,
+					},
 				},
 			},
 		},
 		{
 			name: "success tools autoupdate enabled",
 			spec: &autoupdate.AutoUpdateConfigSpec{
-				ToolsAutoupdate: true,
+				Tools: &autoupdate.AutoUpdateConfigSpecTools{
+					Mode: ToolsUpdateModeEnabled,
+				},
 			},
 			assertErr: func(t *testing.T, err error, a ...any) {
 				require.NoError(t, err)
@@ -72,7 +78,9 @@ func TestNewAutoUpdateConfig(t *testing.T) {
 					Name: types.MetaNameAutoUpdateConfig,
 				},
 				Spec: &autoupdate.AutoUpdateConfigSpec{
-					ToolsAutoupdate: true,
+					Tools: &autoupdate.AutoUpdateConfigSpecTools{
+						Mode: ToolsUpdateModeEnabled,
+					},
 				},
 			},
 		},
@@ -81,6 +89,17 @@ func TestNewAutoUpdateConfig(t *testing.T) {
 			spec: nil,
 			assertErr: func(t *testing.T, err error, a ...any) {
 				require.ErrorContains(t, err, "Spec is nil")
+			},
+		},
+		{
+			name: "invalid tools mode",
+			spec: &autoupdate.AutoUpdateConfigSpec{
+				Tools: &autoupdate.AutoUpdateConfigSpecTools{
+					Mode: "invalid-mode",
+				},
+			},
+			assertErr: func(t *testing.T, err error, a ...any) {
+				require.ErrorContains(t, err, "ToolsMode is not valid")
 			},
 		},
 	}

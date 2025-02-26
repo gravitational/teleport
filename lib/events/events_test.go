@@ -194,6 +194,12 @@ var eventsMap = map[string]apievents.AuditEvent{
 	IntegrationCreateEvent:                      &apievents.IntegrationCreate{},
 	IntegrationUpdateEvent:                      &apievents.IntegrationUpdate{},
 	IntegrationDeleteEvent:                      &apievents.IntegrationDelete{},
+	AutoUpdateConfigCreateEvent:                 &apievents.AutoUpdateConfigCreate{},
+	AutoUpdateConfigUpdateEvent:                 &apievents.AutoUpdateConfigUpdate{},
+	AutoUpdateConfigDeleteEvent:                 &apievents.AutoUpdateConfigDelete{},
+	AutoUpdateVersionCreateEvent:                &apievents.AutoUpdateVersionCreate{},
+	AutoUpdateVersionUpdateEvent:                &apievents.AutoUpdateVersionUpdate{},
+	AutoUpdateVersionDeleteEvent:                &apievents.AutoUpdateVersionDelete{},
 }
 
 // TestJSON tests JSON marshal events

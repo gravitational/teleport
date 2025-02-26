@@ -420,15 +420,19 @@ func RecursiveChown(dir string, uid, gid int) error {
 	return nil
 }
 
-func CopyFile(src, dest string, perm os.FileMode) error {
+func CopyFile(src, dest string, perm os.FileMode) (err error) {
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
+	defer srcFile.Close()
 	destFile, err := os.OpenFile(dest, os.O_RDWR|os.O_CREATE|os.O_TRUNC, perm)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
+	defer func() {
+		err = trace.NewAggregate(err, trace.Wrap(destFile.Close()))
+	}()
 	_, err = destFile.ReadFrom(srcFile)
 	if err != nil {
 		return trace.ConvertSystemError(err)

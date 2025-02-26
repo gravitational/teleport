@@ -19,11 +19,27 @@ limitations under the License.
 
 package utils
 
-import "github.com/gravitational/trace"
+import (
+	"github.com/gravitational/trace"
+	"golang.org/x/sys/windows"
+)
 
 // PercentUsed is not supported on Windows.
 func PercentUsed(path string) (float64, error) {
 	return 0.0, trace.NotImplemented("disk usage not supported on Windows")
+}
+
+// FreeDiskWithReserve returns the available disk space (in bytes) on the disk at dir, minus `reservedFreeDisk`.
+func FreeDiskWithReserve(dir string, reservedFreeDisk uint64) (uint64, error) {
+	var avail uint64
+	err := windows.GetDiskFreeSpaceEx(windows.StringToUTF16Ptr(dir), &avail, nil, nil)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	if reservedFreeDisk > avail {
+		return 0, trace.Errorf("no free space left")
+	}
+	return avail - reservedFreeDisk, nil
 }
 
 // CanUserWriteTo is not supported on Windows.

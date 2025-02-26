@@ -715,6 +715,20 @@ const (
 	IntegrationUpdateEvent = "integration.update"
 	// IntegrationDeleteEvent is emitted when an integration resource is deleted.
 	IntegrationDeleteEvent = "integration.delete"
+
+	// AutoUpdateConfigCreateEvent is emitted when a AutoUpdateConfig resource is created.
+	AutoUpdateConfigCreateEvent = "auto_update_config.create"
+	// AutoUpdateConfigUpdateEvent is emitted when a AutoUpdateConfig resource is updated.
+	AutoUpdateConfigUpdateEvent = "auto_update_config.update"
+	// AutoUpdateConfigDeleteEvent is emitted when a AutoUpdateConfig resource is deleted.
+	AutoUpdateConfigDeleteEvent = "auto_update_config.delete"
+
+	// AutoUpdateVersionCreateEvent is emitted when a AutoUpdateVersion resource is created.
+	AutoUpdateVersionCreateEvent = "auto_update_version.create"
+	// AutoUpdateVersionUpdateEvent is emitted when a AutoUpdateVersion resource is updated.
+	AutoUpdateVersionUpdateEvent = "auto_update_version.update"
+	// AutoUpdateVersionDeleteEvent is emitted when a AutoUpdateVersion resource is deleted.
+	AutoUpdateVersionDeleteEvent = "auto_update_version.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

@@ -33,8 +33,15 @@ message AutoUpdateConfig {
 
 // AutoUpdateConfigSpec encodes the parameters of the autoupdate config object.
 message AutoUpdateConfigSpec {
-  // ToolsAutoupdate encodes the feature flag to enable/disable tools autoupdates.
-  bool tools_autoupdate = 1;
+  reserved 1;
+  reserved "tools_autoupdate"; // ToolsAutoupdate is replaced by tools.mode.
+  AutoUpdateConfigSpecTools tools = 2;
+}
+
+// AutoUpdateConfigSpecTools encodes the parameters for client tools auto updates.
+message AutoUpdateConfigSpecTools {
+  // Mode defines state of the client tools auto update.
+  string mode = 1;
 }
 
 // AutoUpdateVersion is a resource singleton with version required for
@@ -50,6 +57,14 @@ message AutoUpdateVersion {
 
 // AutoUpdateVersionSpec encodes the parameters of the autoupdate versions.
 message AutoUpdateVersionSpec {
-  // ToolsVersion is the semantic version required for tools autoupdates.
-  string tools_version = 1;
+  reserved 1;
+  reserved "tools_version"; // ToolsVersion is replaced by tools.target_version.
+  AutoUpdateVersionSpecTools tools = 2;
+}
+
+// AutoUpdateVersionSpecTools encodes the parameters for client tools auto updates.
+message AutoUpdateVersionSpecTools {
+  // TargetVersion specifies the semantic version required for tools to establish a connection with the cluster.
+  // Client tools after connection to the cluster going to be updated to this version automatically.
+  string target_version = 1;
 }

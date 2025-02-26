@@ -60,11 +60,13 @@ func ValidateAutoUpdateVersion(v *autoupdate.AutoUpdateVersion) error {
 		return trace.BadParameter("Spec is nil")
 	}
 
-	if v.Spec.ToolsVersion == "" {
-		return trace.BadParameter("ToolsVersion is unset")
-	}
-	if _, err := semver.NewVersion(v.Spec.ToolsVersion); err != nil {
-		return trace.BadParameter("ToolsVersion is not a valid semantic version")
+	if v.Spec.Tools != nil {
+		if v.Spec.Tools.TargetVersion == "" {
+			return trace.BadParameter("TargetVersion is unset")
+		}
+		if _, err := semver.NewVersion(v.Spec.Tools.TargetVersion); err != nil {
+			return trace.BadParameter("TargetVersion is not a valid semantic version")
+		}
 	}
 
 	return nil
