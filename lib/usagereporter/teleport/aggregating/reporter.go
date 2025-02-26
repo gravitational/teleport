@@ -188,7 +188,9 @@ func (r *Reporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
 			*usagereporter.BotJoinEvent,
 			*usagereporter.SPIFFESVIDIssuedEvent,
 			*usagereporter.AccessRequestCreateEvent,
-			*usagereporter.AccessRequestReviewEvent:
+			*usagereporter.AccessRequestReviewEvent,
+			*usagereporter.AccessListReviewCreateEvent,
+			*usagereporter.AccessListGrantsToUserEvent:
 			filtered = append(filtered, event)
 		}
 	}
@@ -455,6 +457,10 @@ Ingest:
 			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessRequestsCreated++
 		case *usagereporter.AccessRequestReviewEvent:
 			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessRequestsReviewed++
+		case *usagereporter.AccessListReviewCreateEvent:
+			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessListsReviewed++
+		case *usagereporter.AccessListGrantsToUserEvent:
+			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessListsGrants++
 		}
 
 		if ae != nil && r.ingested != nil {

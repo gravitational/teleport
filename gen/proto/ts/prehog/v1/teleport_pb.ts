@@ -222,6 +222,18 @@ export interface UserActivityRecord {
      * @generated from protobuf field: uint64 access_requests_reviewed = 21;
      */
     accessRequestsReviewed: bigint;
+    /**
+     * counter of Access List review.
+     *
+     * @generated from protobuf field: uint64 access_lists_reviewed = 22;
+     */
+    accessListsReviewed: bigint;
+    /**
+     * counter of roles or traits grant event based on Access List membership.
+     *
+     * @generated from protobuf field: uint64 access_lists_grants = 23;
+     */
+    accessListsGrants: bigint;
 }
 /**
  * @generated from protobuf message prehog.v1.ResourcePresenceReport
@@ -671,7 +683,9 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
             { no: 18, name: "spiffe_ids_issued", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SPIFFEIDRecord },
             { no: 19, name: "user_origin", kind: "enum", T: () => ["prehog.v1.UserOrigin", UserOrigin, "USER_ORIGIN_"] },
             { no: 20, name: "access_requests_created", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
-            { no: 21, name: "access_requests_reviewed", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+            { no: 21, name: "access_requests_reviewed", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 22, name: "access_lists_reviewed", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 23, name: "access_lists_grants", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
         ]);
     }
     create(value?: PartialMessage<UserActivityRecord>): UserActivityRecord {
@@ -697,6 +711,8 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         message.userOrigin = 0;
         message.accessRequestsCreated = 0n;
         message.accessRequestsReviewed = 0n;
+        message.accessListsReviewed = 0n;
+        message.accessListsGrants = 0n;
         if (value !== undefined)
             reflectionMergePartial<UserActivityRecord>(this, message, value);
         return message;
@@ -768,6 +784,12 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
                     break;
                 case /* uint64 access_requests_reviewed */ 21:
                     message.accessRequestsReviewed = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 access_lists_reviewed */ 22:
+                    message.accessListsReviewed = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 access_lists_grants */ 23:
+                    message.accessListsGrants = reader.uint64().toBigInt();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -844,6 +866,12 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         /* uint64 access_requests_reviewed = 21; */
         if (message.accessRequestsReviewed !== 0n)
             writer.tag(21, WireType.Varint).uint64(message.accessRequestsReviewed);
+        /* uint64 access_lists_reviewed = 22; */
+        if (message.accessListsReviewed !== 0n)
+            writer.tag(22, WireType.Varint).uint64(message.accessListsReviewed);
+        /* uint64 access_lists_grants = 23; */
+        if (message.accessListsGrants !== 0n)
+            writer.tag(23, WireType.Varint).uint64(message.accessListsGrants);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

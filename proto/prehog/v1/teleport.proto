@@ -148,6 +148,10 @@ message UserActivityRecord {
   uint64 access_requests_created = 20;
   // counter of Access Requests reviewed by this user.
   uint64 access_requests_reviewed = 21;
+  // counter of Access List review.
+  uint64 access_lists_reviewed = 22;
+  // counter of roles or traits grant event based on Access List membership.
+  uint64 access_lists_grants = 23;
 }
 
 // the kind of a "resource" (e.g. a node, a database, a desktop, etc.)
