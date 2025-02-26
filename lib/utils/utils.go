@@ -656,4 +656,10 @@ const (
 	ExtIntCertTypeHost = "host"
 	// ExtIntCertTypeUser indicates a user-type certificate.
 	ExtIntCertTypeUser = "user"
+	// ExtIntSSHAccessPermit is an internal extension used to propagate
+	// the access permit for the user.
+	ExtIntSSHAccessPermit = "ssh-access-permit@teleport"
+	// ExtIntSSHJoinPermi is an internal extension used to propagate
+	// the join permit for the user.
+	ExtIntSSHJoinPermit = "ssh-join-permit@teleport"
 )

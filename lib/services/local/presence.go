@@ -266,17 +266,12 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 		return nil, trace.Wrap(err)
 	}
 
-	rev := server.GetRevision()
-	value, err := services.MarshalServer(server)
+	item, err := itemFromNode(server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	_, err = s.Put(ctx, backend.Item{
-		Key:      backend.NewKey(nodesPrefix, server.GetNamespace(), server.GetName()),
-		Value:    value,
-		Expires:  server.Expiry(),
-		Revision: rev,
-	})
+
+	_, err = s.Put(ctx, *item)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -289,6 +284,19 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 	}, nil
 }
 
+func itemFromNode(server types.Server) (*backend.Item, error) {
+	value, err := services.MarshalServer(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &backend.Item{
+		Key:      backend.NewKey(nodesPrefix, server.GetNamespace(), server.GetName()),
+		Value:    value,
+		Expires:  server.Expiry(),
+		Revision: server.GetRevision(),
+	}, nil
+}
+
 // UpdateNode conditionally updates the provided server.
 func (s *PresenceService) UpdateNode(ctx context.Context, server types.Server) (types.Server, error) {
 	if server.GetNamespace() == "" {
@@ -298,17 +306,12 @@ func (s *PresenceService) UpdateNode(ctx context.Context, server types.Server) (
 		return nil, trace.Wrap(err)
 	}
 
-	rev := server.GetRevision()
-	value, err := services.MarshalServer(server)
+	item, err := itemFromNode(server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	lease, err := s.ConditionalUpdate(ctx, backend.Item{
-		Key:      backend.NewKey(nodesPrefix, server.GetNamespace(), server.GetName()),
-		Value:    value,
-		Expires:  server.Expiry(),
-		Revision: rev,
-	})
+
+	lease, err := s.ConditionalUpdate(ctx, *item)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -21,7 +21,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/alecthomas/kingpin/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -63,13 +62,18 @@ func TestEvaluateDB(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cmd := decision.EvaluateDatabaseCommand{}
-
 			var output bytes.Buffer
-			cmd.Initialize(kingpin.New("tctl", "test").Command("decision", ""), &output)
 
-			clt := fakeDecisionServiceClient{
-				databaseResponse: test.response,
+			cmd := decision.EvaluateDatabaseCommand{
+				Output:     &output,
+				DatabaseID: "database",
+			}
+
+			clt := fakeClient{
+				clusterName: "cluster",
+				decisionClient: fakeDecisionServiceClient{
+					databaseResponse: test.response,
+				},
 			}
 
 			err := cmd.Run(context.Background(), clt)
