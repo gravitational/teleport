@@ -132,7 +132,14 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	defer func() { apitracing.EndSpan(span, err) }()
 	startedAt := time.Now()
 
-	if err := metrics.RegisterPrometheusCollectors(clientMetrics); err != nil {
+	if err := metrics.RegisterPrometheusCollectors(
+		metrics.BuildCollector(),
+		clientMetrics,
+		loopIterationsCounter,
+		loopIterationsSuccessCounter,
+		loopIterationsFailureCounter,
+		loopIterationTime,
+	); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -303,6 +310,25 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		}
 		services = append(services, trustBundleCache)
 		return trustBundleCache, nil
+	}
+	var crlCache *workloadidentity.CRLCache
+	setupCRLCache := func() (*workloadidentity.CRLCache, error) {
+		if crlCache != nil {
+			return crlCache, nil
+		}
+
+		var err error
+		crlCache, err = workloadidentity.NewCRLCache(workloadidentity.CRLCacheConfig{
+			RevocationsClient: b.botIdentitySvc.GetClient().WorkloadIdentityRevocationServiceClient(),
+			Logger: b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "crl-cache"),
+			),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		services = append(services, crlCache)
+		return crlCache, nil
 	}
 
 	// Append any services configured by the user
@@ -527,6 +553,11 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 					return trace.Wrap(err)
 				}
 				svc.trustBundleCache = tbCache
+				crlCache, err := setupCRLCache()
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				svc.crlCache = crlCache
 			}
 			services = append(services, svc)
 		case *config.WorkloadIdentityJWTService:
@@ -568,6 +599,10 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			crlCache, err := setupCRLCache()
+			if err != nil {
+				return trace.Wrap(err)
+			}
 
 			svc := &WorkloadIdentityAPIService{
 				svcIdentity:      clientCredential,
@@ -575,6 +610,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				cfg:              svcCfg,
 				resolver:         resolver,
 				trustBundleCache: tbCache,
+				crlCache:         crlCache,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),

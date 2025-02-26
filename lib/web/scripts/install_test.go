@@ -89,6 +89,24 @@ func TestGetInstallScript(t *testing.T) {
 			},
 		},
 		{
+			name: "Oneoff install default CDN",
+			opts: InstallScriptOptions{
+				AutoupdateStyle: UpdaterBinaryAutoupdate,
+				TeleportVersion: testVersion,
+				ProxyAddr:       testProxyAddr,
+				TeleportFlavor:  types.PackageNameOSS,
+				CDNBaseURL:      teleportassets.TeleportReleaseCDN,
+			},
+			assertFn: func(t *testing.T, script string) {
+				require.Contains(t, script, "entrypoint='teleport-update'")
+				require.Contains(t, script, fmt.Sprintf("teleportVersion='v%s'", testVersion))
+				require.Contains(t, script, fmt.Sprintf("teleportFlavor='%s'", types.PackageNameOSS))
+				require.Contains(t, script, fmt.Sprintf("cdnBaseURL='%s'", teleportassets.TeleportReleaseCDN))
+				require.Contains(t, script, fmt.Sprintf("entrypointArgs='enable --proxy %s'", testProxyAddr))
+				require.Contains(t, script, "packageSuffix='bin.tar.gz'")
+			},
+		},
+		{
 			name: "Oneoff enterprise install",
 			opts: InstallScriptOptions{
 				AutoupdateStyle: UpdaterBinaryAutoupdate,
