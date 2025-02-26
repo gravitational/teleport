@@ -1593,11 +1593,35 @@ type pluginCollection struct {
 	plugins []types.Plugin
 }
 
+// pluginResourceWrapper provides custom JSON unmarshaling for Plugin resource
+// types. The Plugin resource uses structures generated from a protobuf `oneof`
+// directive, which the stdlib JSON unmarshaller can't handle, so we use this
+// custom wrapper to help.
 type pluginResourceWrapper struct {
 	types.PluginV1
 }
 
 func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
+	// The individual plugin settings blocks included in the plugin spec are
+	// specified in the original protobuf message declaration as heterogeneous
+	// message types, tied together by a `oneof` directive.
+	//
+	// Unfortunately the stdlib JSON unmarshaler doesn't know how to select which
+	// Go type to unmarshal the corresponding JSON value onto, so we have to
+	// partially unpack the plugin structure and supply the appropriate Go types
+	// for each polymorphic value.
+	//
+	// Once the type structure is in place, the stdlib JSON unmarshaler can use
+	// that structure to decide how to unmarshal the JSON values.
+	//
+	// Unfortunately we can't just use either the `protojson` or `jsonpb`
+	// package to parse all of this for, because:
+	//  - PluginV1 type doesn't implement [proto.Message], required by `protojson`.
+	//    Using [protoadapt.MessageV2Of()] was only slightly less messy than this
+	//    approach, as it required re-wrapping nested messages at every level
+	//
+	//  - There is no way to tell [jsonpb] to use the JSON style snake-case
+	//    field names, rather than the protobuf-style camel-case names
 
 	const (
 		credOauth2AccessToken             = "oauth2_access_token"
@@ -1693,6 +1717,9 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		case settingsEmailAccessPlugin:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Email{}
 		case settingsAWSIdentityCenter:
+			// The AWS IC setting block contains polymorphic filter values, so
+			// we have to do the whole structure-unpacking thing again for
+			// those.
 			settings := &types.PluginSpecV1_AwsIc{
 				AwsIc: &types.PluginAWSICSettings{},
 			}
@@ -1743,25 +1770,33 @@ func (s *icSettingsWrapper) UnmarshalJSON(data []byte) error {
 		GroupFilters   []resourceFilter `json:"group_sync_filters"`
 	}
 
-	// unpackFilters only creates the structure of the filters so that the
-	// normal JSON unmarshaller knows how to fill in the actual values
 	unpackFilters := func(src []resourceFilter) ([]*types.AWSICResourceFilter, error) {
 		var dst []*types.AWSICResourceFilter
 		for _, f := range src {
 			if len(f.Include) != 1 {
 				return nil, trace.BadParameter("Malformed filter")
 			}
-			for k := range f.Include {
+			for k, valueData := range f.Include {
+				f := &types.AWSICResourceFilter{}
 				switch k {
 				case "id":
-					dst = append(dst, &types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_Id{}})
+					idFilter := &types.AWSICResourceFilter_Id{}
+					if err := json.Unmarshal(valueData, &idFilter.Id); err != nil {
+						return nil, trace.Wrap(err)
+					}
+					f.Include = idFilter
 
 				case "name_regex":
-					dst = append(dst, &types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{}})
+					regexFilter := &types.AWSICResourceFilter_NameRegex{}
+					if err := json.Unmarshal(valueData, &regexFilter.NameRegex); err != nil {
+						return nil, trace.Wrap(err)
+					}
+					f.Include = regexFilter
 
 				default:
 					return nil, trace.BadParameter("Unexpected filter key: %s", k)
 				}
+				dst = append(dst, f)
 			}
 		}
 		return dst, nil

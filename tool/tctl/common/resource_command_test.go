@@ -2533,6 +2533,8 @@ func TestPluginResourceWrapper(t *testing.T) {
 		{
 			name: "okta",
 			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
 				Metadata: types.Metadata{
 					Name: "okta",
 				},
@@ -2558,6 +2560,8 @@ func TestPluginResourceWrapper(t *testing.T) {
 		{
 			name: "slack",
 			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
 				Metadata: types.Metadata{
 					Name: "okta",
 				},
@@ -2581,6 +2585,8 @@ func TestPluginResourceWrapper(t *testing.T) {
 		{
 			name: "identity center",
 			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
 				Metadata: types.Metadata{
 					Name: apicommon.OriginAWSIdentityCenter,
 					Labels: map[string]string{
