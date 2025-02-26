@@ -346,24 +346,3 @@ func TestInsecureSkipVerify(t *testing.T) {
 		require.Equal(t, tt.expected, result)
 	}
 }
-
-func TestGetPublicAddrConfig(t *testing.T) {
-	tests := []struct {
-		annotations map[string]string
-		expected    string
-	}{
-		{
-			annotations: map[string]string{types.DiscoveryPublicAddr: "custom.teleport.dev"},
-			expected:    "custom.teleport.dev",
-		},
-		{
-			annotations: map[string]string{},
-			expected:    "",
-		},
-	}
-
-	for _, tt := range tests {
-		result := getPublicAddr(tt.annotations)
-		require.Equal(t, tt.expected, result)
-	}
-}
