@@ -1950,14 +1950,14 @@ $ tctl users update priya --set-azure-identities \
 $ tctl autoupdate client-tools status [<flags>]
 ```
 
-Requests the current status of client tools managed updates, indicating whether managed updates are enabled and displaying the target version for the update.
+Requests the current status of client tool managed updates, indicating whether managed updates are enabled and displaying the target version for the update.
 If the `--proxy` flag is defined, tctl sends a request to an unauthenticated endpoint to retrieve the data.
 
 ### Flags
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--proxy` | none | none | Address of the Teleport proxy. When defined this address will be used to retrieve client tools auto update configuration. |
+| `--proxy` | none | none | Address of the Teleport Proxy ServiceProxy Service. When defined this address will be used to retrieve client tool auto update configuration. |
 | `--format` | yaml | `json`, `yaml` | Output format: 'yaml' or 'json'. |
 
 ### Examples
@@ -1981,7 +1981,7 @@ target_version: 17.2.7
 
 ## tctl autoupdate client-tools enable
 
-Enables client tools managed updates in the cluster. If the target version is not set, the proxy version will be advertised.
+Enables managed updates for client tools in the cluster. If the target version is not set, the proxy version will be advertised.
 
 ### Examples
 
@@ -1992,7 +1992,7 @@ client tools auto update mode has been changed
 
 ## tctl autoupdate client-tools disable
 
-Disables client tools managed updates in the cluster.
+Disables managed updates for client tools in the cluster.
 
 ### Examples
 
@@ -2029,9 +2029,9 @@ $ tctl autoupdate client-tools target --clear
 client tools auto update target version has been cleared
 ```
 
-## tctl autoupdate agent status
+## tctl autoupdate agents status
 
-Prints agents auto update status.
+Prints the status of automatic updates for Teleport Agents.
 
 ### Examples
 
