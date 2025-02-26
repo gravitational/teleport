@@ -16,453 +16,231 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { memo, useEffect, useRef, type CSSProperties } from 'react';
+import React, {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  type CSSProperties,
+} from 'react';
 
-import { DebouncedFunc } from 'shared/utils/highbar';
+import { Logger } from 'shared/libs/logger';
+import { debounce } from 'shared/utils/highbar';
 
-import { TdpClient, TdpClientEvent } from 'teleport/lib/tdp';
 import { BitmapFrame } from 'teleport/lib/tdp/client';
-import type {
-  ClientScreenSpec,
-  ClipboardData,
-  PngFrame,
-} from 'teleport/lib/tdp/codec';
+import type { PngFrame } from 'teleport/lib/tdp/codec';
 
-function TdpClientCanvas(props: Props) {
+const logger = new Logger('TdpClientCanvas');
+
+export interface TdpClientCanvasRef {
+  setPointer(pointer: Pointer): void;
+  renderPngFrame(frame: PngFrame): void;
+  renderBitmapFrame(frame: BitmapFrame): void;
+  setResolution(resolution: { width: number; height: number }): void;
+  clear(): void;
+  focus(): void;
+}
+
+export const TdpClientCanvas = forwardRef<
+  TdpClientCanvasRef,
+  {
+    onKeyDown?(e: React.KeyboardEvent): void;
+    onKeyUp?(e: React.KeyboardEvent): void;
+    onBlur?(e: React.FocusEvent): void;
+    onMouseMove?(e: React.MouseEvent): void;
+    onMouseDown?(e: React.MouseEvent): void;
+    onMouseUp?(e: React.MouseEvent): void;
+    onMouseWheel?(e: WheelEvent): void;
+    onContextMenu?(e: React.MouseEvent): void;
+    /**
+     * Handles canvas resize events.
+     *
+     * This function is called whenever the canvas is resized,
+     * with a debounced delay of 250 ms to optimize performance.
+     */
+    onResize?(e: { width: number; height: number }): void;
+    style?: CSSProperties;
+  }
+>((props, ref) => {
   const {
-    client,
-    clientShouldConnect = false,
-    clientScreenSpecToRequest,
-    clientOnPngFrame,
-    clientOnBmpFrame,
-    clientOnClipboardData,
-    clientOnTdpError,
-    clientOnTdpWarning,
-    clientOnTdpInfo,
-    clientOnWsClose,
-    clientOnWsOpen,
-    clientOnClientScreenSpec,
-    canvasOnKeyDown,
-    canvasOnKeyUp,
-    canvasOnFocusOut,
-    canvasOnMouseMove,
-    canvasOnMouseDown,
-    canvasOnMouseUp,
-    canvasOnMouseWheelScroll,
-    canvasOnContextMenu,
-    windowOnResize,
+    onKeyDown,
+    onKeyUp,
+    onBlur,
+    onMouseMove,
+    onMouseDown,
+    onMouseUp,
+    onMouseWheel,
+    onContextMenu,
+    onResize,
     style,
-    updatePointer,
   } = props;
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  useEffect(() => {
-    // Empty dependency array ensures this runs only once after initial render.
-    // This code will run after the component has been mounted and the canvasRef has been assigned.
-    const canvas = canvasRef.current;
-    if (canvas) {
-      // Make the canvas a focusable keyboard listener
-      // https://stackoverflow.com/a/51267699/6277051
-      // https://stackoverflow.com/a/16492878/6277051
-      canvas.tabIndex = -1;
-      canvas.style.outline = 'none';
-      canvas.focus();
-    }
+  useImperativeHandle(ref, () => {
+    const renderPngFrame = makePngFrameRenderer(canvasRef.current);
+    const renderBimapFrame = makeBitmapFrameRenderer(canvasRef.current);
+    return {
+      setPointer: pointer => setPointer(canvasRef.current, pointer),
+      renderPngFrame: frame => renderPngFrame(frame),
+      renderBitmapFrame: frame => renderBimapFrame(frame),
+      setResolution: ({ width, height }) => {
+        const canvas = canvasRef.current;
+        canvas.width = width;
+        canvas.height = height;
+        logger.debug(`Canvas resolution set to ${width}x${height}.`);
+      },
+      clear: () => {
+        const canvas = canvasRef.current;
+        canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+      },
+      focus: () => canvasRef.current.focus(),
+    };
   }, []);
 
   useEffect(() => {
-    if (client && clientOnPngFrame) {
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-
-      // Buffered rendering logic
-      var pngBuffer: PngFrame[] = [];
-      const renderBuffer = () => {
-        if (pngBuffer.length) {
-          for (let i = 0; i < pngBuffer.length; i++) {
-            clientOnPngFrame(ctx, pngBuffer[i]);
-          }
-          pngBuffer = [];
-        }
-        requestAnimationFrame(renderBuffer);
-      };
-      requestAnimationFrame(renderBuffer);
-
-      const pushToPngBuffer = (pngFrame: PngFrame) => {
-        pngBuffer.push(pngFrame);
-      };
-
-      client.on(TdpClientEvent.TDP_PNG_FRAME, pushToPngBuffer);
-
-      return () => {
-        client.removeListener(TdpClientEvent.TDP_PNG_FRAME, pushToPngBuffer);
-      };
-    }
-  }, [client, clientOnPngFrame]);
-
-  useEffect(() => {
-    if (client && updatePointer) {
-      const canvas = canvasRef.current;
-      const updatePointer = (pointer: {
-        data: ImageData | boolean;
-        hotspot_x?: number;
-        hotspot_y?: number;
-      }) => {
-        if (typeof pointer.data === 'boolean') {
-          canvas.style.cursor = pointer.data ? 'default' : 'none';
-          return;
-        }
-        let cursor = document.createElement('canvas');
-        cursor.width = pointer.data.width;
-        cursor.height = pointer.data.height;
-        cursor
-          .getContext('2d', { colorSpace: pointer.data.colorSpace })
-          .putImageData(pointer.data, 0, 0);
-        if (pointer.data.width > 32 || pointer.data.height > 32) {
-          // scale the cursor down to at most 32px - max size fully supported by browsers
-          const resized = document.createElement('canvas');
-          let scale = Math.min(32 / cursor.width, 32 / cursor.height);
-          resized.width = cursor.width * scale;
-          resized.height = cursor.height * scale;
-
-          let context = resized.getContext('2d', {
-            colorSpace: pointer.data.colorSpace,
-          });
-          context.scale(scale, scale);
-          context.drawImage(cursor, 0, 0);
-          cursor = resized;
-        }
-        canvas.style.cursor = `url(${cursor.toDataURL()}) ${
-          pointer.hotspot_x
-        } ${pointer.hotspot_y}, auto`;
-      };
-
-      client.addListener(TdpClientEvent.POINTER, updatePointer);
-
-      return () => {
-        client.removeListener(TdpClientEvent.POINTER, updatePointer);
-      };
-    }
-  }, [client, updatePointer]);
-
-  useEffect(() => {
-    if (client && clientOnBmpFrame) {
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-
-      // Buffered rendering logic
-      var bitmapBuffer: BitmapFrame[] = [];
-      const renderBuffer = () => {
-        if (bitmapBuffer.length) {
-          for (let i = 0; i < bitmapBuffer.length; i++) {
-            if (bitmapBuffer[i].image_data.data.length != 0) {
-              clientOnBmpFrame(ctx, bitmapBuffer[i]);
-            }
-          }
-          bitmapBuffer = [];
-        }
-        requestAnimationFrame(renderBuffer);
-      };
-      requestAnimationFrame(renderBuffer);
-
-      const pushToBitmapBuffer = (bmpFrame: BitmapFrame) => {
-        bitmapBuffer.push(bmpFrame);
-      };
-
-      client.on(TdpClientEvent.TDP_BMP_FRAME, pushToBitmapBuffer);
-
-      return () => {
-        client.removeListener(TdpClientEvent.TDP_BMP_FRAME, pushToBitmapBuffer);
-      };
-    }
-  }, [client, clientOnBmpFrame]);
-
-  useEffect(() => {
-    if (client && clientOnClientScreenSpec) {
-      const canvas = canvasRef.current;
-      const _clientOnClientScreenSpec = (spec: ClientScreenSpec) => {
-        clientOnClientScreenSpec(client, canvas, spec);
-      };
-      client.on(
-        TdpClientEvent.TDP_CLIENT_SCREEN_SPEC,
-        _clientOnClientScreenSpec
-      );
-
-      return () => {
-        client.removeListener(
-          TdpClientEvent.TDP_CLIENT_SCREEN_SPEC,
-          _clientOnClientScreenSpec
-        );
-      };
-    }
-  }, [client, clientOnClientScreenSpec]);
-
-  useEffect(() => {
-    if (client && clientOnClipboardData) {
-      client.on(TdpClientEvent.TDP_CLIPBOARD_DATA, clientOnClipboardData);
-
-      return () => {
-        client.removeListener(
-          TdpClientEvent.TDP_CLIPBOARD_DATA,
-          clientOnClipboardData
-        );
-      };
-    }
-  }, [client, clientOnClipboardData]);
-
-  useEffect(() => {
-    if (client && clientOnTdpError) {
-      client.on(TdpClientEvent.TDP_ERROR, clientOnTdpError);
-      client.on(TdpClientEvent.CLIENT_ERROR, clientOnTdpError);
-
-      return () => {
-        client.removeListener(TdpClientEvent.TDP_ERROR, clientOnTdpError);
-        client.removeListener(TdpClientEvent.CLIENT_ERROR, clientOnTdpError);
-      };
-    }
-  }, [client, clientOnTdpError]);
-
-  useEffect(() => {
-    if (client && clientOnTdpWarning) {
-      client.on(TdpClientEvent.TDP_WARNING, clientOnTdpWarning);
-      client.on(TdpClientEvent.CLIENT_WARNING, clientOnTdpWarning);
-
-      return () => {
-        client.removeListener(TdpClientEvent.TDP_WARNING, clientOnTdpWarning);
-        client.removeListener(
-          TdpClientEvent.CLIENT_WARNING,
-          clientOnTdpWarning
-        );
-      };
-    }
-  }, [client, clientOnTdpWarning]);
-
-  useEffect(() => {
-    if (client && clientOnTdpInfo) {
-      client.on(TdpClientEvent.TDP_INFO, clientOnTdpInfo);
-
-      return () => {
-        client.removeListener(TdpClientEvent.TDP_INFO, clientOnTdpInfo);
-      };
-    }
-  }, [client, clientOnTdpInfo]);
-
-  useEffect(() => {
-    if (client && clientOnWsClose) {
-      client.on(TdpClientEvent.WS_CLOSE, clientOnWsClose);
-
-      return () => {
-        client.removeListener(TdpClientEvent.WS_CLOSE, clientOnWsClose);
-      };
-    }
-  }, [client, clientOnWsClose]);
-
-  useEffect(() => {
-    if (client && clientOnWsOpen) {
-      client.on(TdpClientEvent.WS_OPEN, clientOnWsOpen);
-
-      return () => {
-        client.removeListener(TdpClientEvent.WS_OPEN, clientOnWsOpen);
-      };
-    }
-  }, [client, clientOnWsOpen]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const _oncontextmenu = canvasOnContextMenu;
-    if (canvasOnContextMenu) {
-      canvas.oncontextmenu = _oncontextmenu;
+    if (!onResize) {
+      return;
     }
 
-    return () => {
-      if (canvasOnContextMenu)
-        canvas.removeEventListener('contextmenu', _oncontextmenu);
-    };
-  }, [canvasOnContextMenu]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const _onmousemove = (e: MouseEvent) => {
-      canvasOnMouseMove(client, canvas, e);
-    };
-    if (canvasOnMouseMove) {
-      canvas.onmousemove = _onmousemove;
-    }
-
-    return () => {
-      if (canvasOnMouseMove) {
-        canvas.removeEventListener('mousemove', _onmousemove);
+    const debouncedOnResize = debounce(onResize, 250, { trailing: true });
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) {
+        debouncedOnResize({
+          height: entry.contentRect.height,
+          width: entry.contentRect.width,
+        });
       }
-    };
-  }, [client, canvasOnMouseMove]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const _onmousedown = (e: MouseEvent) => {
-      canvasOnMouseDown(client, e);
-    };
-    if (canvasOnMouseDown) {
-      canvas.onmousedown = _onmousedown;
-    }
+    });
+    observer.observe(canvasRef.current);
 
     return () => {
-      if (canvasOnMouseDown)
-        canvas.removeEventListener('mousedown', _onmousedown);
+      debouncedOnResize.cancel();
+      observer.disconnect();
     };
-  }, [client, canvasOnMouseDown]);
+  }, [onResize]);
 
+  // Wheel events must be registered on a ref because React's onWheel
+  // uses a passive listener, so handlers are not able to call of e.preventDefault() on it.
   useEffect(() => {
+    if (!onMouseWheel) {
+      return;
+    }
     const canvas = canvasRef.current;
-    const _onmouseup = (e: MouseEvent) => {
-      canvasOnMouseUp(client, e);
-    };
-    if (canvasOnMouseUp) {
-      canvas.onmouseup = _onmouseup;
-    }
+    canvas.addEventListener('wheel', onMouseWheel);
+    return () => canvas.removeEventListener('wheel', onMouseWheel);
+  }, [onMouseWheel]);
 
-    return () => {
-      if (canvasOnMouseUp) canvas.removeEventListener('mouseup', _onmouseup);
-    };
-  }, [client, canvasOnMouseUp]);
+  return (
+    <canvas
+      // Make the canvas a focusable keyboard listener
+      // https://stackoverflow.com/a/51267699/6277051
+      tabIndex={-1}
+      onKeyDown={onKeyDown}
+      onKeyUp={onKeyUp}
+      onMouseDown={onMouseDown}
+      onMouseUp={onMouseUp}
+      onContextMenu={onContextMenu}
+      onBlur={onBlur}
+      onMouseMove={onMouseMove}
+      style={{
+        outline: 'none',
+        height: '100%',
+        width: '100%',
+        minHeight: 0,
+        minWidth: 0,
+        // Maintains the original proportions of the canvas content.
+        // Ensures the rendered content does not exceed its native resolution.
+        // If the resolution is higher than the available window size,
+        // the content is automatically scaled down to fit.
+        objectFit: 'scale-down',
+        ...style,
+      }}
+      ref={canvasRef}
+    />
+  );
+});
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const _onwheel = (e: WheelEvent) => {
-      canvasOnMouseWheelScroll(client, e);
-    };
-    if (canvasOnMouseWheelScroll) {
-      canvas.onwheel = _onwheel;
-    }
-
-    return () => {
-      if (canvasOnMouseWheelScroll)
-        canvas.removeEventListener('wheel', _onwheel);
-    };
-  }, [client, canvasOnMouseWheelScroll]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const _onkeydown = (e: KeyboardEvent) => {
-      canvasOnKeyDown(client, e);
-    };
-    if (canvasOnKeyDown) {
-      canvas.onkeydown = _onkeydown;
-    }
-
-    return () => {
-      if (canvasOnKeyDown) canvas.removeEventListener('keydown', _onkeydown);
-    };
-  }, [client, canvasOnKeyDown]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const _onkeyup = (e: KeyboardEvent) => {
-      canvasOnKeyUp(client, e);
-    };
-    if (canvasOnKeyUp) {
-      canvas.onkeyup = _onkeyup;
-    }
-
-    return () => {
-      if (canvasOnKeyUp) canvas.removeEventListener('keyup', _onkeyup);
-    };
-  }, [client, canvasOnKeyUp]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const _onfocusout = () => {
-      canvasOnFocusOut(client);
-    };
-    if (canvasOnFocusOut) {
-      canvas.addEventListener('focusout', _onfocusout);
-    }
-
-    return () => {
-      if (canvasOnFocusOut) canvas.removeEventListener('focusout', _onfocusout);
-    };
-  }, [client, canvasOnFocusOut]);
-
-  useEffect(() => {
-    if (client && windowOnResize) {
-      const _onresize = () => windowOnResize(client);
-      window.addEventListener('resize', _onresize);
-      return () => {
-        windowOnResize.cancel();
-        window.removeEventListener('resize', _onresize);
-      };
-    }
-  }, [client, windowOnResize]);
-
-  useEffect(() => {
-    if (client) {
-      const canvas = canvasRef.current;
-      const _clearCanvas = () => {
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-      };
-      client.on(TdpClientEvent.RESET, _clearCanvas);
-
-      return () => {
-        client.removeListener(TdpClientEvent.RESET, _clearCanvas);
-      };
-    }
-  }, [client]);
-
-  // Call connect after all listeners have been registered
-  useEffect(() => {
-    if (client && clientShouldConnect) {
-      client.connect(clientScreenSpecToRequest);
-      return () => {
-        client.shutdown();
-      };
-    }
-  }, [client, clientShouldConnect]);
-
-  return <canvas style={{ ...style }} ref={canvasRef} />;
+interface Pointer {
+  data: ImageData | boolean;
+  hotspot_x?: number;
+  hotspot_y?: number;
 }
 
-export type Props = {
-  client: TdpClient;
-  // clientShouldConnect determines whether the TdpClientCanvas
-  // will try to connect to the server.
-  clientShouldConnect?: boolean;
-  // clientScreenSpecToRequest will be passed to client.connect() if
-  // clientShouldConnect is true.
-  clientScreenSpecToRequest?: ClientScreenSpec;
-  clientOnPngFrame?: (
-    ctx: CanvasRenderingContext2D,
-    pngFrame: PngFrame
-  ) => void;
-  clientOnBmpFrame?: (
-    ctx: CanvasRenderingContext2D,
-    pngFrame: BitmapFrame
-  ) => void;
-  clientOnClipboardData?: (clipboardData: ClipboardData) => void;
-  clientOnTdpError?: (error: Error) => void;
-  clientOnTdpWarning?: (warning: string) => void;
-  clientOnTdpInfo?: (info: string) => void;
-  clientOnWsClose?: (message: string) => void;
-  clientOnWsOpen?: () => void;
-  clientOnClientScreenSpec?: (
-    cli: TdpClient,
-    canvas: HTMLCanvasElement,
-    spec: ClientScreenSpec
-  ) => void;
-  canvasOnKeyDown?: (cli: TdpClient, e: KeyboardEvent) => void;
-  canvasOnKeyUp?: (cli: TdpClient, e: KeyboardEvent) => void;
-  canvasOnFocusOut?: (cli: TdpClient) => void;
-  canvasOnMouseMove?: (
-    cli: TdpClient,
-    canvas: HTMLCanvasElement,
-    e: MouseEvent
-  ) => void;
-  canvasOnMouseDown?: (cli: TdpClient, e: MouseEvent) => void;
-  canvasOnMouseUp?: (cli: TdpClient, e: MouseEvent) => void;
-  canvasOnMouseWheelScroll?: (cli: TdpClient, e: WheelEvent) => void;
-  canvasOnContextMenu?: () => boolean;
-  windowOnResize?: DebouncedFunc<(cli: TdpClient) => void>;
-  style?: CSSProperties;
-  updatePointer?: boolean;
-};
+function setPointer(canvas: HTMLCanvasElement, pointer: Pointer): void {
+  if (typeof pointer.data === 'boolean') {
+    canvas.style.cursor = pointer.data ? 'default' : 'none';
+    return;
+  }
+  let cursor = document.createElement('canvas');
+  cursor.width = pointer.data.width;
+  cursor.height = pointer.data.height;
+  cursor
+    .getContext('2d', { colorSpace: pointer.data.colorSpace })
+    .putImageData(pointer.data, 0, 0);
+  if (pointer.data.width > 32 || pointer.data.height > 32) {
+    // scale the cursor down to at most 32px - max size fully supported by browsers
+    const resized = document.createElement('canvas');
+    const scale = Math.min(32 / cursor.width, 32 / cursor.height);
+    resized.width = cursor.width * scale;
+    resized.height = cursor.height * scale;
 
-export default memo(TdpClientCanvas);
+    const context = resized.getContext('2d', {
+      colorSpace: pointer.data.colorSpace,
+    });
+    context.scale(scale, scale);
+    context.drawImage(cursor, 0, 0);
+    cursor = resized;
+  }
+  canvas.style.cursor = `url(${cursor.toDataURL()}) ${pointer.hotspot_x} ${pointer.hotspot_y}, auto`;
+}
+
+//TODO(gzdunek): renderBuffer is called  even when the buffer is empty.
+// This causes the function to run in a loop, 60 times per second
+// (actually x2 because we have two frame renderers).
+// Fix it in the both renderers, check if it improves performance.
+function makePngFrameRenderer(
+  canvas: HTMLCanvasElement
+): (frame: PngFrame) => void {
+  const ctx = canvas.getContext('2d');
+
+  // Buffered rendering logic
+  let pngBuffer: PngFrame[] = [];
+
+  const renderBuffer = () => {
+    if (pngBuffer.length) {
+      for (let i = 0; i < pngBuffer.length; i++) {
+        const pngFrame = pngBuffer[i];
+        ctx.drawImage(pngFrame.data, pngFrame.left, pngFrame.top);
+      }
+      pngBuffer = [];
+    }
+    requestAnimationFrame(renderBuffer);
+  };
+  requestAnimationFrame(renderBuffer);
+
+  return frame => pngBuffer.push(frame);
+}
+
+function makeBitmapFrameRenderer(
+  canvas: HTMLCanvasElement
+): (frame: BitmapFrame) => void {
+  const ctx = canvas.getContext('2d');
+
+  // Buffered rendering logic
+  let bitmapBuffer: BitmapFrame[] = [];
+  const renderBuffer = () => {
+    if (bitmapBuffer.length) {
+      for (let i = 0; i < bitmapBuffer.length; i++) {
+        if (bitmapBuffer[i].image_data.data.length != 0) {
+          const bmpFrame = bitmapBuffer[i];
+          ctx.putImageData(bmpFrame.image_data, bmpFrame.left, bmpFrame.top);
+        }
+      }
+      bitmapBuffer = [];
+    }
+    requestAnimationFrame(renderBuffer);
+  };
+  requestAnimationFrame(renderBuffer);
+
+  return frame => bitmapBuffer.push(frame);
+}
