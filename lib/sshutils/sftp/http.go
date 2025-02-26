@@ -82,7 +82,7 @@ func (h *httpFS) ReadDir(_ context.Context, _ string) ([]fs.FileInfo, error) {
 	return nil, errDirsNotSupported
 }
 
-func (h *httpFS) Open(ctx context.Context, path string) (fs.File, error) {
+func (h *httpFS) Open(ctx context.Context, path string) (File, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func (h *httpFS) Open(ctx context.Context, path string) (fs.File, error) {
 	}, nil
 }
 
-func (h *httpFS) Create(ctx context.Context, p string, size int64) (io.WriteCloser, error) {
+func (h *httpFS) Create(ctx context.Context, p string, size int64) (File, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -116,8 +116,12 @@ func (h *httpFS) Create(ctx context.Context, p string, size int64) (io.WriteClos
 	filename = url.QueryEscape(filename)
 	header.Set("Content-Disposition", fmt.Sprintf(`attachment;filename="%s"`, filename))
 
-	return &nopWriteCloser{
-		Writer: h.writer,
+	return &httpFile{
+		writer: &nopWriteCloser{Writer: h.writer},
+		fileInfo: httpFileInfo{
+			name: filename,
+			size: size,
+		},
 	}, nil
 }
 
@@ -131,6 +135,42 @@ func (h *httpFS) Chmod(_ context.Context, _ string, _ os.FileMode) error {
 
 func (h *httpFS) Chtimes(_ context.Context, _ string, _, _ time.Time) error {
 	return nil
+}
+
+func (h *httpFS) Rename(_ context.Context, _, _ string) error {
+	return nil
+}
+
+func (h *httpFS) Lstat(ctx context.Context, name string) (os.FileInfo, error) {
+	return h.Stat(ctx, name)
+}
+
+func (h *httpFS) RemoveAll(_ context.Context, _ string) error {
+	return errDirsNotSupported
+}
+
+func (h *httpFS) Link(_ context.Context, _, _ string) error {
+	return nil
+}
+
+func (h *httpFS) Symlink(_ context.Context, _, _ string) error {
+	return nil
+}
+
+func (h *httpFS) Remove(_ context.Context, _ string) error {
+	return nil
+}
+
+func (h *httpFS) Chown(_ context.Context, _ string, _, _ int) error {
+	return nil
+}
+
+func (h *httpFS) Truncate(_ context.Context, _ string, _ int64) error {
+	return nil
+}
+
+func (h *httpFS) Readlink(_ context.Context, _ string) (string, error) {
+	return "", nil
 }
 
 type nopWriteCloser struct {
@@ -148,11 +188,30 @@ func (w *nopWriteCloser) Close() error {
 // httpFile implements [fs.File].
 type httpFile struct {
 	reader   io.ReadCloser
+	writer   io.WriteCloser
 	fileInfo httpFileInfo
 }
 
 func (h *httpFile) Read(p []byte) (int, error) {
+	if h.reader == nil {
+		return 0, trace.BadParameter("can't read from a file in write mode")
+	}
 	return h.reader.Read(p)
+}
+
+func (h *httpFile) ReadAt(_ []byte, _ int64) (int, error) {
+	return 0, trace.NotImplemented("can't seek in http files")
+}
+
+func (h *httpFile) Write(p []byte) (int, error) {
+	if h.writer == nil {
+		return 0, trace.BadParameter("can't write to a file in read mode")
+	}
+	return h.writer.Write(p)
+}
+
+func (h *httpFile) WriteAt(_ []byte, _ int64) (int, error) {
+	return 0, trace.NotImplemented("can't seek in http files")
 }
 
 func (h *httpFile) WriteTo(w io.Writer) (int64, error) {
@@ -161,6 +220,10 @@ func (h *httpFile) WriteTo(w io.Writer) (int64, error) {
 
 func (h *httpFile) Stat() (fs.FileInfo, error) {
 	return h.fileInfo, nil
+}
+
+func (h *httpFile) Name() string {
+	return h.fileInfo.name
 }
 
 func (h *httpFile) Close() error {
