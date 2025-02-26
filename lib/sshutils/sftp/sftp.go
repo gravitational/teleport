@@ -45,6 +45,23 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 )
 
+const (
+	MethodGet      = "Get"
+	MethodPut      = "Put"
+	MethodOpen     = "Open"
+	MethodSetStat  = "Setstat"
+	MethodRename   = "Rename"
+	MethodRmdir    = "Rmdir"
+	MethodMkdir    = "Mkdir"
+	MethodLink     = "Link"
+	MethodSymlink  = "Symlink"
+	MethodRemove   = "Remove"
+	MethodList     = "List"
+	MethodStat     = "Stat"
+	MethodLstat    = "Lstat"
+	MethodReadlink = "Readlink"
+)
+
 // Options control aspects of a file transfer
 type Options struct {
 	// Recursive indicates recursive file transfer
@@ -84,15 +101,25 @@ type FileSystem interface {
 	// ReadDir returns information about files contained within a directory
 	ReadDir(ctx context.Context, path string) ([]os.FileInfo, error)
 	// Open opens a file
-	Open(ctx context.Context, path string) (fs.File, error)
+	Open(ctx context.Context, path string) (File, error)
 	// Create creates a new file
-	Create(ctx context.Context, path string, size int64) (io.WriteCloser, error)
+	Create(ctx context.Context, path string, size int64) (File, error)
 	// Mkdir creates a directory
 	Mkdir(ctx context.Context, path string) error
 	// Chmod sets file permissions
 	Chmod(ctx context.Context, path string, mode os.FileMode) error
 	// Chtimes sets file access and modification time
 	Chtimes(ctx context.Context, path string, atime, mtime time.Time) error
+
+	Rename(ctx context.Context, oldpath, newpath string) error
+	Lstat(ctx context.Context, name string) (os.FileInfo, error)
+	RemoveAll(ctx context.Context, path string) error
+	Link(ctx context.Context, oldname, newname string) error
+	Symlink(ctx context.Context, oldname, newname string) error
+	Remove(ctx context.Context, name string) error
+	Chown(ctx context.Context, name string, uid, gid int) error
+	Truncate(ctx context.Context, name string, size int64) error
+	Readlink(ctx context.Context, name string) (string, error)
 }
 
 // CreateUploadConfig returns a Config ready to upload files over SFTP.
@@ -696,4 +723,161 @@ type NonRecursiveDirectoryTransferError struct {
 
 func (n *NonRecursiveDirectoryTransferError) Error() string {
 	return fmt.Sprintf("%q is a directory, but the recursive option was not passed", n.Path)
+}
+
+func setstat(req *sftp.Request, fs FileSystem) error {
+	attrFlags := req.AttrFlags()
+	attrs := req.Attributes()
+	// Required for FileSystem interface, but does nothing.
+	ctx := context.Background()
+
+	if attrFlags.Acmodtime {
+		atime := time.Unix(int64(attrs.Atime), 0)
+		mtime := time.Unix(int64(attrs.Mtime), 0)
+
+		err := fs.Chtimes(ctx, req.Filepath, atime, mtime)
+		if err != nil {
+			return err
+		}
+	}
+	if attrFlags.Permissions {
+		err := fs.Chmod(ctx, req.Filepath, attrs.FileMode())
+		if err != nil {
+			return err
+		}
+	}
+	if attrFlags.UidGid {
+		err := fs.Chown(ctx, req.Filepath, int(attrs.UID), int(attrs.GID))
+		if err != nil {
+			return err
+		}
+	}
+	if attrFlags.Size {
+		err := fs.Truncate(ctx, req.Filepath, int64(attrs.Size))
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func HandleFilecmd(req *sftp.Request, filesys FileSystem) error {
+	if filesys == nil {
+		filesys = localFS{}
+	}
+	// Required for FileSystem interface, but does nothing.
+	switch req.Method {
+	case MethodSetStat:
+		return setstat(req, filesys)
+	case MethodRename:
+		if req.Target == "" {
+			return os.ErrInvalid
+		}
+		return filesys.Rename(req.Context(), req.Filepath, req.Target)
+	case MethodRmdir:
+		fi, err := filesys.Lstat(req.Context(), req.Filepath)
+		if err != nil {
+			return err
+		}
+		if !fi.IsDir() {
+			return fmt.Errorf("%q is not a directory", req.Filepath)
+		}
+		return filesys.RemoveAll(req.Context(), req.Filepath)
+	case MethodMkdir:
+		return filesys.Mkdir(req.Context(), req.Filepath)
+	case MethodLink:
+		if req.Target == "" {
+			return os.ErrInvalid
+		}
+		return filesys.Link(req.Context(), req.Target, req.Filepath)
+	case MethodSymlink:
+		if req.Target == "" {
+			return os.ErrInvalid
+		}
+		return filesys.Symlink(req.Context(), req.Target, req.Filepath)
+	case MethodRemove:
+		fi, err := filesys.Lstat(req.Context(), req.Filepath)
+		if err != nil {
+			return err
+		}
+		if fi.IsDir() {
+			return fmt.Errorf("%q is a directory", req.Filepath)
+		}
+		return filesys.Remove(req.Context(), req.Filepath)
+	default:
+		return sftp.ErrSSHFxOpUnsupported
+	}
+}
+
+// listerAt satisfies [sftp.listerAt].
+type listerAt []fs.FileInfo
+
+func (l listerAt) ListAt(ls []fs.FileInfo, offset int64) (int, error) {
+	if offset >= int64(len(l)) {
+		return 0, io.EOF
+	}
+	n := copy(ls, l[offset:])
+	if n < len(ls) {
+		return n, io.EOF
+	}
+
+	return n, nil
+}
+
+// fileName satisfies [fs.FileInfo] but only knows a file's name. This
+// is necessary when handling 'readlink' requests in sftpHandler.FileList,
+// as only the file's name is known after a readlink call.
+type fileName string
+
+func (f fileName) Name() string {
+	return string(f)
+}
+
+func (f fileName) Size() int64 {
+	return 0
+}
+
+func (f fileName) Mode() fs.FileMode {
+	return 0
+}
+
+func (f fileName) ModTime() time.Time {
+	return time.Time{}
+}
+
+func (f fileName) IsDir() bool {
+	return false
+}
+
+func (f fileName) Sys() any {
+	return nil
+}
+
+func HandleFilelist(req *sftp.Request, filesys FileSystem) (sftp.ListerAt, error) {
+	if filesys == nil {
+		filesys = localFS{}
+	}
+	switch req.Method {
+	case MethodList:
+		entries, err := filesys.ReadDir(req.Context(), req.Filepath)
+		if err != nil {
+			return nil, err
+		}
+		return listerAt(entries), nil
+	case MethodStat:
+		fi, err := filesys.Stat(req.Context(), req.Filepath)
+		if err != nil {
+			return nil, err
+		}
+		return listerAt{fi}, nil
+	case MethodReadlink:
+		dst, err := filesys.Readlink(req.Context(), req.Filepath)
+		if err != nil {
+			return nil, err
+		}
+		return listerAt{fileName(dst)}, nil
+	default:
+		return nil, sftp.ErrSSHFxOpUnsupported
+	}
 }
