@@ -61,7 +61,7 @@ sets clusterDomain on Deployment Pods:
                 port: diag
               initialDelaySeconds: 5
               periodSeconds: 5
-              timeoutSeconds: 1
+              timeoutSeconds: 5
             name: teleport
             ports:
             - containerPort: 3080
@@ -89,7 +89,8 @@ sets clusterDomain on Deployment Pods:
                 port: diag
               initialDelaySeconds: 5
               periodSeconds: 5
-              timeoutSeconds: 1
+              successThreshold: 1
+              timeoutSeconds: 5
             volumeMounts:
             - mountPath: /etc/teleport
               name: config
@@ -218,7 +219,7 @@ should set nodeSelector when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        timeoutSeconds: 5
       name: teleport
       ports:
       - containerPort: 3080
@@ -246,7 +247,8 @@ should set nodeSelector when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        successThreshold: 1
+        timeoutSeconds: 5
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -330,7 +332,7 @@ should set resources for wait-auth-update initContainer when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        timeoutSeconds: 5
       name: teleport
       ports:
       - containerPort: 3080
@@ -358,7 +360,8 @@ should set resources for wait-auth-update initContainer when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        successThreshold: 1
+        timeoutSeconds: 5
       resources:
         limits:
           cpu: 2
@@ -438,7 +441,7 @@ should set resources when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        timeoutSeconds: 5
       name: teleport
       ports:
       - containerPort: 3080
@@ -466,7 +469,8 @@ should set resources when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        successThreshold: 1
+        timeoutSeconds: 5
       resources:
         limits:
           cpu: 2
@@ -546,7 +550,7 @@ should set securityContext for initContainers when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        timeoutSeconds: 5
       name: teleport
       ports:
       - containerPort: 3080
@@ -574,7 +578,8 @@ should set securityContext for initContainers when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        successThreshold: 1
+        timeoutSeconds: 5
       securityContext:
         allowPrivilegeEscalation: false
         privileged: false
@@ -654,7 +659,7 @@ should set securityContext when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        timeoutSeconds: 5
       name: teleport
       ports:
       - containerPort: 3080
@@ -682,7 +687,8 @@ should set securityContext when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        successThreshold: 1
+        timeoutSeconds: 5
       securityContext:
         allowPrivilegeEscalation: false
         privileged: false
