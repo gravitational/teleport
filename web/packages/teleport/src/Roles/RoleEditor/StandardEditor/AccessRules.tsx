@@ -101,6 +101,7 @@ const AccessRule = memo(function AccessRule({
         components={{ MultiValue: ResourceKindMultiValue }}
         isMulti
         label="Resources"
+        required
         isDisabled={isProcessing}
         options={resourceKindOptions}
         value={resources}
@@ -110,6 +111,7 @@ const AccessRule = memo(function AccessRule({
       <FieldSelect
         isMulti
         label="Permissions"
+        required
         isDisabled={isProcessing}
         options={verbOptions}
         value={verbs}

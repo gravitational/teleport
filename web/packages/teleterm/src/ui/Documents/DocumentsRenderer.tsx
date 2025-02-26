@@ -22,7 +22,10 @@ import styled from 'styled-components';
 
 import { Text } from 'design';
 
-import { AccessRequestsContextProvider } from 'teleterm/ui/AccessRequests';
+import {
+  AccessRequestsContextProvider,
+  AccessRequestsMenu,
+} from 'teleterm/ui/AccessRequests';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   ConnectMyComputerContextProvider,
@@ -44,6 +47,7 @@ import {
   Workspace,
 } from 'teleterm/ui/services/workspacesService';
 import { isAppUri, isDatabaseUri, RootClusterUri } from 'teleterm/ui/uri';
+import { DocumentVnetDiagReport } from 'teleterm/ui/Vnet/DocumentVnetDiagReport';
 
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 import { WorkspaceContextProvider } from './workspaceContext';
@@ -106,8 +110,10 @@ export function DocumentsRenderer(props: {
                         props.topBarConnectMyComputerRef.current
                       )}
                     {props.topBarAccessRequestRef.current &&
-                      //TODO(gzdunek): inject access requests menu.
-                      createPortal(null, props.topBarAccessRequestRef.current)}
+                      createPortal(
+                        <AccessRequestsMenu />,
+                        props.topBarAccessRequestRef.current
+                      )}
                   </>
                 )}
               </AccessRequestsContextProvider>
@@ -166,6 +172,8 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
         return <DocumentConnectMyComputer doc={doc} visible={visible} />;
       case 'doc.authorize_web_session':
         return <DocumentAuthorizeWebSession doc={doc} visible={visible} />;
+      case 'doc.vnet_diag_report':
+        return <DocumentVnetDiagReport doc={doc} visible={visible} />;
       default:
         return (
           <Document visible={visible}>

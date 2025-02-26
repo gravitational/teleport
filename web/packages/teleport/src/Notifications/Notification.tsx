@@ -98,7 +98,7 @@ export function Notification({
   if (view === 'Unread' && notification.clicked) {
     // If this is a text content notification, the dialog should still be renderable. This is to prevent the text content dialog immediately disappearing
     // when trying to open an unread text notification, since clicking on the notification instantly marks it as read.
-    if (content.kind == 'text') {
+    if (content.kind === 'text') {
       return (
         <Dialog open={showTextContentDialog} className={IGNORE_CLICK_CLASSNAME}>
           <DialogHeader>

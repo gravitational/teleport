@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
 import { Label } from 'teleport/types';
 
 import { ResourceLabel } from '../agents';
@@ -224,14 +225,29 @@ export type PluginStatus<D = any> = {
   details?: D;
 };
 
-export type PluginSpec =
-  | PluginOktaSpec
-  | PluginSlackSpec
-  | PluginMattermostSpec
-  | PluginOpsgenieSpec
-  | PluginDatadogSpec
-  | PluginEmailSpec
-  | PluginMsTeamsSpec;
+/**
+ * PluginNameToSpec defines a mapping of plugin names to their respective
+ * spec types.
+ */
+export type PluginNameToSpec = {
+  okta: PluginOktaSpec;
+  slack: PluginSlackSpec;
+  mattermost: PluginMattermostSpec;
+  opsgenie: PluginOpsgenieSpec;
+  datadog: PluginDatadogSpec;
+  email: PluginEmailSpec;
+  msteams: PluginMsTeamsSpec;
+  [key: string]: any;
+};
+
+/**
+ * PluginNameToDetails defines a mapping of plugin names to their respective
+ * status details types.
+ */
+export type PluginNameToDetails = {
+  okta: PluginStatusOkta;
+  [key: string]: any;
+};
 
 // PluginKind represents the type of the plugin
 // and should be the same value as defined in the backend (check master branch for the latest):
@@ -254,31 +270,46 @@ export type PluginKind =
   | 'aws-identity-center';
 
 export type PluginOktaSpec = {
-  // scimBearerToken is the plain text of the bearer token that Okta will use
-  // to authenticate SCIM requests
+  // The plaintext of the bearer token that Okta will use
+  // to authenticate SCIM requests.
   scimBearerToken: string;
-  // oktaAppID is the Okta ID of the SAML App created during the Okta plugin
+  // The Okta ID of the SAML App created during the Okta plugin
   // installation
   oktaAppId: string;
-  // oktaAppName is the human readable name of the Okta SAML app created
+  // the human-readable name of the Okta SAML app created
   // during the Okta plugin installation
   oktaAppName: string;
   // teleportSSOConnector is the name of the Teleport SAML SSO connector
   // created by the plugin during installation
   teleportSsoConnector: string;
-  // error contains a description of any failures during plugin installation
+  // Contains a description of any failures during plugin installation
   // that were deemed not serious enough to fail the plugin installation, but
-  // may effect the operation of advanced features like User Sync or SCIM.
+  // may affect the operation of advanced features like User Sync or SCIM.
   error: string;
-  /**
-   * is the set of usernames that the integration assigns as
-   * owners to any Access Lists that it creates
-   */
+  // The set of usernames that the integration assigns as
+  // owners to any Access Lists that it creates
   defaultOwners: string[];
-  /**
-   * the Okta org's base URL
-   */
+  // The Okta organization's base URL
   orgUrl: string;
+  // Whether User Sync is enabled
+  enableUserSync?: boolean;
+  // Whether Access List Sync is enabled. Should match App/Group sync.
+  enableAccessListSync?: boolean;
+  // Whether App/Group Sync is enabled. Should match Access List sync.
+  enableAppGroupSync?: boolean;
+  // Information about currently configured credentials for the plugin
+  credentialsInfo?: CredentialsInfo;
+};
+
+/**
+ * CredentialsInfo contains information about currently-configured
+ * credentials for a plugin. Can be all true, or all omitted.
+ * Omitted fields should be assumed as false.
+ */
+export type CredentialsInfo = {
+  hasSSMSToken?: boolean;
+  hasConfiguredOauthCredentials?: boolean;
+  hasSCIMToken?: boolean;
 };
 
 export type PluginSlackSpec = {
@@ -359,6 +390,134 @@ export type IntegrationDiscoveryRules = {
   rules: IntegrationDiscoveryRule[];
   // nextKey is the position to resume listing rules.
   nextKey: string;
+};
+
+// UserTasksListResponse contains a list of UserTasks.
+// In case of exceeding the pagination limit (either via query param `limit` or the default 1000)
+// a `nextToken` is provided and should be used to obtain the next page (as a query param `startKey`)
+export type UserTasksListResponse = {
+  // items is a list of resources retrieved.
+  items: UserTask[];
+  // nextKey is the position to resume listing events.
+  nextKey: string;
+};
+
+// UserTask describes UserTask fields.
+// Used for listing User Tasks without receiving all the details.
+export type UserTask = {
+  // name is the UserTask name.
+  name: string;
+  // taskType identifies this task's type.
+  taskType: string;
+  // state is the state for the User Task.
+  state: string;
+  // issueType identifies this task's issue type.
+  issueType: string;
+  // integration is the Integration Name this User Task refers to.
+  integration: string;
+  // lastStateChange indicates when the current's user task state was last changed.
+  lastStateChange: string;
+};
+
+// UserTaskDetail contains all the details for a User Task.
+export type UserTaskDetail = UserTask & {
+  // description is a markdown document that explains the issue and how to fix it.
+  description: string;
+  // discoverEc2 contains the task details for the DiscoverEc2 tasks.
+  discoverEc2: DiscoverEc2;
+  // discoverEKS contains the task details for the DiscoverEKS tasks.
+  discoverEks: DiscoverEks;
+  // discoverRDS contains the task details for the DiscoverRDS tasks.
+  discoverRds: DiscoverRds;
+};
+
+// DiscoverEc2 contains the instances that failed to auto-enroll into the cluster.
+export type DiscoverEc2 = {
+  // instances maps an instance id to the result of enrolling that instance into teleport.
+  instances: Record<string, DiscoverEc2Instance>;
+  // accountID is the AWS Account ID for the instances.
+  accountId: string;
+  // region is the AWS Region where Teleport failed to enroll EC2 instances.
+  region: string;
+  // ssmDocument is the Amazon Systems Manager SSM Document name that was used to install teleport on the instance.
+  // In Amazon console, the document is at:
+  // https://REGION.console.aws.amazon.com/systems-manager/documents/SSM_DOCUMENT/description
+  ssmDocument: string;
+  // installerScript is the Teleport installer script that was used to install teleport on the instance.
+  installerScript: string;
+};
+
+// DiscoverEc2Instance contains the result of enrolling an AWS EC2 Instance.
+export type DiscoverEc2Instance = {
+  // instanceID is the EC2 Instance ID that uniquely identifies the instance.
+  instance_id: string;
+  // name is the instance Name.
+  // Might be empty, if the instance doesn't have the Name tag.
+  name: string;
+  // invocationUrl is the url that points to the invocation.
+  // Empty if there was an error before installing the
+  invocationUrl: string;
+  // discoveryConfig is the discovery config name that originated this instance enrollment.
+  discoveryConfig: string;
+  // discoveryGroup is the DiscoveryGroup name that originated this task.
+  discoveryGroup: string;
+  // syncTime is the timestamp when the error was produced.
+  syncTime: number;
+};
+
+// DiscoverEks contains the clusters that failed to auto-enroll into the cluster.
+export type DiscoverEks = {
+  // clusters maps a cluster name to the result of enrolling that cluster into teleport.
+  clusters: Record<string, DiscoverEksCluster>;
+  // accountId is the AWS Account ID for the cluster.
+  accountId: string;
+  // region is the AWS Region where Teleport failed to enroll EKS Clusters.
+  region: string;
+  // appAutoDiscover indicates whether the Kubernetes agent should auto enroll HTTP services as Teleport Apps.
+  appAutoDiscover: boolean;
+};
+
+// DiscoverEksCluster contains the result of enrolling an AWS EKS Cluster.
+export type DiscoverEksCluster = {
+  // name is the cluster Name.
+  name: string;
+  // discoveryConfig is the discovery config name that originated this cluster enrollment.
+  discoveryConfig: string;
+  // discoveryGroup is the DiscoveryGroup name that originated this task.
+  discoveryGroup: string;
+  // syncTime is the timestamp when the error was produced.
+  syncTime: number;
+};
+
+// DiscoverRds contains the databases that failed to auto-enroll into teleport.
+export type DiscoverRds = {
+  // databases maps a database resource id to the result of enrolling that database into teleport.
+  // For RDS Aurora Clusters, this is the DBClusterIdentifier.
+  // For other RDS databases, this is the DBInstanceIdentifier.
+  databases: Record<string, DiscoverRdsDatabase>;
+  // accountId is the AWS Account ID for the database.
+  accountId: string;
+  // region is the AWS Region where Teleport failed to enroll RDS databases.
+  region: string;
+};
+
+// DiscoverRdsDatabase contains the result of enrolling an AWS RDS database.
+export type DiscoverRdsDatabase = {
+  // name is the database identifier.
+  // For RDS Aurora Clusters, this is the DBClusterIdentifier.
+  // For other RDS databases, this is the DBInstanceIdentifier.
+  name: string;
+  // isCluster indicates whether this database is a cluster or a single instance.
+  isCluster: boolean;
+  // engine indicates the engine name for this RDS.
+  // Eg, aurora-postgresql, postgresql
+  engine: string;
+  // discoveryConfig is the discovery config name that originated this database enrollment.
+  discoveryConfig: string;
+  // discoveryGroup is the DiscoveryGroup name that originated this task.
+  discoveryGroup: string;
+  // syncTime is the timestamp when the error was produced.
+  syncTime: number;
 };
 
 // IntegrationDiscoveryRule describes a discovery rule associated with an integration.
@@ -825,4 +984,16 @@ export type ExportedIntegrationCaResponse = {
   ssh: SshKey[];
   tls: TlsKey[];
   jwt: JwtKey[];
+};
+
+export type IntegrationDeleteRequest = {
+  name: string;
+  clusterId: string;
+  /**
+   * If true, will delete any associated resources
+   * tied to the integration.
+   *
+   * Not all integration kinds supports resource cleanup.
+   */
+  deleteAssociatedResources?: boolean;
 };

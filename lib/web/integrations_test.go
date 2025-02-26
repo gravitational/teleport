@@ -110,7 +110,7 @@ type mockUserTasksLister struct {
 	userTasks       []*usertasksv1.UserTask
 }
 
-func (m *mockUserTasksLister) ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertasksv1.UserTask, string, error) {
+func (m *mockUserTasksLister) ListUserTasks(ctx context.Context, pageSize int64, nextToken string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error) {
 	var ret []*usertasksv1.UserTask
 	if pageSize == 0 {
 		pageSize = m.defaultPageSize
@@ -784,13 +784,28 @@ func TestGitHubIntegration(t *testing.T) {
 	})
 
 	t.Run("delete", func(t *testing.T) {
+		githubServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
+			Integration:  integrationName,
+			Organization: orgName,
+		})
+		require.NoError(t, err)
+		_, err = proxy.auth.AuthServer.AuthServer.CreateGitServer(ctx, githubServer)
+		require.NoError(t, err)
+
 		endpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations", integrationName)
-		t.Run("success", func(t *testing.T) {
+		t.Run("failed because existing git server ", func(t *testing.T) {
 			_, err := authPack.clt.Delete(ctx, endpoint)
+			require.Error(t, err)
+		})
+
+		t.Run("success with associated resources param", func(t *testing.T) {
+			_, err := authPack.clt.Delete(ctx, endpoint+"?associatedresources=true")
 			require.NoError(t, err)
 
 			_, err = authPack.clt.Get(ctx, endpoint, nil)
 			require.Error(t, err)
+			require.True(t, trace.IsNotFound(err))
+			_, err = proxy.auth.AuthServer.AuthServer.GetGitServer(ctx, githubServer.GetName())
 			require.True(t, trace.IsNotFound(err))
 		})
 

@@ -1,14 +1,6 @@
 module github.com/gravitational/teleport/integrations/terraform
 
-go 1.23.6
-
-toolchain go1.24.0
-
-// Doc generation tooling
-require github.com/hashicorp/terraform-plugin-docs v0.0.0 // replaced
-
-// using our own fork
-replace github.com/hashicorp/terraform-plugin-docs => github.com/gravitational/terraform-plugin-docs v0.19.5-0.20240627183239-7e7e22a2c1f6
+go 1.24.0
 
 // TF provider dependencies
 require (
@@ -167,7 +159,7 @@ require (
 	github.com/go-errors/errors v1.4.2 // indirect
 	github.com/go-gorp/gorp/v3 v3.1.0 // indirect
 	github.com/go-jose/go-jose/v3 v3.0.3 // indirect
-	github.com/go-jose/go-jose/v4 v4.0.4 // indirect
+	github.com/go-jose/go-jose/v4 v4.0.5 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
@@ -228,6 +220,7 @@ require (
 	github.com/hashicorp/logutils v1.0.0 // indirect
 	github.com/hashicorp/terraform-exec v0.21.0 // indirect
 	github.com/hashicorp/terraform-json v0.22.1 // indirect
+	github.com/hashicorp/terraform-plugin-docs v0.0.0-00010101000000-000000000000 // indirect
 	github.com/hashicorp/terraform-registry-address v0.2.1 // indirect
 	github.com/hashicorp/terraform-svchost v0.1.1 // indirect
 	github.com/hashicorp/yamux v0.0.0-20181012175058-2f1d1f20f75d // indirect
@@ -357,15 +350,15 @@ require (
 	go.opentelemetry.io/otel/trace v1.34.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
 	go.uber.org/mock v0.5.0 // indirect
-	golang.org/x/crypto v0.32.0 // indirect
+	golang.org/x/crypto v0.35.0 // indirect
 	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8 // indirect
 	golang.org/x/mod v0.22.0 // indirect
 	golang.org/x/net v0.34.0 // indirect
-	golang.org/x/oauth2 v0.25.0 // indirect
-	golang.org/x/sync v0.10.0 // indirect
-	golang.org/x/sys v0.29.0 // indirect
-	golang.org/x/term v0.28.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
+	golang.org/x/oauth2 v0.27.0 // indirect
+	golang.org/x/sync v0.11.0 // indirect
+	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/term v0.29.0 // indirect
+	golang.org/x/text v0.22.0 // indirect
 	golang.org/x/time v0.9.0 // indirect
 	golang.org/x/tools v0.29.0 // indirect
 	google.golang.org/api v0.219.0 // indirect
@@ -421,3 +414,9 @@ replace (
 
 // TODO(codingllama): Remove once no dependencies import stats/opentelemetry.
 exclude google.golang.org/grpc/stats/opentelemetry v0.0.0-20241028142157-ada6787961b3
+
+// Doc generation tooling.
+// (using our fork of github.com/hashicorp/terraform-plugin-docs)
+tool github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
+
+replace github.com/hashicorp/terraform-plugin-docs => github.com/gravitational/terraform-plugin-docs v0.19.5-0.20240627183239-7e7e22a2c1f6

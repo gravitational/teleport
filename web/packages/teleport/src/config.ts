@@ -29,9 +29,11 @@ import type {
 import { mergeDeep } from 'shared/utils/highbar';
 
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import type { SortType } from 'teleport/services/agents';
 import {
   AwsOidcPolicyPreset,
+  IntegrationDeleteRequest,
   IntegrationKind,
   PluginKind,
   Regions,
@@ -204,10 +206,11 @@ const cfg = {
     kubernetes: '/web/cluster/:clusterId/kubernetes',
     headlessSso: `/web/headless/:requestId`,
     integrations: '/web/integrations',
-    integrationStatus: '/web/integrations/status/:type/:name',
+    integrationStatus: '/web/integrations/status/:type/:name/:subPage?',
+    integrationTasks: '/web/integrations/status/:type/:name/tasks',
     integrationStatusResources:
       '/web/integrations/status/:type/:name/resources/:resourceKind',
-    integrationEnroll: '/web/integrations/new/:type?',
+    integrationEnroll: '/web/integrations/new/:type?/:subPage?',
     locks: '/web/locks',
     newLock: '/web/locks/new',
     requests: '/web/requests/:requestId?',
@@ -358,13 +361,23 @@ const cfg = {
       export: '/v1/webapi/sites/:clusterId/integrations/:name/ca',
     },
 
+    // TODO(kimlisa): move integrationsPath into integration: {...}
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
+    integration: {
+      deleteV2:
+        '/v2/webapi/sites/:clusterId/integrations/:name?associatedresources=:associatedresources',
+    },
+
     integrationStatsPath:
       '/v1/webapi/sites/:clusterId/integrations/:name/stats',
     integrationRulesPath:
       '/v1/webapi/sites/:clusterId/integrations/:name/discoveryrules?resourceType=:resourceType?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?&limit=:limit?&regions=:regions?',
     awsOidcDatabaseServicesPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/listdeployeddatabaseservices?resourceType=:resourceType?&regions=:regions?',
+    userTaskListByIntegrationPath:
+      '/v1/webapi/sites/:clusterId/usertask?integration=:name?&state=:state?',
+    userTaskPath: '/v1/webapi/sites/:clusterId/usertask/:name',
+    resolveUserTaskPath: '/v1/webapi/sites/:clusterId/usertask/:name/state',
 
     thumbprintPath: '/v1/webapi/thumbprint',
     pingAwsOidcIntegrationPath:
@@ -579,12 +592,31 @@ const cfg = {
     return generatePath(cfg.routes.audit, { clusterId });
   },
 
-  getIntegrationEnrollRoute(type?: string) {
-    return generatePath(cfg.routes.integrationEnroll, { type });
+  /**
+   * Generates a route for an Integration's enrolment page
+   *
+   * @param {string} [type] - The integration type (e.g. "okta", "aws-oidc")
+   * @param {string} [subPage] - Optional subpage within the enrollment flow (currently Okta-specific)
+   * @returns {string} Generated enrollment route
+   */
+  getIntegrationEnrollRoute(type?: string, subPage?: string) {
+    return generatePath(cfg.routes.integrationEnroll, { type, subPage });
   },
 
-  getIntegrationStatusRoute(type: PluginKind | IntegrationKind, name: string) {
-    return generatePath(cfg.routes.integrationStatus, { type, name });
+  /**
+   * Generates a route for an Integration's status page
+   *
+   * @param {PluginKind | IntegrationKind} type - The integration type (e.g. "okta", "aws-oidc")
+   * @param {string} name - The integration name
+   * @param {string} [subPage] - Optional subpage within the status view (currently Okta-specific)
+   * @returns {string} Generated status route
+   */
+  getIntegrationStatusRoute(
+    type: PluginKind | IntegrationKind,
+    name: string,
+    subPage?: string
+  ) {
+    return generatePath(cfg.routes.integrationStatus, { type, name, subPage });
   },
 
   getIntegrationStatusResourcesRoute(
@@ -597,6 +629,10 @@ const cfg = {
       name,
       resourceKind,
     });
+  },
+
+  getIntegrationTasksRoute(type: PluginKind | IntegrationKind, name: string) {
+    return generatePath(cfg.routes.integrationTasks, { type, name });
   },
 
   getMsTeamsAppZipRoute(clusterId: string, plugin: string) {
@@ -1076,6 +1112,20 @@ const cfg = {
     });
   },
 
+  getDeleteIntegrationUrlV2(req: IntegrationDeleteRequest) {
+    // Not using generatePath here because it doesn't work
+    // when a dynamic path and a query param is next to each other.
+    // eg: some/path/:name?queryParmKey=queryParamValue it will
+    // remove the required ? in the path.
+    return cfg.api.integration.deleteV2
+      .replace(':clusterId', req.clusterId)
+      .replace(':name', req.name)
+      .replace(
+        ':associatedresources',
+        req.deleteAssociatedResources ? 'true' : 'false'
+      );
+  },
+
   getIntegrationStatsUrl(name: string) {
     const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.integrationStatsPath, {
@@ -1109,6 +1159,31 @@ const cfg = {
       name,
       resourceType,
       regions,
+    });
+  },
+
+  getIntegrationUserTasksListUrl(name: string, state: TaskState) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.userTaskListByIntegrationPath, {
+      clusterId,
+      name,
+      state,
+    });
+  },
+
+  getUserTaskUrl(name: string) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.userTaskPath, {
+      clusterId,
+      name,
+    });
+  },
+
+  getResolveUserTaskUrl(name: string) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.resolveUserTaskPath, {
+      clusterId,
+      name,
     });
   },
 
