@@ -103,7 +103,7 @@ test('collapsed sections still apply validation', async () => {
   const onSave = jest.fn();
   render(<TestStandardEditor onSave={onSave} />);
   // Intentionally cause a validation error.
-  await user.clear(screen.getByLabelText('Role Name'));
+  await user.clear(screen.getByLabelText('Role Name *'));
   // Collapse the section.
   await user.click(screen.getByRole('heading', { name: 'Role Metadata' }));
   await user.click(screen.getByRole('button', { name: 'Create Role' }));
@@ -111,7 +111,7 @@ test('collapsed sections still apply validation', async () => {
 
   // Expand the section, make it valid.
   await user.click(screen.getByRole('heading', { name: 'Role Metadata' }));
-  await user.type(screen.getByLabelText('Role Name'), 'foo');
+  await user.type(screen.getByLabelText('Role Name *'), 'foo');
   await user.click(screen.getByRole('button', { name: 'Create Role' }));
   expect(onSave).toHaveBeenCalled();
 });
@@ -121,7 +121,7 @@ test('invisible tabs still apply validation', async () => {
   const onSave = jest.fn();
   render(<TestStandardEditor onSave={onSave} />);
   // Intentionally cause a validation error.
-  await user.clear(screen.getByLabelText('Role Name'));
+  await user.clear(screen.getByLabelText('Role Name *'));
   // Switch to a different tab.
   await user.click(screen.getByRole('tab', { name: 'Resources' }));
   await user.click(screen.getByRole('button', { name: 'Create Role' }));
@@ -129,7 +129,7 @@ test('invisible tabs still apply validation', async () => {
 
   // Switch back, make it valid.
   await user.click(screen.getByRole('tab', { name: 'Invalid data Overview' }));
-  await user.type(screen.getByLabelText('Role Name'), 'foo');
+  await user.type(screen.getByLabelText('Role Name *'), 'foo');
   await user.click(screen.getByRole('button', { name: 'Create Role' }));
   expect(onSave).toHaveBeenCalled();
 });

@@ -391,6 +391,11 @@ func (h *Heartbeat) fetch() error {
 	}
 }
 
+// announce may upsert a new heartbeat or issue a keepalive for an existing one,
+// depending on the current time and the state of the heartbeat. The returned
+// boolean flag will be true if successful communication with the control plane
+// has occurred as part of the announce (i.e. if the actual communication wasn't
+// skipped because of time or state).
 func (h *Heartbeat) announce() (doneSomething bool, _ error) {
 	switch h.state {
 	// nothing to do in those states in terms of announce

@@ -17,7 +17,9 @@
  */
 
 import { Meta } from '@storybook/react';
+import { PropsWithChildren, useEffect } from 'react';
 
+import { Box } from 'design';
 import {
   CheckAttemptStatus,
   CheckReportStatus,
@@ -25,18 +27,28 @@ import {
   RouteConflict,
   RouteConflictReport,
 } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
+import { usePromiseRejectedOnUnmount } from 'shared/utils/wait';
 
+import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { reportToText } from 'teleterm/services/vnet/diag';
 import {
   makeCheckAttempt,
   makeCheckReport,
   makeReport,
   makeRouteConflict,
 } from 'teleterm/services/vnet/testHelpers';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import { makeDocumentVnetDiagReport } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 
 import { DocumentVnetDiagReport as Component } from './DocumentVnetDiagReport';
+import { useVnetContext, VnetContextProvider } from './vnetContext';
 
 type StoryProps = {
+  asText: boolean;
   networkStackAttempt: 'ok' | 'error';
   ipv4CidrRanges: string[];
   dnsZones: string[];
@@ -44,12 +56,25 @@ type StoryProps = {
   routeConflicts: RouteConflict[];
   routeConflictCommandAttempt: 'ok' | 'error';
   displayUnsupportedCheckAttempt: boolean;
+  vnetRunning: boolean;
+  reRunDiagnostics: 'success' | 'error' | 'processing';
 };
 
 const meta: Meta<StoryProps> = {
   title: 'Teleterm/Vnet/DocumentVnetDiagReport',
   component: DocumentVnetDiagReport,
+  decorators: (Story, { args }) => {
+    return (
+      <Decorator {...args}>
+        <Story />
+      </Decorator>
+    );
+  },
   argTypes: {
+    asText: {
+      description:
+        'Render the report as text rather than as a React component.',
+    },
     networkStackAttempt: {
       control: { type: 'inline-radio' },
       options: ['ok', 'error'],
@@ -67,10 +92,15 @@ const meta: Meta<StoryProps> = {
     },
     displayUnsupportedCheckAttempt: {
       description:
-        "Simulates the component receiving a report with a check attempt that's not supported in the current version",
+        "Simulate the component receiving a report with a check attempt that's not supported in the current version",
+    },
+    reRunDiagnostics: {
+      control: { type: 'inline-radio' },
+      options: ['success', 'error', 'processing'],
     },
   },
   args: {
+    asText: false,
     networkStackAttempt: 'ok',
     ipv4CidrRanges: ['100.64.0.0/10'],
     dnsZones: ['teleport.example.com', 'company.test'],
@@ -91,9 +121,38 @@ const meta: Meta<StoryProps> = {
     ],
     routeConflictCommandAttempt: 'ok',
     displayUnsupportedCheckAttempt: false,
+    vnetRunning: true,
+    reRunDiagnostics: 'success',
   },
 };
 export default meta;
+
+const Decorator = (props: PropsWithChildren<StoryProps>) => {
+  const appContext = new MockAppContext();
+  appContext.addRootCluster(makeRootCluster());
+
+  const pendingPromise = usePromiseRejectedOnUnmount();
+
+  if (props.reRunDiagnostics === 'processing') {
+    appContext.vnet.runDiagnostics = () => pendingPromise;
+  } else {
+    appContext.vnet.runDiagnostics = () =>
+      new MockedUnaryCall(
+        { report: makeReport() },
+        props.reRunDiagnostics === 'error'
+          ? new Error('something went wrong')
+          : undefined
+      );
+  }
+
+  return (
+    <MockAppContextProvider appContext={appContext}>
+      <MockWorkspaceContextProvider>
+        <VnetContextProvider>{props.children}</VnetContextProvider>
+      </MockWorkspaceContextProvider>
+    </MockAppContextProvider>
+  );
+};
 
 export function DocumentVnetDiagReport(props: StoryProps) {
   const report = makeReport({ checks: [] });
@@ -161,6 +220,38 @@ export function DocumentVnetDiagReport(props: StoryProps) {
   const doc = makeDocumentVnetDiagReport({
     report,
   });
+  const { documentsService } = useWorkspaceContext();
+  const { start, stop } = useVnetContext();
+
+  // This effect is just so that re-running diagnostics doesn't crash due to missing doc.
+  // Re-running diagnostics does not replace the document rendered by the story.
+  useEffect(() => {
+    documentsService.add(doc);
+
+    return () => {
+      documentsService.close(doc.uri);
+    };
+  }, [documentsService, doc]);
+
+  useEffect(() => {
+    if (!props.vnetRunning) {
+      return;
+    }
+
+    start();
+
+    return () => {
+      stop();
+    };
+  }, [props.vnetRunning, start, stop]);
+
+  if (props.asText) {
+    return (
+      <Box backgroundColor="levels.surface" p={2}>
+        <pre>{reportToText(report)}</pre>
+      </Box>
+    );
+  }
 
   return <Component visible doc={doc} />;
 }
