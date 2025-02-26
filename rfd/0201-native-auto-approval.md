@@ -104,20 +104,30 @@ auto approvals. Users are now able to navigate to the **Access Requests**
 page and configure auto approvals, similarly to how notification routing is
 configured.
 
-The `Create a New Access Monitoring Rule` form can now be used to configure
-both notification routing rules, as well as automatic approval rules. The
-`Match Condition` provides an additional `Requester Traits` input that are used
-to match a requesting user's Teleport traits. The `Auto Approvals` input is used
-to select which plugin is responsible for handling the automatic approvals for
-matching access requests.
+A new `Create Automatic Approval Rule` form can now be used to configure rules
+for automatic approvals.
+- `Match Condition` configures the `access_monitoring_rule.spec.condition` field.
+  - `Role Name` input accepts a set of roles. These roles configure which
+    requested roles will be automatically approved.
+  - `Requester Traits` input accepts a map of traits. These are used to match a
+    requesting user's Teleport traits.
+- `Automatic Approvals` configures the `access_monitoring_rule.spec.automatic_approval`
+  field.
+  - `Plugin Name` selects which plugin/service is responsible for handling the
+    automatic approvals for matching access requests.
 
-![create-amr](assets/0201-create-amr.png)
+![create-amr](assets/0201-create-auto-approval.png)
 
 The submitted form will be converted into an access monitoring rule that would
 look like the following yaml. More details about the access monitoring rule
 changes will be provided in following sections.
 
-Note that the converted conditions use AND logic across traits, and OR
+The `Role Name` input is converted into a `contains_all` expression. In this
+example, we have the roles "cloud-dev" and "cloud-stage". The set of requested
+roles that can match this condition are either `set("cloud-dev")`, `set("cloud-stage")`,
+or `set("cloud-dev", "cloud-stage")`.
+
+Note that the converted conditions for requester traits use AND logic across traits, and OR
 logic within a trait. The user must match at least one of the values among each
 configured trait. For example, given the following converted AMR, a user is
 pre-approved if they are any level "L1" or "L2" and they are on the "Cloud" team
@@ -130,20 +140,17 @@ edit the access monitoring rule yaml directly.
 kind: access_monitoring_rule
 version: v1
 metadata:
-  name: cloud-dev-pre-approved
+  name: dev-pre-approved
 spec:
   subjects:
     - access_request
   states:
     - approved
   condition: >
-    contains_all(set("cloud-dev"), access_request.spec.roles) &&
+    contains_all(set("cloud-dev", "cloud-stage"), access_request.spec.roles) &&
     contains_any(user.traits["level"], set("L1", "L2")) &&
     contains_any(user.traits["team"], set("Cloud")) &&
     contains_any(user.traits["location"], set("Seattle"))
-  notification:
-    name: slack
-    recipients: ["#dev-cloud"]
   automatic_approval:
     name: teleport
 ```
@@ -209,9 +216,6 @@ spec:
     contains_any(user.traits["level"], set("L1")) &&
     contains_any(user.traits["team"], set("Cloud")) &&
     contains_any(user.traits["location"], set("Seattle"))
-  notification:
-    name: slack
-    recipients: ["#dev-cloud"]
   automatic_approval:
     name: teleport
 ```
