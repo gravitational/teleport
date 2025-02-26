@@ -343,6 +343,15 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			UserName:    e.User,
 			Format:      e.Format,
 		}
+	case *apievents.SAMLIdPAuthAttempt:
+		// Only count successful auth attempts.
+		if !e.Success {
+			return nil
+		}
+		return &SessionStartEvent{
+			UserName:    e.User,
+			SessionType: string(types.KindSAMLIdPSession),
+		}
 	}
 
 	return nil

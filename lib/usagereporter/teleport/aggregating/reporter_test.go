@@ -124,6 +124,11 @@ func TestReporter(t *testing.T) {
 	r.AnonymizeAndSubmit(&usagereporter.AccessListGrantsToUserEvent{
 		UserName: "alice",
 	})
+	r.AnonymizeAndSubmit(&usagereporter.SessionStartEvent{
+		UserName:    "alice",
+		SessionType: types.KindSAMLIdPSession,
+	})
+	recvIngested()
 	recvIngested()
 	recvIngested()
 	recvIngested()
