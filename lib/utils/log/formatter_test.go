@@ -322,9 +322,8 @@ func BenchmarkFormatter(b *testing.B) {
 				AddSource: true,
 				Level:     slog.LevelDebug,
 			})).With(teleport.ComponentKey, "test")
-			b.ResetTimer()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
 				l.With(teleport.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
 			}
@@ -332,9 +331,8 @@ func BenchmarkFormatter(b *testing.B) {
 
 		b.Run("text", func(b *testing.B) {
 			logger := slog.New(NewSlogTextHandler(io.Discard, SlogTextHandlerConfig{Level: slog.LevelDebug, EnableColors: true})).With(teleport.ComponentKey, "test")
-			b.ResetTimer()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
 				l.With(teleport.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
 			}
@@ -345,9 +343,8 @@ func BenchmarkFormatter(b *testing.B) {
 				AddSource: true,
 				Level:     slog.LevelDebug,
 			})).With(teleport.ComponentKey, "test")
-			b.ResetTimer()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
 				l.With(teleport.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
 			}
@@ -355,9 +352,8 @@ func BenchmarkFormatter(b *testing.B) {
 
 		b.Run("json", func(b *testing.B) {
 			logger := slog.New(NewSlogJSONHandler(io.Discard, SlogJSONHandlerConfig{Level: slog.LevelDebug})).With(teleport.ComponentKey, "test")
-			b.ResetTimer()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
 				l.With(teleport.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
 			}
