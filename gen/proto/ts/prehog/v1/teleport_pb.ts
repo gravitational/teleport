@@ -229,8 +229,7 @@ export interface UserActivityRecord {
      */
     accessListsReviewed: bigint;
     /**
-     * counter of roles or traits grant event based on Access List mermbership.
-     * The event is emitted during user login state calculation.
+     * counter of roles or traits grant event based on Access List membership.
      *
      * @generated from protobuf field: uint64 access_lists_grants = 23;
      */
