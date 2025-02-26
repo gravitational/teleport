@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -230,13 +231,13 @@ func (h *AuthHandlers) CheckFileCopying(ctx *ServerContext) error {
 }
 
 // CheckPortForward checks if port forwarding is allowed for the users RoleSet.
-func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, requestedMode services.SSHPortForwardMode) error {
+func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, requestedMode decisionpb.SSHPortForwardMode) error {
 	allowedMode := ctx.Identity.AccessChecker.SSHPortForwardMode()
-	if allowedMode == services.SSHPortForwardModeOn {
+	if allowedMode == decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON {
 		return nil
 	}
 
-	if allowedMode == services.SSHPortForwardModeOff || allowedMode != requestedMode {
+	if allowedMode == decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF || allowedMode != requestedMode {
 		systemErrorMessage := fmt.Sprintf("port forwarding not allowed by role set: %v", ctx.Identity.AccessChecker.RoleNames())
 		userErrorMessage := "port forwarding not allowed"
 

@@ -30,20 +30,16 @@ import (
 // EvaluateDatabaseCommand is a command to evaluate
 // database access via the Teleport Decision Service.
 type EvaluateDatabaseCommand struct {
-	output          io.Writer
-	databaseDetails databaseDetails
-	command         *kingpin.CmdClause
-}
-
-type databaseDetails struct {
-	databaseID string
+	Output     io.Writer
+	DatabaseID string
+	command    *kingpin.CmdClause
 }
 
 // Initialize sets up the "tctl decision evaluate db" command.
 func (c *EvaluateDatabaseCommand) Initialize(cmd *kingpin.CmdClause, output io.Writer) {
-	c.output = output
+	c.Output = output
 	c.command = cmd.Command("evaluate-db-access", "Evaluate database access for a user.").Hidden()
-	c.command.Flag("database-id", "The id of the target database.").StringVar(&c.databaseDetails.databaseID)
+	c.command.Flag("database-id", "The id of the target database.").StringVar(&c.DatabaseID)
 }
 
 // FullCommand returns the fully qualified name of
@@ -53,20 +49,20 @@ func (c *EvaluateDatabaseCommand) FullCommand() string {
 }
 
 // Run executes the subcommand.
-func (c *EvaluateDatabaseCommand) Run(ctx context.Context, clt decisionpb.DecisionServiceClient) error {
-	resp, err := clt.EvaluateDatabaseAccess(ctx, &decisionpb.EvaluateDatabaseAccessRequest{
+func (c *EvaluateDatabaseCommand) Run(ctx context.Context, clt Client) error {
+	resp, err := clt.DecisionClient().EvaluateDatabaseAccess(ctx, &decisionpb.EvaluateDatabaseAccessRequest{
 		Metadata:    &decisionpb.RequestMetadata{PepVersionHint: teleport.Version},
 		TlsIdentity: &decisionpb.TLSIdentity{},
 		Database: &decisionpb.Resource{
 			Kind: types.KindDatabase,
-			Name: c.databaseDetails.databaseID,
+			Name: c.DatabaseID,
 		},
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := WriteProtoJSON(c.output, resp); err != nil {
+	if err := WriteProtoJSON(c.Output, resp); err != nil {
 		return trace.Wrap(err, "failed to marshal result")
 	}
 
