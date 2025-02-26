@@ -57,6 +57,7 @@ import {
   DatabaseAccessValidationResult,
   GitHubOrganizationAccessValidationResult,
   KubernetesAccessValidationResult,
+  kubernetesClusterWideResourceKinds,
   KubernetesResourceValidationResult,
   ResourceAccessValidationResult,
   ServerAccessValidationResult,
@@ -407,6 +408,7 @@ function KubernetesResourceView({
       />
       <FieldInput
         label="Name"
+        required
         toolTipContent={
           <>
             Name of the resource. Special value <MarkInverse>*</MarkInverse>{' '}
@@ -420,6 +422,7 @@ function KubernetesResourceView({
       />
       <FieldInput
         label="Namespace"
+        required={!kubernetesClusterWideResourceKinds.includes(kind.value)}
         toolTipContent={
           <>
             Namespace that contains the resource. Special value{' '}
