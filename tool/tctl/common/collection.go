@@ -1734,6 +1734,9 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		}
 	}
 
+	// Status blocks use the same sort of polymorphic values to hold status details for
+	// the various plugin types, so we need to do the same sort of structure unpacking
+	// again here. The actual values will be filled in by the final JSON unmarshalling.
 	if len(unknownPlugin.Status.Details) > 1 {
 		return trace.BadParameter("malformed status details")
 	}
