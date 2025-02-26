@@ -179,6 +179,37 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 	require.Len(t, automaticApprovalRules, 1)
 	require.True(t, proto.Equal(automaticApprovalRule, automaticApprovalRules[0]),
 		"filter by automatic_approval name")
+
+	combinedRule := &accessmonitoringrulesv1.AccessMonitoringRule{
+		Kind:    types.KindAccessMonitoringRule,
+		Version: types.V1,
+		Metadata: &v1.Metadata{
+			Name: "example-combined-rule",
+		},
+		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+			Subjects:  []string{types.KindAccessRequest},
+			Condition: "someCondition",
+			Notification: &accessmonitoringrulesv1.Notification{
+				Name: "notificationPlugin",
+			},
+			AutomaticApproval: &accessmonitoringrulesv1.AutomaticApproval{
+				Name: "automaticApprovalPlugin",
+			},
+		},
+	}
+	_, err = service.CreateAccessMonitoringRule(ctx, combinedRule)
+	require.NoError(t, err)
+
+	combinedReq := &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
+		Subjects:              []string{types.KindAccessRequest},
+		AutomaticApprovalName: "automaticApprovalPlugin",
+		NotificationName:      "notificationPlugin",
+	}
+	combinedRules, _, err := service.ListAccessMonitoringRulesWithFilter(ctx, combinedReq)
+	require.NoError(t, err)
+	require.Len(t, combinedRules, 1)
+	require.True(t, proto.Equal(combinedRule, combinedRules[0]),
+		"filter by both notification and automatic_approval name")
 }
 
 func TestListAccessMonitoringRules(t *testing.T) {

@@ -117,6 +117,9 @@ func (s *AccessMonitoringRulesService) ListAccessMonitoringRulesWithFilter(ctx c
 	return resources, nextKey, nil
 }
 
+// match returns true if the provided rule matches the provided match fields.
+// The match fields are optional. If a match field is not provided, then the
+// rule matches any value for that field.
 func match(rule *accessmonitoringrulesv1.AccessMonitoringRule, subjects []string, notificationName, automaticApprovalName string) bool {
 	if notificationName != "" {
 		if rule.Spec.Notification == nil || rule.Spec.Notification.Name != notificationName {
