@@ -56,22 +56,22 @@ login to SQL Server.
 
 ## Step 3/8. Configure IAM permissions for Teleport
 
-The Teleport Database Service needs Azure IAM permissions to:
-- Discover and register SQL Server instances.
-- Fetch virtual machine managed identities used for login.
+The permissions to discover and register SQL Server instances will depend on the
+resources you want Teleport to discover:
+- For **SQL Servers**, `Microsoft.Sql/servers/read` is required.
+- For **SQL Managed Instances**, `Microsoft.Sql/managedInstances/read` is required.
 
-### Configure an Azure service principal
+It will also require permission to fetch virtual machine managed identities used
+for SQL Server login:
+- If your Database Service runs on a regular VM or a flexible Virtual Machine
+  Scale Set (VMSS) VM, it will require the `Microsoft.Compute/virtualMachines/read`
+  permission.
+- Otherwise, if it runs on a uniform Virtual Machine Scale Set (VMSS) VM, such
+  as on an AKS cluster node, it will require the
+  `Microsoft.Compute/virtualMachineScaleSets/virtualMachines/read` permission.
 
-Teleport requires the following permissions:
-- `<resource-type>/read` permissions for discovery, but only for the resource
-  types you have. For example, `Microsoft.Sql/managedInstances/read`.
-- `Microsoft.Compute/virtualMachines/read`.
-- If your Database Service runs on a Virtual Machine Scale Set (VMSS) in uniform
-  mode, such as on an AKS cluster. In that case, `Microsoft.Compute/virtualMachineScaleSets/virtualMachines/read`
-  permission will also be required.
-
-Here is a sample role definition allowing Teleport to read **Azure SQL Servers**
-and **Azure SQL Managed Instances**:
+Here is a sample role containing all possible permissions. You may reduce the
+permissions scope based on your needs.
 
 ```json
 {
@@ -104,6 +104,8 @@ resource scope within that subscription or the subscription scope itself.
 If you want to further limit the `assignableScopes`, you can use a resource
 group (`/subscriptions/<subscription>/resourceGroups/<group>`) or a management
 group (`/providers/Microsoft.Management/managementGroups/<group>`) instead.
+
+### Configure an Azure service principal
 
 Go to the [Subscriptions](https://portal.azure.com/#view/Microsoft_Azure_Billing/SubscriptionsBlade)
 page and select a subscription.
