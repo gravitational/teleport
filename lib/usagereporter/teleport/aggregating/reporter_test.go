@@ -131,6 +131,8 @@ func TestReporter(t *testing.T) {
 	recvIngested()
 	recvIngested()
 	recvIngested()
+	recvIngested()
+	recvIngested()
 
 	clk.BlockUntil(1)
 	clk.Advance(userActivityReportGranularity)
