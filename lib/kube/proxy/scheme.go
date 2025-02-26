@@ -168,11 +168,6 @@ func newClusterSchemaBuilder(log *slog.Logger, client kubernetes.Interface) (*se
 		}
 		groupVersion := schema.GroupVersion{Group: group, Version: version}
 		for _, apiResource := range apiGroup.APIResources {
-			// Skip cluster-scoped resources because we don't support RBAC restrictions
-			// for them.
-			if !apiResource.Namespaced {
-				continue
-			}
 			// build the resource key to be able to look it up later and check if
 			// if we support RBAC restrictions for it.
 			resourceKey := allowedResourcesKey{

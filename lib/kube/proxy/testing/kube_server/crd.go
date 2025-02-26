@@ -20,131 +20,167 @@ package kubeserver
 
 import (
 	"net/http"
+	"path"
 	"path/filepath"
-	"sort"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/gravitational/teleport/lib/httplib"
 )
 
-var teleportRoleList = metav1.List{
-	TypeMeta: metav1.TypeMeta{
-		Kind:       "TeleportRoleList",
-		APIVersion: "resources.teleport.dev/v6",
-	},
-	ListMeta: metav1.ListMeta{
-		ResourceVersion: "1231415",
-	},
-	Items: []runtime.RawExtension{
-		{
-			Object: newTeleportRole("telerole-1", "default"),
-		},
-		{
-			Object: newTeleportRole("telerole-1", "default"),
-		},
-		{
-			Object: newTeleportRole("telerole-2", "default"),
-		},
-		{
-			Object: newTeleportRole("telerole-test", "default"),
-		},
-		{
-			Object: newTeleportRole("telerole-1", "dev"),
-		},
-		{
-			Object: newTeleportRole("telerole-2", "dev"),
-		},
-	},
+// GVP is a group, version, and plural tuple.
+type GVP struct{ group, version, plural string }
+
+// CRD is a custom resource definition with it's resources.
+type CRD struct {
+	*unstructured.Unstructured
+	GVP
+	kind       string
+	listKind   string
+	namespaced bool
+	items      []runtime.RawExtension
 }
 
-func newTeleportRole(name, namespace string) *unstructured.Unstructured {
+// RoleKind returns the kind string as expected in a Role object for kubernetes_resources.
+func (c CRD) RoleKind() string {
+	return path.Join(c.group, c.version, c.plural)
+}
+
+// Copy the CRD.
+func (c CRD) Copy() *CRD {
+	cpy := c
+	cpy.Unstructured = cpy.Unstructured.DeepCopy()
+	return &cpy
+}
+
+func NewTeleportRoleCRD() *CRD {
+	return NewCRD(
+		"resources.teleport.dev",
+		"v6",
+		"teleportroles",
+		"TeleportRole",
+		"TeleportRoleList",
+		true,
+	)
+}
+
+var WithTeleportRoleCRD = WithCRD(
+	NewTeleportRoleCRD(),
+	NewObject("default", "telerole-1"),
+	NewObject("default", "telerole-1"), // Intentional duplicate.
+	NewObject("default", "telerole-2"),
+	NewObject("default", "telerole-test"),
+	NewObject("dev", "telerole-1"),
+	NewObject("dev", "telerole-2"),
+)
+
+func NewObject(namespace, name string) *unstructured.Unstructured {
 	obj := &unstructured.Unstructured{}
-	obj.SetKind("TeleportRole")
-	obj.SetAPIVersion("resources.teleport.dev/v6")
-	obj.SetName(name)
 	obj.SetNamespace(namespace)
+	obj.SetName(name)
 	return obj
 }
 
-func (s *KubeMockServer) listTeleportRoles(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
-	items := []runtime.RawExtension{}
-
-	namespace := p.ByName("namespace")
-	filter := func(obj runtime.Object) bool {
-		objNamespace := obj.(*unstructured.Unstructured).GetNamespace()
-		return len(namespace) == 0 || namespace == objNamespace
+func NewCRD(group, version, plural, kind, listKind string, namespaced bool) *CRD {
+	obj := &unstructured.Unstructured{}
+	obj.SetKind(kind)
+	obj.SetAPIVersion(group + "/" + version)
+	return &CRD{
+		Unstructured: obj,
+		GVP:          GVP{group, version, plural},
+		kind:         kind,
+		listKind:     listKind,
+		namespaced:   namespaced,
 	}
-	for _, obj := range teleportRoleList.Items {
-		if filter(obj.Object) {
-			items = append(items, obj)
-		}
-	}
-	return metav1.List{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "TeleportRoleList",
-			APIVersion: "resources.teleport.dev/v6",
-		},
-		ListMeta: metav1.ListMeta{
-			ResourceVersion: "1231415",
-		},
-		Items: items,
-	}, nil
 }
 
-func (s *KubeMockServer) getTeleportRole(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
-	namespace := p.ByName("namespace")
-	name := p.ByName("name")
-	filter := func(obj runtime.Object) bool {
-		metaObj := obj.(*unstructured.Unstructured)
-		return metaObj.GetName() == name && namespace == metaObj.GetNamespace()
-	}
-	for _, obj := range teleportRoleList.Items {
-		if filter(obj.Object) {
-			return obj.Object, nil
+func (s *KubeMockServer) deleteCRD(crd *CRD) httplib.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
+		namespace := p.ByName("namespace")
+		name := p.ByName("name")
+		deleteOpts, err := parseDeleteCollectionBody(req)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
+		reqID := ""
+		if deleteOpts.Preconditions != nil && deleteOpts.Preconditions.UID != nil {
+			reqID = string(*deleteOpts.Preconditions.UID)
+		}
+		filter := func(obj runtime.Object) bool {
+			namer, ok1 := obj.(interface{ GetName() string })
+			if !ok1 || namer.GetName() != name {
+				return false
+			}
+			nser, ok2 := obj.(interface{ GetNamespace() string })
+			return namespace == "" || (ok2 && nser.GetNamespace() == namespace)
+		}
+		dr := deletedResource{kind: crd.kind, requestID: reqID}
+		for _, obj := range crd.items {
+			if filter(obj.Object) {
+				s.mu.Lock()
+				s.deletedResources[dr] = append(s.deletedResources[dr], filepath.Join(namespace, name))
+				s.mu.Unlock()
+				return obj.Object, nil
+			}
+		}
+		return nil, trace.NotFound("teleportrole %q not found", filepath.Join(namespace, name))
 	}
-	return nil, trace.NotFound("teleport %q not found", filepath.Join(namespace, name))
 }
 
-const (
-	teleportRoleKind = "TeleportRole"
-)
-
-func (s *KubeMockServer) deleteTeleportRole(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
-	namespace := p.ByName("namespace")
-	name := p.ByName("name")
-	deleteOpts, err := parseDeleteCollectionBody(req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	reqID := ""
-	if deleteOpts.Preconditions != nil && deleteOpts.Preconditions.UID != nil {
-		reqID = string(*deleteOpts.Preconditions.UID)
-	}
-	filter := func(obj runtime.Object) bool {
-		metaObj := obj.(*unstructured.Unstructured)
-		return metaObj.GetName() == name && namespace == metaObj.GetNamespace()
-	}
-	for _, obj := range teleportRoleList.Items {
-		if filter(obj.Object) {
-			s.mu.Lock()
-			s.deletedResources[deletedResource{kind: teleportRoleKind, requestID: reqID}] = append(s.deletedResources[deletedResource{kind: teleportRoleKind, requestID: reqID}], filepath.Join(namespace, name))
-			s.mu.Unlock()
-			return obj.Object, nil
+func (s *KubeMockServer) getCRD(crd *CRD) httplib.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
+		namespace := p.ByName("namespace")
+		name := p.ByName("name")
+		filter := func(obj runtime.Object) bool {
+			namer, ok1 := obj.(interface{ GetName() string })
+			if !ok1 || namer.GetName() != name {
+				return false
+			}
+			nser, ok2 := obj.(interface{ GetNamespace() string })
+			return namespace == "" || (ok2 && nser.GetNamespace() == namespace)
 		}
+		for _, obj := range crd.items {
+			if filter(obj.Object) {
+				return obj.Object, nil
+			}
+		}
+		return nil, trace.NotFound("teleport %q not found", filepath.Join(namespace, name))
 	}
-	return nil, trace.NotFound("teleportrole %q not found", filepath.Join(namespace, name))
 }
 
-func (s *KubeMockServer) DeletedTeleportRoles(reqID string) []string {
-	s.mu.Lock()
-	key := deletedResource{kind: teleportRoleKind, requestID: reqID}
-	deleted := make([]string, len(s.deletedResources[key]))
-	copy(deleted, s.deletedResources[key])
-	s.mu.Unlock()
-	sort.Strings(deleted)
-	return deleted
+func (s *KubeMockServer) listCRDs(crd *CRD) httplib.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
+		var items []runtime.RawExtension
+
+		namespace := p.ByName("namespace")
+		filter := func(obj runtime.Object) bool {
+			if namespace == "" {
+				return true
+			}
+			nser, ok := obj.(interface{ GetNamespace() string })
+			if !ok {
+				return false
+			}
+			return namespace == nser.GetNamespace()
+		}
+		for _, obj := range crd.items {
+			if filter(obj.Object) {
+				items = append(items, obj)
+			}
+		}
+		return metav1.List{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       crd.listKind,
+				APIVersion: path.Join(crd.group, crd.version),
+			},
+			ListMeta: metav1.ListMeta{
+				ResourceVersion: "1231415",
+			},
+			Items: items,
+		}, nil
+	}
 }

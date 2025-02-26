@@ -131,7 +131,7 @@ func failsForCluster(clusterName string) servicecfg.ImpersonationPermissionsChec
 func TestGetKubeCreds(t *testing.T) {
 	t.Parallel()
 	// kubeMock is a Kubernetes API mock for the session tests.
-	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	kubeMock, err := testingkubemock.NewKubeAPIMock(testingkubemock.WithTeleportRoleCRD)
 	require.NoError(t, err)
 	t.Cleanup(func() { kubeMock.Close() })
 	targetAddr := kubeMock.Address
@@ -338,7 +338,6 @@ current-context: foo
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			fwd := &Forwarder{

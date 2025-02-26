@@ -161,8 +161,9 @@ type KubernetesResourceKindOption = Option<KubernetesResourceKind, string>;
  * sync with `KubernetesResourcesKinds` in `api/types/constants.go.
  */
 export const kubernetesResourceKindOptions: KubernetesResourceKindOption[] = [
-  // The "any kind" option goes first.
+  // The "any kind" and "CustomResource" options goes first.
   { value: '*', label: 'Any kind' },
+  { value: '', label: 'CustomResource' }, // Fake kind, pass-through without validation.
 
   // The rest is sorted by label.
   ...(
@@ -846,13 +847,10 @@ function kubernetesResourceToModel(
     unsupported
   );
 
-  const kindOption = kubernetesResourceKindOptionsMap.get(kind);
-  if (kindOption === undefined) {
-    conversionErrors.push({
-      type: ConversionErrorType.UnsupportedValue,
-      path: pathPrefix,
-    });
-  }
+  const kindOption = kubernetesResourceKindOptionsMap.get(kind) || {
+    value: kind,
+    label: 'CustomResource',
+  };
 
   const verbOptions = verbs.map(verb => kubernetesVerbOptionsMap.get(verb));
   const knownVerbOptions: KubernetesVerbOption[] = [];

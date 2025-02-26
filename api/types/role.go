@@ -1866,10 +1866,6 @@ func setDefaultKubernetesVerbs(spec *RoleSpecV6) {
 // - Namespace is not empty
 func validateKubeResources(roleVersion string, kubeResources []KubernetesResource) error {
 	for _, kubeResource := range kubeResources {
-		if !slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) && kubeResource.Kind != Wildcard {
-			return trace.BadParameter("KubernetesResource kind %q is invalid or unsupported; Supported: %v", kubeResource.Kind, append([]string{Wildcard}, KubernetesResourcesKinds...))
-		}
-
 		for _, verb := range kubeResource.Verbs {
 			if !slices.Contains(KubernetesVerbs, verb) && verb != Wildcard && !strings.Contains(verb, "{{") {
 				return trace.BadParameter("KubernetesResource verb %q is invalid or unsupported; Supported: %v", verb, KubernetesVerbs)

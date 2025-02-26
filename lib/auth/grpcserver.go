@@ -27,6 +27,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"slices"
 	"strconv"
 	"time"
 
@@ -2046,7 +2047,52 @@ func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6,
 	}
 
 	role = maybeDowngradeRoleSSHPortForwarding(role, clientVersion)
+	role = maybeDowngradeRoleCRD(role, clientVersion)
+
 	return role, nil
+}
+
+var minSupportedCRDVersion = semver.Version{Major: 18, Minor: 0, Patch: 0}
+
+// We introduced support for CRDs in Teleport v18. To avoid unexpected access, if there
+// is a CRD in the deny list from an older role, deny all access.
+// If there is a CRD in the allow list, it gets discarded in older versions and will
+// result in less access than expected until the customer upgrades.
+func maybeDowngradeRoleCRD(role *types.RoleV6, clientVersion *semver.Version) *types.RoleV6 {
+	// If we are V18 or higher, we don't need to downgrade the role, return as is.
+	if supported, err := utils.MinVerWithoutPreRelease(
+		clientVersion.String(),
+		minSupportedCRDVersion.String()); supported || err != nil {
+		return role
+	}
+
+	// For the `allow` list, keep all valid entries and discard the rest.
+	var allow []types.KubernetesResource
+	for _, kubeResource := range role.GetKubeResources(types.Allow) {
+		if slices.Contains(types.KubernetesResourcesKinds, kubeResource.Kind) || kubeResource.Kind == types.Wildcard {
+			allow = append(allow, kubeResource)
+		}
+	}
+	role.SetKubeResources(types.Allow, allow)
+
+	// For the `deny` list, if there is a CRD, deny all access.
+	denyAll := false
+	for _, kubeResource := range role.GetKubeResources(types.Deny) {
+		if !slices.Contains(types.KubernetesResourcesKinds, kubeResource.Kind) && kubeResource.Kind != types.Wildcard {
+			denyAll = true
+			break
+		}
+	}
+	if denyAll {
+		role.SetKubeResources(types.Deny, []types.KubernetesResource{{
+			Kind:      types.Wildcard,
+			Namespace: types.Wildcard,
+			Name:      types.Wildcard,
+			Verbs:     []string{types.Wildcard},
+		}})
+	}
+
+	return role
 }
 
 var minSupportedSSHPortForwardingVersion = semver.Version{Major: 17, Minor: 1, Patch: 0}

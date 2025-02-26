@@ -178,7 +178,16 @@ func TestRole_GetKubeResources(t *testing.T) {
 					},
 				},
 			},
-			assertErrorCreation: require.Error,
+			want: []KubernetesResource{
+				{
+					Kind:      "invalid resource",
+					Namespace: "test",
+					Name:      "test",
+				},
+			},
+			// TODO(@creack): Find a way to validate the resource kind. For now as we support
+			//                arbitrary CRDs, we can't validate it.
+			assertErrorCreation: require.NoError,
 		},
 		{
 			name: "v7",
