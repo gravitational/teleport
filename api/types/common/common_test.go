@@ -73,7 +73,7 @@ func BenchmarkIsValidLabelKey(b *testing.B) {
 		"label^/.:-LABEL12__34*",
 	}
 
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		for _, s := range labelsForBenchmark {
 			IsValidLabelKey(s)
 		}
