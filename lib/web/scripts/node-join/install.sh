@@ -17,7 +17,7 @@ SYSTEMD_UNIT_PATH="/lib/systemd/system/teleport.service"
 TARGET_PORT_DEFAULT=443
 TELEPORT_ARCHIVE_PATH='{{.packageName}}'
 TELEPORT_BINARY_DIR="/usr/local/bin"
-TELEPORT_BINARY_LIST="teleport tctl tsh"
+TELEPORT_BINARY_LIST="teleport tctl tsh teleport-update"
 TELEPORT_CONFIG_PATH="/etc/teleport.yaml"
 TELEPORT_DATA_DIR="/var/lib/teleport"
 TELEPORT_DOCS_URL="https://goteleport.com/docs/"
@@ -848,7 +848,9 @@ install_from_file() {
         tar -xzf "${TEMP_DIR}/${DOWNLOAD_FILENAME}" -C "${TEMP_DIR}"
         # install binaries to /usr/local/bin
         for BINARY in ${TELEPORT_BINARY_LIST}; do
-            ${COPY_COMMAND} "${TELEPORT_ARCHIVE_PATH}/${BINARY}" "${TELEPORT_BINARY_DIR}/"
+            if [ -e "${TELEPORT_ARCHIVE_PATH}/${BINARY}" ]; then
+                ${COPY_COMMAND} "${TELEPORT_ARCHIVE_PATH}/${BINARY}" "${TELEPORT_BINARY_DIR}/"
+            fi
         done
     elif [[ ${TELEPORT_FORMAT} == "deb" ]]; then
         # convert teleport arch to deb arch

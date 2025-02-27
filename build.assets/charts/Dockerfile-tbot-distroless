@@ -17,6 +17,6 @@ ENV TELEPORT_DEB_FILE_NAME=teleport${TELEPORT_RELEASE_INFIX}_${TELEPORT_VERSION}
 RUN --mount=type=bind,target=/ctx dpkg-deb -R /ctx/$TELEPORT_DEB_FILE_NAME /opt/staging
 
 FROM $BASE_IMAGE
-COPY --from=teleport /opt/staging/usr/local/bin/tbot /usr/local/bin/tbot
+COPY --from=teleport /opt/staging/opt/teleport/system/bin/tbot /usr/local/bin/tbot
 ENTRYPOINT ["/usr/local/bin/tbot"]
 CMD ["start"]
