@@ -33,7 +33,7 @@
               "slug": "/upgrading/upgrading-reference/"
             },
             {
-              "title": "Managed Updates for Agent (v1)",
+              "title": "Managed Updates for Agents (v1)",
               "slug": "/upgrading/agent-managed-updates-v1/"
             },
             {
@@ -41,7 +41,7 @@
               "slug": "/upgrading/agent-managed-updates/"
             },
             {
-              "title": "Client Tool Automatic Updates",
+              "title": "Managed Updates for Client Tools",
               "slug": "/upgrading/client-tools-autoupdate/"
             }
           ]
