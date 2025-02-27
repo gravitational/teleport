@@ -138,6 +138,15 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 					}
 					return false, nil
 				}),
+			"contains_all": typical.BinaryFunction[evaluationEnv](
+				func(s1, s2 Set) (bool, error) {
+					for v := range s2.s {
+						if !s1.contains(v) {
+							return false, nil
+						}
+					}
+					return true, nil
+				}),
 			"is_empty": typical.UnaryFunction[evaluationEnv](
 				func(s Set) (bool, error) {
 					return len(s.s) == 0, nil
@@ -191,6 +200,15 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 						}
 					}
 					return false, nil
+				}),
+			"contains_all": typical.BinaryFunction[evaluationEnv](
+				func(s1, s2 Set) (bool, error) {
+					for v := range s2.s {
+						if !s1.contains(v) {
+							return false, nil
+						}
+					}
+					return true, nil
 				}),
 			"isempty": typical.UnaryFunction[evaluationEnv](
 				func(s Set) (bool, error) {
