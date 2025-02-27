@@ -130,6 +130,30 @@ hourly average. For example, if you were to create then delete 10 servers three
 times in one hour, Teleport would display 10 servers at any given time. However,
 for the entire hour, Teleport would report 30 protected servers.
 
+### Machine and Workload Identities
+
+The Machine and Workload Identity (MWI) metric is an aggregate of
+* [Bots](reference/architecture/machine-id-architecture.mdx#joining-and-authentication)
+* [Bot Instances](reference/architecture/machine-id-architecture.mdx#joining-and-authentication)
+* [SPIFFE IDs](enroll-resources/workload-identity/spiffe.mdx#spiffe-ids-and-trust-domains)
+
+We aggregate Bots and Bot Instances during each day on an hourly basis, and take an hourly average
+to compute a daily Bot and Bot Instance count. Then we average the daily Bot and Bot Instance count
+over a monthly period, which starts on the subscription start date and ends on each monthly anniversary
+thereafter.
+
+If you recreate a single Bot more than once an hour, this will affect the
+hourly average. For example, if you were to create then delete 10 Bots three
+times in one hour, Teleport would display 10 Bots at any given time. However,
+for the entire hour, Teleport would report 30 Bots.
+
+For SPIFFE IDs, we count the number of unique, active SPIFFE IDs used in the billing period.
+Unique means that we only count a SPIFFE ID once, even if it is used multiple times, and 
+active means it was issued to and used by a workload or user in the billing period.
+
+The sum of your calculated Bots and Bot Instances, and unique, active SPIFFE IDs is your
+total MWI for the bililng period.
+
 ## Usage measurement for billing
 
 We aggregate all counts of the billing metrics on a monthly basis starting on
