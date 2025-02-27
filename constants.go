@@ -289,7 +289,7 @@ const (
 	// ComponentProxySecureGRPC represents a secure gRPC server running on Proxy (used for Kube).
 	ComponentProxySecureGRPC = "proxy:secure-grpc"
 
-	// ComponentUpdater represents the agent updater.
+	// ComponentUpdater represents the teleport-update binary.
 	ComponentUpdater = "updater"
 
 	// ComponentRolloutController represents the autoupdate_agent_rollout controller.
