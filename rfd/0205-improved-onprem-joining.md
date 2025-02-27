@@ -52,6 +52,9 @@ production environment, bot token joining has major operational problems:
 - Bots occasionally trigger generation counter lockouts, killing themselves and
   any instances on the same bot
 
+- When a bot instance's renewable identity expires, there's no clear way to tell
+  that it stopped functioning other than checking the `tbot` process directly.
+
 These limitations led to a surprisingly narrow set of use cases where token
 joining was really a *good* experience, effectively just:
 
@@ -223,8 +226,10 @@ spec:
 
 status:
   challenge:
-    # If `public_key` is unset, this value will be generated server-side and
-    # made available here.
+    # If `spec.onboarding.public_key` is unset, this value will be generated
+    # server-side and made available here. If
+    # `spec.onboarding.initial_join_secret` is set, its value will be copied
+    # here.
     initial_join_secret: <random>
 
     # The public key of the bot associated with this token, set on first join.
@@ -342,6 +347,31 @@ support](https://goteleport.com/docs/admin-guides/deploy-a-cluster/hsm/).
 
 TODO
 
+#### Expiration Alerting UX
+
+A major deficiency in `token` joining is that bots fail silently. Their status
+can be partially monitored via `tctl get bot_instance` but this does not
+effectively notify administrators when something has gone wrong.
+
+We should take steps to improve visibility of bots at or near expiry, including:
+
+- Configurable cluster alerts when the number of available renewals has crossed
+  some threshold
+
+- Exposing the number of available renewals in the web UI and `tctl bot ls`
+
+- Exposing per-token renewal counts as Prometheus metrics, both on the Auth
+  Serivce and via `tbot`'s metrics endpoint.
+
+#### Keypair Rotation
+
+Given the long-lived nature of the keypair credential, it's important to support
+rotation without bot downtime. Ideally, it should be possible to initiate a
+rotation from either the server (e.g. by setting a `rotate_on_next_renewal` flag
+on the token/bot instance) or `tbot` client.
+
+TODO: Expand this.
+
 #### Remaining Downsides
 
 - Repairing a bot that has exhausted all of its rejoins is still a semi-manual
@@ -396,6 +426,12 @@ $ tbot start --token=challenge:04f0ceff1bd0589ba45c1832dfc8feaf ...
 ```
 
 ## Alternatives and Future Extensions
+
+### Agent Joining Support
+
+We should explore expanding this join method to cover regular Teleport agent
+joining as well as bots, as a more secure alternative to static or long-lived
+join tokens.
 
 ### Explicitly Insecure Token Joining
 
