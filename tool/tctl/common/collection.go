@@ -1602,26 +1602,9 @@ type pluginResourceWrapper struct {
 }
 
 func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
-	// The individual plugin settings blocks included in the plugin spec are
-	// specified in the original protobuf message declaration as heterogeneous
-	// message types, tied together by a `oneof` directive.
-	//
-	// Unfortunately the stdlib JSON unmarshaler doesn't know how to select which
-	// Go type to unmarshal the corresponding JSON value onto, so we have to
-	// partially unpack the plugin structure and supply the appropriate Go types
-	// for each polymorphic value.
-	//
-	// Once the type structure is in place, the stdlib JSON unmarshaler can use
-	// that structure to decide how to unmarshal the JSON values.
-	//
-	// Unfortunately we can't just use either the `protojson` or `jsonpb`
-	// package to parse all of this for, because:
-	//  - PluginV1 type doesn't implement [proto.Message], required by `protojson`.
-	//    Using [protoadapt.MessageV2Of()] was only slightly less messy than this
-	//    approach, as it required re-wrapping nested messages at every level
-	//
-	//  - There is no way to tell [jsonpb] to use the JSON style snake-case
-	//    field names, rather than the protobuf-style camel-case names
+  // If your plugin contains a `oneof` message, implement custom UnmarshalJSON/MarshalJSON 
+  // using gogo/jsonpb for the type.
+jsonpb 
 
 	const (
 		credOauth2AccessToken             = "oauth2_access_token"
