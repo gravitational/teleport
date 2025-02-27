@@ -494,6 +494,9 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case WorkloadIdentityX509RevocationDeleteEvent:
 		e = &events.WorkloadIdentityX509RevocationDelete{}
 
+	case StableUNIXUserCreateEvent:
+		e = &events.StableUNIXUserCreate{}
+
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
 		unknown := &events.Unknown{}

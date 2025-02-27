@@ -2214,6 +2214,25 @@ message AuthPreferenceSpecV2 {
   // 1 is "otp", 2 is "webauthn", 3 is "sso",
   // If unspecified, the current default value is [1], or ["otp"].
   repeated SecondFactorType SecondFactors = 21 [(gogoproto.jsontag) = "second_factors,omitempty"];
+
+  // StableUnixUserConfig contains the cluster-wide configuration for stable
+  // UNIX users.
+  StableUNIXUserConfig stable_unix_user_config = 22;
+}
+
+// StableUNIXUserConfig contains the cluster-wide configuration for stable UNIX
+// users.
+message StableUNIXUserConfig {
+  // Enabled signifies that (UNIX) Teleport SSH hosts should obtain a UID from
+  // the control plane if they're about to provision a host user with no other
+  // configured UID.
+  bool enabled = 1;
+  // FirstUid is the start of the range of UIDs for autoprovisioned host users.
+  // The range is inclusive on both ends, so the specified UID can be assigned.
+  int32 first_uid = 2;
+  // LastUid is the end of the range of UIDs for autoprovisioned host users. The
+  // range is inclusive on both ends, so the specified UID can be assigned.
+  int32 last_uid = 3;
 }
 
 // SecondFactorType is a type of second factor.
