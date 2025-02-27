@@ -367,7 +367,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 			UserMetadata: apievents.UserMetadata{
 				Login:         principal,
 				User:          ident.Username,
-				TrustedDevice: eventDeviceMetadataFromIdentity(ident),
+				TrustedDevice: ident.GetDeviceMetadata(),
 			},
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  conn.LocalAddr().String(),

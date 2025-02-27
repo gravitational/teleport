@@ -181,6 +181,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindAutoUpdateConfig:         rc.createAutoUpdateConfig,
 		types.KindAutoUpdateVersion:        rc.createAutoUpdateVersion,
 		types.KindGitServer:                rc.createGitServer,
+		types.KindAutoUpdateAgentRollout:   rc.createAutoUpdateAgentRollout,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                    rc.updateUser,
@@ -202,6 +203,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindAutoUpdateVersion:       rc.updateAutoUpdateVersion,
 		types.KindDynamicWindowsDesktop:   rc.updateDynamicWindowsDesktop,
 		types.KindGitServer:               rc.updateGitServer,
+		types.KindAutoUpdateAgentRollout:  rc.updateAutoUpdateAgentRollout,
 	}
 	rc.config = config
 
@@ -1027,17 +1029,17 @@ func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client *authcl
 	if err := client.CreateKubernetesCluster(ctx, cluster); err != nil {
 		if trace.IsAlreadyExists(err) {
 			if !rc.force {
-				return trace.AlreadyExists("kubernetes cluster %q already exists", cluster.GetName())
+				return trace.AlreadyExists("Kubernetes cluster %q already exists", cluster.GetName())
 			}
 			if err := client.UpdateKubernetesCluster(ctx, cluster); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("kubernetes cluster %q has been updated\n", cluster.GetName())
+			fmt.Printf("Kubernetes cluster %q has been updated\n", cluster.GetName())
 			return nil
 		}
 		return trace.Wrap(err)
 	}
-	fmt.Printf("kubernetes cluster %q has been created\n", cluster.GetName())
+	fmt.Printf("Kubernetes cluster %q has been created\n", cluster.GetName())
 	return nil
 }
 
@@ -1629,6 +1631,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		types.KindNetworkRestrictions,
 		types.KindAutoUpdateConfig,
 		types.KindAutoUpdateVersion,
+		types.KindAutoUpdateAgentRollout,
 	}
 	if !slices.Contains(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
@@ -1789,7 +1792,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		resDesc := "kubernetes cluster"
+		resDesc := "Kubernetes cluster"
 		clusters = filterByNameOrDiscoveredName(clusters, rc.ref.Name)
 		name, err := getOneResourceNameToDelete(clusters, rc.ref, resDesc)
 		if err != nil {
@@ -1865,7 +1868,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		resDesc := "kubernetes server"
+		resDesc := "Kubernetes server"
 		servers = filterByNameOrDiscoveredName(servers, rc.ref.Name)
 		name, err := getOneResourceNameToDelete(servers, rc.ref, resDesc)
 		if err != nil {
@@ -2031,6 +2034,14 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Workload identity %q has been deleted\n", rc.ref.Name)
+	case types.KindWorkloadIdentityX509Revocation:
+		if _, err := client.WorkloadIdentityRevocationServiceClient().DeleteWorkloadIdentityX509Revocation(
+			ctx, &workloadidentityv1pb.DeleteWorkloadIdentityX509RevocationRequest{
+				Name: rc.ref.Name,
+			}); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Workload identity X509 revocation %q has been deleted\n", rc.ref.Name)
 	case types.KindStaticHostUser:
 		if err := client.StaticHostUserClient().DeleteStaticHostUser(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -2051,6 +2062,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("AutoUpdateVersion has been deleted\n")
+	case types.KindAutoUpdateAgentRollout:
+		if err := client.DeleteAutoUpdateAgentRollout(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("AutoUpdateAgentRollout has been deleted\n")
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -2486,7 +2502,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		servers = filterByNameOrDiscoveredName(servers, rc.ref.Name, altNameFn)
 		if len(servers) == 0 {
-			return nil, trace.NotFound("kubernetes server %q not found", rc.ref.Name)
+			return nil, trace.NotFound("Kubernetes server %q not found", rc.ref.Name)
 		}
 		return &kubeServerCollection{servers: servers}, nil
 
@@ -2551,7 +2567,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		clusters = filterByNameOrDiscoveredName(clusters, rc.ref.Name)
 		if len(clusters) == 0 {
-			return nil, trace.NotFound("kubernetes cluster %q not found", rc.ref.Name)
+			return nil, trace.NotFound("Kubernetes cluster %q not found", rc.ref.Name)
 		}
 		return &kubeClusterCollection{clusters: clusters}, nil
 	case types.KindCrownJewel:
@@ -3021,7 +3037,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		var tasks []*usertasksv1.UserTask
 		nextToken := ""
 		for {
-			resp, token, err := userTasksClient.ListUserTasks(ctx, 0 /* default size */, nextToken)
+			resp, token, err := userTasksClient.ListUserTasks(ctx, 0 /* default size */, nextToken, &usertasksv1.ListUserTasksFilters{})
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -3219,6 +3235,40 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &workloadIdentityCollection{items: resources}, nil
+	case types.KindWorkloadIdentityX509Revocation:
+		if rc.ref.Name != "" {
+			resource, err := client.
+				WorkloadIdentityRevocationServiceClient().
+				GetWorkloadIdentityX509Revocation(ctx, &workloadidentityv1pb.GetWorkloadIdentityX509RevocationRequest{
+					Name: rc.ref.Name,
+				})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &workloadIdentityX509RevocationCollection{items: []*workloadidentityv1pb.WorkloadIdentityX509Revocation{resource}}, nil
+		}
+
+		var resources []*workloadidentityv1pb.WorkloadIdentityX509Revocation
+		pageToken := ""
+		for {
+			resp, err := client.
+				WorkloadIdentityRevocationServiceClient().
+				ListWorkloadIdentityX509Revocations(ctx, &workloadidentityv1pb.ListWorkloadIdentityX509RevocationsRequest{
+					PageToken: pageToken,
+				})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			resources = append(resources, resp.WorkloadIdentityX509Revocations...)
+
+			if resp.NextPageToken == "" {
+				break
+			}
+			pageToken = resp.NextPageToken
+		}
+
+		return &workloadIdentityX509RevocationCollection{items: resources}, nil
 	case types.KindBotInstance:
 		if rc.ref.Name != "" && rc.ref.SubKind != "" {
 			// Gets a specific bot instance, e.g. bot_instance/<bot name>/<instance id>
@@ -3295,6 +3345,12 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &autoUpdateVersionCollection{version}, nil
+	case types.KindAutoUpdateAgentRollout:
+		version, err := client.GetAutoUpdateAgentRollout(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &autoUpdateAgentRolloutCollection{version}, nil
 	case types.KindAccessMonitoringRule:
 		if rc.ref.Name != "" {
 			rule, err := client.AccessMonitoringRuleClient().GetAccessMonitoringRule(ctx, rc.ref.Name)
@@ -3750,6 +3806,37 @@ func (rc *ResourceCommand) updateAutoUpdateVersion(ctx context.Context, client *
 		return trace.Wrap(err)
 	}
 	if _, err := client.UpdateAutoUpdateVersion(ctx, version); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Println("autoupdate_version has been updated")
+	return nil
+}
+
+func (rc *ResourceCommand) createAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	version, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateAgentRollout](raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if rc.IsForced() {
+		_, err = client.UpsertAutoUpdateAgentRollout(ctx, version)
+	} else {
+		_, err = client.CreateAutoUpdateAgentRollout(ctx, version)
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("autoupdate_agent_rollout has been created")
+	return nil
+}
+
+func (rc *ResourceCommand) updateAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	version, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateAgentRollout](raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := client.UpdateAutoUpdateAgentRollout(ctx, version); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Println("autoupdate_version has been updated")

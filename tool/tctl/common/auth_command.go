@@ -48,7 +48,6 @@ import (
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
-	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -317,7 +316,6 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context, clusterAPI authCommandCl
 // certificateSigner is an interface for the methods used by GenerateAndSignKeys
 // to sign certificates using the Auth Server.
 type certificateSigner interface {
-	kubeutils.KubeServicesPresence
 	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 	GenerateWindowsDesktopCert(context.Context, *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error)
@@ -931,7 +929,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 	}
 	keyRing.ClusterName = a.leafCluster
 
-	if err := a.checkKubeCluster(ctx, clusterAPI); err != nil {
+	if err := a.checkKubeCluster(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1092,7 +1090,7 @@ func (a *AuthCommand) checkLeafCluster(clusterAPI certificateSigner) error {
 	return trace.BadParameter("couldn't find leaf cluster named %q", a.leafCluster)
 }
 
-func (a *AuthCommand) checkKubeCluster(ctx context.Context, clusterAPI certificateSigner) error {
+func (a *AuthCommand) checkKubeCluster() error {
 	if a.kubeCluster == "" {
 		return nil
 	}
@@ -1103,20 +1101,6 @@ func (a *AuthCommand) checkKubeCluster(ctx context.Context, clusterAPI certifica
 	}
 	if a.outputFormat != identityfile.FormatKubernetes {
 		return nil
-	}
-
-	localCluster, err := clusterAPI.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if localCluster.GetClusterName() != a.leafCluster {
-		// Skip validation on remote clusters, since we don't know their
-		// registered kube clusters.
-		return nil
-	}
-
-	if err := kubeutils.CheckKubeCluster(ctx, clusterAPI, a.kubeCluster); err != nil {
-		return trace.Wrap(err)
 	}
 
 	return nil

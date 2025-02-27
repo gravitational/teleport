@@ -1268,6 +1268,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	vnetAdminSetupCommand := newVnetAdminSetupCommand(app)
 	vnetDaemonCommand := newVnetDaemonCommand(app)
 	vnetServiceCommand := newVnetServiceCommand(app)
+	vnetInstallServiceCommand := newVnetInstallServiceCommand(app)
+	vnetUninstallServiceCommand := newVnetUninstallServiceCommand(app)
 
 	gitCmd := newGitCommands(app)
 
@@ -1652,6 +1654,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = vnetDaemonCommand.run(&cf)
 	case vnetServiceCommand.FullCommand():
 		err = vnetServiceCommand.run(&cf)
+	case vnetInstallServiceCommand.FullCommand():
+		err = vnetInstallServiceCommand.run(&cf)
+	case vnetUninstallServiceCommand.FullCommand():
+		err = vnetUninstallServiceCommand.run(&cf)
 	case gitCmd.list.FullCommand():
 		err = gitCmd.list.run(&cf)
 	case gitCmd.login.FullCommand():
@@ -1796,6 +1802,7 @@ func onVersion(cf *CLIConf) error {
 		proxyPublicAddr = ppa
 	}
 
+	reExecFromVersion := tools.GetReExecFromVersion(cf.Context)
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
@@ -1804,8 +1811,11 @@ func onVersion(cf *CLIConf) error {
 			fmt.Printf("Proxy version: %s\n", proxyVersion)
 			fmt.Printf("Proxy: %s\n", proxyPublicAddr)
 		}
+		if reExecFromVersion != "" {
+			fmt.Printf("Re-executed from version: %s\n", reExecFromVersion)
+		}
 	case teleport.JSON, teleport.YAML:
-		out, err := serializeVersion(format, proxyVersion, proxyPublicAddr)
+		out, err := serializeVersion(format, proxyVersion, proxyPublicAddr, reExecFromVersion)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1852,19 +1862,21 @@ type benchKubeOptions struct {
 	namespace string
 }
 
-func serializeVersion(format string, proxyVersion string, proxyPublicAddress string) (string, error) {
+func serializeVersion(format string, proxyVersion string, proxyPublicAddress string, reExecFromVersion string) (string, error) {
 	versionInfo := struct {
-		Version            string `json:"version"`
-		Gitref             string `json:"gitref"`
-		Runtime            string `json:"runtime"`
-		ProxyVersion       string `json:"proxyVersion,omitempty"`
-		ProxyPublicAddress string `json:"proxyPublicAddress,omitempty"`
+		Version               string `json:"version"`
+		Gitref                string `json:"gitref"`
+		Runtime               string `json:"runtime"`
+		ProxyVersion          string `json:"proxyVersion,omitempty"`
+		ProxyPublicAddress    string `json:"proxyPublicAddress,omitempty"`
+		ReExecutedFromVersion string `json:"reExecutedFromVersion,omitempty"`
 	}{
 		teleport.Version,
 		teleport.Gitref,
 		runtime.Version(),
 		proxyVersion,
 		proxyPublicAddress,
+		reExecFromVersion,
 	}
 	var out []byte
 	var err error

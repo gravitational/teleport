@@ -3784,7 +3784,14 @@ func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.O
 
 	oidcReq, err := a.authServer.CreateOIDCAuthRequest(ctx, req)
 	if err != nil {
-		emitSSOLoginFailureEvent(a.CloseContext(), a.authServer.emitter, events.LoginMethodOIDC, err, req.SSOTestFlow)
+		if trace.IsNotFound(err) {
+			// This flow is triggered via an unauthenticated endpoint, so it's not unusual to see
+			// attempts to hit this API with an invalid connector ID. These are not legitimate SSO
+			// attempts, so avoid cluttering the audit log with them.
+			a.authServer.logger.InfoContext(ctx, "rejecting invalid OIDC auth request", "connector", req.ConnectorID)
+		} else {
+			emitSSOLoginFailureEvent(a.CloseContext(), a.authServer.emitter, events.LoginMethodOIDC, err, req.SSOTestFlow)
+		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -3942,7 +3949,14 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.S
 
 	samlReq, err := a.authServer.CreateSAMLAuthRequest(ctx, req)
 	if err != nil {
-		emitSSOLoginFailureEvent(a.CloseContext(), a.authServer.emitter, events.LoginMethodSAML, err, req.SSOTestFlow)
+		if trace.IsNotFound(err) {
+			// This flow is triggered via an unauthenticated endpoint, so it's not unusual to see
+			// attempts to hit this API with an invalid connector ID. These are not legitimate SSO
+			// attempts, so avoid cluttering the audit log with them.
+			a.authServer.logger.InfoContext(ctx, "rejecting invalid SAML auth request", "connector", req.ConnectorID)
+		} else {
+			emitSSOLoginFailureEvent(a.CloseContext(), a.authServer.emitter, events.LoginMethodSAML, err, req.SSOTestFlow)
+		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -4737,6 +4751,10 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 
 	// Support reused MFA for bulk tctl create requests.
 	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := services.ValidateAuthPreference(newAuthPref); err != nil {
 		return trace.Wrap(err)
 	}
 

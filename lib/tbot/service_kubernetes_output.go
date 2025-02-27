@@ -20,6 +20,7 @@ package tbot
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -79,7 +80,7 @@ func (s *KubernetesOutputService) Run(ctx context.Context) error {
 	err := runOnInterval(ctx, runOnIntervalConfig{
 		name:       "output-renewal",
 		f:          s.generate,
-		interval:   s.botCfg.RenewalInterval,
+		interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
 		reloadCh:   reloadCh,
@@ -121,7 +122,7 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateTTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		nil,
 	)
 	if err != nil {
@@ -152,7 +153,7 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 		s.botAuthClient,
 		id,
 		roles,
-		s.botCfg.CertificateTTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		func(req *proto.UserCertsRequest) {
 			req.KubernetesCluster = kubeClusterName
 		},

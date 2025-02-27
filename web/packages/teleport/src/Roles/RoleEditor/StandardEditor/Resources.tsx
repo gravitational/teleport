@@ -41,6 +41,7 @@ import { SectionBox, SectionProps, SectionPropsWithDispatch } from './sections';
 import {
   AppAccess,
   DatabaseAccess,
+  GitHubOrganizationAccess,
   KubernetesAccess,
   kubernetesResourceKindOptions,
   KubernetesResourceModel,
@@ -54,7 +55,9 @@ import {
 import {
   AppAccessValidationResult,
   DatabaseAccessValidationResult,
+  GitHubOrganizationAccessValidationResult,
   KubernetesAccessValidationResult,
+  kubernetesClusterWideResourceKinds,
   KubernetesResourceValidationResult,
   ResourceAccessValidationResult,
   ServerAccessValidationResult,
@@ -140,6 +143,7 @@ const allResourceAccessKinds: ResourceAccessKind[] = [
   'app',
   'db',
   'windows_desktop',
+  'git_server',
 ];
 
 /** Maps resource access kind to UI component configuration. */
@@ -175,6 +179,11 @@ export const resourceAccessSections: Record<
     title: 'Windows Desktops',
     tooltip: 'Configures access to Windows desktops',
     component: WindowsDesktopAccessSection,
+  },
+  git_server: {
+    title: 'GitHub Organizations',
+    tooltip: 'Configures access to GitHub organizations and their repositories',
+    component: GitHubOrganizationAccessSection,
   },
 };
 
@@ -399,6 +408,7 @@ function KubernetesResourceView({
       />
       <FieldInput
         label="Name"
+        required
         toolTipContent={
           <>
             Name of the resource. Special value <MarkInverse>*</MarkInverse>{' '}
@@ -412,6 +422,7 @@ function KubernetesResourceView({
       />
       <FieldInput
         label="Namespace"
+        required={!kubernetesClusterWideResourceKinds.includes(kind.value)}
         toolTipContent={
           <>
             Namespace that contains the resource. Special value{' '}
@@ -592,6 +603,32 @@ export function WindowsDesktopAccessSection({
         onChange={logins => onChange?.({ ...value, logins })}
       />
     </>
+  );
+}
+
+export function GitHubOrganizationAccessSection({
+  value,
+  isProcessing,
+  onChange,
+}: SectionProps<
+  GitHubOrganizationAccess,
+  GitHubOrganizationAccessValidationResult
+>) {
+  return (
+    <FieldSelectCreatable
+      isMulti
+      label="Organization Names"
+      toolTipContent="A list of GitHub organization names that this role is allowed to use"
+      placeholder="Type an organization name and press Enter"
+      isDisabled={isProcessing}
+      formatCreateLabel={label => `Organization: ${label}`}
+      components={{
+        DropdownIndicator: null,
+      }}
+      openMenuOnClick={false}
+      value={value.organizations}
+      onChange={organizations => onChange?.({ ...value, organizations })}
+    />
   );
 }
 

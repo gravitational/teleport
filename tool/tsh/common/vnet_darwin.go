@@ -85,14 +85,23 @@ func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
 	return trace.Wrap(vnet.RunDarwinAdminProcess(cf.Context, config))
 }
 
-// the vnet-service command is only supported on windows.
+// The vnet-service command is only supported on windows.
 func newPlatformVnetServiceCommand(app *kingpin.Application) vnetCommandNotSupported {
 	return vnetCommandNotSupported{}
 }
 
+// The vnet-install-service command is only supported on windows.
+func newPlatformVnetInstallServiceCommand(app *kingpin.Application) vnetCommandNotSupported {
+	return vnetCommandNotSupported{}
+}
+
+// The vnet-uninstall-service command is only supported on windows.
+func newPlatformVnetUninstallServiceCommand(app *kingpin.Application) vnetCommandNotSupported {
+	return vnetCommandNotSupported{}
+}
+
 func runVnetDiagnostics(ctx context.Context, nsi vnet.NetworkStackInfo) error {
-	fmt.Println("Running diagnostics.")
-	conflictingRoutesDiag, err := diag.NewRouteConflictDiag(&diag.RouteConflictConfig{
+	routeConflictDiag, err := diag.NewRouteConflictDiag(&diag.RouteConflictConfig{
 		VnetIfaceName: nsi.IfaceName,
 		Routing:       &diag.DarwinRouting{},
 		Interfaces:    &diag.NetInterfaces{},
@@ -100,13 +109,13 @@ func runVnetDiagnostics(ctx context.Context, nsi vnet.NetworkStackInfo) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	crs, err := conflictingRoutesDiag.Run(ctx)
+	rcs, err := routeConflictDiag.Run(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	for _, cr := range crs {
-		fmt.Printf("Found a conflicting route: %+v\n", cr)
+	for _, rc := range rcs.GetRouteConflictReport().RouteConflicts {
+		fmt.Printf("Found a conflicting route: %+v\n", rc)
 	}
 
 	return nil

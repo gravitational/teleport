@@ -28,7 +28,7 @@ import cfg from 'teleport/config';
 
 import { NoCodeIntegrationDescription } from './common';
 import { getRoutesToEnrollIntegrations } from './IntegrationRoute';
-import { IntegrationTiles } from './IntegrationTiles';
+import { IntegrationTiles } from './IntegrationTiles/IntegrationTiles';
 import { MachineIDIntegrationSection } from './MachineIDIntegrationSection';
 
 export function IntegrationEnroll() {

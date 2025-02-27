@@ -1,5 +1,59 @@
 # Changelog
 
+## 17.3.0
+
+### Automatic Updates
+
+17.3 introduces a new automatic update mechanism for system administrators to control which Teleport version their
+agents are running. You can now configure the agent update schedule and desired agent version via the `autoupdate_config`
+and `autoupdate_version` resources.
+
+Updates are performed by the new `teleport-update` binary.
+This new system is package manager-agnostic and opt-in. Existing agents won't be automatically enrolled, you can enroll
+existing 17.3+ agents by running `teleport-update enable`.
+
+`teleport-update` will become the new standard way of installing Teleport as it always picks the appropriate Teleport
+edition (Community vs Enterprise), the cluster's desired version, and the correct Teleport variant (e.g. FIPS-compliant
+cryptography).
+
+You can find more information about the feature in [our documentation]().
+
+### Package layout changes
+
+Starting with 17.3.0, the Teleport DEB and RPM packages, notably used by the `apt`, `yum`, `dnf` and `zypper` package
+managers, will place the Teleport binaries in `/opt/teleport` instead of `/usr/local/bin`.
+
+The binaries will be symlinked to their previous location, no change should be required in your scripts or systemd units.
+
+This change allows us to do automatic updates without conflicting with the package manager.
+
+## 17.2.9 (02/25/25)
+
+* Updated go-jose/v4 to v4.0.5 (addresses CVE-2025-27144). [#52467](https://github.com/gravitational/teleport/pull/52467)
+* Updated /x/crypto and /x/oauth2 (addresses CVE-2025-22869 and CVE-2025-22868). [#52437](https://github.com/gravitational/teleport/pull/52437)
+* Fixed missing audit event on GitHub proxy RBAC failure. [#52427](https://github.com/gravitational/teleport/pull/52427)
+* Allow to provide `tbot` configurations via environment variables. Update `tbot-distroless` image to run `start` command by default. [#52351](https://github.com/gravitational/teleport/pull/52351)
+* Logging out from a cluster no longer clears the client autoupdate binaries. [#52337](https://github.com/gravitational/teleport/pull/52337)
+* Added `tctl` installer for Identity Center integration. [#52336](https://github.com/gravitational/teleport/pull/52336)
+* Added JSON response support to the `/webapi/auth/export` public certificate API endpoint. [#52325](https://github.com/gravitational/teleport/pull/52325)
+* Resolves an issue with `tbot` where the web proxy port would be used instead of the SSH proxy port when ports separate mode is in use. [#52291](https://github.com/gravitational/teleport/pull/52291)
+* Fix Azure SQL Servers connect failures when the database agent runs on a VM scale set. [#52267](https://github.com/gravitational/teleport/pull/52267)
+* Add filter drop-downs and pinning support for the "Enroll a New Resource" page in the web UI. [#52176](https://github.com/gravitational/teleport/pull/52176)
+* Improve latency and reduce resource consumption of generating Kubernetes certificates via `tctl auth sign` and `tsh kube login`. [#52146](https://github.com/gravitational/teleport/pull/52146)
+
+## 17.2.8 (02/19/25)
+
+* Fixed broken `Download Metadata File` button from the SAML enrolling resource flow in the web UI. [#52276](https://github.com/gravitational/teleport/pull/52276)
+* Fixed broken `Refresh` button in the Access Monitoring reports page in the web UI. [#52276](https://github.com/gravitational/teleport/pull/52276)
+* Fixed broken `Download app.zip` menu item in the Integrations list dropdown menu for Microsoft Teams in the web UI. [#52276](https://github.com/gravitational/teleport/pull/52276)
+* Fixed `Unexpected end of JSON input` error in an otherwise successful web API call. [#52276](https://github.com/gravitational/teleport/pull/52276)
+* Teleport Connect now features a new menu for quick access request management. [#52217](https://github.com/gravitational/teleport/pull/52217)
+* Remove the ability of tctl to load the default configuration file on Windows. [#52188](https://github.com/gravitational/teleport/pull/52188)
+* Tbot: support overriding `credential_ttl` and `renewal_interval` on most outputs and services. [#52185](https://github.com/gravitational/teleport/pull/52185)
+* Fix an issue that GitHub integration CA gets deleted during Auth restart for non-software key stores like KMS. For broken GitHub integrations, the `integration` resource must be deleted and recreated. [#52149](https://github.com/gravitational/teleport/pull/52149)
+* Added support for non-FIPS AWS endpoints for IAM and STS on FIPS binaries (`TELEPORT_UNSTABLE_DISABLE_AWS_FIPS=yes`) [#52127](https://github.com/gravitational/teleport/pull/52127)
+* Introduced the allow_reissue property to the tbot identity output for compatibility with tsh based reissuance. [#52116](https://github.com/gravitational/teleport/pull/52116)
+
 ## 17.2.7 (02/13/25)
 
 ### Security Fixes

@@ -27,6 +27,7 @@ import { RoleVersion } from 'teleport/services/resources';
 import {
   AppAccessSection,
   DatabaseAccessSection,
+  GitHubOrganizationAccessSection,
   KubernetesAccessSection,
   ServerAccessSection,
   WindowsDesktopAccessSection,
@@ -35,6 +36,7 @@ import {
   AppAccess,
   DatabaseAccess,
   defaultRoleVersion,
+  GitHubOrganizationAccess,
   KubernetesAccess,
   newResourceAccess,
   ServerAccess,
@@ -42,6 +44,7 @@ import {
 } from './standardmodel';
 import { StatefulSection } from './StatefulSection';
 import {
+  GitHubOrganizationAccessValidationResult,
   ResourceAccessValidationResult,
   validateResourceAccess,
 } from './validation';
@@ -152,13 +155,13 @@ describe('KubernetesAccessSection', () => {
     expect(
       reactSelectValueContainer(screen.getByLabelText('Kind'))
     ).toHaveTextContent('Any kind');
-    expect(screen.getByLabelText('Name')).toHaveValue('*');
-    expect(screen.getByLabelText('Namespace')).toHaveValue('*');
+    expect(screen.getByLabelText('Name *')).toHaveValue('*');
+    expect(screen.getByLabelText('Namespace *')).toHaveValue('*');
     await selectEvent.select(screen.getByLabelText('Kind'), 'Job');
-    await user.clear(screen.getByLabelText('Name'));
-    await user.type(screen.getByLabelText('Name'), 'job-name');
-    await user.clear(screen.getByLabelText('Namespace'));
-    await user.type(screen.getByLabelText('Namespace'), 'job-namespace');
+    await user.clear(screen.getByLabelText('Name *'));
+    await user.type(screen.getByLabelText('Name *'), 'job-name');
+    await user.clear(screen.getByLabelText('Namespace *'));
+    await user.type(screen.getByLabelText('Namespace *'), 'job-namespace');
     await selectEvent.select(screen.getByLabelText('Verbs'), [
       'create',
       'delete',
@@ -197,18 +200,18 @@ describe('KubernetesAccessSection', () => {
     const { user, onChange } = setup();
 
     await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
-    await user.clear(screen.getByLabelText('Name'));
-    await user.type(screen.getByLabelText('Name'), 'res1');
+    await user.clear(screen.getByLabelText('Name *'));
+    await user.type(screen.getByLabelText('Name *'), 'res1');
     await user.click(
       screen.getByRole('button', { name: 'Add Another Resource' })
     );
-    await user.clear(screen.getAllByLabelText('Name')[1]);
-    await user.type(screen.getAllByLabelText('Name')[1], 'res2');
+    await user.clear(screen.getAllByLabelText('Name *')[1]);
+    await user.type(screen.getAllByLabelText('Name *')[1], 'res2');
     await user.click(
       screen.getByRole('button', { name: 'Add Another Resource' })
     );
-    await user.clear(screen.getAllByLabelText('Name')[2]);
-    await user.type(screen.getAllByLabelText('Name')[2], 'res3');
+    await user.clear(screen.getAllByLabelText('Name *')[2]);
+    await user.type(screen.getAllByLabelText('Name *')[2], 'res3');
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
         resources: [
@@ -251,8 +254,8 @@ describe('KubernetesAccessSection', () => {
     await user.click(screen.getByRole('button', { name: 'Add a Label' }));
     await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
     await selectEvent.select(screen.getByLabelText('Kind'), 'Service');
-    await user.clear(screen.getByLabelText('Name'));
-    await user.clear(screen.getByLabelText('Namespace'));
+    await user.clear(screen.getByLabelText('Name *'));
+    await user.clear(screen.getByLabelText('Namespace *'));
     await selectEvent.select(screen.getByLabelText('Verbs'), [
       'All verbs',
       'create',
@@ -264,10 +267,10 @@ describe('KubernetesAccessSection', () => {
     expect(
       screen.getByPlaceholderText('label key')
     ).toHaveAccessibleDescription('required');
-    expect(screen.getByLabelText('Name')).toHaveAccessibleDescription(
+    expect(screen.getByLabelText('Name *')).toHaveAccessibleDescription(
       'Resource name is required, use "*" for any resource'
     );
-    expect(screen.getByLabelText('Namespace')).toHaveAccessibleDescription(
+    expect(screen.getByLabelText('Namespace *')).toHaveAccessibleDescription(
       'Namespace is required for resources of this kind'
     );
     expect(
@@ -515,6 +518,46 @@ describe('WindowsDesktopAccessSection', () => {
     expect(
       screen.getByPlaceholderText('label key')
     ).toHaveAccessibleDescription('required');
+  });
+});
+
+describe('GitHubOrganizationAccessSection', () => {
+  const setup = () => {
+    const onChange = jest.fn();
+    let validator: Validator;
+    render(
+      <StatefulSection<
+        GitHubOrganizationAccess,
+        GitHubOrganizationAccessValidationResult
+      >
+        component={GitHubOrganizationAccessSection}
+        defaultValue={newResourceAccess('git_server', defaultRoleVersion)}
+        onChange={onChange}
+        validatorRef={v => {
+          validator = v;
+        }}
+        validate={validateResourceAccess}
+      />
+    );
+    return { user: userEvent.setup(), onChange, validator };
+  };
+
+  test('editing', async () => {
+    const { onChange } = setup();
+    await selectEvent.create(
+      screen.getByLabelText('Organization Names'),
+      'illuminati',
+      {
+        createOptionText: 'Organization: illuminati',
+      }
+    );
+    expect(onChange).toHaveBeenLastCalledWith({
+      kind: 'git_server',
+      organizations: [
+        expect.objectContaining({ value: '{{internal.github_orgs}}' }),
+        expect.objectContaining({ label: 'illuminati', value: 'illuminati' }),
+      ],
+    } as GitHubOrganizationAccess);
   });
 });
 

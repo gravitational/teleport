@@ -173,7 +173,7 @@ func TestBuildDeployServiceConfigureIAMScript(t *testing.T) {
 			}
 
 			require.Contains(t, string(resp.Bytes()),
-				fmt.Sprintf("teleportArgs='%s'\n", tc.expectedTeleportArgs),
+				fmt.Sprintf("entrypointArgs='%s'\n", tc.expectedTeleportArgs),
 			)
 		})
 	}
@@ -277,7 +277,7 @@ func TestBuildEICEConfigureIAMScript(t *testing.T) {
 			}
 
 			require.Contains(t, string(resp.Bytes()),
-				fmt.Sprintf("teleportArgs='%s'\n", tc.expectedTeleportArgs),
+				fmt.Sprintf("entrypointArgs='%s'\n", tc.expectedTeleportArgs),
 			)
 		})
 	}
@@ -408,7 +408,7 @@ func TestBuildEC2SSMIAMScript(t *testing.T) {
 			}
 
 			require.Contains(t, string(resp.Bytes()),
-				fmt.Sprintf("teleportArgs='%s'\n", tc.expectedTeleportArgs),
+				fmt.Sprintf("entrypointArgs='%s'\n", tc.expectedTeleportArgs),
 			)
 		})
 	}
@@ -483,7 +483,7 @@ func TestBuildAWSAppAccessConfigureIAMScript(t *testing.T) {
 			}
 
 			require.Contains(t, string(resp.Bytes()),
-				fmt.Sprintf("teleportArgs='%s'\n", tc.expectedTeleportArgs),
+				fmt.Sprintf("entrypointArgs='%s'\n", tc.expectedTeleportArgs),
 			)
 		})
 	}
@@ -586,7 +586,7 @@ func TestBuildEKSConfigureIAMScript(t *testing.T) {
 			}
 
 			require.Contains(t, string(resp.Bytes()),
-				fmt.Sprintf("teleportArgs='%s'\n", tc.expectedTeleportArgs),
+				fmt.Sprintf("entrypointArgs='%s'\n", tc.expectedTeleportArgs),
 			)
 		})
 	}
@@ -718,7 +718,7 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 			}
 
 			require.Contains(t, string(resp.Bytes()),
-				fmt.Sprintf("teleportArgs='%s'\n", tc.expectedTeleportArgs),
+				fmt.Sprintf("entrypointArgs='%s'\n", tc.expectedTeleportArgs),
 			)
 		})
 	}
@@ -821,7 +821,7 @@ func TestBuildListDatabasesConfigureIAMScript(t *testing.T) {
 			}
 
 			require.Contains(t, string(resp.Bytes()),
-				fmt.Sprintf("teleportArgs='%s'\n", tc.expectedTeleportArgs),
+				fmt.Sprintf("entrypointArgs='%s'\n", tc.expectedTeleportArgs),
 			)
 		})
 	}

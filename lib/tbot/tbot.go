@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"sync"
 	"time"
@@ -303,6 +304,25 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		services = append(services, trustBundleCache)
 		return trustBundleCache, nil
 	}
+	var crlCache *workloadidentity.CRLCache
+	setupCRLCache := func() (*workloadidentity.CRLCache, error) {
+		if crlCache != nil {
+			return crlCache, nil
+		}
+
+		var err error
+		crlCache, err = workloadidentity.NewCRLCache(workloadidentity.CRLCacheConfig{
+			RevocationsClient: b.botIdentitySvc.GetClient().WorkloadIdentityRevocationServiceClient(),
+			Logger: b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "crl-cache"),
+			),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		services = append(services, crlCache)
+		return crlCache, nil
+	}
 
 	// Append any services configured by the user
 	for _, svcCfg := range b.cfg.Services {
@@ -518,6 +538,11 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 					return trace.Wrap(err)
 				}
 				svc.trustBundleCache = tbCache
+				crlCache, err := setupCRLCache()
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				svc.crlCache = crlCache
 			}
 			services = append(services, svc)
 		case *config.WorkloadIdentityJWTService:
@@ -559,6 +584,10 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			crlCache, err := setupCRLCache()
+			if err != nil {
+				return trace.Wrap(err)
+			}
 
 			svc := &WorkloadIdentityAPIService{
 				svcIdentity:      clientCredential,
@@ -566,6 +595,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				cfg:              svcCfg,
 				resolver:         resolver,
 				trustBundleCache: tbCache,
+				crlCache:         crlCache,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -882,6 +912,27 @@ func (p *proxyPingResponse) proxyWebAddr() (string, error) {
 		return p.configuredProxyAddr, nil
 	}
 	return p.Proxy.SSH.PublicAddr, nil
+}
+
+// proxySSHAddr returns the address to use to connect to the proxy SSH service.
+// Includes potential override via TBOT_USE_PROXY_ADDR.
+func (p *proxyPingResponse) proxySSHAddr() (string, error) {
+	if p.Proxy.TLSRoutingEnabled && shouldUseProxyAddr() {
+		// If using TLS routing, we should use the manually overridden address
+		// for the proxy web port.
+		if p.configuredProxyAddr == "" {
+			return "", trace.BadParameter("TBOT_USE_PROXY_ADDR set but no explicit proxy address configured")
+		}
+		return p.configuredProxyAddr, nil
+	}
+	// SSHProxyHostPort returns the host and port to use to connect to the
+	// proxy's SSH service. If TLS routing is enabled, this will return the
+	// proxy's web address, if not, the proxy SSH listener.
+	host, port, err := p.Proxy.SSHProxyHostPort()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return net.JoinHostPort(host, port), nil
 }
 
 type alpnProxyConnUpgradeRequiredCache struct {

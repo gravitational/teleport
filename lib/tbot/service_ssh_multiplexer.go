@@ -21,6 +21,7 @@ package tbot
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -273,13 +274,16 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 	if err != nil {
 		return nil, nil, "", nil, trace.Wrap(err)
 	}
-	proxyAddr, err := proxyPing.proxyWebAddr()
+	proxyAddr, err := proxyPing.proxySSHAddr()
 	if err != nil {
-		return nil, nil, "", nil, trace.Wrap(err, "determining proxy web addr")
+		return nil, nil, "", nil, trace.Wrap(err, "determining proxy ssh addr")
 	}
-	proxyHost, _, err = net.SplitHostPort(proxyAddr)
+	proxyHost, _, err = utils.SplitHostPort(proxyAddr)
 	if err != nil {
-		return nil, nil, "", nil, trace.Wrap(err)
+		return nil, nil, "", nil, trace.BadParameter(
+			"proxy %+v has no usable public address: %v",
+			proxyAddr, err,
+		)
 	}
 
 	connUpgradeRequired := false
@@ -345,7 +349,7 @@ func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateTTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		nil,
 	)
 	if err != nil {
@@ -396,7 +400,7 @@ func (s *SSHMultiplexerService) identityRenewalLoop(
 			s.identity.Set(id)
 			return s.writeArtifacts(ctx, proxyHost, authClient)
 		},
-		interval:   s.botCfg.RenewalInterval,
+		interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
 		reloadCh:   reloadCh,

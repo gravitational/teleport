@@ -262,8 +262,8 @@ func (s *identityService) Run(ctx context.Context) error {
 	s.log.InfoContext(
 		ctx,
 		"Beginning bot identity renewal loop",
-		"ttl", s.cfg.CertificateTTL,
-		"interval", s.cfg.RenewalInterval,
+		"ttl", s.cfg.CredentialLifetime.TTL,
+		"interval", s.cfg.CredentialLifetime.RenewalInterval,
 	)
 
 	err := runOnInterval(ctx, runOnIntervalConfig{
@@ -271,7 +271,7 @@ func (s *identityService) Run(ctx context.Context) error {
 		f: func(ctx context.Context) error {
 			return s.renew(ctx, storageDestination)
 		},
-		interval:             s.cfg.RenewalInterval,
+		interval:             s.cfg.CredentialLifetime.RenewalInterval,
 		exitOnRetryExhausted: true,
 		retryLimit:           botIdentityRenewalRetryLimit,
 		log:                  s.log,
@@ -333,7 +333,7 @@ func renewIdentity(
 		// When using a renewable join method, we use GenerateUserCerts to
 		// request a new certificate using our current identity.
 		newIdentity, err := botIdentityFromAuth(
-			ctx, log, oldIdentity, authClient, botCfg.CertificateTTL,
+			ctx, log, oldIdentity, authClient, botCfg.CredentialLifetime.TTL,
 		)
 		if err != nil {
 			return nil, trace.Wrap(err, "renewing identity using GenerateUserCert")
@@ -435,7 +435,7 @@ func botIdentityFromToken(
 		return nil, trace.Wrap(err)
 	}
 
-	expires := time.Now().Add(cfg.CertificateTTL)
+	expires := time.Now().Add(cfg.CredentialLifetime.TTL)
 	params := join.RegisterParams{
 		Token: token,
 		ID: state.IdentityID{

@@ -169,7 +169,7 @@ type Config struct {
 	// UsageReporter is a service that reports usage events.
 	UsageReporter usagereporter.UsageReporter
 	// ClusterConfiguration is a service that provides cluster configuration
-	ClusterConfiguration services.ClusterConfiguration
+	ClusterConfiguration services.ClusterConfigurationInternal
 
 	// AutoUpdateService is a service that provides auto update configuration and version.
 	AutoUpdateService services.AutoUpdateService

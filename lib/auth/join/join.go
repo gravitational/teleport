@@ -21,6 +21,7 @@ import (
 	"crypto"
 	"crypto/x509"
 	"log/slog"
+	"net/http"
 	"os"
 	"time"
 
@@ -40,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join/iam"
+	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/bitbucket"
 	"github.com/gravitational/teleport/lib/circleci"
@@ -50,7 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
-	"github.com/gravitational/teleport/lib/kubernetestoken"
+	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/spacelift"
 	"github.com/gravitational/teleport/lib/terraformcloud"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -238,7 +240,7 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodKubernetes:
-		params.IDToken, err = kubernetestoken.GetIDToken(os.Getenv, params.KubernetesReadFileFunc)
+		params.IDToken, err = kubetoken.GetIDToken(os.Getenv, params.KubernetesReadFileFunc)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -356,8 +358,11 @@ func registerThroughProxy(
 
 	var certs *proto.Certs
 	switch params.JoinMethod {
-	case types.JoinMethodIAM, types.JoinMethodAzure, types.JoinMethodTPM:
-		// IAM and Azure join methods require gRPC client
+	case types.JoinMethodIAM,
+		types.JoinMethodAzure,
+		types.JoinMethodTPM,
+		types.JoinMethodOracle:
+		// These join methods require gRPC client
 		conn, err := proxyinsecureclient.NewConnection(
 			ctx,
 			proxyinsecureclient.ConnectionConfig{
@@ -381,6 +386,8 @@ func registerThroughProxy(
 			certs, err = registerUsingAzureMethod(ctx, joinServiceClient, token, hostKeys, params)
 		case types.JoinMethodTPM:
 			certs, err = registerUsingTPMMethod(ctx, joinServiceClient, token, hostKeys, params)
+		case types.JoinMethodOracle:
+			certs, err = registerUsingOracleMethod(ctx, joinServiceClient, token, hostKeys, params)
 		default:
 			return nil, trace.BadParameter("unhandled join method %q", params.JoinMethod)
 		}
@@ -648,6 +655,11 @@ type joinServiceClient interface {
 		initReq *proto.RegisterUsingTPMMethodInitialRequest,
 		solveChallenge client.RegisterTPMChallengeResponseFunc,
 	) (*proto.Certs, error)
+	RegisterUsingOracleMethod(
+		ctx context.Context,
+		tokenReq *types.RegisterUsingTokenRequest,
+		challengeResponse client.RegisterOracleChallengeResponseFunc,
+	) (*proto.Certs, error)
 }
 
 func registerUsingTokenRequestForParams(token string, hostKeys *newHostKeys, params RegisterParams) *types.RegisterUsingTokenRequest {
@@ -798,6 +810,33 @@ func registerUsingTPMMethod(
 			}, nil
 		},
 	)
+	return certs, trace.Wrap(err)
+}
+
+func mapFromHeader(header http.Header) map[string]string {
+	out := make(map[string]string, len(header))
+	for k := range header {
+		out[k] = header.Get(k)
+	}
+	return out
+}
+
+func registerUsingOracleMethod(
+	ctx context.Context, client joinServiceClient, token string, hostKeys *newHostKeys, params RegisterParams,
+) (*proto.Certs, error) {
+	certs, err := client.RegisterUsingOracleMethod(
+		ctx,
+		registerUsingTokenRequestForParams(token, hostKeys, params),
+		func(challenge string) (*proto.OracleSignedRequest, error) {
+			innerHeaders, outerHeaders, err := oracle.CreateSignedRequest(challenge)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &proto.OracleSignedRequest{
+				Headers:        mapFromHeader(outerHeaders),
+				PayloadHeaders: mapFromHeader(innerHeaders),
+			}, nil
+		})
 	return certs, trace.Wrap(err)
 }
 

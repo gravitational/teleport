@@ -28,9 +28,12 @@ import {
 } from 'shared/services';
 import { mergeDeep } from 'shared/utils/highbar';
 
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import type { SortType } from 'teleport/services/agents';
 import {
   AwsOidcPolicyPreset,
+  IntegrationDeleteRequest,
   IntegrationKind,
   PluginKind,
   Regions,
@@ -204,6 +207,9 @@ const cfg = {
     headlessSso: `/web/headless/:requestId`,
     integrations: '/web/integrations',
     integrationStatus: '/web/integrations/status/:type/:name',
+    integrationTasks: '/web/integrations/status/:type/:name/tasks',
+    integrationStatusResources:
+      '/web/integrations/status/:type/:name/resources/:resourceKind',
     integrationEnroll: '/web/integrations/new/:type?',
     locks: '/web/locks',
     newLock: '/web/locks/new',
@@ -261,6 +267,11 @@ const cfg = {
     nodesPath:
       '/v1/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     nodesPathNoParams: '/v1/webapi/sites/:clusterId/nodes',
+
+    gitServer: {
+      createOrOverwrite: '/v1/webapi/sites/:clusterId/gitservers',
+      delete: '/v1/webapi/sites/:clusterId/gitservers/:name',
+    },
 
     databaseServicesPath: `/v1/webapi/sites/:clusterId/databaseservices`,
     databaseIamPolicyPath: `/v1/webapi/sites/:clusterId/databases/:database/iam/policy`,
@@ -347,9 +358,28 @@ const cfg = {
 
     headlessLogin: '/v1/webapi/headless/:headless_authentication_id',
 
+    integrationCa: {
+      export: '/v1/webapi/sites/:clusterId/integrations/:name/ca',
+    },
+
+    // TODO(kimlisa): move integrationsPath into integration: {...}
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
+    integration: {
+      deleteV2:
+        '/v2/webapi/sites/:clusterId/integrations/:name?associatedresources=:associatedresources',
+    },
+
     integrationStatsPath:
       '/v1/webapi/sites/:clusterId/integrations/:name/stats',
+    integrationRulesPath:
+      '/v1/webapi/sites/:clusterId/integrations/:name/discoveryrules?resourceType=:resourceType?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?&limit=:limit?&regions=:regions?',
+    awsOidcDatabaseServicesPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/listdeployeddatabaseservices?resourceType=:resourceType?&regions=:regions?',
+    userTaskListByIntegrationPath:
+      '/v1/webapi/sites/:clusterId/usertask?integration=:name?&state=:state?',
+    userTaskPath: '/v1/webapi/sites/:clusterId/usertask/:name',
+    resolveUserTaskPath: '/v1/webapi/sites/:clusterId/usertask/:name/state',
+
     thumbprintPath: '/v1/webapi/thumbprint',
     pingAwsOidcIntegrationPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ping',
@@ -579,6 +609,22 @@ const cfg = {
 
   getIntegrationStatusRoute(type: PluginKind | IntegrationKind, name: string) {
     return generatePath(cfg.routes.integrationStatus, { type, name });
+  },
+
+  getIntegrationStatusResourcesRoute(
+    type: PluginKind | IntegrationKind,
+    name: string,
+    resourceKind: AwsResource
+  ) {
+    return generatePath(cfg.routes.integrationStatusResources, {
+      type,
+      name,
+      resourceKind,
+    });
+  },
+
+  getIntegrationTasksRoute(type: PluginKind | IntegrationKind, name: string) {
+    return generatePath(cfg.routes.integrationTasks, { type, name });
   },
 
   getMsTeamsAppZipRoute(clusterId: string, plugin: string) {
@@ -847,6 +893,20 @@ const cfg = {
     return generatePath(cfg.api.nodesPathNoParams, { clusterId });
   },
 
+  getGitServerUrl(
+    params: { clusterId: string; name?: string },
+    action: 'createOrOverwrite' | 'delete'
+  ) {
+    if (action === 'createOrOverwrite') {
+      return generatePath(cfg.api.gitServer.createOrOverwrite, {
+        clusterId: params.clusterId,
+      });
+    }
+    if (action === 'delete') {
+      return generatePath(cfg.api.gitServer.delete, params);
+    }
+  },
+
   getDatabaseServicesUrl(clusterId: string) {
     return generatePath(cfg.api.databaseServicesPath, {
       clusterId,
@@ -1035,6 +1095,13 @@ const cfg = {
     });
   },
 
+  getIntegrationCaUrl(clusterId: string, name: string) {
+    return generatePath(cfg.api.integrationCa.export, {
+      clusterId,
+      name,
+    });
+  },
+
   getIntegrationsUrl(integrationName?: string) {
     // Currently you can only create integrations at the root cluster.
     const clusterId = cfg.proxyCluster;
@@ -1044,9 +1111,76 @@ const cfg = {
     });
   },
 
+  getDeleteIntegrationUrlV2(req: IntegrationDeleteRequest) {
+    // Not using generatePath here because it doesn't work
+    // when a dynamic path and a query param is next to each other.
+    // eg: some/path/:name?queryParmKey=queryParamValue it will
+    // remove the required ? in the path.
+    return cfg.api.integration.deleteV2
+      .replace(':clusterId', req.clusterId)
+      .replace(':name', req.name)
+      .replace(
+        ':associatedresources',
+        req.deleteAssociatedResources ? 'true' : 'false'
+      );
+  },
+
   getIntegrationStatsUrl(name: string) {
     const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.integrationStatsPath, {
+      clusterId,
+      name,
+    });
+  },
+
+  getIntegrationRulesUrl(
+    name: string,
+    resourceType: AwsResource,
+    regions?: string[]
+  ) {
+    const clusterId = cfg.proxyCluster;
+    return generateResourcePath(cfg.api.integrationRulesPath, {
+      clusterId,
+      name,
+      resourceType,
+      regions,
+    });
+  },
+
+  getAwsOidcDatabaseServices(
+    name: string,
+    resourceType: AwsResource,
+    regions: string[]
+  ) {
+    const clusterId = cfg.proxyCluster;
+    return generateResourcePath(cfg.api.awsOidcDatabaseServicesPath, {
+      clusterId,
+      name,
+      resourceType,
+      regions,
+    });
+  },
+
+  getIntegrationUserTasksListUrl(name: string, state: TaskState) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.userTaskListByIntegrationPath, {
+      clusterId,
+      name,
+      state,
+    });
+  },
+
+  getUserTaskUrl(name: string) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.userTaskPath, {
+      clusterId,
+      name,
+    });
+  },
+
+  getResolveUserTaskUrl(name: string) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.resolveUserTaskPath, {
       clusterId,
       name,
     });
@@ -1434,6 +1568,12 @@ export interface UrlKubeResourcesParams {
   kubeNamespace?: string;
   kubeCluster: string;
   kind: Omit<KubeResourceKind, '*'>;
+}
+
+export interface UrlIntegrationParams {
+  name?: string;
+  resourceType?: string;
+  regions?: string[];
 }
 
 export interface UrlDeployServiceIamConfigureScriptParams {

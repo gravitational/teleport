@@ -1382,6 +1382,8 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2TerraformCloud TerraformCloud = 16 [(gogoproto.jsontag) = "terraform_cloud,omitempty"];
   // Bitbucket allows the configuration of options specific to the "bitbucket" join method.
   ProvisionTokenSpecV2Bitbucket Bitbucket = 17 [(gogoproto.jsontag) = "bitbucket,omitempty"];
+  // Oracle allows the configuration of options specific to the "oracle" join method.
+  ProvisionTokenSpecV2Oracle Oracle = 18 [(gogoproto.jsontag) = "oracle,omitempty"];
 }
 
 // ProvisionTokenSpecV2TPM contains the TPM-specific part of the
@@ -1768,6 +1770,28 @@ message ProvisionTokenSpecV2Bitbucket {
   // value as written in the Pipelines -> OpenID Connect section of the
   // repository settings.
   string IdentityProviderURL = 3 [(gogoproto.jsontag) = "identity_provider_url,omitempty"];
+}
+
+// ProvisionTokenSpecV2Oracle contains Oracle-specific parts of the
+// ProvisionTokenSpecV2.
+message ProvisionTokenSpecV2Oracle {
+  // Rule is a set of properties the Oracle instance might have to be allowed
+  // to use this ProvisionToken.
+  message Rule {
+    // Tenancy is the OCID of the instance's tenancy. Required.
+    string Tenancy = 1 [(gogoproto.jsontag) = "tenancy"];
+    // ParentCompartments is a list of the OCIDs of compartments an instance is
+    // allowed to join from. Only direct parents are allowed, i.e. no nested
+    // compartments. If empty, any compartment is allowed.
+    repeated string ParentCompartments = 2 [(gogoproto.jsontag) = "parent_compartments,omitempty"];
+    // Regions is a list of regions an instance is allowed to join from. Both
+    // full region names ("us-phoenix-1") and abbreviations ("phx") are allowed.
+    // If empty, any region is allowed.
+    repeated string Regions = 3 [(gogoproto.jsontag) = "regions,omitempty"];
+  }
+  // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -2214,6 +2238,25 @@ message AuthPreferenceSpecV2 {
   // 1 is "otp", 2 is "webauthn", 3 is "sso",
   // If unspecified, the current default value is [1], or ["otp"].
   repeated SecondFactorType SecondFactors = 21 [(gogoproto.jsontag) = "second_factors,omitempty"];
+
+  // StableUnixUserConfig contains the cluster-wide configuration for stable
+  // UNIX users.
+  StableUNIXUserConfig stable_unix_user_config = 22;
+}
+
+// StableUNIXUserConfig contains the cluster-wide configuration for stable UNIX
+// users.
+message StableUNIXUserConfig {
+  // Enabled signifies that (UNIX) Teleport SSH hosts should obtain a UID from
+  // the control plane if they're about to provision a host user with no other
+  // configured UID.
+  bool enabled = 1;
+  // FirstUid is the start of the range of UIDs for autoprovisioned host users.
+  // The range is inclusive on both ends, so the specified UID can be assigned.
+  int32 first_uid = 2;
+  // LastUid is the end of the range of UIDs for autoprovisioned host users. The
+  // range is inclusive on both ends, so the specified UID can be assigned.
+  int32 last_uid = 3;
 }
 
 // SecondFactorType is a type of second factor.

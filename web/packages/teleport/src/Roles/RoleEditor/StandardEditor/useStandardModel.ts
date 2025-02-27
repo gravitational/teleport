@@ -20,6 +20,8 @@ import { current, original } from 'immer';
 import { Dispatch } from 'react';
 import { useImmerReducer } from 'use-immer';
 
+import { Logger } from 'design/logger';
+
 import { Role, RoleVersion } from 'teleport/services/resources';
 
 import {
@@ -38,9 +40,14 @@ import {
 } from './standardmodel';
 import { validateRoleEditorModel } from './validation';
 
+const logger = new Logger('useStandardModel');
+
 /**
  * Creates a standard model state and returns an array composed of the state
- * and an action dispatcher that can be used to change it.
+ * and an action dispatcher that can be used to change it. Since the conversion
+ * is a complex process, we put additional protection against unexpected errors
+ * here: if an error is thrown, the {@link StandardEditorModel.roleModel} and
+ * {@link StandardEditorModel.validationResult} will be set to `undefined`.
  */
 export const useStandardModel = (
   originalRole?: Role
@@ -49,13 +56,25 @@ export const useStandardModel = (
 
 const initializeState = (originalRole?: Role): StandardEditorModel => {
   const role = originalRole ?? newRole();
-  const roleModel = roleToRoleEditorModel(role, role);
+  const roleModel = safelyConvertRoleToEditorModel(role);
   return {
     roleModel,
     originalRole,
     isDirty: !originalRole, // New role is dirty by default.
-    validationResult: validateRoleEditorModel(roleModel, undefined, undefined),
+    validationResult:
+      roleModel && validateRoleEditorModel(roleModel, undefined, undefined),
   };
+};
+
+const safelyConvertRoleToEditorModel = (
+  role: Role
+): RoleEditorModel | undefined => {
+  try {
+    return roleToRoleEditorModel(role, role);
+  } catch (err) {
+    logger.error('Could not convert Role to a standard model', err);
+    return undefined;
+  }
 };
 
 /** A function for dispatching model-changing actions. */
@@ -63,6 +82,7 @@ export type StandardModelDispatcher = Dispatch<StandardModelAction>;
 
 type StandardModelAction =
   | SetModelAction
+  | ResetToStandardAction
   | SetMetadataAction
   | AddResourceAccessAction
   | SetResourceAccessAction
@@ -74,6 +94,7 @@ type StandardModelAction =
 
 /** Sets the entire model. */
 type SetModelAction = { type: 'set-role-model'; payload: RoleEditorModel };
+type ResetToStandardAction = { type: 'reset-to-standard'; payload?: never };
 type SetMetadataAction = { type: 'set-metadata'; payload: MetadataModel };
 type AddResourceAccessAction = {
   type: 'add-resource-access';
@@ -109,6 +130,11 @@ const reduce = (
   switch (type) {
     case 'set-role-model':
       state.roleModel = payload;
+      break;
+
+    case 'reset-to-standard':
+      state.roleModel.conversionErrors = [];
+      state.roleModel.requiresReset = false;
       break;
 
     case 'set-metadata':

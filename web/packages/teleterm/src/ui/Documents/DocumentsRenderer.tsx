@@ -47,6 +47,7 @@ import {
   Workspace,
 } from 'teleterm/ui/services/workspacesService';
 import { isAppUri, isDatabaseUri, RootClusterUri } from 'teleterm/ui/uri';
+import { DocumentVnetDiagReport } from 'teleterm/ui/Vnet/DocumentVnetDiagReport';
 
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 import { WorkspaceContextProvider } from './workspaceContext';
@@ -171,6 +172,8 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
         return <DocumentConnectMyComputer doc={doc} visible={visible} />;
       case 'doc.authorize_web_session':
         return <DocumentAuthorizeWebSession doc={doc} visible={visible} />;
+      case 'doc.vnet_diag_report':
+        return <DocumentVnetDiagReport doc={doc} visible={visible} />;
       default:
         return (
           <Document visible={visible}>
