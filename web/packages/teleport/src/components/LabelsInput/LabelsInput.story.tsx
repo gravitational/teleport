@@ -102,9 +102,10 @@ export const AtLeastOneRequired = () => {
   return (
     <Validation>
       <LabelsInput
+        legend="Labels"
         labels={labels}
         setLabels={setLables}
-        areLabelsRequired={true}
+        required={true}
       />
     </Validation>
   );
