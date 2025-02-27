@@ -48,7 +48,7 @@ To demonstrate the PagerDuty plugin, create two services in PagerDuty. For each
 service, fill in only the "Name" field and skip all other configuration screens,
 leaving options as the defaults:
 
-- `Teleport Zero Trust Access Request Notifications`
+- `Teleport Access Request Notifications`
 - `My Critical Service`
 
 We will configure the PagerDuty plugin to create an incident in the `Teleport
@@ -71,7 +71,7 @@ defining the following RBAC resources:
 
 - A role called `editor-requester`, which can request the built-in `editor`
   role. We will configure this role to open a PagerDuty incident whenever a
-  user requests it, notifying the on-call team for the `Zero Trust Access Request
+  user requests it, notifying the on-call team for the `Teleport Access Request
   Notifications` service.
 - A role called `demo-role-requester`, which can request a role called
   `demo-role`. We will configure the PagerDuty plugin to auto-approve this
@@ -113,7 +113,7 @@ spec:
         - approve: 1
           deny: 1
       annotations:
-        pagerduty_notify_service: ["Zero Trust Access Request Notifications"]
+        pagerduty_notify_service: ["Teleport Access Request Notifications"]
 ```
 
 The Teleport Auth Service *annotates* Access Request events with metadata based
@@ -123,7 +123,7 @@ Request event.
 
 Whenever a user with the `editor-requester` role requests the `editor` role, the
 PagerDuty plugin will read the `pagerduty_notify_service` annotation and notify
-PagerDuty to open an incident in the specified service, `Zero Trust Access Request
+PagerDuty to open an incident in the specified service, `Teleport Access Request
 Notifications`, until someone with the `editor-reviewer` role approves or denies
 the request.
 
@@ -498,7 +498,7 @@ connect to PagerDuty and your Teleport cluster:
 ```code
 $ teleport-pagerduty start -d
 # DEBU   DEBUG logging enabled logrus/exported.go:117
-# INFO   Starting Zero Trust Access PagerDuty extension 0.1.0-dev.1: pagerduty/main.go:124
+# INFO   Starting Teleport Access PagerDuty extension 0.1.0-dev.1: pagerduty/main.go:124
 # DEBU   Checking Teleport server version pagerduty/main.go:226
 # DEBU   Starting a request watcher... pagerduty/main.go:288
 # DEBU   Starting PagerDuty API health check... pagerduty/main.go:170
@@ -549,7 +549,7 @@ You should see a log resembling the following on your PagerDuty plugin host:
 
 ```
 INFO   Successfully created PagerDuty incident pd_incident_id:00000000000000
-pd_service_name:Zero Trust Access Request Notifications
+pd_service_name:Teleport Access Request Notifications
 request_id:00000000-0000-0000-0000-000000000000 request_op:put
 request_state:PENDING pagerduty/app.go:366
 ```
