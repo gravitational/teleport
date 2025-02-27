@@ -74,7 +74,8 @@ func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p ht
 		return h.upgradeALPNWebSocket(w, r, upgradeHandler)
 	}
 
-	// TODO(greedy52) DELETE legacy upgrade in 17.0.
+	// TODO(greedy52) DELETE legacy upgrade in 19.0. Client side is deprecated
+	// in 18.0.
 	hj, ok := w.(http.Hijacker)
 	if !ok {
 		return nil, trace.BadParameter("failed to hijack connection")
