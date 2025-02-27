@@ -506,7 +506,7 @@ func NewPluginV1CreateRequest(integrationName, samlServiceProviderName string) *
 						Arn:                        "arn:aws:sso:::instance/ssoins-8893885e0d4lllka",
 						AccessListDefaultOwners:    []string{"foo"},
 						ProvisioningSpec: &types.AWSICProvisioningSpec{
-							BaseUrl: "https://example.com",
+							BaseUrl: "https://scim.us-east-1.amazonaws.com/f3v9c6bc2ca-b104-4571-b669-f2eba522efe8/scim/v2",
 						},
 					},
 				},

@@ -18,13 +18,16 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/e/api/cloud"
+	cloudaws "github.com/gravitational/teleport/e/lib/cloud/aws"
 	"github.com/gravitational/teleport/e/lib/jamf"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
+	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	icutils "github.com/gravitational/teleport/lib/utils/aws/identitycenterutils"
 )
 
 // getStaticPlugins returns the list of integrations that use an API key
@@ -162,10 +165,7 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 		return nil, trace.BadParameter("Plugin must be set")
 	}
 
-	if err := validateEntraTenantID(plugin); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := validateEmailPlugin(plugin); err != nil {
+	if err := validatePlugin(plugin); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -312,10 +312,7 @@ func (s *Service) UpdatePlugin(ctx context.Context, req *pluginspb.UpdatePluginR
 		}
 	}
 
-	if err := validateEntraTenantID(inPlugin); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := validateEmailPlugin(inPlugin); err != nil {
+	if err := validatePlugin(inPlugin); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -869,35 +866,71 @@ func (s *Service) checkResourceCleanupPermissions(ctx context.Context, pluginTyp
 	return nil
 }
 
-func isEntraIDPlugin(plugin *types.PluginV1) bool {
-	return plugin.Spec.GetEntraId() != nil
+func validatePlugin(p *types.PluginV1) error {
+	if p == nil {
+		return trace.BadParameter("no plugin resource supplied")
+	}
+
+	switch p.GetType() {
+	case types.PluginTypeEntraID:
+		return trace.Wrap(validateEntraTenantID(p.Spec.GetEntraId()))
+	case types.PluginTypeEmail:
+		return trace.Wrap(validateEmailPlugin(p.Spec.GetEmail()))
+	case types.PluginTypeAWSIdentityCenter:
+		return trace.Wrap(validateAWSICPlugin(p.Spec.GetAwsIc()))
+	case types.PluginTypeDatadog,
+		types.PluginTypeDiscord,
+		types.PluginTypeGitlab,
+		types.PluginTypeJamf,
+		types.PluginTypeJira,
+		types.PluginTypeMattermost,
+		types.PluginTypeMSTeams,
+		types.PluginTypeNetIQ,
+		types.PluginTypeOkta,
+		types.PluginTypeOpenAI,
+		types.PluginTypeOpsgenie,
+		types.PluginTypePagerDuty,
+		types.PluginTypeSCIM,
+		types.PluginTypeServiceNow,
+		types.PluginTypeSlack:
+
+		// A known plugin resource type with no explicit validator implicitly
+		// passes validation. Consider adding explicit validation for this plugin
+		// type ensuring that user-controlled input parameters (e.g., URL,
+		// AWS Region) are properly validated.
+		return nil
+
+	default:
+		return trace.BadParameter("missing validator for plugin type %q", p.GetType())
+	}
 }
 
-func validateEntraTenantID(plugin *types.PluginV1) error {
-	if !isEntraIDPlugin(plugin) {
+func validateEntraTenantID(settings *types.PluginEntraIDSettings) error {
+	if settings == nil {
+		return trace.BadParameter("missing EntraID settings")
+	}
+
+	if settings.SyncSettings == nil {
 		return nil
 	}
 
-	if plugin.Spec.GetEntraId().SyncSettings == nil {
+	if settings.SyncSettings.TenantId != "" && settings.SyncSettings.EntraAppId != "" {
 		return nil
 	}
 
-	if plugin.Spec.GetEntraId().SyncSettings.TenantId != "" && plugin.Spec.GetEntraId().SyncSettings.EntraAppId != "" {
-		return nil
-	}
-
-	if plugin.Spec.GetEntraId().SyncSettings.EntraAppId == "" {
+	if settings.SyncSettings.EntraAppId == "" {
 		return trace.BadParameter("field Spec.EntraId.SyncSettings.EntraAppId must be present")
 	}
 
 	return trace.BadParameter("field Spec.EntraId.SyncSettings.TenantId must be present")
 }
 
-func validateEmailPlugin(plugin *types.PluginV1) error {
-	if plugin.Spec.GetEmail() == nil {
-		return nil
+func validateEmailPlugin(settings *types.PluginEmailSettings) error {
+	if settings == nil {
+		return trace.BadParameter("missing email settings")
 	}
-	if plugin.Spec.GetEmail().GetSmtpSpec() == nil {
+
+	if settings.GetSmtpSpec() == nil {
 		return nil
 	}
 
@@ -907,5 +940,35 @@ func validateEmailPlugin(plugin *types.PluginV1) error {
 	if cloud.IsCloudEnv() {
 		return trace.Errorf("email plugin with smtp is unsupported on Cloud-Hosted Teleport")
 	}
+	return nil
+}
+
+func validateAWSICPlugin(settings *types.PluginAWSICSettings) error {
+	if settings == nil {
+		return trace.BadParameter("missing AWS IC settings")
+	}
+
+	if err := settings.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := cloudaws.ValidateAWSRegion(settings.Region); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if url, err := icutils.EnsureSCIMEndpoint(settings.ProvisioningSpec.BaseUrl); err != nil {
+		return trace.Wrap(err)
+	} else {
+		settings.ProvisioningSpec.BaseUrl = url
+	}
+
+	if _, err := icfilters.New(settings.GroupSyncFilters); err != nil {
+		return trace.Wrap(err, "malformed Group Sync Filters")
+	}
+
+	if _, err := icfilters.New(settings.AwsAccountsFilters); err != nil {
+		return trace.Wrap(err, "malformed Account Sync Filters")
+	}
+
 	return nil
 }

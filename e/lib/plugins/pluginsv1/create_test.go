@@ -197,7 +197,7 @@ func TestPluginCreateDelete(t *testing.T) {
 			BootstrapCredentials: invalidBootstrapCredentials,
 		})
 		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err))
+		require.True(t, trace.IsAccessDenied(err), "Expected Access Denied, got %q", err)
 	})
 
 	t.Run("valid request", func(t *testing.T) {
