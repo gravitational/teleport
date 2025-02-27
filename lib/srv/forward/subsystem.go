@@ -23,6 +23,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -31,6 +32,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv"
+	sftputils "github.com/gravitational/teleport/lib/sshutils/sftp"
 )
 
 // remoteSubsystem is a subsystem that executes on a remote node.
@@ -42,6 +44,8 @@ type remoteSubsystem struct {
 
 	ctx     context.Context
 	errorCh chan error
+	wg      sync.WaitGroup
+	proxy   *sftputils.SFTPProxy
 }
 
 // parseRemoteSubsystem returns *remoteSubsystem which can be used to run a subsystem on a remote node.
@@ -60,6 +64,28 @@ func parseRemoteSubsystem(ctx context.Context, subsystemName string, serverConte
 
 // Start will begin execution of the remote subsystem on the passed in channel.
 func (r *remoteSubsystem) Start(ctx context.Context, channel ssh.Channel) error {
+	if r.subsystemName == "sftp" {
+		proxy, err := sftputils.NewSFTPProxy(ctx, channel, r.serverContext.RemoteClient.Client)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		r.proxy = proxy
+		r.wg.Add(1)
+		go func() {
+			defer r.wg.Done()
+			done := make(chan struct{})
+			go func() {
+				r.errorCh <- proxy.Serve()
+				close(done)
+			}()
+			select {
+			case <-done:
+			case <-ctx.Done():
+				r.errorCh <- proxy.Close()
+			}
+		}()
+		return nil
+	}
 	session := r.serverContext.RemoteSession
 
 	stdout, err := session.StdoutPipe()
@@ -86,19 +112,23 @@ func (r *remoteSubsystem) Start(ctx context.Context, channel ssh.Channel) error 
 	}
 
 	// copy back and forth between stdin, stdout, and stderr and the SSH channel.
+	r.wg.Add(3)
 	go func() {
+		defer r.wg.Done()
 		defer session.Close()
 
 		_, err := io.Copy(channel, stdout)
 		r.errorCh <- err
 	}()
 	go func() {
+		defer r.wg.Done()
 		defer session.Close()
 
 		_, err := io.Copy(channel.Stderr(), stderr)
 		r.errorCh <- err
 	}()
 	go func() {
+		defer r.wg.Done()
 		defer session.Close()
 
 		_, err := io.Copy(stdin, channel)
@@ -112,9 +142,15 @@ func (r *remoteSubsystem) Start(ctx context.Context, channel ssh.Channel) error 
 func (r *remoteSubsystem) Wait() error {
 	var lastErr error
 
-	for i := 0; i < 3; i++ {
+	r.wg.Wait()
+	ok := true
+	for ok {
+		var err error
 		select {
-		case err := <-r.errorCh:
+		case err, ok = <-r.errorCh:
+			if !ok {
+				break
+			}
 			if err != nil && !errors.Is(err, io.EOF) {
 				r.logger.WarnContext(r.ctx, "Connection problem", "error", err)
 				lastErr = err
