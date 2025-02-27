@@ -1032,7 +1032,7 @@ func (r *RoleV6) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 // setStaticFields sets static resource header and metadata fields.
 func (r *RoleV6) setStaticFields() {
 	r.Kind = KindRole
-	if r.Version != V3 && r.Version != V4 && r.Version != V5 && r.Version != V6 && r.Version != V7 {
+	if !slices.Contains([]string{V3,V4,V5,V6,V7}, r.Version){
 		// When incrementing the role version, make sure to update the
 		// role version in the asset file used by the UI.
 		// See: web/packages/teleport/src/Roles/templates/role.yaml
