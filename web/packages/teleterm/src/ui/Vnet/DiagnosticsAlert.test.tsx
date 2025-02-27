@@ -31,6 +31,7 @@ import {
   makeCheckAttempt,
   makeCheckReport,
   makeReport,
+  makeReportWithIssuesFound,
 } from 'teleterm/services/vnet/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -234,15 +235,7 @@ describe('DiagnosticsAlert', () => {
     const appContext = new MockAppContext();
     const otherDoc = makeDocumentConnectMyComputer();
     appContext.addRootClusterWithDoc(makeRootCluster(), otherDoc);
-    const report = makeReport({
-      checks: [
-        makeCheckAttempt({
-          checkReport: makeCheckReport({
-            status: CheckReportStatus.ISSUES_FOUND,
-          }),
-        }),
-      ],
-    });
+    const report = makeReportWithIssuesFound();
 
     appContext.vnet.runDiagnostics = () => new MockedUnaryCall({ report });
 

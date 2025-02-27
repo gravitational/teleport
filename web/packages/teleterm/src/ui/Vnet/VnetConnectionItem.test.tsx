@@ -21,6 +21,7 @@ import { wait } from 'shared/utils/wait';
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 
 import { VnetSliderStepHeader } from './VnetConnectionItem';
 import { VnetContextProvider } from './vnetContext';
@@ -30,12 +31,14 @@ describe('VnetSliderStepHeader', () => {
     const user = userEvent.setup();
     render(
       <MockAppContextProvider>
-        <VnetContextProvider>
-          <VnetSliderStepHeader
-            goBack={() => {}}
-            runDiagnosticsFromVnetPanel={() => Promise.resolve()}
-          />
-        </VnetContextProvider>
+        <ConnectionsContextProvider>
+          <VnetContextProvider>
+            <VnetSliderStepHeader
+              goBack={() => {}}
+              runDiagnosticsFromVnetPanel={() => Promise.resolve()}
+            />
+          </VnetContextProvider>
+        </ConnectionsContextProvider>
       </MockAppContextProvider>
     );
 
@@ -70,12 +73,14 @@ describe('VnetSliderStepHeader', () => {
     const user = userEvent.setup();
     render(
       <MockAppContextProvider appContext={appContext}>
-        <VnetContextProvider>
-          <VnetSliderStepHeader
-            goBack={() => {}}
-            runDiagnosticsFromVnetPanel={() => Promise.resolve()}
-          />
-        </VnetContextProvider>
+        <ConnectionsContextProvider>
+          <VnetContextProvider>
+            <VnetSliderStepHeader
+              goBack={() => {}}
+              runDiagnosticsFromVnetPanel={() => Promise.resolve()}
+            />
+          </VnetContextProvider>
+        </ConnectionsContextProvider>
       </MockAppContextProvider>
     );
 

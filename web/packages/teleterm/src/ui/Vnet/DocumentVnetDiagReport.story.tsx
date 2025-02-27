@@ -43,6 +43,7 @@ import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvi
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import { makeDocumentVnetDiagReport } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
+import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 
 import { DocumentVnetDiagReport as Component } from './DocumentVnetDiagReport';
 import { useVnetContext, VnetContextProvider } from './vnetContext';
@@ -147,9 +148,11 @@ const Decorator = (props: PropsWithChildren<StoryProps>) => {
 
   return (
     <MockAppContextProvider appContext={appContext}>
-      <MockWorkspaceContextProvider>
-        <VnetContextProvider>{props.children}</VnetContextProvider>
-      </MockWorkspaceContextProvider>
+      <ConnectionsContextProvider>
+        <MockWorkspaceContextProvider>
+          <VnetContextProvider>{props.children}</VnetContextProvider>
+        </MockWorkspaceContextProvider>
+      </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
 };
