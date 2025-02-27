@@ -22,13 +22,13 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"github.com/gravitational/teleport/api/types"
 	"net/url"
 	"strings"
 
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils/teleportassets"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 )
