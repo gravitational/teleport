@@ -50,11 +50,11 @@ describe('AccessRules', () => {
   test('editing', async () => {
     const { user, modelRef } = setup();
     await user.click(screen.getByRole('button', { name: 'Add New' }));
-    await selectEvent.select(screen.getByLabelText('Resources'), [
+    await selectEvent.select(screen.getByLabelText('Resources *'), [
       'db',
       'node',
     ]);
-    await selectEvent.select(screen.getByLabelText('Permissions'), [
+    await selectEvent.select(screen.getByLabelText('Permissions *'), [
       'list',
       'read',
     ]);

@@ -18,17 +18,17 @@ Teleport supports automatic agent updates for systemd-based Linux distributions
 using `apt`, `yum`, and `zypper` package managers, as well as Kubernetes
 clusters. 
 
-This guide explains how to enable automatic updates for Teleport agents on
+This guide explains how to enable automatic updates for Teleport Agents on
 Teleport Enterprise clusters, including both self-hosted and cloud-hosted
 clusters.
 
 ## How it works
 
 When automatic updates are enabled, a Teleport updater is installed alongside
-each Teleport agent. The updater communicates with the Teleport Proxy Service to
+each Teleport Agent. The updater communicates with the Teleport Proxy Service to
 determine when an update is available. When an update is available, the updater
-will update the Teleport agent during the next maintenance window. However, if a
-critical update is available, the Teleport agent will be updated outside the
+will update the Teleport Agent during the next maintenance window. However, if a
+critical update is available, the Teleport Agent will be updated outside the
 regular maintenance window.
 
 ## Prerequisites
@@ -38,7 +38,7 @@ regular maintenance window.
   Reference](upgrading-reference.mdx) to read about manual updates.
 - Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
   which describes the sequence in which to upgrade components in your cluster.
-- Teleport agents that are not yet enrolled in automatic updates.
+- Teleport Agents that are not yet enrolled in automatic updates.
 - (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -324,10 +324,10 @@ This section assumes that the name of your `teleport-kube-agent` release is
 
 ## Troubleshooting
 
-Teleport agents are not updated immediately when a new version of Teleport is
+Teleport Agents are not updated immediately when a new version of Teleport is
 released, and agent updates can lag behind the cluster by a few days.
 
-If the Teleport agent has not been automatically updating for several weeks, you
+If the Teleport Agent has not been automatically updating for several weeks, you
 can consult the updater logs to help troubleshoot the problem:
 
 ```code

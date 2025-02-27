@@ -40,7 +40,7 @@ Save the relevant information from your identity provider. To make following
 this guide easier, you can add the Client ID here and it will be included in the
 example commands below:
 
-Client ID: <Var name="<CLIENT-ID>" description="The Client ID for your Teleport
+Client ID: <Var name="CLIENT-ID" description="The Client ID for your Teleport
 application, provided by your IdP"/>
 
 ## OIDC Redirect URL
@@ -49,10 +49,11 @@ OIDC relies on HTTP redirects to return control back to Teleport after
 authentication is complete. The redirect URL must be selected by a Teleport
 administrator in advance.
 
-The redirect URL for OIDC authentication in Teleport is <nobr><Var
-name="mytenant.teleport.sh" description="Your Teleport Cloud tenant or Proxy
-Service address"/>`/v1/webapi/oidc/callback`</nobr>. Replace `mytenant.teleport.sh`
-with your Teleport Cloud tenant or Proxy Service address.
+The redirect URL for OIDC authentication in Teleport is <nobr>
+<Var name="mytenant.teleport.sh" description="Your Teleport Cloud tenant or Proxy
+Service address"/>`/v1/webapi/oidc/callback`</nobr>. 
+Replace <Var name="mytenant.teleport.sh" /> with your Teleport Cloud tenant or
+Proxy Service address.
 
 ## OIDC connector configuration
 
@@ -69,7 +70,7 @@ connector resource file in YAML format named `oidc-connector.yaml`:
 ```code
 $ tctl sso configure oidc --name <CONNECTOR-NAME> \
   --issuer-url <PATH-TO-PROVIDER> \
-  --id <CLIENT-ID> \
+  --id <Var name="CLIENT-ID" /> \
   --secret $(cat client-secret.txt) \
   --claims-to-roles <CLAIM-KEY>,<CLAIM-VALUE>,access \
   --claims-to-roles <CLAIM-KEY>,<CLAIM-VALUE>,editor > oidc-connector.yaml

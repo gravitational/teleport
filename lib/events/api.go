@@ -871,6 +871,9 @@ const (
 
 	// GitCommandEvent is emitted when a Git command is executed.
 	GitCommandEvent = "git.command"
+
+	// StableUNIXUserCreateEvent is emitted when a stable UNIX user is created.
+	StableUNIXUserCreateEvent = "stable_unix_user.create"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add
