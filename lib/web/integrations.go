@@ -306,14 +306,25 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 
 	var nextPage string
 	for {
-		filters := &usertasksv1.ListUserTasksFilters{Integration: req.integration.GetName()}
+		filters := &usertasksv1.ListUserTasksFilters{
+			Integration: req.integration.GetName(),
+			TaskState:   usertasks.TaskStateOpen,
+		}
 		userTasks, nextToken, err := req.userTasksClient.ListUserTasks(ctx, 0, nextPage, filters)
 		if err != nil {
 			return nil, err
 		}
+
+		ret.UnresolvedUserTasks += len(userTasks)
+
 		for _, userTask := range userTasks {
-			if userTask.GetSpec().GetState() == usertasks.TaskStateOpen {
-				ret.UnresolvedUserTasks++
+			switch userTask.GetSpec().GetTaskType() {
+			case usertasks.TaskTypeDiscoverEC2:
+				ret.AWSEC2.UnresolvedUserTasks++
+			case usertasks.TaskTypeDiscoverEKS:
+				ret.AWSEKS.UnresolvedUserTasks++
+			case usertasks.TaskTypeDiscoverRDS:
+				ret.AWSRDS.UnresolvedUserTasks++
 			}
 		}
 
