@@ -29,7 +29,7 @@ import {
 } from './standardmodel';
 import {
   KubernetesAccessValidationResult,
-  validateAccessRule,
+  validateAdminRule,
   validateResourceAccess,
   validateRoleEditorModel,
 } from './validation';
@@ -212,7 +212,7 @@ describe('validateRoleEditorModel', () => {
     }
   );
 
-  test('invalid access rule', () => {
+  test('invalid Admin Rule', () => {
     const model = minimalRoleModel();
     model.rules = [
       {
@@ -247,7 +247,7 @@ describe('validateResourceAccess', () => {
   });
 });
 
-describe('validateAccessRule', () => {
+describe('validateAdminRule', () => {
   it('reuses previously computed results', () => {
     const rule: RuleModel = {
       id: 'some-id',
@@ -255,8 +255,8 @@ describe('validateAccessRule', () => {
       verbs: [],
       where: '',
     };
-    const result1 = validateAccessRule(rule, undefined, undefined);
-    const result2 = validateAccessRule(rule, rule, result1);
+    const result1 = validateAdminRule(rule, undefined, undefined);
+    const result2 = validateAdminRule(rule, rule, result1);
     expect(result2).toBe(result1);
   });
 });
