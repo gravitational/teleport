@@ -1686,7 +1686,7 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		}
 	}
 
-	for k, value := range unknownPlugin.Spec.Settings {
+	for k := range unknownPlugin.Spec.Settings {
 		switch k {
 		case settingsSlackAccessPlugin:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_SlackAccessPlugin{}
@@ -1717,18 +1717,19 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		case settingsEmailAccessPlugin:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Email{}
 		case settingsAWSIdentityCenter:
-			// The AWS IC setting block contains polymorphic filter values, so
-			// we have to do the whole structure-unpacking thing again for
-			// those.
-			settings := &types.PluginSpecV1_AwsIc{
-				AwsIc: &types.PluginAWSICSettings{},
-			}
-			p.PluginV1.Spec.Settings = settings
+			// // The AWS IC setting block contains polymorphic filter values, so
+			// // we have to do the whole structure-unpacking thing again for
+			// // those.
+			// settings := &types.PluginSpecV1_AwsIc{
+			// 	AwsIc: &types.PluginAWSICSettings{},
+			// }
+			// p.PluginV1.Spec.Settings = settings
 
-			unmshallingWrapper := icSettingsWrapper{inner: settings.AwsIc}
-			if err := json.Unmarshal(value, &unmshallingWrapper); err != nil {
-				return trace.Wrap(err)
-			}
+			// unmshallingWrapper := icSettingsWrapper{inner: settings.AwsIc}
+			// if err := json.Unmarshal(value, &unmshallingWrapper); err != nil {
+			// 	return trace.Wrap(err)
+			// }
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_AwsIc{}
 		default:
 			return trace.BadParameter("unsupported plugin type: %v", k)
 		}
@@ -1750,76 +1751,6 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &p.PluginV1); err != nil {
 		return err
 	}
-	return nil
-}
-
-// icSettingsWrapper is a wrapper around the Identity Center plugin settings to
-// provide custom unmarshalling.
-type icSettingsWrapper struct {
-	inner *types.PluginAWSICSettings
-}
-
-// UnmarshalJSON implements custom JSON-unmarshaling for the Identity Center
-// plugin settings. This custom unmarshaler is required to unpack the structure
-// of the polymorphic filters in the plugin settings, which otherise cannot be
-// unpacked.
-func (s *icSettingsWrapper) UnmarshalJSON(data []byte) error {
-	type resourceFilter struct {
-		Include map[string]json.RawMessage `json:"Include"`
-	}
-
-	var settings struct {
-		AccountFilters []resourceFilter `json:"aws_accounts_filters"`
-		GroupFilters   []resourceFilter `json:"group_sync_filters"`
-	}
-
-	unpackFilters := func(src []resourceFilter) ([]*types.AWSICResourceFilter, error) {
-		var dst []*types.AWSICResourceFilter
-		for _, f := range src {
-			if len(f.Include) != 1 {
-				return nil, trace.BadParameter("Malformed filter")
-			}
-			for k, valueData := range f.Include {
-				f := &types.AWSICResourceFilter{}
-				switch k {
-				case "id":
-					idFilter := &types.AWSICResourceFilter_Id{}
-					if err := json.Unmarshal(valueData, &idFilter.Id); err != nil {
-						return nil, trace.Wrap(err)
-					}
-					f.Include = idFilter
-
-				case "name_regex":
-					regexFilter := &types.AWSICResourceFilter_NameRegex{}
-					if err := json.Unmarshal(valueData, &regexFilter.NameRegex); err != nil {
-						return nil, trace.Wrap(err)
-					}
-					f.Include = regexFilter
-
-				default:
-					return nil, trace.BadParameter("Unexpected filter key: %s", k)
-				}
-				dst = append(dst, f)
-			}
-		}
-		return dst, nil
-	}
-
-	if err := json.Unmarshal(data, &settings); err != nil {
-		return trace.Wrap(err)
-	}
-
-	var err error
-	s.inner.AwsAccountsFilters, err = unpackFilters(settings.AccountFilters)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	s.inner.GroupSyncFilters, err = unpackFilters(settings.GroupFilters)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	return nil
 }
 
