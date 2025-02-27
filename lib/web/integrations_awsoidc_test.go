@@ -277,7 +277,7 @@ func TestBuildEICEConfigureIAMScript(t *testing.T) {
 			}
 
 			require.Contains(t, string(resp.Bytes()),
-				fmt.Sprintf("teleportArgs='%s'\n", tc.expectedTeleportArgs),
+				fmt.Sprintf("entrypointArgs='%s'\n", tc.expectedTeleportArgs),
 			)
 		})
 	}
