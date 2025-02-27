@@ -186,40 +186,40 @@ spec:
   bot_name: example
 
   join_method: challenge
-	challenge:
+  challenge:
 
-	  # `onboarding` parameters control initial join behavior
-  	onboarding:
-  	  # If set, no joining secret is generated; the secret exchange ceremony is
-  	  # skipped and instance will directly prove its identity using its private
-  	  # key.
-  	  public_key: null
+    # `onboarding` parameters control initial join behavior
+    onboarding:
+      # If set, no joining secret is generated; the secret exchange ceremony is
+      # skipped and instance will directly prove its identity using its private
+      # key.
+      public_key: null
 
-  	  # If set, use an explicit initial joining secret; if both this and
-  	  # `public_key` are unset, a value will be generated server-side and
-  	  # stored in `.status.challenge.initial_join_secret`
-  	  initial_join_secret: ""
+      # If set, use an explicit initial joining secret; if both this and
+      # `public_key` are unset, a value will be generated server-side and
+      # stored in `.status.challenge.initial_join_secret`
+      initial_join_secret: ""
 
-  	  # Initial joining must take place before this timestamp. May be
-  	  # modified if bot has not yet joined.
-  	  expires: "2025-03-01T21:45:40.104524Z"
+      # Initial joining must take place before this timestamp. May be
+      # modified if bot has not yet joined.
+      expires: "2025-03-01T21:45:40.104524Z"
 
-  	# Parameteres to tune rejoining behavior when the regular bot identity has
+    # Parameters to tune rejoining behavior when the regular bot identity has
     # expired
-  	rejoining:
-  	  # If true, `total_rejoins` is ignored and bots may rejoin indefinitely;
-  	  # must be opt-in.
-  	  unlimited: false
+    rejoining:
+      # If true, `total_rejoins` is ignored and bots may rejoin indefinitely;
+      # must be opt-in.
+      unlimited: false
 
-  	  # Total number of allowed rejoins; this may be incremented to allow
-  	  # additional rejoins, even if a bot identity has already expired. May
-  	  # be decremented, but only by the current value of
-  	  # `.status.challenge.remaining_rejoins`.
-  	  total_rejoins: 10
+      # Total number of allowed rejoins; this may be incremented to allow
+      # additional rejoins, even if a bot identity has already expired. May
+      # be decremented, but only by the current value of
+      # `.status.challenge.remaining_rejoins`.
+      total_rejoins: 10
 
-  	  # If set, rejoining is only valid before this timestamp; may be
-  	  # incremented to extend bot lifespan.
-  	  expires: ""
+      # If set, rejoining is only valid before this timestamp; may be
+      # incremented to extend bot lifespan.
+      expires: ""
 
 status:
   challenge:
@@ -385,7 +385,7 @@ Instead of separating join method and token name, we propose combining the two
 into a single CLI flag and referring to tokens as a (method, value) tuple. For
 example:
 
-``` 
+```
 $ tctl bots add example --roles=access
 The bot token: challenge:04f0ceff1bd0589ba45c1832dfc8feaf
 This token will expire in 59 minutes.
