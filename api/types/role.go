@@ -1182,6 +1182,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		if err := validateRoleSpecKubeResources(r.Version, r.Spec); err != nil {
 			return trace.Wrap(err)
 		}
+	// TODO(@creack,@flyinghermit): Create a dedicate validation path for V8 once we have logic changes.
 	case V7, V8:
 		// Kubernetes resources default to {kind:*, name:*, namespace:*} for v7 roles.
 		if len(r.Spec.Allow.KubernetesResources) == 0 && r.HasLabelMatchers(Allow, KindKubernetesCluster) {
