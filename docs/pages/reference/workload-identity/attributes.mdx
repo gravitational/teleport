@@ -241,6 +241,38 @@ for more information.
 | `workload.kubernetes.pod_uid`         | The UID of the workload pod.                        |
 | `workload.kubernetes.labels`          | The labels of the workload pod.                     |
 
+### `workload.docker`
+
+Attributes sourced from the Docker workload attestor.
+
+See the
+[Workload API and Workload Attestation reference](./workload-identity-api-and-workload-attestation.mdx#Docker)
+for more information.
+
+| Attribute                          | Description                                         |
+|------------------------------------|-----------------------------------------------------|
+| `workload.docker.attested`         | Whether the workload passed Docker attestation.     |
+| `workload.docker.container.name`   | Name of the container.                              |
+| `workload.docker.container.image`  | Image name of the container (e.g. `ubuntu:latest`). |
+| `workload.docker.container.labels` | Labels of the container.                            |
+
+### `workload.podman`
+
+Attributes sourced from the Podman workload attestor.
+
+See the
+[Workload API and Workload Attestation reference](./workload-identity-api-and-workload-attestation.mdx#Podman)
+for more information.
+
+| Attribute                          | Description                                         |
+|------------------------------------|-----------------------------------------------------|
+| `workload.podman.attested`         | Whether the workload passed Podman attestation.     |
+| `workload.podman.container.name`   | Name of the container.                              |
+| `workload.podman.container.image`  | Image name of the container (e.g. `ubuntu:latest`). |
+| `workload.podman.container.labels` | Labels of the container.                            |
+| `workload.podman.pod.name`         | Name of the pod.                                    |
+| `workload.podman.pod.labels`       | Labels of the pod.                                  |
+
 ## User attributes
 
 User attributes are sourced from the Bot or User that is requesting the
