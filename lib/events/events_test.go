@@ -252,6 +252,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	WorkloadIdentityX509RevocationCreateEvent:   &apievents.WorkloadIdentityX509RevocationCreate{},
 	WorkloadIdentityX509RevocationDeleteEvent:   &apievents.WorkloadIdentityX509RevocationDelete{},
 	WorkloadIdentityX509RevocationUpdateEvent:   &apievents.WorkloadIdentityX509RevocationUpdate{},
+	StableUNIXUserCreateEvent:                   &apievents.StableUNIXUserCreate{},
 }
 
 // TestJSON tests JSON marshal events
@@ -271,7 +272,7 @@ func TestJSON(t *testing.T) {
 					Type:        SessionStartEvent,
 					ID:          "36cee9e9-9a80-4c32-9163-3d9241cdac7a",
 					Code:        SessionStartCode,
-					Time:        time.Date(2020, 03, 30, 15, 58, 54, 561*int(time.Millisecond), time.UTC),
+					Time:        time.Date(2020, 0o3, 30, 15, 58, 54, 561*int(time.Millisecond), time.UTC),
 					ClusterName: "testcluster",
 				},
 				ServerMetadata: apievents.ServerMetadata{
@@ -307,7 +308,7 @@ func TestJSON(t *testing.T) {
 					Type:        ResizeEvent,
 					ID:          "c34e512f-e6cb-44f1-ab94-4cea09002d29",
 					Code:        TerminalResizeCode,
-					Time:        time.Date(2020, 03, 30, 15, 58, 54, 564*int(time.Millisecond), time.UTC),
+					Time:        time.Date(2020, 0o3, 30, 15, 58, 54, 564*int(time.Millisecond), time.UTC),
 					ClusterName: "testcluster",
 				},
 				ServerMetadata: apievents.ServerMetadata{
@@ -333,7 +334,7 @@ func TestJSON(t *testing.T) {
 					Type:        SessionEndEvent,
 					ID:          "da455e0f-c27d-459f-a218-4e83b3db9426",
 					Code:        SessionEndCode,
-					Time:        time.Date(2020, 03, 30, 15, 58, 58, 999*int(time.Millisecond), time.UTC),
+					Time:        time.Date(2020, 0o3, 30, 15, 58, 58, 999*int(time.Millisecond), time.UTC),
 					ClusterName: "test-cluster",
 				},
 				ServerMetadata: apievents.ServerMetadata{
@@ -349,8 +350,8 @@ func TestJSON(t *testing.T) {
 				EnhancedRecording: true,
 				Interactive:       true,
 				Participants:      []string{"alice@example.com"},
-				StartTime:         time.Date(2020, 03, 30, 15, 58, 54, 561*int(time.Millisecond), time.UTC),
-				EndTime:           time.Date(2020, 03, 30, 15, 58, 58, 999*int(time.Millisecond), time.UTC),
+				StartTime:         time.Date(2020, 0o3, 30, 15, 58, 54, 561*int(time.Millisecond), time.UTC),
+				EndTime:           time.Date(2020, 0o3, 30, 15, 58, 58, 999*int(time.Millisecond), time.UTC),
 			},
 		},
 		{
@@ -360,7 +361,7 @@ func TestJSON(t *testing.T) {
 				Metadata: apievents.Metadata{
 					Index:       11,
 					Type:        SessionPrintEvent,
-					Time:        time.Date(2020, 03, 30, 15, 58, 56, 959*int(time.Millisecond), time.UTC),
+					Time:        time.Date(2020, 0o3, 30, 15, 58, 56, 959*int(time.Millisecond), time.UTC),
 					ClusterName: "test",
 				},
 				ChunkIndex:        9,
@@ -377,7 +378,7 @@ func TestJSON(t *testing.T) {
 					Index:       4,
 					ID:          "4f725f11-e87a-452f-96ec-ef93e9e6a260",
 					Type:        SessionCommandEvent,
-					Time:        time.Date(2020, 03, 30, 15, 58, 54, 650*int(time.Millisecond), time.UTC),
+					Time:        time.Date(2020, 0o3, 30, 15, 58, 54, 650*int(time.Millisecond), time.UTC),
 					Code:        SessionCommandCode,
 					ClusterName: "test",
 				},
@@ -412,7 +413,7 @@ func TestJSON(t *testing.T) {
 					Index:       0,
 					ID:          "729498e0-c28b-438f-baa7-663a74418449",
 					Type:        SessionNetworkEvent,
-					Time:        time.Date(2020, 04, 07, 18, 45, 16, 602*int(time.Millisecond), time.UTC),
+					Time:        time.Date(2020, 0o4, 0o7, 18, 45, 16, 602*int(time.Millisecond), time.UTC),
 					Code:        SessionNetworkCode,
 					ClusterName: "example",
 				},
@@ -449,7 +450,7 @@ func TestJSON(t *testing.T) {
 					Index:       175,
 					ID:          "ab8467af-6d85-46ce-bb5c-bdfba8acad3f",
 					Type:        SessionDiskEvent,
-					Time:        time.Date(2020, 04, 07, 19, 56, 38, 545*int(time.Millisecond), time.UTC),
+					Time:        time.Date(2020, 0o4, 0o7, 19, 56, 38, 545*int(time.Millisecond), time.UTC),
 					Code:        SessionDiskCode,
 					ClusterName: "example2",
 				},
@@ -482,7 +483,7 @@ func TestJSON(t *testing.T) {
 				Metadata: apievents.Metadata{
 					ID:          "019432f1-3021-4860-af41-d9bd1668c3ea",
 					Type:        UserLoginEvent,
-					Time:        time.Date(2020, 04, 07, 18, 45, 07, 0*int(time.Millisecond), time.UTC),
+					Time:        time.Date(2020, 0o4, 0o7, 18, 45, 0o7, 0*int(time.Millisecond), time.UTC),
 					Code:        UserSSOLoginCode,
 					ClusterName: "testcluster",
 				},
@@ -524,7 +525,7 @@ func TestJSON(t *testing.T) {
 					Index:       2147483646,
 					ID:          "cb404873-cd7c-4036-854b-42e0f5fd5f2c",
 					Type:        SessionDataEvent,
-					Time:        time.Date(2020, 04, 07, 19, 56, 39, 0*int(time.Millisecond), time.UTC),
+					Time:        time.Date(2020, 0o4, 0o7, 19, 56, 39, 0*int(time.Millisecond), time.UTC),
 					Code:        SessionDataCode,
 					ClusterName: "test",
 				},
@@ -554,7 +555,7 @@ func TestJSON(t *testing.T) {
 					Index:       39,
 					ID:          "d7c7489f-6559-42ad-9963-8543e518a058",
 					Type:        SessionLeaveEvent,
-					Time:        time.Date(2020, 04, 07, 19, 56, 38, 556*int(time.Millisecond), time.UTC),
+					Time:        time.Date(2020, 0o4, 0o7, 19, 56, 38, 556*int(time.Millisecond), time.UTC),
 					Code:        SessionLeaveCode,
 					ClusterName: "example",
 				},
@@ -598,7 +599,7 @@ func TestJSON(t *testing.T) {
 				Metadata: apievents.Metadata{
 					ID:          "7efc5025-a712-47de-8086-7d935c110188",
 					Type:        PortForwardEvent,
-					Time:        time.Date(2020, 4, 15, 18, 06, 56, 397*int(time.Millisecond), time.UTC),
+					Time:        time.Date(2020, 4, 15, 18, 0o6, 56, 397*int(time.Millisecond), time.UTC),
 					Code:        PortForwardCode,
 					ClusterName: "test",
 				},
@@ -698,7 +699,7 @@ func TestJSON(t *testing.T) {
 					Type:        SessionJoinEvent,
 					ID:          "cd03665f-3ce1-4c22-809d-4be9512c36e2",
 					Code:        SessionJoinCode,
-					Time:        time.Date(2020, 04, 23, 18, 22, 35, 350*int(time.Millisecond), time.UTC),
+					Time:        time.Date(2020, 0o4, 23, 18, 22, 35, 350*int(time.Millisecond), time.UTC),
 					ClusterName: "test-cluster",
 				},
 				ServerMetadata: apievents.ServerMetadata{
@@ -727,7 +728,7 @@ func TestJSON(t *testing.T) {
 					ID:          "cd06365f-3cef-4b21-809a-4af9502c11a1",
 					Type:        WindowsDesktopSessionStartEvent,
 					Code:        DesktopSessionStartCode,
-					Time:        time.Date(2020, 04, 23, 18, 22, 35, 350*int(time.Millisecond), time.UTC),
+					Time:        time.Date(2020, 0o4, 23, 18, 22, 35, 350*int(time.Millisecond), time.UTC),
 					ClusterName: "test-cluster",
 				},
 				UserMetadata: apievents.UserMetadata{
@@ -765,7 +766,7 @@ func TestJSON(t *testing.T) {
 					ID:          "cd06365f-3cef-4b21-809a-4af9502c11a1",
 					Type:        WindowsDesktopSessionEndEvent,
 					Code:        DesktopSessionEndCode,
-					Time:        time.Date(2020, 04, 23, 18, 22, 35, 350*int(time.Millisecond), time.UTC),
+					Time:        time.Date(2020, 0o4, 23, 18, 22, 35, 350*int(time.Millisecond), time.UTC),
 					ClusterName: "test-cluster",
 				},
 				UserMetadata: apievents.UserMetadata{
@@ -784,8 +785,8 @@ func TestJSON(t *testing.T) {
 				WindowsUser:           "Administrator",
 				DesktopLabels:         map[string]string{"env": "production"},
 				Participants:          []string{"foo"},
-				StartTime:             time.Date(2020, 04, 23, 18, 22, 35, 350*int(time.Millisecond), time.UTC),
-				EndTime:               time.Date(2020, 04, 23, 18, 26, 35, 350*int(time.Millisecond), time.UTC),
+				StartTime:             time.Date(2020, 0o4, 23, 18, 22, 35, 350*int(time.Millisecond), time.UTC),
+				EndTime:               time.Date(2020, 0o4, 23, 18, 26, 35, 350*int(time.Millisecond), time.UTC),
 			},
 		},
 		{
@@ -797,7 +798,7 @@ func TestJSON(t *testing.T) {
 					ID:          "test-id",
 					Type:        DatabaseSessionMySQLStatementPrepareEvent,
 					Code:        MySQLStatementPrepareCode,
-					Time:        time.Date(2022, 02, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					Time:        time.Date(2022, 0o2, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
 					ClusterName: "test-cluster",
 				},
 				UserMetadata: apievents.UserMetadata{
@@ -825,7 +826,7 @@ func TestJSON(t *testing.T) {
 					ID:          "test-id",
 					Type:        DatabaseSessionMySQLStatementExecuteEvent,
 					Code:        MySQLStatementExecuteCode,
-					Time:        time.Date(2022, 02, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					Time:        time.Date(2022, 0o2, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
 					ClusterName: "test-cluster",
 				},
 				UserMetadata: apievents.UserMetadata{
@@ -853,7 +854,7 @@ func TestJSON(t *testing.T) {
 					ID:          "test-id",
 					Type:        DatabaseSessionMySQLStatementSendLongDataEvent,
 					Code:        MySQLStatementSendLongDataCode,
-					Time:        time.Date(2022, 02, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					Time:        time.Date(2022, 0o2, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
 					ClusterName: "test-cluster",
 				},
 				UserMetadata: apievents.UserMetadata{
@@ -883,7 +884,7 @@ func TestJSON(t *testing.T) {
 					ID:          "test-id",
 					Type:        DatabaseSessionMySQLStatementCloseEvent,
 					Code:        MySQLStatementCloseCode,
-					Time:        time.Date(2022, 02, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					Time:        time.Date(2022, 0o2, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
 					ClusterName: "test-cluster",
 				},
 				UserMetadata: apievents.UserMetadata{
@@ -911,7 +912,7 @@ func TestJSON(t *testing.T) {
 					ID:          "test-id",
 					Type:        DatabaseSessionMySQLStatementResetEvent,
 					Code:        MySQLStatementResetCode,
-					Time:        time.Date(2022, 02, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					Time:        time.Date(2022, 0o2, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
 					ClusterName: "test-cluster",
 				},
 				UserMetadata: apievents.UserMetadata{
@@ -939,7 +940,7 @@ func TestJSON(t *testing.T) {
 					ID:          "test-id",
 					Type:        DatabaseSessionMySQLStatementFetchEvent,
 					Code:        MySQLStatementFetchCode,
-					Time:        time.Date(2022, 02, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					Time:        time.Date(2022, 0o2, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
 					ClusterName: "test-cluster",
 				},
 				UserMetadata: apievents.UserMetadata{
@@ -968,7 +969,7 @@ func TestJSON(t *testing.T) {
 					ID:          "test-id",
 					Type:        DatabaseSessionMySQLStatementBulkExecuteEvent,
 					Code:        MySQLStatementBulkExecuteCode,
-					Time:        time.Date(2022, 02, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					Time:        time.Date(2022, 0o2, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
 					ClusterName: "test-cluster",
 				},
 				UserMetadata: apievents.UserMetadata{
@@ -1121,9 +1122,7 @@ func setProtoFields(msg proto.Message) {
 
 const metadataString = "some metadata"
 
-var (
-	eventString = strings.Repeat("umai", 170)
-)
+var eventString = strings.Repeat("umai", 170)
 
 func getDefaultValue(m protoreflect.Message, fd protoreflect.FieldDescriptor) protoreflect.Value {
 	strVal := metadataString

@@ -8,7 +8,7 @@
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:17.2.8
+      image: public.ecr.aws/gravitational/teleport-distroless:17.2.9
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -25,7 +25,7 @@
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        timeoutSeconds: 5
       name: teleport
       ports:
       - containerPort: 3000
@@ -44,7 +44,8 @@
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        successThreshold: 1
+        timeoutSeconds: 5
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -141,7 +142,7 @@ should set nodeSelector when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:17.2.8
+      image: public.ecr.aws/gravitational/teleport-distroless:17.2.9
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -158,7 +159,7 @@ should set nodeSelector when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        timeoutSeconds: 5
       name: teleport
       ports:
       - containerPort: 3000
@@ -177,7 +178,8 @@ should set nodeSelector when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        successThreshold: 1
+        timeoutSeconds: 5
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -238,7 +240,7 @@ should set resources when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:17.2.8
+      image: public.ecr.aws/gravitational/teleport-distroless:17.2.9
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -255,7 +257,7 @@ should set resources when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        timeoutSeconds: 5
       name: teleport
       ports:
       - containerPort: 3000
@@ -274,7 +276,8 @@ should set resources when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        successThreshold: 1
+        timeoutSeconds: 5
       resources:
         limits:
           cpu: 2
@@ -324,7 +327,7 @@ should set securityContext when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:17.2.8
+      image: public.ecr.aws/gravitational/teleport-distroless:17.2.9
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -341,7 +344,7 @@ should set securityContext when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        timeoutSeconds: 5
       name: teleport
       ports:
       - containerPort: 3000
@@ -360,7 +363,8 @@ should set securityContext when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        successThreshold: 1
+        timeoutSeconds: 5
       securityContext:
         allowPrivilegeEscalation: false
         privileged: false
@@ -437,7 +441,7 @@ should use OSS image and not mount license when enterprise is not set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        timeoutSeconds: 5
       name: teleport
       ports:
       - containerPort: 3000
@@ -456,7 +460,8 @@ should use OSS image and not mount license when enterprise is not set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        successThreshold: 1
+        timeoutSeconds: 5
       volumeMounts:
       - mountPath: /etc/teleport
         name: config

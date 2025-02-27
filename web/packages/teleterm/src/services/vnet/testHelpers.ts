@@ -44,6 +44,20 @@ export const makeReport = (props: Partial<Report> = {}): Report => ({
   ...props,
 });
 
+export const makeReportWithIssuesFound = (
+  props: Partial<Report> = {}
+): Report =>
+  makeReport({
+    checks: [
+      makeCheckAttempt({
+        checkReport: makeCheckReport({
+          status: CheckReportStatus.ISSUES_FOUND,
+        }),
+      }),
+    ],
+    ...props,
+  });
+
 export const makeCheckAttempt = (
   props: Partial<CheckAttempt> = {}
 ): CheckAttempt => ({

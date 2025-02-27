@@ -94,7 +94,8 @@ func TestReporter(t *testing.T) {
 		}
 	}
 	r.AnonymizeAndSubmit(&usagereporter.UserLoginEvent{
-		UserName: "alice",
+		UserName:   "alice",
+		UserOrigin: prehogv1a.UserOrigin_USER_ORIGIN_LOCAL,
 	})
 	r.AnonymizeAndSubmit(&usagereporter.SessionStartEvent{
 		UserName:    "alice",
@@ -107,6 +108,32 @@ func TestReporter(t *testing.T) {
 	r.AnonymizeAndSubmit(&usagereporter.SPIFFESVIDIssuedEvent{
 		UserName: "alice",
 	})
+	r.AnonymizeAndSubmit(&usagereporter.UserLoginEvent{
+		UserName:   "alice",
+		UserOrigin: prehogv1a.UserOrigin_USER_ORIGIN_UNSPECIFIED,
+	})
+	r.AnonymizeAndSubmit(&usagereporter.AccessRequestCreateEvent{
+		UserName: "alice",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.AccessRequestReviewEvent{
+		UserName: "alice",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.AccessListReviewCreateEvent{
+		UserName: "alice",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.AccessListGrantsToUserEvent{
+		UserName: "alice",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.SessionStartEvent{
+		UserName:    "alice",
+		SessionType: types.KindSAMLIdPSession,
+	})
+	recvIngested()
+	recvIngested()
+	recvIngested()
+	recvIngested()
+	recvIngested()
+	recvIngested()
 	recvIngested()
 	recvIngested()
 	recvIngested()
@@ -122,9 +149,14 @@ func TestReporter(t *testing.T) {
 	require.Len(t, reports, 1)
 	require.Len(t, reports[0].Records, 1)
 	record := reports[0].Records[0]
-	require.Equal(t, uint64(1), record.Logins)
+	require.Equal(t, uint64(2), record.Logins)
+	require.Equal(t, prehogv1.UserOrigin_USER_ORIGIN_LOCAL, record.GetUserOrigin())
 	require.Equal(t, uint64(2), record.SshSessions)
 	require.Equal(t, uint64(1), record.SpiffeSvidsIssued)
+	require.Equal(t, uint64(1), record.GetAccessRequestsCreated())
+	require.Equal(t, uint64(1), record.GetAccessRequestsReviewed())
+	require.Equal(t, uint64(1), record.GetAccessListsReviewed())
+	require.Equal(t, uint64(1), record.GetAccessListsGrants())
 
 	r.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
 		Name:   "srv01",

@@ -101,7 +101,6 @@ func newPlatformVnetUninstallServiceCommand(app *kingpin.Application) vnetComman
 }
 
 func runVnetDiagnostics(ctx context.Context, nsi vnet.NetworkStackInfo) error {
-	fmt.Println("Running diagnostics.")
 	routeConflictDiag, err := diag.NewRouteConflictDiag(&diag.RouteConflictConfig{
 		VnetIfaceName: nsi.IfaceName,
 		Routing:       &diag.DarwinRouting{},
