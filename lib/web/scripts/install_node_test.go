@@ -66,7 +66,7 @@ func TestMarshalLabelsYAML(t *testing.T) {
 			numExtraIndent: 2,
 		},
 	} {
-		got, err := MarshalLabelsYAML(tt.labels, tt.numExtraIndent)
+		got, err := marshalLabelsYAML(tt.labels, tt.numExtraIndent)
 		require.NoError(t, err)
 
 		require.YAMLEq(t, strings.Join(tt.expected, "\n"), strings.Join(got, "\n"))

@@ -20,10 +20,13 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -33,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
@@ -437,4 +441,330 @@ func newServiceWithStorage(t *testing.T, authState authz.AdminActionAuthState, c
 	})
 	require.NoError(t, err)
 	return service
+}
+
+func TestComputeMinRolloutTime(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name          string
+		groups        []*autoupdatev1pb.AgentAutoUpdateGroup
+		expectedHours int
+	}{
+		{
+			name:          "nil groups",
+			groups:        nil,
+			expectedHours: 0,
+		},
+		{
+			name:          "empty groups",
+			groups:        []*autoupdatev1pb.AgentAutoUpdateGroup{},
+			expectedHours: 0,
+		},
+		{
+			name: "single group",
+			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
+				{
+					Name: "g1",
+				},
+			},
+			expectedHours: 1,
+		},
+		{
+			name: "two groups, same day, different start hour, no wait time",
+			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
+				{
+					Name:      "g1",
+					StartHour: 2,
+				},
+				{
+					Name:      "g2",
+					StartHour: 4,
+				},
+			},
+			// g1 updates from 2:00 to 3:00, g2 updates from 4:00 to 5:00, rollout updates from 2:00 to 5:00.
+			expectedHours: 3,
+		},
+		{
+			name: "two groups, same day, same start hour, no wait time",
+			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
+				{
+					Name:      "g1",
+					StartHour: 2,
+				},
+				{
+					Name:      "g2",
+					StartHour: 2,
+				},
+			},
+			// g1 and g2 can't update at the same time, the g1 updates from 2:00 to 3:00 days one,
+			// and g2 updates from 2:00 to 3:00 the next day. Total update spans from 2:00 day 1, to 3:00 day 2
+			expectedHours: 25,
+		},
+		{
+			name: "two groups, cannot happen on the same day because of wait_hours",
+			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
+				{
+					Name:      "g1",
+					StartHour: 2,
+				},
+				{
+					Name:      "g2",
+					StartHour: 4,
+					WaitHours: 6,
+				},
+			},
+			// g1 updates from 2:00 to 3:00. At 4:00 g2 can't update yet, so we wait the next day.
+			// On day 2, g2 updates from 4:00 to 5:00. Rollout spans from 2:00 day on to 7:00 day 2.
+			expectedHours: 27,
+		},
+		{
+			name: "two groups, wait hours is several days",
+			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
+				{
+					Name:      "g1",
+					StartHour: 2,
+				},
+				{
+					Name:      "g2",
+					StartHour: 4,
+					WaitHours: 48,
+				},
+			},
+			// g1 updates from 2:00 to 3:00. At 4:00 g2 can't update yet, so we wait 2 days.
+			// On day 3, g2 updates from 4:00 to 5:00. Rollout spans from 2:00 day on to 7:00 day 3.
+			expectedHours: 51,
+		},
+		{
+			name: "two groups, one wait hour",
+			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
+				{
+					Name:      "g1",
+					StartHour: 2,
+				},
+				{
+					Name:      "g2",
+					StartHour: 3,
+					WaitHours: 1,
+				},
+			},
+			expectedHours: 2,
+		},
+		{
+			name: "two groups different days",
+			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
+				{
+					Name:      "g1",
+					StartHour: 23,
+				},
+				{
+					Name:      "g2",
+					StartHour: 1,
+				},
+			},
+			expectedHours: 3,
+		},
+		{
+			name: "two groups different days, hour diff == wait hours == 1 day",
+			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
+				{
+					Name:      "g1",
+					StartHour: 12,
+				},
+				{
+					Name:      "g2",
+					StartHour: 12,
+					WaitHours: 24,
+				},
+			},
+			expectedHours: 25,
+		},
+		{
+			name: "two groups different days, hour diff == wait hours",
+			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
+				{
+					Name:      "g1",
+					StartHour: 12,
+				},
+				{
+					Name:      "g2",
+					StartHour: 11,
+					WaitHours: 23,
+				},
+			},
+			expectedHours: 24,
+		},
+		{
+			name: "everything at once",
+			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
+				{
+					Name:      "g1",
+					StartHour: 23,
+				},
+				{
+					Name:      "g2",
+					StartHour: 1,
+					WaitHours: 4,
+				},
+				{
+					Name:      "g3",
+					StartHour: 1,
+				},
+				{
+					Name:      "g4",
+					StartHour: 10,
+					WaitHours: 6,
+				},
+			},
+			expectedHours: 60,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expectedHours, computeMinRolloutTime(tt.groups))
+		})
+	}
+}
+
+func generateGroups(n int, days []string) []*autoupdatev1pb.AgentAutoUpdateGroup {
+	groups := make([]*autoupdatev1pb.AgentAutoUpdateGroup, n)
+	for i := range groups {
+		groups[i] = &autoupdatev1pb.AgentAutoUpdateGroup{
+			Name:      strconv.Itoa(i),
+			Days:      days,
+			StartHour: int32(i % 24),
+		}
+	}
+	return groups
+}
+
+func TestValidateServerSideAgentConfig(t *testing.T) {
+	cloudModules := &modules.TestModules{
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	}
+	selfHostedModules := &modules.TestModules{
+		TestFeatures: modules.Features{
+			Cloud: false,
+		},
+	}
+	tests := []struct {
+		name      string
+		config    *autoupdatev1pb.AutoUpdateConfigSpecAgents
+		modules   modules.Modules
+		expectErr require.ErrorAssertionFunc
+	}{
+		{
+			name:      "empty agent config",
+			modules:   selfHostedModules,
+			config:    nil,
+			expectErr: require.NoError,
+		},
+		{
+			name:    "over max groups time-based",
+			modules: selfHostedModules,
+			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+				Mode:                      autoupdate.AgentsUpdateModeEnabled,
+				Strategy:                  autoupdate.AgentsStrategyTimeBased,
+				MaintenanceWindowDuration: durationpb.New(time.Hour),
+				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+					Regular: generateGroups(maxGroupsTimeBasedStrategy+1, cloudGroupUpdateDays),
+				},
+			},
+			expectErr: require.Error,
+		},
+		{
+			name:    "over max groups halt-on-error",
+			modules: selfHostedModules,
+			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+				Mode:     autoupdate.AgentsUpdateModeEnabled,
+				Strategy: autoupdate.AgentsStrategyHaltOnError,
+				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+					Regular: generateGroups(maxGroupsHaltOnErrorStrategy+1, cloudGroupUpdateDays),
+				},
+			},
+			expectErr: require.Error,
+		},
+		{
+			name:    "over max groups halt-on-error cloud",
+			modules: cloudModules,
+			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+				Mode:     autoupdate.AgentsUpdateModeEnabled,
+				Strategy: autoupdate.AgentsStrategyHaltOnError,
+				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+					Regular: generateGroups(maxGroupsHaltOnErrorStrategyCloud+1, cloudGroupUpdateDays),
+				},
+			},
+			expectErr: require.Error,
+		},
+		{
+			name:    "cloud should reject custom weekdays",
+			modules: cloudModules,
+			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+				Mode:     autoupdate.AgentsUpdateModeEnabled,
+				Strategy: autoupdate.AgentsStrategyHaltOnError,
+				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+					Regular: generateGroups(maxGroupsHaltOnErrorStrategyCloud, []string{"Mon"}),
+				},
+			},
+			expectErr: require.Error,
+		},
+		{
+			name:    "self-hosted should allow custom weekdays",
+			modules: selfHostedModules,
+			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+				Mode:     autoupdate.AgentsUpdateModeEnabled,
+				Strategy: autoupdate.AgentsStrategyHaltOnError,
+				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+					Regular: generateGroups(maxGroupsHaltOnErrorStrategyCloud, []string{"Mon"}),
+				},
+			},
+			expectErr: require.NoError,
+		},
+		{
+			name:    "cloud should reject long rollouts",
+			modules: cloudModules,
+			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+				Mode:     autoupdate.AgentsUpdateModeEnabled,
+				Strategy: autoupdate.AgentsStrategyHaltOnError,
+				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+					Regular: []*autoupdatev1pb.AgentAutoUpdateGroup{
+						{Name: "g1", Days: cloudGroupUpdateDays},
+						{Name: "g2", Days: cloudGroupUpdateDays, WaitHours: maxRolloutDurationCloudHours},
+					},
+				},
+			},
+			expectErr: require.Error,
+		},
+		{
+			name:    "self-hosted should allow long rollouts",
+			modules: selfHostedModules,
+			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+				Mode:     autoupdate.AgentsUpdateModeEnabled,
+				Strategy: autoupdate.AgentsStrategyHaltOnError,
+				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+					Regular: []*autoupdatev1pb.AgentAutoUpdateGroup{
+						{Name: "g1", Days: cloudGroupUpdateDays},
+						{Name: "g2", Days: cloudGroupUpdateDays, WaitHours: maxRolloutDurationCloudHours},
+					},
+				},
+			},
+			expectErr: require.NoError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test setup: crafing a config and setting modules
+			config, err := autoupdate.NewAutoUpdateConfig(
+				&autoupdatev1pb.AutoUpdateConfigSpec{
+					Tools:  nil,
+					Agents: tt.config,
+				})
+			require.NoError(t, err)
+			modules.SetTestModules(t, tt.modules)
+
+			// Test execution.
+			tt.expectErr(t, validateServerSideAgentConfig(config))
+		})
+	}
 }
