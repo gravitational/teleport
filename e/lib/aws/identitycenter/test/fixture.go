@@ -137,11 +137,11 @@ func (f *Fixture) CreatePluginResource(t *testing.T, options ...ICOption) {
 
 // ICCreatedData defines resource names for each test resource type.
 type ICResource struct {
-	Accounts              []string
-	AccountAssignments    []string
-	PrincipalAsssignments []string
-	ProvisioningStates    []string
-	PermissionSets        []string
+	Accounts             []string
+	AccountAssignments   []string
+	PrincipalAssignments []string
+	ProvisioningStates   []string
+	PermissionSets       []string
 }
 
 // ResourceWithICOrigin defines a resource name that may optionally be
@@ -184,7 +184,7 @@ func CreateICResources(t *testing.T, ctx context.Context, client CleanupTestClie
 
 	createICAccount(t, ctx, client.ICService, testData.ICResource.Accounts)
 	createICAccountAssignment(t, ctx, client.ICService, testData.ICResource.AccountAssignments)
-	createICPrincipleAssignment(t, ctx, client.ICService, testData.ICResource.PrincipalAsssignments)
+	createICPrincipleAssignment(t, ctx, client.ICService, testData.ICResource.PrincipalAssignments)
 	createPermissionSets(t, ctx, client.ICService, testData.ICResource.PermissionSets)
 	createProvisioningState(t, ctx, client.ProvisioningStateService, testData.ICResource.ProvisioningStates, downstreamID)
 
@@ -430,11 +430,11 @@ func CheckAllICResourcesAreConditionallyDeleted(t *testing.T, ctx context.Contex
 func NewDeletionData() ICDeletionTestData {
 	return ICDeletionTestData{
 		ICResource: ICResource{
-			Accounts:              []string{"account1", "account2"},
-			AccountAssignments:    []string{"assignment1", "assignment2"},
-			PrincipalAsssignments: []string{"passignment1", "passignment2"},
-			ProvisioningStates:    []string{"pstate1", "pstate2"},
-			PermissionSets:        []string{"pset1", "pset2"},
+			Accounts:             []string{"account1", "account2"},
+			AccountAssignments:   []string{"assignment1", "assignment2"},
+			PrincipalAssignments: []string{"passignment1", "passignment2"},
+			ProvisioningStates:   []string{"pstate1", "pstate2"},
+			PermissionSets:       []string{"pset1", "pset2"},
 		},
 		AccessLists: []ResourceWithICOrigin{
 			{Name: "nonICOriginatedList", WithICOrigin: false},

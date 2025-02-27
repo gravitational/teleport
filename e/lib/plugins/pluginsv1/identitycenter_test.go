@@ -67,7 +67,7 @@ func TestIdentityCenterResourceCleanup(t *testing.T) {
 		_, ok := resourceMap[r]
 		require.True(t, ok, r)
 	}
-	for _, r := range testData.ICResource.PrincipalAsssignments {
+	for _, r := range testData.ICResource.PrincipalAssignments {
 		_, ok := resourceMap[r]
 		require.True(t, ok, r)
 	}
