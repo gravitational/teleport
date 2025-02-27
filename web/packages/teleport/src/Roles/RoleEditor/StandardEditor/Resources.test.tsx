@@ -155,13 +155,13 @@ describe('KubernetesAccessSection', () => {
     expect(
       reactSelectValueContainer(screen.getByLabelText('Kind'))
     ).toHaveTextContent('Any kind');
-    expect(screen.getByLabelText('Name')).toHaveValue('*');
-    expect(screen.getByLabelText('Namespace')).toHaveValue('*');
+    expect(screen.getByLabelText('Name *')).toHaveValue('*');
+    expect(screen.getByLabelText('Namespace *')).toHaveValue('*');
     await selectEvent.select(screen.getByLabelText('Kind'), 'Job');
-    await user.clear(screen.getByLabelText('Name'));
-    await user.type(screen.getByLabelText('Name'), 'job-name');
-    await user.clear(screen.getByLabelText('Namespace'));
-    await user.type(screen.getByLabelText('Namespace'), 'job-namespace');
+    await user.clear(screen.getByLabelText('Name *'));
+    await user.type(screen.getByLabelText('Name *'), 'job-name');
+    await user.clear(screen.getByLabelText('Namespace *'));
+    await user.type(screen.getByLabelText('Namespace *'), 'job-namespace');
     await selectEvent.select(screen.getByLabelText('Verbs'), [
       'create',
       'delete',
@@ -200,18 +200,18 @@ describe('KubernetesAccessSection', () => {
     const { user, onChange } = setup();
 
     await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
-    await user.clear(screen.getByLabelText('Name'));
-    await user.type(screen.getByLabelText('Name'), 'res1');
+    await user.clear(screen.getByLabelText('Name *'));
+    await user.type(screen.getByLabelText('Name *'), 'res1');
     await user.click(
       screen.getByRole('button', { name: 'Add Another Resource' })
     );
-    await user.clear(screen.getAllByLabelText('Name')[1]);
-    await user.type(screen.getAllByLabelText('Name')[1], 'res2');
+    await user.clear(screen.getAllByLabelText('Name *')[1]);
+    await user.type(screen.getAllByLabelText('Name *')[1], 'res2');
     await user.click(
       screen.getByRole('button', { name: 'Add Another Resource' })
     );
-    await user.clear(screen.getAllByLabelText('Name')[2]);
-    await user.type(screen.getAllByLabelText('Name')[2], 'res3');
+    await user.clear(screen.getAllByLabelText('Name *')[2]);
+    await user.type(screen.getAllByLabelText('Name *')[2], 'res3');
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
         resources: [
@@ -254,8 +254,8 @@ describe('KubernetesAccessSection', () => {
     await user.click(screen.getByRole('button', { name: 'Add a Label' }));
     await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
     await selectEvent.select(screen.getByLabelText('Kind'), 'Service');
-    await user.clear(screen.getByLabelText('Name'));
-    await user.clear(screen.getByLabelText('Namespace'));
+    await user.clear(screen.getByLabelText('Name *'));
+    await user.clear(screen.getByLabelText('Namespace *'));
     await selectEvent.select(screen.getByLabelText('Verbs'), [
       'All verbs',
       'create',
@@ -267,10 +267,10 @@ describe('KubernetesAccessSection', () => {
     expect(
       screen.getByPlaceholderText('label key')
     ).toHaveAccessibleDescription('required');
-    expect(screen.getByLabelText('Name')).toHaveAccessibleDescription(
+    expect(screen.getByLabelText('Name *')).toHaveAccessibleDescription(
       'Resource name is required, use "*" for any resource'
     );
-    expect(screen.getByLabelText('Namespace')).toHaveAccessibleDescription(
+    expect(screen.getByLabelText('Namespace *')).toHaveAccessibleDescription(
       'Namespace is required for resources of this kind'
     );
     expect(
