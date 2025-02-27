@@ -631,9 +631,16 @@ The app version can be found under Help -> About Teleport Connect.
 
 To get more detailed logs, open Teleport Connect from the Command Prompt with the `--connect-debug` flag:
 
+In version 17.3.0+:
 ```code
 $ "%PROGRAMFILES%\Teleport Connect\Teleport Connect.exe" --connect-debug
 ````
+
+In older versions:
+```code
+$ "%LOCALAPPDATA%\Programs\teleport-connect\Teleport Connect.exe" --connect-debug
+````
+
 </TabItem>
 </Tabs>
 
@@ -668,9 +675,16 @@ $ teleport-connect --insecure
 <TabItem label="Windows">
 From the Command Prompt, open Teleport Connect with the `--insecure` flag:
 
+In version 17.3.0+:
 ```code
 $ "%PROGRAMFILES%\Teleport Connect\Teleport Connect.exe" --insecure
 ````
+
+In older versions:
+```code
+$ "%LOCALAPPDATA%\Programs\teleport-connect\Teleport Connect.exe" --insecure
+````
+
 </TabItem>
 </Tabs>
 
