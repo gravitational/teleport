@@ -95,22 +95,9 @@ allowed to launch that .exe as a service with elevated privileges, this could be
 used for a privilege escalation attack.
 Currently when Connect is installed on Windows by a specific user `tsh.exe` is
 installed to `C:\Users\<username>\AppData\Local\Programs\teleport connect\resources\bin\tsh.exe`
-Since this is user-writable, we must copy `tsh.exe` to a path that only admins
-can write to.
-From what I can tell, the usual place to install programs the must not be
-user-writable is under `C:\Program Files\`.
-
-When installing the Windows service per-user, the Connect installer will copy
-`tsh.exe` and `wintun.dll` to `C:\Program Files\TeleportVNet\<username>\`
-and the Windows service will be named `TeleportVNet-<username>`.
-When installing per-machine, we will use `C:\Program Files\TeleportVNet\`
-and the Windows service will be named `TeleportVNet`.
-When tsh is starting the service, it will first try to launch the user-specific
-service and fall back to starting the per-machine service.
-We use a per-user path so that each user can have a specific version of
-`tsh.exe` and `wintun.dll` installed there that matches the version of Connect
-that user has installed.
-The uninstaller will handle deleting these files.
+Since this is user-writable, we will switch the Connect installer to do a
+per-machine install which writes all binaries to
+`C:\Program Files\Teleport Connect`, which is not user-writable.
 
 ### Inter-process Communication (IPC)
 
@@ -186,9 +173,9 @@ When calling the `AuthenticateProcess` RPC, the Windows service will:
 1. Wait for the user process to dial the named pipe.
 1. Use the Windows API `GetNamedPipeClientProcessId` to get the pipe client
    process handle.
-1. Once it has the user process handle, it can confirm the path of the exe
-   matches the path of the Windows service, and confirm that the exe is signed
-   by the same issuer as itself.
+1. Once it has the user process handle, the Windows service can confirm that
+   it's own exe is identical to the exe of the cleint application connecting to
+   it.
 
 ### Privacy
 
