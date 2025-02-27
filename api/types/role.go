@@ -300,14 +300,13 @@ type Role interface {
 	SetIdentityCenterAccountAssignments(RoleConditionType, []IdentityCenterAccountAssignment)
 }
 
-// NewRole constructs new standard V7 role.
-// This creates a V7 role with V4+ RBAC semantics.
-// NOTE: Keeping V7 for now to support downgrading Teleport.
+// NewRole constructs new standard V8 role.
+// This creates a V8 role with V4+ RBAC semantics.
 func NewRole(name string, spec RoleSpecV6) (Role, error) {
 	// When incrementing the role version, make sure to update the
 	// role version in the asset file used by the UI.
 	// See: web/packages/teleport/src/Roles/templates/role.yaml
-	role, err := NewRoleWithVersion(name, V7, spec)
+	role, err := NewRoleWithVersion(name, V8, spec)
 	return role, trace.Wrap(err)
 }
 

@@ -2055,6 +2055,10 @@ var minSupportedRoleV8Version = semver.New(utils.VersionBeforeAlpha("18.0.0"))
 // maybeDowngradeRoleVersionToV7 downgrades the role version to V7 if
 // the client version passed through the gRPC metadata is below the version
 // specified in minSupportedRoleV8Version.
+//
+// TODO(@creack,@flyinghermit): Downgrade role appropriately when introducing role v8 semantics changes.
+//
+//	Currently, only downgrades the version as there is no logic change.
 func maybeDowngradeRoleVersionToV7(role *types.RoleV6, clientVersion *semver.Version) *types.RoleV6 {
 	switch role.GetVersion() {
 	case types.V1, types.V2, types.V3, types.V4, types.V5, types.V6, types.V7:
