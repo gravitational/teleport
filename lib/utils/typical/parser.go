@@ -936,10 +936,10 @@ func eq[TEnv any]() func(lhs, rhs any) (Expression[TEnv, bool], error) {
 	}
 }
 
-func eqExpression[TEnv any, TResult comparable](lhs any, rhs any) (Expression[TEnv, bool], error) {
-	return booleanOperator[TEnv, TResult]{
+func eqExpression[TEnv any, TArgs comparable](lhs any, rhs any) (Expression[TEnv, bool], error) {
+	return booleanOperator[TEnv, TArgs]{
 		name: "==",
-		f: func(env TEnv, lhsExpr, rhsExpr Expression[TEnv, TResult]) (bool, error) {
+		f: func(env TEnv, lhsExpr, rhsExpr Expression[TEnv, TArgs]) (bool, error) {
 			lhs, err := lhsExpr.Evaluate(env)
 			if err != nil {
 				return false, trace.Wrap(err, "evaluating lhs of (==) operator")
@@ -974,10 +974,10 @@ func neq[TEnv any]() func(lhs, rhs any) (Expression[TEnv, bool], error) {
 	}
 }
 
-func neqExpression[TEnv any, TResult comparable](lhs any, rhs any) (Expression[TEnv, bool], error) {
-	return booleanOperator[TEnv, TResult]{
+func neqExpression[TEnv any, TArgs comparable](lhs any, rhs any) (Expression[TEnv, bool], error) {
+	return booleanOperator[TEnv, TArgs]{
 		name: "!=",
-		f: func(env TEnv, lhsExpr, rhsExpr Expression[TEnv, TResult]) (bool, error) {
+		f: func(env TEnv, lhsExpr, rhsExpr Expression[TEnv, TArgs]) (bool, error) {
 			lhs, err := lhsExpr.Evaluate(env)
 			if err != nil {
 				return false, trace.Wrap(err, "evaluating lhs of (!=) operator")
