@@ -369,7 +369,7 @@ sudo systemctl enable --now podman.socket
 
 At this point, the service can be reached at `/run/podman/podman.sock` but **only
 by root**. If you do not want to run `tbot` as root, you can override the default
-systemd unit to make the socket owned by group your tbot user belongs to:
+systemd unit to make the socket owned by a group your tbot user belongs to:
 
 ```shell
 sudo groupadd podman-root
@@ -384,7 +384,7 @@ In the override file add:
 SocketGroup=podman-root
 ```
 
-Remember to reload the systemd daemon and restart the socket unit:
+Reload the systemd daemon and restart the socket unit:
 
 ```shell
 sudo systemctl daemon-reload
@@ -419,7 +419,7 @@ In the override file add:
 ListenStream=/path/to/socket # Example: /srv/podman.<podman user>/podman.sock
 ```
 
-Remember to reload the systemd daemon and restart the socket unit:
+Reload the systemd daemon and restart the socket unit:
 
 ```shell
 systemctl --user daemon-reload
