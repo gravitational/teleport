@@ -1717,18 +1717,6 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		case settingsEmailAccessPlugin:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Email{}
 		case settingsAWSIdentityCenter:
-			// // The AWS IC setting block contains polymorphic filter values, so
-			// // we have to do the whole structure-unpacking thing again for
-			// // those.
-			// settings := &types.PluginSpecV1_AwsIc{
-			// 	AwsIc: &types.PluginAWSICSettings{},
-			// }
-			// p.PluginV1.Spec.Settings = settings
-
-			// unmshallingWrapper := icSettingsWrapper{inner: settings.AwsIc}
-			// if err := json.Unmarshal(value, &unmshallingWrapper); err != nil {
-			// 	return trace.Wrap(err)
-			// }
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_AwsIc{}
 		default:
 			return trace.BadParameter("unsupported plugin type: %v", k)
