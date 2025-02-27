@@ -27,7 +27,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -386,7 +385,7 @@ func (s *RevocationService) UpsertWorkloadIdentityX509Revocation(
 // Implements teleport.workloadidentity.v1.RevocationService/StreamSignedCRL
 func (s *RevocationService) StreamSignedCRL(
 	req *workloadidentityv1pb.StreamSignedCRLRequest,
-	srv grpc.ServerStreamingServer[workloadidentityv1pb.StreamSignedCRLResponse],
+	srv workloadidentityv1pb.WorkloadIdentityRevocationService_StreamSignedCRLServer,
 ) error {
 	for {
 		crl, notify := s.getSignedCRL()
