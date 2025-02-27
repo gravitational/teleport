@@ -80,6 +80,7 @@ SHOULD_NOTARIZE = $(if $(and $(APPLE_USERNAME),$(APPLE_PASSWORD)),true)
 notary_dir = $(BUILDDIR)/notarize
 notary_file = $(BUILDDIR)/notarize.zip
 
+NOTARIZE_FLAGS = --retry 2 --bundle-id 
 MAC_TOOLING_FLAGS = --retry 2 $(if $(SHOULD_NOTARIZE),,--dry-run)
 MAC_TOOLING = go run github.com/gravitational/shared-workflows/tools/mac-distribution@v0.0.0
 MAC_TOOLING_CMD = $(MAC_TOOLING) $(MAC_TOOLING_FLAGS)
@@ -88,62 +89,12 @@ NOTARIZE_BINARIES = $(notarize_binaries_cmd)
 
 define notarize_binaries_cmd
 	@echo Notarizing binaries
-	$(MAC_TOOLING_CMD) notarize $(BINARIES)
+	$(MAC_TOOLING_CMD) --team-id=$(TEAMID) notarize $(BINARIES)
 endef
 
-NOTARIZE_TSH_APP = $(if $(SHOULD_NOTARIZE),$(notarize_tsh_app),$(not_notarizing_cmd))
-define notarize_tsh_app
-	$(call notarize_app_bundle,$(TSH_APP_BUNDLE),$(TSH_BUNDLEID),$(TSH_APP_ENTITLEMENTS))
-endef
-
-NOTARIZE_TCTL_APP = $(if $(SHOULD_NOTARIZE),$(notarize_tctl_app),$(not_notarizing_cmd))
-define notarize_tctl_app
-	$(call notarize_app_bundle,$(TCTL_APP_BUNDLE),$(TCTL_BUNDLEID),$(TCTL_APP_ENTITLEMENTS))
-endef
-
-NOTARIZE_TELEPORT_PKG = $(if $(SHOULD_NOTARIZE),$(notarize_teleport_pkg),$(not_notarizing_cmd))
-define notarize_teleport_pkg
-	$(call notarize_pkg,$(TELEPORT_PKG_UNSIGNED),$(TELEPORT_PKG_SIGNED))
-endef
-
-define notarize_app_bundle
-	$(eval $@_BUNDLE = $(1))
-	$(eval $@_BUNDLE_ID = $(2))
-	$(eval $@_ENTITLEMENTS = $(3))
-	codesign \
-		--sign '$(DEVELOPER_ID_APPLICATION)' \
-		--identifier "$($@_BUNDLE_ID)" \
-		--force \
-		--verbose \
-		--timestamp \
-		--options kill,hard,runtime \
-		--entitlements "$($@_ENTITLEMENTS)" \
-		"$($@_BUNDLE)"
-
-	ditto -c -k --keepParent $($@_BUNDLE) $(notary_file)
-	xcrun notarytool submit $(notary_file) \
-		--team-id="$(TEAMID)" \
-		--apple-id="$(APPLE_USERNAME)" \
-		--password="$(APPLE_PASSWORD)" \
-		--wait
-	rm $(notary_file)
-endef
-
-define notarize_pkg
-	$(eval $@_IN_PKG = $(1))
-	$(eval $@_OUT_PKG = $(2))
-	productsign \
-		--sign '$(DEVELOPER_ID_INSTALLER)' \
-		--timestamp \
-		$($@_IN_PKG) \
-		$($@_OUT_PKG)
-	xcrun notarytool submit $($@_OUT_PKG) \
-		--team-id="$(TEAMID)" \
-		--apple-id="$(APPLE_USERNAME)" \
-		--password="$(APPLE_PASSWORD)" \
-		--wait
-	xcrun stapler staple $($@_OUT_PKG)
-endef
+PACKAGE_TSH_APP = $(MAC_TOOLING_CMD) $(if $(SHOULD_NOTARIZE),--bundle-id=$(TSH_BUNDLEID) --team-id=$(TEAMID),) package-app
+PACKAGE_TCTL_APP = $(MAC_TOOLING_CMD) $(if $(SHOULD_NOTARIZE),--bundle-id=$(TCTL_BUNDLEID) --team-id=$(TEAMID),) package-app
+PACKAGE_TELEPORT_PKG = $(MAC_TOOLING_CMD) $(if $(SHOULD_NOTARIZE),--team-id=$(TEAMID),) --bundle-id=$(TELEPORT_BUNDLEID) package-pkg
 
 echo_var = @echo $(1)=\''$($(1))'\'
 
