@@ -1602,10 +1602,8 @@ type pluginResourceWrapper struct {
 }
 
 func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
-  // If your plugin contains a `oneof` message, implement custom UnmarshalJSON/MarshalJSON 
-  // using gogo/jsonpb for the type.
-jsonpb 
-
+	// If your plugin contains a `oneof` message, implement custom UnmarshalJSON/MarshalJSON
+	// using gogo/jsonpb for the type.
 	const (
 		credOauth2AccessToken             = "oauth2_access_token"
 		credBearerToken                   = "bearer_token"
@@ -1701,21 +1699,9 @@ jsonpb
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Email{}
 		case settingsAWSIdentityCenter:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_AwsIc{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_AwsIc{}
 		default:
 			return trace.BadParameter("unsupported plugin type: %v", k)
-		}
-	}
-
-	// Status blocks use the same sort of polymorphic values to hold status details for
-	// the various plugin types, so we need to do the same sort of structure unpacking
-	// again here. The actual values will be filled in by the final JSON unmarshalling.
-	if len(unknownPlugin.Status.Details) > 1 {
-		return trace.BadParameter("malformed status details")
-	}
-	for k := range unknownPlugin.Status.Details {
-		switch k {
-		case settingsAWSIdentityCenter:
-			p.PluginV1.Status.Details = &types.PluginStatusV1_AwsIc{}
 		}
 	}
 
