@@ -139,11 +139,9 @@ The following fields within the WorkloadIdentity resource support templating:
 You can find a full list of the supported attributes on the
 [Attributes reference](./attributes.mdx) page.
 
-Templating in the WorkloadIdentity resource's fields is built on top of Teleport's
-[Predicate Language] and you can use its text manipulation functions such as
-`strings.lower` and `regex.replace`.
-
-[Predicate Language]: https://goteleport.com/docs/reference/predicate-language
+The WorkloadIdentity resource's fields use Teleport's
+[Predicate Language](../predicate-language.mdx) for templating, allowing you to
+apply text manipulation functions like `strings.lower` and `regex.replace`.
 
 ## Rules
 
@@ -154,11 +152,11 @@ the labels on the WorkloadIdentity resource.
 However, you can further restrict the issuance of credentials based on the
 attributes of the workload using the rules mechanism.
 
-Each rule consists of either a [Predicate Language] expression or a set of
-conditions. When using the conditions form, all conditions within that rule must
-pass in order for the rule to be considered a pass. If you specify multiple
-rules, then at least one rule must pass in order for the WorkloadIdentity to be
-allowed to be issued.
+Each rule consists of either a [Predicate Language](../predicate-language.mdx)
+expression or a set of conditions. When using the conditions form, all
+conditions within that rule must pass in order for the rule to be considered a
+pass. If you specify multiple rules, then at least one rule must pass in order
+for the WorkloadIdentity to be allowed to be issued.
 
 For example, to restrict the issuance of a credential to only workloads running
 in the `default` namespace with the service account `foo`:
@@ -288,7 +286,8 @@ When using the conditions form and comparing attributes which are not strings
 (e.g. a boolean or number), the attribute values will be converted to a string
 representation.
 
-When using the [Predicate Language], the attribute values will be compared as-is.
+When using the [Predicate Language](../predicate-language.mdx), the attribute
+values will be compared as-is.
 
 ## Infrastructure as Code
 
