@@ -81,7 +81,7 @@ notary_dir = $(BUILDDIR)/notarize
 notary_file = $(BUILDDIR)/notarize.zip
 
 NOTARIZE_FLAGS = --retry 2 --bundle-id 
-MAC_TOOLING_FLAGS = --retry 2 $(if $(SHOULD_NOTARIZE),,--dry-run)
+MAC_TOOLING_FLAGS = --retry 2 $(if $(SHOULD_NOTARIZE),--team-id=$(TEAMID),--dry-run)
 MAC_TOOLING = go run github.com/gravitational/shared-workflows/tools/mac-distribution@v0.0.0
 MAC_TOOLING_CMD = $(MAC_TOOLING) $(MAC_TOOLING_FLAGS)
 
@@ -89,12 +89,12 @@ NOTARIZE_BINARIES = $(notarize_binaries_cmd)
 
 define notarize_binaries_cmd
 	@echo Notarizing binaries
-	$(MAC_TOOLING_CMD) --team-id=$(TEAMID) notarize $(BINARIES)
+	$(MAC_TOOLING_CMD) --signing-id=$(DEVELOPER_ID_APPLICATION) notarize $(BINARIES)
 endef
 
-PACKAGE_TSH_APP = $(MAC_TOOLING_CMD) $(if $(SHOULD_NOTARIZE),--bundle-id=$(TSH_BUNDLEID) --team-id=$(TEAMID),) package-app
-PACKAGE_TCTL_APP = $(MAC_TOOLING_CMD) $(if $(SHOULD_NOTARIZE),--bundle-id=$(TCTL_BUNDLEID) --team-id=$(TEAMID),) package-app
-PACKAGE_TELEPORT_PKG = $(MAC_TOOLING_CMD) $(if $(SHOULD_NOTARIZE),--team-id=$(TEAMID),) --bundle-id=$(TELEPORT_BUNDLEID) package-pkg
+PACKAGE_TSH_APP = $(MAC_TOOLING_CMD) $(if $(SHOULD_NOTARIZE),--bundle-id=$(TSH_BUNDLEID) --signing-id=$(DEVELOPER_ID_APPLICATION),) package-app
+PACKAGE_TCTL_APP = $(MAC_TOOLING_CMD) $(if $(SHOULD_NOTARIZE),--bundle-id=$(TCTL_BUNDLEID) --signing-id=$(DEVELOPER_ID_APPLICATION),) package-app
+PACKAGE_TELEPORT_PKG = $(MAC_TOOLING_CMD) $(if $(SHOULD_NOTARIZE),--signing-id=$(DEVELOPER_ID_INSTALLER),) --bundle-id=$(TELEPORT_BUNDLEID) package-pkg
 
 echo_var = @echo $(1)=\''$($(1))'\'
 
