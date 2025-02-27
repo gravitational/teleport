@@ -63,3 +63,19 @@ func TestIsValidLabelKey(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkIsValidLabelKey(b *testing.B) {
+	var labelsForBenchmark = []string{
+		"labelLABEL1234",
+		"label-LABEL12__34",
+		"label.:-LABEL12__34",
+		"label/.:-LABEL12__34*",
+		"label^/.:-LABEL12__34*",
+	}
+
+	for b.Loop() {
+		for _, s := range labelsForBenchmark {
+			IsValidLabelKey(s)
+		}
+	}
+}
