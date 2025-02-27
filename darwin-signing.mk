@@ -87,7 +87,7 @@ NOTARIZE_BINARIES = $(notarize_binaries_cmd)
 
 define notarize_binaries_cmd
 	@echo Notarizing binaries
-	$(MAC_TOOLING_CMD) --signing-id="$(DEVELOPER_ID_APPLICATION)" notarize $(BINARIES)
+	$(MAC_TOOLING_CMD) notarize $(MAC_TOOLING_FLAGS) $(if $(SHOULD_NOTARIZE),--signing-id="$(DEVELOPER_ID_APPLICATION)",) $(BINARIES)
 endef
 
 PACKAGE_TSH_APP = $(MAC_TOOLING_CMD) package-app $(MAC_TOOLING_FLAGS) $(if $(SHOULD_NOTARIZE),--bundle-id=$(TSH_BUNDLEID) --signing-id="$(DEVELOPER_ID_APPLICATION)",)
