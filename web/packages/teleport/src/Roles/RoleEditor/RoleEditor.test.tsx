@@ -90,7 +90,7 @@ test('rendering and switching tabs for new role', async () => {
   expect(screen.getByLabelText('Role Name *')).toHaveValue('new_role_name');
   expect(screen.getByLabelText('Description')).toHaveValue('');
   await forwardToTab('Resources');
-  await forwardToTab('Access Rules');
+  await forwardToTab('Admin Rules');
   await forwardToTab('Options');
   expect(screen.getByRole('button', { name: 'Create Role' })).toBeEnabled();
 
@@ -117,7 +117,7 @@ test('rendering and switching tabs for new role', async () => {
     screen.queryByRole('button', { name: /Reset to Standard Settings/i })
   ).not.toBeInTheDocument();
   await forwardToTab('Resources');
-  await forwardToTab('Access Rules');
+  await forwardToTab('Admin Rules');
   await forwardToTab('Options');
   expect(screen.getByRole('button', { name: 'Create Role' })).toBeEnabled();
 });
@@ -326,7 +326,7 @@ test('saving a new role', async () => {
     'That is not dead which can eternal lie.'
   );
   await forwardToTab('Resources');
-  await forwardToTab('Access Rules');
+  await forwardToTab('Admin Rules');
   await forwardToTab('Options');
   await user.click(screen.getByRole('button', { name: 'Create Role' }));
 
@@ -407,7 +407,7 @@ test('error while saving', async () => {
   const onSave = jest.fn().mockRejectedValue(new Error('oh noes'));
   render(<TestRoleEditor onSave={onSave} />);
   await forwardToTab('Resources');
-  await forwardToTab('Access Rules');
+  await forwardToTab('Admin Rules');
   await forwardToTab('Options');
   await user.click(screen.getByRole('button', { name: 'Create Role' }));
   expect(screen.getByText('oh noes')).toBeVisible();
