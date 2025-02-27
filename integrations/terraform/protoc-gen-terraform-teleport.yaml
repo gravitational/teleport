@@ -254,11 +254,11 @@ computed_fields:
     - "RoleV6.Spec.Allow.KubernetesResources.Verbs"
     - "RoleV6.Spec.Options.BPF"
     - "RoleV6.Kind"
+    - "RoleV6.Spec.Options.SSHFileCopy"
     - "RoleV6.Spec.Options.CreateDatabaseUser"
     - "RoleV6.Spec.Options.CreateDesktopUser"
     - "RoleV6.Spec.Options.DesktopClipboard"
     - "RoleV6.Spec.Options.DesktopDirectorySharing"
-    - "RoleV6.Spec.Options.SSHFileCopy"
 
     # SAML connector
     - "SAMLConnectorV2.Spec.Audience"

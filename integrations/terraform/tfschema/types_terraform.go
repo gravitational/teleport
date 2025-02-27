@@ -3344,7 +3344,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
-						"port_forwarding": GenSchemaNullBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"port_forwarding": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Description: "Deprecated: Use SSHPortForwarding instead",
 							Optional:    true,
 						}),
@@ -22719,7 +22719,7 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 										if !ok {
 											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Options.PortForwarding"})
 										}
-										CopyFromNullBoolOption(diags, a, &obj.PortForwarding)
+										CopyFromBoolOption(diags, a, &obj.PortForwarding)
 									}
 									{
 										a, ok := tf.Attrs["cert_format"]
@@ -27779,7 +27779,7 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Options.PortForwarding"})
 										} else {
-											v := CopyToNullBoolOption(diags, obj.PortForwarding, t, tf.Attrs["port_forwarding"])
+											v := CopyToBoolOption(diags, obj.PortForwarding, t, tf.Attrs["port_forwarding"])
 											tf.Attrs["port_forwarding"] = v
 										}
 									}

@@ -3090,7 +3090,7 @@ message RoleOptions {
     deprecated = true,
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "port_forwarding,omitempty",
-    (gogoproto.customtype) = "NullBoolOption"
+    (gogoproto.customtype) = "BoolOption"
   ];
 
   // CertificateFormat defines the format of the user certificate to allow
