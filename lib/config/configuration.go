@@ -2770,6 +2770,14 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		cfg.Proxy.QUICProxyPeering = true
 	}
 
+	if rawPeriod := os.Getenv("TELEPORT_UNSTABLE_AGENT_ROLLOUT_SYNC_PERIOD"); rawPeriod != "" {
+		period, err := time.ParseDuration(rawPeriod)
+		if err != nil {
+			return trace.Wrap(err, "invalid agent rollout period %q", rawPeriod)
+		}
+		cfg.Auth.AgentRolloutControllerSyncPeriod = period
+	}
+
 	return nil
 }
 

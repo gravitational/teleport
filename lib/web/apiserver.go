@@ -60,19 +60,16 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/autoupdate"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -139,6 +136,8 @@ const (
 	// This cache is here to protect against accidental or intentional DDoS, the TTL must be low to quickly reflect
 	// cluster configuration changes.
 	findEndpointCacheTTL = 10 * time.Second
+	// DefaultAgentUpdateJitterSeconds is the default jitter agents should wait before updating.
+	DefaultAgentUpdateJitterSeconds = 60
 )
 
 // healthCheckAppServerFunc defines a function used to perform a health check
@@ -187,6 +186,9 @@ type Handler struct {
 	// rate-limits, each call must cause minimal work. The cached answer can be modulated after, for example if the
 	// caller specified its Automatic Updates UUID or group.
 	findEndpointCache *utils.FnCache
+
+	// clusterMaintenanceConfig is used to cache the cluster maintenance config from the AUth Service.
+	clusterMaintenanceConfigCache *utils.FnCache
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -503,6 +505,18 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		return nil, trace.Wrap(err, "creating /find cache")
 	}
 	h.findEndpointCache = findCache
+
+	// We create the cache after applying the options to make sure we use the fake clock if it was passed.
+	cmcCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:         findEndpointCacheTTL,
+		Clock:       h.clock,
+		Context:     cfg.Context,
+		ReloadOnErr: false,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating /find cache")
+	}
+	h.clusterMaintenanceConfigCache = cmcCache
 
 	sessionLingeringThreshold := cachedSessionLingeringThreshold
 	if cfg.CachedSessionLingeringThreshold != nil {
@@ -899,6 +913,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/tokens", h.WithAuth(h.getTokens))
 	h.DELETE("/webapi/tokens", h.WithAuth(h.deleteToken))
 
+	// install script, the ':token' wildcard is a hack to make the router happy and support
+	// the token-less route "/scripts/install.sh".
+	// h.installScriptHandle Will reject any unknown sub-route.
+	h.GET("/scripts/:token", h.WithHighLimiter(h.installScriptHandle))
+
 	// join scripts
 	h.GET("/scripts/:token/install-node.sh", h.WithLimiter(h.getNodeJoinScriptHandle))
 	h.GET("/scripts/:token/install-app.sh", h.WithLimiter(h.getAppJoinScriptHandle))
@@ -1125,7 +1144,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Implements the agent version server.
 	// Channel can contain "/", hence the use of a catch-all parameter
-	h.GET("/webapi/automaticupgrades/channel/*request", h.WithUnauthenticatedHighLimiter(h.automaticUpgrades))
+	h.GET("/webapi/automaticupgrades/channel/*request", h.WithUnauthenticatedHighLimiter(h.automaticUpgrades109))
 
 	// GET Machine ID bot by name
 	h.GET("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.getBot))
@@ -1606,6 +1625,8 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		return nil, trace.Wrap(err)
 	}
 
+	group := r.URL.Query().Get(webclient.AgentUpdateGroupParameter)
+
 	return webclient.PingResponse{
 		Auth:              authSettings,
 		Proxy:             *proxyConfig,
@@ -1613,13 +1634,21 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		MinClientVersion:  teleport.MinClientVersion,
 		ClusterName:       h.auth.clusterName,
 		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
-		AutoUpdate:        h.automaticUpdateSettings(r.Context()),
+		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, "" /* updater UUID */),
+		Edition:           modules.GetModules().BuildType(),
+		FIPS:              modules.IsBoringBinary(),
 	}, nil
 }
 
 func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	group := r.URL.Query().Get(webclient.AgentUpdateGroupParameter)
+	cacheKey := "find"
+	if group != "" {
+		cacheKey += "-" + group
+	}
+
 	// cache the generic answer to avoid doing work for each request
-	resp, err := utils.FnCacheGet[*webclient.PingResponse](r.Context(), h.findEndpointCache, "find", func(ctx context.Context) (*webclient.PingResponse, error) {
+	resp, err := utils.FnCacheGet[*webclient.PingResponse](r.Context(), h.findEndpointCache, cacheKey, func(ctx context.Context) (*webclient.PingResponse, error) {
 		proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1636,33 +1665,12 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 			ServerVersion:    teleport.Version,
 			MinClientVersion: teleport.MinClientVersion,
 			ClusterName:      h.auth.clusterName,
-			AutoUpdate:       h.automaticUpdateSettings(ctx),
+			Edition:          modules.GetModules().BuildType(),
+			FIPS:             modules.IsBoringBinary(),
+			AutoUpdate:       h.automaticUpdateSettings184(ctx, group, "" /* updater UUID */),
 		}, nil
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp, nil
-}
-
-// TODO: add the request as a parameter when we'll need to modulate the content based on the UUID and group
-func (h *Handler) automaticUpdateSettings(ctx context.Context) webclient.AutoUpdateSettings {
-	autoUpdateConfig, err := h.cfg.AccessPoint.GetAutoUpdateConfig(ctx)
-	// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
-	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
-		h.logger.ErrorContext(ctx, "failed to receive AutoUpdateConfig", "error", err)
-	}
-
-	autoUpdateVersion, err := h.cfg.AccessPoint.GetAutoUpdateVersion(ctx)
-	// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
-	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
-		h.logger.ErrorContext(ctx, "failed to receive AutoUpdateVersion", "error", err)
-	}
-
-	return webclient.AutoUpdateSettings{
-		ToolsAutoUpdate: getToolsAutoUpdate(autoUpdateConfig),
-		ToolsVersion:    getToolsVersion(autoUpdateVersion),
-	}
+	return resp, err
 }
 
 func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -1863,9 +1871,13 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	automaticUpgradesEnabled := clusterFeatures.GetAutomaticUpgrades()
 	var automaticUpgradesTargetVersion string
 	if automaticUpgradesEnabled {
-		automaticUpgradesTargetVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(r.Context())
+		const group, updaterUUID = "", ""
+		agentVersion, err := h.autoUpdateAgentVersion(r.Context(), group, updaterUUID)
 		if err != nil {
-			h.log.WithError(err).Error("Cannot read target version")
+			h.logger.ErrorContext(r.Context(), "Cannot read autoupdate target version", "error", err)
+		} else {
+			// agentVersion doesn't have the leading "v" which is expected here.
+			automaticUpgradesTargetVersion = fmt.Sprintf("v%s", agentVersion)
 		}
 	}
 
@@ -2260,7 +2272,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	// https://updates.releases.teleport.dev/v1/stable/cloud/version
 	installUpdater := automaticUpgrades(*ping.ServerFeatures)
 	if installUpdater {
-		repoChannel = stableCloudChannelRepo
+		repoChannel = automaticupgrades.DefaultCloudChannelName
 	}
 	azureClientID := r.URL.Query().Get("azure-client-id")
 
@@ -5268,24 +5280,4 @@ func readEtagFromAppHash(fs http.FileSystem) (string, error) {
 	etag := fmt.Sprintf("%q", versionWithHash)
 
 	return etag, nil
-}
-
-func getToolsAutoUpdate(config *autoupdatepb.AutoUpdateConfig) bool {
-	// If we can't get the AU config or if AUs are not configured, we default to "disabled".
-	// This ensures we fail open and don't accidentally update agents if something is going wrong.
-	// If we want to enable AUs by default, it would be better to create a default "autoupdate_config" resource
-	// than changing this logic.
-	if config.GetSpec().GetTools() != nil {
-		return config.GetSpec().GetTools().GetMode() == autoupdate.ToolsUpdateModeEnabled
-	}
-	return false
-}
-
-func getToolsVersion(version *autoupdatepb.AutoUpdateVersion) string {
-	// If we can't get the AU version or tools AU version is not specified, we default to the current proxy version.
-	// This ensures we always advertise a version compatible with the cluster.
-	if version.GetSpec().GetTools() == nil {
-		return api.Version
-	}
-	return version.GetSpec().GetTools().GetTargetVersion()
 }

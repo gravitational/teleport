@@ -29,6 +29,7 @@ import (
 type StaticTrigger struct {
 	name     string
 	canStart bool
+	err      error
 }
 
 // Name returns the StaticTrigger name.
@@ -38,7 +39,7 @@ func (m StaticTrigger) Name() string {
 
 // CanStart returns the statically defined maintenance approval result.
 func (m StaticTrigger) CanStart(_ context.Context, _ client.Object) (bool, error) {
-	return m.canStart, nil
+	return m.canStart, m.err
 }
 
 // Default returns the default behavior if the trigger fails. This cannot
