@@ -98,6 +98,8 @@ type ResourceTypeSummary struct {
 	ResourcesEnrollmentSuccess int `json:"resourcesEnrollmentSuccess,omitempty"`
 	// DiscoverLastSync contains the time when this integration tried to auto-enroll resources.
 	DiscoverLastSync *time.Time `json:"discoverLastSync,omitempty"`
+	// UnresolvedUserTasks contains the count of unresolved user tasks related to this integration and resource type.
+	UnresolvedUserTasks int `json:"unresolvedUserTasks,omitempty"`
 	// ECSDatabaseServiceCount is the total number of DatabaseServices that were deployed into Amazon ECS.
 	// Only applicable for AWS RDS resource summary.
 	ECSDatabaseServiceCount int `json:"ecsDatabaseServiceCount,omitempty"`
