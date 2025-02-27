@@ -44,7 +44,7 @@ func TestBasicAssignmentFlow(t *testing.T) {
 	tclCmd.run(t, []string{
 		`plugins`, `install`, `okta`,
 		`--org`, "https://trial-1234567.okta.com",
-		`--saml-connector`, `okta`,
+		`--saml-connector`, `okta-pre-created-test`,
 		`--group-filter=*`,
 		`--app-filter=*`,
 		fmt.Sprintf(`--api-token=%s`, "secret-okta-api-token"),
@@ -105,7 +105,7 @@ func TestNestedAclAssignment(t *testing.T) {
 	tclCmd.run(t, []string{
 		`plugins`, `install`, `okta`,
 		`--org`, "https://trial-1234567.okta.com",
-		`--saml-connector`, `okta`,
+		`--saml-connector`, `okta-pre-created-test`,
 		`--group-filter=*`,
 		`--app-filter=*`,
 		fmt.Sprintf(`--api-token=%s`, "secret-okta-api-token"),
@@ -188,7 +188,7 @@ func TestAccessRequest(t *testing.T) {
 	tclCmd.run(t, []string{
 		`plugins`, `install`, `okta`,
 		`--org`, "https://trial-1234567.okta.com",
-		`--saml-connector`, `okta`,
+		`--saml-connector`, `okta-pre-created-test`,
 		`--group-filter=*`,
 		`--app-filter=*`,
 		fmt.Sprintf(`--api-token=%s`, "secret-okta-api-token"),

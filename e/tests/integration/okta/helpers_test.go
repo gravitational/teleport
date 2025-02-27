@@ -219,7 +219,7 @@ func (c *tshCommand) mustLogin(t *testing.T, username string, groups []string) {
 	err := c.run(t, []string{
 		"login",
 		fmt.Sprintf(`--proxy=%s`, c.proxyAddr),
-		`--auth=okta`,
+		`--auth=okta-pre-created-test`,
 		"--browser", "none",
 		`--bind-addr=127.0.0.1:4444`,
 		"--insecure",

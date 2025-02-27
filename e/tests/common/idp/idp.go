@@ -154,7 +154,7 @@ const (
 	SAMLConnector = `
 kind: saml
 metadata:
-  name: okta
+  name: okta-pre-created-test
   revision: fe2ebe51-7ec8-42cb-9b16-b2cd7efed2d0
   labels:
     okta/org: https://trial-1234567.okta.com

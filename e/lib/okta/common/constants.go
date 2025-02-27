@@ -30,7 +30,7 @@ const (
 	CredPurposeOktaOauth = "okta-oauth-client-id"
 
 	// OktaSSOConnectorName is the name of the Okta SSO connector.
-	OktaSSOConnectorName = "okta-integration"
+	OktaSSOConnectorName = "okta"
 
 	// OktaSCIMTokenName is the name of the Okta SCIM token.
 	OktaSCIMTokenName = types.PluginTypeOkta + "-scim-token"

@@ -107,7 +107,7 @@ func TestPluginEnrolmentFullIntegration(t *testing.T) {
 		expectedOktaPluginSettings := &types.PluginOktaSettings{
 			OrgUrl: "https://trial-1234567.okta.com",
 			SyncSettings: &types.PluginOktaSyncSettings{
-				SsoConnectorId:       "okta-integration",
+				SsoConnectorId:       "okta",
 				AppId:                resp.GetConnectorInfo().GetOktaAppId(),
 				SyncUsers:            true,
 				UserSyncSource:       "saml_app",
@@ -124,7 +124,7 @@ func TestPluginEnrolmentFullIntegration(t *testing.T) {
 		require.NotEmpty(t, resp.GetConnectorInfo().GetOktaAppId())
 		_, _, err = oktaInfra.client.GetApplication(ctx, resp.GetConnectorInfo().GetOktaAppId(), &okta.SamlApplication{}, nil)
 		require.NoError(t, err)
-		_, err = sut.Teleport.Process.GetAuthServer().GetSAMLConnector(ctx, "okta-integration", false)
+		_, err = sut.Teleport.Process.GetAuthServer().GetSAMLConnector(ctx, "okta", false)
 		require.NoError(t, err)
 	})
 }
@@ -181,7 +181,7 @@ func TestPluginEnrolmentSSOMetadataURL(t *testing.T) {
 	expectedOktaPluginSettings := &types.PluginOktaSettings{
 		OrgUrl: "https://trial-1234567.okta.com",
 		SyncSettings: &types.PluginOktaSyncSettings{
-			SsoConnectorId:       "okta-integration",
+			SsoConnectorId:       "okta",
 			AppId:                resp.GetConnectorInfo().GetOktaAppId(),
 			SyncUsers:            true,
 			UserSyncSource:       "saml_app",
@@ -198,7 +198,7 @@ func TestPluginEnrolmentSSOMetadataURL(t *testing.T) {
 	require.NotEmpty(t, resp.GetConnectorInfo().GetOktaAppId())
 	_, _, err = oktaInfra.client.GetApplication(ctx, resp.GetConnectorInfo().GetOktaAppId(), &okta.SamlApplication{}, nil)
 	require.NoError(t, err)
-	samlConnector, err := sut.Teleport.Process.GetAuthServer().GetSAMLConnector(ctx, "okta-integration", false)
+	samlConnector, err := sut.Teleport.Process.GetAuthServer().GetSAMLConnector(ctx, "okta", false)
 	require.NoError(t, err)
 	require.Equal(t, "https://trial-1234567.okta.com", samlConnector.GetMetadata().Labels[types.OktaOrgURLLabel])
 }
@@ -232,7 +232,7 @@ func TestPluginEnrolmentSSOMetadataURLOnly(t *testing.T) {
 		SsoMetadataUrl: "https://trial-7284229.okta.com/app/exkjel1ccet9biVnA697/sso/saml/metadata",
 	})
 	require.NoError(t, err)
-	resp, err := sut.Teleport.Process.GetAuthServer().GetSAMLConnector(ctx, "okta-integration", false)
+	resp, err := sut.Teleport.Process.GetAuthServer().GetSAMLConnector(ctx, "okta", false)
 	require.NoError(t, err)
 	require.Equal(t, "https://trial-7284229.okta.com", resp.GetMetadata().Labels[types.OktaOrgURLLabel])
 }
@@ -267,7 +267,7 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 			EnableAccessListSync: false,
 			EnableAppGroupSync:   false,
 			EnableUserSync:       false,
-			ReuseConnector:       "okta",
+			ReuseConnector:       "okta-pre-created-test",
 		})
 		require.NoError(t, err)
 
@@ -278,7 +278,7 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 		expectedOktaPluginSettings := &types.PluginOktaSettings{
 			OrgUrl: "https://trial-1234567.okta.com",
 			SyncSettings: &types.PluginOktaSyncSettings{
-				SsoConnectorId:       "okta",
+				SsoConnectorId:       "okta-pre-created-test",
 				UserSyncSource:       "saml_app",
 				DisableSyncAppGroups: true,
 			},
@@ -315,7 +315,7 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 		expectedOktaPluginSettings := &types.PluginOktaSettings{
 			OrgUrl: "https://trial-1234567.okta.com",
 			SyncSettings: &types.PluginOktaSyncSettings{
-				SsoConnectorId:       "okta",
+				SsoConnectorId:       "okta-pre-created-test",
 				SyncUsers:            true,
 				UserSyncSource:       "saml_app",
 				DisableSyncAppGroups: true,
@@ -362,7 +362,7 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 		expectedOktaPluginSettings := &types.PluginOktaSettings{
 			OrgUrl: "https://trial-1234567.okta.com",
 			SyncSettings: &types.PluginOktaSyncSettings{
-				SsoConnectorId:       "okta",
+				SsoConnectorId:       "okta-pre-created-test",
 				SyncUsers:            true,
 				UserSyncSource:       "saml_app",
 				DisableSyncAppGroups: false,
@@ -410,7 +410,7 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 		expectedOktaPluginSettings := &types.PluginOktaSettings{
 			OrgUrl: "https://trial-1234567.okta.com",
 			SyncSettings: &types.PluginOktaSyncSettings{
-				SsoConnectorId:       "okta",
+				SsoConnectorId:       "okta-pre-created-test",
 				SyncUsers:            true,
 				UserSyncSource:       "saml_app",
 				DisableSyncAppGroups: false,
@@ -452,7 +452,7 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 		expectedOktaPluginSettings := &types.PluginOktaSettings{
 			OrgUrl: "https://trial-1234567.okta.com",
 			SyncSettings: &types.PluginOktaSyncSettings{
-				SsoConnectorId:       "okta",
+				SsoConnectorId:       "okta-pre-created-test",
 				SyncUsers:            true,
 				UserSyncSource:       "saml_app",
 				DisableSyncAppGroups: false,
