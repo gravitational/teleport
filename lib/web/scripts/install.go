@@ -21,6 +21,8 @@ package scripts
 import (
 	"context"
 	_ "embed"
+	"fmt"
+	"github.com/gravitational/teleport/api/types"
 	"net/url"
 	"strings"
 
@@ -178,7 +180,22 @@ var legacyInstallScript string
 // or by unpacking the tarball. Its usage should be phased out in favor of the updater-based
 // installation script served by getUpdaterInstallScript.
 func getLegacyInstallScript(ctx context.Context, opts InstallScriptOptions) (string, error) {
-	return legacyInstallScript, nil
+	tunedScript := strings.Replace(legacyInstallScript, `TELEPORT_VERSION=""`, fmt.Sprintf(`TELEPORT_VERSION="%s"`, opts.TeleportVersion), 1)
+	if opts.TeleportFlavor == types.PackageNameEnt {
+		tunedScript = strings.Replace(tunedScript, `TELEPORT_SUFFIX=""`, `TELEPORT_SUFFIX="-ent"`, 1)
+	}
+
+	var edition string
+	if opts.AutoupdateStyle == PackageManagerAutoupdate {
+		edition = "cloud"
+	} else if opts.TeleportFlavor == types.PackageNameEnt {
+		edition = "enterprise"
+	} else {
+		edition = "oss"
+	}
+	tunedScript = strings.Replace(tunedScript, `TELEPORT_EDITION=""`, fmt.Sprintf(`TELEPORT_EDITION="%s"`, edition), 1)
+
+	return tunedScript, nil
 }
 
 // getUpdaterInstallScript returns an installation script that downloads teleport-update
