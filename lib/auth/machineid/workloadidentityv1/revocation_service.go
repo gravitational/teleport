@@ -418,7 +418,7 @@ func (s *RevocationService) RunCRLSigner(ctx context.Context) {
 			}
 			err = trace.BadParameter("watchAndSign exited unexpectedly")
 		}
-		retryAfter := retryutils.HalfJitter(s.crlFailureBackoff)
+		retryAfter := retryutils.NewHalfJitter()(s.crlFailureBackoff)
 		if err != nil {
 			s.logger.ErrorContext(
 				ctx,
