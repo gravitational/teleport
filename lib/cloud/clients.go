@@ -78,6 +78,7 @@ import (
 	awsimds "github.com/gravitational/teleport/lib/cloud/imds/aws"
 	azureimds "github.com/gravitational/teleport/lib/cloud/imds/azure"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
+	oracleimds "github.com/gravitational/teleport/lib/cloud/imds/oracle"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
@@ -1029,6 +1030,9 @@ func (c *cloudClients) initInstanceMetadata(ctx context.Context) (imds.Client, e
 
 			clt, err := gcpimds.NewInstanceMetadataClient(instancesClient)
 			return clt, trace.Wrap(err)
+		},
+		func(ctx context.Context) (imds.Client, error) {
+			return oracleimds.NewInstanceMetadataClient(), nil
 		},
 	}
 
