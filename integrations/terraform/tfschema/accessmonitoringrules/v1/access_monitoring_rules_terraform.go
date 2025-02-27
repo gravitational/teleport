@@ -100,11 +100,11 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"automatic_approval": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"name": {
-						Description: "name is the name of the plugin to which this configuration should apply.",
+						Description: "name is the name of the plugin to which this configuration should apply. Set this value to `teleport` to manage automatic approvals natively within Teleport.",
 						Optional:    true,
 						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					}}),
-					Description: "automatic_approval defines the plugin configuration for automatic approvals.",
+					Description: "automatic_approval defines the plugin configuration for automatic approvals. Both notification and automatic_approval may be set within the same access_monitoring_rule. If both fields are set, the rule handler will manage notifications and automatic approvals for the same set of access events. Separate plugins may be used if both notifications and automatic_approvals is set.",
 					Optional:    true,
 				},
 				"condition": {
@@ -125,7 +125,7 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 					}),
-					Description: "notification defines the plugin configuration for notifications if rule is triggered.",
+					Description: "notification defines the plugin configuration for notifications if rule is triggered. Both notification and automatic_approval may be set within the same access_monitoring_rule. If both fields are set, the rule handler will manage notifications and automatic approvals for the same set of access events. Separate plugins may be used if both notifications and automatic_approvals is set.",
 					Optional:    true,
 				},
 				"states": {
