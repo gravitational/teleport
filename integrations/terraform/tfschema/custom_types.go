@@ -33,18 +33,11 @@ import (
 // GenSchemaBoolOptions returns Terraform schema for BoolOption type
 func GenSchemaBoolOption(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
 	return tfsdk.Attribute{
-		Optional:    true,
-		Type:        types.BoolType,
-		Description: attr.Description,
-	}
-}
-
-// GenSchemaBoolOptions returns Terraform schema for NullBoolOption type
-func GenSchemaNullBoolOption(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
-	return tfsdk.Attribute{
-		Optional:    true,
-		Type:        types.BoolType,
-		Description: attr.Description,
+		Optional:      true,
+		Type:          types.BoolType,
+		Description:   attr.Description,
+		Computed:      attr.Computed,
+		PlanModifiers: attr.PlanModifiers,
 	}
 }
 
@@ -91,37 +84,7 @@ func CopyToBoolOption(diags diag.Diagnostics, o *apitypes.BoolOption, t attr.Typ
 	}
 
 	value.Null = false
-	value.Value = o.Value
-
-	return value
-}
-
-func CopyFromNullBoolOption(diags diag.Diagnostics, tf attr.Value, o **apitypes.NullBoolOption) {
-	v, ok := tf.(types.Bool)
-	if !ok {
-		diags.AddError("Error reading from Terraform object", fmt.Sprintf("Can not convert %T to types.Bool", tf))
-		return
-	}
-
-	if v.IsNull() {
-		return
-	}
-
-	value := apitypes.NullBoolOption{Value: v.Value}
-	*o = &value
-}
-
-func CopyToNullBoolOption(diags diag.Diagnostics, o *apitypes.NullBoolOption, t attr.Type, v attr.Value) attr.Value {
-	value, ok := v.(types.Bool)
-	if !ok {
-		value = types.Bool{}
-	}
-
-	if o == nil {
-		value.Null = true
-		return value
-	}
-
+	value.Unknown = false
 	value.Value = o.Value
 
 	return value

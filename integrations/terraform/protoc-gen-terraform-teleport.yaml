@@ -192,6 +192,10 @@ computed_fields:
     - "AppV3.Kind"
 
     # Auth preference
+    - "AuthPreferenceV2.Spec.AllowPasswordless"
+    - "AuthPreferenceV2.Spec.AllowHeadless"
+    - "AuthPreferenceV2.Spec.DisconnectExpiredCert"
+    - "AuthPreferenceV2.Spec.AllowLocalAuth"
     - "AuthPreferenceV2.Spec.SecondFactor"
     - "AuthPreferenceV2.Spec.Type"
     - "AuthPreferenceV2.Spec.LockingMode"
@@ -254,11 +258,11 @@ computed_fields:
     - "RoleV6.Spec.Allow.KubernetesResources.Verbs"
     - "RoleV6.Spec.Options.BPF"
     - "RoleV6.Kind"
+    - "RoleV6.Spec.Options.SSHFileCopy"
     - "RoleV6.Spec.Options.CreateDatabaseUser"
     - "RoleV6.Spec.Options.CreateDesktopUser"
     - "RoleV6.Spec.Options.DesktopClipboard"
     - "RoleV6.Spec.Options.DesktopDirectorySharing"
-    - "RoleV6.Spec.Options.SSHFileCopy"
 
     # SAML connector
     - "SAMLConnectorV2.Spec.Audience"
