@@ -41,7 +41,7 @@ in the first half of 2025 and should plan to migrate their agents to `teleport-u
 ## How it works
 
 When Managed Updates are enabled, a Teleport updater is installed alongside
-each new Teleport agent. The updater communicates with the Teleport Proxy Service to
+each new Teleport Agent. The updater communicates with the Teleport Proxy Service to
 determine when an update is available and if it should perform the update now.
 
 Each agent belongs to an update group. The update schedule specifies when each
@@ -63,7 +63,7 @@ Existing agents must be manually enrolled into Managed Updates.
   [Teleport Installation](../installation.mdx) page.
 - Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
   which describes the sequence in which to upgrade components in your cluster.
-- Teleport agents that are not yet enrolled in Managed Updates.
+- Teleport Agents that are not yet enrolled in Managed Updates.
 - (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -105,7 +105,7 @@ the version provided by the package.
 
 The [Install Script](installation.mdx#one-line-installation-script) is the
 fastest way to onboard new Linux servers. However, you may also use
-`teleport-update` by itself to set up a Teleport agent manually.
+`teleport-update` by itself to set up a Teleport Agent manually.
 
 Users can create a new installation of Teleport using any version of the
 `teleport-update` binary. First, download copy of the Teleport tarball from
@@ -119,7 +119,7 @@ $ sudo ./teleport-update enable --proxy example.teleport.sh
 ```
 
 After Teleport is installed, you can create `/etc/teleport.yaml`, either manually
-or using `teleport configure`. After, the Teleport agent can be enabled and
+or using `teleport configure`. After, the Teleport Agent can be enabled and
 started via the `systemctl` command:
 
 ```code
@@ -449,10 +449,10 @@ default    Unstarted            outside_window
 This rollout state is computed by each auth every minute, an `autoupdate_config` or `autoupdate_version`
 change might take up to a minute to be reflected and applied.
 
-Teleport agents are not updated immediately when a new version of Teleport is
+Teleport Agents are not updated immediately when a new version of Teleport is
 released, and agent updates can lag behind the cluster by a few days.
 
-If the Teleport agent has not been automatically updating for several weeks, you
+If the Teleport Agent has not been automatically updating for several weeks, you
 can consult the updater logs to help troubleshoot the problem:
 
 ### Troubleshooting managed agent upgrades on Kubernetes

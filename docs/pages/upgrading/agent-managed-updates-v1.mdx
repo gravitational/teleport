@@ -15,14 +15,14 @@ Teleport resource. The new updater uses a binary called `teleport-update` that i
 provided by the `teleport` package and configured by the `autoupdate_version` and
 `autoupdate_config`. The original updater and resource are described in this document.
 
-Managed updates v1 only support Enterprise versions of Teleport.
+Managed Updates v1 only support Enterprise versions of Teleport.
 
 Please consider using [Managed Updates for Agents (v2)](./agent-managed-updates.mdx),
 as its updater provides a safer, simpler, more flexible, compatible, and reliable
 update experience compared to Managed Updates v1.
 
 <Admonition type="note" title="Compatibility between Managed Updates v1 and v2">
-Managed updates v2 are backwards compatible with the
+Managed Updates v2 are backwards compatible with the
 `cluster_maintenance_config` resource. The Managed Updates v1 `teleport-upgrade` script
 is forwards compatible with the `autoupdate_config` and `autoupdate_version` resources.
 Agents connected to the same cluster may use either resource.
@@ -74,7 +74,7 @@ regular maintenance window.
 - (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/4. Enable managed agent upgrades
+## Step 1/4. Enable Managed Agent Updates
 
 If you are running a cloud-hosted Teleport Enterprise cluster, skip to [Step
 2](#step-24-find-agents-to-enroll-in-automatic-updates).
