@@ -36,19 +36,19 @@ the user to be authenticated beforehand.
 
 ![device authentication](../../../img/architecture/device-trust-authentication.png)
 
-These are the basics of device trust. TPM ceremonies are slightly different in
+These are the basics of Device Trust. TPM ceremonies are slightly different in
 implementation but equivalent in functionality and security properties
 (enrollment attests the EKCert, EK and AK; authentication verifies possession of
 the AK).
 
 Web UI support is underpinned by the same ceremonies described above, which are
-delegated to Teleport Connect for technical reasons. Our [device trust for the
-web][] blog post describes the implementation challenges in detail.
+delegated to Teleport Connect for technical reasons. Our [Device Trust for the
+web][blog-post] blog post describes the implementation challenges in detail.
 
-For practical use see the [device trust section][].
+For practical use see the [Device Trust section][section].
 
 [auto-enrollment]: ../../admin-guides/access-controls/device-trust/device-management.mdx#auto-enrollment
 [device enrollment tokens]: ../../admin-guides/access-controls/device-trust/device-management.mdx#create-a-device-enrollment-token
 [device enforcement]: ../../admin-guides/access-controls/device-trust/enforcing-device-trust.mdx
-[device trust for the web]: https://goteleport.com/blog/device-trust-for-web-challenges-and-solutions/
-[device trust section]: ../../admin-guides/access-controls/device-trust/device-trust.mdx
+[blog-post]: https://goteleport.com/blog/device-trust-for-web-challenges-and-solutions/
+[section]: ../../admin-guides/access-controls/device-trust/device-trust.mdx
