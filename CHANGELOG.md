@@ -19,6 +19,14 @@ Teleport 18 removes support for:
 - `tls-ecdhe-ecdsa-with-aes-128-cbc-sha256`
 - `tls-ecdhe-rsa-with-aes-128-cbc-sha256`
 
+#### Legacy ALPN connection upgrade mode has been removed
+
+Teleport v15.1 added WebSocket upgrade support for Teleport proxies behind
+layer 7 load balancers and reverse proxies. The legacy ALPN upgrade mode using
+`alpn` or `alpn-ping` as upgrade types was left as a fallback until v17.
+Teleport v18 removes the legacy upgrade mode entirely including the use of
+environment variable `TELEPORT_TLS_ROUTING_CONN_UPGRADE_MODE`.
+
 ## 16.0.0 (xx/xx/xx)
 
 ### Breaking changes
