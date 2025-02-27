@@ -1249,8 +1249,8 @@ func TestRecovery(t *testing.T) {
 	require.Empty(t, cmp.Diff(ca2, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
-// TestTokens tests dynamic tokens
-func TestDynamocTokens(t *testing.T) {
+// TestDynamicTokens tests the dynamic tokens cache.
+func TestDynamicTokens(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
