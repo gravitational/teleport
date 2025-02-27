@@ -917,7 +917,7 @@ func or[TEnv any]() func(lhs, rhs any) (Expression[TEnv, bool], error) {
 
 func eq[TEnv any]() func(lhs, rhs any) (Expression[TEnv, bool], error) {
 	return func(lhs any, rhs any) (Expression[TEnv, bool], error) {
-		// If the LHS operand type isn't known at compile time (e.g. an `ifelse`
+		// If the LHS operand type isn't known at parse time (e.g. an `ifelse`
 		// function call) try the RHS instead.
 		operand := lhs
 		if _, isAny := operand.(Expression[TEnv, any]); isAny {
@@ -929,7 +929,7 @@ func eq[TEnv any]() func(lhs, rhs any) (Expression[TEnv, bool], error) {
 		case int, Expression[TEnv, int]:
 			return eqExpression[TEnv, int](lhs, rhs)
 		case Expression[TEnv, any]:
-			return nil, trace.Errorf("operator (==) can only be used when at least one operand type is known at compile-time")
+			return nil, trace.Errorf("operator (==) can only be used when at least one operand type is known at parse time")
 		default:
 			return nil, trace.Errorf("operator (==) not supported for type: %s", typeName(operand))
 		}
@@ -955,7 +955,7 @@ func eqExpression[TEnv any, TResult comparable](lhs any, rhs any) (Expression[TE
 
 func neq[TEnv any]() func(lhs, rhs any) (Expression[TEnv, bool], error) {
 	return func(lhs any, rhs any) (Expression[TEnv, bool], error) {
-		// If the LHS operand type isn't known at compile time (e.g. an `ifelse`
+		// If the LHS operand type isn't known at parse time (e.g. an `ifelse`
 		// function call) try the RHS instead.
 		operand := lhs
 		if _, isAny := operand.(Expression[TEnv, any]); isAny {
@@ -967,7 +967,7 @@ func neq[TEnv any]() func(lhs, rhs any) (Expression[TEnv, bool], error) {
 		case int, Expression[TEnv, int]:
 			return neqExpression[TEnv, int](lhs, rhs)
 		case Expression[TEnv, any]:
-			return nil, trace.Errorf("operator (!=) can only be used when at least one operand type is known at compile-time")
+			return nil, trace.Errorf("operator (!=) can only be used when at least one operand type is known at parse time")
 		default:
 			return nil, trace.Errorf("operator (!=) not supported for type: %s", typeName(operand))
 		}

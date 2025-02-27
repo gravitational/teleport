@@ -422,7 +422,7 @@ func TestParser(t *testing.T) {
 			desc: "equality both operands dynamic",
 			expr: `ifelse(1 == 1, 1, "one") == ifelse(1 == 1, 1, "one")`,
 			expectParseError: []string{
-				"operator (==) can only be used when at least one operand type is known at compile-time",
+				"operator (==) can only be used when at least one operand type is known at parse time",
 			},
 		},
 		{
@@ -456,7 +456,7 @@ func TestParser(t *testing.T) {
 			desc: "iequality both operands dynamic",
 			expr: `ifelse(1 == 1, 1, "one") != ifelse(1 == 1, 1, "one")`,
 			expectParseError: []string{
-				"operator (!=) can only be used when at least one operand type is known at compile-time",
+				"operator (!=) can only be used when at least one operand type is known at parse time",
 			},
 		},
 		{
