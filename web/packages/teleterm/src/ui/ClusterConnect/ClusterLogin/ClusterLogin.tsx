@@ -66,6 +66,9 @@ export function ClusterLoginPresentation({
   shouldPromptSsoStatus,
   passwordlessLoginState,
   reason,
+  shouldSkipVersionCheck,
+  disableVersionCheck,
+  platform,
 }: ClusterLoginPresentationProps) {
   return (
     <>
@@ -119,6 +122,9 @@ export function ClusterLoginPresentation({
             clearLoginAttempt={clearLoginAttempt}
             shouldPromptSsoStatus={shouldPromptSsoStatus}
             passwordlessLoginState={passwordlessLoginState}
+            shouldSkipVersionCheck={shouldSkipVersionCheck}
+            disableVersionCheck={disableVersionCheck}
+            platform={platform}
           />
         )}
       </DialogContent>

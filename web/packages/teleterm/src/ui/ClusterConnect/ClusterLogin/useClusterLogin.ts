@@ -28,7 +28,8 @@ import { assertUnreachable } from 'teleterm/ui/utils';
 
 export default function useClusterLogin(props: Props) {
   const { onSuccess, clusterUri } = props;
-  const { clustersService, tshd } = useAppContext();
+  const { clustersService, tshd, configService, mainProcessClient } =
+    useAppContext();
   const cluster = clustersService.findCluster(clusterUri);
   const refAbortCtrl = useRef<AbortController>(null);
   const loggedInUserName =
@@ -155,6 +156,17 @@ export default function useClusterLogin(props: Props) {
     }
   }, [loginAttempt.status]);
 
+  //TODO(gzdunek): We should have a way to listen to config service changes.
+  //A workaround for is to update the state, which triggers a re-render.
+  const [shouldSkipVersionCheck, setShouldSkipVersionCheck] = useState(
+    () => configService.get('skipVersionCheck').value
+  );
+  function disableVersionCheck() {
+    configService.set('skipVersionCheck', true);
+    setShouldSkipVersionCheck(true);
+  }
+  const { platform } = mainProcessClient.getRuntimeSettings();
+
   return {
     shouldPromptSsoStatus,
     passwordlessLoginState,
@@ -169,6 +181,9 @@ export default function useClusterLogin(props: Props) {
     initAttempt,
     init,
     clearLoginAttempt,
+    shouldSkipVersionCheck,
+    disableVersionCheck,
+    platform,
   };
 }
 

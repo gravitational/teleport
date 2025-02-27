@@ -26,10 +26,12 @@ import { AuthSettings } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_setting
 import { Attempt } from 'shared/hooks/useAsync';
 import type { PrimaryAuthType } from 'shared/services';
 
+import { Platform } from 'teleterm/mainProcess/types';
 import * as types from 'teleterm/ui/services/clusters/types';
 
 import { outermostPadding } from '../../spacing';
 import type { PasswordlessLoginState } from '../useClusterLogin';
+import { CompatibilityWarning } from './CompatibilityWarning';
 import { FormLocal } from './FormLocal';
 import { FormPasswordless } from './FormPasswordless';
 import { FormSso } from './FormSso';
@@ -61,6 +63,12 @@ export default function LoginForm(props: Props) {
     );
   }
 
+  const compatibilityWarningProps = {
+    authSettings: props.authSettings,
+    shouldSkipVersionCheck: props.shouldSkipVersionCheck,
+    disableVersionCheck: props.disableVersionCheck,
+    platform: props.platform,
+  };
   const ssoEnabled = authProviders?.length > 0;
 
   // If local auth was not enabled, disregard any primary auth type config
@@ -73,6 +81,7 @@ export default function LoginForm(props: Props) {
             Could not log in
           </Alerts.Danger>
         )}
+        <CompatibilityWarning {...compatibilityWarningProps} />
         <FormSso {...props} />
       </FlexBordered>
     );
@@ -87,6 +96,7 @@ export default function LoginForm(props: Props) {
         >
           Login has not been enabled
         </Alerts.Danger>
+        <CompatibilityWarning {...compatibilityWarningProps} />
       </FlexBordered>
     );
   }
@@ -106,6 +116,10 @@ export default function LoginForm(props: Props) {
           Could not log in
         </Alerts.Danger>
       )}
+      <CompatibilityWarning
+        mx={outermostPadding}
+        {...compatibilityWarningProps}
+      />
       <StepSlider<typeof loginViews>
         flows={loginViews}
         currFlow={'default'}
@@ -304,6 +318,9 @@ export type Props = {
   onLoginWithPasswordless(): void;
   onLogin(username: string, password: string): void;
   autoFocus?: boolean;
+  shouldSkipVersionCheck: boolean;
+  disableVersionCheck(): void;
+  platform: Platform;
 };
 
 const OutermostPadding = styled(Box).attrs({ px: outermostPadding })``;
