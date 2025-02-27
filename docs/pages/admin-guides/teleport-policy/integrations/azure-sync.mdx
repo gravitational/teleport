@@ -58,7 +58,6 @@ Identity Security’s Access Graph feature visualizes the resources retrieved fr
 how to set up Access Graph.
   - The node running the Access Graph service must be reachable from the Teleport Auth Service.
 
-## Step 1/2. Configure the Discovery Service (Self-hosted only)
 
 <Admonition type="warning">
   If you have a cloud-hosted Teleport Enterprise cluster, you can disregard
@@ -66,8 +65,20 @@ how to set up Access Graph.
   Discovery Service within your cluster.
 </Admonition>
 
+### Installing the Discovery Service
+<Admonition type="tip">
+  If you plan on running the Discovery Service on a host that is already running
+  another Teleport service (Auth or Proxy, for example), you can skip this step.
+</Admonition>
+
+Install Teleport on the virtual machine that will run the Discovery Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+### Configuring the Discovery Service
+
 To activate the Teleport Discovery Service, add a top level discovery_service section to the `teleport.yaml`
-config file used by the Auth Service. This service monitors dynamic `discovery_config` resources that are set up
+config file. This service monitors dynamic `discovery_config` resources that are set up
 with the `discovery_group` matching.
 
 <Var name="discovery-group" />.
@@ -95,6 +106,24 @@ discovery_service:
 ```
 
 The Discovery Service will now periodically fetch resources from your Azure subscription.
+
+### Activating the Discovery Service
+
+To activate the Discovery Service for fetching Azure resources, you'll need to authorize the identity running the
+Discovery service. Two options for authorization exist:
+
+1. [Managed identity attached to a VM](https://goteleport.com/docs/enroll-resources/auto-discovery/servers/azure-discovery/#attach-an-identity-to-your-azure-vm) - Use the managed identity ID as the principal ID in step 2 of integration command
+2. [OIDC credentials via Teleport Integration](https://goteleport.com/docs/admin-guides/teleport-policy/integrations/entra-id/#step-23-configure-the-entra-id-integration) - Use the application object ID as the princial ID in step 2 of the integration command
+
+When using OIDC credentials via Teleport Integration, add the name of the <Var name="integration" /> to the configuration, e.g. `entra-id`:
+
+```yaml
+discovery_service:
+  access_graph:
+    azure:
+      - subscription_id: <Var name="azure-subscription-id"/>
+      - integration: <Var name="azure-integration"/>
+```
 
 ## Step 2/2. Set up Access Graph Azure Sync
 
