@@ -92,21 +92,15 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 
 	// By default, it will use `stable/v<majorVersion>`, eg stable/v12
 	repoChannel := ""
-	installPackageUpdater := false
 
 	switch opts.InstallOptions.AutoupdateStyle {
-	case NoAutoupdate:
+	case NoAutoupdate, UpdaterBinaryAutoupdate:
 	case PackageManagerAutoupdate:
 		// Note: This is a cloud-specific repo. We could use the new stable/rolling
 		// repo in non-cloud case, but the script has never support enabling autoupdates
 		// in a non-cloud cluster.
 		// We will prefer using the new updater binary for autoupdates in self-hosted setups.
 		repoChannel = automaticupgrades.DefaultCloudChannelName
-		installPackageUpdater = true
-	case UpdaterBinaryAutoupdate:
-		// TODO(hugoShaka): add new autoupdate binary support in the node-install script
-		// by using oneoff in another PR
-		return "", trace.NotImplemented("This path is not implemented yet.")
 	default:
 		return "", trace.BadParameter("unsupported autoupdate style: %v", opts.InstallOptions.AutoupdateStyle)
 	}
@@ -173,7 +167,7 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 		"caPins":                  strings.Join(opts.CAPins, ","),
 		"packageName":             opts.InstallOptions.TeleportFlavor,
 		"repoChannel":             repoChannel,
-		"installUpdater":          strconv.FormatBool(installPackageUpdater),
+		"installUpdater":          opts.InstallOptions.AutoupdateStyle.String(),
 		"version":                 shsprintf.EscapeDefaultContext(opts.InstallOptions.TeleportVersion),
 		"appInstallMode":          strconv.FormatBool(opts.AppServiceEnabled),
 		"appServerResourceLabels": appServerResourceLabels,

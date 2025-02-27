@@ -375,11 +375,9 @@ func BenchmarkSortCache(b *testing.B) {
 	// actual benchmark gets performed against one singular read loop. the goal here being to
 	// figure out what a single reader would experience when trying to pull a large block of
 	// values from a SortCache that is under high concurrent load.
-	b.ResetTimer()
-
 	var n int
 	buf := make([]resource, 0, resourcesPerKind)
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		buf = buf[:0]
 		n++
 		key := "node/"

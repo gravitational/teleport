@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
@@ -34,6 +35,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils/teleportassets"
 	"github.com/gravitational/teleport/lib/web/scripts"
 )
+
+const insecureParamName = "insecure"
 
 // installScriptHandle handles calls for "/scripts/install.sh" and responds with a bash script installing Teleport
 // by downloading and running `teleport-update`. This installation script does not start the agent, join it,
@@ -50,6 +53,14 @@ func (h *Handler) installScriptHandle(w http.ResponseWriter, r *http.Request, pa
 	opts, err := h.installScriptOptions(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to build install script options")
+	}
+
+	if insecure := r.URL.Query().Get(insecureParamName); insecure != "" {
+		v, err := strconv.ParseBool(insecure)
+		if err != nil {
+			return nil, trace.BadParameter("failed to parse insecure flag %q: %v", insecure, err)
+		}
+		opts.Insecure = v
 	}
 
 	script, err := scripts.GetInstallScript(r.Context(), opts)
