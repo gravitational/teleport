@@ -1,6 +1,6 @@
 ---
 authors: Nic Klaassen (nic@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 195 - Windows VNet
