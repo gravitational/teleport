@@ -32,8 +32,33 @@ context for the revocation.
 Use `tctl workload-identity revocations add` to create a new revocation:
 
 ```code
-$ tctl workload-identity revocations add --serial 1234567890 --reason compromised
+$ tctl workload-identity revocations add --type x509 --serial aabbcc11 --reason compromised
 ```
+
+## Using `tctl` to list revocations
+
+You can list the currently revoked X509 SVIDs using the `tctl workload-identity
+revocations ls` command:
+
+```code
+$ tctl workload-identity revocations ls
+Type Serial   Revoked At           Expires At                        Reason
+---- -------- -------------------- --------------------------------- -------
+x509 aabbcc11 2025-02-20T11:44:13Z 2025-02-27T11:44:13Z (34m21s)     example
+```
+
+## Using `tctl` to remove a revocation
+
+You can remove an existing revocation using the `tctl workload-identity
+revocations rm` command:
+
+```code
+$ tctl workload-identity revocations rm --type x509 --serial aabbcc11
+```
+
+However, typically it is preferred to issue a new X509 SVID rather than
+remove a revocation. This is because validators may cache revocations and this
+may mean that the removal of the revocation will not be immediately effective.
 
 ## Using `tctl` to fetch the signed CRL
 
