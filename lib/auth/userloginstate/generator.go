@@ -399,6 +399,7 @@ func (g *Generator) emitUsageEvent(ctx context.Context, user types.User, state *
 	}
 
 	grantsToUser := &usageeventsv1.AccessListGrantsToUser{
+		UserName:                    user.GetName(),
 		CountRolesGranted:           int32(countRolesGranted),
 		CountTraitsGranted:          int32(countTraitsGranted),
 		CountInheritedRolesGranted:  int32(countInheritedRolesGranted),

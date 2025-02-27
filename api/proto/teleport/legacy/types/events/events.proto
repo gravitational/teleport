@@ -79,6 +79,24 @@ enum UserKind {
   USER_KIND_BOT = 2;
 }
 
+// UserOrigin is the origin of a user account.
+// Keep the values in sync with UserOrigin enum defined in
+// prehogv1 and prehogv1alpha.
+enum UserOrigin {
+  // Indicates a legacy cluster emitting events without a defined user origin.
+  USER_ORIGIN_UNSPECIFIED = 0;
+  // Indicates a local user.
+  USER_ORIGIN_LOCAL = 1;
+  // Indicates an SSO user originated from the SAML or OIDC connector.
+  USER_ORIGIN_SSO = 2;
+  // Indicates a user originated from the Okta integration.
+  USER_ORIGIN_OKTA = 3;
+  // Indicates a user originated from the SCIM integration.
+  USER_ORIGIN_SCIM = 4;
+  // Indicates a user originated from the EntraID integration.
+  USER_ORIGIN_ENTRAID = 5;
+}
+
 // UserMetadata is a common user event metadata
 message UserMetadata {
   // User is teleport user name
@@ -119,6 +137,9 @@ message UserMetadata {
   // BotInstanceID is the ID of the Bot Instance if this action is associated
   // with one.
   string BotInstanceID = 12 [(gogoproto.jsontag) = "bot_instance_id,omitempty"];
+
+  // UserOrigin specifies the origin of this user account.
+  UserOrigin UserOrigin = 13 [(gogoproto.jsontag) = "user_origin,omitempty"];
 }
 
 // Server is a server metadata
@@ -4749,6 +4770,7 @@ message OneOf {
     events.GitCommand GitCommand = 197;
     events.UserLoginAccessListInvalid UserLoginAccessListInvalid = 198;
     events.AccessRequestExpire AccessRequestExpire = 199;
+    events.StableUNIXUserCreate StableUNIXUserCreate = 200;
     events.WorkloadIdentityX509RevocationCreate WorkloadIdentityX509RevocationCreate = 201;
     events.WorkloadIdentityX509RevocationDelete WorkloadIdentityX509RevocationDelete = 202;
     events.WorkloadIdentityX509RevocationUpdate WorkloadIdentityX509RevocationUpdate = 203;
@@ -8054,4 +8076,29 @@ message GitCommandAction {
   string Old = 3 [(gogoproto.jsontag) = "old,omitempty"];
   // New is the new hash.
   string New = 4 [(gogoproto.jsontag) = "new,omitempty"];
+}
+
+// StableUNIXUserCreate is emitted whenever a new stable UNIX user is written in
+// the cluster state storage.
+message StableUNIXUserCreate {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  StableUNIXUser stable_unix_user = 3;
+}
+
+message StableUNIXUser {
+  string username = 1;
+  int32 uid = 2;
 }

@@ -1,5 +1,19 @@
 # Changelog
 
+## 17.2.9 (02/25/25)
+
+* Updated go-jose/v4 to v4.0.5 (addresses CVE-2025-27144). [#52467](https://github.com/gravitational/teleport/pull/52467)
+* Updated /x/crypto and /x/oauth2 (addresses CVE-2025-22869 and CVE-2025-22868). [#52437](https://github.com/gravitational/teleport/pull/52437)
+* Fixed missing audit event on GitHub proxy RBAC failure. [#52427](https://github.com/gravitational/teleport/pull/52427)
+* Allow to provide `tbot` configurations via environment variables. Update `tbot-distroless` image to run `start` command by default. [#52351](https://github.com/gravitational/teleport/pull/52351)
+* Logging out from a cluster no longer clears the client autoupdate binaries. [#52337](https://github.com/gravitational/teleport/pull/52337)
+* Added `tctl` installer for Identity Center integration. [#52336](https://github.com/gravitational/teleport/pull/52336)
+* Added JSON response support to the `/webapi/auth/export` public certificate API endpoint. [#52325](https://github.com/gravitational/teleport/pull/52325)
+* Resolves an issue with `tbot` where the web proxy port would be used instead of the SSH proxy port when ports separate mode is in use. [#52291](https://github.com/gravitational/teleport/pull/52291)
+* Fix Azure SQL Servers connect failures when the database agent runs on a VM scale set. [#52267](https://github.com/gravitational/teleport/pull/52267)
+* Add filter drop-downs and pinning support for the "Enroll a New Resource" page in the web UI. [#52176](https://github.com/gravitational/teleport/pull/52176)
+* Improve latency and reduce resource consumption of generating Kubernetes certificates via `tctl auth sign` and `tsh kube login`. [#52146](https://github.com/gravitational/teleport/pull/52146)
+
 ## 17.2.8 (02/19/25)
 
 * Fixed broken `Download Metadata File` button from the SAML enrolling resource flow in the web UI. [#52276](https://github.com/gravitational/teleport/pull/52276)

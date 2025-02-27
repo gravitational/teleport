@@ -69,6 +69,7 @@ import (
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	trustv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userprovisioningv2pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
@@ -101,6 +102,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
+	"github.com/gravitational/teleport/lib/auth/stableunixusers"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate/userloginstatev1"
 	"github.com/gravitational/teleport/lib/auth/userpreferences/userpreferencesv1"
@@ -5218,15 +5220,20 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	workloadidentityv1pb.RegisterWorkloadIdentityIssuanceServiceServer(server, workloadIdentityIssuanceService)
 
 	workloadIdentityRevocationService, err := workloadidentityv1.NewRevocationService(&workloadidentityv1.RevocationServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Emitter:    cfg.Emitter,
-		Clock:      cfg.AuthServer.GetClock(),
-		Store:      cfg.AuthServer.Services.WorkloadIdentityX509Revocations,
+		Authorizer:          cfg.Authorizer,
+		Emitter:             cfg.Emitter,
+		Clock:               cfg.AuthServer.GetClock(),
+		Store:               cfg.AuthServer.Services.WorkloadIdentityX509Revocations,
+		KeyStore:            cfg.AuthServer.keyStore,
+		CertAuthorityGetter: cfg.AuthServer.Cache,
+		EventsWatcher:       cfg.AuthServer.Services,
+		ClusterName:         clusterName.GetClusterName(),
 	})
 	if err != nil {
-		return nil, trace.Wrap(err, "creating workload identity issuance service")
+		return nil, trace.Wrap(err, "creating workload identity revocation service")
 	}
 	workloadidentityv1pb.RegisterWorkloadIdentityRevocationServiceServer(server, workloadIdentityRevocationService)
+	go workloadIdentityRevocationService.RunCRLSigner(cfg.AuthServer.CloseContext())
 
 	dbObjectImportRuleService, err := dbobjectimportrulev1.NewDatabaseObjectImportRuleService(dbobjectimportrulev1.DatabaseObjectImportRuleServiceConfig{
 		Authorizer: cfg.Authorizer,
@@ -5247,6 +5254,28 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err, "creating database object service")
 	}
 	dbobjectv1pb.RegisterDatabaseObjectServiceServer(server, dbObjectService)
+
+	stableUNIXUsersServiceServer, err := stableunixusers.New(stableunixusers.Config{
+		Authorizer: cfg.Authorizer,
+		Emitter:    cfg.Emitter,
+		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "stable_unix_users"),
+
+		Backend:       cfg.AuthServer.bk,
+		ReadOnlyCache: cfg.AuthServer.ReadOnlyCache,
+
+		StableUNIXUsers:      cfg.AuthServer.Services.StableUNIXUsersInternal,
+		ClusterConfiguration: cfg.AuthServer.Services.ClusterConfigurationInternal,
+
+		CacheClock:   cfg.AuthServer.clock,
+		CacheContext: cfg.AuthServer.closeCtx,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating stable UNIX user service")
+	}
+	stableunixusersv1.RegisterStableUNIXUsersServiceServer(
+		server,
+		stableUNIXUsersServiceServer,
+	)
 
 	authServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,

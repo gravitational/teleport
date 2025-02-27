@@ -702,6 +702,9 @@ const (
 	// GitCommandFailureCode is the git command feature event code.
 	GitCommandFailureCode = "TGIT001E"
 
+	// StableUNIXUserCreateCode is the stable UNIX user create event code.
+	StableUNIXUserCreateCode = "TSUU001I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )

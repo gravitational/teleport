@@ -226,24 +226,89 @@ test('no double conversions when clicking already active tabs', async () => {
   );
 });
 
-test('canceling standard editor', async () => {
-  const onCancel = jest.fn();
-  render(<TestRoleEditor onCancel={onCancel} />);
-  await user.click(screen.getByRole('button', { name: 'Cancel' }));
-  expect(onCancel).toHaveBeenCalled();
-  expect(userEventService.captureUserEvent).toHaveBeenCalledWith({
-    event: CaptureEvent.CreateNewRoleCancelClickEvent,
-  });
-});
+describe('closing the editor', () => {
+  function originalRole() {
+    const object = withDefaults({
+      kind: 'role',
+      metadata: {
+        name: 'new_role_name',
+      },
+    });
+    return { object, yaml: toFauxYaml(object) };
+  }
 
-test('canceling yaml editor', async () => {
-  const onCancel = jest.fn();
-  render(<TestRoleEditor onCancel={onCancel} />);
-  await user.click(getYamlEditorTab());
-  await user.click(screen.getByRole('button', { name: 'Cancel' }));
-  expect(onCancel).toHaveBeenCalled();
-  expect(userEventService.captureUserEvent).toHaveBeenCalledWith({
-    event: CaptureEvent.CreateNewRoleCancelClickEvent,
+  function setup(props: Partial<RoleEditorProps> = {}) {
+    const onCancel = jest.fn();
+    render(<TestRoleEditor onCancel={onCancel} {...props} />);
+    return onCancel;
+  }
+
+  async function closeWithConfirmation(onCancel: () => void) {
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    expect(
+      screen.getByText('Are you sure you want to close the editor?')
+    ).toBeVisible();
+    await user.click(
+      screen.getByRole('button', { name: 'Discard Changes and Close' })
+    );
+    expect(onCancel).toHaveBeenCalled();
+    expect(userEventService.captureUserEvent).toHaveBeenCalledWith({
+      event: CaptureEvent.CreateNewRoleCancelClickEvent,
+    });
+  }
+
+  async function closeImmediately(onCancel: () => void) {
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    expect(
+      screen.queryByText('Are you sure you want to close the editor?')
+    ).not.toBeInTheDocument();
+    expect(onCancel).toHaveBeenCalled();
+    expect(userEventService.captureUserEvent).toHaveBeenCalledWith({
+      event: CaptureEvent.CreateNewRoleCancelClickEvent,
+    });
+  }
+
+  test('standard editor, new resource', async () => {
+    const onCancel = setup();
+    await closeWithConfirmation(onCancel);
+  });
+
+  test('yaml editor, new resource', async () => {
+    const onCancel = setup();
+    await user.click(getYamlEditorTab());
+    await closeWithConfirmation(onCancel);
+  });
+
+  test('keep editing', async () => {
+    const onCancel = setup();
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    await user.click(screen.getByRole('button', { name: 'Keep Editing' }));
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(userEventService.captureUserEvent).not.toHaveBeenCalled();
+  });
+
+  test('standard editor, unmodified existing resource', async () => {
+    const onCancel = setup({ originalRole: originalRole() });
+    await closeImmediately(onCancel);
+  });
+
+  test('standard editor, modified existing resource', async () => {
+    const onCancel = setup({ originalRole: originalRole() });
+    await user.type(screen.getByLabelText('Description'), 'foo');
+    await closeWithConfirmation(onCancel);
+  });
+
+  test('YAML editor, unmodified existing resource', async () => {
+    const onCancel = setup({ originalRole: originalRole() });
+    await user.click(getYamlEditorTab());
+    await closeImmediately(onCancel);
+  });
+
+  test('YAML editor, modified existing resource', async () => {
+    const onCancel = setup({ originalRole: originalRole() });
+    await user.click(getYamlEditorTab());
+    await user.type(await findTextEditor(), '{{"foo":"bar"}');
+    await closeWithConfirmation(onCancel);
   });
 });
 
