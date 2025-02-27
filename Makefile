@@ -112,6 +112,7 @@ RELEASE_darwin_arm64 = $(RELEASE_DIR)/teleport-$(GITTAG)-darwin-arm64-bin.tar.gz
 RELEASE_darwin_amd64 = $(RELEASE_DIR)/teleport-$(GITTAG)-darwin-amd64-bin.tar.gz
 BUILDDIR_arm64 = $(BUILDDIR)/arm64
 BUILDDIR_amd64 = $(BUILDDIR)/amd64
+RELEASE_darwin_universal = $(RELEASE_DIR)/teleport-$(GITTAG)-darwin-universal-bin.tar.gz
 # TARBINS is the path of the binaries in the release tarballs
 TARBINS = $(addprefix teleport/,$(BINS))
 
@@ -434,14 +435,14 @@ tsh-app: TSH_APP_BUNDLE = $(BUILDDIR)/tsh.app
 tsh-app: TSH_APP_ENTITLEMENTS = build.assets/macos/$(TSH_SKELETON)/$(TSH_SKELETON).entitlements
 tsh-app:
 	cp -rf "build.assets/macos/$(TSH_SKELETON)/tsh.app/" "$(TSH_APP_BUNDLE)/"
-	$(MAC_TOOLING_CMD) package-app --entitlements "$(TSH_APP_ENTITLEMENTS)" "$(BUILDDIR)/tsh" "$(TSH_APP_BUNDLE)"
+	$(PACKAGE_TSH_APP) --entitlements "$(TSH_APP_ENTITLEMENTS)" "$(BUILDDIR)/tsh" "$(TSH_APP_BUNDLE)"
 
 .PHONY: tctl-app
 tctl-app: TCTL_APP_BUNDLE = $(BUILDDIR)/tctl.app
 tctl-app: TCTL_APP_ENTITLEMENTS = build.assets/macos/$(TCTL_SKELETON)/$(TCTL_SKELETON).entitlements
 tctl-app:
 	cp -rf "build.assets/macos/$(TCTL_SKELETON)/tctl.app/" "$(TCTL_APP_BUNDLE)/"
-	$(MAC_TOOLING_CMD) package-app --entitlements "$(TCTL_APP_ENTITLEMENTS)" "$(BUILDDIR)/tctl" "$(TCTL_APP_BUNDLE)"
+	$(PACKAGE_TCTL_APP) --entitlements "$(TCTL_APP_ENTITLEMENTS)" "$(BUILDDIR)/tctl" "$(TCTL_APP_BUNDLE)"
 
 #
 # BPF support (IF ENABLED)
@@ -1669,28 +1670,14 @@ endif
 # builds two package files: tsh-$VERSION.pkg and teleport-bin-$VERSION.pkg
 # combines the two package files into one teleport-$VERSION.pkg
 .PHONY: pkg
-pkg: TELEPORT_PKG_UNSIGNED = $(BUILDDIR)/teleport-$(VERSION).unsigned.pkg
-pkg: TELEPORT_PKG_SIGNED = $(RELEASE_DIR)/teleport-$(VERSION).pkg
-pkg: | $(RELEASE_DIR) $(BUILDDIR)/tsh.app $(BUILDDIR)/tctl.app
-	mkdir -p $(BUILDDIR)/
-
-	@echo Building tsh-$(VERSION).pkg
-	$(MAC_TOOLING_CMD) package-pkg --bundle-id $(TSH_BUNDLEID) --version $(VERSION) --install-location=/usr/local/bin $(BUILDDIR)/tsh.app $(BUILDDIR)/tsh-$(VERSION).pkg
-
-	@echo Building tctl-$(VERSION).pkg
-	$(MAC_TOOLING) package-pkg --bundle-id $(TCTL_BUNDLEID) --version $(VERSION) --install-location=/usr/local/bin $(BUILDDIR)/tctl.app $(BUILDDIR)/tctl-$(VERSION).pkg
+pkg: EXTRACT_DIR = $(BUILDDIR)/teleport-$(GITTAG)-darwin-universal-bin
+pkg: | $(RELEASE_darwin_universal) 
+	mkdir -p $(EXTRACT_DIR)
+	tar -C $(EXTRACT_DIR) -xzf $(RELEASE_darwin_universal) --strip-components=1
+	mv $(EXTRACT_DIR)/install $(EXTRACT_DIR)/postinstall
 
 	@echo Building teleport-bin-$(VERSION).pkg
-	$(MAC_TOOLING) package-pkg --bundle-id $(TELEPORT_BUNDLEID) --version $(VERSION) --install-location=/usr/local/bin $(BUILDDIR)/teleport $(BUILDDIR)/teleport-bin-$(VERSION).pkg
-	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
-	chmod +x $(BUILDDIR)/build-package.sh
-	# runtime is currently ignored on OS X
-	# we pass it through for consistency - it will be dropped by the build script
-	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p pkg -b $(TELEPORT_BUNDLEID) -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
-
-	@echo Combining teleport-bin-$(VERSION).pkg and tsh-$(VERSION).pkg into teleport-$(VERSION).pkg
-	productbuild --package $(BUILDDIR)/tsh*.pkg --package $(BUILDDIR)/tctl*.pkg --package $(BUILDDIR)/teleport-bin*.pkg $(TELEPORT_PKG_UNSIGNED)
-	$(NOTARIZE_TELEPORT_PKG)
+	$(PACKAGE_TELEPORT_PKG) --scripts-dir $(EXTRACT_DIR) --version $(VERSION) --install-location=/usr/local/teleport $(EXTRACT_DIR)/ $(BUILDDIR)/teleport-$(VERSION).pkg
 
 	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
 
