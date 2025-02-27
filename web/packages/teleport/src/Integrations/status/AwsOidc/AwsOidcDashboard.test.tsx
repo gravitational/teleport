@@ -49,6 +49,7 @@ test('renders header and stats cards', () => {
           awsoidc: {
             roleArn: 'arn:aws:iam::111456789011:role/bar',
           },
+          unresolvedUserTasks: 1,
           awsec2: {
             rulesCount: 24,
             resourcesFound: 12,
@@ -167,6 +168,7 @@ test('renders enroll cards', () => {
         statsAttempt: makeSuccessAttempt({
           name: 'integration-one',
           subKind: IntegrationKind.AwsOidc,
+          unresolvedUserTasks: 0,
           awsoidc: {
             roleArn: 'arn:aws:iam::111456789011:role/bar',
           },
