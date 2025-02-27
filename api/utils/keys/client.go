@@ -95,14 +95,22 @@ func (s *hardwareKeyAgentKey) Public() crypto.PublicKey {
 }
 
 func (s *hardwareKeyAgentKey) Sign(_ io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	if opts == nil {
-		opts = crypto.Hash(0)
+	req := &hardwarekeyagentv1.SignRequest{
+		KeyRef: s.keyRef,
+		Digest: digest,
 	}
 
-	req := &hardwarekeyagentv1.SignRequest{
-		KeyRef:   s.keyRef,
-		Digest:   digest,
-		HashName: hardwarekeyagentv1.HashName(opts.HashFunc()),
+	if opts == nil {
+		return nil, trace.BadParameter("hash func should be provided")
+	}
+
+	switch opts.HashFunc() {
+	case crypto.SHA256:
+		req.HashName = hardwarekeyagentv1.HashName_HASH_NAME_SHA256
+	case crypto.SHA512:
+		req.HashName = hardwarekeyagentv1.HashName_HASH_NAME_SHA512
+	default:
+		return nil, trace.BadParameter("unsupported hash func %q", opts.HashFunc().String())
 	}
 
 	if pssOpts, ok := opts.(*rsa.PSSOptions); ok {

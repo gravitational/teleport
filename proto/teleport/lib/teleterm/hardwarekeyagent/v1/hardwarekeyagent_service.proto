@@ -108,27 +108,9 @@ enum PIVSlot {
 // HashName is the name of a specific hashing algorithm.
 // These values match the Go [crypto] standard library.
 enum HashName {
-  // TODO: remove unneeded hash functions. Check with a custom RSA, ECDSA and ED25519 hardware key.
   HASH_NAME_UNSPECIFIED = 0;
-  HASH_NAME_MD4 = 1;
-  HASH_NAME_MD5 = 2;
-  HASH_NAME_SHA1 = 3;
-  HASH_NAME_SHA224 = 4;
-  HASH_NAME_SHA256 = 5;
-  HASH_NAME_SHA384 = 6;
-  HASH_NAME_SHA512 = 7;
-  HASH_NAME_MD5SHA1 = 8;
-  HASH_NAME_RIPEMD160 = 9;
-  HASH_NAME_SHA3_224 = 10;
-  HASH_NAME_SHA3_256 = 11;
-  HASH_NAME_SHA3_384 = 12;
-  HASH_NAME_SHA3_512 = 13;
-  HASH_NAME_SHA512_224 = 14;
-  HASH_NAME_SHA512_256 = 15;
-  HASH_NAME_BLAKE2S_256 = 16;
-  HASH_NAME_BLAKE2B_256 = 17;
-  HASH_NAME_BLAKE2B_384 = 18;
-  HASH_NAME_BLAKE2B_512 = 19;
+  HASH_NAME_SHA256 = 1;
+  HASH_NAME_SHA512 = 2;
 }
 
 // SaltLengthAuto is the length of the salt added to the digest before a signature.

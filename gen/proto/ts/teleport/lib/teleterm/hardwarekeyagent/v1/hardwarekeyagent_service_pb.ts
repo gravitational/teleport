@@ -193,87 +193,17 @@ export enum PIVSlot {
  */
 export enum HashName {
     /**
-     * TODO: remove unneeded hash functions. Check with a custom RSA, ECDSA and ED25519 hardware key.
-     *
      * @generated from protobuf enum value: HASH_NAME_UNSPECIFIED = 0;
      */
     UNSPECIFIED = 0,
     /**
-     * @generated from protobuf enum value: HASH_NAME_MD4 = 1;
+     * @generated from protobuf enum value: HASH_NAME_SHA256 = 1;
      */
-    MD4 = 1,
+    SHA256 = 1,
     /**
-     * @generated from protobuf enum value: HASH_NAME_MD5 = 2;
+     * @generated from protobuf enum value: HASH_NAME_SHA512 = 2;
      */
-    MD5 = 2,
-    /**
-     * @generated from protobuf enum value: HASH_NAME_SHA1 = 3;
-     */
-    SHA1 = 3,
-    /**
-     * @generated from protobuf enum value: HASH_NAME_SHA224 = 4;
-     */
-    SHA224 = 4,
-    /**
-     * @generated from protobuf enum value: HASH_NAME_SHA256 = 5;
-     */
-    SHA256 = 5,
-    /**
-     * @generated from protobuf enum value: HASH_NAME_SHA384 = 6;
-     */
-    SHA384 = 6,
-    /**
-     * @generated from protobuf enum value: HASH_NAME_SHA512 = 7;
-     */
-    SHA512 = 7,
-    /**
-     * @generated from protobuf enum value: HASH_NAME_MD5SHA1 = 8;
-     */
-    MD5SHA1 = 8,
-    /**
-     * @generated from protobuf enum value: HASH_NAME_RIPEMD160 = 9;
-     */
-    RIPEMD160 = 9,
-    /**
-     * @generated from protobuf enum value: HASH_NAME_SHA3_224 = 10;
-     */
-    SHA3_224 = 10,
-    /**
-     * @generated from protobuf enum value: HASH_NAME_SHA3_256 = 11;
-     */
-    SHA3_256 = 11,
-    /**
-     * @generated from protobuf enum value: HASH_NAME_SHA3_384 = 12;
-     */
-    SHA3_384 = 12,
-    /**
-     * @generated from protobuf enum value: HASH_NAME_SHA3_512 = 13;
-     */
-    SHA3_512 = 13,
-    /**
-     * @generated from protobuf enum value: HASH_NAME_SHA512_224 = 14;
-     */
-    SHA512_224 = 14,
-    /**
-     * @generated from protobuf enum value: HASH_NAME_SHA512_256 = 15;
-     */
-    SHA512_256 = 15,
-    /**
-     * @generated from protobuf enum value: HASH_NAME_BLAKE2S_256 = 16;
-     */
-    BLAKE2S_256 = 16,
-    /**
-     * @generated from protobuf enum value: HASH_NAME_BLAKE2B_256 = 17;
-     */
-    BLAKE2B_256 = 17,
-    /**
-     * @generated from protobuf enum value: HASH_NAME_BLAKE2B_384 = 18;
-     */
-    BLAKE2B_384 = 18,
-    /**
-     * @generated from protobuf enum value: HASH_NAME_BLAKE2B_512 = 19;
-     */
-    BLAKE2B_512 = 19
+    SHA512 = 2
 }
 /**
  * SaltLengthAuto is the length of the salt added to the digest before a signature.

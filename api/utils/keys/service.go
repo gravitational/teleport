@@ -59,11 +59,18 @@ func (s *Service) Sign(_ context.Context, req *hardwarekeyagentv1.SignRequest) (
 		return nil, trace.Wrap(err)
 	}
 
-	hash := crypto.Hash(req.HashName)
-	var signerOpts crypto.SignerOpts = hash
+	var signerOpts crypto.SignerOpts
+	switch req.HashName {
+	case hardwarekeyagentv1.HashName_HASH_NAME_SHA256:
+		signerOpts = crypto.SHA256
+	case hardwarekeyagentv1.HashName_HASH_NAME_SHA512:
+		signerOpts = crypto.SHA512
+	default:
+		return nil, trace.BadParameter("unsupported hash func %q", req.HashName.String())
+	}
 
 	if req.GetSaltLength() != nil {
-		pssOpts := &rsa.PSSOptions{Hash: hash}
+		pssOpts := &rsa.PSSOptions{Hash: signerOpts.HashFunc()}
 		switch sl := req.GetSaltLength().(type) {
 		case *hardwarekeyagentv1.SignRequest_Auto:
 			switch sl.Auto {
