@@ -198,8 +198,7 @@ func BenchmarkUserAssignmentCreator(b *testing.B) {
 		mustUpsertApplicationServer(b, ctx, suite, app1)
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		assert.NoError(b, suite.uac.OnLogin(context.Background(), suite.user))
 	}
 }
