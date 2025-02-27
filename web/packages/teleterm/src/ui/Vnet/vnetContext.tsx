@@ -31,7 +31,7 @@ import { BackgroundItemStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1
 import { Report } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 
-import { isTshdRpcError } from 'teleterm/services/tshd';
+import { cloneAbortSignal, isTshdRpcError } from 'teleterm/services/tshd';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { usePersistedState } from 'teleterm/ui/hooks/usePersistedState';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
@@ -56,7 +56,6 @@ export type VnetContext = {
   listDNSZonesAttempt: Attempt<string[]>;
   runDiagnostics: () => Promise<[Report, Error]>;
   diagnosticsAttempt: Attempt<Report>;
-  resetDiagnosticsAttempt: () => void;
   /**
    * Calculates whether the button for running diagnostics should be disabled. If it should be
    * disabled, it returns a reason for this, otherwise it returns a falsy value.
@@ -67,6 +66,22 @@ export type VnetContext = {
   getDisabledDiagnosticsReason: (
     runDiagnosticsAttempt: Attempt<Report>
   ) => string;
+  /**
+   * Dismisses the diagnostics alert shown in the VNet panel. It won't be shown again until the user
+   * reinstates the alert by manually requesting diagnostics to be run from the VNet panel.
+   *
+   * The user can dismissed an alert only after a diagnostics run was successful and either found
+   * some issues or some checks have failed to complete.
+   */
+  dismissDiagnosticsAlert: () => void;
+  /**
+   * Whether the user dismissed the diagnostics alert in the VNet panel.
+   */
+  hasDismissedDiagnosticsAlert: boolean;
+  /**
+   * Shows the diagnostics alert in the VNet panel again.
+   */
+  reinstateDiagnosticsAlert: () => void;
 };
 
 export type VnetStatus =
@@ -85,7 +100,8 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
     reason: { value: 'regular-shutdown-or-not-started' },
   });
   const appCtx = useAppContext();
-  const { vnet, mainProcessClient, notificationsService } = appCtx;
+  const { vnet, mainProcessClient, notificationsService, configService } =
+    appCtx;
   const isWorkspaceStateInitialized = useStoreSelector(
     'workspacesService',
     useCallback(state => state.isInitialized, [])
@@ -117,13 +133,12 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
 
   const [diagnosticsAttempt, runDiagnostics, setDiagnosticsAttempt] = useAsync(
     useCallback(
-      () => vnet.runDiagnostics({}).then(({ response }) => response.report),
+      (signal?: AbortSignal) =>
+        vnet
+          .runDiagnostics({}, { abort: signal && cloneAbortSignal(signal) })
+          .then(({ response }) => response.report),
       [vnet]
     )
-  );
-  const resetDiagnosticsAttempt = useCallback(
-    () => setDiagnosticsAttempt(makeEmptyAttempt()),
-    [setDiagnosticsAttempt]
   );
 
   const [stopAttempt, stop] = useAsync(
@@ -134,7 +149,9 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
         reason: { value: 'regular-shutdown-or-not-started' },
       });
       setAppState({ autoStart: false });
-    }, [vnet, setAppState])
+      setDiagnosticsAttempt(makeEmptyAttempt());
+      setHasDismissedDiagnosticsAlert(false);
+    }, [vnet, setAppState, setDiagnosticsAttempt])
   );
 
   const [listDNSZonesAttempt, listDNSZones] = useAsync(
@@ -160,6 +177,7 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
           : '',
     [status.value]
   );
+
   useEffect(() => {
     const handleAutoStart = async () => {
       if (
@@ -206,6 +224,45 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
     [appCtx, notificationsService]
   );
 
+  useEffect(
+    function periodicallyRunDiagnostics() {
+      if (!configService.get('unstable.vnetDiag').value) {
+        return;
+      }
+
+      if (status.value !== 'running') {
+        return;
+      }
+
+      let abortController = new AbortController();
+
+      runDiagnostics(abortController.signal);
+      const intervalId = setInterval(() => {
+        abortController.abort();
+        abortController = new AbortController();
+
+        runDiagnostics(abortController.signal);
+      }, diagnosticsIntervalMs);
+
+      return () => {
+        abortController.abort();
+        clearInterval(intervalId);
+      };
+    },
+    [configService, runDiagnostics, status.value]
+  );
+
+  const [hasDismissedDiagnosticsAlert, setHasDismissedDiagnosticsAlert] =
+    useState(false);
+  const reinstateDiagnosticsAlert = useCallback(
+    () => setHasDismissedDiagnosticsAlert(false),
+    []
+  );
+  const dismissDiagnosticsAlert = useCallback(
+    () => setHasDismissedDiagnosticsAlert(true),
+    []
+  );
+
   return (
     <VnetContext.Provider
       value={{
@@ -219,14 +276,18 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
         listDNSZonesAttempt,
         runDiagnostics,
         diagnosticsAttempt,
-        resetDiagnosticsAttempt,
         getDisabledDiagnosticsReason,
+        dismissDiagnosticsAlert,
+        hasDismissedDiagnosticsAlert,
+        reinstateDiagnosticsAlert,
       }}
     >
       {props.children}
     </VnetContext.Provider>
   );
 };
+
+const diagnosticsIntervalMs = 30 * 1000; // 30s
 
 export const useVnetContext = () => {
   const context = useContext(VnetContext);
