@@ -27,9 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
-// TODO(tcsc): fix upstream -> downstream in tests
-
-func TestUpstreamProvisioning(t *testing.T) {
+func TestDownstreamProvisioning(t *testing.T) {
 	ctx := context.Background()
 	pack := newPack(t)
 
@@ -39,12 +37,12 @@ func TestUpstreamProvisioning(t *testing.T) {
 		aclTitle  = "Test Access List 1 Title"
 	)
 
-	t.Run("should provision teleport user to scim upstream", func(t *testing.T) {
+	t.Run("should provision teleport user to scim downstream", func(t *testing.T) {
 		pack.mustCreateTeleportUser(t, aliceUser)
 		assertSCIMUserExists(t, pack.scimMock, aliceUser)
 	})
 
-	t.Run("should provision access list to scim upstream", func(t *testing.T) {
+	t.Run("should provision access list to scim downstream", func(t *testing.T) {
 		pack.mustCreateAccessList(t, aclID, aclTitle)
 		pack.mustUpsertAccessListMember(t, aclID, aliceUser, accesslist.MembershipKindUser)
 		pack.mustUpsertAccessListMemberWithoutTeleportAccount(t, aclID, "external-user")
@@ -225,7 +223,7 @@ func TestProvisioningNestedAccessLists(t *testing.T) {
 	})
 }
 
-func TestUpstreamProvisioningUserActivationDeactivation(t *testing.T) {
+func TestDownstreamProvisioningUserActivationDeactivation(t *testing.T) {
 	ctx := context.Background()
 	pack := newPack(t)
 
@@ -237,7 +235,7 @@ func TestUpstreamProvisioningUserActivationDeactivation(t *testing.T) {
 	pack.mustCreateTeleportUser(t, aliceUser)
 	assertSCIMUserExistAndIsActive(t, pack.scimMock, aliceUser)
 
-	t.Run("should de-activate scim user in upstream when a user is locked in teleport", func(t *testing.T) {
+	t.Run("should de-activate scim user in downstream when a user is locked in teleport", func(t *testing.T) {
 		l := &types.LockV2{
 			Metadata: types.Metadata{Name: lockName},
 			Spec:     types.LockSpecV2{Target: types.LockTarget{User: aliceUser}},
@@ -246,13 +244,13 @@ func TestUpstreamProvisioningUserActivationDeactivation(t *testing.T) {
 		assertSCIMUserExistAndIsNotActive(t, pack.scimMock, aliceUser)
 	})
 
-	t.Run("should re-activate scim user in upstream when teleport user lock is deleted", func(t *testing.T) {
+	t.Run("should re-activate scim user in downstream when teleport user lock is deleted", func(t *testing.T) {
 		require.NoError(t, pack.depsMock.DeleteLock(ctx, lockName))
 		assertSCIMUserExistAndIsActive(t, pack.scimMock, aliceUser)
 	})
 }
 
-func TestUpstreamUserProvisioning(t *testing.T) {
+func TestDownstreamUserProvisioning(t *testing.T) {
 	const (
 		aliceUser = "alice"
 		bobUser   = "bob"
