@@ -13,6 +13,7 @@ run-name: Skip Build on Mac OS
 
 on:
   pull_request:
+  merge_group:
     paths-ignore:
       - '.github/workflows/build-macos.yaml'
       - '**.go'
