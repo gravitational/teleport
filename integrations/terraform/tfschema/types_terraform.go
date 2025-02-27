@@ -1936,16 +1936,22 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"allow_headless": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-					Description: "AllowHeadless enables/disables headless support. Headless authentication requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.",
-					Optional:    true,
+					Computed:      true,
+					Description:   "AllowHeadless enables/disables headless support. Headless authentication requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 				}),
 				"allow_local_auth": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-					Description: "AllowLocalAuth is true if local authentication is enabled.",
-					Optional:    true,
+					Computed:      true,
+					Description:   "AllowLocalAuth is true if local authentication is enabled.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 				}),
 				"allow_passwordless": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-					Description: "AllowPasswordless enables/disables passwordless support. Passwordless requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.",
-					Optional:    true,
+					Computed:      true,
+					Description:   "AllowPasswordless enables/disables passwordless support. Passwordless requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 				}),
 				"connector_name": {
 					Description: "ConnectorName is the name of the OIDC or SAML connector. If this value is not set the first connector in the backend will be used.",
@@ -1979,8 +1985,10 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 					Optional:    true,
 				},
 				"disconnect_expired_cert": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-					Description: "DisconnectExpiredCert provides disconnect expired certificate setting - if true, connections with expired client certificates will get disconnected",
-					Optional:    true,
+					Computed:      true,
+					Description:   "DisconnectExpiredCert provides disconnect expired certificate setting - if true, connections with expired client certificates will get disconnected",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 				}),
 				"hardware_key": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -3344,7 +3352,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
-						"port_forwarding": GenSchemaNullBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"port_forwarding": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Description: "Deprecated: Use SSHPortForwarding instead",
 							Optional:    true,
 						}),
@@ -22719,7 +22727,7 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 										if !ok {
 											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Options.PortForwarding"})
 										}
-										CopyFromNullBoolOption(diags, a, &obj.PortForwarding)
+										CopyFromBoolOption(diags, a, &obj.PortForwarding)
 									}
 									{
 										a, ok := tf.Attrs["cert_format"]
@@ -27779,7 +27787,7 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Options.PortForwarding"})
 										} else {
-											v := CopyToNullBoolOption(diags, obj.PortForwarding, t, tf.Attrs["port_forwarding"])
+											v := CopyToBoolOption(diags, obj.PortForwarding, t, tf.Attrs["port_forwarding"])
 											tf.Attrs["port_forwarding"] = v
 										}
 									}
