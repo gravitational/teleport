@@ -106,6 +106,9 @@ func (o *WorkloadIdentityX509Service) Describe() []FileDescription {
 		{
 			Name: SVIDTrustBundlePEMPath,
 		},
+		{
+			Name: SVIDCRLPemPath,
+		},
 	}
 	return fds
 }

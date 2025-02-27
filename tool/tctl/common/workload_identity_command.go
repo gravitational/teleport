@@ -18,8 +18,10 @@ package common
 
 import (
 	"context"
+	"encoding/pem"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/big"
 	"os"
 	"strings"
@@ -50,9 +52,12 @@ type WorkloadIdentityCommand struct {
 	listCmd *kingpin.CmdClause
 	rmCmd   *kingpin.CmdClause
 
-	revocationsAddCmd *kingpin.CmdClause
-	revocationsRmCmd  *kingpin.CmdClause
-	revocationsLsCmd  *kingpin.CmdClause
+	revocationsAddCmd    *kingpin.CmdClause
+	revocationsRmCmd     *kingpin.CmdClause
+	revocationsLsCmd     *kingpin.CmdClause
+	revocationsCrlCmd    *kingpin.CmdClause
+	revocationsCRLFollow bool
+	revocationsCRLOut    string
 
 	revocationType   string
 	revocationSerial string
@@ -126,6 +131,16 @@ func (c *WorkloadIdentityCommand) Initialize(
 		Default(teleport.Text).
 		EnumVar(&c.format, teleport.Text, teleport.JSON)
 
+	c.revocationsCrlCmd = revocationsCmd.Command(
+		"crl", "Fetch the signed CRL for existing revocations.",
+	)
+	c.revocationsCrlCmd.Flag(
+		"follow", "Follow the stream of CRL updates.",
+	).BoolVar(&c.revocationsCRLFollow)
+	c.revocationsCrlCmd.Flag(
+		"out", "Path to write the CRL as a file to. If unspecified, STDOUT will be used.",
+	).StringVar(&c.revocationsCRLOut)
+
 	if c.stdout == nil {
 		c.stdout = os.Stdout
 	}
@@ -150,6 +165,8 @@ func (c *WorkloadIdentityCommand) TryRun(
 		commandFunc = c.ListRevocations
 	case c.revocationsRmCmd.FullCommand():
 		commandFunc = c.DeleteRevocation
+	case c.revocationsCrlCmd.FullCommand():
+		commandFunc = c.StreamCRL
 	default:
 		return false, nil
 	}
@@ -377,4 +394,56 @@ func (c *WorkloadIdentityCommand) ListRevocations(
 		}
 	}
 	return nil
+}
+
+func (c *WorkloadIdentityCommand) StreamCRL(
+	ctx context.Context, client *authclient.Client,
+) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	revocationsClient := client.WorkloadIdentityRevocationServiceClient()
+
+	req := &workloadidentityv1pb.StreamSignedCRLRequest{}
+	stream, err := revocationsClient.StreamSignedCRL(ctx, req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	write := func(data []byte) error {
+		_, err := c.stdout.Write(data)
+		return trace.Wrap(err)
+	}
+	if c.revocationsCRLOut != "" {
+		write = func(data []byte) error {
+			err := os.WriteFile(c.revocationsCRLOut, data, 0644)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			slog.InfoContext(ctx, "Successfully wrote updated CRL", "path", c.revocationsCRLOut)
+			return nil
+		}
+	}
+
+	for {
+		res, err := stream.Recv()
+		if err != nil {
+			if trace.IsNotImplemented(err) {
+				slog.ErrorContext(ctx, "Server does not support X509 CRL functionality")
+			}
+			return trace.Wrap(err)
+		}
+		slog.InfoContext(ctx, "Received CRL from server")
+		pemData := pem.EncodeToMemory(&pem.Block{
+			Type:  "X509 CRL",
+			Bytes: res.Crl,
+		})
+		if err := write(pemData); err != nil {
+			return trace.Wrap(err, "writing CRL pem")
+		}
+
+		// If --follow has not been specified, exit.
+		if !c.revocationsCRLFollow {
+			return nil
+		}
+	}
 }
