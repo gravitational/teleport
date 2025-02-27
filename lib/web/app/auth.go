@@ -111,6 +111,7 @@ func (h *Handler) startAppAuthExchange(w http.ResponseWriter, r *http.Request, p
 			publicAddr:  q.Get("addr"),
 			arn:         q.Get("arn"),
 			path:        q.Get("path"),
+			appName:     q.Get("name"),
 			// The state token concats both the secret token and the cookie ID.
 			// The server will break this token to its individual parts:
 			//   - secretToken to compare against the one stored in cookie

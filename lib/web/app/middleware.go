@@ -87,7 +87,17 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 		return trace.Wrap(err)
 	}
 
-	urlString := makeAppRedirectURL(r, h.c.WebPublicAddr, addr.Host(), p)
+	var publicAddrs []string
+	for _, addr := range h.c.ProxyPublicAddrs {
+		publicAddrs = append(publicAddrs, addr.Host())
+	}
+
+	_, proxyPublicAddr, err := utils.ExtractAppAndProxyName(addr.Host(), publicAddrs, h.c.WebPublicAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	urlString := makeAppRedirectURL(r, proxyPublicAddr, addr.Host(), p)
 	http.Redirect(w, r, urlString, http.StatusFound)
 	return nil
 }
@@ -120,12 +130,16 @@ func writeError(w http.ResponseWriter, err error) {
 }
 
 type routerFunc func(http.ResponseWriter, *http.Request, httprouter.Params) error
+
 type routerAuthFunc func(http.ResponseWriter, *http.Request, httprouter.Params, *session) error
 
 type handlerAuthFunc func(http.ResponseWriter, *http.Request, *session) error
+
 type handlerFunc func(http.ResponseWriter, *http.Request) error
 
 type launcherURLParams struct {
+	// appName is the name of the requested app
+	appName string
 	// clusterName is the cluster within which this application is running.
 	clusterName string
 	// publicAddr is the public address of this application.

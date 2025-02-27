@@ -2087,6 +2087,10 @@ type App struct {
 	// be part of the authentication redirect flow and authenticate along side this app.
 	RequiredApps []string `yaml:"required_apps,omitempty"`
 
+	// AlwaysUseProxyPublicAddr will rebuild this app's public addr based on the proxy public addr that the
+	// request to connect comes from.
+	AlwaysUseProxyPublicAddr bool `yaml:"always_use_proxy_public_addr,omitempty"`
+
 	// CORS defines the Cross-Origin Resource Sharing configuration for the app,
 	// controlling how resources are shared across different origins.
 	CORS *CORS `yaml:"cors,omitempty"`

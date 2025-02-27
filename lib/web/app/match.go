@@ -156,20 +156,25 @@ func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnelclient.Tun
 		return servers[0], clusterName.GetClusterName(), nil
 	}
 
-	// Extract the first subdomain from the FQDN and attempt to use this as the
-	// application name. The rest of the FQDN must match one of the local
-	// cluster's proxy DNS names.
-	fqdnParts := strings.SplitN(fqdn, ".", 2)
-	if len(fqdnParts) != 2 {
-		return nil, "", trace.BadParameter("invalid FQDN: %v", fqdn)
-	}
-	if !slices.Contains(proxyDNSNames, fqdnParts[1]) {
-		return nil, "", trace.BadParameter("FQDN %q is not a subdomain of the proxy", fqdn)
-	}
-	appName := fqdnParts[0]
+	// Split the FQDN into its components and attempt to find the proxy DNS name.
+	fqdnParts := strings.Split(fqdn, ".")
+	proxyDNSName := ""
+	appName := ""
 
-	// Loop over all clusters and try and match application name to an
-	// application within the cluster. This also includes the local cluster.
+	// Start checking from the second component onward to find the proxy DNS name.
+	for i := 1; i < len(fqdnParts); i++ {
+		potentialDNS := strings.Join(fqdnParts[i:], ".")
+		if slices.Contains(proxyDNSNames, potentialDNS) {
+			proxyDNSName = potentialDNS
+			appName = strings.Join(fqdnParts[:i], ".")
+			break
+		}
+	}
+
+	if proxyDNSName == "" {
+		return nil, "", trace.BadParameter("FQDN %q does not match any known proxy DNS names", fqdn)
+	}
+
 	clusterClients, err := tunnel.GetSites()
 	if err != nil {
 		return nil, "", trace.Wrap(err)
