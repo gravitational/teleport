@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -482,10 +483,8 @@ func mustRegisterKubeClusters(t *testing.T, ctx context.Context, authSrv *auth.S
 	require.NoError(t, wg.Wait())
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		servers, err := authSrv.GetKubernetesServers(ctx)
-		assert.NoError(c, err)
 		gotNames := map[string]struct{}{}
-		for _, ks := range servers {
+		for ks := range authSrv.UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
 			gotNames[ks.GetName()] = struct{}{}
 		}
 		for _, name := range wantNames {
