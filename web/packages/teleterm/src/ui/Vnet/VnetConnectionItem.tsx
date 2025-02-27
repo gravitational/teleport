@@ -21,7 +21,6 @@ import React, { forwardRef, useEffect, useMemo, useRef } from 'react';
 import { ButtonIcon, Flex, rotate360, Text } from 'design';
 import * as icons from 'design/Icon';
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 import { ListItem } from 'teleterm/ui/components/ListItem';
 import {
@@ -93,8 +92,6 @@ const VnetConnectionItemBase = forwardRef<
       }
   )
 >((props, ref) => {
-  const { configService } = useAppContext();
-  const isVnetDiagEnabled = configService.get('unstable.vnetDiag').value;
   const {
     status,
     start,
@@ -104,6 +101,7 @@ const VnetConnectionItemBase = forwardRef<
     diagnosticsAttempt,
     getDisabledDiagnosticsReason,
     showDiagWarningIndicator,
+    isDiagSupported,
   } = useVnetContext();
   const isProcessing =
     startAttempt.status === 'processing' || stopAttempt.status === 'processing';
@@ -212,7 +210,7 @@ const VnetConnectionItemBase = forwardRef<
                 <icons.Question size={18} />
               </ButtonIcon>
 
-              {isVnetDiagEnabled && (
+              {isDiagSupported && (
                 <ButtonIcon
                   title={disabledDiagnosticsReason || 'Run diagnostics'}
                   disabled={!!disabledDiagnosticsReason}

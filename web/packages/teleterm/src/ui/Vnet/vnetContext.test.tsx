@@ -425,7 +425,6 @@ describe('diag notification', () => {
       ...appContext.statePersistenceService.getState(),
       vnet: { autoStart: true },
     });
-    appContext.configService.set('unstable.vnetDiag', true);
 
     jest.spyOn(appContext.notificationsService, 'notifyWarning');
 
