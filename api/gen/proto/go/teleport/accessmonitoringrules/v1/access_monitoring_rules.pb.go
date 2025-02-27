@@ -129,8 +129,18 @@ type AccessMonitoringRuleSpec struct {
 	// and determines whether the subject will be moved into desired state.
 	Condition string `protobuf:"bytes,3,opt,name=condition,proto3" json:"condition,omitempty"`
 	// notification defines the plugin configuration for notifications if rule is triggered.
+	// Both notification and automatic_approval may be set within the same
+	// access_monitoring_rule. If both fields are set, the rule handler will
+	// manage notifications and automatic approvals for the same set
+	// of access events. Separate plugins may be used if both notifications and
+	// automatic_approvals is set.
 	Notification *Notification `protobuf:"bytes,4,opt,name=notification,proto3" json:"notification,omitempty"`
 	// automatic_approval defines the plugin configuration for automatic approvals.
+	// Both notification and automatic_approval may be set within the same
+	// access_monitoring_rule. If both fields are set, the rule handler will
+	// manage notifications and automatic approvals for the same set
+	// of access events. Separate plugins may be used if both notifications and
+	// automatic_approvals is set.
 	AutomaticApproval *AutomaticApproval `protobuf:"bytes,5,opt,name=automatic_approval,json=automaticApproval,proto3" json:"automatic_approval,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
@@ -260,6 +270,7 @@ func (x *Notification) GetRecipients() []string {
 type AutomaticApproval struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// name is the name of the plugin to which this configuration should apply.
+	// Set this value to `teleport` to manage automatic approvals natively within Teleport.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
