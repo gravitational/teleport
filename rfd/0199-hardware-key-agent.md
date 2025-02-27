@@ -25,12 +25,12 @@ they are required to enter their PIN for every action (e.g. `tsh` command,
 `tsh proxy` connection). This is very disruptive when running several commands
 in short succession, especially when:
 
-* running several `kubect` commands, database queries, or app requests through
+* running several `kubectl` commands, database queries, or app requests through
 a Teleport local proxy (`tsh proxy kube|db|app`).
 * using automated scripts which run `tsh` commands in bulk.
 
 This UX concern has turned out to be a significant impediment to the adoption
-of Hardware Key PIN Support, and unfortunately the PIN caching built in to the
+of Hardware Key PIN Support, and unfortunately, the PIN caching built in to the
 hardware key has proven [unreliable for Teleport use cases](#problems-with-built-in-piv-pin-caching).
 
 ## Details
@@ -133,10 +133,23 @@ Note: this is the base functionality needed for dependent clients to implement
 the `crypto.Signer` interface and Teleport's `keys.HardwareSigner` interface.
 
 The agent will be served as a [gRPC](#hardwarekeyagentservice) service on a unix
-socket, `/tmp/.Teleport-PIV/agent.sock`, with [basic TLS](#security). Other Teleport
-clients can connect to this shared unix socket to interface with the hardware
-keys, as long as they have file permissions to do so (`700` for the folder,
+socket, `$TEMP/.Teleport-PIV/agent.sock`, with [basic TLS](#security).
+
+#### `$TEMP/.Teleport-PIV/agent.sock`
+
+`$TEMP` here depends on the client OS. We will use `os.TempDir` to get the
+correct temp directory for the OS.
+
+We use a temp directory so that it is easy for other Teleport clients to connect
+to the shared socket, regardless of each individual client's Teleport home
+directory, as long as they have file permissions to do so (`700` for the folder,
 `600` for the socket).
+
+Note: Teleport clients with different Teleport home directories share the same
+underlying hardware private keys, so the agent client's own Teleport home
+directory is not relevant to its ability to serve the hardware private keys.
+In practice, this means that Teleport Connect can serve the hardware key
+agent without needing to sync its Teleport home directory with `tsh`.
 
 #### Terminology
 
@@ -151,8 +164,8 @@ responsible for any hardware key PIN/touch prompts. When a dependent client
 makes a `Sign` request through the agent, the agent client will prompt for
 PIN or touch if required.
 
-As a result, when PIN/touch is required, the dependent client will hang while
-until it is prompted and handled by the agent client. Therefore, Teleport Connect
+As a result, when PIN/touch is required, the dependent client will hang until
+it is prompted and handled by the agent client. Therefore, Teleport Connect
 will foreground these prompts to maintain seamless UX.
 
 Note: touch is cached for 15 seconds on the hardware key itself and PIN is
@@ -339,8 +352,9 @@ dependent could then prompt for PIN or touch like normal, e.g. in the terminal.
 // each other, due to the exclusive nature of PIV connections. This also enables shared
 // hardware key states, such as a custom PIN cache shared across Teleport clients.
 service HardwareKeyAgentService {
-  // Sign the given digest with the specified hardware private key. If a hash or salt
-  // was used to produce the digest, HashName and SaltLength must be provided as well.
+  // Ping the agent service to check if it is active.
+  rpc Ping(PingRequest) {PingResponse}
+  // Sign produces a signature with the provided options for the specified hardware private key
   //
   // This rpc implements Go's crypto.Signer interface.
   rpc Sign(SignRequest) returns (Signature) {}
@@ -348,6 +362,12 @@ service HardwareKeyAgentService {
   // attestation statement, and supported pin and touch policies.
   rpc GetInfo(GetInfoRequest) returns (GetInfoResponse) {}
 }
+
+// PingRequest is a request to Ping.
+message PingRequest {}
+
+// PingResponse is a response to Ping.
+message PingResponse {}
 
 // SignRequest is a request to perform a signature with a specific hardware private key.
 message SignRequest {
@@ -359,24 +379,21 @@ message SignRequest {
   bytes public_key_der = 2;
   // Digest is a hashed message to sign.
   bytes digest = 3;
-  // HashName is the name of the hash used to generate the digest.
-  HashName hash_name = 4;
-  // SaltLength determines the length of the salt added to the digest before a signature.
-  // Only required for PSS signatures.
-  oneof salt_length {
-    // Length specifies an exact salt length to use.
-    uint32 length = 5;
-    // Auto specifies how the signing process should automatically pick a salt length
-    // based on the hash length and key length.
-    SaltLengthAuto auto = 6;
-  }
+  // Hash is the hash function used to prepare the digest.
+  Hash hash = 4;
+  // SaltLength specifies the length of the salt added to the digest before a signature.
+  // Only used, and required, for PSS RSA signatures.
+  uint32 salt_length = 5;
 }
 
 // Signature is a private key signature.
 message Signature {
-  // For an RSA key, signature should be either a PKCS #1 v1.5 or PSS signature,
-  // depending on the hash and salt chosen. For an (EC)DSA key, it should be a
-  // DER-serialised, ASN.1 signature structure.
+  // For an (EC)DSA key, the default key algorithm for hardware private keys, this
+  // will be a DER-serialised, ASN.1 signature structure.
+  //
+  // When the client is using a manually generated RSA key, this can be either a
+  // PKCS #1 v1.5, or if the cluster is on the legacy signature algorithm suite,
+  // a PSS signature,
   bytes signature = 1;
 }
 
@@ -421,42 +438,11 @@ enum PIVSlot {
   PIV_SLOT_9E = 4;
 }
 
-// HashFunction refers to a specific hashing function used in signing.
-// These values match the Go [crypto] standard library.
-enum HashFunction {
-  // Note: many of these hashes can likely be removed as they aren't used by Teleport
-  // clients. I will trim these down in the implementation, leaving unused values
-  // reserved to ensure the enums match the crypto library..
+// Hash refers to a specific hash function used during signing.
+enum Hash {
   HASH_NAME_UNSPECIFIED = 0;
-  HASH_NAME_MD4 = 1;
-  HASH_NAME_MD5 = 2;
-  HASH_NAME_SHA1 = 3;
-  HASH_NAME_SHA224 = 4;
-  HASH_NAME_SHA256 = 5;
-  HASH_NAME_SHA384 = 6;
-  HASH_NAME_SHA512 = 7;
-  HASH_NAME_MD5SHA1 = 8;
-  HASH_NAME_RIPEMD160 = 9;
-  HASH_NAME_SHA3_224 = 10;
-  HASH_NAME_SHA3_256 = 11;
-  HASH_NAME_SHA3_384 = 12;
-  HASH_NAME_SHA3_512 = 13;
-  HASH_NAME_SHA512_224 = 14;
-  HASH_NAME_SHA512_256 = 15;
-  HASH_NAME_BLAKE2S_256 = 16;
-  HASH_NAME_BLAKE2B_256 = 17;
-  HASH_NAME_BLAKE2B_384 = 18;
-  HASH_NAME_BLAKE2B_512 = 19;
-}
-
-// SaltLengthAuto specifies how the signing process should automatically pick a salt length
-// based on the hash length and key length.
-enum SaltLengthAuto {
-  SALT_LENGTH_AUTO_UNSPECIFIED = 0;
-  // Use the maximum salt length for a given public key size and hash function size.
-  SALT_LENGTH_AUTO_MAX = 1;
-  // Use a salt equal in length to the chosen hash used.
-  SALT_LENGTH_AUTO_HASH_LENGTH = 2;
+  HASH_NAME_SHA256 = 1;
+  HASH_NAME_SHA512 = 2;
 }
 ```
 
