@@ -2,8 +2,9 @@ version: v1
 kind: update_config
 spec:
     proxy: ""
-    group: ""
-    url_template: ""
+    path: ""
     enabled: false
+    pinned: false
 status:
-    active_version: ""
+    active:
+        version: ""

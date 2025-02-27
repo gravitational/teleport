@@ -6858,7 +6858,7 @@ func (a *Server) ExportUpgradeWindows(ctx context.Context, req proto.ExportUpgra
 	}
 
 	switch req.UpgraderKind {
-	case "":
+	case "", types.UpgraderKindTeleportUpdate:
 		rsp.CanonicalSchedule = cached.CanonicalSchedule.Clone()
 	case types.UpgraderKindKubeController:
 		rsp.KubeControllerSchedule = cached.KubeControllerSchedule
