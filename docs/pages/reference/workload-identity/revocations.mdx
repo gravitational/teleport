@@ -34,3 +34,33 @@ Use `tctl workload-identity revocations add` to create a new revocation:
 ```code
 $ tctl workload-identity revocations add --serial 1234567890 --reason compromised
 ```
+
+## Using `tctl` to fetch the signed CRL
+
+If you need to export the signed CRL to import it to a third-party service
+(e.g. AWS Roles Anywhere), then you can use the
+`tctl workload-identity revocations crl` command:
+
+```code
+$ tctl workload-identity revocations crl
+2025-02-27T10:54:02.526Z INFO  Received CRL from server common/workload_identity_command.go:435
+-----BEGIN X509 CRL-----
+MIIChjCCAW4CAQEwDQYJKoZIhvcNAQELBQAwajEaMBgGA1UEChMRbGVhZi50ZWxl
+Lm90dHIuc2gxGjAYBgNVBAMTEWxlYWYudGVsZS5vdHRyLnNoMTAwLgYDVQQFEycz
+MjkxOTYyMDc1Mjg4MDE2Nzg5Nzk4NTgyNDM3NjY0NjM3MTMxNjgYDzAwMDEwMTAx
+MDAwMDAwWjCBqDAWAgUAqrvM7hcNMjUwMjIwMTE0MTM1WjAWAgUAqrvM/xcNMjUw
+MjIwMTE0MzUyWjAWAgUAqrvMERcNMjUwMjIwMTE0NDEzWjAWAgUAqrvMIhcNMjUw
+MjIwMTE0NjAxWjAWAgUAqrvMRBcNMjUwMjIxMTQ1OTA0WjAWAgUAqrvMZhcNMjUw
+MjI1MTEwNzQ3WjAWAgUAqrvM3RcNMjUwMjIwMTEzOTM0WqAyMDAwHwYDVR0jBBgw
+FoAUS90sNZrJbUnpDq144QcC1Ifqvi8wDQYDVR0UBAYCBGfARCwwDQYJKoZIhvcN
+AQELBQADggEBABPjnKBtXLq/gA79zSXJlN4ownSJsedEXhrM/04Cxn+VrzVInnIR
+TttBD/uTrjJnLzvLTdD7z9SrrM3hNsPkR4zoSy9io7u/G08jK3+IBoXzDcf32ca8
+9z6xomSC1mo5q3ijMqDj7xZC1i6RcQbNtzXc5+aD3Hd3MgmFf7K9IvwmCX7kugD7
+6N8zUDMKJPgHttuvl1oYoY2k+jvp3Lu5wjTcLWEuqZOWHImY9ZYx3fmXNjgjnDfx
+tFJEdB/d5SoDzpGXC394eeRmFml77+L0XfZmbmcXE00sRBi0Xr5MAa1PGjw/wS9a
+4QIDGaj2VG6k+CY1GIeBW0qTwuRt4qvW8Nk=
+-----END X509 CRL-----
+```
+
+To directly write this to a file, you can provide the `--out` flag and a path
+to which to write the file.
