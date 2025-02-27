@@ -31,15 +31,11 @@ import (
 func TestEvaluate(t *testing.T) {
 	// True result.
 	result, err := expression.Evaluate(
-		`workload.podman.attested && workload.podman.container.image == "ubuntu"`,
+		`user.is_bot && user.name == "Larry"`,
 		&workloadidentityv1.Attrs{
-			Workload: &workloadidentityv1.WorkloadAttrs{
-				Podman: &workloadidentityv1.WorkloadAttrsPodman{
-					Attested: true,
-					Container: &workloadidentityv1.WorkloadAttrsPodmanContainer{
-						Image: "ubuntu",
-					},
-				},
+			User: &workloadidentityv1.UserAttrs{
+				Name:  "Larry",
+				IsBot: true,
 			},
 		},
 	)
@@ -78,24 +74,16 @@ func TestEvaluate_Errors(t *testing.T) {
 		err   string
 	}{
 		"unset sub-message": {
-			expr: `workload.podman.pod.labels["foo"] == "bar"`,
-			attrs: &workloadidentityv1.Attrs{
-				Workload: &workloadidentityv1.WorkloadAttrs{
-					Podman: &workloadidentityv1.WorkloadAttrsPodman{
-						Pod: nil,
-					},
-				},
-			},
-			err: "workload.podman.pod is unset",
+			expr:  `user.name == "Bobby"`,
+			attrs: &workloadidentityv1.Attrs{},
+			err:   "user is unset",
 		},
 		"unset map key": {
-			expr: `workload.podman.pod.labels["foo"] == "bar"`,
+			expr: `workload.kubernetes.labels["foo"] == "bar"`,
 			attrs: &workloadidentityv1.Attrs{
 				Workload: &workloadidentityv1.WorkloadAttrs{
-					Podman: &workloadidentityv1.WorkloadAttrsPodman{
-						Pod: &workloadidentityv1.WorkloadAttrsPodmanPod{
-							Labels: map[string]string{"bar": "baz"},
-						},
+					Kubernetes: &workloadidentityv1.WorkloadAttrsKubernetes{
+						Labels: map[string]string{"bar": "baz"},
 					},
 				},
 			},
