@@ -257,26 +257,69 @@ func TestPing_autoUpdateResources(t *testing.T) {
 		name     string
 		config   *autoupdatev1pb.AutoUpdateConfigSpec
 		version  *autoupdatev1pb.AutoUpdateVersionSpec
+		rollout  *autoupdatev1pb.AutoUpdateAgentRolloutSpec
 		cleanup  bool
 		expected webclient.AutoUpdateSettings
 	}{
 		{
 			name: "resources not defined",
 			expected: webclient.AutoUpdateSettings{
-				ToolsVersion:    api.Version,
-				ToolsAutoUpdate: false,
+				ToolsVersion:             api.Version,
+				ToolsAutoUpdate:          false,
+				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             api.Version,
 			},
 		},
 		{
-			name: "enable auto update",
+			name: "enable tools auto update",
 			config: &autoupdatev1pb.AutoUpdateConfigSpec{
 				Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
 					Mode: autoupdate.ToolsUpdateModeEnabled,
 				},
 			},
 			expected: webclient.AutoUpdateSettings{
-				ToolsAutoUpdate: true,
-				ToolsVersion:    api.Version,
+				ToolsAutoUpdate:          true,
+				ToolsVersion:             api.Version,
+				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             api.Version,
+			},
+			cleanup: true,
+		},
+		{
+			name: "enable agent auto update, immediate schedule",
+			rollout: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+				AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
+				Strategy:       autoupdate.AgentsStrategyHaltOnError,
+				Schedule:       autoupdate.AgentsScheduleImmediate,
+				StartVersion:   "1.2.3",
+				TargetVersion:  "1.2.4",
+			},
+			expected: webclient.AutoUpdateSettings{
+				ToolsVersion:             api.Version,
+				ToolsAutoUpdate:          false,
+				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          true,
+				AgentVersion:             "1.2.4",
+			},
+			cleanup: true,
+		},
+		{
+			name: "agent rollout present but AU mode is disabled",
+			rollout: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+				AutoupdateMode: autoupdate.AgentsUpdateModeDisabled,
+				Strategy:       autoupdate.AgentsStrategyHaltOnError,
+				Schedule:       autoupdate.AgentsScheduleImmediate,
+				StartVersion:   "1.2.3",
+				TargetVersion:  "1.2.4",
+			},
+			expected: webclient.AutoUpdateSettings{
+				ToolsVersion:             api.Version,
+				ToolsAutoUpdate:          false,
+				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             "1.2.4",
 			},
 			cleanup: true,
 		},
@@ -285,8 +328,11 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			config:  &autoupdatev1pb.AutoUpdateConfigSpec{},
 			version: &autoupdatev1pb.AutoUpdateVersionSpec{},
 			expected: webclient.AutoUpdateSettings{
-				ToolsVersion:    api.Version,
-				ToolsAutoUpdate: false,
+				ToolsVersion:             api.Version,
+				ToolsAutoUpdate:          false,
+				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             api.Version,
 			},
 			cleanup: true,
 		},
@@ -298,8 +344,11 @@ func TestPing_autoUpdateResources(t *testing.T) {
 				},
 			},
 			expected: webclient.AutoUpdateSettings{
-				ToolsVersion:    "1.2.3",
-				ToolsAutoUpdate: false,
+				ToolsVersion:             "1.2.3",
+				ToolsAutoUpdate:          false,
+				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             api.Version,
 			},
 			cleanup: true,
 		},
@@ -316,8 +365,11 @@ func TestPing_autoUpdateResources(t *testing.T) {
 				},
 			},
 			expected: webclient.AutoUpdateSettings{
-				ToolsAutoUpdate: true,
-				ToolsVersion:    "1.2.3",
+				ToolsAutoUpdate:          true,
+				ToolsVersion:             "1.2.3",
+				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             api.Version,
 			},
 		},
 		{
@@ -333,8 +385,11 @@ func TestPing_autoUpdateResources(t *testing.T) {
 				},
 			},
 			expected: webclient.AutoUpdateSettings{
-				ToolsAutoUpdate: false,
-				ToolsVersion:    "3.2.1",
+				ToolsAutoUpdate:          false,
+				ToolsVersion:             "3.2.1",
+				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             api.Version,
 			},
 		},
 	}
@@ -350,6 +405,12 @@ func TestPing_autoUpdateResources(t *testing.T) {
 				version, err := autoupdate.NewAutoUpdateVersion(tc.version)
 				require.NoError(t, err)
 				_, err = env.server.Auth().UpsertAutoUpdateVersion(ctx, version)
+				require.NoError(t, err)
+			}
+			if tc.rollout != nil {
+				rollout, err := autoupdate.NewAutoUpdateAgentRollout(tc.rollout)
+				require.NoError(t, err)
+				_, err = env.server.Auth().UpsertAutoUpdateAgentRollout(ctx, rollout)
 				require.NoError(t, err)
 			}
 
@@ -370,6 +431,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			if tc.cleanup {
 				require.NotErrorIs(t, env.server.Auth().DeleteAutoUpdateConfig(ctx), &trace.NotFoundError{})
 				require.NotErrorIs(t, env.server.Auth().DeleteAutoUpdateVersion(ctx), &trace.NotFoundError{})
+				require.NotErrorIs(t, env.server.Auth().DeleteAutoUpdateAgentRollout(ctx), &trace.NotFoundError{})
 			}
 		})
 	}

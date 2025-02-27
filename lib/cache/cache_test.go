@@ -4080,9 +4080,9 @@ func newAutoUpdateAgentRollout(t *testing.T) *autoupdate.AutoUpdateAgentRollout 
 	r, err := update.NewAutoUpdateAgentRollout(&autoupdate.AutoUpdateAgentRolloutSpec{
 		StartVersion:   "1.2.3",
 		TargetVersion:  "2.3.4",
-		Schedule:       "regular",
-		AutoupdateMode: "enabled",
-		Strategy:       "time-based",
+		Schedule:       update.AgentsScheduleImmediate,
+		AutoupdateMode: update.AgentsUpdateModeEnabled,
+		Strategy:       update.AgentsStrategyTimeBased,
 	})
 	require.NoError(t, err)
 	return r

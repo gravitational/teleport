@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/lib/kubernetestoken"
+	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 )
 
 // KubernetesSigner is a JWT signer that mimicks the Kubernetes one. The signer mock Kubernetes and
@@ -90,7 +90,7 @@ func (s *KubernetesSigner) GetMarshaledJWKS() (string, error) {
 // This token has the Teleport cluster name in its audience as required by the Kubernetes JWKS join method.
 func (s *KubernetesSigner) SignServiceAccountJWT(pod, namespace, serviceAccount, clusterName string) (string, error) {
 	now := s.clock.Now()
-	claims := kubernetestoken.ServiceAccountClaims{
+	claims := kubetoken.ServiceAccountClaims{
 		Claims: jwt.Claims{
 			Subject:  fmt.Sprintf("system:serviceaccount:%s:%s", namespace, serviceAccount),
 			Audience: jwt.Audience{clusterName},
@@ -100,13 +100,13 @@ func (s *KubernetesSigner) SignServiceAccountJWT(pod, namespace, serviceAccount,
 			// The Kubernetes JWKS join method rejects tokens valid more than 30 minutes.
 			Expiry: jwt.NewNumericDate(now.Add(29 * time.Minute)),
 		},
-		Kubernetes: &kubernetestoken.KubernetesSubClaim{
+		Kubernetes: &kubetoken.KubernetesSubClaim{
 			Namespace: namespace,
-			ServiceAccount: &kubernetestoken.ServiceAccountSubClaim{
+			ServiceAccount: &kubetoken.ServiceAccountSubClaim{
 				Name: serviceAccount,
 				UID:  uuid.New().String(),
 			},
-			Pod: &kubernetestoken.PodSubClaim{
+			Pod: &kubetoken.PodSubClaim{
 				Name: pod,
 				UID:  uuid.New().String(),
 			},

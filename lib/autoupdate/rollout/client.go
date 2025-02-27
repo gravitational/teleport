@@ -16,12 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package rolloutcontroller
+package rollout
 
 import (
 	"context"
 
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // Client is the subset of the Teleport client RPCs the controller needs.
@@ -43,4 +44,7 @@ type Client interface {
 
 	// DeleteAutoUpdateAgentRollout deletes the AutoUpdateAgentRollout singleton resource.
 	DeleteAutoUpdateAgentRollout(ctx context.Context) error
+
+	// GetClusterMaintenanceConfig loads the current maintenance config singleton.
+	GetClusterMaintenanceConfig(ctx context.Context) (types.ClusterMaintenanceConfig, error)
 }

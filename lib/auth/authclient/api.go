@@ -1210,9 +1210,6 @@ type Cache interface {
 	// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
 	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
 
-	// GetAccessGraphSettings returns the access graph settings.
-	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
-
 	// GetSPIFFEFederation gets a SPIFFE Federation by name.
 	GetSPIFFEFederation(ctx context.Context, name string) (*machineidv1.SPIFFEFederation, error)
 	// ListSPIFFEFederations lists all SPIFFE Federations using Google style
