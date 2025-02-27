@@ -89,12 +89,12 @@ NOTARIZE_BINARIES = $(notarize_binaries_cmd)
 
 define notarize_binaries_cmd
 	@echo Notarizing binaries
-	$(MAC_TOOLING_CMD) --signing-id=$(DEVELOPER_ID_APPLICATION) notarize $(BINARIES)
+	$(MAC_TOOLING_CMD) --signing-id="$(DEVELOPER_ID_APPLICATION)" notarize $(BINARIES)
 endef
 
-PACKAGE_TSH_APP = $(MAC_TOOLING_CMD) $(if $(SHOULD_NOTARIZE),--bundle-id=$(TSH_BUNDLEID) --signing-id=$(DEVELOPER_ID_APPLICATION),) package-app
-PACKAGE_TCTL_APP = $(MAC_TOOLING_CMD) $(if $(SHOULD_NOTARIZE),--bundle-id=$(TCTL_BUNDLEID) --signing-id=$(DEVELOPER_ID_APPLICATION),) package-app
-PACKAGE_TELEPORT_PKG = $(MAC_TOOLING_CMD) $(if $(SHOULD_NOTARIZE),--signing-id=$(DEVELOPER_ID_INSTALLER),) --bundle-id=$(TELEPORT_BUNDLEID) package-pkg
+PACKAGE_TSH_APP = $(MAC_TOOLING_CMD) $(if $(SHOULD_NOTARIZE),--bundle-id=$(TSH_BUNDLEID) --signing-id="$(DEVELOPER_ID_APPLICATION)",) package-app
+PACKAGE_TCTL_APP = $(MAC_TOOLING_CMD) $(if $(SHOULD_NOTARIZE),--bundle-id=$(TCTL_BUNDLEID) --signing-id="$(DEVELOPER_ID_APPLICATION)",) package-app
+PACKAGE_TELEPORT_PKG = $(MAC_TOOLING_CMD) $(if $(SHOULD_NOTARIZE),--signing-id="$(DEVELOPER_ID_INSTALLER)",) --bundle-id=$(TELEPORT_BUNDLEID) package-pkg
 
 echo_var = @echo $(1)=\''$($(1))'\'
 
