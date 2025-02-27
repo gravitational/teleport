@@ -375,12 +375,15 @@ export type IntegrationListResponse = {
 export type IntegrationWithSummary = {
   name: string;
   subKind: string;
+  // unresolvedUserTasks contains the count of unresolved user tasks related to this integration.
+  unresolvedUserTasks: number;
+  // awsoidc contains the fields for `aws-oidc` subkind integration.
   awsoidc: IntegrationSpecAwsOidc;
-  // AWSEC2 contains the summary for the AWS EC2 resources for this integration.
+  // awsec2 contains the summary for the AWS EC2 resources for this integration.
   awsec2: ResourceTypeSummary;
-  // AWSRDS contains the summary for the AWS RDS resources and agents for this integration.
+  // awsrds contains the summary for the AWS RDS resources and agents for this integration.
   awsrds: ResourceTypeSummary;
-  // AWSEKS contains the summary for the AWS EKS resources for this integration.
+  // awseks contains the summary for the AWS EKS resources for this integration.
   awseks: ResourceTypeSummary;
 };
 
@@ -463,6 +466,10 @@ export type DiscoverEc2Instance = {
   discoveryGroup: string;
   // syncTime is the timestamp when the error was produced.
   syncTime: number;
+  // resourceUrl is the Amazon Web Console URL to access this EC2 Instance.
+  // Always present.
+  // Format: https://console.aws.amazon.com/ec2/home?region=<region>#InstanceDetails:instanceId=<instance-id>
+  resourceUrl: string;
 };
 
 // DiscoverEks contains the clusters that failed to auto-enroll into the cluster.
@@ -487,6 +494,10 @@ export type DiscoverEksCluster = {
   discoveryGroup: string;
   // syncTime is the timestamp when the error was produced.
   syncTime: number;
+  // resourceURL is the Amazon Web Console URL to access this EKS Cluster.
+  // Always present.
+  // Format: https://console.aws.amazon.com/eks/home?region=<region>#/clusters/<cluster-name>
+  resourceUrl: string;
 };
 
 // DiscoverRds contains the databases that failed to auto-enroll into teleport.
@@ -518,6 +529,11 @@ export type DiscoverRdsDatabase = {
   discoveryGroup: string;
   // syncTime is the timestamp when the error was produced.
   syncTime: number;
+  // resourceURL is the Amazon Web Console URL to access this RDS Database.
+  // Always present.
+  // Format for instances: https://console.aws.amazon.com/rds/home?region=<region>#database:id=<name>;is-cluster=false
+  // Format for clusters:  https://console.aws.amazon.com/rds/home?region=<region>#database:id=<name>;is-cluster=true
+  resourceUrl: string;
 };
 
 // IntegrationDiscoveryRule describes a discovery rule associated with an integration.

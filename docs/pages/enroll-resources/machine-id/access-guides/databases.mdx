@@ -9,8 +9,8 @@ can be used to grant machines secure, short-lived access to these databases.
 In this guide, you will configure `tbot` to produce credentials that can be
 used to access a database configured in Teleport.
 
-<Figure align="left" bordered caption="Machine ID and Database Access Deployment">
-![Machine ID and Database Access Deployment](../../../../img/machine-id/machine-id-database-access.svg)
+<Figure align="left" bordered caption="Accessing Teleport-protected databases with Machine ID">
+![Accessing Teleport-protected databases with Machine ID](../../../../img/machine-id/machine-id-database-access.svg)
 </Figure>
 
 ## Prerequisites
@@ -82,11 +82,13 @@ This rule will allow the bot to do two things:
   label selector) as the user `alice`.
 - Discover information about database resources in Teleport.
 
+{/* vale messaging.protocol-products = NO */}
 The `'*': '*'` label selector grants access to any database server configured in Teleport.
 In production, consider restricting the bot's access using a more specific
 label selector; see the
 [Database Access RBAC guide](../../database-access/rbac.mdx)
 for a full reference of database-related role options.
+{/* vale messaging.protocol-products = YES */}
 
 ## Step 2/4. Configure a database `tbot` output
 

@@ -197,9 +197,17 @@ func (amrh *RuleHandler) getAllAccessMonitoringRules(ctx context.Context) ([]*ac
 	var resources []*accessmonitoringrulesv1.AccessMonitoringRule
 	var nextToken string
 	for {
+		req := &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
+			PageSize:         defaultAccessMonitoringRulePageSize,
+			PageToken:        nextToken,
+			Subjects:         []string{types.KindAccessRequest},
+			NotificationName: amrh.pluginName,
+		}
+
 		var page []*accessmonitoringrulesv1.AccessMonitoringRule
 		var err error
-		page, nextToken, err = amrh.apiClient.ListAccessMonitoringRulesWithFilter(ctx, defaultAccessMonitoringRulePageSize, nextToken, []string{types.KindAccessRequest}, amrh.pluginName)
+
+		page, nextToken, err = amrh.apiClient.ListAccessMonitoringRulesWithFilter(ctx, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

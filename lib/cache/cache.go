@@ -3450,7 +3450,7 @@ func (c *Cache) ListAccessMonitoringRules(ctx context.Context, pageSize int, nex
 }
 
 // ListAccessMonitoringRulesWithFilter returns a paginated list of access monitoring rules.
-func (c *Cache) ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, nextToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
+func (c *Cache) ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessMonitoringRules")
 	defer span.End()
 
@@ -3460,7 +3460,7 @@ func (c *Cache) ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSiz
 		return nil, "", trace.Wrap(err)
 	}
 	defer rg.Release()
-	out, nextKey, err := rg.reader.ListAccessMonitoringRulesWithFilter(ctx, pageSize, nextToken, subjects, notificationName)
+	out, nextKey, err := rg.reader.ListAccessMonitoringRulesWithFilter(ctx, req)
 	return out, nextKey, trace.Wrap(err)
 }
 

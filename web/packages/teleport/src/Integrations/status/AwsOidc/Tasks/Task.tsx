@@ -18,16 +18,19 @@
 
 import { PropsWithChildren, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { useTheme } from 'styled-components';
 
-import { Alert, ButtonBorder, Flex, H2 } from 'design';
+import { Alert, ButtonBorder, Link as ExternalLink, Flex, H2 } from 'design';
 import { Danger } from 'design/Alert';
-import Table from 'design/DataTable';
+import Table, { Cell } from 'design/DataTable';
 import { TableColumn } from 'design/DataTable/types';
 import { H3, P2, Subtitle2 } from 'design/Text';
-import { useAsync } from 'shared/hooks/useAsync';
+import { Attempt, useAsync } from 'shared/hooks/useAsync';
 import useAttempt from 'shared/hooks/useAttemptNext';
+import { getErrMessage } from 'shared/utils/errorType';
 
 import { getResourceType } from 'teleport/Integrations/status/AwsOidc/helpers';
+import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import {
   DiscoverEc2,
   DiscoverEc2Instance,
@@ -49,6 +52,7 @@ export function Task({
   name: string;
   close: (resolved: boolean) => void;
 }) {
+  const theme = useTheme();
   const { attempt, setAttempt } = useAttempt('');
 
   const [taskAttempt, fetchTask] = useAsync(() =>
@@ -57,7 +61,7 @@ export function Task({
 
   useEffect(() => {
     fetchTask();
-  }, []);
+  }, [name]);
 
   if (taskAttempt.status === 'error') {
     return (
@@ -71,13 +75,45 @@ export function Task({
     return null;
   }
 
-  function resolve() {
+  let requestAttemptsLeft = 5;
+  // Since the parent tasks table is using serverside pagination we do not want to modify the table data to remove this
+  // row but the update may not have propagated to the cache. We re-fetch the task every 2s up to 5x to ensure the task
+  // has been set as resolved. After 5x we will show an error. On success, we continue.
+  async function checkForResolvedState(): Promise<Attempt<void>> {
+    try {
+      requestAttemptsLeft--;
+      const t = await integrationService.fetchUserTask(name);
+      if (t.state === TaskState.Resolved) {
+        return {
+          status: 'success',
+          statusText: 'Resolved',
+          data: null,
+        };
+      } else {
+        if (requestAttemptsLeft > 0) {
+          await new Promise(r => setTimeout(r, 2000));
+          return await checkForResolvedState();
+        }
+      }
+    } catch (err) {
+      return {
+        status: 'error',
+        statusText: getErrMessage(err),
+        data: null,
+        error: err,
+      };
+    }
+  }
+
+  async function resolve() {
     setAttempt({ status: 'processing' });
     integrationService
       .resolveUserTask(name)
-      .then(() => {
-        setAttempt({ status: '', statusText: '' });
-        close(true);
+      .then(async () => {
+        const result = await checkForResolvedState();
+        if (result.status === 'success') {
+          close(true);
+        }
       })
       .catch((err: Error) =>
         setAttempt({ status: 'failed', statusText: err.message })
@@ -111,11 +147,37 @@ export function Task({
       <Attribute title="Integration Name">
         {taskAttempt.data.integration}
       </Attribute>
+      {taskAttempt.data.state === TaskState.Resolved && (
+        <Attribute title="State">{taskAttempt.data.state}</Attribute>
+      )}
       <Attribute title="Resource Type">{resourceType.toUpperCase()}</Attribute>
       <Attribute title="Region">{resource.region}</Attribute>
-      <H3 my={2}>Details</H3>
-      <ReactMarkdown>{taskAttempt.data.description}</ReactMarkdown>
-      <H3 my={2}>Impacted instances ({Object.keys(impacts).length})</H3>
+      <H3 my={2} style={{ overflow: 'unset' }}>
+        Details
+      </H3>
+      <ReactMarkdown
+        components={{
+          a(props) {
+            return (
+              <a
+                style={{
+                  fontStyle: 'unset',
+                  color: theme.colors.buttons.link.default,
+                  background: 'none',
+                  textDecoration: 'underline',
+                  textTransform: 'none',
+                }}
+                {...props}
+              />
+            );
+          },
+        }}
+      >
+        {taskAttempt.data.description}
+      </ReactMarkdown>
+      <H3 my={2} style={{ overflow: 'unset' }}>
+        Impacted instances ({Object.keys(impacts).length})
+      </H3>
       <Table
         data={table.data}
         columns={table.columns}
@@ -128,6 +190,7 @@ export function Task({
 type TableInstance = {
   instanceId?: string;
   name: string;
+  resourceUrl?: string;
 };
 
 function makeImpactsTable(instances: ImpactedInstances): {
@@ -142,6 +205,17 @@ function makeImpactsTable(instances: ImpactedInstances): {
           {
             key: 'instanceId',
             headerText: 'Instance ID',
+            render: item => {
+              return item.resourceUrl ? (
+                <Cell>
+                  <ExternalLink href={item.resourceUrl} target="_blank">
+                    {item.instanceId}
+                  </ExternalLink>
+                </Cell>
+              ) : (
+                <Cell>{item.instanceId}</Cell>
+              );
+            },
           },
           {
             key: 'name',
@@ -151,6 +225,7 @@ function makeImpactsTable(instances: ImpactedInstances): {
         data: Object.keys(impacts).map(i => ({
           instanceId: impacts[i].instance_id,
           name: impacts[i].name,
+          resourceUrl: impacts[i].resourceUrl,
         })),
       };
     case AwsResource.eks:
@@ -160,10 +235,22 @@ function makeImpactsTable(instances: ImpactedInstances): {
           {
             key: 'name',
             headerText: 'Name',
+            render: item => {
+              return item.resourceUrl ? (
+                <Cell>
+                  <ExternalLink href={item.resourceUrl} target="_blank">
+                    {item.name}
+                  </ExternalLink>
+                </Cell>
+              ) : (
+                <Cell>{item.name}</Cell>
+              );
+            },
           },
         ],
         data: Object.keys(impacts).map(i => ({
           name: impacts[i].name,
+          resourceUrl: impacts[i].resourceUrl,
         })),
       };
     default:

@@ -24,17 +24,21 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
 import { BackgroundItemStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import { Report } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
+import { useStateRef } from 'shared/hooks';
 import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 
 import { cloneAbortSignal, isTshdRpcError } from 'teleterm/services/tshd';
+import { hasReportFoundIssues } from 'teleterm/services/vnet/diag';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { usePersistedState } from 'teleterm/ui/hooks/usePersistedState';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 import { IAppContext } from 'teleterm/ui/types';
 
 /**
@@ -47,6 +51,10 @@ export type VnetContext = {
    * Describes whether the given OS can run VNet.
    */
   isSupported: boolean;
+  /**
+   * Describes whether the given OS can run VNet diagnostics.
+   */
+  isDiagSupported: boolean;
   status: VnetStatus;
   start: () => Promise<[void, Error]>;
   startAttempt: Attempt<void>;
@@ -82,6 +90,18 @@ export type VnetContext = {
    * Shows the diagnostics alert in the VNet panel again.
    */
   reinstateDiagnosticsAlert: () => void;
+  /**
+   * openReport opens the report in a new document. If there's already a document with the same
+   * report, it opens the existing document instead.
+   *
+   * openReport is undefined if the user is not within any workspace.
+   */
+  openReport: ((report: Report) => void) | undefined;
+  /**
+   * Whether the connections icon in the top left and the icon for the VNet connection item should
+   * show a warning state.
+   */
+  showDiagWarningIndicator: boolean;
 };
 
 export type VnetStatus =
@@ -94,13 +114,15 @@ export type VnetStoppedReason =
 
 export const VnetContext = createContext<VnetContext>(null);
 
-export const VnetContextProvider: FC<PropsWithChildren> = props => {
+export const VnetContextProvider: FC<
+  PropsWithChildren<{ diagnosticsIntervalMs?: number }>
+> = ({ diagnosticsIntervalMs = defaultDiagnosticsIntervalMs, children }) => {
   const [status, setStatus] = useState<VnetStatus>({
     value: 'stopped',
     reason: { value: 'regular-shutdown-or-not-started' },
   });
   const appCtx = useAppContext();
-  const { vnet, mainProcessClient, notificationsService, configService } =
+  const { vnet, mainProcessClient, notificationsService, workspacesService } =
     appCtx;
   const isWorkspaceStateInitialized = useStoreSelector(
     'workspacesService',
@@ -109,11 +131,14 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
   const [{ autoStart }, setAppState] = usePersistedState('vnet', {
     autoStart: false,
   });
+  const { isOpenRef: isConnectionsPanelOpenRef } = useConnectionsContext();
 
-  const isSupported = useMemo(() => {
-    const { platform } = mainProcessClient.getRuntimeSettings();
-    return platform === 'darwin' || platform === 'win32';
-  }, [mainProcessClient]);
+  const platform = useMemo(
+    () => mainProcessClient.getRuntimeSettings().platform,
+    [mainProcessClient]
+  );
+  const isSupported = platform === 'darwin' || platform === 'win32';
+  const isDiagSupported = platform === 'darwin';
 
   const [startAttempt, start] = useAsync(
     useCallback(async () => {
@@ -141,6 +166,35 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
     )
   );
 
+  /** Holds the ID of the currently displayed warning notification about diagnostics. */
+  const diagNotificationIdRef = useRef('');
+  /**
+   * Removes any currently shown diag notification _and_ makes it so that the next periodic call to
+   * runDiagnosticsAndShowNotification is not going to skip the notification due to the user
+   * interacting with the notification.
+   */
+  const resetHasActedOnPreviousNotification = useCallback(() => {
+    if (!diagNotificationIdRef.current) {
+      return;
+    }
+    notificationsService.removeNotification(diagNotificationIdRef.current);
+    diagNotificationIdRef.current = '';
+  }, [notificationsService]);
+
+  const [
+    /** Whether user has dismissed the diagnostic alert shown in the VNet panel. */
+    hasDismissedDiagnosticsAlert,
+    hasDismissedDiagnosticsAlertRef,
+    setHasDismissedDiagnosticsAlert,
+  ] = useStateRef(false);
+  const reinstateDiagnosticsAlert = useCallback(() => {
+    setHasDismissedDiagnosticsAlert(false);
+  }, [setHasDismissedDiagnosticsAlert]);
+  const dismissDiagnosticsAlert = useCallback(() => {
+    setHasDismissedDiagnosticsAlert(true);
+    resetHasActedOnPreviousNotification();
+  }, [setHasDismissedDiagnosticsAlert, resetHasActedOnPreviousNotification]);
+
   const [stopAttempt, stop] = useAsync(
     useCallback(async () => {
       await vnet.stop({});
@@ -151,7 +205,12 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
       setAppState({ autoStart: false });
       setDiagnosticsAttempt(makeEmptyAttempt());
       setHasDismissedDiagnosticsAlert(false);
-    }, [vnet, setAppState, setDiagnosticsAttempt])
+    }, [
+      vnet,
+      setAppState,
+      setDiagnosticsAttempt,
+      setHasDismissedDiagnosticsAlert,
+    ])
   );
 
   const [listDNSZonesAttempt, listDNSZones] = useAsync(
@@ -176,6 +235,57 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
           ? 'Generating diagnostic report…'
           : '',
     [status.value]
+  );
+
+  const rootClusterUri = useStoreSelector(
+    'workspacesService',
+    useCallback(state => state.rootClusterUri, [])
+  );
+
+  const openReport = useCallback(
+    (report: Report) => {
+      if (!rootClusterUri) {
+        return;
+      }
+
+      const docsService =
+        workspacesService.getWorkspaceDocumentService(rootClusterUri);
+
+      // Check for an existing doc first. It may be present if someone re-runs diagnostics from within
+      // a doc, then opens the VNet panel and clicks "Open Diag Report". The report in the panel and
+      // the report in the doc are equal in that case, as they both come from diagnosticsAttempt.data.
+      const existingDoc = docsService.getDocuments().find(
+        d =>
+          d.kind === 'doc.vnet_diag_report' &&
+          // Reports don't have IDs, so createdAt is used as a good-enough approximation of an ID.
+          d.report?.createdAt === report.createdAt
+      );
+      if (existingDoc) {
+        docsService.open(existingDoc.uri);
+      } else {
+        const doc = docsService.createVnetDiagReportDocument({
+          rootClusterUri,
+          report,
+        });
+        docsService.add(doc);
+        docsService.open(doc.uri);
+      }
+
+      // NOTE: Do not reset diagNotificationIdRef here for the notification to be considered acted
+      // upon on the next run of runDiagnosticsAndShowNotification.
+      notificationsService.removeNotification(diagNotificationIdRef.current);
+    },
+    [rootClusterUri, workspacesService, notificationsService]
+  );
+
+  const showDiagWarningIndicator: boolean = useMemo(
+    () =>
+      !hasDismissedDiagnosticsAlert &&
+      // Look at data, not status === 'running', otherwise this would briefly swap to false
+      // whenever a diagnostic run would be in progress.
+      diagnosticsAttempt.data &&
+      hasReportFoundIssues(diagnosticsAttempt.data),
+    [hasDismissedDiagnosticsAlert, diagnosticsAttempt]
   );
 
   useEffect(() => {
@@ -224,9 +334,78 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
     [appCtx, notificationsService]
   );
 
+  const runDiagnosticsAndShowNotification = useCallback(
+    async (signal: AbortSignal) => {
+      const [report, error] = await runDiagnostics(signal);
+      if (error) {
+        return;
+      }
+
+      const previousNotificationId = diagNotificationIdRef.current;
+      /**
+       * Whether the user dismissed the previous notification or opened the report from the previous
+       * notification.
+       */
+      const hasActedOnPreviousNotification =
+        previousNotificationId &&
+        !notificationsService.hasNotification(previousNotificationId);
+      notificationsService.removeNotification(previousNotificationId);
+
+      if (
+        hasActedOnPreviousNotification ||
+        hasDismissedDiagnosticsAlertRef.current
+      ) {
+        return;
+      }
+
+      if (!hasReportFoundIssues(report)) {
+        // Resetting here handles a situation where issues are found, then a second run finds no
+        // issues and then another run finds issues again. Without resetting after the second run,
+        // that last run would not send a notification
+        resetHasActedOnPreviousNotification();
+        return;
+      }
+
+      if (isConnectionsPanelOpenRef.current) {
+        // If the connection panel is open and the report has found some issues, the user should be
+        // able to see the warning in the panel. If they're on the VNet panel, we don't want to show
+        // the notification _and_ the alert in the panel.
+        //
+        // diagNotificationIdRef needs to be made dirty so that on the next run the notification is
+        // considered to be acted upon.
+        diagNotificationIdRef.current = 'bogus-id';
+        return;
+      }
+
+      diagNotificationIdRef.current = notificationsService.notifyWarning({
+        isAutoRemovable: false,
+        title: 'Other software on your device might interfere with VNet.',
+        action: {
+          content: 'Open Diag Report',
+          onClick: () => {
+            openReport(report);
+            // NOTE: Do not reset diagNotificationIdRef here. Opening a notification must result in
+            // hasActedOnPreviousNotification to be equal to true on the next interval run.
+            notificationsService.removeNotification(
+              diagNotificationIdRef.current
+            );
+          },
+        },
+      });
+    },
+    [
+      runDiagnostics,
+      notificationsService,
+      openReport,
+      hasDismissedDiagnosticsAlertRef,
+      resetHasActedOnPreviousNotification,
+      isConnectionsPanelOpenRef,
+    ]
+  );
+
   useEffect(
     function periodicallyRunDiagnostics() {
-      if (!configService.get('unstable.vnetDiag').value) {
+      if (!isDiagSupported) {
         return;
       }
 
@@ -236,37 +415,34 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
 
       let abortController = new AbortController();
 
-      runDiagnostics(abortController.signal);
+      runDiagnosticsAndShowNotification(abortController.signal);
       const intervalId = setInterval(() => {
         abortController.abort();
         abortController = new AbortController();
 
-        runDiagnostics(abortController.signal);
+        runDiagnosticsAndShowNotification(abortController.signal);
       }, diagnosticsIntervalMs);
 
       return () => {
         abortController.abort();
         clearInterval(intervalId);
+        resetHasActedOnPreviousNotification();
       };
     },
-    [configService, runDiagnostics, status.value]
-  );
-
-  const [hasDismissedDiagnosticsAlert, setHasDismissedDiagnosticsAlert] =
-    useState(false);
-  const reinstateDiagnosticsAlert = useCallback(
-    () => setHasDismissedDiagnosticsAlert(false),
-    []
-  );
-  const dismissDiagnosticsAlert = useCallback(
-    () => setHasDismissedDiagnosticsAlert(true),
-    []
+    [
+      isDiagSupported,
+      diagnosticsIntervalMs,
+      runDiagnosticsAndShowNotification,
+      status.value,
+      resetHasActedOnPreviousNotification,
+    ]
   );
 
   return (
     <VnetContext.Provider
       value={{
         isSupported,
+        isDiagSupported,
         status,
         start,
         startAttempt,
@@ -280,14 +456,16 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
         dismissDiagnosticsAlert,
         hasDismissedDiagnosticsAlert,
         reinstateDiagnosticsAlert,
+        openReport: rootClusterUri ? openReport : undefined,
+        showDiagWarningIndicator,
       }}
     >
-      {props.children}
+      {children}
     </VnetContext.Provider>
   );
 };
 
-const diagnosticsIntervalMs = 30 * 1000; // 30s
+const defaultDiagnosticsIntervalMs = 30 * 1000; // 30s
 
 export const useVnetContext = () => {
   const context = useContext(VnetContext);
