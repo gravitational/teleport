@@ -39,7 +39,7 @@ func (s *TerraformSuiteOSS) TestClusterNetworkingConfigDataSource() {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "cluster_networking_config"),
 					resource.TestCheckResourceAttr(name, "version", "v2"),
-					resource.TestCheckResourceAttr(name, "id", "cluster_networking_config"),
+					resource.TestCheckResourceAttr(name, "id", "cluster-networking-config"),
 				),
 			},
 		},
