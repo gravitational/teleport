@@ -3,6 +3,7 @@ run-name: Build on Mac OS
 
 on:
   merge_group:
+  pull_request:
     paths:
       - '.github/workflows/build-macos.yaml'
       - '**.go'

@@ -24,7 +24,6 @@ on:
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
       - 'Makefile'
-  merge_group:
 
 jobs:
   build:
