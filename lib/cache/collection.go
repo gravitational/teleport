@@ -32,7 +32,7 @@ type collection[T any] struct {
 	fetcher func(ctx context.Context, loadSecrets bool) ([]T, error)
 	// store persists all resources in memory.
 	store *store[T]
-	// watch contains the kind of
+	// watch contains the kind of resource being monitored.
 	watch types.WatchKind
 	// headerTransform is used when handling delete events in [onDelete]. Since
 	// [types.OpDelete] events only contain information about the resource key,
