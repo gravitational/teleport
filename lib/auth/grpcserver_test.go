@@ -5280,7 +5280,7 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 					}()
 					require.NoError(t, err)
 					checkRole(gotRole)
-					return
+
 					// Try to re-upsert the role we got. If it was
 					// downgraded, it should be rejected due to the
 					// TeleportDowngradedLabel.
