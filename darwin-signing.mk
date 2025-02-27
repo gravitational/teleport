@@ -81,7 +81,7 @@ notary_dir = $(BUILDDIR)/notarize
 notary_file = $(BUILDDIR)/notarize.zip
 
 MAC_TOOLING_FLAGS = --retry 2 $(if $(SHOULD_NOTARIZE),--team-id=$(TEAMID),--dry-run)
-MAC_TOOLING_CMD = go run github.com/gravitational/shared-workflows/tools/mac-distribution@v0.0.0
+MAC_TOOLING_CMD = go run github.com/gravitational/shared-workflows/tools/mac-distribution@v0.0.1
 
 NOTARIZE_BINARIES = $(notarize_binaries_cmd)
 
