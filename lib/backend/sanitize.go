@@ -29,8 +29,8 @@ import (
 // errorMessage is the error message to return when invalid input is provided by the caller.
 const errorMessage = "special characters are not allowed in resource names, please use name composed only from characters, hyphens, dots, and plus signs: %q"
 
-// isValidByte checks if the byte is a valid character for a key.
-func isValidByte(b byte) bool {
+// isValidKeyByte checks if the byte is a valid character for a key.
+func isValidKeyByte(b byte) bool {
 	switch b {
 	case
 		// Digits
@@ -66,7 +66,7 @@ func IsKeySafe(key Key) bool {
 		}
 
 		for _, b := range []byte(k) {
-			if !isValidByte(b) {
+			if !isValidKeyByte(b) {
 				return false
 			}
 		}
