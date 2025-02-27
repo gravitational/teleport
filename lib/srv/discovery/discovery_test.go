@@ -1028,7 +1028,7 @@ func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTas
 		}
 
 		return gotResources >= minUserTaskResources
-	}, 5*time.Second, 1*time.Second)
+	}, 5*time.Second, 50*time.Millisecond)
 
 	return existingTasks
 }
