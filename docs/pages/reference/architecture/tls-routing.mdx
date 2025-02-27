@@ -141,9 +141,8 @@ protocols for ALPN.
 
 ## Working with layer 7 load balancers or reverse proxies 
 
-Starting from version `13.0`, TLS routing can now be enabled allowing the
-Teleport Proxy Service to serve a single port behind a layer 7 load balancer or
-reverse proxy.
+TLS routing enables the Teleport Proxy Service to serve a single port behind a
+layer 7 load balancer or reverse proxy.
 
 ![Layer 7 load balancer setup](../../../img/architecture/tls-routing-alb.png)
 
@@ -155,14 +154,10 @@ or `acme`.
 Teleport clients automatically detect whether the Teleport Proxy Service is
 behind a layer 7 load balancer or a reverse proxy. In such cases, the client
 initiates a connection upgrade and then sends the TLS routing request through
-the upgraded connection.
+the upgraded connection. Teleport clients use native WebSocket upgrades for
+compatibility with load balancers and reverse proxies.
 
-The initial client implementation sends a Teleport-custom upgrade 'alpn', which
-uses the same connection upgrade principle as WebSockets. Starting from version
-15.1, Teleport clients will send native WebSocket upgrades to extend its
-compatibility with more load balancers and reverse proxies.
-
-![Connection upgrade](../../../img/architecture/tls-routing-connection-upgrade.png)
+![Connection upgrade](../../../img/architecture/tls-routing-connection-upgrade.svg)
 
 Non-Teleport clients should require local proxies that can perform the
 special connection upgrades.
@@ -237,30 +232,26 @@ protocol for the target group.
 
 ### Will TLS routing work behind my reverse proxy?
 
-Starting version 15.1, TLS routing is compatible with any reverse proxies that
-supports WebSocket.
-
-For Teleport version before 15.1, the reverse proxy must support custom
-[connection
-upgrades](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Upgrade)
-and long-lived connections.
+TLS routing is compatible with any reverse proxies that supports WebSocket.
 
 You can set up a Teleport Proxy Service behind the reverse proxy and run the
 following command to test the connection:
 ```code
-$ curl -v https://<Var name="teleport.example.com" />/webapi/connectionupgrade -H "Connection: Upgrade" -H "Upgrade: alpn-ping" --no-alpn
+$ curl --no-alpn -i -H "Connection: Upgrade" -H "Upgrade: websocket" \
+  -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" -H "Sec-WebSocket-Version: 13" \
+  https://<Var name="teleport.example.com" />/webapi/connectionupgrade
 ```
 
 For a successful upgrade, the server should return "101 Switching Protocols"
-with the requested upgrade type and you should also get some binary output in
-about 30 seconds running the `curl` command:
+with an empty response:
 ```
-< HTTP/1.1 101 Switching Protocols
-< Connection: Upgrade
-< Upgrade: alpn-ping
-< X-Teleport-Upgrade: alpn-ping
-<
-Warning: Binary output can mess up your terminal.
+HTTP/1.1 101 Switching Protocols
+Date: Thu, 27 Feb 2025 14:26:49 GMT
+Connection: upgrade
+Upgrade: websocket
+Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=
+
+curl: (52) Empty reply from server
 ```
 
 ### How can I access Kubernetes clusters without using `tsh proxy kube`?
