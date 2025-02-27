@@ -175,7 +175,8 @@ loop:
 				status <- svc.Status{State: svc.StopPending}
 			}
 		case <-terminateTimedOut:
-			slog.ErrorContext(ctx, "Networking stack failed to terminate within %v, exiting process")
+			slog.ErrorContext(ctx, "Networking stack failed to terminate within timeout, exiting process",
+				slog.Duration("timeout", terminateTimeout))
 			exitCode = 1
 			break loop
 		case err := <-errCh:
