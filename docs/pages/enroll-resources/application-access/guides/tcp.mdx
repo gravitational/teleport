@@ -181,11 +181,11 @@ HTTP/1.1 200 OK
 $ psql postgres://postgres@tcp-app.teleport.example.com:5432/postgres
 ```
 
-<Notice type="warning">
+<Admonition type="warning">
 There is no RBAC for TCP ports – a user that has access to an application can connect to any port in
 the specification. We&nbsp;strongly recommend specifying only the necessary ports instead of defining a
 wide port range that happens to include ports that are meant to be available.
-</Notice>
+</Admonition>
 
 {/* TODO: DELETE IN 19.0.0. At this point all compatible servers and clients are going
 to support multiple ports. */}
