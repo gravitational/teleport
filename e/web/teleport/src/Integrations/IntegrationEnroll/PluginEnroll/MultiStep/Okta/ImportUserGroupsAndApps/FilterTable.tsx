@@ -84,24 +84,24 @@ function CustomTable<T>({
 
   return (
     <>
-      <ClientSidePager
-        nextPage={nextPage}
-        prevPage={prevPage}
-        data={data}
-        {...pagination}
-      />
       <TableWrapper>
         <StyledTable>
           {renderHeaders()}
           {renderBody(paginatedData[currentPage])}
         </StyledTable>
       </TableWrapper>
+      <ClientSidePager
+        nextPage={nextPage}
+        prevPage={prevPage}
+        data={data}
+        {...pagination}
+      />
     </>
   );
 }
 
 const TableWrapper = styled.div`
-  overflow-y: scroll;
+  overflow-y: auto;
   border-bottom: 1px solid ${props => props.theme.colors.spotBackground[2]};
   height: 330px;
 `;
@@ -126,9 +126,8 @@ const StyledTable = styled(StyledTableBase)(
     top: 0;
     position: sticky;
     z-index: 1;
-    background-color: ${props.theme.colors.levels.elevated};
+    background-color: ${props.theme.colors.levels.surface};
     opacity: 1;
-    padding-top: 0px;
   }
 
   tbody > tr > td {

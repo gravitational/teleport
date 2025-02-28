@@ -1,93 +1,88 @@
-import { Link as InternalLink } from 'react-router-dom';
-import styled from 'styled-components';
+import { useHistory } from 'react-router-dom';
 
-import { Box, Link as ExternalLink, Flex, Mark, Text } from 'design';
-import { NewTab } from 'design/Icon';
-import { IconTooltip } from 'design/Tooltip';
+import { Link as ExternalLink, Flex, Mark, Text } from 'design';
+import { NewTab, PlugsConnected } from 'design/Icon';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 import cfg from 'teleport/config';
 import { OktaSsoDetails } from 'teleport/services/integrations/oktaStatusTypes';
 
 import { generateOktaSamlAppUrl } from './generateOktaAdminLink';
-import {
-  CenteredFlex,
-  CustomLabel,
-  LinkedInnerCard,
-  Panel,
-  PanelTitle,
-} from './Shared';
+import { Panel, PanelTitle, StatusAndOptions } from './Shared';
 
-export function SsoDetails({
+export const SsoDetails = ({
   spec,
   orgUrl,
-  teleportSsoConnector,
 }: {
-  spec: OktaSsoDetails;
-  orgUrl: string;
-  teleportSsoConnector: string;
-}) {
+  spec?: Pick<OktaSsoDetails, 'appId' | 'appName' | 'enabled'>;
+  orgUrl?: string;
+}) => {
   const ctx = useTeleportE();
+  const history = useHistory();
   const hasSsoAccess = ctx.storeUser.getConnectorAccess().list;
+
+  const options = [];
+  if (hasSsoAccess) {
+    options.push({
+      label: 'View Auth Connector',
+      onClick: () => history.push(cfg.routes.sso),
+      Icon: PlugsConnected,
+    });
+  }
+  if (orgUrl && spec?.appId && spec?.appName) {
+    options.push({
+      label: "Open Okta's SAML App",
+      onClick: () => {
+        window.open(
+          generateOktaSamlAppUrl({
+            orgUrl,
+            appId: spec.appId,
+            appName: spec.appName,
+          }),
+          '_blank'
+        );
+      },
+      Icon: NewTab,
+    });
+  }
+
   return (
     <Panel>
-      <CenteredFlex>
-        <CenteredFlex>
-          <PanelTitle>Single Sign-On</PanelTitle>
-          <IconTooltip>
-            A SAML SSO connector that grants Okta users the default role of
-            requester
-          </IconTooltip>
-        </CenteredFlex>
-        <CustomLabel enabled={spec.enabled} />
-      </CenteredFlex>
-      <Flex gap={2} height="100%">
-        {hasSsoAccess && (
-          <VerticallyCenteredFlex as={InternalLink} to={cfg.routes.sso}>
-            {spec.appName ? (
-              <>
-                <Text>View</Text>
-                <Text>Teleport's Connector</Text>
-                <Text>
-                  <Mark>{teleportSsoConnector}</Mark>
-                </Text>
-              </>
-            ) : (
-              <Text>
-                Click to view Teleport's Connector named{' '}
-                <Mark>{teleportSsoConnector}</Mark>
-              </Text>
-            )}
-          </VerticallyCenteredFlex>
-        )}
-        {spec.appName && (
-          <VerticallyCenteredFlex
-            as={ExternalLink}
-            href={generateOktaSamlAppUrl({
-              orgUrl,
-              appId: spec.appId,
-              appName: spec.appName,
-            })}
-            target="_blank"
-          >
-            <Flex justifyContent="space-between" alignItems="center">
-              <Box>
-                <Text>Open</Text>
-                <Text>Okta's SAML App</Text>
-              </Box>
-              <NewTab />
-            </Flex>
-          </VerticallyCenteredFlex>
-        )}
+      <Flex alignItems="center" justifyContent="space-between" gap={2}>
+        <Flex alignItems="center" justifyContent="space-between" gap={2}>
+          <PanelTitle>SSO Connector</PanelTitle>
+        </Flex>
+        <StatusAndOptions enabled={spec.enabled} options={options} />
+      </Flex>
+      <Flex flexDirection="column" gap={3} px={1} pt={1} height="100%">
+        <Text color="text.slightlyMuted">
+          <span>
+            Your SAML SSO connector that grants Okta users from{' '}
+            <ExternalLink
+              target="_blank"
+              href={orgUrl}
+              css={`
+                display: inline;
+              `}
+            >
+              {orgUrl}
+            </ExternalLink>{' '}
+            the default Teleport role of <Mark>requester</Mark>.
+          </span>
+        </Text>
+        <Flex flexDirection="column" gap={1}>
+          {spec.appId && (
+            <Text color="text.slightlyMuted">
+              SSO App ID: <b>{spec.appId}</b>
+            </Text>
+          )}
+          {spec.appName && (
+            <Text color="text.slightlyMuted">
+              SSO App Name: <b>{spec.appName}</b>
+            </Text>
+          )}
+        </Flex>
       </Flex>
     </Panel>
   );
-}
-
-const VerticallyCenteredFlex = styled(LinkedInnerCard)`
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  height: 100%;
-  font-weight: normal;
-`;
+};

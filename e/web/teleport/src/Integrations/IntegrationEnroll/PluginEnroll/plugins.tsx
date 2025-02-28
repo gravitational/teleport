@@ -3,17 +3,17 @@ import { Link as ReactRouterLink } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { Box, Flex, H2, Link, Text } from 'design';
-import { OutlineWarn } from 'design/Alert/Alert';
 import CardError from 'design/CardError';
 import * as Icons from 'design/Icon';
 import { Mark } from 'design/Mark';
 import { P } from 'design/Text/Text';
 import FieldInput from 'shared/components/FieldInput';
-import { FieldSelect } from 'shared/components/FieldSelect';
+import FieldSelect from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { requiredField } from 'shared/components/Validation/rules';
 
 import cfg from 'e-teleport/config';
+import { OktaIntegrationSetUp } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/SetUp';
 import type {
   CloudHostablePlugin,
   SelfHostedPlugin,
@@ -33,10 +33,6 @@ import {
 import { CreateEntra } from './MultiStep/Entra/CreateEntra';
 import { FormMixin as EntraFormMixin } from './MultiStep/Entra/FormMixin';
 import { RunScript } from './MultiStep/Entra/RunScript';
-import { CreateOkta } from './MultiStep/Okta/CreateOkta';
-import { ImportUserGroupsAndApps } from './MultiStep/Okta/ImportUserGroupsAndApps/ImportUserGroupsAndApps';
-import { SetUpScim } from './MultiStep/Okta/SetUpScim';
-import { FormDataField } from './MultiStep/Okta/types';
 import { PluginEnrollSuccess } from './MultiStep/PluginEnrollSuccess';
 
 export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
@@ -149,239 +145,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     cloudHostable: true,
     selfHostable: true,
     fullName: 'Okta Integration',
-    views: () => {
-      if (
-        cfg.oss.entitlements.OktaSCIM.enabled &&
-        cfg.oss.entitlements.OktaUserSync.enabled
-      ) {
-        return [
-          { title: 'Connect Okta', component: CreateOkta },
-          { title: 'Import', component: ImportUserGroupsAndApps },
-          { title: 'Set Up SCIM', component: SetUpScim },
-          { title: 'Finished', component: PluginEnrollSuccess, hide: true },
-        ];
-      }
-      return [];
-    },
-    Description: () => {
-      return (
-        <Box mb={3}>
-          <Text>
-            The Okta integration can sync users, applications, and groups with
-            your Teleport instance and set up an SSO integration.
-          </Text>
-          <H2 mt={3}>Included with Teleport:</H2>
-          <StyledUl>
-            <li>
-              <strong>App Synchronization</strong>: Routinely synchronizes Okta
-              apps and groups with Teleport
-            </li>
-            <li>
-              <strong>User Access</strong>: Grants access to Okta apps and
-              groups based on Teleport permissions
-            </li>
-            <li>
-              <strong>Access Requests</strong>: Enables users to request
-              temporary access to Okta apps and groups
-            </li>
-            <li>
-              <strong>SSO integration</strong>: A SAML SSO connector that grants
-              Okta users the default role of <em>requester</em>
-            </li>
-          </StyledUl>
-          <H2 mt={3}>Included with Teleport Identity:</H2>
-          <StyledUl>
-            <li>
-              <strong>User Synchronization</strong>: Routinely synchronizes
-              users with Teleport so the Teleport user list always includes your
-              full Okta user list
-            </li>
-            <li>
-              <strong>User Group Synchronization</strong>: Syncs Okta user
-              groups with Teleport Access Lists for simple permissions
-              management and auditing capabilities
-            </li>
-          </StyledUl>
-          {!cfg.oss.entitlements.OktaUserSync.enabled && (
-            <ButtonLockedFeature
-              event={CtaEvent.CTA_OKTA_USER_SYNC}
-              width={'460px'}
-              mt={2}
-              mb={3}
-            >
-              Unlock User Synchronization with Teleport Identity
-            </ButtonLockedFeature>
-          )}
-        </Box>
-      );
-    },
-    Setup: () => (
-      <Box>
-        <Text mt={1}>
-          Generate an API key so you can set up the Okta plugin:
-        </Text>
-        <ol css={{ margin: 0 }}>
-          <li>
-            Create an admin role for the Teleport Okta Service by following the{' '}
-            <Link
-              target="_blank"
-              href="https://help.okta.com/en-us/content/topics/security/custom-admin-role/create-role.htm"
-            >
-              Okta documentation
-            </Link>
-            . The role must have the following permissions:
-            <ul>
-              <li>
-                User permissions:
-                <ul>
-                  <li>View users and their details</li>
-                  <li>Edit users' group membership</li>
-                  <li>Edit users' application assignments</li>
-                </ul>
-              </li>
-              <li>
-                Group permissions:
-                <ul>
-                  <li>View groups and their details</li>
-                  <li>Manage group membership</li>
-                </ul>
-              </li>
-              <li>
-                Application permissions:
-                <ul>
-                  <li>View applications and their details</li>
-                  <li>Edit application's user assignments</li>
-                </ul>
-              </li>
-            </ul>
-          </li>
-          <li>
-            Follow the{' '}
-            <Link
-              target="_blank"
-              href="https://help.okta.com/en-us/content/topics/security/custom-admin-role/create-admin-role-assignment-by-admin.htm"
-            >
-              Okta documentation
-            </Link>{' '}
-            to create a user for the Teleport Okta Service and assign two roles
-            to the user:
-            <ul>
-              <li>
-                The built-in Group Membership Admin role, which can create API
-                tokens
-              </li>
-              <li>The role you created earlier</li>
-            </ul>
-          </li>
-          <li>
-            Sign in to Okta as the user you created and follow the{' '}
-            <Link
-              target="_blank"
-              href="https://help.okta.com/en-us/content/topics/security/api.htm"
-            >
-              Okta documentation
-            </Link>{' '}
-            to generate an API token, which inherits the permissions of the
-            user. Paste the API token into the form at the bottom of this
-            screen.
-          </li>
-        </ol>
-      </Box>
-    ),
-    FormMixin: () => {
-      const [url, setUrl] = useState('');
-      const [token, setToken] = useState('');
-
-      return (
-        <>
-          <FieldInput
-            width="500px"
-            label="Okta Domain"
-            name={FormDataField.OrgUrl}
-            rule={requiredField('Okta domain Required')}
-            value={url}
-            onChange={e => setUrl(e.target.value)}
-            placeholder="examplecompanyname.okta.com"
-            toolTipContent="Okta domain is used for API communication"
-            mb={3}
-          />
-          <FieldInput
-            mb={5}
-            width="500px"
-            label="API Token"
-            name={FormDataField.ApiToken}
-            type="password"
-            rule={requiredField('API Token Required')}
-            value={token}
-            onChange={e => setToken(e.target.value)}
-            placeholder="00QCjAl4MlV-WPXM...0HmjFx-vbGua"
-            toolTipContent="Okta API tokens are used to authenticate requests to Okta APIs"
-          />
-          <OutlineWarn
-            css={{ justifyContent: 'normal', maxWidth: '620px' }}
-            linkColor="buttons.link.default"
-          >
-            <P>
-              Enabling Okta integration will make Teleport take ownership over
-              app and group assignments in Okta and can make changes within Okta
-              based on Teleport's RBAC configuration.
-            </P>
-            <P>
-              Specifically, access to Okta apps is governed by Teleport roles{' '}
-              <Link
-                target="_blank"
-                href="https://goteleport.com/docs/enroll-resources/application-access/controls/#configuring-application-labels-in-roles"
-              >
-                app_labels
-              </Link>
-              {'. '}
-              Ensure that your users do not have roles with wildcard{' '}
-              <Link
-                target="_blank"
-                href="https://goteleport.com/docs/enroll-resources/application-access/controls/#configuring-application-labels-in-roles"
-              >
-                app_labels
-              </Link>
-              , which otherwise will result into those users being assigned to
-              all Okta applications.
-            </P>
-            <P>
-              To limit the scope of this integration, you can constrain Okta
-              access token to a subset of apps and groups by using{' '}
-              <Link
-                target="_blank"
-                href="https://help.okta.com/en-us/content/topics/security/custom-admin-role/create-resource-set.htm"
-              >
-                Okta resource set
-              </Link>
-              .
-            </P>
-          </OutlineWarn>
-        </>
-      );
-    },
-    NextSteps: () => {
-      return (
-        <>
-          <P>
-            After enabling the Okta integration, create an import rule to
-            configure the applications that Teleport imports from Okta. See the{' '}
-            <Link
-              target="_blank"
-              href="https://goteleport.com/docs/reference/agent-services/okta/"
-            >
-              Teleport documentation
-            </Link>{' '}
-            for details.
-          </P>
-
-          <P>
-            It may take a while before all applications and groups are synced to
-            Teleport.
-          </P>
-        </>
-      );
-    },
+    Setup: () => <OktaIntegrationSetUp />,
   },
   {
     type: 'opsgenie',

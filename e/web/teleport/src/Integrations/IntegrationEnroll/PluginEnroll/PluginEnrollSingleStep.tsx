@@ -44,15 +44,16 @@ export function PluginEnrollSingleStep({
   }
 
   useEffect(() => {
-    if (!enrollResponse && eventId) {
-      userEventService.captureIntegrationEnrollEvent({
-        event: IntegrationEnrollEvent.Started,
-        eventData: {
-          id: eventId,
-          kind: pluginTypeToIntegrationEnrollKind(selectedPluginType),
-        },
-      });
+    if (enrollResponse || !eventId || plugin.type === 'okta') {
+      return;
     }
+    userEventService.captureIntegrationEnrollEvent({
+      event: IntegrationEnrollEvent.Started,
+      eventData: {
+        id: eventId,
+        kind: pluginTypeToIntegrationEnrollKind(selectedPluginType),
+      },
+    });
     // Only send a start event ID once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -82,6 +82,7 @@ export function IntegrationStatus() {
       <FeatureContainer {...props}>
         <OktaStatusDetails
           plugin={plugin}
+          setPlugin={setPlugin}
           deletePlugin={() => setShowDeleteDialog(true)}
         />
         {showDeleteDialog && (
@@ -121,7 +122,7 @@ const FeatureContainer: React.FC<PropsWithChildren<FeatureContainerProps>> = ({
           <Text bold fontSize={6} mr={2}>
             {pluginName}
           </Text>
-          <Label kind="secondary">
+          <Label kind="secondary" css={{ borderRadius: '999px' }}>
             <Flex py={1} gap={1} alignItems="center">
               {getIcon(pluginType)}
               <Text fontSize={1}>

@@ -1,10 +1,22 @@
 import { MemoryRouter, Route } from 'react-router';
 
-import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  tick,
+  userEvent,
+} from 'design/utils/testing';
 
+import cfg from 'e-teleport/config';
+import {
+  OktaIntegrationLevel,
+  oktaIntegrationLevels,
+} from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
+import { FormDataField } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/types';
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import { pluginsService } from 'e-teleport/services/plugins';
-import cfg from 'teleport/config';
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ApiError } from 'teleport/services/api/parseError';
 import {
   IntegrationStatusCode,
@@ -31,8 +43,9 @@ jest.mock('shared/libs/logger', () => {
   };
 });
 
-const defaultSyncEntitlement = cfg.entitlements.OktaUserSync;
-const defaultScimEntitlement = cfg.entitlements.OktaSCIM;
+const defaultSyncEntitlement = cfg.oss.entitlements.OktaUserSync;
+const defaultScimEntitlement = cfg.oss.entitlements.OktaSCIM;
+const defaultIdentityEntitlement = cfg.oss.entitlements.Identity;
 
 describe('slack PluginEnroll.tsx', () => {
   beforeEach(() => {
@@ -43,8 +56,6 @@ describe('slack PluginEnroll.tsx', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
-    cfg.entitlements.OktaUserSync = defaultSyncEntitlement;
-    cfg.entitlements.OktaSCIM = defaultScimEntitlement;
   });
 
   test('missing input prevents submitting', async () => {
@@ -64,10 +75,9 @@ describe('slack PluginEnroll.tsx', () => {
 
   test('enroll success state', async () => {
     const eventId = 'c6b794e1-afcf-4e16-ac5b';
-    renderPluginEnroll(
-      'slack',
-      `event_id=${eventId}&success=%7B%22name%22%3A%22slack-default%22%2C%22slack%22%3A%7B%22fallback_channel%22%3A%22%23general-channel%22%7D%7D`
-    );
+    renderPluginEnroll('slack', {
+      search: `event_id=${eventId}&success=%7B%22name%22%3A%22slack-default%22%2C%22slack%22%3A%7B%22fallback_channel%22%3A%22%23general-channel%22%7D%7D`,
+    });
 
     // Test that the correct param is used and successful JSON parsing.
     expect(screen.getByText(/#general-channel/i)).toBeInTheDocument();
@@ -88,10 +98,20 @@ describe('slack PluginEnroll.tsx', () => {
 });
 
 describe('okta PluginEnroll.tsx', () => {
-  let mockedCreatePlugin;
-  let mockedValidatePlugin;
-  let mockedGetOktaGroups;
-  let mockedGetOktaApps;
+  let mockedCreatePlugin: jest.SpyInstance;
+  let mockedUpdatePlugin: jest.SpyInstance;
+  let mockedGetOktaGroups: jest.SpyInstance;
+  let mockedGetOktaApps: jest.SpyInstance;
+
+  const stubPlugin = {
+    resourceType: 'plugin',
+    name: 'okta',
+    details: 'some-detail',
+    statusCode: IntegrationStatusCode.Running,
+    kind: 'okta',
+    spec: {},
+  } as const;
+
   beforeEach(() => {
     jest
       .spyOn(userEventService, 'captureIntegrationEnrollEvent')
@@ -99,18 +119,15 @@ describe('okta PluginEnroll.tsx', () => {
 
     mockedCreatePlugin = jest
       .spyOn(pluginsService, 'createPlugin')
-      .mockResolvedValue({
-        resourceType: 'plugin',
-        name: 'okta',
-        details: 'some-detail',
-        statusCode: IntegrationStatusCode.Running,
-        kind: 'okta',
-        spec: {},
-      });
+      .mockResolvedValue(stubPlugin);
 
-    mockedValidatePlugin = jest
-      .spyOn(pluginsService, 'validatePlugin')
-      .mockResolvedValue(null);
+    mockedUpdatePlugin = jest
+      .spyOn(pluginsService, 'updatePlugin')
+      .mockResolvedValue(stubPlugin);
+
+    jest.spyOn(pluginsService, 'fetchPlugin').mockResolvedValue(stubPlugin);
+
+    jest.spyOn(pluginsService, 'validatePlugin').mockResolvedValue(null);
 
     jest
       .spyOn(pluginsService, 'checkPluginRequiresCleanup')
@@ -131,108 +148,63 @@ describe('okta PluginEnroll.tsx', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+    cfg.oss.entitlements.OktaUserSync = defaultSyncEntitlement;
+    cfg.oss.entitlements.OktaSCIM = defaultScimEntitlement;
+    cfg.oss.entitlements.Identity = defaultIdentityEntitlement;
   });
 
-  test('okta flow without user sync and without scim, only the first step is allowed', async () => {
-    cfg.entitlements.OktaUserSync = { enabled: false, limit: 0 };
-    cfg.entitlements.OktaSCIM = { enabled: false, limit: 0 };
+  test('okta flow without Identity, only SSO step is allowed', async () => {
+    jest.spyOn(pluginsService, 'fetchPlugin').mockResolvedValue(undefined);
 
-    renderPluginEnroll('okta');
+    renderPluginEnroll('okta', { identity: false });
+    await act(tick);
 
-    // Test init screen render.
-    expect(screen.getByText(/unlock user sync/i)).toBeInTheDocument();
     expect(
-      screen.queryByText(/integrated successfully/i)
-    ).not.toBeInTheDocument();
-
-    // Test input field.
-    const orgUrlInput = screen.getByPlaceholderText(
-      /examplecompanyname.okta.com/i
-    );
-    fireEvent.change(orgUrlInput, { target: { value: 'some-org-url.com' } });
-
-    const tokenInput = screen.getByPlaceholderText(
-      /00QCjAl4MlV-WPXM...0HmjFx-vbGua/i
-    );
-    fireEvent.change(tokenInput, { target: { value: 'some-token-value' } });
-
-    // Test plugin install.
-    await userEvent.click(
-      screen.getByRole('button', { name: /connect okta/i })
-    );
-
-    const testFormData = new FormData();
-    testFormData.append('orgURL', 'some-org-url.com');
-    testFormData.append('apiToken', 'some-token-value');
-
-    // Test okta validation api call.
-    expect(pluginsService.validatePlugin).toHaveBeenCalledTimes(1);
-    let calledWithFormData = mockedValidatePlugin.mock.calls[0][0];
-    expect(calledWithFormData.get('orgURL')).toEqual(
-      testFormData.get('orgURL')
-    );
-    expect(calledWithFormData.get('apiToken')).toEqual(
-      testFormData.get('apiToken')
-    );
-    expect(pluginsService.checkPluginRequiresCleanup).toHaveBeenCalledTimes(1);
-
-    // Test okta install api call.
-    expect(pluginsService.createPlugin).toHaveBeenCalledTimes(1);
-    calledWithFormData = mockedCreatePlugin.mock.calls[0][0];
-    expect(calledWithFormData.get('orgURL')).toEqual(
-      testFormData.get('orgURL')
-    );
-    expect(calledWithFormData.get('apiToken')).toEqual(
-      testFormData.get('apiToken')
-    );
-    expect(calledWithFormData.get('scimToken')).toBeFalsy();
-
-    // Test after installation, finish screen is rendered.
-    expect(screen.getByText(/integrated successfully/i)).toBeInTheDocument();
-  });
-
-  test('okta flow with user sync & scim enabled, default (no custom filters)', async () => {
-    cfg.entitlements.OktaUserSync = { enabled: true, limit: 0 };
-    cfg.entitlements.OktaSCIM = { enabled: true, limit: 0 };
-
-    renderPluginEnroll('okta');
-
-    // Test init screen render.
-    expect(screen.queryByText(/unlock user sync/i)).not.toBeInTheDocument();
-    expect(
-      screen.queryByText(/integrated successfully/i)
-    ).not.toBeInTheDocument();
-
-    await fillInFirstStepInputs();
-
-    // Test plugin validation api call.
-    await userEvent.click(screen.getByRole('button', { name: /next/i }));
-    expect(pluginsService.checkPluginRequiresCleanup).toHaveBeenCalledTimes(1);
-
-    const testFormData = new FormData();
-    testFormData.append('orgURL', 'https://some-org-url.com');
-    testFormData.append('apiToken', 'some-token-value');
-
-    expect(pluginsService.validatePlugin).toHaveBeenCalledTimes(1);
-    let calledWithFormData = mockedValidatePlugin.mock.calls[0][0];
-    expect(calledWithFormData.get('orgURL')).toEqual(
-      testFormData.get('orgURL')
-    );
-    expect(calledWithFormData.get('apiToken')).toEqual(
-      testFormData.get('apiToken')
-    );
-
-    // Test user group  screen is rendered.
-    expect(
-      screen.getByText(
-        /Configure Syncing of User Groups and Direct Assignments/i
-      )
+      screen.getByText(/unlock the full integration/i)
     ).toBeInTheDocument();
+
+    await completeFirstSteps({
+      metadataUrl:
+        'https://some-org-url.okta.com/app/abcdefg/sso/saml/metadata',
+    });
+
+    expect(screen.getByText(/sso connected!/i)).toBeInTheDocument();
+    // Shouldn't show the next step if not entitled to Identity.
+    expect(screen.queryByText(/next – level 2: scim/i)).not.toBeInTheDocument();
+
+    expect(pluginsService.createPlugin).toHaveBeenCalledTimes(1);
+    const calledWithFormData = mockedCreatePlugin.mock.calls[0][0];
+    expect(calledWithFormData.get(FormDataField.MetadataURL)).toEqual(
+      'https://some-org-url.okta.com/app/abcdefg/sso/saml/metadata'
+    );
+    // Shouldn't set any sync flags.
+    [
+      FormDataField.EnableUserSync,
+      FormDataField.EnableAppGroupsSync,
+      FormDataField.EnableAccessListSync,
+    ].forEach(field => expect(calledWithFormData.get(field)).toEqual('false'));
+  });
+
+  test('okta flow with Identity, without custom filters', async () => {
+    renderPluginEnroll('okta', { identity: true });
+    await act(tick);
+
+    expect(
+      screen.queryByText(/unlock the full integration with teleport identity/i)
+    ).not.toBeInTheDocument();
+
+    await completeFirstSteps({
+      metadataUrl:
+        'https://some-org-url.okta.com/app/abcdefg/sso/saml/metadata',
+      scim: true,
+      clientID: 'some-client-id',
+    });
+
+    expect(screen.getByText(/sync all user groups/i)).toBeInTheDocument();
 
     // Test all the okta tables rendered.
     await screen.findByText(/airbase/i);
     expect(screen.getByText(/airbase/i)).toBeInTheDocument();
-
     await screen.findByText(/group-1/i);
     expect(screen.getByText(/group-1/i)).toBeInTheDocument();
 
@@ -241,45 +213,37 @@ describe('okta PluginEnroll.tsx', () => {
     fireEvent.keyDown(users, { key: 'ArrowDown' });
     fireEvent.keyDown(users, { key: 'Enter' });
 
-    const btns = screen.getAllByRole('button', { name: /next/i });
-    await userEvent.click(btns[btns.length - 1]);
-
-    // Test okta install api call.
-    expect(pluginsService.createPlugin).toHaveBeenCalledTimes(1);
-    calledWithFormData = mockedCreatePlugin.mock.calls[0][0];
-    expect(calledWithFormData.get('orgURL')).toEqual(
-      testFormData.get('orgURL')
+    await userEvent.click(
+      screen.getByRole('button', { name: /submit configuration/i })
     );
-    expect(calledWithFormData.get('apiToken')).toEqual(
-      testFormData.get('apiToken')
-    );
-    expect(calledWithFormData.get('scimToken')).not.toBeFalsy();
-    expect(calledWithFormData.get('appFilters')).toBeNull();
-    expect(calledWithFormData.get('groupFilters')).toBeNull();
-    expect(calledWithFormData.get('defaultOwners')).toBe(
-      JSON.stringify(['apple'])
-    );
-
-    // Test Scim view rendered.
-    expect(screen.getByText(/okta scim/i)).toBeInTheDocument();
     expect(
-      screen.getByText(`${cfg.baseUrl}/v1/webapi/scim/okta`)
+      screen.getByText(
+        oktaIntegrationLevels[OktaIntegrationLevel.APP_GROUP_SYNC].completeCopy
+          .title
+      )
     ).toBeInTheDocument();
-
-    // Test finish render
-    await userEvent.click(screen.getByRole('button', { name: /finish/i }));
-    expect(screen.getByText(/integrated successfully/i)).toBeInTheDocument();
+    expect(mockedUpdatePlugin).toHaveBeenCalledTimes(3);
   });
 
-  test('okta flow with user sync & scim enabled, with app & group custom filters', async () => {
-    cfg.entitlements.OktaUserSync = { enabled: true, limit: 0 };
-    cfg.entitlements.OktaSCIM = { enabled: true, limit: 0 };
+  test('okta flow with Identity, with custom filters', async () => {
+    renderPluginEnroll('okta', { identity: true });
+    await act(tick);
 
-    renderPluginEnroll('okta');
-    await fillInFirstStepInputs();
+    expect(
+      screen.queryByText(/unlock the full integration with teleport identity/i)
+    ).not.toBeInTheDocument();
 
-    // Go to next step.
-    await userEvent.click(screen.getByRole('button', { name: /next/i }));
+    await completeFirstSteps({
+      metadataUrl:
+        'https://some-org-url.okta.com/app/abcdefg/sso/saml/metadata',
+      scim: true,
+      clientID: 'some-client-id',
+    });
+
+    // Test user/group screen is rendered.
+    expect(
+      screen.getByText(/Sync User Groups and App Assignments/i)
+    ).toBeInTheDocument();
 
     // Wait for okta tables to render.
     await screen.findByText(/airbase/i);
@@ -291,76 +255,49 @@ describe('okta PluginEnroll.tsx', () => {
     fireEvent.keyDown(users, { key: 'Enter' });
 
     // Define a group filter.
-    fireEvent.click(screen.getByText(/import all user groups/i));
-    const groupFilter = screen.getByLabelText('input-group');
+    fireEvent.click(
+      screen.getByText(/sync all user groups/i).previousElementSibling
+    );
+    const groupFilter = screen.getByLabelText(/filter by group name/i);
     fireEvent.change(groupFilter, { target: { value: '^group*' } });
     fireEvent.keyDown(groupFilter, { key: 'Enter' });
 
     // Define a app filter.
-    fireEvent.click(
-      screen.getAllByText(/import all apps with direct assignments/i)[0]
-    );
-    const appFilter = screen.getByLabelText('input-app');
+    fireEvent.click(screen.getByText(/sync all apps/i).previousElementSibling);
+    const appFilter = screen.getByLabelText(/filter by app name/i);
     fireEvent.change(appFilter, { target: { value: 'app-*' } });
     fireEvent.keyDown(appFilter, { key: 'Enter' });
 
-    // Test okta install api call.
-    const btns = screen.getAllByRole('button', { name: /next/i });
-    await userEvent.click(btns[btns.length - 1]);
-    const calledWithFormData = mockedValidatePlugin.mock.calls[0][0];
-    expect(calledWithFormData.get('groupFilters')).toBe(
-      JSON.stringify(['^group*'])
-    );
-    expect(calledWithFormData.get('appFilters')).toBe(
-      JSON.stringify(['app-*'])
-    );
-  });
-
-  test('okta flow with user sync & scim enabled, skipping step', async () => {
-    cfg.entitlements.OktaUserSync = { enabled: true, limit: 0 };
-    cfg.entitlements.OktaSCIM = { enabled: true, limit: 0 };
-
-    renderPluginEnroll('okta');
-    await fillInFirstStepInputs();
-
-    // Go to next step.
-    await userEvent.click(screen.getByRole('button', { name: /next/i }));
-
-    // Wait for okta tables to render.
-    await screen.findByText(/airbase/i);
-    await screen.findByText(/group-1/i);
-
-    await userEvent.click(screen.getByRole('button', { name: /skip/i }));
-
-    const calledWithFormData = mockedValidatePlugin.mock.calls[0][0];
-    expect(calledWithFormData.get('groupFilters')).toBeNull();
-    expect(calledWithFormData.get('appFilters')).toBeNull();
-    expect(calledWithFormData.get('defaultOwners')).toBeNull();
+    // Submit and test the submitted data.
+    await userEvent.click(screen.getByRole('button', { name: /submit/i }));
+    const updatedWithFormData = mockedUpdatePlugin.mock.calls[2][0];
+    expect(updatedWithFormData.okta[FormDataField.GroupFilters]).toStrictEqual([
+      '^group*',
+    ]);
+    expect(updatedWithFormData.okta[FormDataField.AppFilters]).toStrictEqual([
+      'app-*',
+    ]);
   });
 
   test('okta flow, requiring clean up', async () => {
-    cfg.entitlements.OktaUserSync = { enabled: true, limit: 0 };
-    cfg.entitlements.OktaSCIM = { enabled: true, limit: 0 };
-
+    jest.spyOn(pluginsService, 'fetchPlugin').mockResolvedValue(undefined);
     jest
       .spyOn(pluginsService, 'checkPluginRequiresCleanup')
       .mockResolvedValue(true);
-
     jest.spyOn(pluginsService, 'cleanupPlugin').mockResolvedValue(null);
 
-    renderPluginEnroll('okta');
-    await fillInFirstStepInputs();
+    renderPluginEnroll('okta', { identity: true });
+    await act(tick);
 
-    // Go to next step.
-    await userEvent.click(screen.getByRole('button', { name: /next/i }));
+    await userEvent.click(screen.getByText(/set up single sign-on/i));
+
     expect(pluginsService.checkPluginRequiresCleanup).toHaveBeenCalledTimes(1);
-
     expect(screen.getByText(/cleanup required/i)).toBeInTheDocument();
 
-    // Canceling should re-render the clean up dialogue.
+    // Canceling should re-render the cleanup dialogue.
     await userEvent.click(screen.getByRole('button', { name: /cancel/i }));
     expect(screen.queryByText(/cleanup required/i)).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /next/i }));
+    await userEvent.click(screen.getByText(/set up single sign-on/i));
     expect(screen.getByText(/cleanup required/i)).toBeInTheDocument();
 
     // Clicking on clean up should close the dialogue.
@@ -371,14 +308,18 @@ describe('okta PluginEnroll.tsx', () => {
   });
 
   test('okta flow with user sync & scim enabled, custom filter error handling', async () => {
-    cfg.entitlements.OktaUserSync = { enabled: true, limit: 0 };
-    cfg.entitlements.OktaSCIM = { enabled: true, limit: 0 };
+    cfg.oss.entitlements.OktaUserSync = { enabled: true, limit: 0 };
+    cfg.oss.entitlements.OktaSCIM = { enabled: true, limit: 0 };
 
-    renderPluginEnroll('okta');
-    await fillInFirstStepInputs();
+    renderPluginEnroll('okta', { identity: true });
+    await act(tick);
 
-    // Go to next step.
-    await userEvent.click(screen.getByRole('button', { name: /next/i }));
+    await completeFirstSteps({
+      metadataUrl:
+        'https://some-org-url.okta.com/app/abcdefg/sso/saml/metadata',
+      scim: true,
+      clientID: 'some-client-id',
+    });
 
     await screen.findByText(/group name/i);
     await screen.findByText(/airbase/i);
@@ -407,8 +348,10 @@ describe('okta PluginEnroll.tsx', () => {
     fireEvent.keyDown(users, { key: 'Enter' });
 
     // Define a invalid group filter.
-    fireEvent.click(screen.getByText(/import all user groups/i));
-    const groupFilter = screen.getByLabelText('input-group');
+    fireEvent.click(
+      screen.getByText(/sync all user groups/i).previousElementSibling
+    );
+    const groupFilter = screen.getByLabelText(/filter by group name/i);
     fireEvent.change(groupFilter, { target: { value: 'group-' } });
     fireEvent.keyDown(groupFilter, { key: 'Enter' });
 
@@ -416,10 +359,8 @@ describe('okta PluginEnroll.tsx', () => {
     await screen.findByText(/the following filters are invalid: group-/i);
 
     // Define a invalid app filter.
-    fireEvent.click(
-      screen.getByText(/import all apps with direct assignments/i)
-    );
-    const appFilter = screen.getByLabelText('input-app');
+    fireEvent.click(screen.getByText(/sync all apps/i).previousElementSibling);
+    const appFilter = screen.getByLabelText(/filter by app name/i);
     fireEvent.change(appFilter, { target: { value: 'app-' } });
     fireEvent.keyDown(appFilter, { key: 'Enter' });
 
@@ -427,83 +368,91 @@ describe('okta PluginEnroll.tsx', () => {
     await screen.findByText(/the following filters are invalid: app-/i);
 
     // Invalid states prevent user from going to next step.
-    const btns = screen.getAllByRole('button', { name: /next/i });
-    await userEvent.click(btns[btns.length - 1]);
-    expect(mockedCreatePlugin).not.toHaveBeenCalled();
-  });
-
-  test('okta validation error', async () => {
-    cfg.entitlements.OktaUserSync = { enabled: false, limit: 0 };
-    cfg.entitlements.OktaSCIM = { enabled: false, limit: 0 };
-
-    jest
-      .spyOn(pluginsService, 'validatePlugin')
-      .mockRejectedValue(new Error('some validation error'));
-
-    renderPluginEnroll('okta');
-    await fillInFirstStepInputs();
-
-    // Test the api call error.
-    await userEvent.click(
-      screen.getByRole('button', { name: /connect okta/i })
-    );
-
-    expect(pluginsService.validatePlugin).toHaveBeenCalledTimes(1);
-    expect(pluginsService.createPlugin).not.toHaveBeenCalled();
-
-    // Test error rendered
-    expect(screen.getByText(/some validation error/i)).toBeInTheDocument();
+    const submitButton = screen.getByRole('button', { name: /submit/i });
+    expect(submitButton).toBeDisabled();
   });
 
   test('okta create error', async () => {
-    cfg.entitlements.OktaUserSync = { enabled: false, limit: 0 };
-    cfg.entitlements.OktaSCIM = { enabled: false, limit: 0 };
-
     jest
       .spyOn(pluginsService, 'createPlugin')
       .mockRejectedValue(new Error('some create error'));
 
-    renderPluginEnroll('okta');
-    await fillInFirstStepInputs();
+    renderPluginEnroll('okta', { identity: false });
+    await act(tick);
 
-    // Test the api call error.
-    await userEvent.click(
-      screen.getByRole('button', { name: /connect okta/i })
-    );
+    await completeFirstSteps({
+      metadataUrl:
+        'https://some-org-url.okta.com/app/abcdefg/sso/saml/metadata',
+    });
 
-    expect(pluginsService.validatePlugin).toHaveBeenCalledTimes(1);
     expect(pluginsService.createPlugin).toHaveBeenCalledTimes(1);
-
-    // Test error rendered
     expect(screen.getByText(/some create error/i)).toBeInTheDocument();
   });
 });
 
-async function fillInFirstStepInputs() {
-  // Enter input fields
-
-  const orgUrlInput = screen.getByPlaceholderText(
-    /examplecompanyname.okta.com/i
+const completeFirstSteps = async ({
+  metadataUrl,
+  scim,
+  clientID,
+}: {
+  metadataUrl: string;
+  scim?: boolean;
+  clientID?: string;
+}) => {
+  await userEvent.click(screen.getByText(/set up single sign-on/i));
+  // TODO(kiosion): Remove this; need to stub out authConnectors response.
+  await new Promise(resolve => setTimeout(resolve, 100));
+  fireEvent.change(screen.getByLabelText(/metadata url/i), {
+    target: {
+      value: metadataUrl,
+    },
+  });
+  await userEvent.click(
+    screen.getByRole('button', { name: /submit sso configuration/i })
   );
-  fireEvent.change(orgUrlInput, { target: { value: 'some-org-url.com' } });
-
-  const tokenInput = screen.getByPlaceholderText(
-    /00QCjAl4MlV-WPXM...0HmjFx-vbGua/i
+  if (!scim) return;
+  await userEvent.click(screen.getByText(/next/i));
+  await userEvent.click(
+    screen.getByRole('button', { name: /save scim configuration/i })
   );
-  fireEvent.change(tokenInput, { target: { value: 'some-token-value' } });
-}
+  await userEvent.click(screen.getByRole('button', { name: /continue/i }));
+  await userEvent.click(screen.getByText(/next/i));
+  if (!clientID) return;
+  fireEvent.change(screen.getByLabelText(/client id/i), {
+    target: {
+      value: clientID,
+    },
+  });
+  await userEvent.click(screen.getByText(/sync okta users/i));
+  await userEvent.click(screen.getByText(/next/i));
+};
 
-function renderPluginEnroll(pluginType: PluginKind, search?: string) {
-  const ctx = createTeleportContext();
+function renderPluginEnroll(
+  pluginType: PluginKind,
+  {
+    search,
+    identity = false,
+  }: {
+    search?: string;
+    identity?: boolean;
+  } = {}
+) {
+  const ctx = createTeleportContextE();
+
+  ctx.resourceService.fetchAuthConnectors = jest
+    .fn()
+    .mockResolvedValue({ connectors: [] });
+
+  cfg.oss.entitlements.Identity = { enabled: identity, limit: 0 };
 
   render(
     <MemoryRouter
       initialEntries={[
-        { pathname: cfg.getIntegrationEnrollRoute(pluginType), search },
+        { pathname: cfg.oss.getIntegrationEnrollRoute(pluginType), search },
       ]}
     >
       <TeleportContextProvider ctx={ctx}>
-        <Route path={cfg.routes.integrationEnroll}>
+        <Route path={cfg.oss.routes.integrationEnroll}>
           <PluginEnroll />
         </Route>
       </TeleportContextProvider>

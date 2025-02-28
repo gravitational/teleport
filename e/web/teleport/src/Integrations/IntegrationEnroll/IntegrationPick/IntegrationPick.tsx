@@ -140,7 +140,10 @@ export function IntegrationPick() {
       }
       return (
         <PluginTile
-          pluginAlreadyEnrolled={plugins.enrolled.includes(i.type)}
+          pluginAlreadyEnrolled={
+            // Okta integration may be partially enrolled; we want to allow continuing the enrolment process
+            plugins.enrolled.includes(i.type) && i.type !== 'okta'
+          }
           key={i.type}
           type={i}
           hasAccess={hasPluginAccess}

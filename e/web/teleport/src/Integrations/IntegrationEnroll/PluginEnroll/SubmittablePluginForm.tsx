@@ -27,7 +27,7 @@ import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { getXCSRFToken } from 'teleport/services/api';
 import { Plugin } from 'teleport/services/integrations';
 
-import { CleanupDialogue } from './MultiStep/Okta/CleanupDialogue'; // SubmittablePluginForm is a form that will use the default form submission event
+import { CleanupDialogue } from './MultiStep/Okta/CleanupDialogue';
 
 // SubmittablePluginForm is a form that will use the default form submission event
 // if the plugin is an `OAuth` plugin. Otherwise it will send off a conventional
@@ -77,7 +77,7 @@ export function SubmittablePluginForm({
 
       try {
         // Currently, only the following plugins support validating and cleaning up.
-        if (plugin.type === 'okta' || plugin.type === 'entra-id') {
+        if (plugin.type === 'entra-id') {
           await pluginsService.validatePlugin(formData);
           const required = await pluginsService.checkPluginRequiresCleanup(
             plugin.type
@@ -126,6 +126,11 @@ export function SubmittablePluginForm({
   }
 
   const isPartOfMultiStep = setFormData && !setStaticPluginResponse;
+
+  // Okta integration has its own layout and setup.
+  if (plugin.type === 'okta' && plugin.Setup) {
+    return <plugin.Setup />;
+  }
 
   return (
     <Box mt={CustomTitle ? 0 : 3} style={{ position: 'relative' }}>

@@ -69,6 +69,10 @@ export function PluginProvider<T>({
   );
 
   useEffect(() => {
+    // Okta integration handles its own event tracking
+    if (selectedPlugin.type === 'okta') {
+      return;
+    }
     userEventService.captureIntegrationEnrollEvent({
       event: IntegrationEnrollEvent.Started,
       eventData: {
