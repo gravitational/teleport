@@ -67,13 +67,23 @@ Note that the new enrollment flow uses OAuth authentication method instead of
 API tokens. If the Okta integration is installed on v17.3 and the cluster is
 downgraded the Okta plugin must be reinstalled to ensure proper functionality.
 
+### Readiness endpoint changes
+
+The Auth Service readiness now reflects the connectivity from the agent to the
+backend storage, and the Proxy Service readiness also reflects its connectivity
+to the Auth Service API. In case of Auth or backend storage failure, the agents
+will now turn unready. This change ensures that control plane components can be
+excluded from their relevant load-balancing pools. If you want to preserve the
+old behaviour (the Auth Service agent or Proxy Service agent stays ready and
+runs in degraded mode), you can tune the readiness setting to become unready
+after a high number of failed probes.
+
 ### Other fixes and improvements
 
 * Added `tctl edit` support for Identity Center plugin resources. [#52605](https://github.com/gravitational/teleport/pull/52605)
 * Added Oracle join method to web UI provision token editor. [#52599](https://github.com/gravitational/teleport/pull/52599)
 * Added warnings to VNet on macOS about other software that might conflict with VNet, based on inspecting network routes on the system. [#52552](https://github.com/gravitational/teleport/pull/52552)
 * Added auto-importing of Oracle Cloud tags. [#52543](https://github.com/gravitational/teleport/pull/52543)
-* The `teleport-cluster` Helm chart now supports tuning the pod readiness. [#52540](https://github.com/gravitational/teleport/pull/52540)
 * Added support for X509 revocations to Workload Identity. [#52503](https://github.com/gravitational/teleport/pull/52503)
 * Git proxy commands executed in terminals now support interactive login prompts when the `tsh` session expires. [#52475](https://github.com/gravitational/teleport/pull/52475)
 * Connect is now installed per-machine instead of per-user on Windows. [#52453](https://github.com/gravitational/teleport/pull/52453)
