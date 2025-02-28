@@ -3,6 +3,6 @@ package api
 
 import "github.com/coreos/go-semver/semver"
 
-const Version = "18.0.0-dev.gus-mac-tooling.4"
+const Version = "18.0.0-dev.gus-mac-tooling.5"
 
 var SemVersion = semver.New(Version)
