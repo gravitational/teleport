@@ -69,14 +69,15 @@ downgraded the Okta plugin must be reinstalled to ensure proper functionality.
 
 ### Readiness endpoint changes
 
-The Auth Service readiness now reflects the connectivity from the agent to the
-backend storage, and the Proxy Service readiness also reflects its connectivity
-to the Auth Service API. In case of Auth or backend storage failure, the agents
-will now turn unready. This change ensures that control plane components can be
-excluded from their relevant load-balancing pools. If you want to preserve the
-old behaviour (the Auth Service agent or Proxy Service agent stays ready and
-runs in degraded mode), you can tune the readiness setting to become unready
-after a high number of failed probes.
+The Auth Service readiness now reflects the connectivity from the instance to
+the backend storage, and the Proxy Service readiness reflects the connectivity
+to the Auth Service API. In case of Auth or backend storage failure, the
+instances will now turn unready. This change ensures that control plane
+components can be excluded from their relevant load-balancing pools. If you want
+to preserve the old behaviour (the Auth Service or Proxy Service instance stays
+ready and runs in degraded mode) in the `teleport-cluster` Helm chart, you can
+now tune the readiness setting to have the pods become unready after a high
+number of failed probes.
 
 ### Other fixes and improvements
 
