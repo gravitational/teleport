@@ -152,6 +152,13 @@ func (m *Manager) Run(ctx context.Context) error {
 	}
 
 	for {
+		select {
+		case <-ctx.Done():
+			m.log.InfoContext(ctx, "Plugin manager is shutting down.")
+			return nil
+		default:
+		}
+
 		err := m.runInner(ctx)
 		if err == nil {
 			m.log.ErrorContext(ctx, "runInner should always return a non-nil error, but nil was returned")
@@ -162,7 +169,12 @@ func (m *Manager) Run(ctx context.Context) error {
 
 		retry.Inc()
 		m.log.ErrorContext(ctx, "Error in the event loop, backing off", "backoff_duration", retry.Duration(), "error", err)
-		<-retry.After()
+		select {
+		case <-retry.After():
+		case <-ctx.Done():
+			m.log.InfoContext(ctx, "Plugin manager is shutting down.")
+			return nil
+		}
 	}
 }
 
