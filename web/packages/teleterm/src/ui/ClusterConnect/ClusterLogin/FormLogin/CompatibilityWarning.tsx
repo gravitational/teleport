@@ -92,13 +92,20 @@ function getWarning({
   versions,
 }: AuthSettings): string | undefined {
   switch (clientVersionStatus) {
+    case ClientVersionStatus.TOO_OLD: {
+      return (
+        `Minimum Teleport Connect version supported by the server is ${versions.minClient} ` +
+        `but you are using ${versions.client}.\nTo ensure full compatibility, please upgrade ` +
+        `Teleport Connect to ${versions.minClient} or newer.`
+      );
+    }
     case ClientVersionStatus.TOO_NEW: {
       const serverVersionWithWildcards = `${getMajorVersion(versions.server)}.x.x`;
-      return `Maximum Teleport Connect version supported by the server is ${serverVersionWithWildcards} but you are using ${versions.client}.\nTo ensure full compatibility, please downgrade Teleport Connect to ${serverVersionWithWildcards}.`;
-    }
-    case ClientVersionStatus.TOO_OLD: {
-      const minClientVersionWithWildcards = `${getMajorVersion(versions.minClient)}.x.x`;
-      return `Minimum Teleport Connect version supported by the server is ${minClientVersionWithWildcards} but you are using ${versions.client}.\nTo ensure full compatibility, please upgrade Teleport Connect to ${minClientVersionWithWildcards} or later.`;
+      return (
+        `Maximum Teleport Connect version supported by the server is ${serverVersionWithWildcards} ` +
+        `but you are using ${versions.client}.\nTo ensure full compatibility, please downgrade ` +
+        `Teleport Connect to ${serverVersionWithWildcards}.`
+      );
     }
     case ClientVersionStatus.OK:
     case ClientVersionStatus.COMPAT_UNSPECIFIED:
