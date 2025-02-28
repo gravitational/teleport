@@ -324,9 +324,8 @@ func (m *Memory) Items(ctx context.Context, params backend.IterateParams) iter.S
 			startKey = params.EndKey
 		}
 
-		var totalCount, pageCount int
-		pageLimit := defaultPageSize
-		items := make([]backend.Item, pageLimit)
+		var totalCount int
+		items := make([]backend.Item, 0, defaultPageSize)
 		startItem := &btreeItem{Item: backend.Item{Key: startKey}}
 
 		treeIter := m.tree.AscendGreaterOrEqual
@@ -335,8 +334,8 @@ func (m *Memory) Items(ctx context.Context, params backend.IterateParams) iter.S
 		}
 
 		for {
-			pageLimit = min(limit-totalCount, defaultPageSize)
-			pageCount = 0
+			pageLimit := min(limit-totalCount, defaultPageSize)
+			items = items[:0]
 
 			m.Lock()
 			m.removeExpired()
@@ -352,19 +351,18 @@ func (m *Memory) Items(ctx context.Context, params backend.IterateParams) iter.S
 					return false
 				}
 
-				if pageCount == pageLimit {
+				if len(items) == pageLimit {
 					startItem = item
 					moreItems = true
 					return false
 				}
 
-				items[pageCount] = item.Item
-				pageCount++
+				items = append(items, item.Item)
 				return true
 			})
 			m.Unlock()
 
-			for _, item := range items[:pageCount] {
+			for _, item := range items {
 				if !yield(item, nil) {
 					return
 				}
@@ -375,7 +373,7 @@ func (m *Memory) Items(ctx context.Context, params backend.IterateParams) iter.S
 				}
 			}
 
-			if !moreItems || pageCount < pageLimit {
+			if !moreItems || len(items) < pageLimit {
 				return
 			}
 		}
