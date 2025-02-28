@@ -1,4 +1,4 @@
-.version: &version "18.0.0-dev.gus-mac-tooling.2"
+.version: &version "18.0.0-dev.gus-mac-tooling.3"
 
 name: teleport-operator
 apiVersion: v2
