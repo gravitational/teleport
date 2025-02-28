@@ -4178,7 +4178,7 @@ func makeClientForProxy(cf *CLIConf, proxy string) (*client.TeleportClient, erro
 			if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) && !trace.IsCompareFailed(err) {
 				return nil, trace.Wrap(err)
 			}
-			logger.InfoContext(ctx, "Could not load key for cluser into the local agent",
+			logger.InfoContext(ctx, "Could not load key for cluster into the local agent",
 				"cluster", cf.SiteName,
 				"error", err,
 			)
