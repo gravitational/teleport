@@ -422,6 +422,18 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	}
 	log.DebugContext(ctx, "Successfully authenticated")
 
+	for ext := range permissions.Extensions {
+		if utils.IsInternalSSHExtension(ext) {
+			return nil, trace.BadParameter("internal extension %q is not permitted in cert permissions", ext)
+		}
+	}
+
+	for ext := range permissions.CriticalOptions {
+		if utils.IsInternalSSHExtension(ext) {
+			return nil, trace.BadParameter("internal extension %q is not permitted in cert critical options", ext)
+		}
+	}
+
 	clusterName, err := h.c.AccessPoint.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
