@@ -18,7 +18,7 @@
 import userEvent from '@testing-library/user-event';
 import selectEvent from 'react-select-event';
 
-import { fireEvent, render, screen } from 'design/utils/testing';
+import { act, fireEvent, render, screen, tick } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
@@ -39,6 +39,13 @@ describe('JoinTokens', () => {
   test('edit dialog opens with values', async () => {
     const token = tokens[0];
     render(<Component />);
+
+    // DataTable re-renders before `userEvent.click` is fired, so `act(tick)`
+    // is used to wait for re-renders to complete.
+    // This wasn't an issue prior, as DataTable used to always mount with empty data,
+    // so `findAllByText` would wait a few ms before finding the text on commit 1.
+    await act(tick);
+
     const optionButtons = await screen.findAllByText(/options/i);
     await userEvent.click(optionButtons[0]);
     const editButtons = await screen.findAllByText(/view\/edit/i);
