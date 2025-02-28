@@ -129,13 +129,14 @@ significantly more flexibility than today's `token` join method. This works by -
 in a sense - inverting the token joining procedure: bots generate an ED25519
 keypair, and the public key is copied to the server. The public key can be
 copied out-of-band, or bots can provide their public key on first join using a
-one-time use shared secret, much like today's `token` method.
+one-time use shared secret to authenticate the exchange, much like today's
+`token` method.
 
 Once the public key has been shared, bots may then join by requesting a
-challenge from the Teleport Auth service and complete it by signing it with
+challenge from the Teleport Auth service and completing it by signing it with
 their private key. If successful, the bot is issued a renewable identity just as
 `token`-joined bots are today, and the bot will actively renew this identity for
-as long as possible.
+as long as possible, or until its backing token expires.
 
 If the identity renewal fails at any point, bots may attempt to reauthenticate,
 and the Auth service can use predefined per-bot rules to decide if this specific
@@ -172,6 +173,56 @@ renewable identity and renews it as usual for as long as possible. The
 generation counter is still used to detect identity reuse. When the internal
 identity expires, the bot loses access to resources (until it reauthenticates).
 
+#### Joining UX Flows
+
+This join method creates two new joining flows:
+
+1. **Static Binding**: A keypair is pregenerated on the client and the public
+   key is directly included in the token resource by a Teleport admin.
+
+   Example UX (subject to change):
+
+   ```
+   $ tbot generate-keypair
+   Wrote id_ed25519
+   Wrote id_ed25519.pub
+   $ tctl bots add example --public-key id_ed25519.pub
+   $ tbot start identity --token=challenge:id_ed25519
+   ```
+
+   (In this example, `tctl bots add` creates a `challenge` token automatically,
+   much like a `token`-type token is created automatically today.)
+
+   The public key can be copied as needed, similar to SSH `authorized_keys` and
+   GitHub's SSH authentication. This is arguably more secure since no secret is
+   ever copied.
+
+   On startup, Auth issues a challenge to the bot which is solved with its
+   private key, and it receives a standard renewable identity.
+
+2. **Bind-on-join**: The `tbot` client is given a joining secret.
+
+   Example UX:
+   ```
+   $ tctl bots add example --join-method=challenge
+   The bot token: challenge:04f0ceff1bd0589ba45c1832dfc8feaf
+   This token will expire in 59 minutes.
+   $ tbot start identity --token=challenge:04f0ceff1bd0589ba45c1832dfc8feaf
+   ```
+
+   On `tbot` startup, a keypair is transparently generated and exchanged with
+   Auth, after which the bot internally behaves as if flow 1 was used, and the
+   now-bound keypair perform its first full join.
+
+   From an end user's PoV, this process is nearly identical to traditional
+   `token` joining. While a joining secret does need to be copied to the bot
+   node, these secrets remain short-lived and one-time use.
+
+We expect most users to use Flow 2: it's much easier to provision new nodes and
+requires less back-and-forth between the admin's workstation and bot node. Flow
+1 is particularly ill-suited to Terraform use since keypairs would need to be
+pregenerated and copied to nodes, which is not ideal from a security PoV.
+
 #### Token Resource Example
 
 `challenge`-type tokens differ from other types in that they are intended to
@@ -195,7 +246,8 @@ spec:
     onboarding:
       # If set, no joining secret is generated; the secret exchange ceremony is
       # skipped and instance will directly prove its identity using its private
-      # key.
+      # key. It is an error for a public key to be associated with more than one
+      # token, and creation or update will fail if a public key is reused.
       public_key: null
 
       # If set, use an explicit initial joining secret; if both this and
@@ -233,6 +285,9 @@ status:
     initial_join_secret: <random>
 
     # The public key of the bot associated with this token, set on first join.
+    # The bound public key must be unique among all `challenge` tokens; token
+    # resource creation/update or bot joining will fail if a public key is
+    # reused.
     bound_public_key: <data>
 
     # The current bot instance UUID. A new UUID is issued on rejoin; the previous
@@ -240,7 +295,8 @@ status:
     bound_bot_instance_id: <uuid>
 
     # A count of remaining rejoins; if `.spec.challenge.rejoining.total_rejoins`
-    # is incremented
+    # is incremented, this value will be incremented by the same amount. If
+    # decremented, this value cannot fall below zero.
     remaining_rejoins: 10
 ```
 
@@ -362,6 +418,37 @@ We should take steps to improve visibility of bots at or near expiry, including:
 
 - Exposing per-token renewal counts as Prometheus metrics, both on the Auth
   Serivce and via `tbot`'s metrics endpoint.
+
+#### Outstanding Issue: Soft Bot Expiration
+
+The `spec.rejoining.expires` field can be used to prevent rejoining after a
+certain time, in tandem with the rejoin count limit. This has the - likely
+confusing - downside that bots will still be able to renew their certificates
+indefinitely past the expiration date, assuming their certs were valid at the
+time of expiration.
+
+Also, as with all Teleport resources, the `metadata.expires` field can also
+remove the token resource after a set time. Bots will also continue to renew
+certs as long as possible until they are either locked or otherwise fail to
+renew their certs on time.
+
+These two expirations create some confusion, and do not allow for an obvious
+method to deny a bot access, aside from creating a lock.
+
+We would like to solve two expiration use cases:
+1. We should be able to prevent all bot resource access after a certain date,
+   including renewals, in a way that allows the bot to be resumed later if
+   desired. (I.e. the token resource must still exist.)
+
+   Locks may accomplish this, but some centralized management in the token
+   resource would be convenient.
+
+2. We should be able to prevent bot rejoins after a certain date, to control
+   rejoining conditions in tandem with the rejoin counter. The
+   `spec.rejoining.expires` field accomplishes this, but does have a naming
+   collision with `metadata.expires`.
+
+TODO: Ensure this is solved and not confusing.
 
 #### Keypair Rotation
 
