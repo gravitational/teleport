@@ -115,7 +115,7 @@ Teleport clusters and execute `tctl` commands using your current credentials.
    website](https://status.teleport.sh/) to stay current on any issues impacting
    the performance of your new cluster.
 
-<Notice
+<Admonition
   type="danger"
 >
 
@@ -125,7 +125,7 @@ Teleport clusters and execute `tctl` commands using your current credentials.
   security, Teleport Support cannot assist with resetting passwords or
   recovering lost credentials.
 
-</Notice>
+</Admonition>
 
 ## Step 2/4. Migrate Teleport resources
 
@@ -171,13 +171,13 @@ To achieve this:
    $ tctl create -f user.yaml
    ```
 
-<Notice type="tip">
+<Admonition type="tip">
 
 We recommend managing dynamic resources with the Teleport Terraform provider or
 Kubernetes operator. In this case, you can configure these tools to manage
 dynamic resources on your new Teleport cluster.
 
-</Notice>
+</Admonition>
 
 For your SSO auth connector, most SSO integrations only work for a single
 configured endpoint. It is recommended to create a separate SSO connector in

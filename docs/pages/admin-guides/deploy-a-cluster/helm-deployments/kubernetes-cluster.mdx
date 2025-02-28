@@ -55,13 +55,13 @@ cluster to Teleport.
   cluster in order to follow this guide, the following example configuration
   sets up the EBS CSI driver add-on.
 
-  <Notice type="danger">
+  <Admonition type="danger">
 
   The example configuration below assumes that you are familiar with how `eksctl`
   works, are not using your EKS cluster in production, and understand that you
   are proceeding at your own risk.
 
-  </Notice>
+  </Admonition>
 
   Update the cluster name, version, node group size, and region as required:
 
@@ -96,7 +96,7 @@ cluster to Teleport.
 
 (!docs/pages/includes/kubernetes-access/helm-k8s.mdx!)
 
-<Notice type="warning">
+<Admonition type="warning">
 
 It is worth noting that this guide shows you how to set up Kubernetes access
 with the broadest set of permissions. This is suitable for a personal demo
@@ -104,7 +104,7 @@ cluster, but if you would like to set up Kubernetes RBAC for production usage,
 we recommend getting familiar with the [Teleport Kubernetes RBAC
 guide](../../../enroll-resources/kubernetes-access/controls.mdx) before you begin.
 
-</Notice>
+</Admonition>
 
 ## Step 1/2. Install Teleport
 
