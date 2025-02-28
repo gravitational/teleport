@@ -697,6 +697,10 @@ func (l *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 				return
 			}
 
+			if len(items) == pageLimit {
+				exclusiveStartKey = items[len(items)-1].Key.String()
+			}
+
 			for _, item := range items {
 				if !yield(item, nil) {
 					return
@@ -711,8 +715,6 @@ func (l *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 			if len(items) < pageLimit {
 				return
 			}
-
-			exclusiveStartKey = items[len(items)-1].Key.String()
 		}
 	}
 }
