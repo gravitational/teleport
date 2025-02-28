@@ -89,8 +89,11 @@ number of failed probes.
 * Git proxy commands executed in terminals now support interactive login prompts when the `tsh` session expires. [#52475](https://github.com/gravitational/teleport/pull/52475)
 * Connect is now installed per-machine instead of per-user on Windows. [#52453](https://github.com/gravitational/teleport/pull/52453)
 * Added `teleport-update` for default build. [#52361](https://github.com/gravitational/teleport/pull/52361)
-* Improved sync performance in Identity Center integration. [#6102](https://github.com/gravitational/teleport.e/pull/6102)
-* Delete related Git servers when deleting GitHub integration in the web UI. [#6101](https://github.com/gravitational/teleport.e/pull/6101)
+
+Enterprise:
+
+* Improved sync performance in Identity Center integration.
+* Delete related Git servers when deleting GitHub integration in the web UI.
 
 ## 17.2.9 (02/25/25)
 
