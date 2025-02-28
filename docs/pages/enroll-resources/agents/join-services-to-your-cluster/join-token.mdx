@@ -38,12 +38,12 @@ relationship with the Teleport cluster.
 
   </Details>
 
-  <Notice type="tip" >
+  <Admonition type="tip" >
 
   If you are using a Docker container, note that this guide assumes that
   your Linux host has `curl` and `sudo` installed.
 
-  </Notice>
+  </Admonition>
 
 (!docs/pages/includes/tctl.mdx!)
 
@@ -127,10 +127,10 @@ Token                            Type Labels Expiry Time (UTC)
 
 <Details scope={["oss","enterprise"]} title="An insecure alternative: static tokens" scopeOnly={false} >
 
-<Notice type="Danger">
+<Admonition type="Danger">
 Use short-lived tokens instead of long-lived static tokens.
 Static tokens are easier to steal, guess, and leak.
-</Notice>
+</Admonition>
 
 Static tokens are defined ahead of time by an administrator and stored in the
 Auth Service's config file:
@@ -165,13 +165,13 @@ $ sudo teleport configure \
    -o file
 ```
 
-<Notice type="tip">
+<Admonition type="tip">
 
 For SSH Service instances, you can also run `teleport node configure` instead of
 `teleport configure`. This way, you can exclude the `--roles=node` flag from the
 command.
 
-</Notice>
+</Admonition>
 
 <Details title="Connecting directly to the Auth Service">
 
@@ -181,13 +181,13 @@ possibility in Teleport Enterprise Cloud.) Depending on the design of your
 infrastructure, you may need to connect your new Teleport process directly to
 the Auth Service.
 
-<Notice type="warning">
+<Admonition type="warning">
 
 Only connect Teleport processes directly to the Auth Service if no other join
 methods are suitable, as we recommend exposing the Auth Service to as few
 sources of ingress traffic as possible.
 
-</Notice>
+</Admonition>
 
 The Teleport process joining the cluster must also establish trust with the Auth
 Service in order to prevent an attacker from hijacking the address of your Auth
@@ -217,12 +217,12 @@ CA pin       (=presets.ca_pin=)
 
 Copy the CA pin and assign it to the value of <Var name="ca-pin" />.
 
-<Notice type="warning">
+<Admonition type="warning">
 
 The CA pin becomes invalid if a Teleport administrator performs the CA rotation
 by executing [`tctl auth rotate`](../../../reference/cli/tctl.mdx#tctl-auth-rotate).
 
-</Notice>
+</Admonition>
 
 ### Configure your Teleport process with the join token and CA pin
 
