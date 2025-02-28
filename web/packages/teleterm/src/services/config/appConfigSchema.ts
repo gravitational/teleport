@@ -61,7 +61,7 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
       .boolean()
       .default(false)
       .describe(
-        'Skips version checks between the Teleport cluster and Teleport Connect.'
+        'Skips the version check and hides the version compatibility warning when logging in to a cluster.'
       ),
     /**
      * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
