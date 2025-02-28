@@ -661,9 +661,10 @@ func (l *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 			query = queryDesc
 		}
 
-		var pageLimit, pageCount, totalCount int
-		items := make([]backend.Item, defaultPageSize)
+		var pageLimit, totalCount int
+		items := make([]backend.Item, 0, defaultPageSize)
 		for {
+			items = items[:0]
 			pageLimit = min(limit-totalCount, defaultPageSize)
 			if err := l.inTransaction(ctx, func(tx *sql.Tx) error {
 				q, err := tx.PrepareContext(ctx, query)
@@ -678,7 +679,6 @@ func (l *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 				}
 				defer rows.Close()
 
-				pageCount = 0
 				for rows.Next() {
 					var item backend.Item
 					var expires sql.NullTime
@@ -690,16 +690,15 @@ func (l *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 						item.Revision = backend.BlankRevision
 					}
 
-					items[pageCount] = item
-					pageCount++
+					items = append(items, item)
 				}
 				return nil
 			}); err != nil {
-				yield(backend.Item{}, err)
+				yield(backend.Item{}, trace.Wrap(err))
 				return
 			}
 
-			for _, item := range items[:pageCount] {
+			for _, item := range items {
 				if !yield(item, nil) {
 					return
 				}
@@ -710,11 +709,11 @@ func (l *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 				}
 			}
 
-			if pageCount < pageLimit {
+			if len(items) < pageLimit {
 				return
 			}
 
-			exclusiveStartKey = items[pageCount-1].Key.String()
+			exclusiveStartKey = items[len(items)-1].Key.String()
 		}
 	}
 }
@@ -856,6 +855,8 @@ func (l *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		var keys []backend.Key
 		defer rows.Close()
 		for rows.Next() {
 			var key backend.Key
@@ -863,6 +864,15 @@ func (l *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key)
 				return trace.Wrap(err)
 			}
 
+			keys = append(keys, key)
+		}
+
+		// Close rows early before any deletions occur.
+		if err := rows.Close(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, key := range keys {
 			if err := l.deleteInTransaction(l.ctx, key, tx); err != nil {
 				return trace.Wrap(err)
 			}
