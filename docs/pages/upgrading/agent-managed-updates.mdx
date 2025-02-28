@@ -11,11 +11,18 @@ For Managed Updates v1 instructions, see
 </Notice>
 
 In Managed Updates v2, a binary called `teleport-update` is distributed in
-all Teleport packages, alongside the `teleport` binary. Admins configure updates by managing the
-`autoupdate_version` and `autoupdate_config` dynamic resources.
+all Teleport packages, alongside the `teleport` binary. Admins configure updates
+by managing the `autoupdate_version` and `autoupdate_config` dynamic resources.
 
 This document covers how to use `teleport-update` and the `autoupdate_*`
-resources to manage your agent updates from Teleport.
+resources to manage your agent updates from Teleport. It describes:
+- [The agent architecture](#how-it-works)
+- [How to enroll existing agents](#quick-setup-for-existing-connected-linux-servers)
+- [How to enroll new agents](#quick-setup-for-new-linux-servers)
+- [How to configure Managed Updates v2](#configuring-managed-agent-updates) (
+  [when updates happen](#configuring-the-schedule) and for self-hosted users,
+  [which version to update to](#setting-the-version-self-hosted-only))
+- [How to migrate to Managed Updates v2](#migrating-agents-on-linux-servers-to-managed-updates)
 
 `teleport-update` supports:
 - Both Teleport Enterprise and Teleport Community Edition
@@ -69,8 +76,8 @@ Existing agents must be manually enrolled into Managed Updates.
 
 ## Quick setup for existing connected Linux servers
 
-Users can enable Managed Updates v2 on Linux servers that are already connected
-with a single command:
+Users can enable Managed Updates v2 on Linux servers that are already running
+a Teleport Agent by running the following command on every server:
 
 ```code
 $ sudo teleport-update enable
