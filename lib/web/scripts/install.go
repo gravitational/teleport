@@ -21,12 +21,15 @@ package scripts
 import (
 	"context"
 	_ "embed"
+	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils/teleportassets"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 )
@@ -173,12 +176,33 @@ func GetInstallScript(ctx context.Context, opts InstallScriptOptions) (string, e
 //go:embed install/install.sh
 var legacyInstallScript string
 
+var (
+	versionVar = regexp.MustCompile(`(?m)^TELEPORT_VERSION=""$`)
+	suffixVar  = regexp.MustCompile(`(?m)^TELEPORT_SUFFIX=""$`)
+	editionVar = regexp.MustCompile(`(?m)^TELEPORT_EDITION=""$`)
+)
+
 // getLegacyInstallScript returns the installation script that we have been serving at
 // "https://cdn.teleport.dev/install.sh". This script installs teleport via package manager
 // or by unpacking the tarball. Its usage should be phased out in favor of the updater-based
 // installation script served by getUpdaterInstallScript.
 func getLegacyInstallScript(ctx context.Context, opts InstallScriptOptions) (string, error) {
-	return legacyInstallScript, nil
+	tunedScript := versionVar.ReplaceAllString(legacyInstallScript, fmt.Sprintf(`TELEPORT_VERSION="%s"`, opts.TeleportVersion))
+	if opts.TeleportFlavor == types.PackageNameEnt {
+		tunedScript = suffixVar.ReplaceAllString(tunedScript, `TELEPORT_SUFFIX="-ent"`)
+	}
+
+	var edition string
+	if opts.AutoupdateStyle == PackageManagerAutoupdate {
+		edition = "cloud"
+	} else if opts.TeleportFlavor == types.PackageNameEnt {
+		edition = "enterprise"
+	} else {
+		edition = "oss"
+	}
+	tunedScript = editionVar.ReplaceAllString(tunedScript, fmt.Sprintf(`TELEPORT_EDITION="%s"`, edition))
+
+	return tunedScript, nil
 }
 
 // getUpdaterInstallScript returns an installation script that downloads teleport-update
