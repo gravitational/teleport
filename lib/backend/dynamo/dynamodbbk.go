@@ -571,16 +571,11 @@ func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 		filter = "attribute_not_exists(Expires) OR Expires >= :timestamp"
 	)
 
-	attrV := map[string]interface{}{
-		":rangeStart": prependPrefix(params.StartKey),
-		":hashKey":    hashKey,
-		":timestamp":  b.clock.Now().UTC().Unix(),
-		":rangeEnd":   prependPrefix(params.EndKey),
-	}
-
-	av, err := attributevalue.MarshalMap(attrV)
-	if err != nil {
-		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
+	av := map[string]types.AttributeValue{
+		":rangeStart": &types.AttributeValueMemberS{Value: prependPrefix(params.StartKey)},
+		":rangeEnd":   &types.AttributeValueMemberS{Value: prependPrefix(params.EndKey)},
+		":timestamp":  timeToAttributeValue(b.clock.Now().UTC()),
+		":hashKey":    &types.AttributeValueMemberS{Value: hashKey},
 	}
 
 	input := dynamodb.QueryInput{
@@ -596,12 +591,12 @@ func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 	return func(yield func(backend.Item, error) bool) {
 		count := 0
 		defer func() {
-			if count == backend.DefaultRangeLimit {
+			if count >= backend.DefaultRangeLimit {
 				b.logger.WarnContext(ctx, "Range query hit backend limit. (this is a bug!)", "start_key", params.StartKey, "limit", backend.DefaultRangeLimit)
 			}
 		}()
 
-		paginator := dynamodb.NewQueryPaginator(b.svc, &input)
+		paginator := NewQueryPaginator(b.svc, &input)
 		for paginator.HasMorePages() {
 			page, err := paginator.NextPage(ctx)
 			if err != nil {
