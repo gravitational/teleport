@@ -60,7 +60,7 @@ export function CompatibilityWarning(props: {
                 content: (
                   <>
                     <NewTab size="small" mr={1} />
-                    Download In Browser
+                    Download in Browser
                   </>
                 ),
                 href: buildDownloadUrl(props.platform),
