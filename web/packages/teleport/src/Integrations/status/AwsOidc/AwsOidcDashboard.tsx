@@ -55,7 +55,7 @@ export function AwsOidcDashboard() {
     return null;
   }
 
-  const { awsec2, awseks, awsrds } = statsAttempt.data;
+  const { awsec2, awseks, awsrds, unresolvedUserTasks } = statsAttempt.data;
   const { data: integration } = integrationAttempt;
   return (
     <>
@@ -64,7 +64,10 @@ export function AwsOidcDashboard() {
         {integration && (
           <>
             <AwsOidcTitle integration={integration} />
-            <TaskAlert name={integration.name} />
+            <TaskAlert
+              name={integration.name}
+              pendingTasksCount={unresolvedUserTasks}
+            />
           </>
         )}
 
