@@ -5,6 +5,7 @@ import (
 	"maps"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/bcrypt"
 
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -148,15 +149,23 @@ func (s *Service) upsertSCIMCreds(ctx context.Context, scimToken string, creds [
 	item, err := selectCredsByLabelsFilter(creds, hasSCIMPurpose)
 	switch {
 	case err == nil:
+		scimTokenHash, err := bcrypt.GenerateFromPassword([]byte(scimToken), bcrypt.DefaultCost)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		item.Spec.Credentials = &types.PluginStaticCredentialsSpecV1_APIToken{
-			APIToken: scimToken,
+			APIToken: string(scimTokenHash),
 		}
 		if _, err := s.credsBackend.UpdatePluginStaticCredentials(ctx, item); err != nil {
 			return trace.Wrap(err, "failed to update plugin static credentials")
 		}
 		s.logger.DebugContext(ctx, "Updated Okta plugin SCIM credentials.")
 	case trace.IsNotFound(err):
-		newSCIMCreds := buildSCIMCredentials(scimToken)
+		scimTokenHash, err := bcrypt.GenerateFromPassword([]byte(scimToken), bcrypt.DefaultCost)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		newSCIMCreds := buildSCIMCredentials(string(scimTokenHash))
 		appendLabelsToResource(newSCIMCreds, labels)
 		if err := s.credsBackend.CreatePluginStaticCredentials(ctx, newSCIMCreds); err != nil {
 			return trace.Wrap(err, "failed to create plugin static credentials")

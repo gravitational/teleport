@@ -11,16 +11,16 @@ import ResourceService, {
 
 class ResourceServiceE extends ResourceService {
   // TODO(rudream): Look into combining this method with the one from the OSS ResourceService and adding support for generics.
-  async fetchAuthConnectors(): Promise<{
+  async fetchAuthConnectors(signal?: AbortSignal): Promise<{
     defaultConnector: DefaultAuthConnector;
     connectors: Resource<KindAuthConnectors>[];
   }> {
     // MFA reuse needs to be allowed in case we need to fallback to another default connector
     const challengeResponse =
-      await await auth.getMfaChallengeResponseForAdminAction(true);
+      await auth.getMfaChallengeResponseForAdminAction(true);
 
     return api
-      .get(cfg.getAuthConnectorsListUrl(), undefined, challengeResponse)
+      .get(cfg.getAuthConnectorsListUrl(), signal, challengeResponse)
       .then(res => ({
         defaultConnector: {
           name: res.defaultConnectorName,

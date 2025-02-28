@@ -1,9 +1,11 @@
 import cfg from 'e-teleport/config';
 import api from 'teleport/services/api';
 import auth from 'teleport/services/auth/auth';
-import type {
+import {
   Plugin,
   PluginKind,
+  PluginNameToDetails,
+  PluginNameToSpec,
   PluginStatus,
 } from 'teleport/services/integrations';
 import { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
@@ -15,6 +17,7 @@ import {
   AwsIcPermissionSets,
   PluginConfigOktaApp,
   PluginConfigOktaGroup,
+  PluginUpdateRequest,
 } from './types';
 
 export const pluginsService = {
@@ -36,7 +39,9 @@ export const pluginsService = {
     return api.put(cfg.getPluginCleanupUrl(kind), null);
   },
 
-  async createPlugin(formData: FormData): Promise<Plugin> {
+  async createPlugin<T extends string>(
+    formData: FormData
+  ): Promise<Plugin<PluginNameToSpec[T], PluginNameToDetails[T]>> {
     const webauthnResponse =
       await auth.getMfaChallengeResponseForAdminAction(true);
     return api
@@ -66,8 +71,17 @@ export const pluginsService = {
       .then(resp => resp || []);
   },
 
-  fetchPlugin(name: string): Promise<Plugin> {
-    return api.get(cfg.getPluginUrl(name)).then(makePlugin);
+  fetchPlugin<T extends string>(
+    name: T,
+    abortSignal?: AbortSignal
+  ): Promise<Plugin<PluginNameToSpec[T], PluginNameToDetails[T]>> {
+    return api.get(cfg.getPluginUrl(name), abortSignal).then(makePlugin);
+  },
+
+  updatePlugin<T extends string>(
+    req: PluginUpdateRequest<T>
+  ): Promise<Plugin<PluginNameToSpec[T], PluginNameToDetails[T]>> {
+    return api.put(cfg.getPluginUrl(), req).then(makePlugin);
   },
 
   getAwsIcAccounts(

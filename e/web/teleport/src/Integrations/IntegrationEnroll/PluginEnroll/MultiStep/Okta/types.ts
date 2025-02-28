@@ -7,4 +7,10 @@ export enum FormDataField {
   OrgUrl = 'orgURL',
   ApiToken = 'apiToken',
   ScimToken = 'scimToken',
+  ClientID = 'clientID',
+  MetadataURL = 'metadataURL',
+  EnableAccessListSync = 'enableAccessListSync',
+  EnableUserSync = 'enableUserSync',
+  EnableAppGroupsSync = 'enableAppGroupsSync',
+  ReuseConnector = 'reuseConnector',
 }

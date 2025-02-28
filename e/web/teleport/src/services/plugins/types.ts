@@ -240,3 +240,19 @@ export type AwsIcPermissionSets = {
   description: string;
   arn: string;
 };
+
+export type oktaPluginUpdate = {
+  enableUserSync?: boolean;
+  enableAppGroupSync?: boolean;
+  enableAccessListSync?: boolean;
+  defaultOwners?: string[];
+  scimToken?: string;
+  clientID?: string;
+  groupFilters?: string[];
+  appFilters?: string[];
+};
+
+export type PluginUpdateRequest<T extends string = ''> = {
+  plugin: T;
+  okta?: oktaPluginUpdate;
+};
