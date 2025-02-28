@@ -114,19 +114,20 @@ func (s *hardwareKeyAgentKey) Sign(_ io.Reader, digest []byte, opts crypto.Signe
 	}
 
 	if pssOpts, ok := opts.(*rsa.PSSOptions); ok {
-		switch pssOpts.SaltLength {
+		saltLength := pssOpts.SaltLength
+		switch saltLength {
 		case rsa.PSSSaltLengthEqualsHash:
-			req.SaltLength = &hardwarekeyagentv1.SignRequest_Auto{
-				Auto: hardwarekeyagentv1.SaltLengthAuto_SALT_LENGTH_AUTO_HASH_LENGTH,
-			}
+			saltLength = opts.HashFunc().Size()
 		case rsa.PSSSaltLengthAuto:
-			req.SaltLength = &hardwarekeyagentv1.SignRequest_Auto{
-				Auto: hardwarekeyagentv1.SaltLengthAuto_SALT_LENGTH_AUTO_MAX,
+			pub := s.publicKey.(rsa.PublicKey)
+			saltLength = (pub.N.BitLen()-1+7)/8 - 2 - opts.HashFunc().Size()
+			if saltLength < 0 {
+				return nil, rsa.ErrMessageTooLong
 			}
-		default:
-			req.SaltLength = &hardwarekeyagentv1.SignRequest_Length{
-				Length: uint32(pssOpts.SaltLength),
-			}
+		}
+
+		req.SaltLength = &hardwarekeyagentv1.SignRequest_Length{
+			Length: uint32(saltLength),
 		}
 	}
 

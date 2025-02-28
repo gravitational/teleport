@@ -70,19 +70,10 @@ func (s *Service) Sign(_ context.Context, req *hardwarekeyagentv1.SignRequest) (
 	}
 
 	if req.GetSaltLength() != nil {
-		pssOpts := &rsa.PSSOptions{Hash: signerOpts.HashFunc()}
-		switch sl := req.GetSaltLength().(type) {
-		case *hardwarekeyagentv1.SignRequest_Auto:
-			switch sl.Auto {
-			case hardwarekeyagentv1.SaltLengthAuto_SALT_LENGTH_AUTO_MAX:
-				pssOpts.SaltLength = rsa.PSSSaltLengthAuto
-			case hardwarekeyagentv1.SaltLengthAuto_SALT_LENGTH_AUTO_HASH_LENGTH:
-				pssOpts.SaltLength = rsa.PSSSaltLengthEqualsHash
-			}
-		case *hardwarekeyagentv1.SignRequest_Length:
-			pssOpts.SaltLength = int(sl.Length)
+		signerOpts = &rsa.PSSOptions{
+			Hash:       signerOpts.HashFunc(),
+			SaltLength: int(req.GetSaltLength().(*hardwarekeyagentv1.SignRequest_Length).Length),
 		}
-		signerOpts = pssOpts
 	}
 
 	signature, err := key.Sign(rand.Reader, req.Digest, signerOpts)
