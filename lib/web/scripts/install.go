@@ -23,6 +23,7 @@ import (
 	_ "embed"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/google/safetext/shsprintf"
@@ -175,14 +176,20 @@ func GetInstallScript(ctx context.Context, opts InstallScriptOptions) (string, e
 //go:embed install/install.sh
 var legacyInstallScript string
 
+var (
+	versionVar = regexp.MustCompile(`(?m)^TELEPORT_VERSION=""$`)
+	suffixVar  = regexp.MustCompile(`(?m)^TELEPORT_SUFFIX=""$`)
+	editionVar = regexp.MustCompile(`(?m)^TELEPORT_EDITION=""$`)
+)
+
 // getLegacyInstallScript returns the installation script that we have been serving at
 // "https://cdn.teleport.dev/install.sh". This script installs teleport via package manager
 // or by unpacking the tarball. Its usage should be phased out in favor of the updater-based
 // installation script served by getUpdaterInstallScript.
 func getLegacyInstallScript(ctx context.Context, opts InstallScriptOptions) (string, error) {
-	tunedScript := strings.Replace(legacyInstallScript, `TELEPORT_VERSION=""`, fmt.Sprintf(`TELEPORT_VERSION="%s"`, opts.TeleportVersion), 1)
+	tunedScript := versionVar.ReplaceAllString(legacyInstallScript, fmt.Sprintf(`TELEPORT_VERSION="%s"`, opts.TeleportVersion))
 	if opts.TeleportFlavor == types.PackageNameEnt {
-		tunedScript = strings.Replace(tunedScript, `TELEPORT_SUFFIX=""`, `TELEPORT_SUFFIX="-ent"`, 1)
+		tunedScript = suffixVar.ReplaceAllString(tunedScript, `TELEPORT_SUFFIX="-ent"`)
 	}
 
 	var edition string
@@ -193,7 +200,7 @@ func getLegacyInstallScript(ctx context.Context, opts InstallScriptOptions) (str
 	} else {
 		edition = "oss"
 	}
-	tunedScript = strings.Replace(tunedScript, `TELEPORT_EDITION=""`, fmt.Sprintf(`TELEPORT_EDITION="%s"`, edition), 1)
+	tunedScript = editionVar.ReplaceAllString(tunedScript, fmt.Sprintf(`TELEPORT_EDITION="%s"`, edition))
 
 	return tunedScript, nil
 }
