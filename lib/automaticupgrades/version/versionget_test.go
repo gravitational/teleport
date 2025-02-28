@@ -22,23 +22,22 @@ import (
 	"context"
 	"testing"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	semverLow         = "v11.3.2"
-	semverMid         = "v11.5.4"
-	semverHigh        = "v12.2.1"
-	invalidSemverHigh = "12.2.1"
+var (
+	semverMid  = semver.Must(EnsureSemver("v11.5.4"))
+	semverHigh = semver.Must(EnsureSemver("v12.2.1"))
 )
 
 func TestValidVersionChange(t *testing.T) {
 	ctx := context.Background()
 	tests := []struct {
 		name    string
-		current string
-		next    string
+		current *semver.Version
+		next    *semver.Version
 		want    bool
 	}{
 		{
@@ -55,14 +54,20 @@ func TestValidVersionChange(t *testing.T) {
 		},
 		{
 			name:    "unknown current version",
-			current: "",
+			current: nil,
 			next:    semverMid,
 			want:    true,
 		},
 		{
 			name:    "non-semver current version",
+			current: nil,
+			next:    semverHigh,
+			want:    true,
+		},
+		{
+			name:    "non-semver next version",
 			current: semverMid,
-			next:    invalidSemverHigh,
+			next:    nil,
 			want:    false,
 		},
 	}
@@ -90,19 +95,19 @@ func TestFailoverGetter_GetVersion(t *testing.T) {
 	tests := []struct {
 		name         string
 		getters      []Getter
-		expectResult string
+		expectResult *semver.Version
 		expectErr    require.ErrorAssertionFunc
 	}{
 		{
 			name:         "nil",
 			getters:      nil,
-			expectResult: "",
+			expectResult: nil,
 			expectErr:    checkTraceError(trace.IsNotFound),
 		},
 		{
 			name:         "empty",
 			getters:      []Getter{},
-			expectResult: "",
+			expectResult: nil,
 			expectErr:    checkTraceError(trace.IsNotFound),
 		},
 		{
@@ -120,7 +125,7 @@ func TestFailoverGetter_GetVersion(t *testing.T) {
 				StaticGetter{err: trace.LimitExceeded("got rate-limited")},
 				StaticGetter{version: semverHigh},
 			},
-			expectResult: "",
+			expectResult: nil,
 			expectErr:    checkTraceError(trace.IsLimitExceeded),
 		},
 		{
@@ -138,7 +143,7 @@ func TestFailoverGetter_GetVersion(t *testing.T) {
 				StaticGetter{err: trace.NotImplemented("proxy does not seem to implement RFD-184")},
 				StaticGetter{err: trace.LimitExceeded("got rate-limited")},
 			},
-			expectResult: "",
+			expectResult: nil,
 			expectErr:    checkTraceError(trace.IsLimitExceeded),
 		},
 		{
@@ -147,7 +152,7 @@ func TestFailoverGetter_GetVersion(t *testing.T) {
 				StaticGetter{err: trace.NotImplemented("proxy does not seem to implement RFD-184")},
 				StaticGetter{err: trace.NotImplemented("proxy does not seem to implement RFD-184")},
 			},
-			expectResult: "",
+			expectResult: nil,
 			expectErr:    checkTraceError(trace.IsNotFound),
 		},
 	}
