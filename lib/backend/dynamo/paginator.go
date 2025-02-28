@@ -1,3 +1,19 @@
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package dynamo
 
 import (
@@ -12,7 +28,10 @@ import (
 	"github.com/aws/smithy-go/middleware"
 )
 
-// QueryPaginator is a paginator for Query
+// QueryPaginator is a paginator for [dynamodb.Query]. This is
+// a vendored version of [dynamodb.QueryPaginator] that dynamically
+// adjusts the query limit based on the number of items that have
+// already been consumed by the paginator.
 type QueryPaginator struct {
 	params    *dynamodb.QueryInput
 	client    dynamodb.QueryAPIClient
@@ -22,7 +41,7 @@ type QueryPaginator struct {
 	limit     int32
 }
 
-// NewQueryPaginator returns a new QueryPaginator
+// NewQueryPaginator returns a new QueryPaginator.
 func NewQueryPaginator(client dynamodb.QueryAPIClient, params *dynamodb.QueryInput) *QueryPaginator {
 	if params == nil {
 		params = &dynamodb.QueryInput{}
@@ -37,7 +56,7 @@ func NewQueryPaginator(client dynamodb.QueryAPIClient, params *dynamodb.QueryInp
 	}
 }
 
-// HasMorePages returns a boolean indicating whether more pages are available
+// HasMorePages returns a boolean indicating whether more pages are available.
 func (p *QueryPaginator) HasMorePages() bool {
 	return (p.firstPage || p.nextToken != nil) && (p.limit <= 0 || p.count < p.limit)
 }
