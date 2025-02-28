@@ -511,9 +511,9 @@ The Oracle integration works only in the authenticated proxy mode. Start a local
 Started authenticated tunnel for the Oracle database "oracle" in cluster "teleport.example.com" on 127.0.0.1:11555.
 ```
 
-<Notice type="tip">
+<Admonition type="tip">
 The command above uses the local port 11555, but you can choose any available port. Leaving `--port` empty will cause `tsh` to pick a random one.
-</Notice>
+</Admonition>
 
 The local proxy supports TCP and TCPS modes. Different clients prefer different modes.
 
@@ -526,9 +526,9 @@ TCPS:
 - depends on automatically created wallet
 - uses JDBC URL for configuration
 
-<Notice type="warning">
+<Admonition type="warning">
 Teleport versions earlier than 17.2.0 support only a limited range of clients and only offer TCPS mode. `tsh` will automatically detect this situation and warn the user. We recommend updating to the latest version of Teleport to access full client support and additional connection options.
-</Notice>
+</Admonition>
 
 ### Oracle SQL Developer (standalone)
 
@@ -640,9 +640,9 @@ The newly added login should appear on the login list.
 
 ![Toad Login List](../../img/database-access/guides/oracle/toad-login-list@2x.png)
 
-<Notice type="tip">
+<Admonition type="tip">
 You can also configure Toad to use an external Oracle client. Both native and external clients are supported.
-</Notice>
+</Admonition>
 
 ### DBeaver
 
