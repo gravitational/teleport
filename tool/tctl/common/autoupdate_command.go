@@ -77,7 +77,7 @@ func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, _ *servicecfg.C
 
 	c.targetCmd = clientToolsCmd.Command("target", "Sets the client tools target version. This command is not supported on Teleport Cloud.")
 	c.targetCmd.Arg("version", "Client tools target version. Clients will be told to update to this version.").StringVar(&c.toolsTargetVersion)
-	c.targetCmd.Flag("clear", "removes the target version, Teleport will default to its current proxy version.").BoolVar(&c.clear)
+	c.targetCmd.Flag("clear", "Removes the target version, Teleport will default to its current proxy version.").BoolVar(&c.clear)
 
 	if c.stdout == nil {
 		c.stdout = os.Stdout
