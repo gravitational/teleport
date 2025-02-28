@@ -14,11 +14,11 @@ By default, Teleport reads its configuration from `/etc/teleport.yaml`.
 
 ## Before using this reference
 
-<Notice type="danger">
+<Admonition type="danger">
 
 Do not use this example configuration in production.
 
-</Notice>
+</Admonition>
 
 You must edit your configuration file to meet the needs of your environment.
 Using a copy of the reference configuration will have unintended effects. To
@@ -33,12 +33,12 @@ There are also `configure` commands available for the SSH Service and Database
 Service. See our documentation on `teleport node configure` and `teleport db
 configure` in the [Teleport CLI Reference](cli/teleport.mdx).
 
-<Notice type="warning">
+<Admonition type="warning">
 
 You should back up your configuration file before making changes. This will
 enable you to roll back to the previous configuration if you need to.
 
-</Notice>
+</Admonition>
 
 ## Enabling Teleport services
 
@@ -102,10 +102,10 @@ These settings apply to any `teleport` instance:
 
 These settings apply to the Teleport Proxy Service:
 
-<Notice type="tip">
+<Admonition type="tip">
 Teleport Enterprise Cloud manages the Proxy Service for you, so you do not need
 to specify these configuration settings.
-</Notice>
+</Admonition>
 
 ```yaml
 (!docs/pages/includes/config-reference/proxy-service.yaml!)
@@ -115,10 +115,10 @@ to specify these configuration settings.
 
 These settings apply to the Teleport Auth Service:
 
-<Notice type="tip">
+<Admonition type="tip">
 Teleport Enterprise Cloud manages the Auth Service for you, so you do not need
 to specify these configuration settings.
-</Notice>
+</Admonition>
 
 ```yaml
 (!docs/pages/includes/config-reference/auth-service.yaml!)

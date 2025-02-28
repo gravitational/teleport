@@ -276,9 +276,9 @@ period so that it spends an equal amount of time in each phase before
 transitioning to the next phase. This means that using a shorter grace period
 will result in faster state transitions.
 
-<Notice type="warning">
+<Admonition type="warning">
   Be careful when choosing a grace period when rotating host certificates.
-</Notice>
+</Admonition>
 
 The grace period needs to be long enough for all nodes in a cluster to request a
 new certificate. If some nodes go offline during the rotation and come back only

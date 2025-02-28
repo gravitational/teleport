@@ -1509,9 +1509,9 @@ You should create the secret in the same namespace as Teleport using a command l
 kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
 ```
 
-<Notice type="warning" title="Root CA filename">
+<Admonition type="warning" title="Root CA filename">
   The filename used for the root CA in the secret must be `ca.pem`.
-</Notice>
+</Admonition>
 
 `values.yaml` example:
 

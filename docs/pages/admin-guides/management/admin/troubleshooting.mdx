@@ -47,13 +47,13 @@ Debug logs include the file and line number of the code that emitted the log, so
 you can investigate (or report) what a `teleport` process was doing before it ran into
 problems.
 
-<Notice
+<Admonition
   type="warning"
 >
   It is not recommended to run Teleport in production with verbose logging as it
   generates a substantial amount of data.
 
-</Notice>
+</Admonition>
 
 ## Step 2/3. Generate a debug dump
 
@@ -92,11 +92,11 @@ runtime/pprof.writeGoroutineStacks(0x3c2ffc0, 0xc0001a8010, 0xc001011a38, 0x4bcf
 ...
 ```
 
-<Notice type="tip">
+<Admonition type="tip">
 
 You can print a goroutine dump without enabling verbose logging.
 
-</Notice>
+</Admonition>
 
 ## Step 3/3. Ask for help
 

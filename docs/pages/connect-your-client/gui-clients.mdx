@@ -532,12 +532,12 @@ The Oracle integration works only in the authenticated proxy mode. Start a local
 tsh proxy db --tunnel --port 1521 --db-user=<user> --db-name=<db-name> oracle
 ```
 
-<Notice type="tip">
+<Admonition type="tip">
 This command uses the local port 1521, but you can choose any port, or let
 `tsh` pick a local port at random if you omit the `--port` flag.
 You should specify a port to avoid the need to reconfigure your GUI client again
 later.
-</Notice>
+</Admonition>
 
 In "Connections" click the "+" button for a new database connection:
 
