@@ -8,13 +8,13 @@ mode](../../faq.mdx), agent deployments
 are sometimes simpler and more convenient. However, large Teleport deployments
 can create an additional burden: updating all agents.
 
-Teleport Agent Managed Updates has two versions:
-- version 1, which supports automatic agent updates for systemd-based
+There are two versions of Teleport Agent Managed Updates:
+- **Version 1:** Supports systemd-based
   Linux distributions using `apt`, `yum` or `zypper` package managers,
-  and Kubernetes clusters.
-- version 2, which removes the package manager dependency from v1, supports a
-  wider range of setups (Teleport CE, Enterprise, FIPS, multiple agents on a single
-  host, ...) and offers more control over the update schedule.
+  as well as Kubernetes clusters.
+- **Version 2:** Removes the package manager dependency from v1, supports a
+  wider range of setups (e.g., Teleport Community Edition, Teleport Enterprise, FIPS, and multiple agents on a single
+  host) and offers more control over the update schedule.
 
 ## Update logic and failure modes
 
@@ -34,7 +34,7 @@ during a maintenance window or when the agent is unhealthy.
 ### Version 2 update logic
 
 In Managed Updates version 2, the Teleport cluster itself drives the updates by
-telling to the agent if it should update or not. Centralizing the update decision
+telling each agent if it should update or not. Centralizing the update decision
 offers more control over the rollout. As the Teleport cluster sees every agent,
 it can more complex decisions such as gradually rolling out an update, or
 detecting a faulty update.
@@ -45,10 +45,10 @@ to the last working version in an attempt to restore connectivity.
 
 ### Version 1 update logic
 
-In Managed Updates version 1, the updater drives the update, Teleport is only
+In Managed Updates version 1, the updater drives the update, and Teleport is only
 responsible for providing it the version schedule.
 
-When a maintenance schedule is available, the updater will honour it. However, if
+When a maintenance schedule is available, the updater will honor it. However, if
 the updater cannot find the maintenance schedule, it will consider the agent
 unhealthy and perform updates as soon as possible. Similarly, if the updater
 detects the agent is unhealthy, it immediately applies any pending update to

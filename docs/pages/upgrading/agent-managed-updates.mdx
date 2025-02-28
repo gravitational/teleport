@@ -10,19 +10,19 @@ For Managed Updates v1 instructions, see
 [Managed Updates for Agents (v1)](./agent-managed-updates-v1.mdx).
 </Notice>
 
-Managed updates v2 use a binary called `teleport-update` which is distributed in
-all Teleport packages, alongside Teleport. The updates are configured by the
-`autoupdate_version` and `autoupdate_config` resources.
+In Managed Updates v2, a binary called `teleport-update` is distributed in
+all Teleport packages, alongside the `teleport` binary. Admins configure updates by managing the
+`autoupdate_version` and `autoupdate_config` dynamic resources.
 
 This document covers how to use `teleport-update` and the `autoupdate_*`
 resources to manage your agent updates from Teleport.
 
 `teleport-update` supports:
-- Every Teleport edition (Enterprise, Community, OSS)
-- both cloud and self-hosted Teleport deployments
+- Both Teleport Enterprise and Teleport Community Edition
+- Both cloud and self-hosted Teleport Enterprise deployments
 - Regular and FIPS variants of Teleport
 - amd64 and arm64 CPU architectures
-- systemd-based OSes, regardless of the package manager used
+- systemd-based operating systems, regardless of the package manager used
 
 <Admonition type="note" title="Compatibility between Managed Updates v1 and v2">
 Managed updates v2 are backwards compatible with the
@@ -129,13 +129,13 @@ $ sudo systemctl enable teleport --now
 ## Configuring managed agent updates
 
 Managed agent updates are configured via two Teleport resources:
-- `autoupdate_config` which controls the update schedule
-- `autoupdate_version` which controls the desired version
+- `autoupdate_config` controls the update schedule
+- `autoupdate_version` controls the desired version
 
 Self-hosted Teleport users must configure both `autoupdate_config` and
 `autoupdate_version`.
 
-Cloud-hosted Teleport users can configure the `autoupdate_config`, the
+Cloud-hosted Teleport Enterprise users can configure the `autoupdate_config`, while the
 `autoupdate_version` is managed by Teleport Cloud. Updates will roll out
 automatically during the first chosen maintenance window that is at least 36
 hours after the cluster version is updated.
@@ -446,7 +446,7 @@ Group Name State     Start Time State Reason
 default    Unstarted            outside_window
 ```
 
-This rollout state is computed by each auth every minute, an `autoupdate_config` or `autoupdate_version`
+This rollout state is computed by each Auth Service instance every minute. An `autoupdate_config` or `autoupdate_version`
 change might take up to a minute to be reflected and applied.
 
 Teleport Agents are not updated immediately when a new version of Teleport is

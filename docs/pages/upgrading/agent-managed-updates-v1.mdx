@@ -15,7 +15,7 @@ Teleport resource. The new updater uses a binary called `teleport-update` that i
 provided by the `teleport` package and configured by the `autoupdate_version` and
 `autoupdate_config`. The original updater and resource are described in this document.
 
-Managed Updates v1 only support Enterprise versions of Teleport.
+Only Enterprise versions of Teleport can use Managed Updates v1.
 
 Please consider using [Managed Updates for Agents (v2)](./agent-managed-updates.mdx),
 as its updater provides a safer, simpler, more flexible, compatible, and reliable
@@ -85,7 +85,7 @@ server in your cluster.
 
 ### Configure a maintenance schedule
 
-To enable managed upgrades in your cluster, you must create a cluster
+To enable Managed Updates in your cluster, you must create a cluster
 maintenance configuration. This configures a maintenance schedule for the
 Teleport cluster that agents use to determine when to check for upgrades.
 
@@ -385,7 +385,7 @@ until the next reconciliation, you can trigger an event.
    `annotations.deployment` value in Helm, or by patching the deployment
    directly with `kubectl`.
 
-### Troubleshooting managed agent upgrades on Linux
+### Troubleshooting Managed Updates on Linux
 
 1. If an agent is not automatically upgraded, you can invoke the upgrader
    manually and look at its logs:
