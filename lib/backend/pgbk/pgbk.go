@@ -458,16 +458,15 @@ func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 		defaultPageSize = 1000
 	)
 	return func(yield func(backend.Item, error) bool) {
-		var exclusiveKey []byte
+		var exclusiveStartKey []byte
 		query := queryAsc
 		if params.Descending {
-			exclusiveKey = nonNilKey(params.EndKey)
 			query = queryDesc
 		}
 
-		var pageLimit, totalCount int
+		var totalCount int
 		for {
-			pageLimit = min(limit-totalCount, defaultPageSize)
+			pageLimit := min(limit-totalCount, defaultPageSize)
 
 			items, err := pgcommon.RetryIdempotent(ctx, b.log, func() ([]backend.Item, error) {
 				batch := new(pgx.Batch)
@@ -475,7 +474,7 @@ func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 				batch.Queue("SET transaction_read_only TO on")
 				// TODO(espadolini): figure out if we want transaction_deferred enabled
 				var items []backend.Item
-				batch.Queue(query, nonNilKey(params.StartKey), nonNilKey(params.EndKey), exclusiveKey, pageLimit).Query(func(rows pgx.Rows) error {
+				batch.Queue(query, nonNilKey(params.StartKey), nonNilKey(params.EndKey), exclusiveStartKey, pageLimit).Query(func(rows pgx.Rows) error {
 					var err error
 					items, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (backend.Item, error) {
 						var key backend.Key
@@ -502,8 +501,12 @@ func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 				return items, nil
 			})
 			if err != nil {
-				yield(backend.Item{}, err)
+				yield(backend.Item{}, trace.Wrap(err))
 				return
+			}
+
+			if len(items) == pageLimit {
+				exclusiveStartKey = []byte(items[len(items)-1].Key.String())
 			}
 
 			for _, item := range items {
@@ -520,8 +523,6 @@ func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 			if len(items) < pageLimit {
 				return
 			}
-
-			exclusiveKey = nonNilKey(items[len(items)-1].Key)
 		}
 	}
 }
