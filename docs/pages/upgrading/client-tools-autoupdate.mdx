@@ -28,8 +28,7 @@ If your client version differs from the cluster's required version, it will:
 **Binary Management**: Original binaries are preserved, and updates are stored separately.
 Updates are installed in the `$TELEPORT_HOME/.tsh/bin/` folder (if `TELEPORT_HOME` is not defined, the home folder is used).
 When client tools (`tctl` or `tsh`) are executed from any other path, they consistently check for binaries in the update
-folder and re-execute them if found. After logging out from the cluster, the update folder is cleaned up, as each
-cluster might require its own version.
+folder and re-execute them if found.
 
 **Validation**: Downloaded packages are verified with a hash sum to ensure integrity.
 Package downloads are directed to the `cdn.teleport.dev` endpoint and depend on the operating system,
@@ -49,7 +48,7 @@ Values:
 - `X.Y.Z`: Use a specific version.
 - `off`: Disable updates.
 
-An environment variable `TELEPORT_TOOLS_VERSION` can be used as a emergency workaround for a known issue,
+An environment variable `TELEPORT_TOOLS_VERSION` can be used as an emergency workaround for a known issue,
 pinning to a specific version in CI/CD, for debugging, or for manual updates.
 
 During re-execution, child process will inherit all environment variables and flags. To prevent infinite loops
