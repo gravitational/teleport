@@ -212,7 +212,14 @@ spec:
 
 ## Cluster maintenance config
 
-Global configuration options for the agents enrolled into automatic updates.
+Global configuration options for the agents enrolled into automatic updates (v1).
+
+<Notice type="warning">
+`cluster_maintenance_config` configures Managed Updates v1,
+which are currently supported but will be superseded by Managed Updates v2.
+The `autoupdate_config` and `autoupdate_version` resources further down
+configure Managed Updates v2.
+</Notice>
 
 (!docs/pages/includes/cluster-maintenance-config-spec.mdx!)
 
@@ -322,34 +329,233 @@ Find out more on the
 
 ## Auto-update config
 
-Configuration options for managed updates for Teleport client tools.
+Configuration options for Teleport Agent and client tools Managed Updates (v2).
+
+<Notice type="warning">
+The `autoupdate_config` and `autoupdate_version` resources configure Managed
+Updates v2 and Managed Updates v1.
+
+`cluster_maintenance_config` above configures only Managed Updates v1
+which are currently supported but will be deprecated in a future version.
+</Notice>
 
 ```yaml
 kind: autoupdate_config
 metadata:
   name: autoupdate-config
 spec:
+  agents:
+    # mode allows users to enable, disable, or suspend agent updates at the
+    # cluster level. Disable agent automatic updates only if self-managed
+    # updates are in place. This value may also be set in autoupdate_version.
+    # If set in both places, disabled overrides suspended, which overrides enabled.
+    # Possible values: "enabled", "disabled", "suspended"
+    # Default: "disabled" (unless specified in autoupdate_version)
+    mode: enabled
+
+    # strategy used to roll out updates to agents.
+    # The halt-on-error strategy ensures that groups earlier in the schedule are
+    # given the opportunity to update to the target_version before groups that are
+    # later in the schedule. (Currently, the schedule must be stopped manually by
+    # setting the mode to "suspended" or "disabled". In the future, errors will be
+    # detected automatically).
+    # The time-based strategy ensure that each group updates within a defined
+    # time window, with no dependence between groups.
+    # Possible values: "halt-on-error" or "time-based"
+    # Default: "halt-on-error"
+    strategy: halt-on-error
+
+    # maintenance_window_duration configures the duration after the start_hour
+    # when updates may occur. Only valid for the time-based strategy.
+    # maintenance_window_duration: 1h
+
+    # schedules define groups of agents with different update times.
+    # Currently, only the regular schedule is configurable.
+    schedules:
+      regular:
+
+        # name of each group, configured locally via "teleport-update enable --group"
+        - name: staging
+
+          # start_hour of the update, in UTC
+          start_hour: 4
+
+          # days that the update may occur on
+          # Days are not configurable for most Enterprise cloud-hosted users.
+          # Possible values: "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", and "*"
+          # Default: [ "Mon", "Tue", "Wed", "Thu" ]
+          days: [ "Mon", "Tue", "Wed", "Thu" ]
+
+        - name: production
+          start_hour: 5
+
+          # wait_hours ensures that the group executes at least a specific number of hours
+          # after the previous group. Only valid for the halt-on-error schedule.
+          # Default: 0
+          wait_hours: 24
+
   tools:
-    # tools mode allows users to enable or disable client tool updates at the
+    # mode allows users to enable or disable client tool updates at the
     # cluster level. Disable client tool automatic updates only if self-managed
     # updates are in place.
-    mode: enabled|disabled
+    # Possible values: "enabled" or "disabled"
+    # Default: "disabled"
+    mode: enabled
 ```
 
-See [Teleport Client Tool Automatic Updates](../upgrading/client-tools-autoupdate.mdx) for more details.
+See [Teleport Client Tool Managed Updates](../upgrading/client-tools-autoupdate.mdx) and
+[Teleport Agent Managed Updates](../upgrading/agent-managed-updates.mdx) for more details.
 
 ## Auto-update version
 
-Allows cluster administrators to manage the version of client tools that must be installed after logging into the cluster.
+Allows cluster administrators to manage versions used for agent and client tools Managed Updates.
+
+<Notice type="warning">
+The `autoupdate_config` and `autoupdate_version` resources configure Managed
+Updates v2 and Managed Updates v1.
+
+`cluster_maintenance_config` above configures only Managed Updates v1
+which are currently supported but will be deprecated in a future version.
+</Notice>
+
+This resource is not editable for cloud-managed Teleport Enterprise to ensure that all of
+your clients receive security patches and remain compatible with your cluster.
 
 ```yaml
 kind: autoupdate_version
 metadata:
   name: autoupdate-version
 spec:
+  agents:
+    # start_version is the version used to install new agents before their
+    # group's scheduled update time. Agents never update to the start_version
+    # automatically, but may be required to via "teleport-update update --now".
+    start_version: v17.2.0
+
+    # target_version is the version that agents update to during their group's
+    # scheduled update time. New agents also use this version after their group's
+    # scheduled update time.
+    target_version: v17.2.1
+
+    # schedule used to roll out updates.
+    # The regular schedule is defined in the autoupdate_config resource.
+    # The immediate schedule updates all agents to target_version immediately.
+    # Possible values: "regular" or "immediate"
+    # Default: "regular"
+    schedule: regular
+
+    # mode allows users to enable, disable, or suspend agent updates at the
+    # cluster level. Disable agent automatic updates only if self-managed
+    # updates are in place. This value may also be set in autoupdate_config.
+    # If set in both places, disabled overrides suspended, which overrides enabled.
+    # Possible values: "enabled", "disabled", "suspended"
+    # Default: "disabled" (unless specified in autoupdate_config)
+    mode: enabled
+
   tools:
     # target_version is the semver version of client tools the cluster will advertise.
-    target_version: X.Y.Z
+    # Client tools such as tsh and tctl will update to this version at login if the
+    # mode set in autoupdate_config is set to enabled.
+    # Default: cluster version
+    target_version: v17.2.1
 ```
 
-See [Teleport Client Tool Automatic Updates](../upgrading/client-tools-autoupdate.mdx) for more details.
+See [Teleport Client Tool Managed Updates](../upgrading/client-tools-autoupdate.mdx) and
+[Teleport Agent Managed Updates](../upgrading/agent-managed-updates.mdx) for more details.
+
+## Auto-update agent rollout
+
+Allows cluster administrators to view the current agent rollout for Teleport Agent Managed Updates (v2).
+
+This resource should not be edited by humans.
+
+```yaml
+kind: autoupdate_agent_rollout
+metadata:
+  name: autoupdate-agent-rollout
+spec:
+  # start_version is the version used to install new agents before their
+  # group's scheduled update time. Agents never update to the start_version
+  # automatically, but may be required to via "teleport-update update --now".
+  start_version: v17.2.0
+
+  # target_version is the version that agents update to during their group's
+  # scheduled update time. New agents also use this version after their group's
+  # scheduled update time.
+  target_version: v17.2.1
+
+  # schedule used to roll out updates.
+  # The regular schedule is defined in the autoupdate_config resource.
+  # The immediate schedule updates all agents to target_version immediately.
+  # Possible values: "regular" or "immediate"
+  schedule: regular
+
+  # autoupdate_mode allows users to enable, disable, or suspend agent updates at the
+  # cluster level. Disable agent automatic updates only if self-managed
+  # updates are in place. This value may also be set in autoupdate_config.
+  # If set in both places, disabled overrides suspended, which overrides enabled.
+  # Possible values: "enabled", "disabled", "suspended"
+  autoupdate_mode: enabled
+
+  # strategy used to roll out updates to agents.
+  # The halt-on-error strategy ensures that groups earlier in the schedule are
+  # given the opportunity to update to the target_version before groups that are
+  # later in the schedule. (Currently, the schedule must be stopped manually by
+  # setting the mode to "suspended" or "disabled". In the future, errors will be
+  # detected automatically).
+  # The time-based strategy ensure that each group updates within a defined
+  # time window, with no dependence between groups.
+  # Possible values: "halt-on-error" or "time-based"
+  # Default: "halt-on-error"
+  strategy: halt-on-error
+
+  # maintenance_window_duration configures the duration after the start_hour
+  # when updates may occur. Only valid for the time-based strategy.
+  # maintenance_window_duration: 1h
+
+status:
+
+  # groups contains the status for each group in the currently executing schedule.
+  groups:
+
+    # name of each group, configured locally via "teleport-update enable --group"
+    - name: staging
+
+      # start_time of the group
+      start_time: 0001-01-01T00:00:00Z
+
+      # state of the group
+      # Possible values: unstarted, active, done, rolledback
+      state: active
+
+      # last_update_time of this group's status
+      last_update_time: 0001-01-01T00:00:00Z
+
+      # last_update_reason of this group's status
+      last_update_reason: "new version"
+
+      # days that the update may occur on, from autoupdate_config
+      # Possible values: "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", and "*"
+      config_days: [ "Mon", "Tue", "Wed", "Thu" ]
+
+      # start_hour of the update, in UTC, from autoupdate_config
+      config_start_hour: 4
+
+    - name: production
+
+      # ...
+
+      # config_wait_hours is specific number of hours after the previous group that this
+      # group may execute after, from autoupdate_config.
+      config_wait_hours: 24
+
+  # start_time of the rollout
+  start_time: 0001-01-01T00:00:00Z
+
+  # state of the entire rollout
+  # Possible values: unstarted, active, done, rolledback
+  state: active
+
+```
+
+See [Teleport Agent Managed Updates](../upgrading/agent-managed-updates.mdx) for more details.
