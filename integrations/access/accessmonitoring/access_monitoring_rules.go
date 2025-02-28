@@ -149,15 +149,7 @@ func (amrh *RuleHandler) RecipientsFromAccessMonitoringRules(ctx context.Context
 	recipientSet := common.NewRecipientSet()
 
 	for _, rule := range amrh.getAccessMonitoringRules() {
-		match, err := EvaluateCondition(rule.Spec.Condition, AccessRequestExpressionEnv{
-			Roles:              req.GetRoles(),
-			SuggestedReviewers: req.GetSuggestedReviewers(),
-			Annotations:        req.GetSystemAnnotations(),
-			User:               req.GetUser(),
-			RequestReason:      req.GetRequestReason(),
-			CreationTime:       req.GetCreationTime(),
-			Expiry:             req.Expiry(),
-		})
+		match, err := EvaluateCondition(rule.Spec.Condition, getAccessRequestExpressionEnv(req))
 		if err != nil {
 			log.WarnContext(ctx, "Failed to parse access monitoring notification rule",
 				"error", err,
@@ -184,15 +176,7 @@ func (amrh *RuleHandler) RawRecipientsFromAccessMonitoringRules(ctx context.Cont
 	log := logger.Get(ctx)
 	recipientSet := stringset.New()
 	for _, rule := range amrh.getAccessMonitoringRules() {
-		match, err := EvaluateCondition(rule.Spec.Condition, AccessRequestExpressionEnv{
-			Roles:              req.GetRoles(),
-			SuggestedReviewers: req.GetSuggestedReviewers(),
-			Annotations:        req.GetSystemAnnotations(),
-			User:               req.GetUser(),
-			RequestReason:      req.GetRequestReason(),
-			CreationTime:       req.GetCreationTime(),
-			Expiry:             req.Expiry(),
-		})
+		match, err := EvaluateCondition(rule.Spec.Condition, getAccessRequestExpressionEnv(req))
 		if err != nil {
 			log.WarnContext(ctx, "Failed to parse access monitoring notification rule",
 				"error", err,
@@ -247,4 +231,17 @@ func (amrh *RuleHandler) ruleApplies(amr *accessmonitoringrulesv1.AccessMonitori
 	return slices.ContainsFunc(amr.Spec.Subjects, func(subject string) bool {
 		return subject == types.KindAccessRequest
 	})
+}
+
+// getAccessRequestExpressionEnv returns the expression env of the access request.
+func getAccessRequestExpressionEnv(req types.AccessRequest) AccessRequestExpressionEnv {
+	return AccessRequestExpressionEnv{
+		Roles:              req.GetRoles(),
+		SuggestedReviewers: req.GetSuggestedReviewers(),
+		Annotations:        req.GetSystemAnnotations(),
+		User:               req.GetUser(),
+		RequestReason:      req.GetRequestReason(),
+		CreationTime:       req.GetCreationTime(),
+		Expiry:             req.Expiry(),
+	}
 }
