@@ -140,7 +140,7 @@ var alphanum = regexp.MustCompile("^[a-zA-Z0-9-]*$")
 // Namespaces must be alphanumeric + `-`.
 // defaultPathDir overrides the destination directory for namespace setup (i.e., /usr/local)
 func NewNamespace(ctx context.Context, log *slog.Logger, name, installDir string) (ns *Namespace, err error) {
-	defer ns.overrideFromConfig(ctx)
+	defer func() { ns.overrideFromConfig(ctx) }()
 
 	if name == defaultNamespace ||
 		name == systemNamespace {
