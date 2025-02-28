@@ -185,10 +185,12 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		fmt.Fprintf(c.writer(), msg, strings.Join(availableMethods, ", "), strings.Join(chosenMethods, " and "))
 	}
 
-	useSessionMFA := c.cfg.Extensions.GetScope() == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION
+	isPerSessionMFA := c.cfg.Extensions.GetScope() == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION
 
+	// We should never prompt for OTP when per-session MFA is enabled, but MFA prompts are
+	// unrestricted otherwise
 	switch {
-	case promptOTP && promptWebauthn:
+	case !isPerSessionMFA && promptOTP && promptWebauthn:
 		resp, err := c.promptWebauthnAndOTP(ctx, chal)
 		return resp, trace.Wrap(err)
 	case promptWebauthn:
@@ -197,8 +199,8 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	case promptSSO:
 		resp, err := c.promptSSO(ctx, chal)
 		return resp, trace.Wrap(err)
-	case promptOTP && useSessionMFA:
-		return nil, trace.AccessDenied("only WebAuthn and SSO MFA methods are supported with per-session MFA, please register a supported MFA method to connect to this server")
+	case isPerSessionMFA && promptOTP:
+		return nil, trace.AccessDenied("only WebAuthn and SSO MFA methods are supported with per-session MFA")
 	case promptOTP:
 		resp, err := c.promptOTP(ctx, c.cfg.Quiet)
 		return resp, trace.Wrap(err)
