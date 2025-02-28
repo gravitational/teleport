@@ -701,7 +701,11 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key)
 		}
 	}
 
-	if totalCount < maxDeletions && pageCount > 0 {
+	if totalCount >= maxDeletions {
+		return trace.ConnectionProblem(nil, "not all items deleted, too many requests")
+	}
+
+	if pageCount > 0 {
 		if _, err := b.svc.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
 			RequestItems: map[string][]types.WriteRequest{
 				b.TableName: requests[:pageCount],
@@ -709,11 +713,9 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key)
 		}); err != nil {
 			return trace.Wrap(err)
 		}
-
-		return nil
 	}
 
-	return trace.ConnectionProblem(nil, "not all items deleted, too many requests")
+	return nil
 }
 
 // Get returns a single item or not found error
