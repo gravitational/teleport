@@ -26,7 +26,7 @@ reading data from the OAuth 2.0 access token. In particular, the Auth Service:
   permissions. 
 - Assigns the user's Teleport username to their GitHub username.
 
-<Notice type="warning">
+<Admonition type="warning">
 
 GitHub usernames are not formatted as email addresses. As a result, any Teleport
 plugin that expects to send email to a user based on their Teleport username
@@ -34,7 +34,7 @@ will not work as expected. For example, the [PagerDuty Access Request
 plugin](../access-request-plugins/ssh-approval-pagerduty.mdx) has this
 limitation.
 
-</Notice>
+</Admonition>
 
 ## Prerequisites
 

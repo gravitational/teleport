@@ -73,13 +73,13 @@ account as a principal and assign it the "Cloud Spanner Database User" role:
 
 Click "Save".
 
-<Notice type="note">
+<Admonition type="note">
 [Cloud Spanner Database User](https://cloud.google.com/spanner/docs/iam#spanner.databaseUser)
 is a pre-defined role.
 You can use a different pre-defined role or create and customize your own role
 permissions with
 [custom IAM roles](https://cloud.google.com/spanner/docs/iam#custom-roles).
-</Notice>
+</Admonition>
 
 ### Grant access to the service account
 
@@ -177,12 +177,12 @@ spanner-example GCP Cloud Spanner [*]           env=dev
 
 </Tabs>
 
-<Notice
+<Admonition
   type="note"
 >
 You will only be able to see databases that your Teleport role has
 access to. See our [RBAC](../rbac.mdx) guide for more details.
-</Notice>
+</Admonition>
 
 When connecting to the database, use the name of the service account
 that you created for a database user 

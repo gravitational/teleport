@@ -46,7 +46,7 @@ information such as:
     "rds", "redshift", etc.
 - *Endpoint Info*: Connection endpoint the database can be reached at
 
-<Notice type="tip">
+<Admonition type="tip">
 You can override a discovered database's name by using a special tag attached
 to the database in your cloud provider:
  - ***key***: `TeleportDatabaseName`
@@ -56,7 +56,7 @@ The Discovery Service will check if the database metadata includes the tag and
 use its value as the resource name in Teleport.
 The name override will be used verbatim, i.e. additional metadata will not be
 appended to it.
-</Notice>
+</Admonition>
 
 The Teleport Discovery Service only needs access to APIs that it can poll for
 databases - it does not need network connectivity or permissions to connect to
