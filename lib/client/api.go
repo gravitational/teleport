@@ -4406,6 +4406,13 @@ func getClientIncompatibilityWarning(versions Versions) (string, error) {
 
 	switch clientVersionStatus {
 	case ClientVersionTooOld:
+		minClient := versions.MinClient
+		if minClientWithoutPreRelease, err := utils.VersionWithoutPreRelease(minClient); err != nil {
+			log.DebugContext(context.Background(), "Could not strip pre-release suffix", "error", err)
+		} else {
+			minClient = minClientWithoutPreRelease
+		}
+
 		return fmt.Sprintf(`
 WARNING
 Detected potentially incompatible client and server versions.
@@ -4414,7 +4421,7 @@ Please upgrade tsh to %v or newer or use the --skip-version-check flag to bypass
 Future versions of tsh will fail when incompatible versions are detected.
 
 `,
-			versions.MinClient, versions.Client, versions.MinClient), nil
+			minClient, versions.Client, minClient), nil
 	case ClientVersionTooNew:
 		serverMajorVersion, err := utils.MajorSemver(versions.Server)
 		if err != nil {

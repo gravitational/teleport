@@ -84,7 +84,7 @@ export function makeProps(
           ClientVersionStatus.TOO_OLD;
         props.initAttempt.data.versions = {
           client: '16.0.0-dev',
-          minClient: '17.0.0-aa',
+          minClient: '17.0.0',
           server: '18.2.7',
         };
       }
@@ -93,7 +93,7 @@ export function makeProps(
       props.initAttempt.data.clientVersionStatus = ClientVersionStatus.TOO_NEW;
       props.initAttempt.data.versions = {
         client: '18.0.0-dev',
-        minClient: '16.0.0-aa',
+        minClient: '16.0.0',
         server: '17.0.0',
       };
     }

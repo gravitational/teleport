@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Login logs in a user to a cluster
@@ -154,6 +155,12 @@ func (s *Handler) GetAuthSettings(ctx context.Context, req *api.GetAuthSettingsR
 		MinClient: versions.MinClient,
 		Client:    versions.Client,
 		Server:    versions.Server,
+	}
+
+	if minClientWithoutPreRelease, err := utils.VersionWithoutPreRelease(versions.MinClient); err != nil {
+		log.DebugContext(ctx, "Could not strip pre-release suffix", "error", err)
+	} else {
+		result.Versions.MinClient = minClientWithoutPreRelease
 	}
 
 	return result, nil
