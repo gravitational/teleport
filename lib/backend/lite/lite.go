@@ -641,8 +641,8 @@ func (l *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 	}
 
 	const (
-		queryAsc        = "SELECT key, value, expires, revision FROM kv WHERE (key >= ? and key <= ? and key > ?) AND (expires is NULL or expires > ?) ORDER BY key ASC LIMIT ?"
-		queryDesc       = "SELECT key, value, expires, revision FROM kv WHERE (key >= ? and key <= ? and key < ?) AND (expires is NULL or expires > ?) ORDER BY key DESC LIMIT ?"
+		queryAsc        = "SELECT key, value, expires, revision FROM kv WHERE (key >= ? AND key <= ?) AND (? == '' OR key > ?) AND (expires IS NULL OR expires > ?) ORDER BY key ASC LIMIT ?"
+		queryDesc       = "SELECT key, value, expires, revision FROM kv WHERE (key >= ? AND key <= ?) AND (? == '' OR key < ?) AND (expires IS NULL OR expires > ?) ORDER BY key DESC LIMIT ?"
 		defaultPageSize = 1000
 	)
 	return func(yield func(backend.Item, error) bool) {
@@ -657,7 +657,6 @@ func (l *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 
 		query := queryAsc
 		if params.Descending {
-			exclusiveStartKey = endKey
 			query = queryDesc
 		}
 
@@ -673,7 +672,7 @@ func (l *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 				}
 				defer q.Close()
 
-				rows, err := q.QueryContext(ctx, startKey, endKey, exclusiveStartKey, l.clock.Now().UTC(), pageLimit)
+				rows, err := q.QueryContext(ctx, startKey, endKey, exclusiveStartKey, exclusiveStartKey, l.clock.Now().UTC(), pageLimit)
 				if err != nil {
 					return trace.Wrap(err)
 				}
