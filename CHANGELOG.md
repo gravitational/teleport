@@ -4,28 +4,82 @@
 
 ### Automatic Updates
 
-17.3 introduces a new automatic update mechanism for system administrators to control which Teleport version their
-agents are running. You can now configure the agent update schedule and desired agent version via the `autoupdate_config`
+17.3 introduces a new automatic update mechanism for system administrators to
+control which Teleport version their agents are running. You can now configure
+the agent update schedule and desired agent version via the `autoupdate_config`
 and `autoupdate_version` resources.
 
-Updates are performed by the new `teleport-update` binary.
-This new system is package manager-agnostic and opt-in. Existing agents won't be automatically enrolled, you can enroll
-existing 17.3+ agents by running `teleport-update enable`.
+Updates are performed by the new `teleport-update` binary. This new system is
+package manager-agnostic and opt-in. Existing agents won't be automatically
+enrolled, you can enroll existing 17.3+ agents by running `teleport-update
+enable`.
 
-`teleport-update` will become the new standard way of installing Teleport as it always picks the appropriate Teleport
-edition (Community vs Enterprise), the cluster's desired version, and the correct Teleport variant (e.g. FIPS-compliant
+`teleport-update` will become the new standard way of installing Teleport as it
+always picks the appropriate Teleport edition (Community vs Enterprise), the
+cluster's desired version, and the correct Teleport variant (e.g. FIPS-compliant
 cryptography).
-
-You can find more information about the feature in [our documentation]().
 
 ### Package layout changes
 
-Starting with 17.3.0, the Teleport DEB and RPM packages, notably used by the `apt`, `yum`, `dnf` and `zypper` package
-managers, will place the Teleport binaries in `/opt/teleport` instead of `/usr/local/bin`.
+Starting with 17.3.0, the Teleport DEB and RPM packages, notably used by the
+`apt`, `yum`, `dnf` and `zypper` package managers, will place the Teleport
+binaries in `/opt/teleport` instead of `/usr/local/bin`.
 
-The binaries will be symlinked to their previous location, no change should be required in your scripts or systemd units.
+The binaries will be symlinked to their previous location, no change should be
+required in your scripts or systemd units.
 
-This change allows us to do automatic updates without conflicting with the package manager.
+This change allows us to do automatic updates without conflicting with the
+package manager.
+
+### Delegated joining for Oracle Cloud Infrastructure
+
+Teleport agents running on Oracle Cloud Infrastructure (OCI) are now able to
+join the Teleport cluster without a static join token.
+
+### Stable UIDs for host-user creation
+
+Teleport now provides the ability to create host users with stable UIDs across
+the entire Teleport cluster.
+
+### VNet for Windows
+
+Teleport's VNet feature are now available for Windows, allowing users to access
+TCP applications protected by Teleport as if they were on the same network.
+
+### Improved GitHub Proxy enrollment flow
+
+Teleport web UI now provides wizard-like guided enrollment flow for the new
+GitHub Proxy integration.
+
+### AWS Identity Center integration improvements
+
+AWS Identity Center integration now supports using IAM authentication instead of
+OIDC (useful for private clusters) and a hybrid setup that allows to use another
+IdP as external identity source.
+
+### Okta integration improvements
+
+Teleport Okta integration now provides updated guided enrollment flow and will
+allow updating integration settings (such as sync configuration or group
+filters) without having to recreate the integration.
+
+Note that the new enrollment flow uses OAuth authentication method instead of
+API tokens. If the Okta integration is installed on v17.3 and the cluster is
+downgraded the Okta plugin must be reinstalled to ensure proper functionality.
+
+### Other fixes and improvements
+
+* Added `tctl edit` support for Identity Center plugin resources. [#52605](https://github.com/gravitational/teleport/pull/52605)
+* Added Oracle join method to web UI provision token editor. [#52599](https://github.com/gravitational/teleport/pull/52599)
+* Added warnings to VNet on macOS about other software that might conflict with VNet, based on inspecting network routes on the system. [#52552](https://github.com/gravitational/teleport/pull/52552)
+* Added auto-importing of Oracle Cloud tags. [#52543](https://github.com/gravitational/teleport/pull/52543)
+* The `teleport-cluster` Helm chart now supports tuning the pod readiness. [#52540](https://github.com/gravitational/teleport/pull/52540)
+* Added support for X509 revocations to Workload Identity. [#52503](https://github.com/gravitational/teleport/pull/52503)
+* Git proxy commands executed in terminals now support interactive login prompts when the `tsh` session expires. [#52475](https://github.com/gravitational/teleport/pull/52475)
+* Connect is now installed per-machine instead of per-user on Windows. [#52453](https://github.com/gravitational/teleport/pull/52453)
+* Added `teleport-update` for default build. [#52361](https://github.com/gravitational/teleport/pull/52361)
+* Improved sync performance in Identity Center integration. [#6102](https://github.com/gravitational/teleport.e/pull/6102)
+* Delete related Git servers when deleting GitHub integration in the web UI. [#6101](https://github.com/gravitational/teleport.e/pull/6101)
 
 ## 17.2.9 (02/25/25)
 
