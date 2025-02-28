@@ -1,7 +1,8 @@
-Install a Teleport Agent on your Linux server:
+To install a Teleport Agent on your Linux server:
 
-<Tabs>
-<TabItem label="Teleport version 17.3 and above">
+The easiest installation method, for *Teleport versions 17.3 and above*, is the
+cluster install script. It will use the best version, edition, and installation
+mode for your cluster.
 
 1. Assign <Var name="teleport.example.com:443"/> to your Teleport cluster hostname.
    This should contain you cluster hostname and port, but not the scheme (https://).
@@ -9,11 +10,10 @@ Install a Teleport Agent on your Linux server:
 1. Run your cluster's install script:
 
    ```code
-   $ bash -c "$(curl "https://<Var name="teleport.example.com:443"/>/scripts/install.sh")"
+   $ curl "https://<Var name="example.teleport.sh:443"/>/scripts/install.sh" | sudo bash
    ```
 
-</TabItem>
-<TabItem label="Older Teleport versions">
+On *older Teleport versions*:
 
 1. Assign <Var name="edition" /> to one of the following, depending on your
    Teleport edition:
@@ -50,5 +50,3 @@ Install a Teleport Agent on your Linux server:
    uses it to install Teleport binaries. To customize your installation, learn
    about the Teleport package repositories in the [installation
    guide](../installation.mdx#linux).
-</TabItem>
-</Tabs>

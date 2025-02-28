@@ -42,7 +42,7 @@ Files are installed to the following paths (with the default `install-suffix`):
 - `/opt/teleport/default` - Storage for Teleport versions and updater configuration
 - `/etc/systemd/system/teleport-update.{service,timer}` - Updater SystemD timer and service
 - `/etc/systemd/system/teleport.service.d/teleport-update.conf` - Environment variables that configure Teleport
-- `/etc/needrestart/conf.d/teleport-update.conf` - Needrestart defaults for Teleport
+- `/etc/needrestart/conf.d/teleport-update.conf` - needrestart defaults for Teleport
 
 Most flags passed to `enable` are persisted for `update`.
 To change these flags, run `enable` again with the new flags.

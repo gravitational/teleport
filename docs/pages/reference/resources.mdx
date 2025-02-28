@@ -215,10 +215,10 @@ spec:
 Global configuration options for the agents enrolled into automatic updates (v1).
 
 <Notice type="warning">
-`cluster_maintenance_config` configures the original (v1) Teleport Agent updater,
-which is currently supported but will be deprecated after the new updater is released.
-The `autoupdate_config` and `autoupdate_version` resources further down configure the
-new (v2) Teleport updater.
+`cluster_maintenance_config` configures Managed Updates v1,
+which are currently supported but will be superseded by Managed Updates v2.
+The `autoupdate_config` and `autoupdate_version` resources further down
+configure Managed Updates v2.
 </Notice>
 
 (!docs/pages/includes/cluster-maintenance-config-spec.mdx!)
@@ -341,10 +341,11 @@ Find out more on the
 Configuration options for Teleport Agent and client tools Managed Updates (v2).
 
 <Notice type="warning">
-The `autoupdate_config` and `autoupdate_version` resources configure the both the
-new (v2) Teleport Agent updater and original (v1) Teleport Agent updater.
-`cluster_maintenance_config` above configures the original (v1) Teleport Agent updater,
-which is currently supported but will be deprecated after the new updater is released.
+The `autoupdate_config` and `autoupdate_version` resources configure Managed
+Updates v2 and Managed Updates v1.
+
+`cluster_maintenance_config` above configures only Managed Updates v1
+which are currently supported but will be deprecated in a future version.
 </Notice>
 
 ```yaml
@@ -419,10 +420,11 @@ See [Teleport Client Tool Managed Updates](../upgrading/client-tools-autoupdate.
 Allows cluster administrators to manage versions used for agent and client tools Managed Updates.
 
 <Notice type="warning">
-The `autoupdate_config` and `autoupdate_version` resources configure the both the
-new (v2) Teleport Agent updater and original (v1) Teleport Agent updater.
-`cluster_maintenance_config` above configures the original (v1) Teleport Agent updater,
-which is currently supported but will be deprecated after the new updater is released.
+The `autoupdate_config` and `autoupdate_version` resources configure Managed
+Updates v2 and Managed Updates v1.
+
+`cluster_maintenance_config` above configures only Managed Updates v1
+which are currently supported but will be deprecated in a future version.
 </Notice>
 
 This resource is not editable for cloud-managed Teleport Enterprise to ensure that all of
