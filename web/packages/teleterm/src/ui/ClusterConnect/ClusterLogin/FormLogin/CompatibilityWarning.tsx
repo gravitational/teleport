@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ButtonSecondary, Flex, Stack } from 'design';
-import { Warning } from 'design/Alert';
-import { Cog, NewTab } from 'design/Icon';
+import { Flex, Stack } from 'design';
+import { ActionButton, Warning } from 'design/Alert';
+import { NewTab } from 'design/Icon';
 import {
   AuthSettings,
   ClientVersionStatus,
@@ -47,37 +47,34 @@ export function CompatibilityWarning(props: {
     <Warning
       mb={0}
       mx={props.mx}
-      css={`
-        a {
-          // Alert component sets color of anchor elements to "light".
-          // Here we change it to the secondary button color.
-          color: ${props => props.theme.colors.text.slightlyMuted};
-        }
-      `}
+      alignItems="flex-start"
       details={
         <Stack gap={2}>
           {warning}
           <Flex justifyContent="space-between" width="100%" gap={2}>
-            <ButtonSecondary
-              width="100%"
-              as="a"
-              href={buildDownloadUrl(props.platform)}
-              target="_blank"
+            <ActionButton
               fill="border"
-              size="small"
-            >
-              <NewTab size="small" mr={1} />
-              Download In Browser
-            </ButtonSecondary>
-            <ButtonSecondary
-              width="100%"
-              fill="border"
-              size="small"
-              onClick={props.disableVersionCheck}
-            >
-              <Cog size="small" mr={1} />
-              Do Not Show Again
-            </ButtonSecondary>
+              intent="neutral"
+              inputAlignment
+              action={{
+                content: (
+                  <>
+                    <NewTab size="small" mr={1} />
+                    Download In Browser
+                  </>
+                ),
+                href: buildDownloadUrl(props.platform),
+              }}
+            />
+            <ActionButton
+              fill="minimal"
+              intent="neutral"
+              inputAlignment
+              action={{
+                content: 'Do Not Show Again',
+                onClick: props.disableVersionCheck,
+              }}
+            />
           </Flex>
         </Stack>
       }
