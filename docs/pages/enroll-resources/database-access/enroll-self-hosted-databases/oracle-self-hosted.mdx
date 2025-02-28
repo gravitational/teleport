@@ -258,6 +258,47 @@ $ tsh db logout oracle
 $ tsh db logout
 ```
 
+## Troubleshooting
+
+
+### Error on client connection
+
+If you are getting a similar error below that is likely a failure to connect
+to the TCPS service from the Teleport database service.
+
+```code
+$ tsh db connect --db-name=example --db-user=alice oracle
+SQLcl: Release 24.4 Production on Fri Feb 28 13:00:42 2025
+
+Copyright (c) 1982, 2025, Oracle.  All rights reserved.
+
+Connection failed
+  USER          =
+  URL           = jdbc:oracle:thin:@localhost:52019/example
+  Error Message = ORA-17800: Got minus one from a read call. (CONNECTION_ID=1234==)
+https://docs.oracle.com/error-help/db/ora-17800/
+
+ERROR: exit status 1
+```
+
+To resolve first check that `tcps` port is listening with the expected certificate with `lsnrctl status`.
+
+Run `openssl s_client -connect localhost:2484` on the Oracle host to validate the service. As part of the output you should see
+a certificate chain with the Oracle host and Teleport cluster.
+
+```bash
+....
+Certificate chain
+ 0 s:/CN=oraclehost
+   i:/O=example.teleport.sh/CN=example.teleport.sh/serialNumber=290149608632615397455959888366851033338
+ 1 s:/O=example.teleport.sh/CN=example.teleport.sh/serialNumber=290149608632615397455959888366851033338
+   i:/O=example.teleport.sh/CN=example.teleport.sh/serialNumber=290149608632615397455959888366851033338
+```
+
+If that chain is not available then confirm that the configuration matches the wallet paths. You may 
+need to recreate the wallet to resolve.  Once you have updated the configuration run the `openssl s_client -connect localhost:2484`
+again to validate the expected certificates are being used.
+
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
