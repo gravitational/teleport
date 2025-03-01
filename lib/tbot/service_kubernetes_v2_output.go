@@ -77,6 +77,7 @@ func (s *KubernetesV2OutputService) Run(ctx context.Context) error {
 	defer unsubscribe()
 
 	return trace.Wrap(runOnInterval(ctx, runOnIntervalConfig{
+		service:    s.String(),
 		name:       "output-renewal",
 		f:          s.generate,
 		interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
