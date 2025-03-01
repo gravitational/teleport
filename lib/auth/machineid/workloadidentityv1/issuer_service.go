@@ -35,6 +35,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	traitv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -135,6 +136,13 @@ func (s *IssuanceService) deriveAttrs(
 			Labels:  authzCtx.User.GetAllLabels(),
 		},
 		Join: authzCtx.Identity.GetIdentity().JoinAttributes,
+	}
+
+	for key, values := range authzCtx.Identity.GetIdentity().Traits {
+		attrs.User.Traits = append(attrs.User.Traits, &traitv1.Trait{
+			Key:    key,
+			Values: values,
+		})
 	}
 
 	return attrs, nil

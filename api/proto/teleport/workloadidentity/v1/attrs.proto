@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.workloadidentity.v1;
 
+import "teleport/trait/v1/trait.proto";
 import "teleport/workloadidentity/v1/join_attrs.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1";
@@ -71,6 +72,8 @@ message UserAttrs {
   string bot_instance_id = 4;
   // Labels of the user.
   map<string, string> labels = 5;
+  // Traits of the user.
+  repeated teleport.trait.v1.Trait traits = 6;
 }
 
 // The attributes of a principal requesting a workload identity. These
