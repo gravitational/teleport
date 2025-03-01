@@ -11,4 +11,8 @@ metadata:
 {{- end }}
 data:
   tbot.yaml: |
+    {{- if eq (typeOf .Values.tbotConfig) "string" }}
+    {{- mustMergeOverwrite (include "tbot.config" . | fromYaml) (tpl .Values.tbotConfig $ | fromYaml) | toYaml | nindent 4 -}}
+    {{- else }}
     {{- mustMergeOverwrite (include "tbot.config" . | fromYaml) .Values.tbotConfig | toYaml | nindent 4 -}}
+    {{- end -}}
