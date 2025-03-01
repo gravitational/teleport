@@ -31,6 +31,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -4819,7 +4820,7 @@ func connectToSSHAgent() agent.ExtendedAgent {
 
 // Username returns the current user's username
 func Username() (string, error) {
-	u, err := apiutils.CurrentUser()
+	u, err := user.Current()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
