@@ -851,6 +851,8 @@ const (
 	DiscoveryAppInsecureSkipVerify = TeleportNamespace + "/insecure-skip-verify"
 	// DiscoveryAppIgnore specifies if a Kubernetes service should be ignored by discovery service.
 	DiscoveryAppIgnore = TeleportNamespace + "/ignore"
+	// DiscoveryPublicAddr specifies the public address for a discovered app created from a Kubernetes service.
+	DiscoveryPublicAddr = TeleportNamespace + "/public-addr"
 
 	// ReqAnnotationApproveSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationApproveSchedulesLabel = "/schedules"
