@@ -107,6 +107,7 @@ const AccessRule = memo(function AccessRule({
         value={resources}
         onChange={r => setRule({ ...value, resources: r })}
         rule={precomputed(validation.fields.resources)}
+        menuPosition="fixed"
       />
       <FieldSelect
         isMulti
@@ -117,6 +118,7 @@ const AccessRule = memo(function AccessRule({
         value={verbs}
         onChange={v => setRule({ ...value, verbs: v })}
         rule={precomputed(validation.fields.verbs)}
+        menuPosition="fixed"
       />
       <FieldInput
         label="Filter"

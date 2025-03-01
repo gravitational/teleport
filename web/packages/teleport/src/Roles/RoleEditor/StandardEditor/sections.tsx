@@ -16,15 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
-import { useTheme } from 'styled-components';
+import { useRef, useState } from 'react';
+import styled, { useTheme } from 'styled-components';
 
 import Box from 'design/Box';
 import ButtonIcon from 'design/ButtonIcon';
 import Flex from 'design/Flex';
-import { Minus, Plus, Trash } from 'design/Icon';
+import { ChevronDown, Trash } from 'design/Icon';
 import { H3 } from 'design/Text';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
+import { useResizeObserver } from 'design/utils/useResizeObserver';
 import { useValidation } from 'shared/components/Validation';
 import { ValidationResult } from 'shared/components/Validation/rules';
 
@@ -66,17 +67,56 @@ export const SectionBox = ({
   validation?: ValidationResult;
   onRemove?(): void;
 }>) => {
-  const theme = useTheme();
-  const [expanded, setExpanded] = useState(true);
-  const ExpandIcon = expanded ? Minus : Plus;
-  const expandTooltip = expanded ? 'Collapse' : 'Expand';
-  const validator = useValidation();
+  enum ExpansionState {
+    /** The section is fully collapsed. */
+    Collapsed,
+    /** The section is fully expanded. */
+    Expanded,
+    /**
+     * The section is still expanded, but it's showing a collapsing animation.
+     * In this state, the <details> element is still open to make all its
+     * children visible.
+     */
+    Collapsing,
+  }
 
+  const theme = useTheme();
+  const [expansionState, setExpansionState] = useState(ExpansionState.Expanded);
+  const expandTooltip =
+    expansionState === ExpansionState.Collapsed ? 'Collapse' : 'Expand';
+  const validator = useValidation();
+  // Points to the content element whose height will be observed for setting
+  // target height of the expand animation.
+  const contentRef = useRef();
+  const [contentHeight, setContentHeight] = useState(0);
+
+  useResizeObserver(
+    contentRef,
+    entry => {
+      setContentHeight(entry.borderBoxSize[0].blockSize);
+    },
+    { enabled: true }
+  );
+
+  // Handles expand/collapse clicks.
   const handleExpand = (e: React.MouseEvent) => {
     // Don't let <summary> handle the event, we'll do it ourselves to keep
     // track of the state.
     e.preventDefault();
-    setExpanded(expanded => !expanded);
+
+    setExpansionState(
+      expansionState === ExpansionState.Expanded
+        ? ExpansionState.Collapsing
+        : ExpansionState.Expanded
+    );
+  };
+
+  // Triggered when the collapse animation is finished and we can finally make
+  // the <details> element closed.
+  const handleContentExpanderTransitionEnd = () => {
+    if (expansionState === ExpansionState.Collapsing) {
+      setExpansionState(ExpansionState.Collapsed);
+    }
   };
 
   const handleRemove = (e: React.MouseEvent) => {
@@ -88,7 +128,7 @@ export const SectionBox = ({
   return (
     <Box
       as="details"
-      open={expanded}
+      open={expansionState !== ExpansionState.Collapsed}
       border={1}
       borderColor={
         validator.state.validating && !validation.valid
@@ -96,26 +136,37 @@ export const SectionBox = ({
           : theme.colors.interactive.tonal.neutral[0]
       }
       borderRadius={3}
+      role="group"
     >
       <Flex
         as="summary"
         height="56px"
         alignItems="center"
         ml={3}
-        mr={3}
-        css={'cursor: pointer'}
+        mr={2}
+        css={`
+          cursor: pointer;
+          &::-webkit-details-marker {
+            display: none;
+          }
+        `}
         onClick={handleExpand}
       >
+        <HoverTooltip tipContent={expandTooltip}>
+          <ExpandIcon
+            expanded={expansionState === ExpansionState.Expanded}
+            mr={2}
+            size="small"
+            color={theme.colors.text.muted}
+          />
+        </HoverTooltip>
         {/* TODO(bl-nero): Show validation result in the summary. */}
         <Flex flex="1" gap={2}>
           <H3>{title}</H3>
           {tooltip && <IconTooltip>{tooltip}</IconTooltip>}
         </Flex>
         {removable && (
-          <Box
-            borderRight={1}
-            borderColor={theme.colors.interactive.tonal.neutral[0]}
-          >
+          <Box>
             <HoverTooltip tipContent="Remove section">
               <ButtonIcon
                 aria-label="Remove section"
@@ -130,13 +181,29 @@ export const SectionBox = ({
             </HoverTooltip>
           </Box>
         )}
-        <HoverTooltip tipContent={expandTooltip}>
-          <ExpandIcon size="small" color={theme.colors.text.muted} ml={2} />
-        </HoverTooltip>
       </Flex>
-      <Box px={3} pb={3}>
-        {children}
-      </Box>
+      {/* This element is the one being animated when the section is expanded
+          or collapsed. */}
+      <ContentExpander
+        height={expansionState === ExpansionState.Expanded ? contentHeight : 0}
+        onTransitionEnd={handleContentExpanderTransitionEnd}
+      >
+        {/* This element is measured, so its size must reflect the size of
+            children. */}
+        <Box px={3} pb={3} ref={contentRef}>
+          {children}
+        </Box>
+      </ContentExpander>
     </Box>
   );
 };
+
+const ExpandIcon = styled(ChevronDown)<{ expanded: boolean }>`
+  transition: transform 0.2s ease-in-out;
+  transform: ${props => (props.expanded ? 'none' : 'rotate(-90deg)')};
+`;
+
+const ContentExpander = styled(Box)`
+  transition: all 0.2s ease-in-out;
+  overflow: hidden;
+`;
