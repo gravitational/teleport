@@ -31,7 +31,7 @@ func (c *Cache) GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, e
 	ctx, span := c.Tracer.Start(ctx, "cache/GetReverseTunnels")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.reverseTunnels)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.reverseTunnels)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -44,7 +44,7 @@ func (c *Cache) ListReverseTunnels(ctx context.Context, pageSize int, pageToken 
 	ctx, span := c.Tracer.Start(ctx, "cache/ListReverseTunnels")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.reverseTunnels)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.reverseTunnels)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}

@@ -42,7 +42,7 @@ func (c *Cache) GetGitServer(ctx context.Context, name string) (types.Server, er
 	ctx, span := c.Tracer.Start(ctx, "cache/GetGitServer")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.gitServers)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.gitServers)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -54,7 +54,7 @@ func (c *Cache) ListGitServers(ctx context.Context, pageSize int, pageToken stri
 	ctx, span := c.Tracer.Start(ctx, "cache/ListGitServers")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.gitServers)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.gitServers)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
