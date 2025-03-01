@@ -21,6 +21,7 @@ package memory
 import (
 	"bytes"
 	"context"
+	"iter"
 	"log/slog"
 	"sync"
 	"time"
@@ -276,8 +277,19 @@ func (m *Memory) DeleteRange(ctx context.Context, startKey, endKey backend.Key) 
 	m.Lock()
 	defer m.Unlock()
 	m.removeExpired()
-	re := m.getRange(ctx, startKey, endKey, backend.NoLimit)
-	for _, item := range re.Items {
+
+	var items []backend.Item
+	m.tree.AscendGreaterOrEqual(&btreeItem{Item: backend.Item{Key: startKey}}, func(item *btreeItem) bool {
+		if endKey.Compare(item.Key) < 0 {
+			return false
+		}
+
+		items = append(items, item.Item)
+
+		return true
+	})
+
+	for _, item := range items {
 		event := backend.Event{
 			Type: types.OpDelete,
 			Item: item,
@@ -290,25 +302,98 @@ func (m *Memory) DeleteRange(ctx context.Context, startKey, endKey backend.Key) 
 	return nil
 }
 
-// GetRange returns query range
-func (m *Memory) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
-	if startKey.IsZero() {
-		return nil, trace.BadParameter("missing parameter startKey")
+func (m *Memory) Items(ctx context.Context, params backend.IterateParams) iter.Seq2[backend.Item, error] {
+	if params.StartKey.IsZero() {
+		err := trace.BadParameter("missing parameter startKey")
+		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
 	}
-	if endKey.IsZero() {
-		return nil, trace.BadParameter("missing parameter endKey")
+	if params.EndKey.IsZero() {
+		err := trace.BadParameter("missing parameter endKey")
+		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
 	}
+
+	limit := params.Limit
 	if limit <= 0 {
 		limit = backend.DefaultRangeLimit
 	}
-	m.Lock()
-	defer m.Unlock()
-	m.removeExpired()
-	re := m.getRange(ctx, startKey, endKey, limit)
-	if len(re.Items) == backend.DefaultRangeLimit {
+
+	const defaultPageSize = 1000
+	return func(yield func(backend.Item, error) bool) {
+		startKey := params.StartKey
+		if params.Descending {
+			startKey = params.EndKey
+		}
+
+		var totalCount int
+		items := make([]backend.Item, 0, defaultPageSize)
+		startItem := &btreeItem{Item: backend.Item{Key: startKey}}
+
+		treeIter := m.tree.AscendGreaterOrEqual
+		if params.Descending {
+			treeIter = m.tree.DescendLessOrEqual
+		}
+
+		for {
+			pageLimit := min(limit-totalCount, defaultPageSize)
+			items = items[:0]
+
+			m.Lock()
+			m.removeExpired()
+			var moreItems bool
+			treeIter(startItem, func(item *btreeItem) bool {
+				if params.Descending && item.Key.Compare(params.StartKey) < 0 {
+					startItem = item
+					return false
+				}
+
+				if !params.Descending && params.EndKey.Compare(item.Key) < 0 {
+					startItem = item
+					return false
+				}
+
+				if len(items) == pageLimit {
+					startItem = item
+					moreItems = true
+					return false
+				}
+
+				items = append(items, item.Item)
+				return true
+			})
+			m.Unlock()
+
+			for _, item := range items {
+				if !yield(item, nil) {
+					return
+				}
+
+				totalCount++
+				if limit != backend.NoLimit && totalCount >= limit {
+					return
+				}
+			}
+
+			if !moreItems || len(items) < pageLimit {
+				return
+			}
+		}
+	}
+}
+
+// GetRange returns query range
+func (m *Memory) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
+	var result backend.GetResult
+	for item, err := range m.Items(ctx, backend.IterateParams{StartKey: startKey, EndKey: endKey, Limit: limit}) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result.Items = append(result.Items, item)
+	}
+
+	if len(result.Items) == backend.DefaultRangeLimit {
 		m.logger.WarnContext(ctx, "Range query hit backend limit. (this is a bug!)", "start_key", startKey, "limit", backend.DefaultRangeLimit)
 	}
-	return &re, nil
+	return &result, nil
 }
 
 // KeepAlive updates TTL on the lease
@@ -437,23 +522,6 @@ func (m *Memory) NewWatcher(ctx context.Context, watch backend.Watch) (backend.W
 		return nil, trace.BadParameter("events are turned off for this backend")
 	}
 	return m.buf.NewWatcher(ctx, watch)
-}
-
-func (m *Memory) getRange(ctx context.Context, startKey, endKey backend.Key, limit int) backend.GetResult {
-	var res backend.GetResult
-	startItem := &btreeItem{Item: backend.Item{Key: startKey}}
-	endItem := &btreeItem{Item: backend.Item{Key: endKey}}
-	m.tree.AscendGreaterOrEqual(startItem, func(item *btreeItem) bool {
-		if endItem.Less(item) {
-			return false
-		}
-		res.Items = append(res.Items, item.Item)
-		if limit > 0 && len(res.Items) >= limit {
-			return false
-		}
-		return true
-	})
-	return res
 }
 
 // removeExpired makes a pass through map and removes expired elements
