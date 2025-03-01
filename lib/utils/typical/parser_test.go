@@ -398,6 +398,74 @@ func TestParser(t *testing.T) {
 				"haha",
 			},
 		},
+		{
+			desc:        "integer equality (true)",
+			expr:        `1 == 1`,
+			expectMatch: true,
+		},
+		{
+			desc:        "integer equality (false)",
+			expr:        `1 == 2`,
+			expectMatch: false,
+		},
+		{
+			desc:        "equality lhs dynamic",
+			expr:        `ifelse(1 == 1, 1, "one") == 1`,
+			expectMatch: true,
+		},
+		{
+			desc:        "equality rhs dynamic",
+			expr:        `1 == ifelse(1 == 1, 1, "one")`,
+			expectMatch: true,
+		},
+		{
+			desc: "equality both operands dynamic",
+			expr: `ifelse(1 == 1, 1, "one") == ifelse(1 == 1, 1, "one")`,
+			expectParseError: []string{
+				"operator (==) can only be used when at least one operand type is known at parse time",
+			},
+		},
+		{
+			desc: "equality unsupported operand type",
+			expr: `traits == traits`,
+			expectParseError: []string{
+				"operator (==) not supported for type: map[string][]string",
+			},
+		},
+		{
+			desc:        "integer inequality (true)",
+			expr:        `1 != 2`,
+			expectMatch: true,
+		},
+		{
+			desc:        "integer inequality (false)",
+			expr:        `1 != 1`,
+			expectMatch: false,
+		},
+		{
+			desc:        "inequality lhs dynamic",
+			expr:        `ifelse(1 == 1, 1, "one") != 2`,
+			expectMatch: true,
+		},
+		{
+			desc:        "inequality rhs dynamic",
+			expr:        `2 != ifelse(1 == 1, 1, "one")`,
+			expectMatch: true,
+		},
+		{
+			desc: "iequality both operands dynamic",
+			expr: `ifelse(1 == 1, 1, "one") != ifelse(1 == 1, 1, "one")`,
+			expectParseError: []string{
+				"operator (!=) can only be used when at least one operand type is known at parse time",
+			},
+		},
+		{
+			desc: "inequality unsupported operand type",
+			expr: `traits != traits`,
+			expectParseError: []string{
+				"operator (!=) not supported for type: map[string][]string",
+			},
+		},
 	} {
 		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
