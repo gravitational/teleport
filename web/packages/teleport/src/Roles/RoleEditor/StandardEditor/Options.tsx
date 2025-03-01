@@ -21,6 +21,7 @@ import { components, OptionProps } from 'react-select';
 import styled, { useTheme } from 'styled-components';
 
 import Box from 'design/Box';
+import Flex from 'design/Flex';
 import Input from 'design/Input';
 import LabelInput from 'design/LabelInput';
 import { RadioGroup } from 'design/RadioGroup';
@@ -59,156 +60,163 @@ export const Options = memo(function Options({
   const sshPortForwardingModeId = `${id}-ssh-port-forwarding-mode`;
 
   return (
-    <OptionsGridContainer
-      border={1}
-      borderColor={theme.colors.interactive.tonal.neutral[0]}
-      borderRadius={3}
-      p={3}
-    >
-      <OptionsHeader>Global Settings</OptionsHeader>
+    <Flex flexDirection="column" gap={3}>
+      Additional advanced settings
+      <OptionsGridContainer
+        border={1}
+        borderColor={theme.colors.interactive.tonal.neutral[0]}
+        borderRadius={3}
+        p={3}
+      >
+        <OptionsHeader>Global Settings</OptionsHeader>
 
-      <OptionLabel htmlFor={maxSessionTTLId}>Max Session TTL</OptionLabel>
-      <Input
-        id={maxSessionTTLId}
-        value={value.maxSessionTTL}
-        disabled={isProcessing}
-        onChange={e => onChange({ ...value, maxSessionTTL: e.target.value })}
-      />
+        <OptionLabel htmlFor={maxSessionTTLId}>Max Session TTL</OptionLabel>
+        <Input
+          id={maxSessionTTLId}
+          value={value.maxSessionTTL}
+          disabled={isProcessing}
+          onChange={e => onChange({ ...value, maxSessionTTL: e.target.value })}
+        />
 
-      <OptionLabel htmlFor={clientIdleTimeoutId}>
-        Client Idle Timeout
-      </OptionLabel>
-      <Input
-        id={clientIdleTimeoutId}
-        value={value.clientIdleTimeout}
-        disabled={isProcessing}
-        onChange={e =>
-          onChange({ ...value, clientIdleTimeout: e.target.value })
-        }
-      />
+        <OptionLabel htmlFor={clientIdleTimeoutId}>
+          Client Idle Timeout
+        </OptionLabel>
+        <Input
+          id={clientIdleTimeoutId}
+          value={value.clientIdleTimeout}
+          disabled={isProcessing}
+          onChange={e =>
+            onChange({ ...value, clientIdleTimeout: e.target.value })
+          }
+        />
 
-      <Box>Disconnect When Certificate Expires</Box>
-      <BoolRadioGroup
-        name="disconnect-expired-cert"
-        value={value.disconnectExpiredCert}
-        onChange={d => onChange({ ...value, disconnectExpiredCert: d })}
-      />
+        <Box>Disconnect When Certificate Expires</Box>
+        <BoolRadioGroup
+          name="disconnect-expired-cert"
+          value={value.disconnectExpiredCert}
+          onChange={d => onChange({ ...value, disconnectExpiredCert: d })}
+        />
 
-      <OptionLabel htmlFor={requireMFATypeId}>Require Session MFA</OptionLabel>
-      <Select
-        inputId={requireMFATypeId}
-        isDisabled={isProcessing}
-        options={requireMFATypeOptions}
-        value={value.requireMFAType}
-        onChange={t => onChange?.({ ...value, requireMFAType: t })}
-      />
+        <OptionLabel htmlFor={requireMFATypeId}>
+          Require Session MFA
+        </OptionLabel>
+        <Select
+          inputId={requireMFATypeId}
+          isDisabled={isProcessing}
+          options={requireMFATypeOptions}
+          value={value.requireMFAType}
+          onChange={t => onChange?.({ ...value, requireMFAType: t })}
+        />
 
-      <OptionLabel htmlFor={defaultSessionRecordingModeId}>
-        Default Session Recording Mode
-      </OptionLabel>
-      <Select
-        inputId={defaultSessionRecordingModeId}
-        isDisabled={isProcessing}
-        options={sessionRecordingModeOptions}
-        value={value.defaultSessionRecordingMode}
-        onChange={m => onChange?.({ ...value, defaultSessionRecordingMode: m })}
-      />
+        <OptionLabel htmlFor={defaultSessionRecordingModeId}>
+          Default Session Recording Mode
+        </OptionLabel>
+        <Select
+          inputId={defaultSessionRecordingModeId}
+          isDisabled={isProcessing}
+          options={sessionRecordingModeOptions}
+          value={value.defaultSessionRecordingMode}
+          onChange={m =>
+            onChange?.({ ...value, defaultSessionRecordingMode: m })
+          }
+        />
 
-      <OptionsHeader separator>SSH</OptionsHeader>
+        <OptionsHeader separator>SSH</OptionsHeader>
 
-      <OptionLabel htmlFor={createHostUserModeId}>
-        Create Host User Mode
-      </OptionLabel>
-      <Select
-        inputId={createHostUserModeId}
-        isDisabled={isProcessing}
-        options={createHostUserModeOptions}
-        value={value.createHostUserMode}
-        onChange={m => onChange?.({ ...value, createHostUserMode: m })}
-      />
+        <OptionLabel htmlFor={createHostUserModeId}>
+          Create Host User Mode
+        </OptionLabel>
+        <Select
+          inputId={createHostUserModeId}
+          isDisabled={isProcessing}
+          options={createHostUserModeOptions}
+          value={value.createHostUserMode}
+          onChange={m => onChange?.({ ...value, createHostUserMode: m })}
+        />
 
-      <Box>Agent Forwarding</Box>
-      <BoolRadioGroup
-        name="forward-agent"
-        value={value.forwardAgent}
-        onChange={f => onChange({ ...value, forwardAgent: f })}
-      />
+        <Box>Agent Forwarding</Box>
+        <BoolRadioGroup
+          name="forward-agent"
+          value={value.forwardAgent}
+          onChange={f => onChange({ ...value, forwardAgent: f })}
+        />
 
-      <OptionLabel htmlFor={sshSessionRecordingModeId}>
-        Session Recording Mode
-      </OptionLabel>
-      <Select
-        inputId={sshSessionRecordingModeId}
-        isDisabled={isProcessing}
-        options={sessionRecordingModeOptions}
-        value={value.sshSessionRecordingMode}
-        onChange={m => onChange?.({ ...value, sshSessionRecordingMode: m })}
-      />
+        <OptionLabel htmlFor={sshSessionRecordingModeId}>
+          Session Recording Mode
+        </OptionLabel>
+        <Select
+          inputId={sshSessionRecordingModeId}
+          isDisabled={isProcessing}
+          options={sessionRecordingModeOptions}
+          value={value.sshSessionRecordingMode}
+          onChange={m => onChange?.({ ...value, sshSessionRecordingMode: m })}
+        />
 
-      <OptionLabel htmlFor={sshPortForwardingModeId}>
-        Port Forwarding Mode
-      </OptionLabel>
-      <Select
-        components={sshPortForwardingModeComponents}
-        inputId={sshPortForwardingModeId}
-        isDisabled={isProcessing}
-        options={sshPortForwardingModeOptions}
-        value={value.sshPortForwardingMode}
-        onChange={m => onChange?.({ ...value, sshPortForwardingMode: m })}
-      />
+        <OptionLabel htmlFor={sshPortForwardingModeId}>
+          Port Forwarding Mode
+        </OptionLabel>
+        <Select
+          components={sshPortForwardingModeComponents}
+          inputId={sshPortForwardingModeId}
+          isDisabled={isProcessing}
+          options={sshPortForwardingModeOptions}
+          value={value.sshPortForwardingMode}
+          onChange={m => onChange?.({ ...value, sshPortForwardingMode: m })}
+        />
 
-      <OptionsHeader separator>Database</OptionsHeader>
+        <OptionsHeader separator>Database</OptionsHeader>
 
-      <Box>Create Database User</Box>
-      <BoolRadioGroup
-        name="create-db-user"
-        value={value.createDBUser}
-        onChange={c => onChange({ ...value, createDBUser: c })}
-      />
+        <Box>Create Database User</Box>
+        <BoolRadioGroup
+          name="create-db-user"
+          value={value.createDBUser}
+          onChange={c => onChange({ ...value, createDBUser: c })}
+        />
 
-      {/* TODO(bl-nero): a bug in YAML unmarshalling backend breaks the
+        {/* TODO(bl-nero): a bug in YAML unmarshalling backend breaks the
           createDBUserMode field. Fix it and add the field here. */}
-      <OptionLabel htmlFor={createDBUserModeId}>
-        Create Database User Mode
-      </OptionLabel>
-      <Select
-        inputId={createDBUserModeId}
-        isDisabled={isProcessing}
-        options={createDBUserModeOptions}
-        value={value.createDBUserMode}
-        onChange={m => onChange?.({ ...value, createDBUserMode: m })}
-      />
+        <OptionLabel htmlFor={createDBUserModeId}>
+          Create Database User Mode
+        </OptionLabel>
+        <Select
+          inputId={createDBUserModeId}
+          isDisabled={isProcessing}
+          options={createDBUserModeOptions}
+          value={value.createDBUserMode}
+          onChange={m => onChange?.({ ...value, createDBUserMode: m })}
+        />
 
-      <OptionsHeader separator>Desktop</OptionsHeader>
+        <OptionsHeader separator>Desktop</OptionsHeader>
 
-      <Box>Create Desktop User</Box>
-      <BoolRadioGroup
-        name="create-desktop-user"
-        value={value.createDesktopUser}
-        onChange={c => onChange({ ...value, createDesktopUser: c })}
-      />
+        <Box>Create Desktop User</Box>
+        <BoolRadioGroup
+          name="create-desktop-user"
+          value={value.createDesktopUser}
+          onChange={c => onChange({ ...value, createDesktopUser: c })}
+        />
 
-      <Box>Allow Clipboard Sharing</Box>
-      <BoolRadioGroup
-        name="desktop-clipboard"
-        value={value.desktopClipboard}
-        onChange={c => onChange({ ...value, desktopClipboard: c })}
-      />
+        <Box>Allow Clipboard Sharing</Box>
+        <BoolRadioGroup
+          name="desktop-clipboard"
+          value={value.desktopClipboard}
+          onChange={c => onChange({ ...value, desktopClipboard: c })}
+        />
 
-      <Box>Allow Directory Sharing</Box>
-      <BoolRadioGroup
-        name="desktop-directory-sharing"
-        value={value.desktopDirectorySharing}
-        onChange={s => onChange({ ...value, desktopDirectorySharing: s })}
-      />
+        <Box>Allow Directory Sharing</Box>
+        <BoolRadioGroup
+          name="desktop-directory-sharing"
+          value={value.desktopDirectorySharing}
+          onChange={s => onChange({ ...value, desktopDirectorySharing: s })}
+        />
 
-      <Box>Record Desktop Sessions</Box>
-      <BoolRadioGroup
-        name="record-desktop-sessions"
-        value={value.recordDesktopSessions}
-        onChange={r => onChange({ ...value, recordDesktopSessions: r })}
-      />
-    </OptionsGridContainer>
+        <Box>Record Desktop Sessions</Box>
+        <BoolRadioGroup
+          name="record-desktop-sessions"
+          value={value.recordDesktopSessions}
+          onChange={r => onChange({ ...value, recordDesktopSessions: r })}
+        />
+      </OptionsGridContainer>
+    </Flex>
   );
 });
 

@@ -86,7 +86,8 @@ export const ResourcesTab = memo(function ResourcesTab({
     dispatch({ type: 'add-resource-access', payload: { kind } });
 
   return (
-    <Flex flexDirection="column" gap={3} my={2}>
+    <Flex flexDirection="column" gap={3}>
+      Rules that allow connecting to resources controlled by Teleport
       {value.map((res, i) => {
         return (
           <ResourceAccessSection
@@ -113,7 +114,7 @@ export const ResourcesTab = memo(function ResourcesTab({
           buttonText={
             <>
               <Plus size="small" mr={2} />
-              Add New Resource Access
+              Add Resource Access
             </>
           }
           buttonProps={{
@@ -151,38 +152,31 @@ export const resourceAccessSections: Record<
   ResourceAccessKind,
   {
     title: string;
-    tooltip: string;
     component: React.ComponentType<SectionProps<unknown, unknown>>;
   }
 > = {
   kube_cluster: {
     title: 'Kubernetes',
-    tooltip: 'Configures access to Kubernetes clusters',
     component: KubernetesAccessSection,
   },
   node: {
     title: 'Servers',
-    tooltip: 'Configures access to SSH servers',
     component: ServerAccessSection,
   },
   app: {
     title: 'Applications',
-    tooltip: 'Configures access to applications',
     component: AppAccessSection,
   },
   db: {
     title: 'Databases',
-    tooltip: 'Configures access to databases',
     component: DatabaseAccessSection,
   },
   windows_desktop: {
     title: 'Windows Desktops',
-    tooltip: 'Configures access to Windows desktops',
     component: WindowsDesktopAccessSection,
   },
   git_server: {
     title: 'GitHub Organizations',
-    tooltip: 'Configures access to GitHub organizations and their repositories',
     component: GitHubOrganizationAccessSection,
   },
 };
@@ -200,11 +194,7 @@ export const ResourceAccessSection = memo(function ResourceAccessSectionRaw<
   validation,
   dispatch,
 }: SectionPropsWithDispatch<T, V>) {
-  const {
-    component: Body,
-    title,
-    tooltip,
-  } = resourceAccessSections[value.kind];
+  const { component: Body, title } = resourceAccessSections[value.kind];
 
   function handleChange(val: T) {
     dispatch({ type: 'set-resource-access', payload: val });
@@ -216,10 +206,9 @@ export const ResourceAccessSection = memo(function ResourceAccessSectionRaw<
 
   return (
     <SectionBox
-      title={title}
+      titleSegments={[title]}
       removable
       onRemove={handleRemove}
-      tooltip={tooltip}
       isProcessing={isProcessing}
       validation={validation}
     >
