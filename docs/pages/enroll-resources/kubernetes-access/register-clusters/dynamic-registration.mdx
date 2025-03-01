@@ -21,12 +21,12 @@ registration, then create, list, update, and delete Kubernetes clusters via
 
 - A Linux host where you will install the Teleport Kubernetes Service.
 
-  <Notice type="tip">
+  <Admonition type="tip">
 
   Our `teleport-kube-agent` Helm chart does not support dynamic Kubernetes
   cluster registration.
 
-  </Notice>
+  </Admonition>
 
 - A Kubernetes cluster to join to your Teleport cluster. You must have
   permissions to create namespaces, secrets, service accounts, cluster roles,
@@ -424,13 +424,13 @@ $ tsh kube ls
  mycluster         env=test teleport.dev/origin=dynamic *
 ```
 
-<Notice type="warning">
+<Admonition type="warning">
 
 If the updated `kube_cluster` resource's labels no longer match the ones a Teleport
 Kubernetes Service instance is configured to watch, the instance will unregister
 and stop proxying the Kubernetes cluster.  
 
-</Notice>
+</Admonition>
 
 ### Delete Kubernetes cluster resources
 
