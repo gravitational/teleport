@@ -372,7 +372,8 @@ function PasskeysHeader({
       }
       description="Enable secure passwordless sign-in using
                 fingerprint or facial recognition, a one-time code, or
-                a device password."
+                a device password. Passkeys are usable for
+                multi-factor authentication checks."
       icon={<Icon.Key />}
       showIndicator={fetchDevicesAttempt.status === 'processing'}
       actions={button}
