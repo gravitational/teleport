@@ -1,7 +1,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ .Values.roleBindingName | default .Release.Name }}
+  name: {{ .Values.roleBindingName | default (include "teleport-kube-agent.fullname" .) }}
   namespace: {{ .Release.Namespace }}
 {{- if .Values.extraLabels.roleBinding }}
   labels:
@@ -10,7 +10,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: {{ .Values.roleName | default .Release.Name }}
+  name: {{ .Values.roleName | default (include "teleport-kube-agent.fullname" .) }}
 subjects:
 - kind: ServiceAccount
   name: {{ template "teleport-kube-agent.serviceAccountName" . }}
