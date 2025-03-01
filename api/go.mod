@@ -7,7 +7,7 @@ require (
 	github.com/go-piv/piv-go v1.11.0
 	github.com/gobwas/ws v1.4.0
 	github.com/gogo/protobuf v1.3.2
-	github.com/google/go-cmp v0.6.0
+	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/gravitational/trace v1.5.0
 	github.com/jonboulle/clockwork v0.5.0
@@ -23,7 +23,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.34.0
 	go.opentelemetry.io/proto/otlp v1.5.0
 	golang.org/x/crypto v0.35.0
-	golang.org/x/net v0.34.0
+	golang.org/x/net v0.35.0
 	golang.org/x/term v0.29.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f
 	google.golang.org/grpc v1.70.0
