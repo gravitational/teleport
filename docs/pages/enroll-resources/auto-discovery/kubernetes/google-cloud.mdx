@@ -494,22 +494,20 @@ command, depending on:
 - Whether you are running the Discovery and Kubernetes Service on Google Cloud
   or another platform
 
-<Tabs dropdownCaption="How your host is running:"
-dropdownSelected="Google Cloud">
-<TabItem options="Google Cloud" label="Package Manager ">
+<Tabs>
+<TabItem label="Google Cloud">
 
-On the host where you will run the Teleport Kubernetes Service and Discovery
-Service, start the Teleport service:
+If you installed Teleport with a package manager, on the host where you will run
+the Teleport Kubernetes Service and Discovery Service, start the Teleport
+service:
 
 ```code
 $ sudo systemctl start teleport
 ```
-</TabItem>
-<TabItem options="Google Cloud" label="TAR Archive ">
 
-On the host where you will run the Teleport Kubernetes Service and Discovery
-Service, create a systemd service configuration for Teleport, enable the
-Teleport service, and start Teleport:
+If you installed Teleport with a TAR archive, the host where you will run the
+Teleport Kubernetes Service and Discovery Service, create a systemd service
+configuration for Teleport, enable the Teleport service, and start Teleport:
 
 ```code
 $ sudo teleport install systemd -o /etc/systemd/system/teleport.service
@@ -517,57 +515,55 @@ $ sudo systemctl enable teleport
 $ sudo systemctl start teleport
 ```
 </TabItem>
-<TabItem options="Other Platform" label="Package Manager">
+<TabItem label="Other platform">
 
-When you installed Teleport via package manager, the installation process
-created a configuration for the init system `systemd` to run Teleport as a
-daemon.
-
-This service reads environment variables from a file at the path
+If you installed Teleport via package manager, the installation process created
+a configuration for the init system `systemd` to run Teleport as a daemon. This
+service reads environment variables from a file at the path
 `/etc/default/teleport`. Teleport's built-in Google Cloud client reads the
 credentials file at the location given by the `GOOGLE_APPLICATION_CREDENTIALS`
-variable.
+variable. In this case:
 
-Ensure that `/etc/default/teleport` has the following content:
+1. Ensure that `/etc/default/teleport` has the following content:
 
-```
-GOOGLE_APPLICATION_CREDENTIALS="/var/lib/teleport/google-cloud-credentials.json"
-```
+   ```
+   GOOGLE_APPLICATION_CREDENTIALS="/var/lib/teleport/google-cloud-credentials.json"
+   ```
 
-Start the Teleport service:
+1. Start the Teleport service:
 
-```code
-$ sudo systemctl enable teleport
-$ sudo systemctl start teleport
-```
-</TabItem>
-<TabItem options="Other Platform" label="TAR Archive">
+   ```code
+   $ sudo systemctl enable teleport
+   $ sudo systemctl start teleport
+   ```
 
-On the host where you are running the Teleport Discovery Service and Kubernetes
-Service, create a systemd configuration that you can use to run Teleport in the
-background:
+If you installed Teleport using a TAR archive:
 
-```code
-$ sudo teleport install systemd -o /etc/systemd/system/teleport.service
-$ sudo systemctl enable teleport
-```
+1. On the host where you are running the Teleport Discovery Service and
+   Kubernetes Service, create a systemd configuration that you can use to run
+   Teleport in the background:
 
-This service reads environment variables from a file at the path
-`/etc/default/teleport`. Teleport's built-in Google Cloud client reads the
-credentials file at the location given by the `GOOGLE_APPLICATION_CREDENTIALS`
-variable.
+   ```code
+   $ sudo teleport install systemd -o /etc/systemd/system/teleport.service
+   $ sudo systemctl enable teleport
+   ```
 
-Ensure that `/etc/default/teleport` has the following content:
+   This service reads environment variables from a file at the path
+   `/etc/default/teleport`. Teleport's built-in Google Cloud client reads the
+   credentials file at the location given by the
+   `GOOGLE_APPLICATION_CREDENTIALS` variable.
 
-```
-GOOGLE_APPLICATION_CREDENTIALS="/var/lib/teleport/google-cloud-credentials.json"
-```
+1. Ensure that `/etc/default/teleport` has the following content:
 
-Start the Discovery Service and Kubernetes Service:
+   ```
+   GOOGLE_APPLICATION_CREDENTIALS="/var/lib/teleport/google-cloud-credentials.json"
+   ```
 
-```code
-$ sudo systemctl start teleport
-```
+1. Start the Discovery Service and Kubernetes Service:
+
+   ```code
+   $ sudo systemctl start teleport
+   ```
 
 </TabItem>
 </Tabs>
