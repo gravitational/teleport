@@ -51,7 +51,7 @@ func MeetsMaxVersion(gotVer, maxVer string) bool {
 
 // CheckMinVersion compares a version with a minimum version supported.
 func CheckMinVersion(currentVersion, minVersion string) error {
-	currentSemver, minSemver, err := versionStringToSemver(currentVersion, minVersion)
+	currentSemver, minSemver, err := versionStringsToSemver(currentVersion, minVersion)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -65,7 +65,7 @@ func CheckMinVersion(currentVersion, minVersion string) error {
 
 // CheckMaxVersion compares a version with a maximum version supported.
 func CheckMaxVersion(currentVersion, maxVersion string) error {
-	currentSemver, maxSemver, err := versionStringToSemver(currentVersion, maxVersion)
+	currentSemver, maxSemver, err := versionStringsToSemver(currentVersion, maxVersion)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -83,10 +83,23 @@ func VersionBeforeAlpha(version string) string {
 	return version + "-aa"
 }
 
+// VersionWithoutPreRelease removes the prerelease suffix. Useful when showing
+// teleport.MinClientSemVersion, which by default comes with the -aa prerelease.
+func VersionWithoutPreRelease(version string) (string, error) {
+	semver, err := versionStringToSemver(version)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	semver.PreRelease = ""
+
+	return semver.String(), nil
+}
+
 // MinVerWithoutPreRelease compares semver strings, but skips prerelease. This allows to compare
 // two versions and ignore dev,alpha,beta, etc. strings.
 func MinVerWithoutPreRelease(currentVersion, minVersion string) (bool, error) {
-	currentSemver, minSemver, err := versionStringToSemver(currentVersion, minVersion)
+	currentSemver, minSemver, err := versionStringsToSemver(currentVersion, minVersion)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -118,16 +131,24 @@ func MajorSemverWithWildcards(version string) (string, error) {
 	return fmt.Sprintf("%d.x.x", ver.Major), nil
 }
 
-func versionStringToSemver(ver1, ver2 string) (*semver.Version, *semver.Version, error) {
-	v1Semver, err := semver.NewVersion(ver1)
+func versionStringsToSemver(ver1, ver2 string) (*semver.Version, *semver.Version, error) {
+	v1Semver, err := versionStringToSemver(ver1)
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "unsupported version format, need semver format: %q, e.g 1.0.0", v1Semver)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	v2Semver, err := semver.NewVersion(ver2)
+	v2Semver, err := versionStringToSemver(ver2)
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "unsupported version format, need semver format: %q, e.g 1.0.0", v2Semver)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	return v1Semver, v2Semver, nil
+}
+
+func versionStringToSemver(ver string) (*semver.Version, error) {
+	semver, err := semver.NewVersion(ver)
+	if err != nil {
+		return nil, trace.Wrap(err, "unsupported version format, need semver format: %q, e.g 1.0.0", semver)
+	}
+	return semver, nil
 }
