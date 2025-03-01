@@ -228,8 +228,8 @@ importers:
         specifier: ^1.10.12
         version: 1.10.12
       '@swc/plugin-styled-components':
-        specifier: ^6.7.0
-        version: 6.7.0
+        specifier: ^7.0.0
+        version: 7.0.0
       '@types/jsdom':
         specifier: ^21.1.7
         version: 21.1.7
@@ -2681,8 +2681,8 @@ packages:
     peerDependencies:
       '@swc/core': '*'
 
-  '@swc/plugin-styled-components@6.7.0':
-    resolution: {integrity: sha512-da9RL9GEWnyYzvQ/haupYkgcmt7AKlstzhbxVY0BEHuolHlhEpxqLLkKAExU/Mb/76XIdmevkH8r20JjRtB1kA==}
+  '@swc/plugin-styled-components@7.0.0':
+    resolution: {integrity: sha512-22ki8qobTqDVVBj48uG0GCdprXdqvLPP8q4brKwSIayw86qfZeSGmlYtif6bQ5ftqRwV9jwJVY45DvXCk0FEgg==}
 
   '@swc/types@0.1.17':
     resolution: {integrity: sha512-V5gRru+aD8YVyCOMAjMpWR1Ui577DD5KSJsHP8RAxopAH22jFz6GZd/qxqjO6MJHQhcsjvjOFXyDhyLQUnMveQ==}
@@ -3653,8 +3653,8 @@ packages:
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
 
-  cookie@0.7.1:
-    resolution: {integrity: sha512-6DnInpx7SJ2AK3+CTUE/ZM0vWTUboZCegxhC2xiIydHR9jNuTAASBrfEpHhiGOZw/nX51bHt6YQl8jsGo4y/0w==}
+  cookie@0.7.2:
+    resolution: {integrity: sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w==}
     engines: {node: '>= 0.6'}
 
   core-js-compat@3.40.0:
@@ -8060,7 +8060,7 @@ snapshots:
 
   '@bundled-es-modules/cookie@2.0.1':
     dependencies:
-      cookie: 0.7.1
+      cookie: 0.7.2
 
   '@bundled-es-modules/statuses@1.0.1':
     dependencies:
@@ -9758,7 +9758,7 @@ snapshots:
       '@swc/counter': 0.1.3
       jsonc-parser: 3.3.1
 
-  '@swc/plugin-styled-components@6.7.0':
+  '@swc/plugin-styled-components@7.0.0':
     dependencies:
       '@swc/counter': 0.1.3
 
@@ -10936,7 +10936,7 @@ snapshots:
 
   convert-source-map@2.0.0: {}
 
-  cookie@0.7.1: {}
+  cookie@0.7.2: {}
 
   core-js-compat@3.40.0:
     dependencies:
