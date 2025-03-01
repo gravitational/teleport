@@ -29,6 +29,8 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/http"
+	"os"
+	"strconv"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -162,6 +164,23 @@ func (h *Handler) createDesktopConnection(
 	rand.Shuffle(len(validServiceIDs), func(i, j int) {
 		validServiceIDs[i], validServiceIDs[j] = validServiceIDs[j], validServiceIDs[i]
 	})
+
+	// Special case: allow opt-in behavior to check for a desktop service
+	// running in-process, which may result in lower-latency connections.
+	if ok, _ := strconv.ParseBool(os.Getenv("TELEPORT_UNSTABLE_PREFER_LOCAL_DESKTOP_SERVICE")); ok {
+		for i, id := range validServiceIDs {
+			// In-process desktop services will have the same HostUUID as this proxy.
+			if id == h.cfg.HostUUID {
+				// Move "local" service to the front of the list.
+				validServiceIDs[0], validServiceIDs[i] = validServiceIDs[i], validServiceIDs[0]
+				h.logger.InfoContext(ctx, "Preferring in-process desktop service")
+				break
+			}
+		}
+		if len(validServiceIDs) > 0 && validServiceIDs[0] != h.cfg.HostUUID {
+			h.logger.WarnContext(ctx, "No in-process desktop service available, will select one at random")
+		}
+	}
 
 	// Parse the private key of the user from the session context.
 	pk, err := keys.ParsePrivateKey(sctx.cfg.Session.GetTLSPriv())
