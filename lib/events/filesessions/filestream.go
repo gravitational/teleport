@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/sessionrecording"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -69,7 +70,7 @@ func GetOpenFileFunc() utils.OpenFileWithFlagsFunc {
 }
 
 // minUploadBytes is the minimum part file size required to trigger its upload.
-const minUploadBytes = events.MaxProtoMessageSizeBytes * 2
+const minUploadBytes = sessionrecording.MaxProtoMessageSizeBytes * 2
 
 // NewStreamer creates a streamer sending uploads to disk
 func NewStreamer(dir string) (*events.ProtoStreamer, error) {
@@ -355,7 +356,7 @@ func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpl
 	}
 
 	// Create a buffer with the max size that a part file can have.
-	buf := make([]byte, minUploadBytes+events.MaxProtoMessageSizeBytes)
+	buf := make([]byte, minUploadBytes+sessionrecording.MaxProtoMessageSizeBytes)
 
 	_, err = file.Write(buf)
 	if err = trace.NewAggregate(err, file.Close()); err != nil {
