@@ -35,7 +35,7 @@ type RoleDefinitionsClient interface {
 	ListRoleDefinitions(ctx context.Context, scope string) ([]*armauthorization.RoleDefinition, error)
 }
 
-func fetchRoleDefinitions(ctx context.Context, subscriptionID string, cli RoleDefinitionsClient) ([]*accessgraphv1alpha.AzureRoleDefinition, error) { //nolint:unused // used in a dependent PR
+func fetchRoleDefinitions(ctx context.Context, subscriptionID string, cli RoleDefinitionsClient) ([]*accessgraphv1alpha.AzureRoleDefinition, error) {
 	// List the role definitions
 	roleDefs, err := cli.ListRoleDefinitions(ctx, fmt.Sprintf("/subscriptions/%s", subscriptionID))
 	if err != nil {

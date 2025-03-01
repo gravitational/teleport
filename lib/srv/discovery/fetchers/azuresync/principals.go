@@ -28,21 +28,34 @@ import (
 	"github.com/gravitational/teleport/lib/msgraph"
 )
 
-type dirObjMetadata struct { //nolint:unused // invoked in a dependent PR
+type dirObjMetadata struct {
 	objectType string
+	identities *[]*msgraph.ObjectIdentity
 }
 
-type queryResult struct { //nolint:unused // invoked in a dependent PR
+type queryResult struct {
 	metadata dirObjMetadata
 	dirObj   msgraph.DirectoryObject
 }
 
+const (
+	objectTypeUser         = "user"
+	objectTypeGroup        = "group"
+	objectTypeSvcPrincipal = "servicePrincipal"
+)
+
 // fetchPrincipals fetches the Azure principals (users, groups, and service principals) using the Graph API
-func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Client) ([]*accessgraphv1alpha.AzurePrincipal, error) { //nolint: unused // invoked in a dependent PR
+func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Client) ([]*accessgraphv1alpha.AzurePrincipal, error) {
 	// Fetch the users, groups, and service principals as directory objects
 	var queryResults []queryResult
 	err := cli.IterateUsers(ctx, func(user *msgraph.User) bool {
-		res := queryResult{metadata: dirObjMetadata{objectType: "user"}, dirObj: user.DirectoryObject}
+		res := queryResult{
+			metadata: dirObjMetadata{
+				objectType: objectTypeUser,
+				identities: user.Identities,
+			},
+			dirObj: user.DirectoryObject,
+		}
 		queryResults = append(queryResults, res)
 		return true
 	})
@@ -50,7 +63,7 @@ func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Cl
 		return nil, trace.Wrap(err)
 	}
 	err = cli.IterateGroups(ctx, func(group *msgraph.Group) bool {
-		res := queryResult{metadata: dirObjMetadata{objectType: "group"}, dirObj: group.DirectoryObject}
+		res := queryResult{metadata: dirObjMetadata{objectType: objectTypeGroup}, dirObj: group.DirectoryObject}
 		queryResults = append(queryResults, res)
 		return true
 	})
@@ -58,7 +71,7 @@ func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Cl
 		return nil, trace.Wrap(err)
 	}
 	err = cli.IterateServicePrincipals(ctx, func(servicePrincipal *msgraph.ServicePrincipal) bool {
-		res := queryResult{metadata: dirObjMetadata{objectType: "servicePrincipal"}, dirObj: servicePrincipal.DirectoryObject}
+		res := queryResult{metadata: dirObjMetadata{objectType: objectTypeSvcPrincipal}, dirObj: servicePrincipal.DirectoryObject}
 		queryResults = append(queryResults, res)
 		return true
 	})
@@ -75,13 +88,24 @@ func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Cl
 				trace.BadParameter("nil values on msgraph directory object: %v", res.dirObj))
 			continue
 		}
-		pbPrincipals = append(pbPrincipals, &accessgraphv1alpha.AzurePrincipal{
+		pbPrincipal := &accessgraphv1alpha.AzurePrincipal{
 			Id:             *res.dirObj.ID,
 			SubscriptionId: subscriptionID,
 			LastSyncTime:   timestamppb.Now(),
 			DisplayName:    *res.dirObj.DisplayName,
 			ObjectType:     res.metadata.objectType,
-		})
+		}
+		if res.metadata.objectType == objectTypeUser && res.metadata.identities != nil {
+			for _, identity := range *res.metadata.identities {
+				pbIdentity := &accessgraphv1alpha.AzureIdentity{
+					SignInType:       *identity.SignInType,
+					Issuer:           *identity.Issuer,
+					IssuerAssignedId: *identity.IssuerAssignedId,
+				}
+				pbPrincipal.Identities = append(pbPrincipal.Identities, pbIdentity)
+			}
+		}
+		pbPrincipals = append(pbPrincipals, pbPrincipal)
 	}
 	return pbPrincipals, trace.NewAggregate(fetchErrs...)
 }
