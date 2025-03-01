@@ -567,6 +567,9 @@ var (
 	// JoinAttributesASN1ExtensionOID is an extension that encodes the
 	// attributes that resulted from the Bot/Agent join process.
 	JoinAttributesASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 21}
+
+	// ADStatusOID is an extension OID used to indicate that we're connecting to AD-joined desktop.
+	ADStatusOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 22}
 )
 
 // Device Trust OIDs.
