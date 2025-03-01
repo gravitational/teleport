@@ -1599,6 +1599,10 @@ type BoolOption struct {
 	Value bool
 }
 
+// NullBoolOption is an alias for BoolOption that allows values to remain undefined within the
+// terraform provider.
+type NullBoolOption = BoolOption
+
 // NewBoolOption returns Bool struct based on bool value
 func NewBoolOption(b bool) *BoolOption {
 	v := BoolOption{Value: b}
