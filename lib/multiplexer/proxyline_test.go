@@ -403,7 +403,7 @@ func TestProxyLine_AddSignature(t *testing.T) {
 				TLVs: tt.inputTLVs,
 			}
 
-			err := pl.AddSignature([]byte(tt.signature), []byte(tt.cert))
+			err := pl.AddTeleportTLVs([]byte(tt.signature), []byte(tt.cert), nil)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr, "Didn't find expected error")
 			} else {
@@ -557,7 +557,7 @@ func TestProxyLine_VerifySignature(t *testing.T) {
 				Source:      sAddr,
 				Destination: dAddr,
 			}
-			err := pl.AddSignature([]byte(tt.signature), tt.cert)
+			err := pl.AddTeleportTLVs([]byte(tt.signature), tt.cert, nil)
 			require.NoError(t, err)
 
 			ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
