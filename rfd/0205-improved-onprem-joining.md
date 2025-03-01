@@ -13,7 +13,7 @@ state: draft
 
 ## What
 
-This RFD proposes serveral improvements to better support non-delegated and
+This RFD proposes several improvements to better support non-delegated and
 on-prem joining, particularly for Machine ID.
 
 Primarily, we discuss a new `challenge` join method intended to replace the
@@ -417,7 +417,7 @@ We should take steps to improve visibility of bots at or near expiry, including:
 - Exposing the number of available renewals in the web UI and `tctl bot ls`
 
 - Exposing per-token renewal counts as Prometheus metrics, both on the Auth
-  Serivce and via `tbot`'s metrics endpoint.
+  Service and via `tbot`'s metrics endpoint.
 
 #### Outstanding Issue: Soft Bot Expiration
 
