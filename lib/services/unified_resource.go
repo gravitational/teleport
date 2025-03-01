@@ -233,43 +233,66 @@ type iteratedItem struct {
 // method.
 func (c *UnifiedResourceCache) iterateItems(ctx context.Context, start string, sortBy types.SortBy, kinds ...string) iter.Seq2[iteratedItem, error] {
 	return func(yield func(iteratedItem, error) bool) {
-		startKey := getStartKey(start, sortBy)
-
 		kindsMap := make(map[string]struct{})
 		for _, k := range kinds {
 			kindsMap[k] = struct{}{}
 		}
 
-		err := c.read(ctx, func(cache *UnifiedResourceCache) error {
-			tree, err := cache.getSortTree(sortBy.Field)
-			if err != nil {
-				return trace.Wrap(err, "getting sort tree")
-			}
+		startKey := getStartKey(start, sortBy)
+		const pageSize = 1000
+		items := make([]iteratedItem, pageSize)
+		var n int
+		for {
+			n = 0
+			err := c.read(ctx, func(cache *UnifiedResourceCache) error {
+				tree, err := cache.getSortTree(sortBy.Field)
+				if err != nil {
+					return trace.Wrap(err, "getting sort tree")
+				}
 
-			iterateRange := tree.DescendRange
-			endKey := backend.NewKey(prefix)
-			if !sortBy.IsDesc {
-				iterateRange = tree.AscendRange
-				endKey = backend.RangeEnd(endKey)
-			}
+				iterateRange := tree.DescendRange
+				endKey := backend.NewKey(prefix)
+				if !sortBy.IsDesc {
+					iterateRange = tree.AscendRange
+					endKey = backend.RangeEnd(endKey)
+				}
 
-			iterateRange(&item{Key: startKey}, &item{Key: endKey}, func(item *item) bool {
-				r, ok := cache.resources[item.Value]
-				if !ok {
+				iterateRange(&item{Key: startKey}, &item{Key: endKey}, func(item *item) bool {
+					r, ok := cache.resources[item.Value]
+					if !ok {
+						return true
+					}
+
+					if n == pageSize {
+						startKey = item.Key
+						return false
+					}
+
+					if len(kinds) == 0 || c.itemKindMatches(r, kindsMap) {
+						items[n] = iteratedItem{key: item.Key, resource: r}
+						n++
+					}
+
 					return true
-				}
+				})
 
-				if len(kinds) == 0 || c.itemKindMatches(r, kindsMap) {
-					return yield(iteratedItem{key: item.Key, resource: r}, nil)
-				}
-
-				return true
+				return nil
 			})
+			if err != nil {
+				yield(iteratedItem{}, err)
+				return
+			}
 
-			return nil
-		})
-		if err != nil {
-			yield(iteratedItem{}, err)
+			for _, item := range items[:n] {
+				if !yield(item, nil) {
+					return
+				}
+			}
+
+			if n == 0 || n < len(items) {
+				return
+			}
+
 		}
 	}
 }
