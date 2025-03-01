@@ -18,6 +18,7 @@
 
 import cfg from 'teleport/config';
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import api from 'teleport/services/api';
 
 import { integrationService } from './integrations';
@@ -114,7 +115,7 @@ test('fetch integration list: fetchIntegrations()', async () => {
         kind: 'github',
         name: 'github-my-org',
         resourceType: 'integration',
-        details: 'GitHub Organization "my-org"',
+        details: 'GitHub repository access for organization "my-org"',
         spec: { organization: 'my-org' },
         statusCode: IntegrationStatusCode.Running,
       },
@@ -255,7 +256,7 @@ test('fetch integration rules: fetchIntegrationRules()', async () => {
     AwsResource.eks
   );
   expect(api.get).toHaveBeenCalledWith(
-    cfg.getIntegrationRulesUrl('name', AwsResource.eks)
+    cfg.getIntegrationRulesUrl('name', AwsResource.eks, [])
   );
   expect(response).toEqual({
     nextKey: 'some-key',
@@ -280,6 +281,54 @@ test('fetch integration rules: fetchIntegrationRules()', async () => {
   expect(response).toEqual({
     nextKey: undefined,
     rules: [],
+  });
+});
+
+test('fetch integration user task list: fetchIntegrationUserTasksList()', async () => {
+  // test a valid response
+  jest.spyOn(api, 'get').mockResolvedValue({
+    items: [
+      {
+        name: 'task-name',
+        taskType: 'task-type',
+        state: 'task-state',
+        issueType: 'issue-type',
+        integration: 'name',
+      },
+    ],
+    nextKey: 'some-key',
+  });
+
+  let response = await integrationService.fetchIntegrationUserTasksList(
+    'name',
+    TaskState.Open
+  );
+  expect(api.get).toHaveBeenCalledWith(
+    cfg.getIntegrationUserTasksListUrl('name', TaskState.Open)
+  );
+  expect(response).toEqual({
+    nextKey: 'some-key',
+    items: [
+      {
+        name: 'task-name',
+        taskType: 'task-type',
+        state: 'task-state',
+        issueType: 'issue-type',
+        integration: 'name',
+      },
+    ],
+  });
+
+  // test null response
+  jest.spyOn(api, 'get').mockResolvedValue(null);
+
+  response = await integrationService.fetchIntegrationUserTasksList(
+    'name',
+    TaskState.Open
+  );
+  expect(response).toEqual({
+    nextKey: undefined,
+    items: [],
   });
 });
 

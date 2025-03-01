@@ -149,9 +149,22 @@ func newTestPack(
 	}
 	p.a.SetLockWatcher(lockWatcher)
 
-	// set cluster name
-	err = p.a.SetClusterName(p.clusterName)
+	urc, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
+		Clock: p.a.clock,
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentAuth,
+			Client:    p.a,
+		},
+		ResourceGetter: p.a,
+	})
 	if err != nil {
+		return p, trace.Wrap(err)
+	}
+
+	p.a.SetUnifiedResourcesCache(urc)
+
+	// set cluster name
+	if err := p.a.SetClusterName(p.clusterName); err != nil {
 		return p, trace.Wrap(err)
 	}
 
@@ -721,6 +734,16 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, err)
 	_, err = s.a.UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
+
+	// Wait for cache propagation of the kubernetes resources before proceeding with the tests.
+	require.Eventually(t, func() bool {
+		for ks := range s.a.UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
+			if ks.GetCluster().GetName() == kubeCluster.GetName() {
+				return true
+			}
+		}
+		return false
+	}, 10*time.Second, 100*time.Millisecond)
 
 	// Login specifying a valid kube cluster. It should appear in the TLS cert.
 	resp, err = s.a.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
@@ -2993,6 +3016,96 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 			require.NoError(t, err)
 			_, err = p.a.UpsertAuthPreference(ctx, authPref)
 			require.NoError(t, err)
+
+			_, err = p.a.generateUserCert(ctx, certReq)
+			tt.assertErr(t, err)
+		})
+	}
+}
+
+func TestGenerateKubernetesUserCert(t *testing.T) {
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
+
+	user, _, err := CreateUserAndRole(p.a, "test-user", []string{}, nil)
+	require.NoError(t, err)
+
+	rc, err := types.NewRemoteCluster("leaf")
+	require.NoError(t, err)
+	_, err = p.a.CreateRemoteCluster(ctx, rc)
+	require.NoError(t, err)
+
+	kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{Name: "kube-cluster"}, types.KubernetesClusterSpecV3{})
+	require.NoError(t, err)
+	kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "foo", "1")
+	require.NoError(t, err)
+	_, err = p.a.UpsertKubernetesServer(ctx, kubeServer)
+	require.NoError(t, err)
+
+	// Wait for cache propagation of the kubernetes resources before proceeding with the tests.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		found, _, err := p.a.UnifiedResourceCache.IterateUnifiedResources(ctx, func(rwl types.ResourceWithLabels) (bool, error) {
+			if rwl.GetKind() != types.KindKubeServer {
+				return false, nil
+			}
+
+			ks, ok := rwl.(types.KubeServer)
+			if !ok {
+				return false, nil
+			}
+
+			return ks.GetCluster().GetName() == kubeCluster.GetName(), nil
+		}, &proto.ListUnifiedResourcesRequest{
+			Kinds:  []string{types.KindKubeServer},
+			SortBy: types.SortBy{Field: services.SortByName},
+			Limit:  1,
+		})
+
+		assert.NoError(t, err)
+		assert.Len(t, found, 1)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	accessInfo := services.AccessInfoFromUserState(user)
+	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
+	require.NoError(t, err)
+
+	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
+
+	for _, tt := range []struct {
+		name              string
+		teleportCluster   string
+		kubernetesCluster string
+		assertErr         require.ErrorAssertionFunc
+	}{
+		{
+			name:              "leaf clusters not validated",
+			teleportCluster:   "leaf",
+			kubernetesCluster: "foo",
+			assertErr:         require.NoError,
+		},
+		{
+			name:              "kubernetes cluster not registered",
+			teleportCluster:   p.clusterName.GetClusterName(),
+			kubernetesCluster: "foo",
+			assertErr:         require.Error,
+		},
+		{
+			name:              "kubernetes cluster registered",
+			teleportCluster:   p.clusterName.GetClusterName(),
+			kubernetesCluster: kubeCluster.GetName(),
+			assertErr:         require.NoError,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			certReq := certRequest{
+				user:              user,
+				checker:           accessChecker,
+				sshPublicKey:      sshPubKey,
+				tlsPublicKey:      tlsPubKey,
+				routeToCluster:    tt.teleportCluster,
+				kubernetesCluster: tt.kubernetesCluster,
+			}
 
 			_, err = p.a.generateUserCert(ctx, certReq)
 			tt.assertErr(t, err)

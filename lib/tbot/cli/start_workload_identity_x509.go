@@ -47,7 +47,6 @@ type WorkloadIdentityX509Command struct {
 // `workload-identity-x509` output and returns a struct that will contain the parse
 // result.
 func NewWorkloadIdentityX509Command(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *WorkloadIdentityX509Command {
-	// TODO(noah): Unhide this command when feature flag removed
 	cmd := parentCmd.Command("workload-identity-x509", fmt.Sprintf("%s tbot with a SPIFFE-compatible SVID output.", mode))
 
 	c := &WorkloadIdentityX509Command{}

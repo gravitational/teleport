@@ -163,16 +163,17 @@ func TestALPNConnUpgradeDialer(t *testing.T) {
 		name          string
 		serverHandler http.Handler
 		withPing      bool
+		useLegacyMode bool
 		wantError     bool
 	}{
 		{
-			// TODO(greedy52) DELETE in 17.0
 			name:          "connection upgrade (legacy)",
+			useLegacyMode: true,
 			serverHandler: mockLegacyConnUpgradeHandler(t, constants.WebAPIConnUpgradeTypeALPN, []byte("hello")),
 		},
 		{
-			// TODO(greedy52) DELETE in 17.0
 			name:          "connection upgrade with ping (legacy)",
+			useLegacyMode: true,
 			serverHandler: mockLegacyConnUpgradeHandler(t, constants.WebAPIConnUpgradeTypeALPNPing, []byte("hello")),
 			withPing:      true,
 		},
@@ -210,6 +211,8 @@ func TestALPNConnUpgradeDialer(t *testing.T) {
 
 			t.Run("direct", func(t *testing.T) {
 				dialer := newALPNConnUpgradeDialer(directDialer, tlsConfig, test.withPing)
+				dialer.(*alpnConnUpgradeDialer).useLegacyMode = test.useLegacyMode
+
 				conn, err := dialer.DialContext(ctx, "tcp", addr.Host)
 				if test.wantError {
 					require.Error(t, err)
@@ -227,6 +230,8 @@ func TestALPNConnUpgradeDialer(t *testing.T) {
 
 				proxyURLDialer := newProxyURLDialer(forwardProxyURL, directDialer)
 				dialer := newALPNConnUpgradeDialer(proxyURLDialer, tlsConfig, test.withPing)
+				dialer.(*alpnConnUpgradeDialer).useLegacyMode = test.useLegacyMode
+
 				conn, err := dialer.DialContext(ctx, "tcp", addr.Host)
 				if test.wantError {
 					require.Error(t, err)
@@ -421,44 +426,4 @@ func mustStartForwardProxy(t *testing.T) (*testhelpers.ProxyHandler, *url.URL) {
 	handler := &testhelpers.ProxyHandler{}
 	go http.Serve(listener, handler)
 	return handler, url
-}
-
-func Test_connUpgradeMode(t *testing.T) {
-	tests := []struct {
-		envVarValue      string
-		wantUseWebSocket require.BoolAssertionFunc
-		wantUseLegacy    require.BoolAssertionFunc
-	}{
-		{
-			envVarValue:      "",
-			wantUseWebSocket: require.True,
-			wantUseLegacy:    require.True,
-		},
-		{
-			envVarValue:      "WebSocket",
-			wantUseWebSocket: require.True,
-			wantUseLegacy:    require.False,
-		},
-		{
-			envVarValue:      "websocket",
-			wantUseWebSocket: require.True,
-			wantUseLegacy:    require.False,
-		},
-		{
-			envVarValue:      "legacy",
-			wantUseWebSocket: require.False,
-			wantUseLegacy:    require.True,
-		},
-		{
-			envVarValue:      "default",
-			wantUseWebSocket: require.True,
-			wantUseLegacy:    require.True,
-		},
-	}
-
-	for _, test := range tests {
-		mode := connUpgradeMode(test.envVarValue)
-		test.wantUseWebSocket(t, mode.useWebSocket())
-		test.wantUseLegacy(t, mode.useLegacy())
-	}
 }

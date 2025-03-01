@@ -117,7 +117,7 @@ func TestAWS(t *testing.T) {
 		setHomePath(tmpHomePath),
 		setCmdRunner(validateCmd),
 	)
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	// Log out from "aws-app" app. The app should be logged-in automatically as needed.
 	err = Run(
@@ -132,7 +132,7 @@ func TestAWS(t *testing.T) {
 		setHomePath(tmpHomePath),
 		setCmdRunner(validateCmd),
 	)
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	validateCmd = func(cmd *exec.Cmd) error {
 		// Validate composed AWS CLI command.
@@ -143,7 +143,7 @@ func TestAWS(t *testing.T) {
 	}
 	err = Run(
 		context.Background(),
-		[]string{"aws", "--app", "aws-app", "--exec", "terraform", "plan"},
+		[]string{"aws", "--insecure", "--aws-role", "some-aws-role", "--app", "aws-app", "--exec", "terraform", "plan"},
 		setHomePath(tmpHomePath),
 		setCmdRunner(validateCmd),
 	)

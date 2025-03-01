@@ -59,6 +59,19 @@ issues:
     # at this time there are too many offenders.
     - linters: [staticcheck]
       text: 'BlockUntil is deprecated: New code should prefer BlockUntilContext'
+    # lib/utils/aws/ subpackages are allowed to use AWS SDK constructors.
+    - path: lib/utils/aws/iamutils/iam.go
+      linters: [forbidigo]
+      text: 'iam.NewFromConfig'
+    - path: lib/utils/aws/stsutils/sts.go
+      linters: [forbidigo]
+      text: 'sts.NewFromConfig'
+    - path: lib/utils/aws/stsutils/sts_v1.go
+      linters: [forbidigo]
+      text: 'sts.New'
+    - path: lib/utils/aws/stsutils/stscreds_v1.go
+      linters: [forbidigo]
+      text: 'stscreds.NewCredentials'
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
@@ -153,6 +166,7 @@ linters-settings:
           - '!**/lib/services/suite/**'
           - '!**/lib/srv/mock.go'
           - '!**/lib/srv/db/redis/test.go'
+          - '!**/lib/tbot/workloadidentity/workloadattest/podman/test_server.go'
           - '!**/lib/teleterm/gatewaytest/**'
           - '!**/lib/utils/testhelpers.go'
           - '!**/lib/utils/testutils/**'
@@ -238,6 +252,7 @@ linters-settings:
           - '!**/lib/services/suite/**'
           - '!**/lib/srv/mock.go'
           - '!**/lib/srv/db/redis/test.go'
+          - '!**/lib/tbot/workloadidentity/workloadattest/podman/test_server.go'
           - '!**/lib/teleterm/gatewaytest/**'
           - '!**/lib/utils/cli.go'
           - '!**/lib/utils/testhelpers.go'
@@ -390,8 +405,17 @@ linters-settings:
     forbid:
       - p: '^rsa\.GenerateKey$'
         msg: 'generating RSA keys is slow, use lib/cryptosuites to generate an appropriate key type'
+      # AWS SDK wrapped constructors.
+      - p: '^iam\.NewFromConfig$'
+        msg: 'Use iamutils.NewFromConfig'
+      - p: '^sts\.NewFromConfig$'
+        msg: 'Use stsutils.NewFromConfig'
+      - p: '^sts\.New$'
+        msg: 'Use stsutils.NewV1'
+      - p: '^stscreds\.NewCredentials$'
+        msg: 'Use stsutils.NewCredentials'
 
 run:
-  go: '1.23'
+  go: '1.24'
   build-tags: []
   timeout: 15m

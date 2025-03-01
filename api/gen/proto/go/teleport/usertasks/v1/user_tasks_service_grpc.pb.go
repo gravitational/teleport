@@ -57,7 +57,9 @@ type UserTaskServiceClient interface {
 	GetUserTask(ctx context.Context, in *GetUserTaskRequest, opts ...grpc.CallOption) (*UserTask, error)
 	// ListUserTasks returns a list of UserTasks. It supports pagination and filters.
 	ListUserTasks(ctx context.Context, in *ListUserTasksRequest, opts ...grpc.CallOption) (*ListUserTasksResponse, error)
+	// Deprecated: Do not use.
 	// ListUserTasksByIntegration returns a list of UserTasks filtered by an integration and other optional fields. It supports pagination.
+	// Deprecated: Use ListUserTasks instead.
 	ListUserTasksByIntegration(ctx context.Context, in *ListUserTasksByIntegrationRequest, opts ...grpc.CallOption) (*ListUserTasksResponse, error)
 	// UpdateUserTask updates an existing User Task.
 	UpdateUserTask(ctx context.Context, in *UpdateUserTaskRequest, opts ...grpc.CallOption) (*UserTask, error)
@@ -113,6 +115,7 @@ func (c *userTaskServiceClient) ListUserTasks(ctx context.Context, in *ListUserT
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *userTaskServiceClient) ListUserTasksByIntegration(ctx context.Context, in *ListUserTasksByIntegrationRequest, opts ...grpc.CallOption) (*ListUserTasksResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListUserTasksResponse)
@@ -157,7 +160,9 @@ type UserTaskServiceServer interface {
 	GetUserTask(context.Context, *GetUserTaskRequest) (*UserTask, error)
 	// ListUserTasks returns a list of UserTasks. It supports pagination and filters.
 	ListUserTasks(context.Context, *ListUserTasksRequest) (*ListUserTasksResponse, error)
+	// Deprecated: Do not use.
 	// ListUserTasksByIntegration returns a list of UserTasks filtered by an integration and other optional fields. It supports pagination.
+	// Deprecated: Use ListUserTasks instead.
 	ListUserTasksByIntegration(context.Context, *ListUserTasksByIntegrationRequest) (*ListUserTasksResponse, error)
 	// UpdateUserTask updates an existing User Task.
 	UpdateUserTask(context.Context, *UpdateUserTaskRequest) (*UserTask, error)

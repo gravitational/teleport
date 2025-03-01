@@ -998,7 +998,7 @@ func TestDiscoveryServer(t *testing.T) {
 				var nextToken string
 				for {
 					var userTasks []*usertasksv1.UserTask
-					userTasks, nextToken, err = tlsServer.Auth().UserTasks.ListUserTasks(context.Background(), 0, "")
+					userTasks, nextToken, err = tlsServer.Auth().UserTasks.ListUserTasks(context.Background(), 0, "", &usertasksv1.ListUserTasksFilters{})
 					require.NoError(t, err)
 					allUserTasks = append(allUserTasks, userTasks...)
 					if nextToken == "" {
@@ -2653,7 +2653,10 @@ func TestDiscoveryDatabase(t *testing.T) {
 				var userTasks []*usertasksv1.UserTask
 				var nextPage string
 				for {
-					userTasksResp, nextPageResp, err := tlsServer.Auth().ListUserTasksByIntegration(ctx, 0, nextPage, integrationName)
+					filters := &usertasksv1.ListUserTasksFilters{
+						Integration: integrationName,
+					}
+					userTasksResp, nextPageResp, err := tlsServer.Auth().ListUserTasks(ctx, 0, nextPage, filters)
 					require.NoError(t, err)
 
 					userTasks = append(userTasks, userTasksResp...)

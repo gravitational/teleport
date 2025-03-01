@@ -57,36 +57,13 @@ const setupContext = (): TeleportContext => {
   return ctx;
 };
 
-test('displays questionnaire if present', () => {
-  mockUserContextProviderWith(makeTestUserContext());
-  const ctx = setupContext();
-
-  const props: MainProps = {
-    features: getOSSFeatures(),
-    Questionnaire: () => <div>Passed Component!</div>,
-  };
-
-  render(
-    <MemoryRouter>
-      <LayoutContextProvider>
-        <ContextProvider ctx={ctx}>
-          <Main {...props} />
-        </ContextProvider>
-      </LayoutContextProvider>
-    </MemoryRouter>
-  );
-
-  expect(screen.getByText('Passed Component!')).toBeInTheDocument();
-});
-
-test('renders without questionnaire prop', () => {
+test('renders', () => {
   mockUserContextProviderWith(makeTestUserContext());
   const ctx = setupContext();
 
   const props: MainProps = {
     features: getOSSFeatures(),
   };
-  expect(props.Questionnaire).toBeUndefined();
 
   render(
     <MemoryRouter>

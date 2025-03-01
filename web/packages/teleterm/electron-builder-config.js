@@ -2,6 +2,7 @@ const { env, platform } = require('process');
 const fs = require('fs');
 const { spawnSync } = require('child_process');
 const isMac = platform === 'darwin';
+const isWindows = platform === 'win32';
 
 // The following checks make no sense when cross-building because they check the platform of the
 // host and not the platform we're building for.
@@ -27,6 +28,10 @@ if (
 
 if (!isMac && env.CONNECT_TSH_BIN_PATH === undefined) {
   throw new Error('You must provide CONNECT_TSH_BIN_PATH');
+}
+
+if (isWindows && env.CONNECT_WINTUN_DLL_PATH === undefined) {
+  throw new Error('You must provide CONNECT_WINTUN_DLL_PATH');
 }
 
 // Holds tsh.app Info.plist during build. Used in afterPack.
@@ -178,12 +183,20 @@ module.exports = {
         from: env.CONNECT_TSH_BIN_PATH,
         to: './bin/tsh.exe',
       },
+      env.CONNECT_WINTUN_DLL_PATH && {
+        from: env.CONNECT_WINTUN_DLL_PATH,
+        to: './bin/wintun.dll',
+      },
     ].filter(Boolean),
   },
   nsis: {
     // Turn off blockmaps since we don't support automatic updates.
     // https://github.com/electron-userland/electron-builder/issues/2900#issuecomment-730571696
     differentialPackage: false,
+    // Use a per-machine installation to support VNet.
+    // VNet installs a Windows service per-machine, and tsh.exe must be
+    // installed in a path that is not user-writable.
+    perMachine: true,
   },
   rpm: {
     artifactName: '${name}-${version}.${arch}.${ext}',

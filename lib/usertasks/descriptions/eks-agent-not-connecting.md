@@ -1,3 +1,4 @@
+# Teleport Agent not connecting
 The process of automatically enrolling EKS Clusters into Teleport, starts by installing the [`teleport-kube-agent`](https://goteleport.com/docs/reference/helm-reference/teleport-kube-agent/) to the cluster.
 
 If the installation is successful, the EKS Cluster will appear in your Resources list.

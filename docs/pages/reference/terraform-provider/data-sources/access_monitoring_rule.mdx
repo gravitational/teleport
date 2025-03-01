@@ -32,9 +32,17 @@ Required:
 
 Optional:
 
+- `automatic_approval` (Attributes) automatic_approval defines the plugin configuration for automatic approvals. Both notification and automatic_approval may be set within the same access_monitoring_rule. If both fields are set, the rule handler will manage notifications and automatic approvals for the same set of access events. Separate plugins may be used if both notifications and automatic_approvals is set. (see [below for nested schema](#nested-schema-for-specautomatic_approval))
 - `condition` (String) condition is a predicate expression that operates on the specified subject resources, and determines whether the subject will be moved into desired state.
-- `notification` (Attributes) notification defines the plugin configuration for notifications if rule is triggered. (see [below for nested schema](#nested-schema-for-specnotification))
+- `notification` (Attributes) notification defines the plugin configuration for notifications if rule is triggered. Both notification and automatic_approval may be set within the same access_monitoring_rule. If both fields are set, the rule handler will manage notifications and automatic approvals for the same set of access events. Separate plugins may be used if both notifications and automatic_approvals is set. (see [below for nested schema](#nested-schema-for-specnotification))
 - `states` (List of String) states are the desired state which the monitoring rule is attempting to bring the subjects matching the condition to.
+
+### Nested Schema for `spec.automatic_approval`
+
+Optional:
+
+- `name` (String) name is the name of the plugin to which this configuration should apply. Set this value to `teleport` to manage automatic approvals natively within Teleport.
+
 
 ### Nested Schema for `spec.notification`
 

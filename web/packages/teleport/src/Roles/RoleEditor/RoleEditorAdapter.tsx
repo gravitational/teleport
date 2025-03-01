@@ -96,12 +96,16 @@ export function RoleEditorAdapter({
         {convertAttempt.status === 'error' && (
           <Danger>{convertAttempt.statusText}</Danger>
         )}
+
+        {/* TODO(bl-nero): Remove once RoleE doesn't set this attribute. */}
         {roleDiffProps?.errorMessage && (
           <Danger>{roleDiffProps.errorMessage}</Danger>
         )}
+
         {convertAttempt.status === 'success' && (
           <RoleEditor
             originalRole={convertAttempt.data}
+            roleDiffAttempt={roleDiffProps?.roleDiffAttempt}
             onCancel={onCancel}
             onSave={onSave}
             onRoleUpdate={onRoleUpdate}

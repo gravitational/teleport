@@ -54,13 +54,22 @@ import { RoleEditorModelValidationResult } from './validation';
 import { defaultOptions } from './withDefaults';
 
 export type StandardEditorModel = {
-  roleModel: RoleEditorModel;
+  /**
+   * The role model. Can be undefined if there was an unhandled error when
+   * converting an existing role.
+   */
+  roleModel?: RoleEditorModel;
   originalRole: Role;
   /**
    * Will be true if fields have been modified from the original.
    */
   isDirty: boolean;
-  validationResult: RoleEditorModelValidationResult;
+  /**
+   * Result of validating {@link StandardEditorModel.roleModel}. Can be
+   * undefined if there was an unhandled error when converting an existing
+   * role.
+   */
+  validationResult?: RoleEditorModelValidationResult;
 };
 
 /**
@@ -82,6 +91,10 @@ export type RoleEditorModel = {
   requiresReset: boolean;
   conversionErrors: ConversionErrorGroup[];
 };
+
+export function requiresReset(rm: RoleEditorModel | undefined): boolean {
+  if (rm === undefined) return false;
+}
 
 export type MetadataModel = {
   name: string;
@@ -894,7 +907,7 @@ function kubernetesResourceToModel(
  * this function is protected anyway from attempting to interpret such an
  * extended object, and it would return non-empty `conversionErrors` anyway.
  */
-function gitHubOrganizationsToModel(
+export function gitHubOrganizationsToModel(
   gitHubPermissions: GitHubPermission[],
   pathPrefix: string
 ): {
@@ -906,7 +919,9 @@ function gitHubOrganizationsToModel(
   const conversionErrors: ConversionError[] = [];
   permissions.forEach((permission, i) => {
     const { orgs, ...unsupported } = permission;
-    model.push(...stringsToOptions(orgs));
+    if (orgs) {
+      model.push(...stringsToOptions(orgs));
+    }
     conversionErrors.push(
       ...unsupportedFieldErrorsFromObject(`${pathPrefix}[${i}]`, unsupported)
     );
@@ -1273,9 +1288,10 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
         break;
 
       case 'git_server':
-        role.spec.allow.github_permissions = [
-          { orgs: optionsToStrings(res.organizations) },
-        ];
+        const orgs = optionsToStrings(res.organizations);
+        if (orgs.length > 0) {
+          role.spec.allow.github_permissions = [{ orgs }];
+        }
         break;
 
       default:

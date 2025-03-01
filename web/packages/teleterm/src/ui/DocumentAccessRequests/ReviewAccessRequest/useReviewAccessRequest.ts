@@ -165,7 +165,7 @@ export function useReviewAccessRequest({
 function getRequestFlags(
   request: AccessRequest,
   user: tsh.LoggedInUser,
-  assumedMap: Record<string, tsh.AssumedRequest>
+  assumedMap: Record<string, tsh.AccessRequest>
 ): RequestFlags {
   const ownRequest = request.user === user.name;
   const canAssume = ownRequest && request.state === 'APPROVED';

@@ -2029,6 +2029,29 @@ export const formatters: Formatters = {
       return `Stable UNIX user for username [${username}] was created`;
     },
   },
+  [eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS]: {
+    type: 'aws_identity_center.resource_sync.success',
+    desc: 'AWS IAM Identity Center Resource Sync Completed',
+    format: ({
+      total_user_groups,
+      total_accounts,
+      total_account_assignments,
+      total_permission_sets,
+    }) => {
+      // user groups only imported once.
+      if (total_user_groups > 0) {
+        return `User group synchronization successfully completed [groups: ${total_user_groups}]`;
+      }
+      return `Periodic synchronization successfully completed [accounts: ${total_accounts}, account assignments: ${total_account_assignments}, permission sets: ${total_permission_sets}]`;
+    },
+  },
+  [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: {
+    type: 'aws_identity_center.resource_sync.failed',
+    desc: 'AWS IAM Identity Center Resource Sync Failed',
+    format: ({ message }) => {
+      return message;
+    },
+  },
 };
 
 const unknownFormatter = {

@@ -33,7 +33,6 @@ import { RequestCheckoutWithSlider } from 'shared/components/AccessRequests/NewR
 import { isKubeClusterWithNamespaces } from 'shared/components/AccessRequests/NewRequest/kube';
 import { pluralize } from 'shared/utils/text';
 
-import { AssumedRolesBar } from './AssumedRolesBar';
 import useAccessRequestCheckout from './useAccessRequestCheckout';
 
 const MAX_RESOURCES_IN_BAR_TO_SHOW = 5;
@@ -89,7 +88,6 @@ export function AccessRequestCheckout() {
     shouldShowClusterNameColumn,
     selectedReviewers,
     setSelectedReviewers,
-    assumedRequests,
     requestedCount,
     goToRequestsList,
     setShowCheckout,
@@ -234,9 +232,6 @@ export function AccessRequestCheckout() {
             </Flex>
           </Box>
         )}
-      {assumedRequests.map(request => (
-        <AssumedRolesBar key={request.id} assumedRolesRequest={request} />
-      ))}
       <Transition
         in={showCheckout}
         nodeRef={transitionRef}
