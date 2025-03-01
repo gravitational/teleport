@@ -37,36 +37,7 @@ forwards the user's requests to Snowflake as Teleport-authenticated messages.
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/5. Set up the Teleport Database Service
-
-(!docs/pages/includes/tctl-token.mdx serviceName="Database" tokenType="db" tokenFile="/tmp/token"!)
-
-Install and configure Teleport where you will run the Teleport Database Service:
-
-<Tabs>
-<TabItem label="Linux Server">
-
-(!docs/pages/includes/install-linux.mdx!)
-
-(!docs/pages/includes/database-access/db-configure-start.mdx dbName="example-snowflake" dbProtocol="snowflake" databaseAddress="abc12345.snowflakecomputing.com" !)
-
-</TabItem>
-<TabItem label="Kubernetes Cluster">
-  Teleport provides Helm charts for installing the Teleport Database Service in Kubernetes Clusters.
-
-  (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
-
-  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="example-snowflake" dbProtocol="snowflake" databaseAddress="abc12345.snowflakecomputing.com" !)
-</TabItem>
-</Tabs>
-
-(!docs/pages/includes/database-access/multiple-instances-tip.mdx !)
-
-## Step 2/5. Create a Teleport user
-
-(!docs/pages/includes/database-access/create-user.mdx!)
-
-## Step 3/5. Export a public key
+## Step 1/5. Export a public key
 
 Use the `tctl auth sign` command below to export a public key for your Snowflake user:
 
@@ -78,7 +49,7 @@ The command will create a `server.pub` file with Teleport's public key. Teleport
 generate a JWT (JSON Web Token) that will be used to authenticate to Snowflake.
 
 
-## Step 4/5. Add the public key to your Snowflake user
+## Step 2/5. Add the public key to your Snowflake user
 
 Use the public key you generated earlier to enable key pair authentication.
 
@@ -99,6 +70,35 @@ desc user alice;
 
 See the [Snowflake documentation](https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-4-assign-the-public-key-to-a-snowflake-user)
 for more details.
+
+## Step 3/5. Create a Teleport user
+
+(!docs/pages/includes/database-access/create-user.mdx!)
+
+## Step 4/5. Set up the Teleport Database Service
+
+(!docs/pages/includes/tctl-token.mdx serviceName="Database" tokenType="db" tokenFile="/tmp/token"!)
+
+Install and configure Teleport on the server where you will run the Teleport Database Service:
+
+<Tabs>
+<TabItem label="Linux Server">
+
+(!docs/pages/includes/install-linux.mdx!)
+
+(!docs/pages/includes/database-access/db-configure-start.mdx dbName="example-snowflake" dbProtocol="snowflake" databaseAddress="abc12345.snowflakecomputing.com" !)
+
+</TabItem>
+<TabItem label="Kubernetes Cluster">
+  Teleport provides Helm charts for installing the Teleport Database Service in Kubernetes clusters.
+
+  (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
+
+  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="example-snowflake" dbProtocol="snowflake" databaseAddress="abc12345.snowflakecomputing.com" !)
+</TabItem>
+</Tabs>
+
+(!docs/pages/includes/database-access/multiple-instances-tip.mdx !)
 
 ## Step 5/5. Connect
 
