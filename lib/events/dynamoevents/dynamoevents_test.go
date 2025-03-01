@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math/rand/v2"
 	"net/http"
 	"net/http/httptest"
@@ -126,7 +127,9 @@ func TestSearchSessionEvensBySessionID(t *testing.T) {
 // TestCheckpointOutsideOfWindow tests if [Log] doesn't panic
 // if checkpoint date is outside of the window [fromUTC,toUTC].
 func TestCheckpointOutsideOfWindow(t *testing.T) {
-	tt := &Log{}
+	tt := &Log{
+		logger: slog.With(teleport.ComponentKey, teleport.ComponentDynamoDB),
+	}
 
 	key := checkpointKey{
 		Date: "2022-10-02",
@@ -607,21 +610,34 @@ func randStringAlpha(n int) string {
 }
 
 func TestEndpoints(t *testing.T) {
+	// Don't t.Parallel(), uses t.Setenv and modules.SetTestModules.
+
 	tests := []struct {
-		name string
-		fips bool
+		name          string
+		fips          bool
+		envVarValue   string // value for the _DISABLE_FIPS environment variable
+		wantFIPSError bool
 	}{
 		{
-			name: "fips",
-			fips: true,
+			name:          "fips",
+			fips:          true,
+			wantFIPSError: true,
 		},
 		{
-			name: "without fips",
+			name:          "fips with env skip",
+			fips:          true,
+			envVarValue:   "yes",
+			wantFIPSError: false,
+		},
+		{
+			name:          "without fips",
+			wantFIPSError: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("TELEPORT_UNSTABLE_DISABLE_AWS_FIPS", tt.envVarValue)
 
 			fips := types.ClusterAuditConfigSpecV2_FIPS_DISABLED
 			if tt.fips {
@@ -655,15 +671,13 @@ func TestEndpoints(t *testing.T) {
 			})
 			// FIPS mode should fail because it is a violation to enable FIPS
 			// while also setting a custom endpoint.
-			if tt.fips {
-				assert.Error(t, err)
-				require.ErrorContains(t, err, "FIPS")
+			if tt.wantFIPSError {
+				assert.ErrorContains(t, err, "FIPS")
 				return
 			}
 
-			assert.Error(t, err)
-			assert.Nil(t, b)
-			require.ErrorContains(t, err, fmt.Sprintf("StatusCode: %d", http.StatusTeapot))
+			assert.ErrorContains(t, err, fmt.Sprintf("StatusCode: %d", http.StatusTeapot))
+			assert.Nil(t, b, "backend not nil")
 		})
 	}
 }

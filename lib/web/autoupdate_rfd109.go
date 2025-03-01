@@ -35,7 +35,7 @@ import (
 
 const defaultChannelTimeout = 5 * time.Second
 
-// automaticUpgrades implements a version server in the Teleport Proxy following the RFD 109 spec.
+// automaticUpgrades109 implements a version server in the Teleport Proxy following the RFD 109 spec.
 // It is configured through the Teleport Proxy configuration and tells agent updaters
 // which version they should install.
 func (h *Handler) automaticUpgrades109(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {

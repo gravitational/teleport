@@ -48,7 +48,7 @@ func (c *Cluster) reissueKubeCert(ctx context.Context, clusterClient *client.Clu
 	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
 	err := clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
-		AccessRequests: c.status.ActiveRequests.AccessRequests,
+		AccessRequests: c.status.ActiveRequests,
 	})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)

@@ -20,6 +20,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -41,7 +42,7 @@ func (h *Handler) autoUpdateAgentVersion(ctx context.Context, group, updaterUUID
 	rollout, err := h.cfg.AccessPoint.GetAutoUpdateAgentRollout(ctx)
 	if err != nil {
 		// Fallback to channels if there is no autoupdate_agent_rollout.
-		if trace.IsNotFound(err) {
+		if trace.IsNotFound(err) || trace.IsNotImplemented(err) {
 			return getVersionFromChannel(ctx, h.cfg.AutomaticUpgradesChannels, group)
 		}
 		// Something is broken, we don't want to fallback to channels, this would be harmful.
@@ -49,6 +50,22 @@ func (h *Handler) autoUpdateAgentVersion(ctx context.Context, group, updaterUUID
 	}
 
 	return getVersionFromRollout(rollout, group, updaterUUID)
+}
+
+// handlerVersionGetter is a dummy struct implementing version.Getter by wrapping Handler.autoUpdateAgentVersion.
+type handlerVersionGetter struct {
+	*Handler
+}
+
+// GetVersion implements version.Getter.
+func (h *handlerVersionGetter) GetVersion(ctx context.Context) (string, error) {
+	const group, updaterUUID = "", ""
+	agentVersion, err := h.autoUpdateAgentVersion(ctx, group, updaterUUID)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	// We add the leading v required by the version.Getter interface.
+	return fmt.Sprintf("v%s", agentVersion), nil
 }
 
 // autoUpdateAgentShouldUpdate returns if the agent should update now to based on its group
@@ -60,7 +77,7 @@ func (h *Handler) autoUpdateAgentShouldUpdate(ctx context.Context, group, update
 	rollout, err := h.cfg.AccessPoint.GetAutoUpdateAgentRollout(ctx)
 	if err != nil {
 		// Fallback to channels if there is no autoupdate_agent_rollout.
-		if trace.IsNotFound(err) {
+		if trace.IsNotFound(err) || trace.IsNotImplemented(err) {
 			// Updaters using the RFD184 API are not aware of maintenance windows
 			// like RFD109 updaters are. To have both updaters adopt the same behavior
 			// we must do the CMC window lookup for them.

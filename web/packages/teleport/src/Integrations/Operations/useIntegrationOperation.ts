@@ -19,59 +19,63 @@
 import { useState } from 'react';
 
 import {
+  IntegrationAwsOidc,
   IntegrationKind,
   integrationService,
   type Integration,
-  type Plugin,
 } from 'teleport/services/integrations';
 import useStickyClusterId from 'teleport/useStickyClusterId';
+
+import { DeleteRequestOptions } from './IntegrationOperations';
 
 export function useIntegrationOperation() {
   const { clusterId } = useStickyClusterId();
 
-  const [operation, setOperation] = useState({
+  const [operation, setOperation] = useState<Operation>({
     type: 'none',
-  } as Operation);
+  });
 
   function clear() {
     setOperation({ type: 'none' });
   }
 
-  function remove() {
-    return integrationService.deleteIntegration(operation.item.name);
+  function remove(opt: DeleteRequestOptions = {}) {
+    return integrationService.deleteIntegration({
+      name: operation.item.name,
+      clusterId,
+      deleteAssociatedResources: opt.deleteAssociatedResources,
+    });
   }
 
-  async function edit(
-    integration: Integration,
-    req: EditableIntegrationFields
-  ) {
+  async function edit(req: EditableIntegrationFields) {
     // Health check with the new roleArn to validate that
     // connection still works.
-    if (integration.kind === IntegrationKind.AwsOidc) {
+    if (req.kind === IntegrationKind.AwsOidc) {
       try {
         await integrationService.pingAwsOidcIntegration(
           {
-            integrationName: integration.name,
+            integrationName: operation.item.name,
             clusterId,
           },
           { roleArn: req.roleArn }
         );
+        return integrationService.updateIntegration(operation.item.name, {
+          kind: IntegrationKind.AwsOidc,
+          awsoidc: {
+            roleArn: req.roleArn,
+          },
+        });
       } catch (err) {
         throw new Error(`Health check failed: ${err}`);
       }
     }
-    return integrationService.updateIntegration(operation.item.name, {
-      awsoidc: {
-        roleArn: req.roleArn,
-      },
-    });
   }
 
   function onRemove(item: Integration) {
     setOperation({ type: 'delete', item });
   }
 
-  function onEdit(item: Integration) {
+  function onEdit(item: EditableIntegration) {
     setOperation({ type: 'edit', item });
   }
 
@@ -85,12 +89,12 @@ export function useIntegrationOperation() {
   };
 }
 
-/**
- * Currently only integration updateable is aws oidc.
- */
-export type EditableIntegrationFields = {
+export type AwsOidcIntegrationEditableFields = {
+  kind: IntegrationKind.AwsOidc;
   roleArn: string;
 };
+
+export type EditableIntegrationFields = AwsOidcIntegrationEditableFields;
 
 export type OperationType = 'create' | 'edit' | 'delete' | 'reset' | 'none';
 
@@ -98,5 +102,7 @@ export type ExternalAuditStorageOpType = 'draft' | 'cluster';
 
 export type Operation = {
   type: OperationType;
-  item?: Plugin | Integration | { name: ExternalAuditStorageOpType };
+  item?: Integration;
 };
+
+export type EditableIntegration = IntegrationAwsOidc;

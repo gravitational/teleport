@@ -5,7 +5,7 @@ outputs:
       type: memory
 debug: false
 proxy_server: example.teleport.sh:443
-certificate_ttl: 1m0s
+credential_ttl: 1m0s
 renewal_interval: 30s
 oneshot: false
 fips: false

@@ -137,7 +137,7 @@ func getAllDBInstancesWithFilters(ctx context.Context, clt RDSClient, maxPages i
 		out = instances
 		return nil
 	})
-	return out, trace.Wrap(libcloudaws.ConvertRequestFailureErrorV2(err))
+	return out, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 }
 
 // newRDSAuroraClustersFetcher returns a new AWS fetcher for RDS Aurora
@@ -231,7 +231,7 @@ func getAllDBClusters(ctx context.Context, clt RDSClient, maxPages int, logger *
 		out = clusters
 		return nil
 	})
-	return out, trace.Wrap(libcloudaws.ConvertRequestFailureErrorV2(err))
+	return out, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 }
 
 // rdsInstanceEngines returns engines to make sure DescribeDBInstances call returns

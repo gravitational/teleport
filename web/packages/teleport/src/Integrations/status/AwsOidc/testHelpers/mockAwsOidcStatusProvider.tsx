@@ -20,6 +20,7 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { ContextProvider } from 'teleport';
+import { Route } from 'teleport/components/Router';
 import {
   awsOidcStatusContext,
   AwsOidcStatusContextState,
@@ -29,17 +30,21 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 export const MockAwsOidcStatusProvider = ({
   children,
   value,
+  initialEntries,
+  path,
 }: {
   children?: React.ReactNode;
   value: AwsOidcStatusContextState;
+  path: string;
+  initialEntries?: string[];
 }) => {
   const ctx = createTeleportContext();
 
   return (
-    <MemoryRouter>
+    <MemoryRouter initialEntries={initialEntries}>
       <ContextProvider ctx={ctx}>
         <awsOidcStatusContext.Provider value={value}>
-          {children}
+          <Route path={path} render={() => <>{children}</>} />
         </awsOidcStatusContext.Provider>
       </ContextProvider>
     </MemoryRouter>

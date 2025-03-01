@@ -210,7 +210,6 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.AWSDatabaseFetcherFactory == nil {
 		factory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{
-			CloudClients:      c.CloudClients,
 			AWSConfigProvider: c.AWSConfigProvider,
 		})
 		if err != nil {
@@ -253,7 +252,6 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.CloudMeta == nil {
 		c.CloudMeta, err = cloud.NewMetadata(cloud.MetadataConfig{
-			Clients:           c.CloudClients,
 			AWSConfigProvider: c.AWSConfigProvider,
 		})
 		if err != nil {
@@ -264,7 +262,6 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		c.CloudIAM, err = cloud.NewIAM(ctx, cloud.IAMConfig{
 			AccessPoint:       c.AccessPoint,
 			AWSConfigProvider: c.AWSConfigProvider,
-			Clients:           c.CloudClients,
 			HostID:            c.HostID,
 		})
 		if err != nil {
@@ -289,7 +286,6 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		}
 		c.CloudUsers, err = users.NewUsers(users.Config{
 			AWSConfigProvider: c.AWSConfigProvider,
-			Clients:           c.CloudClients,
 			UpdateMeta:        c.CloudMeta.Update,
 			ClusterName:       clusterName.GetClusterName(),
 		})
@@ -303,7 +299,7 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 			DatabaseObjectClient: c.AuthClient.DatabaseObjectsClient(),
 			ImportRules:          c.AuthClient,
 			Auth:                 c.Auth,
-			CloudClients:         c.CloudClients,
+			GCPClients:           c.CloudClients,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -313,7 +309,7 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	if c.discoveryResourceChecker == nil {
 		c.discoveryResourceChecker, err = cloud.NewDiscoveryResourceChecker(cloud.DiscoveryResourceCheckerConfig{
 			ResourceMatchers:  c.ResourceMatchers,
-			Clients:           c.CloudClients,
+			AzureClients:      c.CloudClients,
 			AWSConfigProvider: c.AWSConfigProvider,
 			Context:           ctx,
 		})
@@ -1204,7 +1200,7 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 		Audit:             audit,
 		AuthClient:        s.cfg.AuthClient,
 		AWSConfigProvider: s.cfg.AWSConfigProvider,
-		CloudClients:      s.cfg.CloudClients,
+		GCPClients:        s.cfg.CloudClients,
 		Context:           s.connContext,
 		Clock:             s.cfg.Clock,
 		Log:               sessionCtx.Log,

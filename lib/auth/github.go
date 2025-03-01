@@ -1080,7 +1080,7 @@ func ValidateClientRedirect(clientRedirect string, ssoTestFlow bool, settings *t
 	}
 
 	if settings == nil {
-		return trace.AccessDenied(unknownRedirectHostnameErrMsg)
+		return trace.AccessDenied("%s", unknownRedirectHostnameErrMsg)
 	}
 
 	// allow HTTP or HTTPS redirects from IPs in specified CIDR ranges
@@ -1119,7 +1119,7 @@ func ValidateClientRedirect(clientRedirect string, ssoTestFlow bool, settings *t
 		}
 	}
 
-	return trace.AccessDenied(unknownRedirectHostnameErrMsg)
+	return trace.AccessDenied("%s", unknownRedirectHostnameErrMsg)
 }
 
 // populateGithubClaims builds a GithubClaims using queried

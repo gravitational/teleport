@@ -192,6 +192,11 @@ type AuthPreference interface {
 	// algorithm suite is incompatible with [params].
 	CheckSignatureAlgorithmSuite(SignatureAlgorithmSuiteParams) error
 
+	// GetStableUNIXUserConfig returns the stable UNIX user configuration.
+	GetStableUNIXUserConfig() *StableUNIXUserConfig
+	// SetStableUNIXUserConfig sets the stable UNIX user configuration.
+	SetStableUNIXUserConfig(*StableUNIXUserConfig)
+
 	// String represents a human readable version of authentication settings.
 	String() string
 
@@ -669,6 +674,19 @@ func (c *AuthPreferenceV2) CheckSignatureAlgorithmSuite(params SignatureAlgorith
 		return trace.Errorf("unhandled signature_algorithm_suite %q: this is a bug", c.GetSignatureAlgorithmSuite())
 	}
 	return nil
+}
+
+// GetStableUNIXUserConfig implements [AuthPreference].
+func (c *AuthPreferenceV2) GetStableUNIXUserConfig() *StableUNIXUserConfig {
+	if c == nil {
+		return nil
+	}
+	return c.Spec.StableUnixUserConfig
+}
+
+// SetStableUNIXUserConfig implements [AuthPreference].
+func (c *AuthPreferenceV2) SetStableUNIXUserConfig(cfg *StableUNIXUserConfig) {
+	c.Spec.StableUnixUserConfig = cfg
 }
 
 // CheckAndSetDefaults verifies the constraints for AuthPreference.

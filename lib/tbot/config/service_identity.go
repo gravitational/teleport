@@ -92,6 +92,19 @@ type IdentityOutput struct {
 	// SSHConfigMode controls whether to write an ssh_config file to the
 	// destination directory. Defaults to SSHConfigModeOn.
 	SSHConfigMode SSHConfigMode `yaml:"ssh_config,omitempty"`
+
+	// AllowReissue controls whether the generated credentials can be used to
+	// reissue further credentials (e.g to produce a certificate for application
+	// access). It is recommended to leave this disabled to prevent the scope of
+	// issued credentials from being increased, however, it can be useful in
+	// scenarios where credentials are desired to be reissued in a dynamic way.
+	//
+	// Defaults to false.
+	AllowReissue bool `yaml:"allow_reissue,omitempty"`
+
+	// CredentialLifetime contains configuration for how long credentials will
+	// last and the frequency at which they'll be renewed.
+	CredentialLifetime CredentialLifetime `yaml:",inline"`
 }
 
 func (o *IdentityOutput) Init(ctx context.Context) error {
@@ -181,4 +194,8 @@ func (o *IdentityOutput) UnmarshalYAML(node *yaml.Node) error {
 
 func (o *IdentityOutput) Type() string {
 	return IdentityOutputType
+}
+
+func (o *IdentityOutput) GetCredentialLifetime() CredentialLifetime {
+	return o.CredentialLifetime
 }

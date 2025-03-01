@@ -37,6 +37,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |gitlab|[object](#specgitlab)|GitLab allows the configuration of options specific to the "gitlab" join method.|
 |join_method|string|JoinMethod is the joining method required in order to use this token. Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm|
 |kubernetes|[object](#speckubernetes)|Kubernetes allows the configuration of options specific to the "kubernetes" join method.|
+|oracle|[object](#specoracle)|Oracle allows the configuration of options specific to the "oracle" join method.|
 |roles|[]string|Roles is a list of roles associated with the token, that will be converted to metadata in the SSH and X509 certificates issued to the user of the token|
 |spacelift|[object](#specspacelift)|Spacelift allows the configuration of options specific to the "spacelift" join method.|
 |suggested_agent_matcher_labels|object|SuggestedAgentMatcherLabels is a set of labels to be used by agents to match on resources. When an agent uses this token, the agent should monitor resources that match those labels. For databases, this means adding the labels to `db_service.resources.labels`. Currently, only node-join scripts create a configuration according to the suggestion.|
@@ -180,6 +181,20 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |jwks|string||
+
+### spec.oracle
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specoracleallow-items)|Allow is a list of Rules, nodes using this token must match one allow rule to use this token.|
+
+### spec.oracle.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|parent_compartments|[]string||
+|regions|[]string||
+|tenancy|string||
 
 ### spec.spacelift
 

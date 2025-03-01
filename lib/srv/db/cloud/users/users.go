@@ -26,14 +26,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
 	memorydb "github.com/aws/aws-sdk-go-v2/service/memorydb"
+	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -41,8 +42,6 @@ import (
 type Config struct {
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
-	// Clients is an interface for retrieving cloud clients.
-	Clients cloud.Clients
 	// Clock is used to control time.
 	Clock clockwork.Clock
 	// Interval is the interval between user updates. Interval is also used as
@@ -63,6 +62,7 @@ type Config struct {
 type awsClientProvider interface {
 	getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient
 	getMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) memoryDBClient
+	getSecretsManagerClient(cfg aws.Config, optFns ...func(*secretsmanager.Options)) secrets.SecretsManagerClient
 }
 
 type defaultAWSClients struct{}
@@ -75,6 +75,10 @@ func (defaultAWSClients) getMemoryDBClient(cfg aws.Config, optFns ...func(*memor
 	return memorydb.NewFromConfig(cfg, optFns...)
 }
 
+func (defaultAWSClients) getSecretsManagerClient(cfg aws.Config, optFns ...func(*secretsmanager.Options)) secrets.SecretsManagerClient {
+	return secretsmanager.NewFromConfig(cfg, optFns...)
+}
+
 // CheckAndSetDefaults validates the config and set defaults.
 func (c *Config) CheckAndSetDefaults() error {
 	if c.AWSConfigProvider == nil {
@@ -85,13 +89,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.UpdateMeta == nil {
 		return trace.BadParameter("missing UpdateMeta")
-	}
-	if c.Clients == nil {
-		cloudClients, err := cloud.NewClients()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		c.Clients = cloudClients
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()

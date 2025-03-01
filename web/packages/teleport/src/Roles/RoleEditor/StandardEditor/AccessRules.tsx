@@ -18,12 +18,14 @@
 
 import { memo } from 'react';
 import { components, MultiValueProps } from 'react-select';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
 import { ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
 import { Plus } from 'design/Icon';
+import Text from 'design/Text';
 import { HoverTooltip } from 'design/Tooltip';
+import FieldInput from 'shared/components/FieldInput';
 import {
   FieldSelect,
   FieldSelectCreatable,
@@ -78,7 +80,8 @@ const AccessRule = memo(function AccessRule({
   validation,
   dispatch,
 }: SectionPropsWithDispatch<RuleModel, AccessRuleValidationResult>) {
-  const { id, resources, verbs } = value;
+  const { id, resources, verbs, where } = value;
+  const theme = useTheme();
   function setRule(rule: RuleModel) {
     dispatch({ type: 'set-access-rule', payload: rule });
   }
@@ -98,6 +101,7 @@ const AccessRule = memo(function AccessRule({
         components={{ MultiValue: ResourceKindMultiValue }}
         isMulti
         label="Resources"
+        required
         isDisabled={isProcessing}
         options={resourceKindOptions}
         value={resources}
@@ -107,11 +111,33 @@ const AccessRule = memo(function AccessRule({
       <FieldSelect
         isMulti
         label="Permissions"
+        required
         isDisabled={isProcessing}
         options={verbOptions}
         value={verbs}
         onChange={v => setRule({ ...value, verbs: v })}
         rule={precomputed(validation.fields.verbs)}
+      />
+      <FieldInput
+        label="Filter"
+        toolTipContent={
+          <>
+            Optional condition that further limits the list of resources
+            affected by this rule, expressed using the{' '}
+            <Text
+              as="a"
+              href="https://goteleport.com/docs/reference/predicate-language/"
+              target="_blank"
+              color={theme.colors.interactive.solid.accent.default}
+            >
+              Teleport predicate language
+            </Text>
+          </>
+        }
+        tooltipSticky
+        disabled={isProcessing}
+        value={where}
+        onChange={e => setRule({ ...value, where: e.target.value })}
         mb={0}
       />
     </SectionBox>

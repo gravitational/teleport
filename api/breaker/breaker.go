@@ -345,7 +345,7 @@ func (c *CircuitBreaker) beforeExecution() (uint64, error) {
 		c.cfg.OnExecute(false, StateTripped)
 
 		if c.cfg.TrippedErrorMessage != "" {
-			return generation, trace.ConnectionProblem(nil, c.cfg.TrippedErrorMessage)
+			return generation, trace.ConnectionProblem(nil, "%s", c.cfg.TrippedErrorMessage)
 		}
 
 		return generation, trace.Wrap(ErrStateTripped)

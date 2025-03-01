@@ -51,6 +51,10 @@ const SemaphoreKindAccessMonitoringLimiter = "access_monitoring_limiter"
 // session recordings backend.
 const SemaphoreKindUploadCompleter = "upload_completer"
 
+// SemaphoreKindAccessListReminderLimiter is the semaphore kind used by
+// the periodic check which creates access list reminder notifications.
+const SemaphoreKindAccessListReminderLimiter = "access_list_reminder_limiter"
+
 // Semaphore represents distributed semaphore concept
 type Semaphore interface {
 	// Resource contains common resource values

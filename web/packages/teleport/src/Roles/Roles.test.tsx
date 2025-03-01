@@ -22,7 +22,9 @@ import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
+import { yamlService } from 'teleport/services/yaml';
 
+import { withDefaults } from './RoleEditor/StandardEditor/withDefaults';
 import { Roles } from './Roles';
 import { State } from './useRoles';
 
@@ -271,19 +273,33 @@ test('renders the role diff component', async () => {
       list: true,
     },
   });
-  const RoleDiffComponent = () => <div>i am rendered</div>;
+  jest.spyOn(yamlService, 'parse').mockImplementation(async () => {
+    return withDefaults({});
+  });
+  const roleDiffElement = <div>i am rendered</div>;
+
   render(
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
         <Roles
           {...defaultState()}
-          roleDiffProps={{ RoleDiffComponent, updateRoleDiff: () => null }}
+          roleDiffProps={{
+            roleDiffElement,
+            updateRoleDiff: () => null,
+            roleDiffAttempt: {
+              status: 'error',
+              statusText: 'there is an error here',
+              data: null,
+              error: null,
+            },
+          }}
         />
       </ContextProvider>
     </MemoryRouter>
   );
   await openEditor();
   expect(screen.getByText('i am rendered')).toBeInTheDocument();
+  expect(await screen.findByText('there is an error here')).toBeInTheDocument();
 });
 
 async function openEditor() {

@@ -19,6 +19,8 @@
 package ui
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/ui"
 )
@@ -78,3 +80,52 @@ func MakeGitServer(clusterName string, server types.Server, requiresRequest bool
 	}
 	return uiServer
 }
+
+// CreateGitServerRequest is a request to create a Git server.
+type CreateGitServerRequest struct {
+	// SubKind is a git server subkind such as GitHub
+	SubKind string `json:"subKind"`
+	// Name is the git server name
+	Name string `json:"id"`
+	// GitHub contains metadata for GitHub proxy severs.
+	GitHub *GitHubServerMetadata `json:"github,omitempty"`
+	// Overwrite performs an upsert of the resource.
+	Overwrite bool `json:"overwrite,omitempty"`
+}
+
+// Check checks if the provided values are valid.
+func (r *CreateGitServerRequest) Check() error {
+	if err := checkStringFieldSize(r.Name, "name"); err != nil {
+		return trace.Wrap(err)
+	}
+	switch r.SubKind {
+	case types.SubKindGitHub:
+		if r.GitHub == nil {
+			return trace.BadParameter("missing github field for GitHub server")
+		}
+		if err := checkStringFieldSize(r.GitHub.Organization, "organization"); err != nil {
+			return trace.Wrap(err)
+		}
+		if err := checkStringFieldSize(r.GitHub.Integration, "integration"); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		return trace.BadParameter("unsupported subkind: %s", r.SubKind)
+	}
+	return nil
+}
+
+func checkStringFieldSize(field, fieldDescription string) error {
+	if field == "" {
+		return trace.BadParameter("missing %s field", fieldDescription)
+	}
+	if len(field) >= maxFieldSize {
+		return trace.BadParameter("field %s exceeds maximum allowed size of %d", fieldDescription, maxFieldSize)
+	}
+	return nil
+}
+
+// maxFieldSize is an arbitrary limit on the length of a generic field. This
+// prevents users from entering long values that could potentially cause issues
+// downstream.
+const maxFieldSize = 2 * 1024

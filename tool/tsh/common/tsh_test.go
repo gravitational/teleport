@@ -2624,6 +2624,29 @@ func TestKubeCredentialsLock(t *testing.T) {
 		_, err = authServer.UpsertKubernetesServer(context.Background(), kubeServer)
 		require.NoError(t, err)
 
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			found, _, err := authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(rwl types.ResourceWithLabels) (bool, error) {
+				if rwl.GetKind() != types.KindKubeServer {
+					return false, nil
+				}
+
+				ks, ok := rwl.(types.KubeServer)
+				if !ok {
+					return false, nil
+				}
+
+				return ks.GetCluster().GetName() == kubeCluster.GetName(), nil
+			}, &proto.ListUnifiedResourcesRequest{
+				Kinds:  []string{types.KindKubeServer},
+				SortBy: types.SortBy{Field: services.SortByName},
+				Limit:  1,
+			})
+
+			assert.NoError(t, err)
+			assert.Len(t, found, 1)
+
+		}, 10*time.Second, 100*time.Millisecond)
+
 		var ssoCalls atomic.Int32
 		mockSSOLogin := mockSSOLogin(authServer, alice)
 		mockSSOLoginWithCountCalls := func(ctx context.Context, connectorID string, keyRing *client.KeyRing, protocol string) (*authclient.SSHLoginResponse, error) {
@@ -4138,6 +4161,7 @@ func TestSerializeVersion(t *testing.T) {
 
 		proxyVersion       string
 		proxyPublicAddress string
+		reExecFromVersion  string
 	}{
 		{
 			name: "no proxy version provided",
@@ -4154,12 +4178,21 @@ func TestSerializeVersion(t *testing.T) {
 				`{"version": %q, "gitref": %q, "runtime": %q, "proxyVersion": %q, "proxyPublicAddress": %q}`,
 				teleport.Version, teleport.Gitref, runtime.Version(), "1.33.7", "teleport.example.com:443"),
 		},
+		{
+			name:               "re-exec version provided",
+			proxyVersion:       "3.2.1",
+			proxyPublicAddress: "teleport.example.com:443",
+			reExecFromVersion:  "1.2.3",
+			expected: fmt.Sprintf(
+				`{"version": %q, "gitref": %q, "runtime": %q, "proxyVersion": %q, "reExecutedFromVersion": %q, "proxyPublicAddress": %q}`,
+				teleport.Version, teleport.Gitref, runtime.Version(), "3.2.1", "1.2.3", "teleport.example.com:443"),
+		},
 	}
 
 	for _, tC := range testCases {
 		t.Run(tC.name, func(t *testing.T) {
 			testSerialization(t, tC.expected, func(fmt string) (string, error) {
-				return serializeVersion(fmt, tC.proxyVersion, tC.proxyPublicAddress)
+				return serializeVersion(fmt, tC.proxyVersion, tC.proxyPublicAddress, tC.reExecFromVersion)
 			})
 		})
 	}
@@ -4646,7 +4679,7 @@ func TestSerializeProfiles(t *testing.T) {
 	activeProfile := &client.ProfileStatus{
 		ProxyURL:       *p,
 		Username:       "test",
-		ActiveRequests: services.RequestIDs{AccessRequests: []string{"1", "2", "3"}},
+		ActiveRequests: []string{"1", "2", "3"},
 		Cluster:        "main",
 		Roles:          []string{"a", "b", "c"},
 		Traits:         wrappers.Traits{"a": []string{"1", "2", "3"}},
@@ -6014,9 +6047,6 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
-
 	createAgent(t)
 
 	accessUser, err := types.NewUser("access")
@@ -6032,6 +6062,7 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 		testserver.WithBootstrap(connector, accessUser),
 		testserver.WithHostname("node01"),
 		testserver.WithClusterName(t, "root"),
+		testserver.WithDebugApp(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			// Enable DB
 			cfg.Databases.Enabled = true
@@ -6042,9 +6073,6 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 					URI:      "localhost:5432",
 				},
 			}
-
-			cfg.Apps.Enabled = true
-			cfg.Apps.DebugApp = true
 		}),
 	}
 	rootServer := testserver.MakeTestServer(t, rootServerOpts...)
@@ -6053,6 +6081,7 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 		testserver.WithBootstrap(connector, accessUser),
 		testserver.WithHostname("node02"),
 		testserver.WithClusterName(t, "leaf"),
+		testserver.WithDebugApp(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			// Enable DB
 			cfg.Databases.Enabled = true
@@ -6063,9 +6092,6 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 					URI:      "localhost:5432",
 				},
 			}
-
-			cfg.Apps.Enabled = true
-			cfg.Apps.DebugApp = true
 		}),
 	}
 	leafServer := testserver.MakeTestServer(t, leafServerOpts...)

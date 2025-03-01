@@ -17,12 +17,19 @@
  */
 
 import { formatDistanceStrict } from 'date-fns';
+import { Link as InternalLink } from 'react-router-dom';
+import styled from 'styled-components';
 
 import { Card, Flex, H2, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
 
-import { ResourceTypeSummary } from 'teleport/services/integrations';
+import cfg from 'teleport/config';
+import { EnrollCard } from 'teleport/Integrations/status/AwsOidc/EnrollCard';
+import {
+  IntegrationKind,
+  ResourceTypeSummary,
+} from 'teleport/services/integrations';
 
 export enum AwsResource {
   ec2 = 'ec2',
@@ -31,22 +38,30 @@ export enum AwsResource {
 }
 
 type StatCardProps = {
+  name: string;
   resource: AwsResource;
   summary?: ResourceTypeSummary;
 };
 
-export function StatCard({ resource, summary }: StatCardProps) {
+export function StatCard({ name, resource, summary }: StatCardProps) {
   const updated = summary?.discoverLastSync
     ? new Date(summary?.discoverLastSync)
     : undefined;
   const term = getResourceTerm(resource);
 
+  if (!summary || !foundResource(summary)) {
+    return <EnrollCard resource={resource} />;
+  }
+
   return (
-    <Card
-      width="33%"
-      p={3}
-      bg="levels.surface"
+    <SelectCard
       data-testid={`${resource}-stats`}
+      as={InternalLink}
+      to={cfg.getIntegrationStatusResourcesRoute(
+        IntegrationKind.AwsOidc,
+        name,
+        resource
+      )}
     >
       <Flex
         flexDirection="column"
@@ -62,7 +77,7 @@ export function StatCard({ resource, summary }: StatCardProps) {
             <Text>Enrollment Rules </Text>
             <Text>{summary?.rulesCount || 0}</Text>
           </Flex>
-          {resource == AwsResource.rds && (
+          {resource === AwsResource.rds && (
             <Flex justifyContent="space-between" data-testid="rds-agents">
               <Text>Agents </Text>
               <Text>{summary?.ecsDatabaseServiceCount || 0}</Text>
@@ -95,7 +110,7 @@ export function StatCard({ resource, summary }: StatCardProps) {
           </Text>
         )}
       </Flex>
-    </Card>
+    </SelectCard>
   );
 }
 
@@ -110,3 +125,31 @@ function getResourceTerm(resource: AwsResource): string {
       return 'Instances';
   }
 }
+
+function foundResource(resource: ResourceTypeSummary): boolean {
+  if (!resource || Object.keys(resource).length === 0) {
+    return false;
+  }
+
+  if (resource.ecsDatabaseServiceCount != 0) {
+    return true;
+  }
+
+  return resource.rulesCount != 0 || resource.resourcesFound != 0;
+}
+
+export const SelectCard = styled(Card)`
+  width: 33%;
+  background-color: ${props => props.theme.colors.levels.surface};
+  padding: ${props => props.theme.space[3]}px;
+  border-radius: ${props => props.theme.radii[2]}px;
+  border: ${props => `1px solid ${props.theme.colors.levels.surface}`};
+  cursor: pointer;
+  text-decoration: none;
+  color: ${props => props.theme.colors.text.main};
+
+  &:hover {
+    background-color: ${props => props.theme.colors.levels.elevated};
+    box-shadow: ${({ theme }) => theme.boxShadow[2]};
+  }
+`;

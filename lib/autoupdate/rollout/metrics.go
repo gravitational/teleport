@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	"github.com/gravitational/teleport/api/types/autoupdate"
 )
 
 const (
@@ -65,10 +66,11 @@ type metrics struct {
 	configPresent prometheus.Gauge
 	configMode    prometheus.Gauge
 
-	rolloutPresent prometheus.Gauge
-	rolloutStart   *prometheus.GaugeVec
-	rolloutTarget  *prometheus.GaugeVec
-	rolloutMode    prometheus.Gauge
+	rolloutPresent  prometheus.Gauge
+	rolloutStart    *prometheus.GaugeVec
+	rolloutTarget   *prometheus.GaugeVec
+	rolloutMode     prometheus.Gauge
+	rolloutStrategy *prometheus.GaugeVec
 
 	// rollout status metrics
 	rolloutTimeOverride prometheus.Gauge
@@ -85,6 +87,8 @@ const (
 
 	metricsGroupNumberLabelName = "group_number"
 	metricsVersionLabelName     = "version"
+
+	metricsStrategyLabelName = "strategy"
 )
 
 func newMetrics(reg prometheus.Registerer) (*metrics, error) {
@@ -118,81 +122,87 @@ func newMetrics(reg prometheus.Registerer) (*metrics, error) {
 		versionPresent: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Subsystem: metricsSubsystem,
-			Name:      "agent_version_present",
+			Name:      "version_present",
 			Help:      "Boolean describing if an autoupdate_version resource exists in Teleport and its 'spec.agents' field is not nil.",
 		}),
 		versionTarget: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Subsystem: metricsSubsystem,
-			Name:      "agent_version_target",
+			Name:      "version_target",
 			Help:      "Metric describing the agent target version from the autoupdate_version resource.",
 		}, []string{metricsVersionLabelName}),
 		versionStart: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Subsystem: metricsSubsystem,
-			Name:      "agent_version_start",
+			Name:      "version_start",
 			Help:      "Metric describing the agent start version from the autoupdate_version resource.",
 		}, []string{"version"}),
 		versionMode: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Subsystem: metricsSubsystem,
-			Name:      "agent_version_mode",
+			Name:      "version_mode",
 			Help:      fmt.Sprintf("Metric describing the agent update mode from the autoupdate_version resource. %s", valuesHelpString(codeToAgentMode)),
 		}),
 
 		configPresent: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Subsystem: metricsSubsystem,
-			Name:      "agent_config_present",
+			Name:      "config_present",
 			Help:      "Boolean describing if an autoupdate_config resource exists in Teleport and its 'spec.agents' field is not nil.",
 		}),
 		configMode: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Subsystem: metricsSubsystem,
-			Name:      "agent_config_mode",
+			Name:      "config_mode",
 			Help:      fmt.Sprintf("Metric describing the agent update mode from the autoupdate_agent_config resource. %s", valuesHelpString(codeToAgentMode)),
 		}),
 
 		rolloutPresent: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Subsystem: metricsSubsystem,
-			Name:      "agent_rollout_present",
+			Name:      "rollout_present",
 			Help:      "Boolean describing if an autoupdate_agent_rollout resource exists in Teleport.",
 		}),
 		rolloutTarget: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Subsystem: metricsSubsystem,
-			Name:      "agent_rollout_target",
+			Name:      "rollout_target",
 			Help:      "Metric describing the agent target version from the autoupdate_gent_rollout resource.",
 		}, []string{metricsVersionLabelName}),
 		rolloutStart: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Subsystem: metricsSubsystem,
-			Name:      "agent_rollout_start",
+			Name:      "rollout_start",
 			Help:      "Metric describing the agent start version from the autoupdate_agent_rollout resource.",
 		}, []string{metricsVersionLabelName}),
 		rolloutMode: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Subsystem: metricsSubsystem,
-			Name:      "agent_rollout_mode",
+			Name:      "rollout_mode",
 			Help:      fmt.Sprintf("Metric describing the agent update mode from the autoupdate_agent_rollout resource. %s", valuesHelpString(codeToAgentMode)),
 		}),
+		rolloutStrategy: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "rollout_strategy",
+			Help:      "Metric describing the strategy of the autoupdate_agent_rollout resource.",
+		}, []string{metricsStrategyLabelName}),
 		rolloutTimeOverride: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Subsystem: metricsSubsystem,
-			Name:      "agent_rollout_time_override_timestamp_seconds",
+			Name:      "rollout_time_override_timestamp_seconds",
 			Help:      "Describes the autoupdate_agent_rollout time override if set in (seconds since epoch). Zero means no time override.",
 		}),
 		rolloutState: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Subsystem: metricsSubsystem,
-			Name:      "agent_rollout_state",
+			Name:      "rollout_state",
 			Help:      fmt.Sprintf("Describes the autoupdate_agent_rollout state. %s", valuesHelpString(autoupdatepb.AutoUpdateAgentRolloutState_name)),
 		}),
 		rolloutGroupState: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Subsystem: metricsSubsystem,
-			Name:      "agent_rollout_group_state",
+			Name:      "rollout_group_state",
 			Help:      fmt.Sprintf("Describes the autoupdate_agent_rollout state for each group. Groups are identified by their position in the schedule. %s", valuesHelpString(autoupdatepb.AutoUpdateAgentGroupState_name)),
 		}, []string{metricsGroupNumberLabelName}),
 	}
@@ -213,6 +223,7 @@ func newMetrics(reg prometheus.Registerer) (*metrics, error) {
 		reg.Register(m.rolloutTarget),
 		reg.Register(m.rolloutStart),
 		reg.Register(m.rolloutMode),
+		reg.Register(m.rolloutStrategy),
 
 		reg.Register(m.rolloutTimeOverride),
 		reg.Register(m.rolloutState),
@@ -258,12 +269,12 @@ func (m *metrics) setVersionMetric(version string, metric *prometheus.GaugeVec, 
 }
 
 func (m *metrics) observeReconciliation(result string, duration time.Duration) {
-	m.reconciliations.With(prometheus.Labels{metricsReconciliationResultLabelName: result})
+	m.reconciliations.With(prometheus.Labels{metricsReconciliationResultLabelName: result}).Inc()
 	m.reconciliationDuration.With(prometheus.Labels{metricsReconciliationResultLabelName: result}).Observe(duration.Seconds())
 }
 
 func (m *metrics) observeReconciliationTry(result string, duration time.Duration) {
-	m.reconciliationTries.With(prometheus.Labels{metricsReconciliationResultLabelName: result})
+	m.reconciliationTries.With(prometheus.Labels{metricsReconciliationResultLabelName: result}).Inc()
 	m.reconciliationTryDuration.With(prometheus.Labels{metricsReconciliationResultLabelName: result}).Observe(duration.Seconds())
 }
 
@@ -324,6 +335,8 @@ func (m *metrics) observeRollout(rollout *autoupdatepb.AutoUpdateAgentRollout, n
 		m.setVersionMetric(rollout.GetSpec().GetTargetVersion(), m.rolloutTarget, now)
 	}
 
+	m.setStrategyMetric(rollout.GetSpec().GetStrategy(), m.rolloutStrategy)
+
 	if to := rollout.GetStatus().GetTimeOverride().AsTime(); !(to.IsZero() || to.Unix() == 0) {
 		m.rolloutTimeOverride.Set(float64(to.Second()))
 	} else {
@@ -332,4 +345,16 @@ func (m *metrics) observeRollout(rollout *autoupdatepb.AutoUpdateAgentRollout, n
 
 	m.rolloutState.Set(float64(rollout.GetStatus().GetState()))
 	m.setGroupStates(rollout.GetStatus().GetGroups())
+}
+
+var strategies = []string{autoupdate.AgentsStrategyHaltOnError, autoupdate.AgentsStrategyTimeBased}
+
+func (m *metrics) setStrategyMetric(strategy string, metric *prometheus.GaugeVec) {
+	for _, s := range strategies {
+		if s == strategy {
+			metric.With(prometheus.Labels{metricsStrategyLabelName: s}).Set(1)
+		} else {
+			metric.With(prometheus.Labels{metricsStrategyLabelName: s}).Set(0)
+		}
+	}
 }

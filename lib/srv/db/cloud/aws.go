@@ -30,7 +30,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
@@ -40,8 +39,6 @@ import (
 type awsConfig struct {
 	// awsConfigProvider provides [aws.Config] for AWS SDK service clients.
 	awsConfigProvider awsconfig.Provider
-	// clients is an interface for creating AWS clients.
-	clients cloud.Clients
 	// identity is AWS identity this database agent is running as.
 	identity awslib.Identity
 	// database is the database instance to configure.
@@ -55,9 +52,6 @@ type awsConfig struct {
 
 // Check validates the config.
 func (c *awsConfig) Check() error {
-	if c.clients == nil {
-		return trace.BadParameter("missing parameter clients")
-	}
 	if c.identity == nil {
 		return trace.BadParameter("missing parameter identity")
 	}
@@ -357,7 +351,7 @@ func (r *rdsDBConfigurator) enableIAMAuth(ctx context.Context, db types.Database
 			EnableIAMDatabaseAuthentication: aws.Bool(true),
 			ApplyImmediately:                aws.Bool(true),
 		})
-		return awslib.ConvertRequestFailureErrorV2(err)
+		return awslib.ConvertRequestFailureError(err)
 	}
 	if meta.RDS.InstanceID != "" {
 		_, err = clt.ModifyDBInstance(ctx, &rds.ModifyDBInstanceInput{
@@ -365,7 +359,7 @@ func (r *rdsDBConfigurator) enableIAMAuth(ctx context.Context, db types.Database
 			EnableIAMDatabaseAuthentication: aws.Bool(true),
 			ApplyImmediately:                aws.Bool(true),
 		})
-		return awslib.ConvertRequestFailureErrorV2(err)
+		return awslib.ConvertRequestFailureError(err)
 	}
 	return nil
 }

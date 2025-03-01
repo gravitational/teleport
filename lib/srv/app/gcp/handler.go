@@ -197,7 +197,7 @@ func (s *handler) formatForwardResponseError(rw http.ResponseWriter, r *http.Req
 func (s *handler) prepareForwardRequest(r *http.Request, sessionCtx *common.SessionContext) (*http.Request, error) {
 	forwardedHost, err := utils.GetSingleHeader(r.Header, "X-Forwarded-Host")
 	if err != nil {
-		return nil, trace.AccessDenied(err.Error())
+		return nil, trace.AccessDenied("%s", err)
 	} else if !gcp.IsGCPEndpoint(forwardedHost) {
 		return nil, trace.AccessDenied("%q is not a GCP endpoint", forwardedHost)
 	}

@@ -38,10 +38,10 @@ type ImportRulesReader interface {
 
 // ObjectFetcherConfig provides static object fetcher configuration.
 type ObjectFetcherConfig struct {
-	ImportRules  ImportRulesReader
-	Auth         common.Auth
-	CloudClients libcloud.Clients
-	Log          *slog.Logger
+	ImportRules ImportRulesReader
+	Auth        common.Auth
+	GCPClients  libcloud.GCPClients
+	Log         *slog.Logger
 }
 
 // ObjectFetcher defines an interface for retrieving database objects.

@@ -38,14 +38,13 @@ import sessionService from './services/session';
 import { storageService } from './services/storageService';
 import userService from './services/user';
 import userGroupService from './services/userGroups';
-import { StoreNav, StoreNotifications, StoreUserContext } from './stores';
+import { StoreNav, StoreUserContext } from './stores';
 import * as types from './types';
 
 class TeleportContext implements types.Context {
   // stores
   storeNav = new StoreNav();
   storeUser = new StoreUserContext();
-  storeNotifications = new StoreNotifications();
 
   // services
   auditService = new AuditService();

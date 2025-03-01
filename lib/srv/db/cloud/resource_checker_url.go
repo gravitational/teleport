@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 )
 
@@ -44,7 +43,6 @@ type urlChecker struct {
 	// awsClients is an SDK client provider.
 	awsClients awsClientProvider
 
-	clients     cloud.Clients
 	logger      *slog.Logger
 	warnOnError bool
 
@@ -60,7 +58,6 @@ func newURLChecker(cfg DiscoveryResourceCheckerConfig) *urlChecker {
 	return &urlChecker{
 		awsConfigProvider: cfg.AWSConfigProvider,
 		awsClients:        defaultAWSClients{},
-		clients:           cfg.Clients,
 		logger:            cfg.Logger,
 		warnOnError:       getWarnOnError(),
 	}
@@ -102,6 +99,7 @@ func convIsEndpoint(isEndpoint isEndpointFunc) checkDatabaseFunc {
 func (c *urlChecker) Check(ctx context.Context, database types.Database) error {
 	checkersByDatabaseType := map[string]checkDatabaseFunc{
 		types.DatabaseTypeRDS:                c.checkAWS(c.checkRDS, convIsEndpoint(apiawsutils.IsRDSEndpoint)),
+		types.DatabaseTypeRDSOracle:          c.checkAWS(c.checkRDS, convIsEndpoint(apiawsutils.IsRDSEndpoint)),
 		types.DatabaseTypeRDSProxy:           c.checkAWS(c.checkRDSProxy, convIsEndpoint(apiawsutils.IsRDSEndpoint)),
 		types.DatabaseTypeRedshift:           c.checkAWS(c.checkRedshift, convIsEndpoint(apiawsutils.IsRedshiftEndpoint)),
 		types.DatabaseTypeRedshiftServerless: c.checkAWS(c.checkRedshiftServerless, convIsEndpoint(apiawsutils.IsRedshiftServerlessEndpoint)),

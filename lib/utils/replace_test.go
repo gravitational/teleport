@@ -19,6 +19,7 @@
 package utils
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -1318,4 +1319,36 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 			require.Equal(t, tt.matches, got)
 		})
 	}
+}
+
+func BenchmarkReplaceRegexp(b *testing.B) {
+	b.Run("same expression", func(b *testing.B) {
+		for b.Loop() {
+			replaced, err := ReplaceRegexp("*", "foo", "test")
+			require.NoError(b, err)
+			require.NotEmpty(b, replaced)
+		}
+	})
+
+	b.Run("unique expressions", func(b *testing.B) {
+		i := 0
+		for b.Loop() {
+			r := strconv.Itoa(i)
+			replaced, err := ReplaceRegexp(r, r, r)
+			require.NoError(b, err)
+			require.NotEmpty(b, replaced)
+			i++
+		}
+	})
+
+	b.Run("no matches", func(b *testing.B) {
+		expression := "$abc^"
+		i := 0
+		for b.Loop() {
+			replaced, err := ReplaceRegexp(expression, strconv.Itoa(i), "test")
+			require.ErrorIs(b, err, ErrReplaceRegexNotFound)
+			require.Empty(b, replaced)
+			i++
+		}
+	})
 }

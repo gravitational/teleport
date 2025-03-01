@@ -100,7 +100,7 @@ func UnmarshalDatabase(data []byte, opts ...MarshalOption) (types.Database, erro
 	case types.V3:
 		var database types.DatabaseV3
 		if err := utils.FastUnmarshal(data, &database); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := database.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)

@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Immutable, produce } from 'immer';
+import { castDraft, Immutable, produce } from 'immer';
 import { z } from 'zod';
 
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import {
   AvailableResourceMode,
   DefaultTab,
@@ -38,6 +39,7 @@ import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import {
+  PersistedWorkspace,
   StatePersistenceService,
   WorkspacesPersistedState,
 } from 'teleterm/ui/services/statePersistence';
@@ -54,6 +56,7 @@ import {
   getEmptyPendingAccessRequest,
   PendingAccessRequest,
 } from './accessRequestsService';
+import { parseWorkspaceColor, WorkspaceColor } from './color';
 import {
   createClusterDocument,
   Document,
@@ -66,6 +69,12 @@ import {
 } from './documentsService';
 
 export interface WorkspacesState {
+  /**
+   * rootClusterUri points to URI of the root cluster of the current workspace (profile). If set,
+   * the user sees the documents within the workspace, meaning that at some point they were logged
+   * in to the cluster. It doesn't necessarily mean that the cert is active, as it might have
+   * expired since the user has logged in.
+   */
   rootClusterUri?: RootClusterUri;
   workspaces: Record<RootClusterUri, Workspace>;
   /**
@@ -82,6 +91,7 @@ export interface WorkspacesState {
 
 export interface Workspace {
   localClusterUri: ClusterUri;
+  color: WorkspaceColor;
   documents: Document[];
   location: DocumentUri | undefined;
   accessRequests: {
@@ -173,6 +183,15 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   ): void {
     this.setState(draftState => {
       draftState.workspaces[clusterUri].localClusterUri = localClusterUri;
+    });
+  }
+
+  changeWorkspaceColor(
+    rootClusterUri: RootClusterUri,
+    color: WorkspaceColor
+  ): void {
+    this.setState(draftState => {
+      draftState.workspaces[rootClusterUri].color = color;
     });
   }
 
@@ -373,10 +392,14 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       }
     }
     // If we don't have a workspace for this cluster, add it.
+    // TODO(gzdunek): Creating a workspace here might not be necessary
+    // after we started calling workspacesService.addWorkspace in ClusterAdd.
     this.setState(draftState => {
       if (!draftState.workspaces[clusterUri]) {
-        draftState.workspaces[clusterUri] =
-          getWorkspaceDefaultState(clusterUri);
+        draftState.workspaces[clusterUri] = getWorkspaceDefaultState(
+          clusterUri,
+          draftState.workspaces
+        );
       }
       draftState.rootClusterUri = clusterUri;
     });
@@ -421,6 +444,18 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     return { isAtDesiredWorkspace: true };
   }
 
+  addWorkspace(clusterUri: RootClusterUri): void {
+    if (this.state.workspaces[clusterUri]) {
+      return;
+    }
+    this.setState(draftState => {
+      draftState.workspaces[clusterUri] = getWorkspaceDefaultState(
+        clusterUri,
+        draftState.workspaces
+      );
+    });
+  }
+
   removeWorkspace(clusterUri: RootClusterUri): void {
     this.setState(draftState => {
       delete draftState.workspaces[clusterUri];
@@ -451,6 +486,29 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
    */
   restorePersistedState(): void {
     const restoredState = this.statePersistenceService.getWorkspacesState();
+
+    for (const rootClusterUri in restoredState?.workspaces) {
+      const workspace = restoredState?.workspaces[rootClusterUri];
+      const documents = workspace?.documents || [];
+
+      for (const doc of documents) {
+        if (doc.kind === 'doc.vnet_diag_report' && doc.report?.createdAt) {
+          // Timestamps use BigInt, which currently isn't serializable to JSON.
+          // TODO(ravicious): Once we upgrade to Node.js >= 21, deal with serializing BigInt
+          // in the function `stringify` of fileStorage, using a combination of these two approaches:
+          // * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON#using_json_numbers
+          // * https://github.com/GoogleChromeLabs/jsbi/issues/30#issuecomment-1609631034
+          const createdAt = doc.report.createdAt as unknown as string;
+          try {
+            doc.report.createdAt = Timestamp.fromJson(createdAt);
+          } catch (error) {
+            this.logger.error('Could not convert string to timestamp', error);
+            doc.report.createdAt = undefined;
+          }
+        }
+      }
+    }
+
     // Make the restored state immutable.
     this.restoredState = produce(restoredState, () => {});
     const restoredWorkspaces = this.clustersService
@@ -459,6 +517,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         const restoredWorkspace = this.restoredState.workspaces[cluster.uri];
         workspaces[cluster.uri] = getWorkspaceDefaultState(
           cluster.uri,
+          workspaces,
           restoredWorkspace
         );
         return workspaces;
@@ -484,7 +543,9 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   ): void {
     this.setState(draftState => {
       const workspace = draftState.workspaces[rootClusterUri];
-      workspace.documents = reopen.documents.map(d => {
+      // reopen.documents is immutable, but workspace.documents is a mutable draft, hence the cast.
+      // https://immerjs.github.io/immer/typescript/#cast-utilities
+      workspace.documents = castDraft(reopen.documents).map(d => {
         //TODO: create a function that will prepare a new document, it will be used in:
         // DocumentsService
         // TrackedConnectionOperationsFactory
@@ -558,6 +619,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       stateToSave.workspaces[w] = {
         localClusterUri: workspace.localClusterUri,
         location: workspace.location,
+        color: workspace.color,
         documents: documentsToPersist,
         connectMyComputer: workspace.connectMyComputer,
         unifiedResourcePreferences: workspace.unifiedResourcePreferences,
@@ -621,6 +683,26 @@ function getDocumentsToPersist(documents: Document[]): Document[] {
       // a session token and id on disk.
       // Moreover, the user would not be able to authorize a session at a later time anyway.
       .filter(d => d.kind !== 'doc.authorize_web_session')
+      .map(d => {
+        // Timestamps use BigInt, which currently isn't serializable to JSON.
+        // TODO(ravicious): Once we upgrade to Node.js >= 21, deal with serializing BigInt
+        // in the function `stringify` of fileStorage, using a combination of these two approaches:
+        // * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON#using_json_numbers
+        // * https://github.com/GoogleChromeLabs/jsbi/issues/30#issuecomment-1609631034
+        if (d.kind === 'doc.vnet_diag_report' && d.report?.createdAt) {
+          return {
+            ...d,
+            report: {
+              ...d.report,
+              createdAt: Timestamp.toJson(
+                d.report.createdAt
+              ) as unknown as Timestamp,
+            },
+          };
+        }
+
+        return d;
+      })
   );
 }
 
@@ -633,7 +715,8 @@ function getLocationToRestore(
 
 function getWorkspaceDefaultState(
   rootClusterUri: RootClusterUri,
-  restoredWorkspace?: Immutable<Omit<Workspace, 'accessRequests'>>
+  workspaces: Record<string, Workspace>,
+  restoredWorkspace?: Immutable<PersistedWorkspace>
 ): Workspace {
   const defaultDocument = createClusterDocument({ clusterUri: rootClusterUri });
   const defaultWorkspace: Workspace = {
@@ -647,6 +730,7 @@ function getWorkspaceDefaultState(
     hasDocumentsToReopen: false,
     localClusterUri: rootClusterUri,
     unifiedResourcePreferences: parseUnifiedResourcePreferences(undefined),
+    color: parseWorkspaceColor(undefined, workspaces),
   };
   if (!restoredWorkspace) {
     return defaultWorkspace;
@@ -655,6 +739,10 @@ function getWorkspaceDefaultState(
   defaultWorkspace.localClusterUri = restoredWorkspace.localClusterUri;
   defaultWorkspace.unifiedResourcePreferences = parseUnifiedResourcePreferences(
     restoredWorkspace.unifiedResourcePreferences
+  );
+  defaultWorkspace.color = parseWorkspaceColor(
+    restoredWorkspace.color,
+    workspaces
   );
   defaultWorkspace.connectMyComputer = restoredWorkspace.connectMyComputer;
   defaultWorkspace.hasDocumentsToReopen = hasDocumentsToReopen({

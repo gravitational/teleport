@@ -197,7 +197,7 @@ func getRSSWorkgroups(ctx context.Context, clt RSSClient) ([]rsstypes.Workgroup,
 	for i := 0; i < maxAWSPages && pager.HasMorePages(); i++ {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, libcloudaws.ConvertRequestFailureErrorV2(err)
+			return nil, libcloudaws.ConvertRequestFailureError(err)
 		}
 		out = append(out, page.Workgroups...)
 	}
@@ -215,7 +215,7 @@ func getRSSVPCEndpoints(ctx context.Context, clt RSSClient) ([]rsstypes.Endpoint
 	for i := 0; i < maxAWSPages && pager.HasMorePages(); i++ {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, libcloudaws.ConvertRequestFailureErrorV2(err)
+			return nil, libcloudaws.ConvertRequestFailureError(err)
 		}
 		out = append(out, page.Endpoints...)
 	}

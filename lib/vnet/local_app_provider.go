@@ -243,3 +243,73 @@ func (p *localAppProvider) resolveAppInfoForCluster(
 	}
 	return appInfo, nil
 }
+
+// getTargetOSConfiguration returns the configuration values that should be
+// configured in the OS, including DNS zones that should be handled by the VNet
+// DNS nameserver and the IPv4 CIDR ranges that should be routed to the VNet TUN
+// interface. This is not all of the OS configuration values, only the ones that
+// must be communicated from the client application to the admin process.
+func (p *localAppProvider) getTargetOSConfiguration(ctx context.Context) (*vnetv1.GetTargetOSConfigurationResponse, error) {
+	profiles, err := p.ClientApplication.ListProfiles()
+	if err != nil {
+		return nil, trace.Wrap(err, "listing profiles")
+	}
+	var targetOSConfig vnetv1.TargetOSConfiguration
+	for _, profileName := range profiles {
+		profileTargetConfig := p.targetOSConfigurationForProfile(ctx, profileName)
+		targetOSConfig.DnsZones = append(targetOSConfig.DnsZones, profileTargetConfig.DnsZones...)
+		targetOSConfig.Ipv4CidrRanges = append(targetOSConfig.Ipv4CidrRanges, profileTargetConfig.Ipv4CidrRanges...)
+	}
+	return &vnetv1.GetTargetOSConfigurationResponse{
+		TargetOsConfiguration: &targetOSConfig,
+	}, nil
+}
+
+// targetOSConfigurationForProfile does not return errors, it is better to
+// configure VNet for any working profiles and log errors for failures.
+func (p *localAppProvider) targetOSConfigurationForProfile(ctx context.Context, profileName string) *vnetv1.TargetOSConfiguration {
+	targetOSConfig := &vnetv1.TargetOSConfiguration{}
+	rootClusterClient, err := p.GetCachedClient(ctx, profileName, "" /*leafClusterName*/)
+	if err != nil {
+		log.WarnContext(ctx,
+			"Failed to get root cluster client from cache, profile may be expired, not configuring VNet for this cluster",
+			"profile", profileName, "error", err)
+		return targetOSConfig
+	}
+	rootClusterConfig, err := p.clusterConfigCache.GetClusterConfig(ctx, rootClusterClient)
+	if err != nil {
+		log.WarnContext(ctx,
+			"Failed to load VNet configuration, profile may be expired, not configuring VNet for this cluster",
+			"profile", profileName, "error", err)
+		return targetOSConfig
+	}
+	targetOSConfig.DnsZones = rootClusterConfig.DNSZones
+	targetOSConfig.Ipv4CidrRanges = []string{rootClusterConfig.IPv4CIDRRange}
+
+	leafClusterNames, err := getLeafClusters(ctx, rootClusterClient)
+	if err != nil {
+		log.WarnContext(ctx,
+			"Failed to list leaf clusters, profile may be expired, not configuring VNet for leaf clusters of this cluster",
+			"profile", profileName, "error", err)
+		return targetOSConfig
+	}
+	for _, leafClusterName := range leafClusterNames {
+		leafClusterClient, err := p.GetCachedClient(ctx, profileName, leafClusterName)
+		if err != nil {
+			log.WarnContext(ctx,
+				"Failed to create leaf cluster client, not configuring VNet for this cluster",
+				"profile", profileName, "leaf_cluster", leafClusterName, "error", err)
+			return targetOSConfig
+		}
+		leafClusterConfig, err := p.clusterConfigCache.GetClusterConfig(ctx, leafClusterClient)
+		if err != nil {
+			log.WarnContext(ctx,
+				"Failed to load VNet configuration, not configuring VNet for this cluster",
+				"profile", profileName, "leaf_cluster", leafClusterName, "error", err)
+			return targetOSConfig
+		}
+		targetOSConfig.DnsZones = append(targetOSConfig.DnsZones, leafClusterConfig.DNSZones...)
+		targetOSConfig.Ipv4CidrRanges = append(targetOSConfig.Ipv4CidrRanges, leafClusterConfig.IPv4CIDRRange)
+	}
+	return targetOSConfig
+}

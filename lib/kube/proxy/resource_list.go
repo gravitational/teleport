@@ -81,7 +81,7 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 				sess.requestVerb,
 				sess.apiResource,
 			)
-			return nil, trace.AccessDenied(notFoundMessage)
+			return nil, trace.AccessDenied("%s", notFoundMessage)
 		}
 		// isWatch identifies if the request is long-lived watch stream based on
 		// HTTP connection.

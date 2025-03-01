@@ -50,6 +50,10 @@ type KubernetesV2Output struct {
 	// Selectors is a list of selectors for path-based routing. Multiple
 	// selectors can be used to generate an output containing all matches.
 	Selectors []*KubernetesSelector `yaml:"selectors,omitempty"`
+
+	// CredentialLifetime contains configuration for how long credentials will
+	// last and the frequency at which they'll be renewed.
+	CredentialLifetime CredentialLifetime `yaml:",inline"`
 }
 
 func (o *KubernetesV2Output) CheckAndSetDefaults() error {
@@ -154,4 +158,8 @@ func (s *KubernetesSelector) UnmarshalYAML(value *yaml.Node) error {
 
 	*s = KubernetesSelector(out)
 	return nil
+}
+
+func (o *KubernetesV2Output) GetCredentialLifetime() CredentialLifetime {
+	return o.CredentialLifetime
 }

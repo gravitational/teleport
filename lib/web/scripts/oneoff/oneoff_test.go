@@ -69,7 +69,7 @@ func TestOneOffScript(t *testing.T) {
 		BinMktemp:       mktempMock.Path,
 		CDNBaseURL:      "dummyURL",
 		TeleportVersion: "v13.1.0",
-		TeleportArgs:    "version",
+		EntrypointArgs:  "version",
 	})
 	require.NoError(t, err)
 
@@ -99,7 +99,7 @@ func TestOneOffScript(t *testing.T) {
 			BinMktemp:       mktempMock.Path,
 			CDNBaseURL:      testServer.URL,
 			TeleportVersion: "v13.1.0",
-			TeleportArgs:    "version",
+			EntrypointArgs:  "version",
 			SuccessMessage:  "Test was a success.",
 		})
 		require.NoError(t, err)
@@ -156,7 +156,7 @@ func TestOneOffScript(t *testing.T) {
 			BinMktemp:             mktempMock.Path,
 			CDNBaseURL:            testServer.URL,
 			TeleportVersion:       "v13.1.0",
-			TeleportArgs:          "version",
+			EntrypointArgs:        "version",
 			SuccessMessage:        "Test was a success.",
 			TeleportCommandPrefix: "sudo",
 			binSudo:               sudoMock.Path,
@@ -215,7 +215,7 @@ func TestOneOffScript(t *testing.T) {
 			BinUname:        unameMock.Path,
 			BinMktemp:       mktempMock.Path,
 			CDNBaseURL:      testServer.URL,
-			TeleportArgs:    "help",
+			EntrypointArgs:  "help",
 			TeleportVersion: "v13.1.0",
 			SuccessMessage:  "Test was a success.",
 		})
@@ -293,7 +293,7 @@ func TestOneOffScript(t *testing.T) {
 			BinMktemp:       mktempMock.Path,
 			CDNBaseURL:      "dummyURL",
 			TeleportVersion: "v13.1.0",
-			TeleportArgs:    "version",
+			EntrypointArgs:  "version",
 			SuccessMessage:  "Test was a success.",
 			TeleportFlavor:  "../not-teleport",
 		})
@@ -306,7 +306,7 @@ func TestOneOffScript(t *testing.T) {
 			BinMktemp:             mktempMock.Path,
 			CDNBaseURL:            "dummyURL",
 			TeleportVersion:       "v13.1.0",
-			TeleportArgs:          "version",
+			EntrypointArgs:        "version",
 			SuccessMessage:        "Test was a success.",
 			TeleportFlavor:        "teleport",
 			TeleportCommandPrefix: "rm -rf thing",
@@ -343,7 +343,7 @@ func TestOneOffScript(t *testing.T) {
 			BinMktemp:       mktempMock.Path,
 			CDNBaseURL:      testServer.URL,
 			TeleportVersion: "v13.1.0",
-			TeleportArgs:    "version",
+			EntrypointArgs:  "version",
 			SuccessMessage:  "Test was a success.",
 		})
 		require.NoError(t, err)

@@ -19,6 +19,7 @@ package web
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -52,12 +53,6 @@ func (h *Handler) authExportPublicError(w http.ResponseWriter, r *http.Request, 
 
 	query := r.URL.Query()
 	caType := query.Get("type") // validated by ExportAllAuthorities
-	format := query.Get("format")
-
-	const formatZip = "zip"
-	if format != "" && format != formatZip {
-		return trace.BadParameter("unsupported format %q", format)
-	}
 
 	ctx := r.Context()
 	authorities, err := client.ExportAllAuthorities(
@@ -72,11 +67,23 @@ func (h *Handler) authExportPublicError(w http.ResponseWriter, r *http.Request, 
 		return trace.Wrap(err)
 	}
 
-	if format == formatZip {
+	format := query.Get("format")
+
+	const formatZip = "zip"
+	const formatJSON = "json"
+	switch format {
+	case "":
+		break
+	case formatZip:
 		return h.authExportPublicZip(w, r, authorities)
+	case formatJSON:
+		return h.authExportPublicJSON(w, r, authorities)
+	default:
+		return trace.BadParameter("unsupported format %q", format)
 	}
+
 	if l := len(authorities); l > 1 {
-		return trace.BadParameter("found %d authorities to export, use format=%s to export all", l, formatZip)
+		return trace.BadParameter("found %d authorities to export, use format=%s or format=%s to export all", l, formatZip, formatJSON)
 	}
 
 	// ServeContent sets the correct headers: Content-Type, Content-Length and Accept-Ranges.
@@ -117,5 +124,21 @@ func (h *Handler) authExportPublicZip(
 	const zipName = "Teleport_CA.zip"
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment;filename="%s"`, zipName))
 	http.ServeContent(w, r, zipName, now, bytes.NewReader(out.Bytes()))
+	return nil
+}
+
+func (h *Handler) authExportPublicJSON(
+	w http.ResponseWriter,
+	r *http.Request,
+	authorities []*client.ExportedAuthority,
+) error {
+	marshalledAuthorities, err := json.Marshal(authorities)
+	if err != nil {
+		return trace.Wrap(err, "failed to JSON marshal authorities")
+	}
+
+	// File name is not critical here. It is only used by `ServeContent` to determine the value of the
+	// `Content-Type` header.
+	http.ServeContent(w, r, "export.json", time.Now(), bytes.NewReader(marshalledAuthorities))
 	return nil
 }

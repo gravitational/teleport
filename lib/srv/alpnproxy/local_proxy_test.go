@@ -125,6 +125,7 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 				Path:   "/",
 			}
 
+			//nolint:forbidigo // OK to not use "stsutils" on tests.
 			clt := sts.New(sts.Options{
 				APIOptions:       tc.apiOpts,
 				Region:           awsRegion,

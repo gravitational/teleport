@@ -50,14 +50,15 @@ describe('AccessRules', () => {
   test('editing', async () => {
     const { user, modelRef } = setup();
     await user.click(screen.getByRole('button', { name: 'Add New' }));
-    await selectEvent.select(screen.getByLabelText('Resources'), [
+    await selectEvent.select(screen.getByLabelText('Resources *'), [
       'db',
       'node',
     ]);
-    await selectEvent.select(screen.getByLabelText('Permissions'), [
+    await selectEvent.select(screen.getByLabelText('Permissions *'), [
       'list',
       'read',
     ]);
+    await user.type(screen.getByLabelText('Filter'), 'some-filter');
     expect(modelRef).toHaveBeenLastCalledWith([
       {
         id: expect.any(String),
@@ -69,6 +70,7 @@ describe('AccessRules', () => {
           { label: 'list', value: 'list' },
           { label: 'read', value: 'read' },
         ],
+        where: 'some-filter',
       },
     ] as RuleModel[]);
   });

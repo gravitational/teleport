@@ -47,6 +47,7 @@ func TestIdentityCommand(t *testing.T) {
 				"--storage=/foo",
 				"--destination=file:///bar",
 				"--proxy-server=example.com:443",
+				"--allow-reissue",
 			},
 			assertConfig: func(t *testing.T, cfg *config.BotConfig) {
 				token, err := cfg.Onboarding.Token()
@@ -54,8 +55,8 @@ func TestIdentityCommand(t *testing.T) {
 				require.Equal(t, "foo", token)
 
 				require.ElementsMatch(t, cfg.Onboarding.CAPins, []string{"bar"})
-				require.Equal(t, time.Minute*10, cfg.CertificateTTL)
-				require.Equal(t, time.Minute*5, cfg.RenewalInterval)
+				require.Equal(t, time.Minute*10, cfg.CredentialLifetime.TTL)
+				require.Equal(t, time.Minute*5, cfg.CredentialLifetime.RenewalInterval)
 				require.Equal(t, types.JoinMethodGitHub, cfg.Onboarding.JoinMethod)
 				require.True(t, cfg.Oneshot)
 				require.Equal(t, "0.0.0.0:8080", cfg.DiagAddr)
@@ -75,6 +76,7 @@ func TestIdentityCommand(t *testing.T) {
 				dir, ok = ident.Destination.(*config.DestinationDirectory)
 				require.True(t, ok)
 				require.Equal(t, "/bar", dir.Path)
+				require.True(t, ident.AllowReissue)
 			},
 		},
 	})

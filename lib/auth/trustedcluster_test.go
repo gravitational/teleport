@@ -392,6 +392,21 @@ func TestValidateTrustedCluster(t *testing.T) {
 		_, err := server.ValidateTrustedCluster(ctx, req)
 		require.True(t, trace.IsNotImplemented(err), "ValidateTrustedCluster returned an unexpected error, got = %v (%T), want trace.NotImplementedError", err, err)
 	})
+
+	t.Run("CA cluster name does not match subject organization", func(t *testing.T) {
+		_, err = a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
+			Token: validToken,
+			CAs: []types.CertAuthority{
+				suite.NewTestCAWithConfig(suite.TestCAConfig{
+					Type:                types.HostCA,
+					ClusterName:         "remoteCluster",
+					SubjectOrganization: "commonName",
+				}),
+			},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "the subject organization of a CA certificate does not match the cluster name of the CA")
+	})
 }
 
 func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Server {

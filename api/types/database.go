@@ -566,6 +566,10 @@ func (d *DatabaseV3) getAWSType() (string, bool) {
 		return DatabaseTypeDynamoDB, true
 	case DatabaseTypeOpenSearch:
 		return DatabaseTypeOpenSearch, true
+	case DatabaseProtocolOracle:
+		if !aws.IsEmpty() {
+			return DatabaseTypeRDSOracle, true
+		}
 	}
 	if aws.Redshift.ClusterID != "" {
 		return DatabaseTypeRedshift, true
@@ -1139,6 +1143,8 @@ const (
 	DatabaseProtocolMongoDB = "mongodb"
 	// DatabaseProtocolCockroachDB is the CockroachDB database protocol.
 	DatabaseProtocolCockroachDB = "cockroachdb"
+	// DatabaseProtocolOracle is the Oracle database protocol.
+	DatabaseProtocolOracle = "oracle"
 
 	// DatabaseTypeSelfHosted is the self-hosted type of database.
 	DatabaseTypeSelfHosted = "self-hosted"
@@ -1172,6 +1178,8 @@ const (
 	DatabaseTypeMongoAtlas = "mongo-atlas"
 	// DatabaseTypeDocumentDB is the database type for AWS-hosted DocumentDB.
 	DatabaseTypeDocumentDB = "docdb"
+	// DatabaseTypeRDSOracle is AWS-hosted Oracle instance.
+	DatabaseTypeRDSOracle = "rds-oracle"
 )
 
 // GetServerName returns the GCP database project and instance as "<project-id>:<instance-id>".

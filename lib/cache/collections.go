@@ -102,8 +102,7 @@ type crownjewelsGetter interface {
 }
 
 type userTasksGetter interface {
-	ListUserTasks(ctx context.Context, pageSize int64, nextToken string) ([]*usertasksv1.UserTask, string, error)
-	ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertasksv1.UserTask, string, error)
+	ListUserTasks(ctx context.Context, pageSize int64, nextToken string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error)
 	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
 }
 
@@ -2565,7 +2564,7 @@ func (userTasksExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets b
 	for {
 		var page []*usertasksv1.UserTask
 		var err error
-		page, nextToken, err = cache.UserTasks.ListUserTasks(ctx, 0 /* page size */, nextToken)
+		page, nextToken, err = cache.UserTasks.ListUserTasks(ctx, 0 /* page size */, nextToken, &usertasksv1.ListUserTasksFilters{})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3480,7 +3479,7 @@ func (accessMonitoringRulesExecutor) getReader(cache *Cache, cacheOK bool) acces
 type accessMonitoringRuleGetter interface {
 	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error)
 	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
-	ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, nextToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
+	ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 }
 
 type accessGraphSettingsExecutor struct{}

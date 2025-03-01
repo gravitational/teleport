@@ -18,6 +18,6 @@
 
 export { IntegrationEnroll } from './IntegrationEnroll';
 
-export { IntegrationTiles } from './IntegrationTiles';
+export { IntegrationTiles } from './IntegrationTiles/IntegrationTiles';
 export { getRoutesToEnrollIntegrations } from './IntegrationRoute';
 export * from './common';

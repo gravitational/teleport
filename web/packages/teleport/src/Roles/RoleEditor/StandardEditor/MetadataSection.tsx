@@ -42,6 +42,7 @@ export const MetadataSection = ({
   >
     <FieldInput
       label="Role Name"
+      required
       placeholder="Enter Role Name"
       value={value.name}
       disabled={isProcessing}

@@ -272,6 +272,7 @@ function getTestSetupWithMockedDocuments(documents: Document[]) {
   // Insert the documents.
   workspacesService.setState(draftState => {
     draftState.workspaces['/clusters/localhost'] = {
+      color: 'purple',
       accessRequests: {
         pending: getEmptyPendingAccessRequest(),
         isBarCollapsed: false,

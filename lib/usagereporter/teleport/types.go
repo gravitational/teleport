@@ -54,6 +54,33 @@ func (u *UserLoginEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequ
 				ConnectorType:            u.ConnectorType,
 				DeviceId:                 deviceID,
 				RequiredPrivateKeyPolicy: u.RequiredPrivateKeyPolicy,
+				UserOrigin:               u.UserOrigin,
+			},
+		},
+	}
+}
+
+// AccessRequestCreateEvent is emitted when Access Request is created.
+type AccessRequestCreateEvent prehogv1a.AccessRequestEvent
+
+func (e *AccessRequestCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessRequestCreateEvent{
+			AccessRequestCreateEvent: &prehogv1a.AccessRequestEvent{
+				UserName: a.AnonymizeString(e.UserName),
+			},
+		},
+	}
+}
+
+// AccessRequestCreateEvent is emitted when Access Request is reviewed.
+type AccessRequestReviewEvent prehogv1a.AccessRequestEvent
+
+func (e *AccessRequestReviewEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessRequestReviewEvent{
+			AccessRequestReviewEvent: &prehogv1a.AccessRequestEvent{
+				UserName: a.AnonymizeString(e.UserName),
 			},
 		},
 	}
@@ -71,6 +98,7 @@ func (u *BotJoinEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventReques
 				JoinTokenName: a.AnonymizeString(u.JoinTokenName),
 				JoinMethod:    u.JoinMethod,
 				UserName:      a.AnonymizeString(u.UserName),
+				BotInstanceId: a.AnonymizeString(u.BotInstanceId),
 			},
 		},
 	}
@@ -104,6 +132,7 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 			DbType:     u.Database.DbType,
 			DbProtocol: u.Database.DbProtocol,
 			DbOrigin:   u.Database.DbOrigin,
+			UserAgent:  u.Database.UserAgent,
 		}
 	}
 	if u.Desktop != nil {
@@ -118,6 +147,12 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 	if u.App != nil {
 		sessionStart.App = &prehogv1a.SessionStartAppMetadata{
 			IsMultiPort: u.App.IsMultiPort,
+		}
+	}
+	if u.Git != nil {
+		sessionStart.Git = &prehogv1a.SessionStartGitMetadata{
+			GitType:    u.Git.GitType,
+			GitService: u.Git.GitService,
 		}
 	}
 	return prehogv1a.SubmitEventRequest{
@@ -516,18 +551,22 @@ func (u *UICallToActionClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.Submi
 type UserCertificateIssuedEvent prehogv1a.UserCertificateIssuedEvent
 
 func (u *UserCertificateIssuedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	e := &prehogv1a.UserCertificateIssuedEvent{
+		UserName:         a.AnonymizeString(u.UserName),
+		Ttl:              u.Ttl,
+		IsBot:            u.IsBot,
+		UsageDatabase:    u.UsageDatabase,
+		UsageApp:         u.UsageApp,
+		UsageKubernetes:  u.UsageKubernetes,
+		UsageDesktop:     u.UsageDesktop,
+		PrivateKeyPolicy: u.PrivateKeyPolicy,
+	}
+	if u.BotInstanceId != "" {
+		e.BotInstanceId = a.AnonymizeString(u.BotInstanceId)
+	}
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UserCertificateIssuedEvent{
-			UserCertificateIssuedEvent: &prehogv1a.UserCertificateIssuedEvent{
-				UserName:         a.AnonymizeString(u.UserName),
-				Ttl:              u.Ttl,
-				IsBot:            u.IsBot,
-				UsageDatabase:    u.UsageDatabase,
-				UsageApp:         u.UsageApp,
-				UsageKubernetes:  u.UsageKubernetes,
-				UsageDesktop:     u.UsageDesktop,
-				PrivateKeyPolicy: u.PrivateKeyPolicy,
-			},
+			UserCertificateIssuedEvent: e,
 		},
 	}
 }
@@ -1274,16 +1313,20 @@ func (u *DatabaseUserPermissionsUpdateEvent) Anonymize(a utils.Anonymizer) preho
 type SPIFFESVIDIssuedEvent prehogv1a.SPIFFESVIDIssuedEvent
 
 func (u *SPIFFESVIDIssuedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	e := &prehogv1a.SPIFFESVIDIssuedEvent{
+		UserName:     a.AnonymizeString(u.UserName),
+		UserKind:     u.UserKind,
+		SpiffeId:     a.AnonymizeString(u.SpiffeId),
+		IpSansCount:  u.IpSansCount,
+		DnsSansCount: u.DnsSansCount,
+		SvidType:     u.SvidType,
+	}
+	if u.BotInstanceId != "" {
+		e.BotInstanceId = a.AnonymizeString(u.BotInstanceId)
+	}
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_SpiffeSvidIssued{
-			SpiffeSvidIssued: &prehogv1a.SPIFFESVIDIssuedEvent{
-				UserName:     a.AnonymizeString(u.UserName),
-				UserKind:     u.UserKind,
-				SpiffeId:     a.AnonymizeString(u.SpiffeId),
-				IpSansCount:  u.IpSansCount,
-				DnsSansCount: u.DnsSansCount,
-				SvidType:     u.SvidType,
-			},
+			SpiffeSvidIssued: e,
 		},
 	}
 }
@@ -1766,8 +1809,10 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_AccessListGrantsToUser:
+		// This event is emitted both as an one-off event as well as an aggregated
+		// user activity record report.
 		ret := &AccessListGrantsToUserEvent{
-			UserName:                    userMD.Username,
+			UserName:                    e.AccessListGrantsToUser.GetUserName(),
 			CountRolesGranted:           e.AccessListGrantsToUser.CountRolesGranted,
 			CountTraitsGranted:          e.AccessListGrantsToUser.CountTraitsGranted,
 			CountInheritedRolesGranted:  e.AccessListGrantsToUser.CountInheritedRolesGranted,
@@ -1790,6 +1835,8 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_AccessListReviewCreate:
+		// This event is emitted both as an one-off event as well as an aggregated
+		// user activity record report.
 		ret := &AccessListReviewCreateEvent{
 			UserName: userMD.Username,
 			Metadata: &prehogv1a.AccessListMetadata{

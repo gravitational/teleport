@@ -48,7 +48,6 @@ type WorkloadIdentityAPICommand struct {
 // `workload-identity-api` service and returns a struct that will contain the
 // parse result.
 func NewWorkloadIdentityAPICommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *WorkloadIdentityAPICommand {
-	// TODO(noah): Unhide this command when feature flag removed
 	cmd := parentCmd.Command(
 		"workload-identity-api",
 		fmt.Sprintf("%s tbot with a workload identity API listener. Compatible with the SPIFFE Workload API and Envoy SDS.", mode),

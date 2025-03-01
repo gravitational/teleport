@@ -4,7 +4,7 @@ This chart sets up and configures a Deployment for the Access Request Email plug
 
 ## Installation
 
-See the [Access Requests with Email guide](https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-email/).
+See the [Access Requests with Email guide](https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/ssh-approval-email/).
 
 ## Values
 

@@ -70,9 +70,12 @@ func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]b
 // a test certificate authority
 type TestCAConfig struct {
 	Type        types.CertAuthType
-	ClusterName string
 	PrivateKeys [][]byte
 	Clock       clockwork.Clock
+	ClusterName string
+	// the below string fields default to ClusterName if left empty
+	ResourceName        string
+	SubjectOrganization string
 }
 
 // NewTestCAWithConfig generates a new certificate authority with the specified
@@ -82,6 +85,13 @@ type TestCAConfig struct {
 func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 	var keyPEM []byte
 	var key *keys.PrivateKey
+
+	if config.ResourceName == "" {
+		config.ResourceName = config.ClusterName
+	}
+	if config.SubjectOrganization == "" {
+		config.SubjectOrganization = config.ClusterName
+	}
 
 	switch config.Type {
 	case types.DatabaseCA, types.SAMLIDPCA, types.OIDCIdPCA:
@@ -127,7 +137,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 		SubKind: string(config.Type),
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name:      config.ClusterName,
+			Name:      config.ResourceName,
 			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.CertAuthoritySpecV2{
@@ -152,7 +162,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 			Signer: key.Signer,
 			Entity: pkix.Name{
 				CommonName:   config.ClusterName,
-				Organization: []string{config.ClusterName},
+				Organization: []string{config.SubjectOrganization},
 			},
 			TTL:   defaults.CATTL,
 			Clock: config.Clock,

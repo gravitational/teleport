@@ -41,12 +41,32 @@ Note that the RDS database must have IAM authentication enabled.
 
 Refer to the [AWS documentation](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html) to make sure you are using the `rds_iam` role correctly.
 for more information.
+
+If the admin user needs to grant the `rds_superuser` role to auto-provisioned
+users, the admin user must also be a `rds_superuser`:
+```sql
+GRANT rds_superuser TO "teleport-admin";
+```
+
+For PostgreSQL 16+, you must grant the `ADMIN` option to the admin user for each
+PostgreSQL role that Teleport will assign to your Teleport user. For example, to
+allow the admin user to grant and revoke role `reader`:
+```sql
+GRANT reader TO "teleport-admin" WITH ADMIN OPTION;
+```
 </TabItem>
 <TabItem label="Self-hosted PostgreSQL">
 The self-hosted PostgreSQL admin user must have X.509 authentication configured.
 
 ```sql
 CREATE USER "teleport-admin" login createrole;
+```
+
+For PostgreSQL 16+, you must grant the `ADMIN` option to the admin user for each
+PostgreSQL role that Teleport will assign to your Teleport user. For example, to
+allow the admin user to grant and revoke role `reader`:
+```sql
+GRANT reader TO "teleport-admin" WITH ADMIN OPTION;
 ```
 
 Note that the database must be configured to accept client certificate auth
@@ -63,7 +83,13 @@ to ensure that your configuration is correct.
 </Tabs>
 
 <Admonition type="note" title="Database Access Controls for `teleport-admin`">
-When [Database Access Controls](../rbac.mdx) feature is in use, the `teleport-admin` should have permissions to relevant database objects. For example:
+When [Database Access Controls](../rbac.mdx) feature is in use, the
+`teleport-admin` should have permissions to relevant database objects. You can
+grant `teleport-admin` the `SUPERUSER` option for self-hosted databases, or the
+`rds_superuser` role for RDS databases.
+
+For improved security through the principle of least privilege, you can also
+assign permissions directly to specific database objects. For example:
 
 ```sql
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA schema1, schema2, schema3 TO "teleport-admin";
@@ -74,10 +100,6 @@ Users created by Teleport will be placed in the `teleport-auto-user` group in
 the database, which will be created automatically if it doesn't exist.
 
 (!docs/pages/includes/database-access/auto-user-provisioning/db-definition-default-dbname.mdx protocol="postgres" uri="localhost:5432" default="the same database that the user is accessing" !)
-
-<Admonition type="warning" title="Procedure Privileges in PostgreSQL 15+">
-(!docs/pages/includes/database-access/auto-user-provisioning/postgres15-grant-create.mdx!)
-</Admonition>
 
 ## Step 2/3. Configure a Teleport role
 
@@ -168,10 +190,6 @@ Users created within the database will:
 (!docs/pages/includes/database-access/auto-user-provisioning/connect.mdx gui="pgAdmin"!)
 
 ## Troubleshooting
-
-### Permission denied for schema public error
-
-(!docs/pages/includes/database-access/auto-user-provisioning/postgres15-grant-create.mdx!)
 
 ### User does not have CONNECT privilege error
 

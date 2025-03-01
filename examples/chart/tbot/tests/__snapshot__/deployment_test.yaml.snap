@@ -98,6 +98,16 @@ should match the snapshot (full):
               requests:
                 cpu: 250m
                 memory: 64Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+              seccompProfile:
+                type: RuntimeDefault
             volumeMounts:
             - mountPath: /config
               name: config

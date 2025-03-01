@@ -45,7 +45,8 @@ import { useAsync } from 'shared/hooks/useAsync';
 import cfg from 'teleport/config';
 import {
   AwsOidcPolicyPreset,
-  Integration,
+  IntegrationAwsOidc,
+  IntegrationKind,
 } from 'teleport/services/integrations';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
@@ -54,14 +55,14 @@ import { EditableIntegrationFields } from './Operations/useIntegrationOperation'
 
 type Props = {
   close(): void;
-  edit(integration: Integration, req: EditableIntegrationFields): Promise<void>;
-  integration: Integration;
+  edit(req: EditableIntegrationFields): Promise<void>;
+  integration: IntegrationAwsOidc;
 };
 
 export function EditAwsOidcIntegrationDialog(props: Props) {
   const { close, edit, integration } = props;
   const [updateAttempt, runUpdate] = useAsync(async () => {
-    await edit(integration, { roleArn });
+    await edit({ kind: IntegrationKind.AwsOidc, roleArn });
   });
 
   const [roleArn, setRoleArn] = useState(integration.spec.roleArn);

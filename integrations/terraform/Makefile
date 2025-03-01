@@ -194,15 +194,5 @@ lint:
 	golangci-lint run -c ../../.golangci.yml
 
 .PHONY: docs
-docs: gen-tfschema install bin/tfplugindocs
+docs: gen-tfschema install
 	./gen/docs.sh $(VERSION)
-
-## Location to install dependencies to
-LOCALBIN ?= $(shell pwd)/bin
-$(LOCALBIN):
-	mkdir -p $(LOCALBIN)
-
-bin/tfplugindocs: go.mod $(LOCALBIN)
-	mkdir -p bin
-# Turning off GOWORK to prevent missing package errors.
-	GOWORK=off GOBIN=$(LOCALBIN) go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs

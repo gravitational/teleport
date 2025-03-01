@@ -141,10 +141,3 @@ export type GetResourcesParams = {
   // query is used for advanced search.
   query?: string;
 };
-
-/** @deprecated Use `AccessRequest` instead. */
-export type AssumedRequest = {
-  id: string;
-  expires: Date;
-  roles: string[];
-};

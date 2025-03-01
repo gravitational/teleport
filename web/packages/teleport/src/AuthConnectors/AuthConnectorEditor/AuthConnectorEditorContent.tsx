@@ -115,7 +115,7 @@ export function AuthConnectorEditorContent({
                 Please
                 <Link
                   color="text.main"
-                  href="https://goteleport.com/docs/setup/admin/github-sso/"
+                  href="https://goteleport.com/docs/admin-guides/access-controls/sso/github-sso/"
                   target="_blank"
                 >
                   view our documentation

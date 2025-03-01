@@ -53,7 +53,7 @@ Go to "OAuth Apps" under "Developer Settings" of your organization's settings.
 Click on "New OAuth App".
 
 Fill in the details. Use the following for "Authentication callback URL":
-```
+```code
 https://<Var name="teleport-proxy-address"/>/v1/webapi/github/
 ```
 
@@ -86,7 +86,7 @@ previous step.
 
 To create the resource with `tctl`, run:
 ```code
-$ tctl create -f github_integration.yaml
+$ tctl create github_integration.yaml
 ```
 
 Once the integration resource is created, export the CA to be used for GitHub:
@@ -117,7 +117,7 @@ spec:
 
 To create the resource with `tctl`, run:
 ```code
-$ tctl create -f git_server.yaml
+$ tctl create git_server.yaml
 ```
 
 The user role must have `github_permissions` configured to allow access to your

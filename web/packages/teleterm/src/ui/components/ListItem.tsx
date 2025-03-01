@@ -24,26 +24,33 @@ export const StaticListItem = styled.li`
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  width: 100%;
-  position: relative;
-  font-size: 14px;
-  padding: 0 16px;
+  outline: none;
   font-weight: ${props => props.theme.regular};
   font-family: ${props => props.theme.font};
   color: ${props => props.theme.colors.text.main};
+  position: relative;
+  font-size: 14px;
+  padding: 0 16px;
   height: 34px;
   background: inherit;
   border: none;
   border-radius: 4px;
 `;
 
-export const ListItem = styled(StaticListItem)<{ isActive?: boolean }>`
+export const ListItem = styled(StaticListItem).attrs({ tabIndex: 0 })<{
+  isActive?: boolean;
+}>`
   cursor: pointer;
   background: ${props =>
-    props.isActive ? props.theme.colors.spotBackground[0] : null};
+    props.isActive ? props.theme.colors.interactive.tonal.neutral[0] : null};
 
-  &:focus,
+  &:focus-visible {
+    outline: 1px solid ${props => props.theme.colors.text.muted};
+    background: ${props => props.theme.colors.interactive.tonal.neutral[0]};
+  }
   &:hover {
-    background: ${props => props.theme.colors.spotBackground[0]};
+    outline: 1px solid
+      ${props => props.theme.colors.interactive.tonal.neutral[0]};
+    background: ${props => props.theme.colors.interactive.tonal.neutral[0]};
   }
 `;

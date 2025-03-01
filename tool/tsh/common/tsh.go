@@ -440,6 +440,7 @@ type CLIConf struct {
 	AWSCommandArgs []string
 	// AWSEndpointURLMode is an AWS proxy mode that serves an AWS endpoint URL
 	// proxy instead of an HTTPS proxy.
+	// TODO(gabrielcorado): DELETE IN 19.0.0
 	AWSEndpointURLMode bool
 
 	// AzureIdentity is Azure identity that will be used for Azure CLI access.
@@ -952,7 +953,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
 	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
 	proxyAWS.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
-	proxyAWS.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").Short('e').BoolVar(&cf.AWSEndpointURLMode)
+	proxyAWS.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").Short('e').Hidden().BoolVar(&cf.AWSEndpointURLMode)
 	proxyAWS.Flag("format", awsProxyFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, awsProxyFormats...)
 
 	proxyAzure := proxy.Command("azure", "Start local proxy for Azure access.")
@@ -1257,12 +1258,15 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// Device Trust commands.
 	deviceCmd := newDeviceCommand(app)
 
-	workloadIdentityCmd := newSVIDCommands(app)
+	svidCmd := newSVIDCommands(app)
+	workloadIdentityCmd := newWorkloadIdentityCommands(app)
 
 	vnetCommand := newVnetCommand(app)
 	vnetAdminSetupCommand := newVnetAdminSetupCommand(app)
 	vnetDaemonCommand := newVnetDaemonCommand(app)
 	vnetServiceCommand := newVnetServiceCommand(app)
+	vnetInstallServiceCommand := newVnetInstallServiceCommand(app)
+	vnetUninstallServiceCommand := newVnetUninstallServiceCommand(app)
 
 	gitCmd := newGitCommands(app)
 
@@ -1638,8 +1642,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onKubectlCommand(&cf, args, args[idx:])
 	case headlessApprove.FullCommand():
 		err = onHeadlessApprove(&cf)
-	case workloadIdentityCmd.issue.FullCommand():
-		err = workloadIdentityCmd.issue.run(&cf)
+	case svidCmd.issue.FullCommand():
+		err = svidCmd.issue.run(&cf)
+	case workloadIdentityCmd.issueX509.FullCommand():
+		err = workloadIdentityCmd.issueX509.run(&cf)
 	case vnetCommand.FullCommand():
 		err = vnetCommand.run(&cf)
 	case vnetAdminSetupCommand.FullCommand():
@@ -1648,6 +1654,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = vnetDaemonCommand.run(&cf)
 	case vnetServiceCommand.FullCommand():
 		err = vnetServiceCommand.run(&cf)
+	case vnetInstallServiceCommand.FullCommand():
+		err = vnetInstallServiceCommand.run(&cf)
+	case vnetUninstallServiceCommand.FullCommand():
+		err = vnetUninstallServiceCommand.run(&cf)
 	case gitCmd.list.FullCommand():
 		err = gitCmd.list.run(&cf)
 	case gitCmd.login.FullCommand():
@@ -1795,6 +1805,7 @@ func onVersion(cf *CLIConf) error {
 		proxyPublicAddr = ppa
 	}
 
+	reExecFromVersion := tools.GetReExecFromVersion(cf.Context)
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
@@ -1803,8 +1814,11 @@ func onVersion(cf *CLIConf) error {
 			fmt.Printf("Proxy version: %s\n", proxyVersion)
 			fmt.Printf("Proxy: %s\n", proxyPublicAddr)
 		}
+		if reExecFromVersion != "" {
+			fmt.Printf("Re-executed from version: %s\n", reExecFromVersion)
+		}
 	case teleport.JSON, teleport.YAML:
-		out, err := serializeVersion(format, proxyVersion, proxyPublicAddr)
+		out, err := serializeVersion(format, proxyVersion, proxyPublicAddr, reExecFromVersion)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1851,19 +1865,21 @@ type benchKubeOptions struct {
 	namespace string
 }
 
-func serializeVersion(format string, proxyVersion string, proxyPublicAddress string) (string, error) {
+func serializeVersion(format string, proxyVersion string, proxyPublicAddress string, reExecFromVersion string) (string, error) {
 	versionInfo := struct {
-		Version            string `json:"version"`
-		Gitref             string `json:"gitref"`
-		Runtime            string `json:"runtime"`
-		ProxyVersion       string `json:"proxyVersion,omitempty"`
-		ProxyPublicAddress string `json:"proxyPublicAddress,omitempty"`
+		Version               string `json:"version"`
+		Gitref                string `json:"gitref"`
+		Runtime               string `json:"runtime"`
+		ProxyVersion          string `json:"proxyVersion,omitempty"`
+		ProxyPublicAddress    string `json:"proxyPublicAddress,omitempty"`
+		ReExecutedFromVersion string `json:"reExecutedFromVersion,omitempty"`
 	}{
 		teleport.Version,
 		teleport.Gitref,
 		runtime.Version(),
 		proxyVersion,
 		proxyPublicAddress,
+		reExecFromVersion,
 	}
 	var out []byte
 	var err error
@@ -1990,7 +2006,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 			}
 			// trigger reissue, preserving any active requests.
 			err = tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, client.ReissueParams{
-				AccessRequests: profile.ActiveRequests.AccessRequests,
+				AccessRequests: profile.ActiveRequests,
 				RouteToCluster: cf.SiteName,
 			})
 			if err != nil {
@@ -2148,7 +2164,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 			if capabilities.RequestPrompt != "" {
 				msg = msg + ", prompt=" + capabilities.RequestPrompt
 			}
-			err := trace.BadParameter(msg)
+			err := trace.BadParameter("%s", msg)
 			logoutErr := tc.Logout()
 			return trace.NewAggregate(err, logoutErr)
 		}
@@ -2741,8 +2757,7 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 			return trace.Wrap(err)
 		}); err != nil {
 			if strings.Contains(err.Error(), services.InvalidKubernetesKindAccessRequest) {
-				friendlyMsg := fmt.Sprintf("%s\nTry searching for specific kinds with:\n> tsh request search --kube-cluster=KUBE_CLUSTER_NAME --kind=KIND", err.Error())
-				return trace.BadParameter(friendlyMsg)
+				return trace.BadParameter("%s\nTry searching for specific kinds with:\n> tsh request search --kube-cluster=KUBE_CLUSTER_NAME --kind=KIND", err.Error())
 			}
 			return trace.Wrap(err)
 		}
@@ -4163,7 +4178,7 @@ func makeClientForProxy(cf *CLIConf, proxy string) (*client.TeleportClient, erro
 			if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) && !trace.IsCompareFailed(err) {
 				return nil, trace.Wrap(err)
 			}
-			logger.InfoContext(ctx, "Could not load key for cluser into the local agent",
+			logger.InfoContext(ctx, "Could not load key for cluster into the local agent",
 				"cluster", cf.SiteName,
 				"error", err,
 			)
@@ -5117,7 +5132,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 	out := &profileInfo{
 		ProxyURL:           p.ProxyURL.String(),
 		Username:           p.Username,
-		ActiveRequests:     p.ActiveRequests.AccessRequests,
+		ActiveRequests:     p.ActiveRequests,
 		Cluster:            p.Cluster,
 		Roles:              p.Roles,
 		Traits:             p.Traits,
@@ -5296,9 +5311,9 @@ func onRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.Acces
 			msg = fmt.Sprintf("%s, reason=%q", msg, reason)
 		}
 		if req.GetState().IsDenied() {
-			return trace.AccessDenied(msg)
+			return trace.AccessDenied("%s", msg)
 		}
-		return trace.Errorf(msg)
+		return trace.Errorf("%s", msg)
 	}
 
 	msg := "\nApproval received, getting updated certificates...\n\n"
@@ -5324,7 +5339,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, newRequests []s
 		RouteToCluster:     cf.SiteName,
 	}
 	// If the certificate already had active requests, add them to our inputs parameters.
-	for _, reqID := range profile.ActiveRequests.AccessRequests {
+	for _, reqID := range profile.ActiveRequests {
 		if !slices.Contains(dropRequests, reqID) {
 			params.AccessRequests = append(params.AccessRequests, reqID)
 		}

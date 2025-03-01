@@ -38,7 +38,7 @@ import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   AwsRdsDatabase,
-  Integration,
+  IntegrationAwsOidc,
   IntegrationKind,
   integrationService,
   IntegrationStatusCode,
@@ -69,7 +69,7 @@ const mockAwsRdsDb: AwsRdsDatabase = {
   subnets: ['subnet1', 'subnet2'],
 };
 
-const mocKIntegration: Integration = {
+const mockIntegration: IntegrationAwsOidc = {
   kind: IntegrationKind.AwsOidc,
   name: integrationName,
   resourceType: 'integration',
@@ -214,7 +214,7 @@ function getMockedContexts() {
     agentMeta: {
       resourceName: 'db1',
       awsRegion: region,
-      awsIntegration: mocKIntegration,
+      awsIntegration: mockIntegration,
       selectedAwsRdsDb: mockAwsRdsDb,
       agentMatcherLabels: mockDbLabels,
     } as DbMeta,

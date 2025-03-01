@@ -1,0 +1,4 @@
+Type Serial   Revoked At           Expires At                        Reason      
+---- -------- -------------------- --------------------------------- ----------- 
+x509 aabbccdd 2024-02-05T15:04:00Z 2030-02-24T15:04:00Z (53064h0m0s) compromised 
+

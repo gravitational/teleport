@@ -22,7 +22,11 @@ import { Flex } from 'design';
 import { usePromiseRejectedOnUnmount, wait } from 'shared/utils/wait';
 
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
-import { makeApp, makeAppGateway } from 'teleterm/services/tshd/testHelpers';
+import {
+  makeApp,
+  makeAppGateway,
+  makeRootCluster,
+} from 'teleterm/services/tshd/testHelpers';
 import { DocumentGatewayApp } from 'teleterm/ui/DocumentGatewayApp/DocumentGatewayApp';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -80,7 +84,7 @@ const meta: Meta<StoryProps> = {
 export default meta;
 
 export function Story(props: StoryProps) {
-  const rootClusterUri = '/clusters/bar';
+  const rootCluster = makeRootCluster({ uri: '/clusters/bar' });
   const gateway = makeAppGateway();
   if (props.appType === 'tcp') {
     gateway.protocol = 'TCP';
@@ -111,15 +115,7 @@ export function Story(props: StoryProps) {
   const infinitePromise = usePromiseRejectedOnUnmount();
 
   const appContext = new MockAppContext();
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = rootClusterUri;
-    draftState.workspaces[rootClusterUri] = {
-      localClusterUri: rootClusterUri,
-      documents: [documentGateway],
-      location: documentGateway.uri,
-      accessRequests: undefined,
-    };
-  });
+  appContext.addRootClusterWithDoc(rootCluster, documentGateway);
   if (props.online) {
     appContext.clustersService.createGateway = () => Promise.resolve(gateway);
     appContext.clustersService.setState(draftState => {

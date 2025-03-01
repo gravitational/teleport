@@ -73,12 +73,6 @@ export function AddAuthDeviceWizard({
   const reauthState = useReAuthenticate({
     challengeScope: MfaChallengeScope.MANAGE_DEVICES,
     onMfaResponse: mfaResponse =>
-      // TODO(Joerger): Instead of getting a privilege token, we should get
-      //   // a register challenge with the mfa response directly. For good UX, this would
-      //   // require some refactoring to the flow so the user can choose a device type before
-      //   // completing an mfa check and getting an otp/webauthn register challenge, or
-      //   // allowing the backend to return a flexible register challenge
-      //   await auth.createPrivilegeToken(mfaResponse).then(setPrivilegeToken);
       auth.createPrivilegeToken(mfaResponse).then(setPrivilegeToken),
   });
 
@@ -188,7 +182,6 @@ export function CreateDeviceStep({
     if (usage === 'passwordless' || newMfaDeviceType === 'webauthn') {
       createPasskeyAttempt.run(async () => {
         const credential = await auth.createNewWebAuthnDevice({
-          // TODO(Joerger): Skip privilege token step, just pass in mfa response.
           tokenId: privilegeToken,
           deviceUsage: usage,
         });

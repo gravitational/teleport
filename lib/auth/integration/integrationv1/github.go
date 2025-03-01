@@ -28,6 +28,7 @@ import (
 
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/authz"
 )
 
@@ -91,7 +92,7 @@ func (s *Service) getGitHubSigner(ctx context.Context, integration string) (ssh.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caKeySet, err := s.getGitHubCertAuthorities(ctx, ig)
+	caKeySet, err := credentials.GetGitHubCertAuthorities(ctx, ig, s.cache)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

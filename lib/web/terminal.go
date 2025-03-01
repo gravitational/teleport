@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
@@ -533,7 +534,12 @@ func (t *TerminalHandler) makeClient(ctx context.Context, stream *terminal.Strea
 	// used to update all other parties window size to that of the web client and
 	// to allow future window changes.
 	tc.OnShellCreated = func(s *tracessh.Session, c *tracessh.Client, _ io.ReadWriteCloser) (bool, error) {
-		t.stream.SessionCreated(s)
+		if err := t.stream.SessionCreated(s); err != nil {
+			t.logger.DebugContext(ctx, "terminating established ssh connection to host",
+				"error", err,
+			)
+			return false, trace.Wrap(s.Close())
+		}
 
 		// The web session was closed by the client while the ssh connection was being established.
 		// Attempt to close the SSH session instead of proceeding with the window change request.
@@ -690,7 +696,13 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws terminal.WSConn, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signer := agentless.SignerFromSSHCertificate(cert, t.localAccessPoint, tc.SiteName, tc.Username)
+
+	ident, err := sshca.DecodeIdentity(cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	signer := agentless.SignerFromSSHIdentity(ident, t.localAccessPoint, tc.SiteName, tc.Username)
 
 	type clientRes struct {
 		clt *client.NodeClient
@@ -915,7 +927,7 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, ws terminal.WSConn, 
 
 		if errors.Is(err, teleport.ErrNodeIsAmbiguous) {
 			const message = "error: ambiguous host could match multiple nodes\n\nHint: try addressing the node by unique id (ex: user@node-id)\n"
-			return nil, trace.NotFound(message)
+			return nil, trace.NotFound("%s", message)
 		}
 
 		return nil, trace.Wrap(err)

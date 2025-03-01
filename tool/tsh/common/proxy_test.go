@@ -583,9 +583,6 @@ func TestProxySSH(t *testing.T) {
 func TestProxySSHJumpHost(t *testing.T) {
 	ctx := context.Background()
 
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
-
 	createAgent(t)
 
 	listenerModes := []types.ProxyListenerMode{
@@ -1359,17 +1356,6 @@ func TestPrintProxyAWSTemplate(t *testing.T) {
 			},
 		},
 		{
-			name: "endpoint URL mode",
-			inputCLIConf: &CLIConf{
-				Format:             envVarDefaultFormat(),
-				AWSEndpointURLMode: true,
-			},
-			inputAWSApp: fakeAWSAppInfo{},
-			wantSnippets: []string{
-				"AWS endpoint URL at https://127.0.0.1:12345",
-			},
-		},
-		{
 			name: "athena-odbc",
 			inputCLIConf: &CLIConf{
 				Format: awsProxyFormatAthenaODBC,
@@ -1425,12 +1411,12 @@ func TestCheckProxyAWSFormatCompatibility(t *testing.T) {
 			checkError: require.NoError,
 		},
 		{
-			name: "default format is supported in endpoint URL mode",
+			name: "endpoint URL mode is not supported",
 			input: &CLIConf{
 				Format:             envVarDefaultFormat(),
 				AWSEndpointURLMode: true,
 			},
-			checkError: require.NoError,
+			checkError: require.Error,
 		},
 		{
 			name: "athena-odbc is supported in HTTPS_PROXY mode",
@@ -1440,27 +1426,11 @@ func TestCheckProxyAWSFormatCompatibility(t *testing.T) {
 			checkError: require.NoError,
 		},
 		{
-			name: "athena-odbc is not supported in endpoint URL mode",
-			input: &CLIConf{
-				Format:             awsProxyFormatAthenaODBC,
-				AWSEndpointURLMode: true,
-			},
-			checkError: require.Error,
-		},
-		{
 			name: "athena-jdbc is supported in HTTPS_PROXY mode",
 			input: &CLIConf{
 				Format: awsProxyFormatAthenaJDBC,
 			},
 			checkError: require.NoError,
-		},
-		{
-			name: "athena-jdbc is not supported in endpoint URL mode",
-			input: &CLIConf{
-				Format:             awsProxyFormatAthenaJDBC,
-				AWSEndpointURLMode: true,
-			},
-			checkError: require.Error,
 		},
 	}
 
@@ -1485,19 +1455,11 @@ func TestProxyAppWithIdentity(t *testing.T) {
 		userName    = "admin"
 	)
 
-	appURI := startDummyHTTPServer(t, appName)
-
 	rootServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithClusterName(t, clusterName),
+		testserver.WithTestApp(t, appName),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-			cfg.Apps = servicecfg.AppsConfig{
-				Enabled: true,
-				Apps: []servicecfg.App{{
-					Name: appName,
-					URI:  appURI,
-				}},
-			}
 		}),
 	}
 	process := testserver.MakeTestServer(t, rootServerOpts...)

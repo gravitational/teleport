@@ -156,7 +156,7 @@ func getElastiCacheClusters(ctx context.Context, client ElastiCacheClient) ([]ec
 	for i := 0; i < maxAWSPages && pager.HasMorePages(); i++ {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureErrorV2(err))
+			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 		}
 		out = append(out, page.ReplicationGroups...)
 	}
@@ -176,7 +176,7 @@ func getElastiCacheNodes(ctx context.Context, client ElastiCacheClient) ([]ectyp
 	for i := 0; i < maxAWSPages && pager.HasMorePages(); i++ {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureErrorV2(err))
+			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 		}
 		// There are three types of ectypes.CacheCluster:
 		// 1) a Memcache cluster.
@@ -204,7 +204,7 @@ func getElastiCacheSubnetGroups(ctx context.Context, client ElastiCacheClient) (
 	for i := 0; i < maxAWSPages && pager.HasMorePages(); i++ {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureErrorV2(err))
+			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 		}
 		out = append(out, page.CacheSubnetGroups...)
 	}
@@ -219,7 +219,7 @@ func getElastiCacheResourceTags(ctx context.Context, client ElastiCacheClient, r
 	}
 	output, err := client.ListTagsForResource(ctx, input)
 	if err != nil {
-		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureErrorV2(err))
+		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 	}
 
 	return output.TagList, nil

@@ -28,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -177,6 +178,7 @@ func NewEC2Watcher(ctx context.Context, fetchersFn func() []Fetcher, missedRotat
 		fetchersFn:     fetchersFn,
 		ctx:            cancelCtx,
 		cancel:         cancelFn,
+		clock:          clockwork.NewRealClock(),
 		pollInterval:   time.Minute,
 		triggerFetchC:  make(<-chan struct{}),
 		InstancesC:     make(chan Instances),

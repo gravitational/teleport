@@ -44,7 +44,7 @@ import {
 } from 'teleport/Discover/yamlTemplates';
 import { App } from 'teleport/services/apps';
 import {
-  Integration,
+  IntegrationAwsOidc,
   IntegrationKind,
   integrationService,
 } from 'teleport/services/integrations';
@@ -59,7 +59,7 @@ import {
 } from '../../Shared';
 import { DiscoverUrlLocationState, useDiscover } from '../../useDiscover';
 
-type Option = BaseOption<Integration>;
+type Option = BaseOption<IntegrationAwsOidc>;
 
 export function AwsAccount() {
   const {
@@ -328,7 +328,7 @@ export function AwsAccount() {
   );
 }
 
-function makeAwsIntegrationOption(integration: Integration): Option {
+function makeAwsIntegrationOption(integration: IntegrationAwsOidc): Option {
   return {
     value: integration,
     label: integration.name,
@@ -339,7 +339,7 @@ async function fetchAwsIntegrationsWithApps(
   clusterId: string,
   isAddingAwsApp: boolean
 ): Promise<{
-  awsIntegrations: Integration[];
+  awsIntegrations: IntegrationAwsOidc[];
   apps: App[];
 }> {
   const integrationPage = await integrationService.fetchIntegrations();

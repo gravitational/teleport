@@ -126,18 +126,7 @@ const testSetup = () => {
     title: '',
     status: '',
   };
-  appContext.clustersService.setState(draftState => {
-    draftState.clusters.set(cluster.uri, cluster);
-  });
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = cluster.uri;
-    draftState.workspaces[cluster.uri] = {
-      documents: [doc],
-      location: doc.uri,
-      localClusterUri: cluster.uri,
-      accessRequests: undefined,
-    };
-  });
+  appContext.addRootClusterWithDoc(cluster, doc);
   const workspaceContext = {
     rootClusterUri: cluster.uri,
     localClusterUri: cluster.uri,

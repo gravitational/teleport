@@ -54,7 +54,7 @@ func CheckIfCertsAreAllowedToAccessCluster(k *client.KeyRing, rootCluster, telep
 	}
 	errMsg := "Your user's Teleport role does not allow Kubernetes access." +
 		" Please ask cluster administrator to ensure your role has appropriate kubernetes_groups and kubernetes_users set."
-	return trace.AccessDenied(errMsg)
+	return trace.AccessDenied("%s", errMsg)
 }
 
 // checkIfCertHasKubeGroupsAndUsers checks if the certificate has Kubernetes groups or users

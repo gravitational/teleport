@@ -18,7 +18,10 @@
 
 package config
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestKubernetesV2Output_YAML(t *testing.T) {
 	dest := &DestinationMemory{}
@@ -44,6 +47,10 @@ func TestKubernetesV2Output_YAML(t *testing.T) {
 							"foo": "bar",
 						},
 					},
+				},
+				CredentialLifetime: CredentialLifetime{
+					TTL:             1 * time.Minute,
+					RenewalInterval: 30 * time.Second,
 				},
 			},
 		},

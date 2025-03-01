@@ -23,102 +23,35 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// NewSigningService creates a new instance of SigningService.
-func NewSigningService(config SigningServiceConfig) (*SigningService, error) {
-	if err := config.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &SigningService{
-		SigningServiceConfig: config,
-	}, nil
-}
-
-// SigningService is an AWS CLI proxy service that signs AWS requests
-// based on user identity.
-type SigningService struct {
-	// SigningServiceConfig is the SigningService configuration.
-	SigningServiceConfig
-}
-
-// SigningServiceConfig is the SigningService configuration.
-type SigningServiceConfig struct {
-	// SessionProvider is a provider for AWS Sessions.
-	SessionProvider AWSSessionProvider
-	// Clock is used to override time in tests.
-	Clock clockwork.Clock
-	// CredentialsGetter is used to obtain STS credentials.
-	CredentialsGetter CredentialsGetter
-}
-
-// CheckAndSetDefaults validates the SigningServiceConfig config.
-func (s *SigningServiceConfig) CheckAndSetDefaults() error {
-	if s.Clock == nil {
-		s.Clock = clockwork.NewRealClock()
-	}
-	if s.SessionProvider == nil {
-		return trace.BadParameter("session provider is required")
-	}
-	if s.CredentialsGetter == nil {
-		// Use cachedCredentialsGetter by default. cachedCredentialsGetter
-		// caches the credentials for one minute.
-		cachedGetter, err := NewCachedCredentialsGetter(CachedCredentialsGetterConfig{
-			Clock: s.Clock,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		s.CredentialsGetter = cachedGetter
-	}
-	return nil
-}
-
 // SigningCtx contains AWS SigV4 signing context parameters.
 type SigningCtx struct {
+	// Clock is used to override time in tests.
+	Clock clockwork.Clock
+	// Credentials provides AWS credentials.
+	Credentials aws.CredentialsProvider
 	// SigningName is the AWS signing service name.
 	SigningName string
 	// SigningRegion is the AWS region to sign a request for.
 	SigningRegion string
-	// Expiry is the expiration of the AWS credentials used to sign requests.
-	Expiry time.Time
-	// SessionName is role session name of AWS credentials used to sign requests.
-	SessionName string
-	// AWSRoleArn is the AWS ARN of the role to assume for signing requests.
-	AWSRoleArn string
-	// AWSExternalID is an optional external ID used when getting sts credentials.
-	AWSExternalID string
-	// SessionTags is a list of AWS STS session tags.
-	SessionTags map[string]string
-	// Integration is the Integration name to use to generate credentials.
-	// If empty, it will use ambient credentials
-	Integration string
 }
 
 // Check checks signing context parameters.
-func (sc *SigningCtx) Check(clock clockwork.Clock) error {
+func (sc *SigningCtx) Check() error {
 	switch {
+	case sc.Credentials == nil:
+		return trace.BadParameter("missing AWS credentials")
 	case sc.SigningName == "":
 		return trace.BadParameter("missing AWS signing name")
 	case sc.SigningRegion == "":
 		return trace.BadParameter("missing AWS signing region")
-	case sc.SessionName == "":
-		return trace.BadParameter("missing AWS session name")
-	case sc.AWSRoleArn == "":
-		return trace.BadParameter("missing AWS Role ARN")
-	case sc.Expiry.Before(clock.Now()):
-		return trace.BadParameter("AWS SigV4 expiry has already expired")
-	}
-	_, err := ParseRoleARN(sc.AWSRoleArn)
-	if err != nil {
-		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -139,11 +72,11 @@ func (sc *SigningCtx) Check(clock clockwork.Clock) error {
 //	    Not that for endpoint resolving the https://github.com/aws/aws-sdk-go/aws/endpoints/endpoints.go
 //	    package is used and when Amazon releases a new API the dependency update is needed.
 //	 5. Sign HTTP request.
-func (s *SigningService) SignRequest(ctx context.Context, req *http.Request, signCtx *SigningCtx) (*http.Request, error) {
+func SignRequest(ctx context.Context, req *http.Request, signCtx *SigningCtx) (*http.Request, error) {
 	if signCtx == nil {
 		return nil, trace.BadParameter("missing signing context")
 	}
-	if err := signCtx.Check(s.Clock); err != nil {
+	if err := signCtx.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	payload, err := utils.GetAndReplaceRequestBody(req)
@@ -161,24 +94,8 @@ func (s *SigningService) SignRequest(ctx context.Context, req *http.Request, sig
 	// 100-continue" headers without being signed, otherwise the Athena service
 	// would reject the requests.
 	unsignedHeaders := removeUnsignedHeaders(reqCopy)
-
-	session, err := s.SessionProvider(ctx, signCtx.SigningRegion, signCtx.Integration)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	credentials, err := s.CredentialsGetter.Get(ctx, GetCredentialsRequest{
-		Provider:    session,
-		Expiry:      signCtx.Expiry,
-		SessionName: signCtx.SessionName,
-		RoleARN:     signCtx.AWSRoleArn,
-		ExternalID:  signCtx.AWSExternalID,
-		Tags:        signCtx.SessionTags,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	signer := NewSigner(credentials, signCtx.SigningName)
-	_, err = signer.Sign(reqCopy, bytes.NewReader(payload), signCtx.SigningName, signCtx.SigningRegion, s.Clock.Now())
+	signer := NewSignerV2(signCtx.Credentials, signCtx.SigningName)
+	_, err = signer.Sign(reqCopy, bytes.NewReader(payload), signCtx.SigningName, signCtx.SigningRegion, signCtx.Clock.Now())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

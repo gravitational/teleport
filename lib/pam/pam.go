@@ -491,7 +491,7 @@ func (p *PAM) codeToError(returnValue C.int) error {
 	// released.
 	err := C._pam_strerror(pamHandle, p.pamh, returnValue)
 	if err != nil {
-		return trace.BadParameter(C.GoString(err))
+		return trace.BadParameter("%s", C.GoString(err))
 	}
 
 	return nil

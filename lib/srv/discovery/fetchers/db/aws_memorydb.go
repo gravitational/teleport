@@ -140,7 +140,7 @@ func getMemoryDBClusters(ctx context.Context, client MemoryDBClient) ([]memorydb
 	for i := 0; i < maxAWSPages && pager.HasMorePages(); i++ {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureErrorV2(err))
+			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 		}
 		out = append(out, page.Clusters...)
 	}
@@ -157,7 +157,7 @@ func getMemoryDBSubnetGroups(ctx context.Context, client MemoryDBClient) ([]memo
 	for i := 0; i < maxAWSPages && pager.HasMorePages(); i++ {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureErrorV2(err))
+			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 		}
 		out = append(out, page.SubnetGroups...)
 	}

@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-import { Flex, H3, Subtitle3, Text } from 'design';
+import { Alert, Box, Flex, H3, Subtitle3, Text } from 'design';
 import { ButtonSecondary } from 'design/Button';
 import * as Icons from 'design/Icon';
 import { getPlatform } from 'design/platform';
@@ -32,17 +32,7 @@ import * as connectMyComputer from 'shared/connectMyComputer';
 import { makeDeepLinkWithSafeInput } from 'shared/deepLinks';
 
 import cfg from 'teleport/config';
-import {
-  ActionButtons,
-  Header,
-  StyledBox,
-  TextIcon,
-} from 'teleport/Discover/Shared';
-import {
-  HintBox,
-  SuccessBox,
-  WaitingInfo,
-} from 'teleport/Discover/Shared/HintBox';
+import { ActionButtons, Header, StyledBox } from 'teleport/Discover/Shared';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import { Node } from 'teleport/services/nodes';
 import useTeleport from 'teleport/useTeleport';
@@ -119,74 +109,75 @@ export function SetupConnect(
 
   let pollingStatus: JSX.Element;
   if (showHint && !node) {
+    const details = (
+      <Flex flexDirection="column" gap={3}>
+        <P>
+          There are a couple of possible reasons for why we haven&apos;t been
+          able to detect your computer.
+        </P>
+
+        <ul
+          css={`
+            margin: 0;
+            padding-left: ${p => p.theme.space[3]}px;
+          `}
+        >
+          <li>
+            <Text>
+              You did not start Connect My Computer in Teleport Connect yet.
+            </Text>
+          </li>
+          <li>
+            <Text>
+              The Teleport agent started by Teleport Connect could not join this
+              Teleport cluster. Check if the Connect My Computer tab in Teleport
+              Connect shows any error messages.
+            </Text>
+          </li>
+          <li>
+            <Text>
+              The computer you are trying to add has already joined the Teleport
+              cluster before you entered this page. If that&apos;s the case, you
+              can go back to the{' '}
+              <Link to={cfg.getUnifiedResourcesRoute(clusterId)}>
+                resources page
+              </Link>{' '}
+              and connect to it.
+            </Text>
+          </li>
+        </ul>
+
+        <P>
+          We&apos;ll continue to look for the computer while you diagnose the
+          issue.
+        </P>
+      </Flex>
+    );
     pollingStatus = (
       // Override max-width to match StyledBox's max-width.
-      <HintBox header="We're still looking for your computer" maxWidth="800px">
-        <Flex flexDirection="column" gap={3}>
-          <P>
-            There are a couple of possible reasons for why we haven't been able
-            to detect your computer.
-          </P>
-
-          <ul
-            css={`
-              margin: 0;
-              padding-left: ${p => p.theme.space[3]}px;
-            `}
-          >
-            <li>
-              <Text>
-                You did not start Connect My Computer in Teleport Connect yet.
-              </Text>
-            </li>
-            <li>
-              <Text>
-                The Teleport agent started by Teleport Connect could not join
-                this Teleport cluster. Check if the Connect My Computer tab in
-                Teleport Connect shows any error messages.
-              </Text>
-            </li>
-            <li>
-              <Text>
-                The computer you are trying to add has already joined the
-                Teleport cluster before you entered this page. If that's the
-                case, you can go back to{' '}
-                <Link to={cfg.getUnifiedResourcesRoute(clusterId)}>
-                  the resources
-                </Link>{' '}
-                and connect to it.
-              </Text>
-            </li>
-          </ul>
-
-          <P>
-            We'll continue to look for the computer whilst you diagnose the
-            issue.
-          </P>
-        </Flex>
-      </HintBox>
+      <Box maxWidth="800px">
+        <Alert
+          alignItems="flex-start"
+          kind="warning"
+          dismissible={false}
+          details={details}
+        >
+          We&apos;re still looking for your computer
+        </Alert>
+      </Box>
     );
   } else if (node) {
     pollingStatus = (
-      <SuccessBox>
-        <Text>
-          Your computer, <strong>{node.hostname}</strong>, has been detected!
-        </Text>
-      </SuccessBox>
+      <Alert kind="success" dismissible={false}>
+        Your computer, <strong>{node.hostname}</strong>, has been detected!
+      </Alert>
     );
   } else {
     pollingStatus = (
-      <WaitingInfo>
-        <TextIcon
-          css={`
-            white-space: pre;
-          `}
-        >
-          <Icons.Restore size="medium" mr={2} />
-        </TextIcon>
+      <Alert kind="neutral" icon={Icons.Restore} dismissible={false}>
         After your computer is connected to the cluster, we’ll automatically
         detect it.
-      </WaitingInfo>
+      </Alert>
     );
   }
 

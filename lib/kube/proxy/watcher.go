@@ -21,6 +21,7 @@ package proxy
 import (
 	"context"
 	"maps"
+	"slices"
 	"sync"
 	"time"
 
@@ -238,10 +239,11 @@ func (s *TLSServer) unregisterKubeCluster(ctx context.Context, name string) erro
 
 	// close active sessions before returning.
 	s.fwd.mu.Lock()
-	sessions := maps.Values(s.fwd.sessions)
+	// collect all sessions to avoid holding the lock while closing them
+	sessions := slices.Collect(maps.Values(s.fwd.sessions))
 	s.fwd.mu.Unlock()
 	// close active sessions
-	for sess := range sessions {
+	for _, sess := range sessions {
 		if sess.ctx.kubeClusterName == name {
 			// TODO(tigrato): check if we should send errors to each client
 			errs = append(errs, sess.Close())

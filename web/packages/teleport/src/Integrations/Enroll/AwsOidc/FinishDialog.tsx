@@ -31,9 +31,13 @@ import { CircleCheck } from 'design/Icon';
 
 import cfg from 'teleport/config';
 import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
-import { Integration } from 'teleport/services/integrations';
+import { IntegrationAwsOidc } from 'teleport/services/integrations';
 
-export function FinishDialog({ integration }: { integration: Integration }) {
+export function FinishDialog({
+  integration,
+}: {
+  integration: IntegrationAwsOidc;
+}) {
   const location = useLocation<DiscoverUrlLocationState>();
   return (
     <Dialog
@@ -62,7 +66,7 @@ function FooterButton({
   integration,
 }: {
   location: Location<any>;
-  integration: Integration;
+  integration: IntegrationAwsOidc;
 }): React.ReactElement {
   if (location.state?.discover) {
     return (

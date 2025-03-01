@@ -46,12 +46,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -853,7 +855,6 @@ func TestDirectTCPIP(t *testing.T) {
 
 	// Startup a test server that will reply with "hello, world\n"
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 		fmt.Fprintln(w, "hello, world")
 	}))
 	defer ts.Close()
@@ -3318,9 +3319,120 @@ func TestHostUserCreationProxy(t *testing.T) {
 
 	_, _, err = reg.UpsertHostUser(srv.IdentityContext{
 		AccessChecker: &fakeAccessChecker{},
-	})
+	}, srv.ObtainFallbackUIDFunc(nil))
 	assert.NoError(t, err)
 	assert.Empty(t, usersBackend.calls, 0)
+}
+
+func TestObtainFallbackUID(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	type testCase struct {
+		config     *types.StableUNIXUserConfig
+		obtainFunc func(username string) (int32, error)
+		username   string
+		required   func(uid int32, ok bool, err error)
+	}
+
+	for _, tc := range []testCase{{
+		config: nil,
+		obtainFunc: func(username string) (int32, error) {
+			require.FailNow(t, "called obtainFunc")
+			panic("unreachable")
+		},
+		username: "",
+		required: func(uid int32, ok bool, err error) {
+			require.NoError(t, err)
+			require.False(t, ok)
+		},
+	}, {
+		config: &types.StableUNIXUserConfig{
+			Enabled: false,
+		},
+		obtainFunc: func(username string) (int32, error) {
+			require.FailNow(t, "called obtainFunc")
+			panic("unreachable")
+		},
+		username: "",
+		required: func(uid int32, ok bool, err error) {
+			require.NoError(t, err)
+			require.False(t, ok)
+		},
+	}, {
+		config: &types.StableUNIXUserConfig{
+			Enabled: true,
+		},
+		obtainFunc: func(username string) (int32, error) {
+			require.Equal(t, "foo", username)
+			return 325872, nil
+		},
+		username: "foo",
+		required: func(uid int32, ok bool, err error) {
+			require.NoError(t, err)
+			require.True(t, ok)
+			require.Equal(t, int32(325872), uid)
+		},
+	}, {
+		config: &types.StableUNIXUserConfig{
+			Enabled: true,
+		},
+		obtainFunc: func(username string) (int32, error) {
+			require.Equal(t, "bar", username)
+			return 0, trace.LimitExceeded("no UIDs or something")
+		},
+		username: "bar",
+		required: func(uid int32, ok bool, err error) {
+			require.ErrorIs(t, err, &trace.LimitExceededError{Message: "no UIDs or something"})
+		},
+	}, {
+		config: &types.StableUNIXUserConfig{
+			Enabled: true,
+		},
+		obtainFunc: func(username string) (int32, error) {
+			require.Equal(t, "baz", username)
+			return 0, trace.BadParameter("some bug, idk")
+		},
+		username: "baz",
+		required: func(uid int32, ok bool, err error) {
+			require.ErrorIs(t, err, &trace.BadParameterError{Message: "some bug, idk"})
+		},
+	}} {
+		srv := &Server{
+			authService: getAuthPreferenceAccessPoint{
+				authPreference: &types.AuthPreferenceV2{Spec: types.AuthPreferenceSpecV2{
+					StableUnixUserConfig: tc.config,
+				}},
+			},
+			stableUnixUsers: obtainUIDForUsernameFunc(tc.obtainFunc),
+		}
+		tc.required(srv.obtainFallbackUID(ctx, tc.username))
+	}
+}
+
+type getAuthPreferenceAccessPoint struct {
+	srv.AccessPoint
+	authPreference types.AuthPreference
+}
+
+func (a getAuthPreferenceAccessPoint) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
+	return a.authPreference, nil
+}
+
+type obtainUIDForUsernameFunc func(username string) (int32, error)
+
+func (f obtainUIDForUsernameFunc) ObtainUIDForUsername(ctx context.Context, in *stableunixusersv1.ObtainUIDForUsernameRequest, opts ...grpc.CallOption) (*stableunixusersv1.ObtainUIDForUsernameResponse, error) {
+	uid, err := f(in.GetUsername())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &stableunixusersv1.ObtainUIDForUsernameResponse{Uid: uid}, nil
+}
+
+func (f obtainUIDForUsernameFunc) ListStableUNIXUsers(ctx context.Context, in *stableunixusersv1.ListStableUNIXUsersRequest, opts ...grpc.CallOption) (*stableunixusersv1.ListStableUNIXUsersResponse, error) {
+	return nil, trace.NotImplemented("ListStableUNIXUsers")
 }
 
 type fakeAccessChecker struct {

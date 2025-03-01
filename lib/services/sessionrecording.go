@@ -48,7 +48,7 @@ func UnmarshalSessionRecordingConfig(bytes []byte, opts ...MarshalOption) (types
 		return nil, trace.Wrap(err)
 	}
 	if err := utils.FastUnmarshal(bytes, &recConfig); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 
 	err = recConfig.CheckAndSetDefaults()

@@ -236,7 +236,7 @@ func newDynamicKubeCreds(ctx context.Context, cfg dynamicCredsConfig) (*dynamicK
 func (d *dynamicKubeCreds) getTLSConfig() *tls.Config {
 	d.RLock()
 	defer d.RUnlock()
-	return d.staticCreds.tlsConfig
+	return d.staticCreds.getTLSConfig()
 }
 
 func (d *dynamicKubeCreds) getTransportConfig() *transport.Config {

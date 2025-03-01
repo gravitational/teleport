@@ -538,6 +538,18 @@ func (m *ARMComputeMock) Get(_ context.Context, _ string, _ string, _ *armcomput
 	}, m.GetErr
 }
 
+// ARMComputeScaleSetMock mocks armcompute.VirtualMachineScaleSetVMsClient.
+type ARMScaleSetMock struct {
+	GetResult armcompute.VirtualMachineScaleSetVM
+	GetErr    error
+}
+
+func (m *ARMScaleSetMock) Get(ctx context.Context, resourceGroupName string, vmScaleSetName string, instanceID string, options *armcompute.VirtualMachineScaleSetVMsClientGetOptions) (armcompute.VirtualMachineScaleSetVMsClientGetResponse, error) {
+	return armcompute.VirtualMachineScaleSetVMsClientGetResponse{
+		VirtualMachineScaleSetVM: m.GetResult,
+	}, m.GetErr
+}
+
 // ARMSQLServerMock mocks armSQLServerClient
 type ARMSQLServerMock struct {
 	NoAuth               bool

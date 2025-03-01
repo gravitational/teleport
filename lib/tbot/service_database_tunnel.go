@@ -19,6 +19,7 @@
 package tbot
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -240,7 +241,7 @@ func (s *DatabaseTunnelService) getRouteToDatabaseWithImpersonation(ctx context.
 		s.botClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateTTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		nil,
 	)
 	if err != nil {
@@ -280,7 +281,7 @@ func (s *DatabaseTunnelService) issueCert(
 		s.botClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateTTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		func(req *proto.UserCertsRequest) {
 			req.RouteToDatabase = route
 		})

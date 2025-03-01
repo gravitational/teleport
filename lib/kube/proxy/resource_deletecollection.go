@@ -127,13 +127,16 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 
 	const internalErrStatus = http.StatusInternalServerError
 	// get content-type value
-	contentType := responsewriters.GetContentTypeHeader(memWriter.Header())
-	encoder, decoder, err := newEncoderAndDecoderForContentType(contentType, newClientNegotiator(sess.codecFactory))
+	deleteRequestContentType := responsewriters.GetContentTypeHeader(req.Header)
+	deleteRequestEncoder, deleteRequestDecoder, err := newEncoderAndDecoderForContentType(
+		deleteRequestContentType,
+		newClientNegotiator(sess.codecFactory),
+	)
 	if err != nil {
 		return internalErrStatus, trace.Wrap(err)
 	}
 
-	deleteOptions, err := parseDeleteCollectionBody(req.Body, decoder)
+	deleteOptions, err := parseDeleteCollectionBody(req.Body, deleteRequestDecoder)
 	if err != nil {
 		return internalErrStatus, trace.Wrap(err)
 	}
@@ -142,7 +145,14 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	// decode memory rw body.
 	// We are reading an API request and API honors the GVK in the request so we don't
 	// need to set it.
-	obj, err := decodeAndSetGVK(decoder, memWriter.Buffer().Bytes(), nil /* defaults GVK */)
+	_, listRequestDecoder, err := newEncoderAndDecoderForContentType(
+		responsewriters.GetContentTypeHeader(memWriter.Header()),
+		newClientNegotiator(sess.codecFactory),
+	)
+	if err != nil {
+		return internalErrStatus, trace.Wrap(err)
+	}
+	obj, err := decodeAndSetGVK(listRequestDecoder, memWriter.Buffer().Bytes(), nil /* defaults GVK */)
 	if err != nil {
 		return internalErrStatus, trace.Wrap(err)
 	}
@@ -478,8 +488,14 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	}
 	// reset the memory buffer.
 	memWriter.Buffer().Reset()
+	// set the content type to the response writer to match the delete
+	// request content type instead of the list request content type.
+	memWriter.Header().Set(
+		responsewriters.ContentTypeHeader,
+		deleteRequestContentType,
+	)
 	// encode the filtered response into the memory buffer.
-	if err := encoder.Encode(obj, memWriter.Buffer()); err != nil {
+	if err := deleteRequestEncoder.Encode(obj, memWriter.Buffer()); err != nil {
 		return internalErrStatus, trace.Wrap(err)
 	}
 	// copy the output into the user's ResponseWriter and return.

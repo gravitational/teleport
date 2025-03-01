@@ -1,6 +1,6 @@
 ---
 authors: Noah Stride (noah@goteleport.com)
-state: draft
+state: implemented (17.2.7)
 ---
 
 # RFD 0191 - Workload Identity Configuration and RBAC Overhaul

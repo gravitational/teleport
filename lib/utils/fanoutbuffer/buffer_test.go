@@ -62,7 +62,7 @@ func BenchmarkBuffer(b *testing.B) {
 
 	for _, bb := range bbs {
 		b.Run(fmt.Sprintf("%d-events-%d-cursors", bb.events, bb.cursors), func(b *testing.B) {
-			for n := 0; n < b.N; n++ {
+			for b.Loop() {
 				ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 				concurrentFanout(ctx, b, bb.events, bb.cursors)
 				cancel()

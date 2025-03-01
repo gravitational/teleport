@@ -267,3 +267,40 @@ func invalidTransition(startStatus, nextStatus string) require.ErrorAssertionFun
 		require.ErrorIs(t, trace.BadParameter("invalid transition: %s -> %s", startStatus, nextStatus), err)
 	}
 }
+
+func Test_PluginOktaSyncSettings_SetUserSyncSource(t *testing.T) {
+	t.Parallel()
+
+	t.Run("known cases", func(t *testing.T) {
+		known := []OktaUserSyncSource{
+			OktaUserSyncSourceUnknown,
+			OktaUserSyncSourceSamlApp,
+			OktaUserSyncSourceOrg,
+		}
+		for _, userSyncSource := range known {
+			syncSettings := &PluginOktaSyncSettings{}
+			syncSettings.SetUserSyncSource(userSyncSource)
+			require.Equal(t, userSyncSource, syncSettings.GetUserSyncSource())
+		}
+
+	})
+
+	t.Run("edge cases", func(t *testing.T) {
+		syncSettings := &PluginOktaSyncSettings{}
+
+		// OktaUserSyncSourceUnknown is returned for empty value
+		require.Equal(t, "", syncSettings.UserSyncSource)
+		require.Equal(t, OktaUserSyncSourceUnknown, syncSettings.GetUserSyncSource())
+
+		// When "asdf" is set, it doesn't change empty value
+		syncSettings.SetUserSyncSource("asdf")
+		require.Equal(t, "", syncSettings.UserSyncSource)
+		require.Equal(t, OktaUserSyncSourceUnknown, syncSettings.GetUserSyncSource())
+
+		// When "asdf" is set, it doesn't change set value
+		syncSettings.UserSyncSource = string(OktaUserSyncSourceSamlApp)
+		syncSettings.SetUserSyncSource("asdf")
+		require.Equal(t, string(OktaUserSyncSourceSamlApp), syncSettings.UserSyncSource)
+		require.Equal(t, OktaUserSyncSourceSamlApp, syncSettings.GetUserSyncSource())
+	})
+}

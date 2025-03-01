@@ -17,9 +17,14 @@
 package decisionv1
 
 import (
+	"cmp"
+	"context"
+	"log/slog"
+
 	"github.com/gravitational/trace"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 )
 
@@ -27,6 +32,7 @@ import (
 type ServiceConfig struct {
 	// Authorizer used by the service.
 	Authorizer authz.Authorizer
+	Logger     *slog.Logger
 }
 
 // Service implements the teleport.decision.v1alpha1.DecisionService gRPC API.
@@ -34,6 +40,7 @@ type Service struct {
 	decisionpb.UnimplementedDecisionServiceServer
 
 	authorizer authz.Authorizer
+	logger     *slog.Logger
 }
 
 // NewService creates a new [Service] instance.
@@ -44,5 +51,34 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 
 	return &Service{
 		authorizer: cfg.Authorizer,
+		logger:     cmp.Or(cfg.Logger, slog.Default()),
 	}, nil
+}
+
+func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.EvaluateSSHAccessRequest) (*decisionpb.EvaluateSSHAccessResponse, error) {
+	authzContext, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authz.HasBuiltinRole(*authzContext, string(types.RoleAdmin)) {
+		s.logger.WarnContext(ctx, "user does not have permission to evaluate SSH access", "user", authzContext.User.GetName())
+		return nil, trace.AccessDenied("user %q does not have permission to evaluate SSH access", authzContext.User.GetName())
+	}
+
+	return s.UnimplementedDecisionServiceServer.EvaluateSSHAccess(ctx, req)
+}
+
+func (s *Service) EvaluateDatabaseAccess(ctx context.Context, req *decisionpb.EvaluateDatabaseAccessRequest) (*decisionpb.EvaluateDatabaseAccessResponse, error) {
+	authzContext, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authz.HasBuiltinRole(*authzContext, string(types.RoleAdmin)) {
+		s.logger.WarnContext(ctx, "user does not have permission to evaluate database access", "user", authzContext.User.GetName())
+		return nil, trace.AccessDenied("user %q does not have permission to evaluate database access", authzContext.User.GetName())
+	}
+
+	return s.UnimplementedDecisionServiceServer.EvaluateDatabaseAccess(ctx, req)
 }

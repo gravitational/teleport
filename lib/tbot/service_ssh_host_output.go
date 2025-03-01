@@ -19,6 +19,7 @@
 package tbot
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -63,9 +64,10 @@ func (s *SSHHostOutputService) Run(ctx context.Context) error {
 	defer unsubscribe()
 
 	err := runOnInterval(ctx, runOnIntervalConfig{
+		service:    s.String(),
 		name:       "output-renewal",
 		f:          s.generate,
-		interval:   s.botCfg.RenewalInterval,
+		interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
 		reloadCh:   reloadCh,
@@ -107,7 +109,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateTTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		nil,
 	)
 	if err != nil {
@@ -143,7 +145,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 		Principals:  s.cfg.Principals,
 		ClusterName: clusterName,
 		Role:        string(types.RoleNode),
-		Ttl:         durationpb.New(s.botCfg.CertificateTTL),
+		Ttl:         durationpb.New(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL),
 	},
 	)
 	if err != nil {

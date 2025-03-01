@@ -26,12 +26,12 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	utilsaws "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 // FetchToken returns the token.
@@ -89,7 +89,7 @@ func NewSessionV1(ctx context.Context, client IntegrationTokenGenerator, region 
 		return []byte(token), trace.Wrap(err)
 	}
 
-	stsSTS := sts.New(sess)
+	stsSTS := stsutils.NewV1(sess)
 	roleProvider := stscreds.NewWebIdentityRoleProviderWithOptions(
 		stsSTS,
 		awsOIDCIntegration.RoleARN,

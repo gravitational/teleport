@@ -38,7 +38,7 @@ IAM identity they are running as. It allows you to register Kubernetes
 clusters running in AWS without having to distribute a joining secret to the
 Kubernetes cluster.
 
-To securely join the cluster without relying on the EKS node's Identity, a Teleport agent
+To securely join the cluster without relying on the EKS node's Identity, a Teleport Agent
 must run as a separate Kubernetes service account with an attached IAM role. Relying
 on the node's identity is not recommended as it can be easily compromised since every
 pod running on the node has access to the node's identity if IAM Roles for Service Accounts
@@ -261,7 +261,7 @@ $ helm install teleport-agent teleport/teleport-kube-agent \
   --version (=teleport.version=)
 ```
 
-Make sure that the Teleport agent pod is running. You should see one Teleport
+Make sure that the Teleport Agent pod is running. You should see one Teleport
 agent pod pod with a single ready container:
 
 ```code

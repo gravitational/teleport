@@ -81,6 +81,10 @@ func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 						},
 					},
 				},
+				CredentialLifetime: CredentialLifetime{
+					TTL:             1 * time.Minute,
+					RenewalInterval: 30 * time.Second,
+				},
 			},
 		},
 		{

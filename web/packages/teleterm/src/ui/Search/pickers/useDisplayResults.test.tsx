@@ -18,6 +18,7 @@
 
 import { renderHook } from '@testing-library/react';
 
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
@@ -30,17 +31,10 @@ const documentCluster = makeDocumentCluster({
 
 test('if the cluster document is active, the search results should be shown in it', () => {
   const appContext = new MockAppContext();
-  appContext.workspacesService.setState(draftState => {
-    draftState.workspaces = {
-      '/clusters/teleport-a': {
-        localClusterUri: '/clusters/teleport-a',
-        location: documentCluster.uri,
-        accessRequests: undefined,
-        documents: [documentCluster],
-      },
-    };
-    draftState.rootClusterUri = '/clusters/teleport-a';
-  });
+  appContext.addRootClusterWithDoc(
+    makeRootCluster({ uri: '/clusters/teleport-a' }),
+    documentCluster
+  );
 
   const { result } = renderHook(
     () =>
@@ -65,17 +59,10 @@ test('if the cluster document is active, the search results should be shown in i
 
 test('if the cluster filter does not match the document cluster, the results should be opened in a new document', () => {
   const appContext = new MockAppContext();
-  appContext.workspacesService.setState(draftState => {
-    draftState.workspaces = {
-      '/clusters/teleport-a': {
-        localClusterUri: '/clusters/teleport-a',
-        location: '/docs/abc',
-        accessRequests: undefined,
-        documents: [documentCluster],
-      },
-    };
-    draftState.rootClusterUri = '/clusters/teleport-a';
-  });
+  appContext.addRootClusterWithDoc(
+    makeRootCluster({ uri: '/clusters/teleport-a' }),
+    documentCluster
+  );
 
   const { result } = renderHook(
     () =>
@@ -101,17 +88,7 @@ test('if the cluster filter does not match the document cluster, the results sho
 
 test('if the cluster document is not active, the results should be opened in a new document', () => {
   const appContext = new MockAppContext();
-  appContext.workspacesService.setState(draftState => {
-    draftState.workspaces = {
-      '/clusters/teleport-a': {
-        localClusterUri: '/clusters/teleport-a',
-        location: '/docs/abc',
-        accessRequests: undefined,
-        documents: [],
-      },
-    };
-    draftState.rootClusterUri = '/clusters/teleport-a';
-  });
+  appContext.addRootCluster(makeRootCluster({ uri: '/clusters/teleport-a' }));
 
   const { result } = renderHook(
     () =>

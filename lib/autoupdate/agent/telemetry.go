@@ -26,6 +26,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
+const installDirEnvVar = "TELEPORT_UPDATE_INSTALL_DIR"
+
 // IsManagedByUpdater returns true if the local Teleport binary is managed by teleport-update.
 // Note that true may be returned even if auto-updates is disabled or the version is pinned.
 // The binary is considered managed if it lives under /opt/teleport, but not within the package
@@ -42,8 +44,12 @@ func IsManagedByUpdater() (bool, error) {
 	if err != nil {
 		return false, trace.Wrap(err, "cannot find Teleport binary")
 	}
+	installDir := os.Getenv(installDirEnvVar)
+	if installDir == "" {
+		installDir = defaultInstallDir
+	}
 	// Check if current binary is under the updater-managed path.
-	managed, err := hasParentDir(teleportPath, teleportOptDir)
+	managed, err := hasParentDir(teleportPath, installDir)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -51,8 +57,8 @@ func IsManagedByUpdater() (bool, error) {
 		return false, nil
 	}
 	// Return false if the binary is under the updater-managed path, but in the system prefix reserved for the package.
-	system, err := hasParentDir(teleportPath, filepath.Join(teleportOptDir, systemNamespace))
-	return !system, err
+	system, err := hasParentDir(teleportPath, packageSystemDir)
+	return !system, trace.Wrap(err)
 }
 
 // IsManagedAndDefault returns true if the local Teleport binary is both managed by teleport-update
@@ -70,7 +76,12 @@ func IsManagedAndDefault() (bool, error) {
 	if err != nil {
 		return false, trace.Wrap(err, "cannot find Teleport binary")
 	}
-	return hasParentDir(teleportPath, filepath.Join(teleportOptDir, defaultNamespace))
+	installDir := os.Getenv(installDirEnvVar)
+	if installDir == "" {
+		installDir = defaultInstallDir
+	}
+	isDefault, err := hasParentDir(teleportPath, filepath.Join(installDir, defaultNamespace))
+	return isDefault, trace.Wrap(err)
 }
 
 // hasParentDir returns true if dir is any parent directory of parent.

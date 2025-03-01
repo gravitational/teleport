@@ -125,23 +125,24 @@ func onAfterPagerDutyResponse(sink common.StatusSink) resty.ResponseMiddleware {
 			log.ErrorContext(ctx, "Error while emitting PagerDuty plugin status", "error", err)
 		}
 
+		var errorFn func(string, ...any) error = trace.Errorf
+		if status.GetCode() == types.PluginStatusCode_UNAUTHORIZED {
+			errorFn = func(msg string, args ...any) error {
+				return trace.AccessDenied(msg, args...)
+			}
+		}
+
 		if resp.IsError() {
-			var details string
 			switch result := resp.Error().(type) {
 			case *ErrorResult:
 				// Do we have a formatted PagerDuty API error response? We set
 				// an empty `ErrorResult` in the pre-request hook, and if the
 				// HTTP server returns an error, the `resty` middleware will
 				// attempt to unmarshal the error response into it.
-				details = fmt.Sprintf("http error code=%v, err_code=%v, message=%v, errors=[%v]", resp.StatusCode(), result.Code, result.Message, strings.Join(result.Errors, ", "))
+				return errorFn("http error code=%v, err_code=%v, message=%v, errors=[%v]", resp.StatusCode(), result.Code, result.Message, strings.Join(result.Errors, ", "))
 			default:
-				details = fmt.Sprintf("unknown error result %#v", result)
+				return errorFn("unknown error result %#v", result)
 			}
-
-			if status.GetCode() == types.PluginStatusCode_UNAUTHORIZED {
-				return trace.AccessDenied(details)
-			}
-			return trace.Errorf(details)
 		}
 		return nil
 	}

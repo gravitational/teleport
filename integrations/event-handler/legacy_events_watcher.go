@@ -120,10 +120,13 @@ func (t *LegacyEventsWatcher) GetCursorValues() LegacyCursorValues {
 }
 
 // flipPage flips the current page
-func (t *LegacyEventsWatcher) flipPage() bool {
+func (t *LegacyEventsWatcher) flipPage(ctx context.Context) bool {
 	if t.nextCursor == "" {
+		t.log.DebugContext(ctx, "not flipping page (no next cursor)")
 		return false
 	}
+
+	t.log.DebugContext(ctx, "flipping page", "cursor", t.cursor, "next", t.nextCursor)
 
 	t.cursor = t.nextCursor
 	t.pos = -1
@@ -174,7 +177,11 @@ func (t *LegacyEventsWatcher) fetch(ctx context.Context) error {
 	// Set the position of the last known event
 	t.pos = pos
 
-	t.log.DebugContext(ctx, "Skipped last known event", "id", t.id, "pos", t.pos)
+	if pos == 0 {
+		t.log.DebugContext(ctx, "starting from first event in fetch", "id", t.id, "pos", pos)
+	} else {
+		t.log.DebugContext(ctx, "advancing past last known event in fetch", "id", t.id, "pos", pos)
+	}
 
 	return nil
 }
@@ -317,6 +324,7 @@ func (t *LegacyEventsWatcher) ExportEvents(ctx context.Context) error {
 		for {
 			// If there is nothing in the batch, request
 			if len(t.batch) == 0 {
+				t.log.DebugContext(ctx, "fetching due to empty batch...")
 				err := t.fetch(ctx)
 				if err != nil {
 					e <- trace.Wrap(err)
@@ -343,7 +351,7 @@ func (t *LegacyEventsWatcher) ExportEvents(ctx context.Context) error {
 			// If we processed the last event on a page
 			if t.pos >= len(t.batch) {
 				// If there is next page, flip page
-				if t.flipPage() {
+				if t.flipPage(ctx) {
 					continue
 				}
 

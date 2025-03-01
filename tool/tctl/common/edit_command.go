@@ -34,6 +34,7 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -126,6 +127,14 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 		confirm:     e.confirm,
 	}
 	rc.Initialize(e.app, nil, e.config)
+
+	// Prompt for admin action MFA if required, before getting any
+	// resources with secrets and before the update/editor below.
+	if mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/); err == nil {
+		ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
+	} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
+		return trace.Wrap(err)
+	}
 
 	err = rc.Get(ctx, client)
 	if closeErr := f.Close(); closeErr != nil {

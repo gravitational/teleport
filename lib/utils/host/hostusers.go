@@ -69,7 +69,7 @@ func GroupAdd(groupname string, gid string) (exitCode int, err error) {
 		if strings.Contains(string(output), "not a valid group name") {
 			errMsg = "invalid group name"
 		}
-		return code, trace.BadParameter(errMsg)
+		return code, trace.BadParameter("%s", errMsg)
 	default:
 		return code, trace.Wrap(err)
 	}

@@ -522,8 +522,10 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 				AudienceTag: audienceTag,
 			},
 		},
-		CertificateTTL:  time.Hour,
-		RenewalInterval: 20 * time.Minute,
+		CredentialLifetime: tbotconfig.CredentialLifetime{
+			TTL:             time.Hour,
+			RenewalInterval: 20 * time.Minute,
+		},
 	}
 	// slog default logger has been configured during the provider init.
 	bot, err := embeddedtbot.New(botConfig, slog.Default())

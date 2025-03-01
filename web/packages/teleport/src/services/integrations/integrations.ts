@@ -17,28 +17,41 @@
  */
 
 import cfg from 'teleport/config';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import api from 'teleport/services/api';
 
 import { App } from '../apps';
 import makeApp from '../apps/makeApps';
 import auth, { MfaChallengeScope } from '../auth/auth';
-import { withUnsupportedLabelFeatureErrorConversion } from '../version/unsupported';
+import {
+  withGenericUnsupportedError,
+  withUnsupportedLabelFeatureErrorConversion,
+} from '../version/unsupported';
 import {
   AwsDatabaseVpcsResponse,
   AwsOidcDeployDatabaseServicesRequest,
+  AWSOIDCDeployedDatabaseService,
   AwsOidcDeployServiceRequest,
   AwsOidcListDatabasesRequest,
+  AWSOIDCListDeployedDatabaseServiceResponse,
   AwsOidcPingRequest,
   AwsOidcPingResponse,
   AwsRdsDatabase,
   CreateAwsAppAccessRequest,
   EnrollEksClustersRequest,
   EnrollEksClustersResponse,
+  ExportedIntegrationCaResponse,
   Integration,
   IntegrationCreateRequest,
+  IntegrationCreateResult,
+  IntegrationDeleteRequest,
+  IntegrationDiscoveryRules,
+  IntegrationKind,
   IntegrationListResponse,
   IntegrationStatusCode,
   IntegrationUpdateRequest,
+  IntegrationUpdateResult,
   IntegrationWithSummary,
   ListAwsRdsDatabaseResponse,
   ListAwsRdsFromAllEnginesResponse,
@@ -53,11 +66,23 @@ import {
   SecurityGroup,
   SecurityGroupRule,
   Subnet,
+  UserTask,
+  UserTaskDetail,
+  UserTasksListResponse,
 } from './types';
 
 export const integrationService = {
-  fetchIntegration(name: string): Promise<Integration> {
-    return api.get(cfg.getIntegrationsUrl(name)).then(makeIntegration);
+  fetchExportedIntegrationCA(
+    clusterId: string,
+    integrationName: string
+  ): Promise<ExportedIntegrationCaResponse> {
+    return api.get(cfg.getIntegrationCaUrl(clusterId, integrationName));
+  },
+
+  fetchIntegration<T>(name: string): Promise<T> {
+    return api
+      .get(cfg.getIntegrationsUrl(name))
+      .then(resp => makeIntegration(resp) as T);
   },
 
   fetchIntegrations(): Promise<IntegrationListResponse> {
@@ -70,8 +95,12 @@ export const integrationService = {
     });
   },
 
-  createIntegration(req: IntegrationCreateRequest): Promise<Integration> {
-    return api.post(cfg.getIntegrationsUrl(), req).then(makeIntegration);
+  createIntegration<T extends IntegrationCreateRequest>(
+    req: T
+  ): Promise<IntegrationCreateResult<T>> {
+    return api
+      .post(cfg.getIntegrationsUrl(), req)
+      .then(resp => makeIntegration(resp) as IntegrationCreateResult<T>);
   },
 
   pingAwsOidcIntegration(
@@ -84,15 +113,28 @@ export const integrationService = {
     return api.post(cfg.getPingAwsOidcIntegrationUrl(urlParams), req);
   },
 
-  updateIntegration(
+  updateIntegration<T extends IntegrationUpdateRequest>(
     name: string,
-    req: IntegrationUpdateRequest
-  ): Promise<Integration> {
-    return api.put(cfg.getIntegrationsUrl(name), req).then(makeIntegration);
+    req: T
+  ): Promise<IntegrationUpdateResult<T>> {
+    return api
+      .put(cfg.getIntegrationsUrl(name), req)
+      .then(resp => makeIntegration(resp) as IntegrationUpdateResult<T>);
   },
 
-  deleteIntegration(name: string): Promise<void> {
-    return api.delete(cfg.getIntegrationsUrl(name));
+  updateIntegrationOAuthSecret(
+    name: string,
+    secret: string
+  ): Promise<Integration> {
+    return api
+      .put(cfg.getIntegrationsUrl(name), { oauth: { secret } })
+      .then(makeIntegration);
+  },
+
+  deleteIntegration(req: IntegrationDeleteRequest): Promise<void> {
+    return api
+      .delete(cfg.getDeleteIntegrationUrlV2(req))
+      .catch(err => withGenericUnsupportedError(err, 'v17.3.0'));
   },
 
   fetchThumbprint(): Promise<string> {
@@ -411,7 +453,109 @@ export const integrationService = {
       return resp;
     });
   },
+
+  fetchIntegrationRules(
+    name: string,
+    resourceType: AwsResource,
+    regions?: string[]
+  ): Promise<IntegrationDiscoveryRules> {
+    return api
+      .get(cfg.getIntegrationRulesUrl(name, resourceType, regions))
+      .then(resp => {
+        return {
+          rules: resp?.rules || [],
+          nextKey: resp?.nextKey,
+        };
+      });
+  },
+
+  fetchAwsOidcDatabaseServices(
+    name: string,
+    resourceType: AwsResource,
+    regions?: string[]
+  ): Promise<AWSOIDCListDeployedDatabaseServiceResponse> {
+    return api
+      .post(cfg.getAwsOidcDatabaseServices(name, resourceType, regions), null)
+      .then(resp => {
+        return { services: makeDatabaseServices(resp) };
+      });
+  },
+
+  fetchIntegrationUserTasksList(
+    name: string,
+    state: TaskState
+  ): Promise<UserTasksListResponse> {
+    return api
+      .get(cfg.getIntegrationUserTasksListUrl(name, state))
+      .then(resp => {
+        return {
+          items: resp?.items || [],
+          nextKey: resp?.nextKey,
+        };
+      });
+  },
+
+  fetchUserTask(name: string): Promise<UserTaskDetail> {
+    return api.get(cfg.getUserTaskUrl(name)).then(resp => {
+      return {
+        name: resp.name,
+        taskType: resp.taskType,
+        state: resp.state,
+        issueType: resp.issueType,
+        integration: resp.integration,
+        lastStateChange: resp.lastStateChange,
+        description: resp.description,
+        discoverEc2: {
+          instances: resp.discoverEc2?.instances,
+          accountId: resp.discoverEc2?.accountId,
+          region: resp.discoverEc2?.region,
+          ssmDocument: resp.discoverEc2?.ssmDocument,
+          installerScript: resp.discoverEc2?.installerScript,
+        },
+        discoverEks: {
+          clusters: resp.discoverEks?.instances,
+          accountId: resp.discoverEks?.accountId,
+          region: resp.discoverEks?.region,
+          appAutoDiscover: resp.discoverEks?.appAutoDiscover,
+        },
+        discoverRds: {
+          databases: resp.discoverRds?.instances,
+          accountId: resp.discoverRds?.accountId,
+          region: resp.discoverRds?.region,
+        },
+      };
+    });
+  },
+
+  resolveUserTask(name: string): Promise<UserTask> {
+    return api
+      .put(cfg.getResolveUserTaskUrl(name), {
+        state: TaskState.Resolved,
+      })
+      .then(resp => {
+        return {
+          name: resp.name,
+          taskType: resp.taskType,
+          state: resp.state,
+          issueType: resp.issueType,
+          integration: resp.integration,
+          lastStateChange: resp.lastStateChange,
+        };
+      });
+  },
 };
+
+function makeDatabaseServices(json: any): AWSOIDCDeployedDatabaseService[] {
+  json = json ?? {};
+  const { services } = json;
+
+  return services?.map((service: AWSOIDCDeployedDatabaseService) => ({
+    name: service.name ?? '',
+    dashboardUrl: service.dashboardUrl ?? '',
+    validTeleportConfig: service.validTeleportConfig ?? false,
+    matchingLabels: service.matchingLabels ?? [],
+  }));
+}
 
 export function makeIntegrations(json: any): Integration[] {
   json = json || [];
@@ -421,25 +565,47 @@ export function makeIntegrations(json: any): Integration[] {
 function makeIntegration(json: any): Integration {
   json = json || {};
   const { name, subKind, awsoidc, github } = json;
-  return {
-    resourceType: 'integration',
+
+  const commonFields = {
     name,
     kind: subKind,
-    spec: {
-      roleArn: awsoidc?.roleArn,
-      issuerS3Bucket: awsoidc?.issuerS3Bucket,
-      issuerS3Prefix: awsoidc?.issuerS3Prefix,
-      audience: awsoidc?.audience,
-    },
-    details: github
-      ? `GitHub Organization "${github.organization}"`
-      : undefined,
     // The integration resource does not have a "status" field, but is
     // a required field for the table that lists both plugin and
     // integration resources together. As discussed, the only
     // supported status for integration is `Running` for now:
     // https://github.com/gravitational/teleport/pull/22556#discussion_r1158674300
     statusCode: IntegrationStatusCode.Running,
+  };
+
+  if (subKind === IntegrationKind.AwsOidc) {
+    return {
+      ...commonFields,
+      resourceType: 'integration',
+      details:
+        'Enroll EC2, RDS and EKS resources or enable Web/CLI access to your AWS Account.',
+      spec: {
+        roleArn: awsoidc?.roleArn,
+        issuerS3Bucket: awsoidc?.issuerS3Bucket,
+        issuerS3Prefix: awsoidc?.issuerS3Prefix,
+        audience: awsoidc?.audience,
+      },
+    };
+  }
+
+  if (subKind === IntegrationKind.GitHub) {
+    return {
+      ...commonFields,
+      resourceType: 'integration',
+      details: `GitHub repository access for organization "${github.organization}"`,
+      spec: {
+        organization: github.organization,
+      },
+    };
+  }
+
+  return {
+    ...commonFields,
+    resourceType: 'integration',
   };
 }
 

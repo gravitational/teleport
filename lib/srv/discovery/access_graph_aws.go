@@ -505,7 +505,6 @@ func (s *Server) accessGraphAWSFetchersFromMatchers(ctx context.Context, matcher
 			ctx,
 			aws_sync.Config{
 				AWSConfigProvider:   s.AWSConfigProvider,
-				CloudClients:        s.CloudClients,
 				GetEKSClient:        s.GetAWSSyncEKSClient,
 				GetEC2Client:        s.GetEC2Client,
 				AssumeRole:          assumeRole,

@@ -96,7 +96,7 @@ func onAppLogin(cf *CLIConf) error {
 	appCertParams := client.ReissueParams{
 		RouteToCluster: tc.SiteName,
 		RouteToApp:     routeToApp,
-		AccessRequests: appInfo.profile.ActiveRequests.AccessRequests,
+		AccessRequests: appInfo.profile.ActiveRequests,
 	}
 
 	key, err := appLogin(cf.Context, clusterClient, rootClient, appCertParams)

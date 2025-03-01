@@ -456,7 +456,7 @@ func (e *Engine) checkElastiCacheUserIAMAuthIsEnabled(ctx context.Context, awsMe
 	input := elasticache.DescribeUsersInput{UserId: aws.String(username)}
 	out, err := client.DescribeUsers(ctx, &input)
 	if err != nil {
-		return false, trace.Wrap(libaws.ConvertRequestFailureErrorV2(err))
+		return false, trace.Wrap(libaws.ConvertRequestFailureError(err))
 	}
 	if len(out.Users) < 1 || out.Users[0].Authentication == nil {
 		return false, nil
@@ -477,7 +477,7 @@ func (e *Engine) checkMemoryDBUserIAMAuthIsEnabled(ctx context.Context, awsMeta 
 	input := memorydb.DescribeUsersInput{UserName: aws.String(username)}
 	out, err := client.DescribeUsers(ctx, &input)
 	if err != nil {
-		return false, trace.Wrap(libaws.ConvertRequestFailureErrorV2(err))
+		return false, trace.Wrap(libaws.ConvertRequestFailureError(err))
 	}
 	if len(out.Users) < 1 || out.Users[0].Authentication == nil {
 		return false, nil
@@ -566,7 +566,7 @@ func (e *Engine) processServerResponse(cmd *redis.Cmd, err error, sessionCtx *co
 
 	switch {
 	case e.isIAMAuthError(err):
-		return common.ConvertConnectError(trace.AccessDenied(err.Error()), sessionCtx), nil
+		return common.ConvertConnectError(trace.AccessDenied("%s", err), sessionCtx), nil
 	case isRedisError(err):
 		// Redis errors should be returned to the client.
 		return err, nil

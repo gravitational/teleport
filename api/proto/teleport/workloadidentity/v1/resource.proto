@@ -83,7 +83,15 @@ message WorkloadIdentityCondition {
 // An individual rule that is evaluated during the issuance of a WorkloadIdentity.
 message WorkloadIdentityRule {
   // The conditions that must be met for this rule to be considered passed.
+  //
+  // Mutually exclusive with expression.
   repeated WorkloadIdentityCondition conditions = 1;
+
+  // An expression written in Teleport's predicate language that must evaluate
+  // to true for this rule to be considered passed.
+  //
+  // Mutually exclusive with conditions.
+  string expression = 2;
 }
 
 // The rules which are evaluated before the WorkloadIdentity can be issued.

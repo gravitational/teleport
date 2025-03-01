@@ -399,7 +399,7 @@ func buildScript(proxyPublicAddr string, entraCfg entraArgs) (string, error) {
 	}
 
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
-		TeleportArgs:   strings.Join(argsList, " "),
+		EntrypointArgs: strings.Join(argsList, " "),
 		SuccessMessage: "Success! You can now go back to the Teleport Web UI to use the integration with Azure.",
 	})
 	if err != nil {

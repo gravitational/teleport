@@ -341,7 +341,6 @@ const auth = {
     });
   },
 
-  // TODO(Joerger): Delete once no longer used by /e
   async getSsoChallengeResponse(
     challenge: SsoChallenge
   ): Promise<MfaChallengeResponse> {
@@ -386,61 +385,8 @@ const auth = {
     };
   },
 
-  // TODO(Joerger): Delete once no longer used by /e
-  createPrivilegeTokenWithWebauthn() {
-    return auth
-      .getMfaChallenge({ scope: MfaChallengeScope.MANAGE_DEVICES })
-      .then(auth.getMfaChallengeResponse)
-      .then(mfaResp => auth.createPrivilegeToken(mfaResp));
-  },
-
-  // TODO(Joerger): Delete once no longer used by /e
-  createPrivilegeTokenWithTotp(secondFactorToken: string) {
-    return api.post(cfg.api.createPrivilegeTokenPath, { secondFactorToken });
-  },
-
   createRestrictedPrivilegeToken() {
     return api.post(cfg.api.createPrivilegeTokenPath, {});
-  },
-
-  // TODO(Joerger): Remove once /e is no longer using it.
-  async getWebauthnResponse(
-    scope: MfaChallengeScope,
-    allowReuse?: boolean,
-    isMfaRequiredRequest?: IsMfaRequiredRequest,
-    abortSignal?: AbortSignal
-  ) {
-    // TODO(Joerger): DELETE IN 16.0.0
-    // the create mfa challenge endpoint below supports
-    // MFARequired requests without the extra roundtrip.
-    if (isMfaRequiredRequest) {
-      try {
-        const isMFARequired = await checkMfaRequired(
-          isMfaRequiredRequest,
-          abortSignal
-        );
-        if (!isMFARequired.required) {
-          return;
-        }
-      } catch (err) {
-        if (
-          err?.response?.status === 400 &&
-          err?.message.includes('missing target for MFA check')
-        ) {
-          // checking MFA requirement for admin actions is not supported by old
-          // auth servers, we expect an error instead. In this case, assume MFA is
-          // not required. Callers should fallback to retrying with MFA if needed.
-          return;
-        }
-
-        throw err;
-      }
-    }
-
-    return auth
-      .getMfaChallenge({ scope, allowReuse, isMfaRequiredRequest }, abortSignal)
-      .then(challenge => auth.getMfaChallengeResponse(challenge, 'webauthn'))
-      .then(res => res.webauthn_response);
   },
 
   getMfaChallengeResponseForAdminAction(allowReuse?: boolean) {
@@ -459,11 +405,6 @@ const auth = {
         },
       })
       .then(auth.getMfaChallengeResponse);
-  },
-
-  // TODO(Joerger): Delete in favor of getMfaChallengeResponseForAdminAction once /e is updated.
-  getWebauthnResponseForAdminAction(allowReuse?: boolean) {
-    return auth.getMfaChallengeResponseForAdminAction(allowReuse);
   },
 };
 
@@ -509,6 +450,9 @@ function waitForMessage(
 
 export default auth;
 
+// TODO(Joerger): In order to check if mfa is required for a leaf host, the leaf
+// clusterID must be included in the request. Currently, only IsMfaRequiredApp
+// supports this functionality.
 export type IsMfaRequiredRequest =
   | IsMfaRequiredDatabase
   | IsMfaRequiredNode

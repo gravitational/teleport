@@ -38,7 +38,7 @@ const linkColor = style({
   key: 'colors',
 });
 
-type AlertKind =
+export type AlertKind =
   | 'neutral'
   | 'danger'
   | 'info'
@@ -80,7 +80,9 @@ const alertBorder = (
   }
 };
 
-const backgroundColor = (props: ThemedAlertProps): { background: string } => {
+const backgroundColor = (
+  props: Pick<ThemedAlertProps, 'kind' | 'theme'>
+): { background: string } => {
   const { kind, theme } = props;
   switch (kind) {
     case 'success':
@@ -124,6 +126,7 @@ interface Props<K> {
   children?: React.ReactNode;
   style?: React.CSSProperties;
   onDismiss?: () => void;
+  alignItems?: 'center' | 'flex-start';
 }
 
 /**
@@ -176,6 +179,7 @@ export const Alert = ({
   dismissible,
   bg,
   onDismiss,
+  alignItems = 'center',
   ...otherProps
 }: AlertProps) => {
   const alertIconSize = kind === 'neutral' ? 'large' : 'small';
@@ -192,7 +196,7 @@ export const Alert = ({
 
   return (
     <OuterContainer bg={bg} kind={kind} {...otherProps}>
-      <InnerContainer kind={kind}>
+      <InnerContainer kind={kind} alignItems={alignItems}>
         <IconContainer kind={kind}>
           <StatusIcon
             kind={iconKind(kind)}
@@ -236,21 +240,26 @@ const OuterContainer = styled.div<AlertPropsWithRequiredKind>`
 
   ${space}
   ${width}
-    ${alertBorder}
-    ${color}
-    a {
-    color: ${({ theme }) => theme.colors.light};
+  ${alertBorder}
+  ${color}
+  a {
+    // Using the same color as Link (theme.solid.interactive.solid.accent) looks bad in the BBLP
+    // theme, so instead let's default to the color of the text and decorate links only with an
+    // underline.
+    color: inherit;
     ${linkColor}
   }
 `;
 
 /** Renders a transparent color overlay. */
-const InnerContainer = styled.div<AlertPropsWithRequiredKind>`
+const InnerContainer = styled.div<
+  Pick<WithRequired<AlertProps, 'kind' | 'alignItems'>, 'kind' | 'alignItems'>
+>`
   padding: 12px 16px;
   overflow: auto;
   word-break: break-word;
   display: flex;
-  align-items: center;
+  align-items: ${p => p.alignItems};
 
   ${backgroundColor}
 `;
@@ -357,10 +366,16 @@ export const ActionButton = ({
   action: { href, content, onClick },
   fill,
   intent,
+  inputAlignment = false,
+  disabled = false,
+  title,
 }: {
   action: Action;
   fill?: ButtonFill;
   intent?: ButtonIntent;
+  inputAlignment?: boolean;
+  disabled?: boolean;
+  title?: string;
 }) =>
   href ? (
     <Button
@@ -370,11 +385,21 @@ export const ActionButton = ({
       fill={fill}
       intent={intent}
       onClick={onClick}
+      inputAlignment={inputAlignment}
+      disabled={disabled}
+      title={title}
     >
       {content}
     </Button>
   ) : (
-    <Button fill={fill} intent={intent} onClick={onClick}>
+    <Button
+      fill={fill}
+      intent={intent}
+      onClick={onClick}
+      inputAlignment={inputAlignment}
+      disabled={disabled}
+      title={title}
+    >
       {content}
     </Button>
   );

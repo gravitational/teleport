@@ -57,7 +57,7 @@ We have implemented Teleport as a single Go binary that integrates with multiple
 
 * [SSH nodes](https://goteleport.com/docs/enroll-resources/server-access/introduction/).
 * [Kubernetes clusters](https://goteleport.com/docs/enroll-resources/kubernetes-access/introduction/)
-* [PostgreSQL, MongoDB, CockroachDB and MySQL databases](https://goteleport.com/docs/enroll-resources/database-access/database-access/).
+* [PostgreSQL, MongoDB, CockroachDB and MySQL databases](https://goteleport.com/docs/enroll-resources/database-access/).
 * [Internal Web apps](https://goteleport.com/docs/enroll-resources/application-access/introduction/).
 * [Windows Hosts](https://goteleport.com/docs/enroll-resources/desktop-access/introduction/).
 * [Networked servers](https://goteleport.com/docs/enroll-resources/server-access/introduction/).

@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	urlpkg "net/url"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -107,4 +108,46 @@ func Password(ctx context.Context, out io.Writer, in SecureReader, question stri
 		return "", trace.Wrap(err, "failed reading prompt response")
 	}
 	return string(answer), nil // passwords not trimmed
+}
+
+// URLOptions are options for the URL prompt.
+type URLOptions func(*urlOptions)
+
+type urlOptions struct {
+	urlValidator func(*urlpkg.URL) error
+}
+
+// WithURLValidator sets a custom URL validator for the URL prompt.
+func WithURLValidator(validator func(*urlpkg.URL) error) URLOptions {
+	return func(opts *urlOptions) {
+		opts.urlValidator = validator
+	}
+}
+
+// URL prompts the user for a URL. The prompt is written to out and the answer.
+func URL(ctx context.Context, out io.Writer, in Reader, question string, opts ...URLOptions) (string, error) {
+	url, err := Input(ctx, out, in, question)
+	if err != nil {
+		return "", trace.Wrap(err, "failed reading prompt response")
+	}
+
+	url = strings.TrimSpace(url)
+
+	u, err := urlpkg.Parse(url)
+	if err != nil {
+		return "", trace.Wrap(err, "invalid URL")
+	}
+
+	opt := &urlOptions{}
+	for _, o := range opts {
+		o(opt)
+	}
+
+	if opt.urlValidator != nil {
+		if err := opt.urlValidator(u); err != nil {
+			return "", trace.Wrap(err, "failed to verify url")
+		}
+	}
+
+	return url, nil
 }

@@ -194,7 +194,10 @@ about a user's Teleport roles or traits, you can configure Teleport to omit
 this information from the JWT. This will result in a smaller JWT that is less
 likely to exceed the limit.
 
+{/* vale messaging.protocol-products = NO */}
 This configuration is available under the `jwt_claims` property of the
 application's `rewrite` configuration. See
 [Web Application Access](./guides/connecting-apps.mdx#configuring-the-jwt-token)
 for details.
+{/* vale messaging.protocol-products = YES */}
+

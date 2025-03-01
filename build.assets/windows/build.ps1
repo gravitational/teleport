@@ -144,6 +144,7 @@ function Install-Node {
         Expand-Archive -Path $NodeZipfile -DestinationPath $ToolchainDir
         Rename-Item -Path "$ToolchainDir/node-v$NodeVersion-win-x64" -NewName "$ToolchainDir/node"
         Enable-Node -ToolchainDir $ToolchainDir
+        $Env:COREPACK_INTEGRITY_KEYS = '{"npm":[{"expires":"2025-01-29T00:00:00.000Z","keyid":"SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA","keytype":"ecdsa-sha2-nistp256","scheme":"ecdsa-sha2-nistp256","key":"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE1Olb3zMAFFxXKHiIkQO5cJ3Yhl5i6UPp+IhuteBJbuHcA5UogKo0EWtlWwW6KSaKoTNEYL7JlCQiVnkhBktUgg=="},{"expires":null,"keyid":"SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U","keytype":"ecdsa-sha2-nistp256","scheme":"ecdsa-sha2-nistp256","key":"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEY6Ya7W++7aUPzvMTrezH6Ycx3c+HOKYCcNGybJZSCJq/fd7Qa8uuAKtdIkUQtQiEKERhAmE5lMMJhP8OkDOa2g=="}]}'
         corepack enable pnpm
         Write-Host "::endgroup::"
     }
@@ -161,6 +162,33 @@ function Enable-Node {
     )
     begin {
         $Env:Path = "$ToolchainDir/node;$Env:Path"
+    }
+}
+
+function Install-Wintun {
+    <#
+    .SYNOPSIS
+        Downloads wintun.dll into the supplied dir
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $InstallDir
+    )
+    begin {
+        Write-Host "::group::Installing wintun.dll to $InstallDir..."
+        New-Item -Path "$InstallDir" -ItemType Directory -Force | Out-Null
+        $WintunZipfile = "$InstallDir/wintun.zip"
+        Invoke-WebRequest -Uri https://www.wintun.net/builds/wintun-0.14.1.zip -OutFile $WintunZipfile
+        $ExpectedHash = "07C256185D6EE3652E09FA55C0B673E2624B565E02C4B9091C79CA7D2F24EF51"
+        $ZipFileHash = Get-FileHash -Path $WintunZipFile -Algorithm SHA256
+        if ($ZipFileHash.Hash -ne $ExpectedHash) {
+            Write-Host "checksum: $ZipFileHash"
+            throw "Checksum verification for wintun.zip failed! Expected $ExpectedHash but got $($ZipFileHash.Hash)"
+        }
+        Expand-Archive -Force -Path $WintunZipfile -DestinationPath $InstallDir
+        Move-Item -Force -Path "$InstallDir/wintun/bin/amd64/wintun.dll" -Destination "$InstallDir/wintun.dll"
+        Write-Host "::endgroup::"
     }
 }
 
@@ -439,6 +467,8 @@ function Build-Connect {
 
     $CommandDuration = Measure-Block {
         Write-Host "::group::Building Teleport Connect..."
+        Install-Wintun -InstallDir "$TeleportSourceDirectory\wintun"
+        $env:CONNECT_WINTUN_DLL_PATH = "$TeleportSourceDirectory\wintun\wintun.dll"
         $env:CONNECT_TSH_BIN_PATH = "$SignedTshBinaryPath"
         pnpm install --frozen-lockfile
         pnpm build-term

@@ -82,7 +82,7 @@ $ tctl plugins install okta  \
   --no-users-sync \
   --no-accesslist-sync \
   --no-appgroup-sync \
-  --scim
+  --scim \
   --api-token="${OKTA_API_TOKEN}"
 Successfully created Okta plugin "okta"
 
@@ -90,6 +90,12 @@ SCIM Base URL: https://teleport.example.com:443/v1/webapi/scim/okta
 SCIM Identifier field for users: userName
 SCIM Bearer Token: 1234567891234567891234567890
 ```
+<Admonition type="note">
+The Okta API Token requires the following permissions:
+ - View users and their details
+ - View groups and their details
+ - View applications and their details
+</Admonition>
 
 </TabItem>
 </Tabs>

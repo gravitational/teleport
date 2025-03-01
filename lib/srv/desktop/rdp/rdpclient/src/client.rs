@@ -61,7 +61,7 @@ use ironrdp_session::{reason_err, SessionError, SessionResult};
 use ironrdp_svc::{SvcMessage, SvcProcessor, SvcProcessorMessages};
 use ironrdp_tokio::{single_sequence_step_read, Framed, FramedWrite, TokioStream};
 use log::debug;
-use rand::{Rng, SeedableRng};
+use rand::{Rng, TryRngCore};
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
@@ -148,8 +148,12 @@ impl Client {
         let mut framed = ironrdp_tokio::TokioFramed::new(stream);
 
         // Generate a random 8-digit PIN for our smartcard.
-        let mut rng = rand_chacha::ChaCha20Rng::from_entropy();
-        let pin = format!("{:08}", rng.gen_range(0i32..=99999999i32));
+        let pin = format!(
+            "{:08}",
+            rand::rngs::OsRng
+                .unwrap_err()
+                .random_range(0i32..=99999999i32)
+        );
 
         let connector_config = create_config(&params, pin.clone(), cgo_handle);
 

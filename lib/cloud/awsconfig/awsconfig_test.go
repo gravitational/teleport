@@ -251,12 +251,12 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 func TestNewCacheKey(t *testing.T) {
 	roleChain := []AssumeRole{
 		{RoleARN: "roleA"},
-		{RoleARN: "roleB", ExternalID: "abc123"},
+		{RoleARN: "roleB", ExternalID: "abc123", SessionName: "alice", Tags: map[string]string{"AKey": "AValue"}},
 	}
 	got, err := newCacheKey("integration-name", roleChain...)
 	require.NoError(t, err)
 	want := strings.TrimSpace(`
-{"integration":"integration-name","role_chain":[{"role_arn":"roleA","external_id":""},{"role_arn":"roleB","external_id":"abc123"}]}
+{"integration":"integration-name","role_chain":[{"role_arn":"roleA"},{"role_arn":"roleB","external_id":"abc123","session_name":"alice","tags":{"AKey":"AValue"}}]}
 `)
 	require.Equal(t, want, got)
 }

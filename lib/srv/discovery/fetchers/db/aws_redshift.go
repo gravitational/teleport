@@ -100,7 +100,7 @@ func getRedshiftClusters(ctx context.Context, clt RedshiftClient) ([]redshifttyp
 	for pageNum := 0; pageNum < maxAWSPages && pager.HasMorePages(); pageNum++ {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, libcloudaws.ConvertRequestFailureErrorV2(err)
+			return nil, libcloudaws.ConvertRequestFailureError(err)
 		}
 		clusters = append(clusters, page.Clusters...)
 	}

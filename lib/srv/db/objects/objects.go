@@ -42,7 +42,7 @@ type Config struct {
 	DatabaseObjectClient *databaseobject.Client
 	ImportRules          ImportRulesReader
 	Auth                 common.Auth
-	CloudClients         cloud.Clients
+	GCPClients           cloud.GCPClients
 
 	// ScanInterval specifies how often the database is scanned.
 	// A higher ScanInterval reduces the load on the database and database agent,
@@ -99,7 +99,11 @@ func (c *Config) loadEnvVarOverrides(ctx context.Context) {
 	}
 
 	if needInfo {
-		c.Log.InfoContext(ctx, "Applied env var overrides.", "scan_interval", c.ScanInterval, "object_ttl", c.ObjectTTL, "refresh_threshold", c.RefreshThreshold)
+		c.Log.InfoContext(ctx, "Applied env var overrides",
+			"scan_interval", c.ScanInterval.String(),
+			"object_ttl", c.ObjectTTL.String(),
+			"refresh_threshold", c.RefreshThreshold.String(),
+		)
 	}
 }
 
@@ -113,8 +117,8 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) error {
 	if c.Auth == nil {
 		return trace.BadParameter("missing parameter Auth")
 	}
-	if c.CloudClients == nil {
-		return trace.BadParameter("missing parameter CloudClients")
+	if c.GCPClients == nil {
+		return trace.BadParameter("missing parameter GCPClients")
 	}
 	if c.Log == nil {
 		c.Log = slog.Default().With(teleport.ComponentKey, "db:obj_importer")

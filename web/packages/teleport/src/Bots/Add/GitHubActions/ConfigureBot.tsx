@@ -146,7 +146,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
                 }
                 disableBtns={isLoading}
                 inputWidth={350}
-                areLabelsRequired={true}
+                required={true}
                 labelKey={{
                   fieldName: 'Label for Resources the User Can Access',
                   placeholder: 'label key',

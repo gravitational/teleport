@@ -1266,7 +1266,7 @@ func BenchmarkMux_ProxyV2Signature(b *testing.B) {
 	defer backend4.Close()
 
 	b.Run("simulation of signing and verifying PROXY header", func(b *testing.B) {
-		for n := 0; n < b.N; n++ {
+		for b.Loop() {
 			conn, err := net.Dial("tcp", listener4.Addr().String())
 			require.NoError(b, err)
 			defer conn.Close()

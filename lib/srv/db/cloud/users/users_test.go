@@ -30,16 +30,16 @@ import (
 	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	memorydb "github.com/aws/aws-sdk-go-v2/service/memorydb"
 	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
+	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	clients "github.com/gravitational/teleport/lib/cloud"
 	libaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
-	libsecrets "github.com/gravitational/teleport/lib/srv/db/secrets"
+	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -60,7 +60,7 @@ func TestUsers(t *testing.T) {
 	t.Cleanup(cancel)
 
 	clock := clockwork.NewFakeClock()
-	smMock := libsecrets.NewMockSecretsManagerClient(libsecrets.MockSecretsManagerClientConfig{
+	smMock := mocks.NewSecretsManagerClient(mocks.SecretsManagerClientConfig{
 		Clock: clock,
 	})
 	ecMock := &mocks.ElastiCacheClient{}
@@ -84,10 +84,7 @@ func TestUsers(t *testing.T) {
 
 	users, err := NewUsers(Config{
 		AWSConfigProvider: &mocks.AWSConfigProvider{},
-		Clients: &clients.TestCloudClients{
-			SecretsManager: smMock,
-		},
-		Clock: clock,
+		Clock:             clock,
 		UpdateMeta: func(_ context.Context, database types.Database) error {
 			// Update db1 to group3 when setupAllDatabases.
 			if database == db1 {
@@ -101,6 +98,7 @@ func TestUsers(t *testing.T) {
 		awsClients: fakeAWSClients{
 			ecClient:  ecMock,
 			mdbClient: mdbMock,
+			smClient:  smMock,
 		},
 	})
 	require.NoError(t, err)
@@ -218,8 +216,9 @@ func memoryDBUser(name string, aclNames ...string) memorydbtypes.User {
 }
 
 type fakeAWSClients struct {
-	mdbClient memoryDBClient
 	ecClient  elasticacheClient
+	mdbClient memoryDBClient
+	smClient  secrets.SecretsManagerClient
 }
 
 func (f fakeAWSClients) getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient {
@@ -228,4 +227,8 @@ func (f fakeAWSClients) getElastiCacheClient(cfg aws.Config, optFns ...func(*ela
 
 func (f fakeAWSClients) getMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) memoryDBClient {
 	return f.mdbClient
+}
+
+func (f fakeAWSClients) getSecretsManagerClient(cfg aws.Config, optFns ...func(*secretsmanager.Options)) secrets.SecretsManagerClient {
+	return f.smClient
 }

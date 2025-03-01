@@ -28,6 +28,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -37,12 +38,46 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+)
+
+var (
+	execSessionCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: teleport.ComponentGit,
+		Name:      "exec_sessions_total",
+	})
+
+	execFailureCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: teleport.ComponentGit,
+		Name:      "exec_failures_total",
+	})
+
+	userKeyAuthFailureCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: teleport.ComponentGit,
+		Name:      "userkeyauth_failures_total",
+	})
+
+	rbacFailureCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: teleport.ComponentGit,
+		Name:      "rbac_failures_total",
+	})
+
+	forwardServerPrometheusCollectors = []prometheus.Collector{
+		execSessionCounter,
+		userKeyAuthFailureCounter,
+		rbacFailureCounter,
+	}
 )
 
 // ForwardServerConfig is the configuration for the ForwardServer.
@@ -171,6 +206,10 @@ func NewForwardServer(cfg *ForwardServerConfig) (*ForwardServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if err := metrics.RegisterPrometheusCollectors(forwardServerPrometheusCollectors...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	serverConn, clientConn, err := utils.DualPipeNetConn(cfg.SrcAddr, cfg.DstAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -259,7 +298,13 @@ func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*
 	if !ok {
 		return nil, trace.BadParameter("unsupported key type")
 	}
-	if len(cert.Extensions[teleport.CertExtensionGitHubUserID]) == 0 {
+
+	ident, err := sshca.DecodeIdentity(cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if ident.GitHubUserID == "" {
 		return nil, trace.BadParameter("missing GitHub user ID")
 	}
 
@@ -268,18 +313,19 @@ func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*
 	if conn.User() != gitUser {
 		return nil, trace.BadParameter("only git is expected as user for git connections")
 	}
-	if len(cert.ValidPrincipals) > 0 {
-		conn = sshutils.NewSSHConnMetadataWithUser(conn, cert.ValidPrincipals[0])
+	if len(ident.Principals) > 0 {
+		conn = sshutils.NewSSHConnMetadataWithUser(conn, ident.Principals[0])
 	}
 
 	// Use auth.UserKeyAuth to verify user cert is signed by UserCA.
 	permissions, err := s.auth.UserKeyAuth(conn, key)
 	if err != nil {
+		userKeyAuthFailureCounter.Inc()
 		return nil, trace.Wrap(err)
 	}
 
 	// Check RBAC on the git server resource (aka s.cfg.TargetServer).
-	if err := s.checkUserAccess(cert); err != nil {
+	if err := s.checkUserAccess(ident); err != nil {
 		s.logger.ErrorContext(s.Context(), "Permission denied",
 			"error", err,
 			"local_addr", logutils.StringerAttr(conn.LocalAddr()),
@@ -288,25 +334,42 @@ func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*
 			"fingerprint", sshutils.Fingerprint(key),
 			"user", cert.KeyId,
 		)
+		rbacFailureCounter.Inc()
+		s.emitEvent(&apievents.AuthAttempt{
+			Metadata: apievents.Metadata{
+				Type: events.AuthAttemptEvent,
+				Code: events.AuthAttemptFailureCode,
+			},
+			UserMetadata: apievents.UserMetadata{
+				Login:         gitUser,
+				User:          ident.Username,
+				TrustedDevice: ident.GetDeviceMetadata(),
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				LocalAddr:  conn.LocalAddr().String(),
+				RemoteAddr: conn.RemoteAddr().String(),
+			},
+			Status: apievents.Status{
+				Success: false,
+				Error:   err.Error(),
+			},
+		})
 		return nil, trace.Wrap(err)
 	}
 	return permissions, nil
 }
 
-func (s *ForwardServer) checkUserAccess(cert *ssh.Certificate) error {
+func (s *ForwardServer) checkUserAccess(ident *sshca.Identity) error {
 	clusterName, err := s.cfg.AccessPoint.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromLocalCertificate(cert)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	accessInfo := services.AccessInfoFromLocalSSHIdentity(ident)
 	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), s.cfg.AccessPoint)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	state, err := services.AccessStateFromSSHCertificate(s.Context(), cert, accessChecker, s.cfg.AccessPoint)
+	state, err := services.AccessStateFromSSHIdentity(s.Context(), ident, accessChecker, s.cfg.AccessPoint)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -441,7 +504,10 @@ func (s *ForwardServer) handleExec(ctx context.Context, sctx *sessionContext, re
 	var r sshutils.ExecReq
 	defer func() {
 		if err != nil {
+			execFailureCounter.Inc()
 			s.emitEvent(s.makeGitCommandEvent(sctx, r.Command, err))
+		} else {
+			execSessionCounter.Inc()
 		}
 	}()
 
@@ -588,7 +654,7 @@ func makeRemoteSigner(ctx context.Context, cfg *ForwardServerConfig, identityCtx
 			Server:                  cfg.TargetServer,
 			TeleportUser:            identityCtx.TeleportUser,
 			IdentityExpires:         identityCtx.CertValidBefore,
-			GitHubUserID:            identityCtx.Certificate.Extensions[teleport.CertExtensionGitHubUserID],
+			GitHubUserID:            identityCtx.UnmappedIdentity.GitHubUserID,
 			AuthPreferenceGetter:    cfg.AccessPoint,
 			GitHubUserCertGenerator: cfg.AuthClient.IntegrationsClient(),
 			Clock:                   cfg.Clock,

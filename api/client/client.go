@@ -94,6 +94,7 @@ import (
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
+	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
@@ -887,6 +888,12 @@ func (c *Client) SPIFFEFederationServiceClient() machineidv1pb.SPIFFEFederationS
 // workload identity resource service.
 func (c *Client) WorkloadIdentityResourceServiceClient() workloadidentityv1pb.WorkloadIdentityResourceServiceClient {
 	return workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(c.conn)
+}
+
+// WorkloadIdentityRevocationServiceClient returns an unadorned client for the
+// workload identity revocation service.
+func (c *Client) WorkloadIdentityRevocationServiceClient() workloadidentityv1pb.WorkloadIdentityRevocationServiceClient {
+	return workloadidentityv1pb.NewWorkloadIdentityRevocationServiceClient(c.conn)
 }
 
 // WorkloadIdentityIssuanceClient returns an unadorned client for the workload
@@ -4968,6 +4975,11 @@ func (c *Client) GitServerClient() *gitserverclient.Client {
 // GitServerReadOnlyClient returns the read-only client for Git servers.
 func (c *Client) GitServerReadOnlyClient() gitserverclient.ReadOnlyClient {
 	return c.GitServerClient()
+}
+
+// StableUNIXUsersClient returns a client for the stable UNIX users API.
+func (c *Client) StableUNIXUsersClient() stableunixusersv1.StableUNIXUsersServiceClient {
+	return stableunixusersv1.NewStableUNIXUsersServiceClient(c.conn)
 }
 
 // GetCertAuthority retrieves a CA by type and domain.

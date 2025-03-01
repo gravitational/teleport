@@ -32,6 +32,7 @@ import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpr
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
+import { DiscoverResourcePreference } from 'teleport/Discover/SelectResource/utils/pins';
 import { StyledIndicator } from 'teleport/Main';
 import { KeysEnum, storageService } from 'teleport/services/storageService';
 import * as service from 'teleport/services/userPreferences';
@@ -39,6 +40,9 @@ import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/us
 
 export interface UserContextValue {
   preferences: UserPreferences;
+  updateDiscoverResourcePreferences: (
+    preferences: Partial<DiscoverResourcePreference>
+  ) => Promise<void>;
   updatePreferences: (preferences: Partial<UserPreferences>) => Promise<void>;
   updateClusterPinnedResources: (
     clusterId: string,
@@ -93,6 +97,20 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
     });
   };
 
+  const updateDiscoverResourcePreferences = async (
+    discoverResourcePreferences: Partial<DiscoverResourcePreference>
+  ) => {
+    const nextPreferences: UserPreferences = {
+      ...preferences,
+      ...discoverResourcePreferences,
+    };
+
+    return service.updateUserPreferences(nextPreferences).then(() => {
+      setPreferences(nextPreferences);
+      storageService.setUserPreferences(nextPreferences);
+    });
+  };
+
   async function loadUserPreferences() {
     const storedPreferences = storageService.getUserPreferences();
 
@@ -132,6 +150,7 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
         ...newPreferences.accessGraph,
       },
     } as UserPreferences;
+
     setPreferences(nextPreferences);
     storageService.setUserPreferences(nextPreferences);
 
@@ -171,6 +190,7 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
         updatePreferences,
         getClusterPinnedResources,
         updateClusterPinnedResources,
+        updateDiscoverResourcePreferences,
       }}
     >
       {props.children}

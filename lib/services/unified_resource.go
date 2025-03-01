@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"iter"
 	"log/slog"
 	"strings"
 	"sync"
@@ -33,8 +34,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -42,7 +45,7 @@ import (
 )
 
 // UnifiedResourceKinds is a list of all kinds that are stored in the unified resource cache.
-var UnifiedResourceKinds []string = []string{
+var UnifiedResourceKinds = []string{
 	types.KindNode,
 	types.KindKubeServer,
 	types.KindDatabaseServer,
@@ -193,127 +196,323 @@ func (c *UnifiedResourceCache) deleteLocked(res types.Resource) error {
 
 func (c *UnifiedResourceCache) getSortTree(sortField string) (*btree.BTreeG[*item], error) {
 	switch sortField {
-	case sortByName:
+	case "", sortByName:
 		return c.nameTree, nil
 	case sortByKind:
 		return c.typeTree, nil
-	case "":
-		return nil, trace.BadParameter("sort field is required")
 	default:
 		return nil, trace.NotImplemented("sorting by %v is not supported in unified resources", sortField)
 	}
 }
 
-func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey backend.Key, matchFn func(types.ResourceWithLabels) (bool, error), req *proto.ListUnifiedResourcesRequest) ([]resource, string, error) {
-	if startKey.IsZero() {
-		return nil, "", trace.BadParameter("missing parameter startKey")
-	}
-	if req.Limit <= 0 {
-		req.Limit = backend.DefaultRangeLimit
+func getStartKey(startKey string, sortBy types.SortBy) backend.Key {
+	if startKey == prefix {
+		return backend.NewKey(prefix)
 	}
 
-	var res []resource
-	var nextKey string
-	err := c.read(ctx, func(cache *UnifiedResourceCache) error {
-		tree, err := cache.getSortTree(req.SortBy.Field)
-		if err != nil {
-			return trace.Wrap(err, "getting sort tree")
-		}
-		var iterateRange func(lessOrEqual, greaterThan *item, iterator btree.ItemIteratorG[*item])
-		var endKey backend.Key
-		if req.SortBy.IsDesc {
-			iterateRange = tree.DescendRange
-			endKey = backend.NewKey(prefix)
-		} else {
-			iterateRange = tree.AscendRange
-			endKey = backend.RangeEnd(backend.NewKey(prefix))
-		}
-		var iteratorErr error
-		iterateRange(&item{Key: startKey}, &item{Key: endKey}, func(item *item) bool {
-			// get resource from resource map
-			resourceFromMap, ok := cache.resources[item.Value]
-			if !ok {
-				// skip and continue
-				return true
-			}
-
-			// check if the resource matches our filter
-			match, err := matchFn(resourceFromMap)
-			if err != nil {
-				iteratorErr = err
-				// stop the iterator so we can return the error
-				return false
-			}
-
-			if !match {
-				return true
-			}
-
-			// do we have all we need? set nextKey and stop iterating
-			// we do this after the matchFn to make sure they have access to the "next" node
-			if req.Limit > 0 && len(res) >= int(req.Limit) {
-				nextKey = item.Key.String()
-				return false
-			}
-			res = append(res, resourceFromMap)
-			return true
-		})
-		return iteratorErr
-	})
-	if err != nil {
-		return nil, "", trace.Wrap(err)
+	// if startKey exists, return it
+	if startKey != "" {
+		return backend.KeyFromString(startKey)
 	}
-
-	if len(res) == backend.DefaultRangeLimit {
-		c.logger.WarnContext(ctx, "Range query hit backend limit. (this is a bug!)",
-			"start_key", startKey,
-			"range_limit", backend.DefaultRangeLimit,
-		)
-	}
-
-	return res, nextKey, nil
-}
-
-func getStartKey(req *proto.ListUnifiedResourcesRequest) backend.Key {
-	// if startkey exists, return it
-	if req.StartKey != "" {
-		return backend.KeyFromString(req.StartKey)
-	}
-	// if startkey doesnt exist, we check the sort direction.
-	// If sort is descending, startkey is end of the list
-	if req.SortBy.IsDesc {
+	// If startKey doesn't exist, we check the sort direction.
+	// If sort is descending, startKey is end of the list
+	if sortBy.IsDesc {
 		return backend.RangeEnd(backend.NewKey(prefix))
 	}
 	// return start of the list
 	return backend.NewKey(prefix)
 }
 
+type iteratedItem struct {
+	resource resource
+	key      backend.Key
+}
+
+// iterateItems is a helper for iterating the correct cache, in the correct order
+// for only the specified kinds. All external iteration APIs are built upon this
+// method.
+func (c *UnifiedResourceCache) iterateItems(ctx context.Context, start string, sortBy types.SortBy, kinds ...string) iter.Seq2[iteratedItem, error] {
+	return func(yield func(iteratedItem, error) bool) {
+		startKey := getStartKey(start, sortBy)
+
+		kindsMap := make(map[string]struct{})
+		for _, k := range kinds {
+			kindsMap[k] = struct{}{}
+		}
+
+		err := c.read(ctx, func(cache *UnifiedResourceCache) error {
+			tree, err := cache.getSortTree(sortBy.Field)
+			if err != nil {
+				return trace.Wrap(err, "getting sort tree")
+			}
+
+			iterateRange := tree.DescendRange
+			endKey := backend.NewKey(prefix)
+			if !sortBy.IsDesc {
+				iterateRange = tree.AscendRange
+				endKey = backend.RangeEnd(endKey)
+			}
+
+			iterateRange(&item{Key: startKey}, &item{Key: endKey}, func(item *item) bool {
+				r, ok := cache.resources[item.Value]
+				if !ok {
+					return true
+				}
+
+				if len(kinds) == 0 || c.itemKindMatches(r, kindsMap) {
+					return yield(iteratedItem{key: item.Key, resource: r}, nil)
+				}
+
+				return true
+			})
+
+			return nil
+		})
+		if err != nil {
+			yield(iteratedItem{}, err)
+		}
+	}
+}
+
+// Resources iterates over all resources from the start key that match
+// one of the provided kinds. If no kinds are provided, resources of all supported
+// kinds are returned.
+func (c *UnifiedResourceCache) Resources(ctx context.Context, start string, sortBy types.SortBy, kinds ...string) iter.Seq2[types.ResourceWithLabels, error] {
+	return func(yield func(types.ResourceWithLabels, error) bool) {
+		for item, err := range c.iterateItems(ctx, start, sortBy, kinds...) {
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(item.resource.CloneResource(), nil) {
+				return
+			}
+		}
+	}
+}
+
+// UnifiedResourcesIterateParams are parameters that are provided to
+// UnifiedResourceCache iterators to alter the iteration behavior.
+type UnifiedResourcesIterateParams struct {
+	Start      string
+	Descending bool
+}
+
+// Nodes iterates over all cached nodes starting from the provided key.
+func (c *UnifiedResourceCache) Nodes(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[types.Server, error] {
+	return iterateUnifiedResourceCache(ctx, c, params, types.KindNode, types.Server.DeepCopy)
+}
+
+// AppServers iterates over all cached app servers starting from the provided key.
+func (c *UnifiedResourceCache) AppServers(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[types.AppServer, error] {
+	return iterateUnifiedResourceCache(ctx, c, params, types.KindAppServer, types.AppServer.Copy)
+}
+
+// DatabaseServers iterates over all cached database servers starting from the provided key.
+func (c *UnifiedResourceCache) DatabaseServers(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[types.DatabaseServer, error] {
+	return iterateUnifiedResourceCache(ctx, c, params, types.KindDatabaseServer, types.DatabaseServer.Copy)
+}
+
+// KubernetesServers iterates over all cached Kubernetes servers starting from the provided key.
+func (c *UnifiedResourceCache) KubernetesServers(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[types.KubeServer, error] {
+	return iterateUnifiedResourceCache(ctx, c, params, types.KindKubeServer, types.KubeServer.Copy)
+}
+
+// WindowsDesktops iterates over all cached windows desktops starting from the provided key.
+func (c *UnifiedResourceCache) WindowsDesktops(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[types.WindowsDesktop, error] {
+	return iterateUnifiedResourceCache(ctx, c, params, types.KindWindowsDesktop, func(desktop types.WindowsDesktop) types.WindowsDesktop { return desktop.Copy() })
+}
+
+// GitServers iterates over all cached git servers starting from the provided key.
+func (c *UnifiedResourceCache) GitServers(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[types.Server, error] {
+	return iterateUnifiedResourceCache(ctx, c, params, types.KindGitServer, types.Server.DeepCopy)
+}
+
+// SAMLIdPServiceProviders iterates over all cached sAML IdP service providers starting from the provided key.
+func (c *UnifiedResourceCache) SAMLIdPServiceProviders(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[types.SAMLIdPServiceProvider, error] {
+	return iterateUnifiedResourceCache(ctx, c, params, types.KindSAMLIdPServiceProvider, types.SAMLIdPServiceProvider.Copy)
+}
+
+// IdentityCenterAccounts iterates over all cached identity center accounts starting from the provided key.
+func (c *UnifiedResourceCache) IdentityCenterAccounts(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[*identitycenterv1.Account, error] {
+	// cloning is performed on the concrete resource below instead of
+	// on the wrapper type.
+	cloneFn := func(account IdentityCenterAccount) IdentityCenterAccount {
+		return account
+	}
+	return func(yield func(*identitycenterv1.Account, error) bool) {
+		for account, err := range iterateUnifiedResourceCache(ctx, c, params, types.KindIdentityCenterAccount, cloneFn) {
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(apiutils.CloneProtoMsg(account.Account), nil) {
+				return
+			}
+		}
+	}
+}
+
+// IdentityCenterAccountAssignments iterates over all cached identity center account assignments starting from the provided key.
+func (c *UnifiedResourceCache) IdentityCenterAccountAssignments(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[*identitycenterv1.AccountAssignment, error] {
+	// cloning is performed on the concrete resource below instead of
+	// on the wrapper type.
+	cloneFn := func(account IdentityCenterAccountAssignment) IdentityCenterAccountAssignment {
+		return account
+	}
+	return func(yield func(*identitycenterv1.AccountAssignment, error) bool) {
+		for assignment, err := range iterateUnifiedResourceCache(ctx, c, params, types.KindIdentityCenterAccountAssignment, cloneFn) {
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(apiutils.CloneProtoMsg(assignment.AccountAssignment), nil) {
+				return
+			}
+		}
+	}
+}
+
+func iterateUnifiedResourceCache[T any](ctx context.Context, c *UnifiedResourceCache, params UnifiedResourcesIterateParams, kind string, cloneFn func(T) T) iter.Seq2[T, error] {
+	return func(yield func(T, error) bool) {
+		sortBy := types.SortBy{IsDesc: params.Descending, Field: SortByName}
+		for i, err := range c.iterateItems(ctx, params.Start, sortBy, kind) {
+			if err != nil {
+				var t T
+				yield(t, err)
+				return
+			}
+
+			switch r := i.resource.(type) {
+			case T:
+				if !yield(cloneFn(r), nil) {
+					return
+				}
+			case types.Resource153Unwrapper:
+				res, ok := r.Unwrap().(T)
+				if !ok {
+					continue
+				}
+
+				if !yield(cloneFn(res), nil) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// IterateUnifiedResources allows building a custom page of resources. All items within the
+// range and limit of the request are passed to the matchFn. Only those resource which
+// have a true value returned from the matchFn are included in the returned page.
 func (c *UnifiedResourceCache) IterateUnifiedResources(ctx context.Context, matchFn func(types.ResourceWithLabels) (bool, error), req *proto.ListUnifiedResourcesRequest) ([]types.ResourceWithLabels, string, error) {
-	startKey := getStartKey(req)
-	result, nextKey, err := c.getRange(ctx, startKey, matchFn, req)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
+	var resources []types.ResourceWithLabels
+	for item, err := range c.iterateItems(ctx, req.StartKey, req.SortBy, req.Kinds...) {
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		match, err := matchFn(item.resource)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		if match {
+			if req.Limit != backend.NoLimit && len(resources) == int(req.Limit) {
+				return resources, item.key.String(), nil
+			}
+
+			resources = append(resources, item.resource.CloneResource())
+		}
 	}
 
-	resources := make([]types.ResourceWithLabels, 0, len(result))
-	for _, item := range result {
-		resources = append(resources, item.CloneResource())
-	}
+	return resources, "", nil
+}
 
-	return resources, nextKey, nil
+func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]struct{}) bool {
+	switch r.GetKind() {
+	case types.KindNode,
+		types.KindWindowsDesktop,
+		types.KindIdentityCenterAccountAssignment,
+		types.KindGitServer,
+		types.KindDatabase,
+		types.KindKubernetesCluster:
+		_, ok := kinds[r.GetKind()]
+		return ok
+	case types.KindIdentityCenterAccount:
+		if _, ok := kinds[types.KindApp]; ok {
+			return ok
+		}
+
+		_, ok := kinds[types.KindIdentityCenterAccount]
+		return ok
+	case types.KindApp:
+		if _, ok := kinds[types.KindApp]; ok {
+			return ok
+		}
+
+		if _, ok := kinds[types.KindAppServer]; ok {
+			return ok
+		}
+
+		_, ok := kinds[types.KindIdentityCenterAccount]
+		return ok
+	case types.KindKubeServer:
+		if _, ok := kinds[types.KindKubernetesCluster]; ok {
+			return ok
+		}
+
+		_, ok := kinds[types.KindKubeServer]
+		return ok
+	case types.KindDatabaseServer:
+		if _, ok := kinds[types.KindDatabase]; ok {
+			return ok
+		}
+
+		_, ok := kinds[types.KindDatabaseServer]
+		return ok
+	case types.KindSAMLIdPServiceProvider:
+		_, ok := kinds[types.KindSAMLIdPServiceProvider]
+		return ok
+	case types.KindAppOrSAMLIdPServiceProvider:
+		switch r.(type) {
+		case types.AppServer:
+			if _, ok := kinds[types.KindApp]; ok {
+				return ok
+			}
+
+			_, ok := kinds[types.KindAppServer]
+			return ok
+		case types.SAMLIdPServiceProvider:
+			_, ok := kinds[types.KindSAMLIdPServiceProvider]
+			return ok
+		default:
+			return false
+		}
+	case types.KindAppServer:
+		if _, ok := kinds[types.KindApp]; ok {
+			return ok
+		}
+
+		_, ok := kinds[types.KindAppServer]
+		return ok
+	default:
+		return false
+	}
 }
 
 // GetUnifiedResources returns a list of all resources stored in the current unifiedResourceCollector tree in ascending order
 func (c *UnifiedResourceCache) GetUnifiedResources(ctx context.Context) ([]types.ResourceWithLabels, error) {
-	req := &proto.ListUnifiedResourcesRequest{Limit: backend.NoLimit, SortBy: types.SortBy{IsDesc: false, Field: sortByName}}
-	result, _, err := c.getRange(ctx, backend.NewKey(prefix), func(rwl types.ResourceWithLabels) (bool, error) { return true, nil }, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	var resources []types.ResourceWithLabels
+	for resource, err := range c.Resources(ctx, prefix, types.SortBy{IsDesc: false, Field: sortByName}) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	resources := make([]types.ResourceWithLabels, 0, len(result))
-	for _, item := range result {
-		resources = append(resources, item.CloneResource())
+		resources = append(resources, resource)
 	}
 
 	return resources, nil

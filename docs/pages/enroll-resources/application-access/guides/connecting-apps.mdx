@@ -465,6 +465,14 @@ route.
     # Indicates how long (in seconds) the results of a preflight request can be cached.
     max_age: 3600
 ```
+<Admonition type="warning">
+
+Teleport requires that credentials are sent with every request to your applications. This is
+necessary so that Teleport can determine whether you have an authenticated session, allowing it to
+properly verify and route your requests. Please ensure that your client fetch requests include
+`credentials: include`, even if your backend application doesn't require credentials.
+
+</Admonition>
 
 ## View applications in Teleport
 

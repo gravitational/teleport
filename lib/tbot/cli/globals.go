@@ -42,6 +42,9 @@ type GlobalArgs struct {
 	// ConfigPath is a path to a YAML configuration file to load, if any.
 	ConfigPath string
 
+	// ConfigString is a base64 encoded string of a YAML configuration file to load, if any.
+	ConfigString string
+
 	// Debug enables debug-level logging, when set
 	Debug bool
 
@@ -67,8 +70,9 @@ type GlobalArgs struct {
 func NewGlobalArgs(app *kingpin.Application) *GlobalArgs {
 	g := &GlobalArgs{}
 
-	app.Flag("debug", "Verbose logging to stdout.").Short('d').BoolVar(&g.Debug)
-	app.Flag("config", "Path to a configuration file.").Short('c').StringVar(&g.ConfigPath)
+	app.Flag("debug", "Verbose logging to stdout.").Short('d').Envar(TBotDebugEnvVar).BoolVar(&g.Debug)
+	app.Flag("config", "Path to a configuration file.").Short('c').Envar(TBotConfigPathEnvVar).StringVar(&g.ConfigPath)
+	app.Flag("config-string", "Base64 encoded configuration string.").Hidden().Envar(TBotConfigEnvVar).StringVar(&g.ConfigString)
 	app.Flag("fips", "Runs tbot in FIPS compliance mode. This requires the FIPS binary is in use.").BoolVar(&g.FIPS)
 	app.Flag("trace", "Capture and export distributed traces.").Hidden().BoolVar(&g.Trace)
 	app.Flag("trace-exporter", "An OTLP exporter URL to send spans to.").Hidden().StringVar(&g.TraceExporter)

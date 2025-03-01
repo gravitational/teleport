@@ -17,6 +17,7 @@
  */
 
 import { ClusterUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/cluster_preferences_pb';
+import { DiscoverResourcePreferences } from 'gen-proto-ts/teleport/userpreferences/v1/discover_resource_preferences_pb';
 import { OnboardUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 import { SideNavDrawerMode } from 'gen-proto-ts/teleport/userpreferences/v1/sidenav_preferences_pb';
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
@@ -43,6 +44,7 @@ export interface BackendUserPreferences {
   onboard?: OnboardUserPreferences;
   clusterPreferences?: BackendClusterUserPreferences;
   unifiedResourcePreferences?: UnifiedResourcePreferences;
+  discoverResourcePreferences?: DiscoverResourcePreferences;
 }
 
 export async function getUserPreferences(): Promise<UserPreferences> {
@@ -99,6 +101,7 @@ export function makeDefaultUserPreferences(): UserPreferences {
     },
     clusterPreferences: makeDefaultUserClusterPreferences(),
     sideNavDrawerMode: SideNavDrawerMode.COLLAPSED,
+    discoverResourcePreferences: {},
   };
 }
 

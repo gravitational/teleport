@@ -27,7 +27,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
@@ -49,8 +48,6 @@ type awsFetcherPlugin interface {
 
 // awsFetcherConfig is the AWS database fetcher configuration.
 type awsFetcherConfig struct {
-	// AWSClients are the AWS API clients.
-	AWSClients cloud.AWSClients
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
 	// Type is the type of DB matcher, for example "rds", "redshift", etc.
@@ -78,9 +75,6 @@ type awsFetcherConfig struct {
 
 // CheckAndSetDefaults validates the config and sets defaults.
 func (cfg *awsFetcherConfig) CheckAndSetDefaults(component string) error {
-	if cfg.AWSClients == nil {
-		return trace.BadParameter("missing parameter AWSClients")
-	}
 	if cfg.AWSConfigProvider == nil {
 		return trace.BadParameter("missing AWSConfigProvider")
 	}

@@ -20,41 +20,24 @@ import (
 	"bufio"
 	"context"
 	"log/slog"
-	"net"
+	"net/netip"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
 	confFilePath = "/etc/resolv.conf"
 )
 
-type OSUpstreamNameserverSource struct {
-	ttlCache *utils.FnCache
-}
-
-func NewOSUpstreamNameserverSource() (*OSUpstreamNameserverSource, error) {
-	ttlCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL: 10 * time.Second,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &OSUpstreamNameserverSource{
-		ttlCache: ttlCache,
-	}, nil
-}
-
-func (s *OSUpstreamNameserverSource) UpstreamNameservers(ctx context.Context) ([]string, error) {
-	return utils.FnCacheGet(ctx, s.ttlCache, 0, s.upstreamNameservers)
-}
-
-func (s *OSUpstreamNameserverSource) upstreamNameservers(ctx context.Context) ([]string, error) {
+// platformLoadUpstreamNameservers reads the OS DNS nameservers found in
+// /etc/resolv.conf. The comments in that file make it clear it is not actually
+// consulted for DNS hostname resolution, but MacOS seems to keep it up to date
+// with the current default nameservers as configured for the OS, and it is the
+// easiest place to read them. Eventually we should probably use a better
+// method, but for now this works.
+func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
 	f, err := os.Open(confFilePath)
 	if err != nil {
 		return nil, trace.Wrap(err, "opening %s", confFilePath)
@@ -74,23 +57,13 @@ func (s *OSUpstreamNameserverSource) upstreamNameservers(ctx context.Context) ([
 		}
 		address := fields[1]
 
-		ip := net.ParseIP(address)
-		if ip == nil {
-			slog.DebugContext(ctx, "Skipping invalid IP", "ip", address)
+		ip, err := netip.ParseAddr(address)
+		if err != nil {
+			slog.DebugContext(ctx, "Skipping invalid IP", "ip", address, "error", err)
 			continue
 		}
 
-		// Add port 53 suffix, the only port supported on MacOS.
-		var nameserver string
-		switch {
-		case ip.To4() != nil:
-			nameserver = address + ":53"
-		case ip.To16() != nil:
-			nameserver = "[" + address + "]:53"
-		default:
-			continue
-		}
-		nameservers = append(nameservers, nameserver)
+		nameservers = append(nameservers, withDNSPort(ip))
 	}
 
 	slog.DebugContext(ctx, "Loaded host upstream nameservers.", "nameservers", nameservers, "config_file", confFilePath)

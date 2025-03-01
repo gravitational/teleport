@@ -265,6 +265,16 @@ func TestNotifications(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Matcher matches by usernames.
+			globalNotification: newGlobalNotification(t, "auditor-9,manager-9", &notificationsv1.GlobalNotificationSpec{
+				Matcher: &notificationsv1.GlobalNotificationSpec_ByUsers{
+					ByUsers: &notificationsv1.ByUsers{
+						Users: []string{auditorUsername, managerUsername},
+					},
+				},
+			}),
+		},
 	}
 
 	notificationIdMap := map[string]string{}
@@ -292,7 +302,7 @@ func TestNotifications(t *testing.T) {
 	require.NoError(t, err)
 	defer auditorClient.Close()
 
-	auditorExpectedNotifications := []string{"auditor-8,manager-6", "auditor-7", "auditor-6", "auditor-5,manager-2", "auditor-4", "auditor-3", "auditor-2", "auditor-1"}
+	auditorExpectedNotifications := []string{"auditor-9,manager-9", "auditor-8,manager-6", "auditor-7", "auditor-6", "auditor-5,manager-2", "auditor-4", "auditor-3", "auditor-2", "auditor-1"}
 
 	var finalOut []*notificationsv1.Notification
 
@@ -315,19 +325,19 @@ func TestNotifications(t *testing.T) {
 
 	// Verify that the nextKeys are correct.
 	expectedUserNotifsNextKey := notificationIdMap["auditor-4"]
-	expectedGlobalNotifsNextKey := notificationIdMap["auditor-5,manager-2"]
+	expectedGlobalNotifsNextKey := notificationIdMap["auditor-6"]
 	expectedNextKeys := fmt.Sprintf("%s,%s",
 		expectedUserNotifsNextKey,
-		expectedGlobalNotifsNextKey) // "<auditor-4 notification id>,<auditor-5,manager-2 notification id>"
+		expectedGlobalNotifsNextKey) // "<auditor-4 notification id>,<auditor-6 notification id>"
 
 	require.Equal(t, expectedNextKeys, resp.NextPageToken)
 	require.Equal(t, lastSeenTimestamp.GetSeconds(), resp.UserLastSeenNotificationTimestamp.GetSeconds())
 
-	// Fetch the next 3 notifications, starting from the previously received startKeys.
+	// Fetch the next 4 notifications, starting from the previously received startKeys.
 	// After this fetch, there should be no more global notifications for auditor, so the next page token
 	// for global notifications should be "".
 	resp, err = auditorClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
-		PageSize:  3,
+		PageSize:  4,
 		PageToken: resp.NextPageToken,
 	})
 	require.NoError(t, err)
@@ -382,7 +392,7 @@ func TestNotifications(t *testing.T) {
 	resp, err = auditorClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
 		PageSize: 10,
 	})
-	auditorExpectedNotifsAfterDismissal := []string{"auditor-8,manager-6", "auditor-7", "auditor-6", "auditor-4", "auditor-3", "auditor-1"}
+	auditorExpectedNotifsAfterDismissal := []string{"auditor-9,manager-9", "auditor-8,manager-6", "auditor-7", "auditor-6", "auditor-4", "auditor-3", "auditor-1"}
 	require.NoError(t, err)
 	require.Equal(t, auditorExpectedNotifsAfterDismissal, notificationsToTitlesList(t, resp.Notifications))
 
@@ -391,7 +401,7 @@ func TestNotifications(t *testing.T) {
 	require.NoError(t, err)
 	defer managerClient.Close()
 
-	managerExpectedNotifications := []string{"manager-8-expires", "manager-7-expires", "auditor-8,manager-6", "manager-5", "manager-4", "manager-3", "auditor-5,manager-2", "manager-1"}
+	managerExpectedNotifications := []string{"auditor-9,manager-9", "manager-8-expires", "manager-7-expires", "auditor-8,manager-6", "manager-5", "manager-4", "manager-3", "auditor-5,manager-2", "manager-1"}
 
 	resp, err = managerClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
 		PageSize: 10,
@@ -419,7 +429,7 @@ func TestNotifications(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	clickedNotification := resp.Notifications[0] // "manager-8-expires" is the first item in the list
+	clickedNotification := resp.Notifications[1] // "manager-8-expires" is the second item in the list
 	clickedLabelValue := clickedNotification.GetMetadata().GetLabels()[types.NotificationClickedLabel]
 	require.Equal(t, "true", clickedLabelValue)
 
@@ -429,7 +439,7 @@ func TestNotifications(t *testing.T) {
 	// Verify that notification "manager-8-expires" is now no longer returned.
 	resp, err = managerClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
 	require.NoError(t, err)
-	require.Equal(t, managerExpectedNotifications[1:], notificationsToTitlesList(t, resp.Notifications))
+	require.NotContains(t, notificationsToTitlesList(t, resp.Notifications), "manager-8-expires")
 
 	// Advance 16 minutes.
 	fakeClock.Advance(16 * time.Minute)
@@ -437,7 +447,7 @@ func TestNotifications(t *testing.T) {
 	// Verify that notification "manager-7-expires" is now no longer returned either.
 	resp, err = managerClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
 	require.NoError(t, err)
-	require.Equal(t, managerExpectedNotifications[2:], notificationsToTitlesList(t, resp.Notifications))
+	require.NotContains(t, notificationsToTitlesList(t, resp.Notifications), "manager-7-expires")
 
 	// Verify that manager can't upsert a notification state for auditor
 	_, err = managerClient.UpsertUserNotificationState(ctx, auditorUsername, &notificationsv1.UserNotificationState{

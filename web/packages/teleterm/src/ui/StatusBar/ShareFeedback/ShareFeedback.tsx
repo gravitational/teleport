@@ -19,7 +19,7 @@
 import { useRef } from 'react';
 import styled from 'styled-components';
 
-import { ButtonIcon, Popover } from 'design';
+import { ButtonText, Popover } from 'design';
 import { ChatBubble } from 'design/Icon';
 
 import { ShareFeedbackForm } from './ShareFeedbackForm';
@@ -40,18 +40,18 @@ export function ShareFeedback() {
 
   return (
     <>
-      <ButtonIcon
+      <ButtonText
         css={`
           position: relative;
         `}
         setRef={buttonRef}
         title="Share feedback"
-        size={0}
+        size="small"
         onClick={openShareFeedback}
       >
         {!hasBeenShareFeedbackOpened && <NotOpenedYetIndicator />}
         <ChatBubble size="small" />
-      </ButtonIcon>
+      </ButtonText>
       <Popover
         open={isShareFeedbackOpened}
         anchorEl={buttonRef.current}

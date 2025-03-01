@@ -17,6 +17,7 @@
 package vnet
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"os"
@@ -24,6 +25,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
@@ -35,19 +37,21 @@ const (
 	serviceName        = "TeleportVNet"
 	serviceDescription = "This service manages networking and OS configuration for Teleport VNet."
 	serviceAccessFlags = windows.SERVICE_START | windows.SERVICE_STOP | windows.SERVICE_QUERY_STATUS
+	terminateTimeout   = 30 * time.Second
 )
 
 // runService is called from the normal user process to run the VNet Windows in
 // the background and wait for it to exit. It will terminate the service and
 // return immediately if [ctx] is canceled.
-func runService(ctx context.Context) error {
-	service, err := startService(ctx)
+func runService(ctx context.Context, cfg *windowsAdminProcessConfig) error {
+	service, err := startService(ctx, cfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer service.Close()
 	log.InfoContext(ctx, "Started Windows service", "service", service.Name)
 	ticker := time.Tick(time.Second)
+loop:
 	for {
 		select {
 		case <-ctx.Done():
@@ -55,21 +59,39 @@ func runService(ctx context.Context) error {
 			if _, err := service.Control(svc.Stop); err != nil {
 				return trace.Wrap(err, "sending stop request to Windows service %s", service.Name)
 			}
-			return nil
+			break loop
 		case <-ticker:
 			status, err := service.Query()
 			if err != nil {
-				return trace.Wrap(err, "querying admin service")
+				return trace.Wrap(err, "querying Windows service %s", service.Name)
 			}
 			if status.State != svc.Running && status.State != svc.StartPending {
 				return trace.Errorf("service stopped running prematurely, status: %+v", status)
 			}
 		}
 	}
+	// Wait for the service to actually stop. Add some buffer to
+	// terminateTimeout which the service also uses to terminate itself to
+	// hopefully allow it to exit on its own.
+	deadline := time.After(terminateTimeout + 5*time.Second)
+	for {
+		select {
+		case <-deadline:
+			return trace.Errorf("Windows service %s failed to stop with %v", service.Name, terminateTimeout)
+		case <-ticker:
+			status, err := service.Query()
+			if err != nil {
+				return trace.Wrap(err, "querying Windows service %s", service.Name)
+			}
+			if status.State == svc.Stopped {
+				return nil
+			}
+		}
+	}
 }
 
 // startService starts the Windows VNet admin service in the background.
-func startService(ctx context.Context) (*mgr.Service, error) {
+func startService(ctx context.Context, cfg *windowsAdminProcessConfig) (*mgr.Service, error) {
 	// Avoid [mgr.Connect] because it requests elevated permissions.
 	scManager, err := windows.OpenSCManager(nil /*machine*/, nil /*database*/, windows.SC_MANAGER_CONNECT)
 	if err != nil {
@@ -88,7 +110,11 @@ func startService(ctx context.Context) (*mgr.Service, error) {
 		Name:   serviceName,
 		Handle: serviceHandle,
 	}
-	if err := service.Start(ServiceCommand); err != nil {
+	if err := service.Start(ServiceCommand,
+		"--addr", cfg.clientApplicationServiceAddr,
+		"--cred-path", cfg.serviceCredentialPath,
+		"--user-sid", cfg.userSID,
+	); err != nil {
 		return nil, trace.Wrap(err, "starting Windows service %s", serviceName)
 	}
 	return service, nil
@@ -128,6 +154,7 @@ func (s *windowsService) Execute(args []string, requests <-chan svc.ChangeReques
 	errCh := make(chan error)
 	go func() { errCh <- s.run(ctx, args) }()
 
+	var terminateTimedOut <-chan time.Time
 loop:
 	for {
 		select {
@@ -141,9 +168,17 @@ loop:
 				status <- svc.Status{State: state, Accepts: cmdsAccepted}
 			case svc.Stop:
 				slog.InfoContext(ctx, "Received stop command, shutting down service")
+				// Cancel the context passed to s.run to terminate the
+				// networking stack.
 				cancel()
+				terminateTimedOut = cmp.Or(terminateTimedOut, time.After(terminateTimeout))
 				status <- svc.Status{State: svc.StopPending}
 			}
+		case <-terminateTimedOut:
+			slog.ErrorContext(ctx, "Networking stack failed to terminate within timeout, exiting process",
+				slog.Duration("timeout", terminateTimeout))
+			exitCode = 1
+			break loop
 		case err := <-errCh:
 			slog.ErrorContext(ctx, "Windows VNet service terminated", "error", err)
 			if err != nil {
@@ -157,7 +192,20 @@ loop:
 }
 
 func (s *windowsService) run(ctx context.Context, args []string) error {
-	if err := runWindowsAdminProcess(ctx); err != nil {
+	var cfg windowsAdminProcessConfig
+	app := kingpin.New(serviceName, "Teleport VNet Windows Service")
+	serviceCmd := app.Command("vnet-service", "Start the VNet service.")
+	serviceCmd.Flag("addr", "client application service address").Required().StringVar(&cfg.clientApplicationServiceAddr)
+	serviceCmd.Flag("cred-path", "path to TLS credentials for connecting to client application").Required().StringVar(&cfg.serviceCredentialPath)
+	serviceCmd.Flag("user-sid", "SID of the user running the client application").Required().StringVar(&cfg.userSID)
+	cmd, err := app.Parse(args[1:])
+	if err != nil {
+		return trace.Wrap(err, "parsing runtime arguments to Windows service")
+	}
+	if cmd != serviceCmd.FullCommand() {
+		return trace.BadParameter("Windows service runtime arguments did not match \"vnet-service\", args: %v", args[1:])
+	}
+	if err := runWindowsAdminProcess(ctx, &cfg); err != nil {
 		return trace.Wrap(err, "running admin process")
 	}
 	return nil

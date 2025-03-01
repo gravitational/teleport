@@ -46,6 +46,7 @@ func TestWaitForStablePID(t *testing.T) {
 		maxCrashes int
 		findErrs   map[int]error
 
+		finalPID int
 		errored  bool
 		canceled bool
 	}{
@@ -55,6 +56,7 @@ func TestWaitForStablePID(t *testing.T) {
 			baseline:   1,
 			minStable:  1,
 			maxCrashes: 1,
+			finalPID:   2,
 		},
 		{
 			name: "zero stable",
@@ -66,6 +68,7 @@ func TestWaitForStablePID(t *testing.T) {
 			minStable:  1,
 			maxCrashes: 0,
 			errored:    true,
+			finalPID:   3,
 		},
 		{
 			name:       "no changes times out",
@@ -74,6 +77,7 @@ func TestWaitForStablePID(t *testing.T) {
 			minStable:  3,
 			maxCrashes: 2,
 			canceled:   true,
+			finalPID:   1,
 		},
 		{
 			name:       "baseline restart",
@@ -81,6 +85,7 @@ func TestWaitForStablePID(t *testing.T) {
 			baseline:   1,
 			minStable:  3,
 			maxCrashes: 2,
+			finalPID:   2,
 		},
 		{
 			name:       "one restart then stable",
@@ -88,6 +93,7 @@ func TestWaitForStablePID(t *testing.T) {
 			baseline:   1,
 			minStable:  3,
 			maxCrashes: 2,
+			finalPID:   2,
 		},
 		{
 			name:       "two restarts then stable",
@@ -95,6 +101,7 @@ func TestWaitForStablePID(t *testing.T) {
 			baseline:   1,
 			minStable:  3,
 			maxCrashes: 2,
+			finalPID:   3,
 		},
 		{
 			name:       "three restarts then stable",
@@ -102,6 +109,7 @@ func TestWaitForStablePID(t *testing.T) {
 			baseline:   1,
 			minStable:  3,
 			maxCrashes: 2,
+			finalPID:   4,
 		},
 		{
 			name:       "too many restarts excluding baseline",
@@ -110,6 +118,7 @@ func TestWaitForStablePID(t *testing.T) {
 			minStable:  3,
 			maxCrashes: 2,
 			errored:    true,
+			finalPID:   5,
 		},
 		{
 			name:       "too many restarts including baseline",
@@ -118,6 +127,7 @@ func TestWaitForStablePID(t *testing.T) {
 			minStable:  3,
 			maxCrashes: 2,
 			errored:    true,
+			finalPID:   4,
 		},
 		{
 			name:       "too many restarts slow",
@@ -126,6 +136,7 @@ func TestWaitForStablePID(t *testing.T) {
 			minStable:  3,
 			maxCrashes: 2,
 			errored:    true,
+			finalPID:   4,
 		},
 		{
 			name:       "too many restarts after stable",
@@ -133,6 +144,7 @@ func TestWaitForStablePID(t *testing.T) {
 			baseline:   0,
 			minStable:  3,
 			maxCrashes: 2,
+			finalPID:   3,
 		},
 		{
 			name:       "stable after too many restarts",
@@ -141,6 +153,7 @@ func TestWaitForStablePID(t *testing.T) {
 			minStable:  3,
 			maxCrashes: 2,
 			errored:    true,
+			finalPID:   4,
 		},
 		{
 			name:       "cancel",
@@ -149,6 +162,7 @@ func TestWaitForStablePID(t *testing.T) {
 			minStable:  3,
 			maxCrashes: 2,
 			canceled:   true,
+			finalPID:   1,
 		},
 		{
 			name:       "stale PID crash",
@@ -159,7 +173,8 @@ func TestWaitForStablePID(t *testing.T) {
 			findErrs: map[int]error{
 				2: os.ErrProcessDone,
 			},
-			errored: true,
+			errored:  true,
+			finalPID: 2,
 		},
 		{
 			name:       "stale PID but fixed",
@@ -170,6 +185,7 @@ func TestWaitForStablePID(t *testing.T) {
 			findErrs: map[int]error{
 				2: os.ErrProcessDone,
 			},
+			finalPID: 3,
 		},
 		{
 			name:       "error PID",
@@ -180,7 +196,8 @@ func TestWaitForStablePID(t *testing.T) {
 			findErrs: map[int]error{
 				2: errors.New("bad"),
 			},
-			errored: true,
+			errored:  true,
+			finalPID: 2,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -194,10 +211,11 @@ func TestWaitForStablePID(t *testing.T) {
 					ch <- tick
 				}
 			}()
-			err := svc.waitForStablePID(ctx, tt.minStable, tt.maxCrashes,
+			pid, err := svc.waitForStablePID(ctx, tt.minStable, tt.maxCrashes,
 				tt.baseline, ch, func(pid int) error {
 					return tt.findErrs[pid]
 				})
+			require.Equal(t, tt.finalPID, pid)
 			require.Equal(t, tt.canceled, errors.Is(err, context.Canceled))
 			if !tt.canceled {
 				require.Equal(t, tt.errored, err != nil)

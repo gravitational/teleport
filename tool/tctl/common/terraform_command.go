@@ -303,10 +303,10 @@ func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr util
 			TokenValue: token,
 			JoinMethod: types.JoinMethodToken,
 		},
-		Storage:        &config.StorageConfig{Destination: &config.DestinationMemory{}},
-		Services:       config.ServiceConfigs{credential},
-		CertificateTTL: c.botTTL,
-		Oneshot:        true,
+		Storage:            &config.StorageConfig{Destination: &config.DestinationMemory{}},
+		Services:           config.ServiceConfigs{credential},
+		CredentialLifetime: config.CredentialLifetime{TTL: c.botTTL},
+		Oneshot:            true,
 		// If --insecure is passed, the bot will trust the certificate on first use.
 		// This does not truly disable TLS validation, only trusts the certificate on first connection.
 		Insecure: clt.Config().InsecureSkipVerify,

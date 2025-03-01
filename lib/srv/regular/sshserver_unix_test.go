@@ -63,9 +63,8 @@ func BenchmarkRootExecCommand(b *testing.B) {
 			}
 
 			f := newFixtureWithoutDiskBasedLogging(b, opts...)
-			b.ResetTimer()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				username := f.user
 				if test.createUser {
 					username = utils.GenerateLocalUsername(b)

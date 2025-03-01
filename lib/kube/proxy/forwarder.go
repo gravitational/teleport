@@ -548,7 +548,7 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 	userTypeI, err := authz.UserFromContext(ctx)
 	if err != nil {
 		f.log.WarnContext(ctx, "error getting user from context", "error", err)
-		return nil, trace.AccessDenied(accessDeniedMsg)
+		return nil, trace.AccessDenied("%s", accessDeniedMsg)
 	}
 	switch userTypeI.(type) {
 	case authz.LocalUser:
@@ -559,10 +559,10 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 		f.log.WarnContext(ctx, "Denying proxy access to unauthenticated user - this can sometimes be caused by inadvertently using an HTTP load balancer instead of a TCP load balancer on the Kubernetes port",
 			"user_type", logutils.TypeAttr(userTypeI),
 		)
-		return nil, trace.AccessDenied(accessDeniedMsg)
+		return nil, trace.AccessDenied("%s", accessDeniedMsg)
 	default:
 		f.log.WarnContext(ctx, "Denying proxy access to unsupported user type", "user_type", logutils.TypeAttr(userTypeI))
-		return nil, trace.AccessDenied(accessDeniedMsg)
+		return nil, trace.AccessDenied("%s", accessDeniedMsg)
 	}
 
 	userContext, err := f.cfg.Authz.Authorize(ctx)
@@ -574,7 +574,7 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 	if err != nil {
 		f.log.WarnContext(ctx, "Unable to setup context", "error", err)
 		if trace.IsAccessDenied(err) {
-			return nil, trace.AccessDenied(accessDeniedMsg)
+			return nil, trace.AccessDenied("%s", accessDeniedMsg)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -1088,16 +1088,16 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		kubeAccessDetails, err := f.getKubeAccessDetails(actx.kubeServers, actx.Checker, actx.kubeClusterName, actx.sessionTTL, actx.kubeResource)
 		if err != nil && !trace.IsNotFound(err) {
 			if actx.kubeResource != nil {
-				return trace.AccessDenied(notFoundMessage)
+				return trace.AccessDenied("%s", notFoundMessage)
 			}
 			// TODO (tigrato): should return another message here.
-			return trace.AccessDenied(accessDeniedMsg)
+			return trace.AccessDenied("%s", accessDeniedMsg)
 			// roles.CheckKubeGroupsAndUsers returns trace.NotFound if the user does
 			// does not have at least one configured kubernetes_users or kubernetes_groups.
 		} else if trace.IsNotFound(err) {
 			const errMsg = "Your user's Teleport role does not allow Kubernetes access." +
 				" Please ask cluster administrator to ensure your role has appropriate kubernetes_groups and kubernetes_users set."
-			return trace.NotFound(errMsg)
+			return trace.NotFound("%s", errMsg)
 		}
 
 		kubeUsers = kubeAccessDetails.kubeUsers
@@ -1125,7 +1125,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		case errors.Is(err, services.ErrTrustedDeviceRequired):
 			return trace.Wrap(err)
 		case err != nil:
-			return trace.AccessDenied(notFoundMessage)
+			return trace.AccessDenied("%s", notFoundMessage)
 		}
 
 		// If the user has active Access requests we need to validate that they allow
@@ -1141,7 +1141,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 			// list will be empty.
 			allowed, denied := actx.Checker.GetKubeResources(ks)
 			if result, err := matchKubernetesResource(*actx.kubeResource, allowed, denied); err != nil || !result {
-				return trace.AccessDenied(notFoundMessage)
+				return trace.AccessDenied("%s", notFoundMessage)
 			}
 		}
 		// store a copy of the Kubernetes Cluster.
@@ -1154,7 +1154,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		)
 		return nil
 	}
-	return trace.AccessDenied(notFoundMessage)
+	return trace.AccessDenied("%s", notFoundMessage)
 }
 
 // matchKubernetesResource checks if the Kubernetes Resource does not match any

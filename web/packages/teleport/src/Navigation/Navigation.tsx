@@ -188,7 +188,7 @@ function getNavSubsectionForRoute(
   features: TeleportFeature[],
   route: history.Location<unknown> | Location
 ): NavigationSubsection {
-  const feature = features
+  let feature = features
     .filter(feature => Boolean(feature.route))
     .find(feature =>
       matchPath(route.pathname, {
@@ -196,6 +196,13 @@ function getNavSubsectionForRoute(
         exact: feature.route.exact,
       })
     );
+
+  // If this is a child feature, use its parent as the subsection instead.
+  // We do this because children of features don't appear as subsections in the sidenav, but we want to highlight
+  // their parent's subsection as active.
+  if (feature?.parent) {
+    feature = features.find(f => f instanceof feature.parent);
+  }
 
   if (
     !feature ||

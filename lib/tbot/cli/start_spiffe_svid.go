@@ -47,7 +47,7 @@ type SPIFFESVIDCommand struct {
 // `spiffe-svid` output and returns a struct that will contain the parse
 // result.
 func NewSPIFFESVIDCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *SPIFFESVIDCommand {
-	cmd := parentCmd.Command("spiffe-svid", fmt.Sprintf("%s tbot with a SPIFFE-compatible SVID output.", mode))
+	cmd := parentCmd.Command("spiffe-svid", fmt.Sprintf("%s tbot with a SPIFFE-compatible SVID output.", mode)).Hidden()
 
 	c := &SPIFFESVIDCommand{}
 	c.sharedStartArgs = newSharedStartArgs(cmd)

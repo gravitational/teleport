@@ -312,6 +312,9 @@ export const eventCodes = {
   CONTACT_DELETE: 'TCTC002I',
   GIT_COMMAND: 'TGIT001I',
   GIT_COMMAND_FAILURE: 'TGIT001E',
+  STABLE_UNIX_USER_CREATE: 'TSUU001I',
+  AWS_IC_RESOURCE_SYNC_SUCCESS: 'TAIC001I',
+  AWS_IC_RESOURCE_SYNC_FAILURE: 'TAIC001E',
 } as const;
 
 /**
@@ -1785,6 +1788,21 @@ export type RawEvents = {
       exitError: string;
     }
   >;
+  [eventCodes.STABLE_UNIX_USER_CREATE]: RawEvent<
+    typeof eventCodes.STABLE_UNIX_USER_CREATE,
+    {
+      stable_unix_user: {
+        username: string;
+        uid: number;
+      };
+    }
+  >;
+  [eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS]: RawEventAwsIcResourceSync<
+    typeof eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS
+  >;
+  [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: RawEventAwsIcResourceSync<
+    typeof eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE
+  >;
 };
 
 /**
@@ -1982,6 +2000,23 @@ type RawSpannerRPCEvent<T extends EventCode> = RawEvent<
     db_service: string;
     db_name: string;
     args: { sql?: string };
+  }
+>;
+
+/**
+ * RawEventAwsIcResourceSync extends RawEvent with custom fields
+ * present in the AWS Identity Center resource sync event.
+ */
+type RawEventAwsIcResourceSync<T extends EventCode> = RawEvent<
+  T,
+  {
+    total_accounts: number;
+    total_account_assignments: number;
+    total_user_groups: number;
+    total_permission_sets: number;
+    status: boolean;
+    /* message contains user message for both success and failed status */
+    message: string;
   }
 >;
 

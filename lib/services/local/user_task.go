@@ -53,14 +53,19 @@ func NewUserTasksService(b backend.Backend) (*UserTasksService, error) {
 	return &UserTasksService{service: service}, nil
 }
 
-func (s *UserTasksService) ListUserTasks(ctx context.Context, pagesize int64, lastKey string) ([]*usertasksv1.UserTask, string, error) {
-	r, nextToken, err := s.service.ListResources(ctx, int(pagesize), lastKey)
-	return r, nextToken, trace.Wrap(err)
-}
-
-func (s *UserTasksService) ListUserTasksByIntegration(ctx context.Context, pagesize int64, lastKey string, integration string) ([]*usertasksv1.UserTask, string, error) {
+func (s *UserTasksService) ListUserTasks(ctx context.Context, pagesize int64, lastKey string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error) {
 	r, nextToken, err := s.service.ListResourcesWithFilter(ctx, int(pagesize), lastKey, func(ut *usertasksv1.UserTask) bool {
-		return ut.GetSpec().GetIntegration() == integration
+		integrationFilter := filters.GetIntegration()
+		if integrationFilter != "" && integrationFilter != ut.GetSpec().GetIntegration() {
+			return false
+		}
+
+		stateFilter := filters.GetTaskState()
+		if stateFilter != "" && stateFilter != ut.GetSpec().GetState() {
+			return false
+		}
+
+		return true
 	})
 	return r, nextToken, trace.Wrap(err)
 }

@@ -104,10 +104,10 @@ func ensureRouteNotOverwritten(ident *tlsca.Identity, routeToCluster, kubernetes
 
 	const overwriteDeniedMsg = "existing route in identity may not be overwritten"
 	if ident.RouteToCluster != "" && teleportClusterChanged {
-		return trace.AccessDenied(overwriteDeniedMsg)
+		return trace.AccessDenied("%s", overwriteDeniedMsg)
 	}
 	if ident.KubernetesCluster != "" && kubeClusterChanged {
-		return trace.AccessDenied(overwriteDeniedMsg)
+		return trace.AccessDenied("%s", overwriteDeniedMsg)
 	}
 
 	return nil
@@ -127,7 +127,7 @@ func (f *Forwarder) singleCertHandler() httprouter.Handle {
 		userTypeI, err := authz.UserFromContext(req.Context())
 		if err != nil {
 			f.log.WarnContext(req.Context(), "error getting user from context", "error", err)
-			return nil, trace.AccessDenied(accessDeniedMsg)
+			return nil, trace.AccessDenied("%s", accessDeniedMsg)
 		}
 
 		// Insert the extracted routing information from the path into the
@@ -170,7 +170,7 @@ func (f *Forwarder) singleCertHandler() httprouter.Handle {
 			userType = o
 		default:
 			f.log.WarnContext(req.Context(), "Denying proxy access to unsupported user type", "user_type", logutils.TypeAttr(userTypeI))
-			return nil, trace.AccessDenied(accessDeniedMsg)
+			return nil, trace.AccessDenied("%s", accessDeniedMsg)
 		}
 
 		ctx := authz.ContextWithUser(req.Context(), userType)

@@ -3,7 +3,7 @@ title: Proxy Peering
 description: How Teleport implements more efficient networking with Proxy Peering.
 ---
 
-Proxy Peering enables Teleport agents to be reachable without connecting to
+Proxy Peering enables Teleport Agents to be reachable without connecting to
 every Teleport Proxy Service. This allows Teleport Proxy instances to scale
 horizontally without increasing the number of connections created by agents.
 
@@ -12,7 +12,7 @@ horizontally without increasing the number of connections created by agents.
   Kubernetes, Database, Application, or Desktop Services.
 </Admonition>
 
-By default, Teleport agents need to create a reverse tunnel to every Teleport Proxy
+By default, Teleport Agents need to create a reverse tunnel to every Teleport Proxy
 to ensure a client is able to reach every agent. With Proxy Peering this is no
 longer a requirement. When Proxy Peering is enabled agents will automatically
 change their behavior to connect to the configured number of Teleport Proxy

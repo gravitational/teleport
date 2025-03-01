@@ -115,6 +115,27 @@ export type MainProcessClient = {
   showFileSaveDialog(
     filePath: string
   ): Promise<{ canceled: boolean; filePath: string | undefined }>;
+  /**
+   * saveTextToFile shows the save file dialog that lets the user pick a file location. Once the
+   * location is picked, it saves the text to the location, overwriting an existing file if any.
+   *
+   * If the user closes the dialog, saveTextToFile returns early with canceled set to true. The
+   * caller must inspect this value before assuming that the file was saved.
+   *
+   * If writing to the file fails, saveTextToFile returns a rejected promise.
+   */
+  saveTextToFile(options: {
+    text: string;
+    /**
+     * The name for the file that will be suggested in the save file dialog.
+     */
+    defaultBasename: string;
+  }): Promise<{
+    /**
+     * Whether the dialog was closed by the user or not.
+     */
+    canceled: boolean;
+  }>;
   configService: ConfigService;
   fileStorage: FileStorage;
   removeKubeConfig(options: {
@@ -157,6 +178,10 @@ export type MainProcessClient = {
   tryRemoveConnectMyComputerAgentBinary(): Promise<void>;
   getAgentState(args: { rootClusterUri: RootClusterUri }): AgentProcessState;
   getAgentLogs(args: { rootClusterUri: RootClusterUri }): string;
+  /**
+   * Signals to the windows manager that the UI has been fully initialized, that is the user has
+   * interacted with the relevant modals during startup and is free to use the app.
+   */
   signalUserInterfaceReadiness(args: { success: boolean }): void;
   refreshClusterList(): void;
 };
@@ -272,6 +297,7 @@ export enum MainProcessIpc {
   RefreshClusterList = 'main-process-refresh-cluster-list',
   DownloadConnectMyComputerAgent = 'main-process-connect-my-computer-download-agent',
   VerifyConnectMyComputerAgent = 'main-process-connect-my-computer-verify-agent',
+  SaveTextToFile = 'main-process-save-text-to-file',
 }
 
 export enum WindowsManagerIpc {

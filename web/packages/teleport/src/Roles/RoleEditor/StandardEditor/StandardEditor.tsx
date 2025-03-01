@@ -78,6 +78,10 @@ export const StandardEditor = ({
 
   const validator = useValidation();
 
+  function handleResetToStandard() {
+    dispatch({ type: 'reset-to-standard' });
+  }
+
   function handleSave() {
     if (!validator.validate()) {
       return;
@@ -93,9 +97,12 @@ export const StandardEditor = ({
 
   return (
     <>
-      {roleModel.requiresReset && (
+      {roleModel.conversionErrors.length > 0 && (
         <Box mx={3}>
-          <RequiresResetToStandard />
+          <RequiresResetToStandard
+            conversionErrors={roleModel.conversionErrors}
+            onReset={handleResetToStandard}
+          />
         </Box>
       )}
       <EditorWrapper
@@ -214,7 +221,7 @@ export const StandardEditor = ({
       <EditorSaveCancelButton
         onSave={() => handleSave()}
         onCancel={onCancel}
-        disabled={
+        saveDisabled={
           isProcessing ||
           standardEditorModel.roleModel.requiresReset ||
           !standardEditorModel.isDirty

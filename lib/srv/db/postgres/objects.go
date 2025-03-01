@@ -119,9 +119,9 @@ func (f *objectFetcher) getDatabaseNames(ctx context.Context) ([]string, error) 
 
 func (f *objectFetcher) connectAsAdmin(ctx context.Context, databaseName string) (*pgx.Conn, error) {
 	conn := &connector{
-		auth:         f.cfg.Auth,
-		cloudClients: f.cfg.CloudClients,
-		log:          f.cfg.Log,
+		auth:       f.cfg.Auth,
+		gcpClients: f.cfg.GCPClients,
+		log:        f.cfg.Log,
 
 		certExpiry:   time.Now().Add(time.Hour),
 		database:     f.db,

@@ -189,13 +189,13 @@ func (a *Server) checkPasswordWOToken(ctx context.Context, user string, password
 
 	if err = bcrypt.CompareHashAndPassword(hash, password); err != nil {
 		a.logger.DebugContext(ctx, "Password for user does not match", "user", user)
-		return trace.BadParameter(errMsg)
+		return trace.BadParameter("%s", errMsg)
 	}
 
 	// Careful! The bcrypt check above may succeed for an unknown user when the
 	// provided password is "barbaz", which is what fakePasswordHash hashes to.
 	if !userFound {
-		return trace.BadParameter(errMsg)
+		return trace.BadParameter("%s", errMsg)
 	}
 
 	// At this point, we know that the user provided a correct password, so we may
@@ -315,7 +315,7 @@ func (a *Server) changeUserAuthentication(ctx context.Context, req *proto.Change
 		return nil, trace.Wrap(err)
 	}
 	if !authPref.GetAllowLocalAuth() {
-		return nil, trace.AccessDenied(noLocalAuth)
+		return nil, trace.AccessDenied("%s", noLocalAuth)
 	}
 
 	reqPasswordless := len(req.GetNewPassword()) == 0 && authPref.GetAllowPasswordless()

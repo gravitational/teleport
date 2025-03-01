@@ -27,7 +27,7 @@ import { Box, Input, LabelInput, Text } from 'design';
 import { BoxProps } from 'design/Box';
 import { IconProps } from 'design/Icon/Icon';
 import { InputMode, InputSize, InputType } from 'design/Input';
-import { IconTooltip } from 'design/Tooltip';
+import { LabelContent } from 'design/LabelInput/LabelInput';
 import { useRule } from 'shared/components/Validation';
 
 const FieldInput = forwardRef<HTMLInputElement, FieldInputProps>(
@@ -104,26 +104,14 @@ const FieldInput = forwardRef<HTMLInputElement, FieldInputProps>(
       <Box mb="3" {...styles}>
         {label ? (
           <LabelInput mb={0}>
-            <Box mb={1}>
-              {toolTipContent ? (
-                <>
-                  <span
-                    css={{
-                      marginRight: '4px',
-                      verticalAlign: 'middle',
-                    }}
-                  >
-                    {label}
-                  </span>
-                  <IconTooltip
-                    sticky={tooltipSticky}
-                    children={toolTipContent}
-                  />
-                </>
-              ) : (
-                <>{label}</>
-              )}
-            </Box>
+            <LabelContent
+              required={required}
+              tooltipContent={toolTipContent}
+              tooltipSticky={tooltipSticky}
+              mb={1}
+            >
+              {label}
+            </LabelContent>
             {$inputElement}
           </LabelInput>
         ) : (
@@ -248,9 +236,14 @@ export type FieldInputProps = BoxProps & {
   toolTipContent?: React.ReactNode;
   tooltipSticky?: boolean;
   disabled?: boolean;
-  // markAsError is a flag to highlight an
-  // input box as error color before validator
-  // runs (which marks it as error)
+  /**
+   * Highlights the input box with error color before validator runs (which
+   * marks it as error)
+   */
   markAsError?: boolean;
+  /**
+   * Adds a `required` attribute to the underlying input and adds a required
+   * field indicator to the label.
+   */
   required?: boolean;
 };

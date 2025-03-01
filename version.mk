@@ -39,7 +39,7 @@ PLIST_FILES := $(abspath $(TSH_APP_PLISTS))
 # tsh-version sets CFBundleVersion and CFBundleShortVersionString in the tsh{,dev} Info.plist
 .PHONY:tsh-version
 tsh-version:
-	cd build.assets/tooling && go run ./cmd/update-plist-version $(VERSION) $(PLIST_FILES)
+	GOWORK=off CGO_ENABLED=0 go -C build.assets/tooling run ./cmd/update-plist-version $(VERSION) $(PLIST_FILES)
 
 .PHONY:validate-semver
 validate-semver:

@@ -352,7 +352,7 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, nil, trace.Wrap(err)
 		}
-		params.AccessRequests = activeRequests.AccessRequests
+		params.AccessRequests = activeRequests
 	}
 
 	// newUserKeys holds new subject keys per-protocol so that the keyring can

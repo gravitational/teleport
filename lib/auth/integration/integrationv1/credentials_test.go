@@ -110,7 +110,7 @@ func TestExportIntegrationCertAuthorities(t *testing.T) {
 				t.Helper()
 				require.Nil(t, resp)
 				require.Error(t, err)
-				require.True(t, trace.IsBadParameter(err))
+				require.True(t, trace.IsNotImplemented(err))
 			},
 		},
 	}

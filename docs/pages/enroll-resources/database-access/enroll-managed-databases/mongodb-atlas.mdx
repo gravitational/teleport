@@ -23,10 +23,10 @@ or AWS IAM:
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access MongoDB Self-Hosted](../../../../img/database-access/guides/mongodbatlas_selfhosted.png)
+![Enroll MongoDB with a self-hosted Teleport cluster](../../../../img/database-access/guides/mongodbatlas_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Teleport Database Access MongoDB Cloud](../../../../img/database-access/guides/mongodbatlas_cloud.png)
+![Enroll MongoDB with a cloud-hosted Teleport cluster](../../../../img/database-access/guides/mongodbatlas_cloud.png)
 </TabItem>
 
 </Tabs>
@@ -161,9 +161,10 @@ click Save.
 
 ### Create a MongoDB user
 
-{/*lint ignore messaging*/}
+{/*vale messaging.protocol-products = NO*/}
 On the Security / Database Access page add a new database user with Certificate
 authentication method:
+{/*vale messaging.protocol-products = YES*/}
 
 ![Add user](../../../../img/database-access/guides/atlas/atlas-add-user@2x.png)
 
@@ -215,12 +216,13 @@ guide, we will the name `teleport-access`.
 
 ### Create a MongoDB User
 
-{/*lint ignore messaging*/}
+{/*vale messaging.protocol-products = NO*/}
 On the Security / Database Access page add a new database user with **AWS IAM**
 authentication method, and choose "IAM Role" as the **IAM User type**. Then, fill in
 the AWS ARN field with the ARN of the newly created IAM role. In the **Database
 User Privileges** section, give the user sufficient privileges to access the
 desired database data.
+{/*vale messaging.protocol-products = YES*/}
 
 ![Create AWS IAM database user](../../../../img/database-access/guides/atlas/atlas-add-aws-iam-user.png)
 

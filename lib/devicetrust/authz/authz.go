@@ -23,12 +23,12 @@ import (
 	"log/slog"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -53,12 +53,12 @@ func VerifyTLSUser(ctx context.Context, dt *types.DeviceTrust, identity tlsca.Id
 
 // IsSSHDeviceVerified returns true if cert contains all required device
 // extensions.
-func IsSSHDeviceVerified(cert *ssh.Certificate) bool {
+func IsSSHDeviceVerified(ident *sshca.Identity) bool {
 	// Expect all device extensions to be present.
-	return cert != nil &&
-		cert.Extensions[teleport.CertExtensionDeviceID] != "" &&
-		cert.Extensions[teleport.CertExtensionDeviceAssetTag] != "" &&
-		cert.Extensions[teleport.CertExtensionDeviceCredentialID] != ""
+	return ident != nil &&
+		ident.DeviceID != "" &&
+		ident.DeviceAssetTag != "" &&
+		ident.DeviceCredentialID != ""
 }
 
 // HasDeviceTrustExtensions returns true if the certificate's extension names
@@ -85,13 +85,12 @@ func HasDeviceTrustExtensions(extensions []string) bool {
 
 // VerifySSHUser verifies if the SSH certificate has the required extensions to
 // fulfill the device trust configuration.
-func VerifySSHUser(ctx context.Context, dt *types.DeviceTrust, cert *ssh.Certificate) error {
-	if cert == nil {
-		return trace.BadParameter("cert required")
+func VerifySSHUser(ctx context.Context, dt *types.DeviceTrust, ident *sshca.Identity) error {
+	if ident == nil {
+		return trace.BadParameter("ssh identity required")
 	}
 
-	username := cert.KeyId
-	return verifyDeviceExtensions(ctx, dt, username, IsSSHDeviceVerified(cert))
+	return verifyDeviceExtensions(ctx, dt, ident.Username, IsSSHDeviceVerified(ident))
 }
 
 func verifyDeviceExtensions(ctx context.Context, dt *types.DeviceTrust, username string, verified bool) error {

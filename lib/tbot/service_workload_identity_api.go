@@ -17,6 +17,7 @@
 package tbot
 
 import (
+	"cmp"
 	"context"
 	"crypto/x509"
 	"fmt"
@@ -70,6 +71,7 @@ type WorkloadIdentityAPIService struct {
 	log              *slog.Logger
 	resolver         reversetunnelclient.Resolver
 	trustBundleCache *workloadidentity.TrustBundleCache
+	crlCache         *workloadidentity.CRLCache
 
 	// client holds the impersonated client for the service
 	client           *authclient.Client
@@ -293,7 +295,11 @@ func (s *WorkloadIdentityAPIService) FetchX509SVID(
 
 	bundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "fetching trust bundle set from cache")
+	}
+	crlSet, err := s.crlCache.GetCRLSet(ctx)
+	if err != nil {
+		return trace.Wrap(err, "fetching CRL set from cache")
 	}
 
 	var svids []*workloadpb.X509SVID
@@ -322,10 +328,16 @@ func (s *WorkloadIdentityAPIService) FetchX509SVID(
 			}
 
 		}
-		err = srv.Send(&workloadpb.X509SVIDResponse{
+
+		resp := &workloadpb.X509SVIDResponse{
 			Svids:            svids,
 			FederatedBundles: bundleSet.EncodedX509Bundles(false),
-		})
+		}
+		if len(crlSet.LocalCRL) > 0 {
+			resp.Crl = [][]byte{crlSet.LocalCRL}
+		}
+
+		err = srv.Send(resp)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -350,7 +362,15 @@ func (s *WorkloadIdentityAPIService) FetchX509SVID(
 			}
 			bundleSet = newBundleSet
 			continue
-		case <-time.After(s.botCfg.RenewalInterval):
+		case <-crlSet.Stale():
+			newCRLSet, err := s.crlCache.GetCRLSet(ctx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			log.DebugContext(ctx, "CRL set has been updated, distributing to client")
+			crlSet = newCRLSet
+			continue
+		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval):
 			log.DebugContext(ctx, "Renewal interval reached, renewing SVIDs")
 			svids = nil
 			continue
@@ -373,13 +393,21 @@ func (s *WorkloadIdentityAPIService) FetchX509Bundles(
 	for {
 		bundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "fetching trust bundle set from cache")
+		}
+		crlSet, err := s.crlCache.GetCRLSet(ctx)
+		if err != nil {
+			return trace.Wrap(err, "fetching CRL set from cache")
 		}
 
 		s.log.InfoContext(ctx, "Sending X.509 trust bundles to workload")
-		err = srv.Send(&workloadpb.X509BundlesResponse{
+		resp := &workloadpb.X509BundlesResponse{
 			Bundles: bundleSet.EncodedX509Bundles(true),
-		})
+		}
+		if len(crlSet.LocalCRL) > 0 {
+			resp.Crl = [][]byte{crlSet.LocalCRL}
+		}
+		err = srv.Send(resp)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -388,6 +416,9 @@ func (s *WorkloadIdentityAPIService) FetchX509Bundles(
 		case <-ctx.Done():
 			return nil
 		case <-bundleSet.Stale():
+			s.log.DebugContext(ctx, "Trust bundle set has been updated, distributing to client")
+		case <-crlSet.Stale():
+			s.log.DebugContext(ctx, "CRL set has been updated, distributing to client")
 		}
 	}
 }
@@ -408,7 +439,7 @@ func (s *WorkloadIdentityAPIService) fetchX509SVIDs(
 		log,
 		s.client,
 		s.cfg.Selector,
-		s.botCfg.CertificateTTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		attest,
 	)
 	if err != nil {
@@ -490,7 +521,7 @@ func (s *WorkloadIdentityAPIService) FetchJWTSVID(
 		s.client,
 		s.cfg.Selector,
 		req.Audience,
-		s.botCfg.CertificateTTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		attr,
 	)
 	if err != nil {

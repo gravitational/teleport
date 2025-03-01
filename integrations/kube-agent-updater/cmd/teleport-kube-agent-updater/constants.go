@@ -36,3 +36,21 @@ EuIXJJox2oAL7NzdSi9VIUYnEnx+2EtkU/spAFRR6i1BnT6aoIy3521B76wnmRr9
 atCSKjt6MdRxgj4htCjBWWJAGM9Z/avF4CYFmK7qiVxgpdrSM8Esbt2Ta+Lu3QMJ
 T8LjqFu3u3dxVOo9RuLk+BkCAwEAAQ==
 -----END PUBLIC KEY-----`)
+
+// teleportStageOCIPubKey is the key used to sign Teleport distroless images dev builds.
+// The key lives in the Teleport staging AWS KMS.
+// This key is only trusted on dev builds/pre-release versions of the kube updater.
+var teleportStageOCIPubKey = []byte(`-----BEGIN PUBLIC KEY-----
+MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA8MPaUO4fcN3gS1psn3U7
+Pm/iM7jLQVg5MgcG9jbAkFsVOvmk3eq7cv0r94voz63IXhs4wKLK/e2QMljW1kz1
+AX7NvdXecCxwcyntgYnDXtxYBhcPGSM6cVnWlZ3pLNb8uVK7oxm0HjGUblcLreaI
+aoLGmpyK+eCCLJso0Y7Yw0qRTJHg+2JQenbWps23AO96a6nqab2Ix7zEa3HyNZLa
+P6rYV9q6vqZ3MBsDz5Lrc76JYSliqGVMVONhdXcqS2PYNti4Wm8o2CTJ0gRf2zYx
+z2how6+rWM8HVoRYqG8JvCDvY6SGr5AbqIz/UCGm7XDH1S7M7C4FZ3MNTazoHY7h
+VGAYLNPOtnQeZTtJDyRPH7csq+2tyvDPin3ymgRvvBrMrpBSmnnr67TxSIAv4xgu
+B2hAgTL501B+s2m06bBcbKc03JsxgJBu4sBxKqIh1yeF8AW861bh90oZGI8/d9xM
+fyI0BiELvY08HioQaAoC2VJx44I+KVDA1SLnMEx9n44eZ5Bk8G6PiZe5bikVDizF
+RBVos6fjDapmGqVGoj+eotrI755FTKA3egB8DYw/H5yD1CO0QBBWXDhqM0ruTt4i
+LzfxsdKEiXFMFZmXYzqwut9RXguGa/7LYPT7ijtW57z/wLytIjyYRkZH1P0dffFs
+tiben+kjeNwFJ7Kg/WIDjjUCAwEAAQ==
+-----END PUBLIC KEY-----`)

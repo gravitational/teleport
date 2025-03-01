@@ -30,7 +30,7 @@ import {
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
 
-import { DATABASES } from '../SelectResource/databases';
+import { DATABASES } from '../SelectResource/resources';
 import { ResourceKind } from '../Shared';
 import { TeleportProvider } from './fixtures';
 

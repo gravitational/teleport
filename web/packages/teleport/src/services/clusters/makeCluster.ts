@@ -23,6 +23,8 @@ import cfg from 'teleport/config';
 import { Cluster, ClusterInfo } from './types';
 
 export function makeCluster(json): Cluster {
+  json = json || {};
+
   const {
     name,
     lastConnected,
@@ -33,12 +35,21 @@ export function makeCluster(json): Cluster {
     licenseExpiry,
   } = json;
 
-  const lastConnectedDate = new Date(lastConnected);
-  const connectedText = displayDateTime(lastConnectedDate);
+  let lastConnectedDate: Date;
+  let connectedText;
+  if (lastConnected) {
+    lastConnectedDate = new Date(lastConnected);
+    connectedText = displayDateTime(lastConnectedDate);
+  }
 
   let licenseExpiryDateText;
   if (licenseExpiry) {
     licenseExpiryDateText = displayDate(new Date(licenseExpiry));
+  }
+
+  let url;
+  if (name) {
+    url = cfg.getClusterRoute(name);
   }
 
   return {
@@ -46,7 +57,7 @@ export function makeCluster(json): Cluster {
     lastConnected: lastConnectedDate,
     connectedText,
     status,
-    url: cfg.getClusterRoute(name),
+    url,
     authVersion,
     publicURL,
     proxyVersion,

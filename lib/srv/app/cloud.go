@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 // Cloud provides cloud provider access related methods such as generating
@@ -208,7 +209,7 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 			creds.ExternalID = aws.String(req.ExternalID)
 		}
 	})
-	stsCredentials, err := stscreds.NewCredentials(session, req.Identity.RouteToApp.AWSRoleARN, options...).Get()
+	stsCredentials, err := stsutils.NewCredentialsV1(session, req.Identity.RouteToApp.AWSRoleARN, options...).Get()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

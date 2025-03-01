@@ -44,12 +44,17 @@ specific for Teleport.
 
 Make sure that your Jamf role has the "Read Computers" privilege.
 
-You can test your client credentials using the following Jamf query:
+You can test your client credentials using the following Jamf query, replacing
+<Var name="(=jamf.api_endpoint=)" description="Jamf API URL" /> with your Jamf
+API endpoint, <Var name="(=jamf.client_id=)" description="Jamf API client ID" />
+with your client ID, and 
+<Var name="(=jamf.client_secret=)" description="Jamf API client secret" /> with
+your client secret:
 
 ```code
-$ URL='<Var name="(=jamf.api_endpoint=)" description="Jamf API URL"/>'
-$ CLIENT_ID='<Var name="(=jamf.client_id=)" description="Jamf API client ID" />'
-$ CLIENT_SECRET='<Var name="(=jamf.client_secret=)" description="Jamf API client secret" />'
+$ URL='<Var name="(=jamf.api_endpoint=)" />'
+$ CLIENT_ID='<Var name="(=jamf.client_id=)" />'
+$ CLIENT_SECRET='<Var name="(=jamf.client_secret=)" />'
 
 ## Acquire access token from Jamf.
 $ TOKEN_RESP="$(curl -X POST "$URL/api/oauth/token" \

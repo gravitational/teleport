@@ -31,7 +31,7 @@ import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import ModalsHost from 'teleterm/ui/ModalsHost';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
-import { ClusterUri } from 'teleterm/ui/uri';
+import { ClusterUri, routing } from 'teleterm/ui/uri';
 import { VnetContextProvider } from 'teleterm/ui/Vnet';
 
 import { SearchAction } from './actions';
@@ -411,16 +411,11 @@ const getMockedSearchContext = (): SearchContext.SearchContext => ({
 
 const setUpContext = (clusterUri: ClusterUri) => {
   const appContext = new MockAppContext();
-  appContext.workspacesService.setState(draft => {
-    draft.rootClusterUri = clusterUri;
-    draft.workspaces = {
-      [clusterUri]: {
-        documents: [],
-        location: undefined,
-        localClusterUri: clusterUri,
-        accessRequests: undefined,
-      },
-    };
-  });
+  appContext.addRootCluster(
+    makeRootCluster({
+      uri: clusterUri,
+      name: routing.parseClusterUri(clusterUri).params.rootClusterId,
+    })
+  );
   return appContext;
 };

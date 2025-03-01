@@ -140,21 +140,6 @@ test('renders credential flow for sso', () => {
   expect(screen.getByText(/Set A Password/i)).toBeInTheDocument();
 });
 
-test('renders questionnaire', () => {
-  mockUserContextProviderWith(makeTestUserContext());
-
-  const props = makeProps();
-  props.fetchAttempt = { status: 'success' };
-  props.success = true;
-  props.recoveryCodes = undefined;
-  props.displayOnboardingQuestionnaire = true;
-  props.setDisplayOnboardingQuestionnaire = () => {};
-  props.Questionnaire = () => <div>Passed Component!</div>;
-  render(<NewCredentials {...props} />);
-
-  expect(screen.getByText(/Passed Component!/i)).toBeInTheDocument();
-});
-
 test('renders invite collaborators', () => {
   mockUserContextProviderWith(makeTestUserContext());
 
