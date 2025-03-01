@@ -440,6 +440,19 @@ Support for self-hosted Terraform Enterprise requires Teleport Enterprise.
 - [Run the Teleport Terraform Provider on Terraform Cloud](../admin-guides/infrastructure-as-code/terraform-provider/terraform-cloud.mdx)
 </Admonition>
 
+### Spacelift: `spacelift`
+
+This join method is used to authenticate using Spacelift. It is typically used
+by the Teleport Terraform provider on either Spacelift cloud or self-hosted
+Spacelift. It can not be used to join Terraform runs on other platforms and
+dedicated join methods should be used instead.
+
+(!docs/pages/includes/provision-token/spacelift-spec.mdx!)
+
+<Admonition type="note" title="See Also">
+    - [Run the Teleport Terraform Provider on Spacelift](../admin-guides/infrastructure-as-code/terraform-provider/spacelift.mdx)
+</Admonition>
+
 ### Bitbucket Pipelines: `bitbucket`
 
 This join method is used to authenticate using Bitbucket's support for OpenID
