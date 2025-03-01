@@ -135,60 +135,18 @@ role or to that cluster must use their hardware key for all Teleport requests.
 Affected users will be prompted to connect and touch their YubiKey to sign in.
 The first time users sign in with their hardware key they might be required to immediately sign in again.
 
-<Tabs>
-<TabItem scope={["oss"]} label="Teleport Community Edition">
-
 ```code
-$ tsh login --user=dev --proxy=proxy.example.com:3080
+$ tsh login --user=dev --proxy=example.teleport.sh:443
 # Enter password for Teleport user dev:
 # Unmet private key policy "hardware_key_touch".
 # Relogging in with hardware-backed private key.
 # Enter password for Teleport user dev:
 # Tap your YubiKey
-# > Profile URL:        https://example.com
+# > Profile URL:        https://example.teleport.sh
 #   Logged in as:       dev
-#   Cluster:            example.com
-#   ...
-
-```
-
-</TabItem>
-
-<TabItem scope={["enterprise"]} label="Teleport Enterprise">
-
-```code
-$ tsh login --user=dev --proxy=proxy.example.com:3080
-# Enter password for Teleport user dev:
-# Unmet private key policy "hardware_key_touch".
-# Relogging in with hardware-backed private key.
-# Enter password for Teleport user dev:
-# Tap your YubiKey
-# > Profile URL:        https://example.com
-#   Logged in as:       dev
-#   Cluster:            example.com
+#   Cluster:            example.teleport.sh
 #   ...
 ```
-
-</TabItem>
-
-<TabItem scope={["cloud"]} label="Teleport Enterprise">
-
-```code
-$ tsh login --user=dev --proxy=proxy.example.com:3080
-# Enter password for Teleport user dev:
-# Unmet private key policy "hardware_key_touch".
-# Relogging in with hardware-backed private key.
-# Enter password for Teleport user dev:
-# Tap your YubiKey
-# > Profile URL:        https://example.com
-#   Logged in as:       dev
-#   Cluster:            example.com
-#   ...
-```
-
-</TabItem>
-
-</Tabs>
 
 Affected users with existing sessions that aren't backed by a hardware key are prompted to sign in again
 on their next request. For example:
@@ -199,9 +157,9 @@ $ tsh clusters
 # Relogging in with hardware-backed private key.
 # Enter password for Teleport user dev:
 # Tap your YubiKey
-# Cluster Name Status Cluster Type Labels Selected
-# ----------- ------ ------------ ------ --------
-# example.com online root                *
+# Cluster Name        Status Cluster Type Labels Selected
+# ------------------- ------ ------------ ------ --------
+# example.teleport.sh online root                *
 ```
 
 ## Custom PIV setup
