@@ -33,6 +33,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/procfs"
+	"k8s.io/utils/ptr"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -54,7 +56,9 @@ const (
 	// reservedFreeDisk is the minimum required free space left on disk during downloads.
 	// TODO(sclevine): This value is arbitrary and could be replaced by, e.g., min(1%, 200mb) in the future
 	//   to account for a range of disk sizes.
-	reservedFreeDisk = 10_000_000
+	reservedFreeDisk = 10_000_000 // 10 MB
+	// lowMemoryLimit is the minimum required available memory for teleport-update to exec Go binaries.
+	lowMemoryLimit = 1024 * 1024 * 1024 // 1 GiB
 	// debugSocketFileName is the name of Teleport's debug socket in the data dir.
 	debugSocketFileName = "debug.sock" // 10 MB
 )
@@ -71,7 +75,7 @@ const (
 // installations of the Teleport agent.
 // The AutoUpdater uses an HTTP client with sane defaults for downloads, and
 // will not fill disk to within 10 MB of available capacity.
-func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
+func NewLocalUpdater(ctx context.Context, cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 	certPool, err := x509.SystemCertPool()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -95,8 +99,17 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		cfg.SystemDir = packageSystemDir
 	}
 	validator := Validator{Log: cfg.Log}
+	validate := validator.IsValidBinary
+	lowMem, err := hasLowMemory()
+	if err != nil {
+		cfg.Log.WarnContext(ctx, "Unable to determine if memory usage will exceed limits.", errorKey, err)
+	}
+	if lowMem {
+		cfg.Log.WarnContext(ctx, "Running in low memory mode. Additional safety checks disabled, and configuration may drift.", errorKey, err)
+		validate = validator.IsBinary
+	}
 	debugClient := debug.NewClient(filepath.Join(ns.dataDir, debugSocketFileName))
-	return &Updater{
+	u := &Updater{
 		Log:                cfg.Log,
 		Pool:               certPool,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
@@ -114,7 +127,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 			ReservedFreeTmpDisk:     reservedFreeDisk,
 			ReservedFreeInstallDisk: reservedFreeDisk,
 			TransformService:        ns.ReplaceTeleportService,
-			ValidateBinary:          validator.IsBinary,
+			ValidateBinary:          validate,
 			Template:                autoupdate.DefaultCDNURITemplate,
 		},
 		Process: &SystemdService{
@@ -123,34 +136,51 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 			Ready:       debugClient,
 			Log:         cfg.Log,
 		},
-		ReexecSetup: func(ctx context.Context, pathDir string, reload bool) error {
-			name := filepath.Join(pathDir, BinaryName)
-			if cfg.SelfSetup && runtime.GOOS == constants.LinuxOS {
-				name = "/proc/self/exe"
-			}
-			args := []string{
-				"--install-dir", ns.installDir,
-				"--install-suffix", ns.name,
-				"--log-format", cfg.LogFormat,
-			}
-			if cfg.Debug {
-				args = append(args, "--debug")
-			}
-			args = append(args, "setup", "--path", pathDir)
-			if reload {
-				args = append(args, "--reload")
-			}
-			cmd := exec.CommandContext(ctx, name, args...)
-			cmd.Stderr = os.Stderr
-			cmd.Stdout = os.Stdout
-			cfg.Log.InfoContext(ctx, "Executing new teleport-update binary to update configuration.")
-			defer cfg.Log.InfoContext(ctx, "Finished executing new teleport-update binary.")
-			return trace.Wrap(cmd.Run())
-		},
 		SetupNamespace:    ns.Setup,
 		TeardownNamespace: ns.Teardown,
 		LogConfigWarnings: ns.LogWarnings,
-	}, nil
+	}
+	u.ReexecSetup = func(ctx context.Context, pathDir string, reload bool) error {
+		if lowMem {
+			return trace.Wrap(u.Setup(ctx, pathDir, reload))
+		}
+		name := filepath.Join(pathDir, BinaryName)
+		if cfg.SelfSetup && runtime.GOOS == constants.LinuxOS {
+			name = "/proc/self/exe"
+		}
+		args := []string{
+			"--install-dir", ns.installDir,
+			"--install-suffix", ns.name,
+			"--log-format", cfg.LogFormat,
+		}
+		if cfg.Debug {
+			args = append(args, "--debug")
+		}
+		args = append(args, "setup", "--path", pathDir)
+		if reload {
+			args = append(args, "--reload")
+		}
+		cmd := exec.CommandContext(ctx, name, args...)
+		cmd.Stderr = os.Stderr
+		cmd.Stdout = os.Stdout
+		cfg.Log.InfoContext(ctx, "Executing new teleport-update binary to update configuration.")
+		defer cfg.Log.InfoContext(ctx, "Finished executing new teleport-update binary.")
+		return trace.Wrap(cmd.Run())
+	}
+	return u, nil
+}
+
+// hasLowMemory returns true if the system cannot support the full update workflow.
+func hasLowMemory() (bool, error) {
+	pfs, err := procfs.NewDefaultFS()
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	meminfo, err := pfs.Meminfo()
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return ptr.Deref(meminfo.MemAvailableBytes, lowMemoryLimit) < lowMemoryLimit, nil
 }
 
 // LocalUpdaterConfig specifies configuration for managing local agent auto-updates.
