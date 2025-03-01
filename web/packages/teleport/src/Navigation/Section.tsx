@@ -25,6 +25,7 @@ import { ArrowLineLeft } from 'design/Icon';
 import { Theme } from 'design/theme';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 
+import { SlidingSidePanel } from 'teleport/components/SlidingSidePanel';
 import cfg from 'teleport/config';
 
 import { CategoryIcon } from './CategoryIcon';
@@ -171,38 +172,29 @@ export function StandaloneSection({
 }
 
 export const rightPanelWidth = 236;
-
-export const RightPanel = styled(Box).attrs({ px: '5px' })<{
-  isVisible: boolean;
-  skipAnimation: boolean;
-}>`
-  position: fixed;
-  left: var(--sidenav-width);
-  height: 100%;
-  scrollbar-color: ${p => p.theme.colors.spotBackground[2]} transparent;
-  width: ${rightPanelWidth}px;
-  background: ${p => p.theme.colors.levels.surface};
-  z-index: ${zIndexMap.sideNavExpandedPanel};
-  border-right: 1px solid ${p => p.theme.colors.spotBackground[1]};
-
-  ${props =>
-    props.isVisible
-      ? `
-      ${props.skipAnimation ? '' : 'transition: transform .15s ease-out;'}
-      transform: translateX(0);
-      `
-      : `
-      ${props.skipAnimation ? '' : 'transition: transform .15s ease-in;'}
-      transform: translateX(-100%);
-      `}
-
-  top: ${p => p.theme.topBarHeight[0]}px;
-  padding-bottom: ${p => p.theme.topBarHeight[0] + p.theme.space[2]}px;
-  @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
-    top: ${p => p.theme.topBarHeight[1]}px;
-    padding-bottom: ${p => p.theme.topBarHeight[1] + p.theme.space[2]}px;
-  }
-`;
+export const RightPanel: React.FC<
+  PropsWithChildren<{
+    isVisible: boolean;
+    skipAnimation: boolean;
+    id: string;
+    onFocus(): void;
+  }>
+> = ({ isVisible, skipAnimation, id, onFocus, children }) => {
+  return (
+    <SlidingSidePanel
+      isVisible={isVisible}
+      skipAnimation={skipAnimation}
+      id={id}
+      onFocus={onFocus}
+      panelWidth={rightPanelWidth}
+      zIndex={zIndexMap.sideNavExpandedPanel}
+      slideFrom="left"
+      left="var(--sidenav-width)"
+    >
+      {children}
+    </SlidingSidePanel>
+  );
+};
 
 export function RightPanelHeader({
   title,

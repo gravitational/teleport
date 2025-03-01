@@ -18,24 +18,34 @@
 
 import { MemoryRouter } from 'react-router';
 
-import { render, screen } from 'design/utils/testing';
+import Box from 'design/Box';
+import { ListThin } from 'design/Icon';
+import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
 
 import { Context, ContextProvider } from 'teleport';
 import { apps } from 'teleport/Apps/fixtures';
 import { events } from 'teleport/Audit/fixtures';
 import { clusters } from 'teleport/Clusters/fixtures';
+import { InfoGuideWrapper } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel/InfoGuideSidePanel';
 import { databases } from 'teleport/Databases/fixtures';
 import { desktops } from 'teleport/Desktops/fixtures';
 import { getOSSFeatures } from 'teleport/features';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { kubes } from 'teleport/Kubes/fixtures';
 import { userContext } from 'teleport/Main/fixtures';
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import { NavigationCategory } from 'teleport/Navigation';
 import { nodes } from 'teleport/Nodes/fixtures';
+import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 import { sessions } from 'teleport/Sessions/fixtures';
 import TeleportContext from 'teleport/teleportContext';
+import { NavTitle, TeleportFeature } from 'teleport/types';
 import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
 import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
+import { UserContext } from 'teleport/User/UserContext';
 
+import { useInfoGuide } from './InfoGuideContext';
 import { Main, MainProps } from './Main';
 
 const setupContext = (): TeleportContext => {
@@ -76,6 +86,43 @@ test('renders', () => {
   );
 
   expect(screen.getByTestId('teleport-logo')).toBeInTheDocument();
+});
+
+test('toggle rendering of info guide panel', async () => {
+  mockUserContextProviderWith(makeTestUserContext());
+  const ctx = createTeleportContext();
+
+  const props: MainProps = {
+    features: [...getOSSFeatures(), new FeatureTestInfoGuide()],
+  };
+
+  render(
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <LayoutContextProvider>
+          <Main {...props} />
+        </LayoutContextProvider>
+      </ContextProvider>
+    </MemoryRouter>
+  );
+
+  expect(screen.getByTestId('teleport-logo')).toBeInTheDocument();
+
+  expect(screen.queryByText(/i am the guide/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/info guide title/i)).not.toBeInTheDocument();
+
+  // render the component that has the guide info button
+  fireEvent.click(screen.queryAllByText('Access')[0]);
+  fireEvent.click(screen.getByText(/test info guide/i));
+  expect(screen.getByText(/info guide title/i)).toBeInTheDocument();
+
+  // test opening of panel
+  fireEvent.click(screen.getByTestId('info-guide-btn-open'));
+  expect(screen.getByText(/i am the guide/i)).toBeInTheDocument();
+
+  // test closing of panel
+  fireEvent.click(screen.getByTestId('info-guide-btn-close'));
+  expect(screen.queryByText(/i am the guide/i)).not.toBeInTheDocument();
 });
 
 test('displays invite collaborators feedback if present', () => {
@@ -121,3 +168,39 @@ test('renders without invite collaborators feedback enabled', () => {
 
   expect(screen.getByTestId('teleport-logo')).toBeInTheDocument();
 });
+
+const TestInfoGuide = () => {
+  const { setInfoGuideElement } = useInfoGuide();
+  return (
+    <div>
+      <InfoGuideWrapper
+        onClick={() => setInfoGuideElement(<div>I am the guide</div>)}
+      >
+        Info Guide Title
+      </InfoGuideWrapper>
+    </div>
+  );
+};
+
+export class FeatureTestInfoGuide implements TeleportFeature {
+  category = NavigationCategory.Audit;
+
+  route = {
+    title: 'Test Info Guide',
+    path: '/web/testinfoguide',
+    component: TestInfoGuide,
+  };
+
+  navigationItem = {
+    title: 'Test Info Guide' as any,
+    icon: ListThin,
+    getLink() {
+      return '/web/testinfoguide';
+    },
+    searchableTags: ['test info guide'],
+  };
+
+  hasAccess() {
+    return true;
+  }
+}
