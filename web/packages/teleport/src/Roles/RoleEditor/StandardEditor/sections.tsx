@@ -16,14 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import Box from 'design/Box';
 import ButtonIcon from 'design/ButtonIcon';
 import Flex from 'design/Flex';
-import { ChevronDown, Trash } from 'design/Icon';
-import { H3 } from 'design/Text';
+import { Check, ChevronDown, Trash, WarningCircle } from 'design/Icon';
+import Text, { H3 } from 'design/Text';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 import { useResizeObserver } from 'design/utils/useResizeObserver';
 import { useValidation } from 'shared/components/Validation';
@@ -72,7 +72,7 @@ enum ExpansionState {
  * expanding, collapsing, and removing the section.
  */
 export const SectionBox = ({
-  title,
+  titleSegments,
   tooltip,
   children,
   removable,
@@ -80,8 +80,8 @@ export const SectionBox = ({
   validation,
   onRemove,
 }: React.PropsWithChildren<{
-  title: string;
-  tooltip: string;
+  titleSegments: string[];
+  tooltip?: string;
   removable?: boolean;
   isProcessing: boolean;
   validation?: ValidationResult;
@@ -153,18 +153,11 @@ export const SectionBox = ({
       borderRadius={3}
       role="group"
     >
-      <Flex
-        as="summary"
+      <Summary
         height="56px"
         alignItems="center"
         ml={3}
         mr={2}
-        css={`
-          cursor: pointer;
-          &::-webkit-details-marker {
-            display: none;
-          }
-        `}
         onClick={handleExpand}
       >
         <HoverTooltip tipContent={expandTooltip}>
@@ -176,9 +169,60 @@ export const SectionBox = ({
           />
         </HoverTooltip>
         {/* TODO(bl-nero): Show validation result in the summary. */}
-        <Flex flex="1" gap={2}>
-          <H3>{title}</H3>
+        <Flex flex="1" gap={2} alignItems="center">
+          {/* Ensures that the contents are laid out as a single line of text. */}
+          <span>
+            <InlineH3>
+              {expansionState === ExpansionState.Collapsed
+                ? titleSegments.map((seg, i) => (
+                    <Fragment key={i}>
+                      {i > 0 && (
+                        <>
+                          {' '}
+                          <Text
+                            as="span"
+                            typography="body1"
+                            color={theme.colors.text.muted}
+                          >
+                            /
+                          </Text>{' '}
+                        </>
+                      )}
+                      {seg}
+                    </Fragment>
+                  ))
+                : titleSegments[0]}
+            </InlineH3>
+            {/* Depending on the number of segments, the header will either
+                contain an element of `body1` typography or not. It thus may
+                have variable height. This is just about one pixel, but it's
+                visible enough if this depends on whether the section is
+                expanded or closed; the UI jumps up and down in such case. We
+                could use center alignment, but it's more correct to use
+                baseline alignment in this context. To compensate, we add a
+                zero-width space character and style it with `body1`. It forces
+                the entire header to always occupy the same amount of space.
+                Putting it outside the H3 element makes it less confusing for
+                the testing library that won't see this weird thing as a part
+                of the element's accessible name.
+                */}
+            <Text as="span" typography="body1">
+              &#8203;
+            </Text>
+          </span>
           {tooltip && <IconTooltip>{tooltip}</IconTooltip>}
+          {validator.state.validating &&
+            (validation.valid ? (
+              <Check
+                size="medium"
+                color={theme.colors.interactive.solid.success.default}
+              />
+            ) : (
+              <WarningCircle
+                size="medium"
+                color={theme.colors.interactive.solid.danger.default}
+              />
+            ))}
         </Flex>
         {removable && (
           <Box>
@@ -196,7 +240,7 @@ export const SectionBox = ({
             </HoverTooltip>
           </Box>
         )}
-      </Flex>
+      </Summary>
       {/* This element is the one being animated when the section is expanded
           or collapsed. */}
       <ContentExpander
@@ -213,6 +257,13 @@ export const SectionBox = ({
   );
 };
 
+const Summary = styled(Flex).attrs({ as: 'summary' })`
+  cursor: pointer;
+  &::-webkit-details-marker {
+    display: none;
+  }
+`;
+
 const ExpandIcon = styled(ChevronDown)<{ expanded: boolean }>`
   transition: transform 0.2s ease-in-out;
   transform: ${props => (props.expanded ? 'none' : 'rotate(-90deg)')};
@@ -221,4 +272,8 @@ const ExpandIcon = styled(ChevronDown)<{ expanded: boolean }>`
 const ContentExpander = styled(Box)`
   transition: all 0.2s ease-in-out;
   overflow: hidden;
+`;
+
+const InlineH3 = styled(H3)`
+  display: inline;
 `;

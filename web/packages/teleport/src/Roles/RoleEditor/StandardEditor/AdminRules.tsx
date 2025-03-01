@@ -57,6 +57,8 @@ export const AdminRules = memo(function AdminRules({
   }
   return (
     <Flex flexDirection="column" gap={3}>
+      Rules that give this role administrative rights to Teleport resources
+      through client apps and APIs
       {value.map((rule, i) => (
         <AdminRule
           key={rule.id}
@@ -90,8 +92,7 @@ const AdminRule = memo(function AdminRule({
   }
   return (
     <SectionBox
-      title="Admin Rule"
-      tooltip="A rule that gives users access to certain kinds of resources"
+      titleSegments={getTitleSegments(value.resources)}
       removable
       isProcessing={isProcessing}
       validation={validation}
@@ -145,6 +146,20 @@ const AdminRule = memo(function AdminRule({
     </SectionBox>
   );
 });
+
+function getTitleSegments(resources: readonly ResourceKindOption[]): string[] {
+  switch (resources.length) {
+    case 0:
+      return ['Admin Rule'];
+    case 1:
+      return ['Admin Rule', resources[0].label];
+    default:
+      return [
+        'Admin Rule',
+        `${resources[0].label} + ${resources.length - 1} more`,
+      ];
+  }
+}
 
 const ResourceKindSelect = styled(
   FieldSelectCreatable<ResourceKindOption, true>

@@ -17,6 +17,7 @@
  */
 
 import Box from 'design/Box';
+import Flex from 'design/Flex';
 import Text from 'design/Text';
 import FieldInput from 'shared/components/FieldInput';
 import { FieldSelect } from 'shared/components/FieldSelect';
@@ -34,49 +35,51 @@ export const MetadataSection = ({
   validation,
   onChange,
 }: SectionProps<MetadataModel, MetadataValidationResult>) => (
-  <SectionBox
-    title="Role Metadata"
-    tooltip="Basic information about the role resource"
-    isProcessing={isProcessing}
-    validation={validation}
-  >
-    <FieldInput
-      label="Role Name"
-      required
-      placeholder="Enter Role Name"
-      value={value.name}
-      disabled={isProcessing}
-      rule={precomputed(validation.fields.name)}
-      onChange={e => onChange({ ...value, name: e.target.value })}
-    />
-    <FieldInput
-      label="Description"
-      placeholder="Enter Role Description"
-      value={value.description || ''}
-      disabled={isProcessing}
-      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-        onChange({ ...value, description: e.target.value })
-      }
-    />
-    <Box mb={3}>
-      <Text typography="body3" mb={1}>
-        Labels
-      </Text>
-      <LabelsInput
-        disableBtns={isProcessing}
-        labels={value.labels}
-        setLabels={labels => onChange({ ...value, labels })}
-        rule={precomputed(validation.fields.labels)}
+  <Flex flexDirection="column" gap={3}>
+    Basic information about this role
+    <SectionBox
+      titleSegments={['Role Information']}
+      isProcessing={isProcessing}
+      validation={validation}
+    >
+      <FieldInput
+        label="Role Name"
+        required
+        placeholder="Enter Role Name"
+        value={value.name}
+        disabled={isProcessing}
+        rule={precomputed(validation.fields.name)}
+        onChange={e => onChange({ ...value, name: e.target.value })}
       />
-    </Box>
-    <FieldSelect
-      label="Version"
-      isDisabled={isProcessing}
-      options={roleVersionOptions}
-      value={value.version}
-      onChange={version => onChange({ ...value, version })}
-      mb={0}
-      menuPosition="fixed"
-    />
-  </SectionBox>
+      <FieldInput
+        label="Description"
+        placeholder="Enter Role Description"
+        value={value.description || ''}
+        disabled={isProcessing}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+          onChange({ ...value, description: e.target.value })
+        }
+      />
+      <Box mb={3}>
+        <Text typography="body3" mb={1}>
+          Labels
+        </Text>
+        <LabelsInput
+          disableBtns={isProcessing}
+          labels={value.labels}
+          setLabels={labels => onChange({ ...value, labels })}
+          rule={precomputed(validation.fields.labels)}
+        />
+      </Box>
+      <FieldSelect
+        label="Version"
+        isDisabled={isProcessing}
+        options={roleVersionOptions}
+        value={value.version}
+        onChange={version => onChange({ ...value, version })}
+        mb={0}
+        menuPosition="fixed"
+      />
+    </SectionBox>
+  </Flex>
 );
