@@ -1010,7 +1010,7 @@ message IdentityCenterPermissionSet {
   // Name is the human-readable name of the Permission Set.
   string Name = 2 [(gogoproto.jsontag) = "name,omitempty"];
 
-  // AssignmentID is the ID of the Teelport Account Assignment resource that
+  // AssignmentID is the ID of the Teleport Account Assignment resource that
   // represents this permission being assigned on the enclosing Account.
   string AssignmentID = 3 [(gogoproto.jsontag) = "assignment_name,omitempty"];
 }
