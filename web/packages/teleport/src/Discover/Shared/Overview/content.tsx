@@ -22,6 +22,10 @@ const oidcPermissions = () => (
   </ul>
 );
 
+// We don't know if there is a connector yet in this step, if we can make
+// that available then we can take the AWS OIDC connector block out of the permissions list.
+// That's the biggest one and would clean it up a lot.
+// Same goes for EKS and RDS
 const ecsPermissions = () => (
   <div>
     <li>
@@ -313,31 +317,19 @@ export const content: { [key in DiscoverGuideId]?: Overview } = {
   },
   [DiscoverGuideId.KubernetesAwsEks]: {
     OverviewContent: () => (
-      <ul>
-        <li>
-          If you have not already set up an OIDC connection to the AWS account
-          you want to use, you will be led through that process.
-        </li>
-        {!cfg.isCloud ? (
-          <li>
-            If you have not done so previously, you will set up a server within
-            your network running the Teleport binary, to act as a Discovery
-            service.
-          </li>
-        ) : null}
-        <li>
-          You will run a script in AWS CloudShell to configure your OIDC policy
-          to allow EKS access.
-        </li>
-        <li>
-          You will pick the region and clusters you want to enroll in Teleport.
-        </li>
-        <li>
-          You will add the Kubernetes users and groups you want Teleport users
-          to be able to authenticate as.
-        </li>
-        <li>You will test your connection.</li>
-      </ul>
+      <div>
+        <p>
+          In this guide you will set up auto-enrollment of one or more EKS
+          clusters with Teleport by running scripts in AWS CloudShell.
+          {!cfg.isCloud ? (
+            <div>
+              If you have not done so previously, you will set up a server
+              within your network running the Teleport binary to act as a
+              Discovery service.
+            </div>
+          ) : null}
+        </p>
+      </div>
     ),
     PrerequisiteContent: () => (
       <ul>
@@ -347,6 +339,11 @@ export const content: { [key in DiscoverGuideId]?: Overview } = {
         <li>
           The <code>access</code> role or another role that will allow you to
           access the EKS cluster based on the labels attached to it.
+        </li>
+        <li>The region and cluster names you want to enroll in Teleport.</li>
+        <li>
+          The Kubernetes users and groups you want Teleport users to be able to
+          authenticate as.
         </li>
         {eksPermissions()}
       </ul>
