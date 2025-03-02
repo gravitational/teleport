@@ -159,6 +159,8 @@ like this:
 
 ```yaml
 kind: autoupdate_config
+metadata:
+  name: autoupdate-config
 spec:
   agents:
     mode: enabled
@@ -176,6 +178,8 @@ environments might create a custom schedule that looks like this:
 
 ```yaml
 kind: autoupdate_config
+metadata:
+  name: autoupdate-config
 spec:
   agents:
     mode: enabled
@@ -211,6 +215,8 @@ To accomplish this, you can change the default `halt-on-error` strategy to the
 
 ```yaml
 kind: autoupdate_config
+metadata:
+  name: autoupdate-config
 spec:
   agents:
     strategy: time-based
@@ -260,6 +266,8 @@ Create a file called `autoupdate_version.yaml` containing:
 
 ```yaml
 kind: autoupdate_version
+metadata:
+  name: autoupdate-version
 spec:
   agents:
     start_version: 17.2.0
