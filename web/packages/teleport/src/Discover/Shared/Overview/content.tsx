@@ -78,12 +78,10 @@ const rdsPrerequisites = () => (
 const rdsOverview = () => (
   <div>
     <li>
-      This guide will allow you to automatically enroll one or more RDS
-      databases within a single VPC in your AWS account.
-    </li>
-    <li>
-      If you have not already set up an OIDC connection to the AWS account you
-      want to use, you will be led through that process.
+      In this guide you will set up auto-enrollment of one db or more RDS
+      databases in a region. You will deploy a Database Service in AWS ECS that
+      proxies to the databases. We provide options for doing this automatically
+      or manually.
     </li>
     {!cfg.isCloud ? (
       <li>
@@ -91,14 +89,6 @@ const rdsOverview = () => (
         network running the Teleport binary, to act as a Discovery service
       </li>
     ) : null}
-    <li>
-      You will run a script in AWS CloudShell to create a role allowing Teleport
-      to deploy a service in ECS.
-    </li>
-    <li>
-      If you have not done so previously for this VPC, you will deploy an ECS
-      service running Teleport to act as the Discovery service.
-    </li>
   </div>
 );
 
@@ -163,25 +153,42 @@ const awsConsolePermissions = () => (
 );
 
 const serverOverview = () => (
-  <ul>
-    <li>
-      This guide will enroll a single server in your Teleport cluster for SSH
-      access.
-    </li>
-    <li>
-      You will run a bash script on the server that will install the Teleport
-      binary and configure it using a short-lived, randomly generated join
-      token.
-    </li>
-  </ul>
+  <p>
+    In this guide you will set up a single server in your Teleport cluster for
+    SSH access by running a script to install an agent binary and a
+    teleport.yaml config file. It uses a short-lived, randomly generated join
+    token with Node permissions. It is good for getting quickly started with
+    server access.
+  </p>
 );
 
-const serverPrerequisites = () => (
+const linuxPrerequisites = () => (
   <ul>
     <li>
       SSH access to the server, and root or sudo privileges to run the script.
     </li>
     <li>List of OS users you want to be able to connect as.</li>
+    <li>A supported OS version:</li>
+    {linuxSupportedVersions()}
+  </ul>
+);
+
+const linuxSupportedVersions = () => (
+  <ul>
+    <li>Debian 10+</li>
+    <li>Ubuntu 18.04+</li>
+    <li>RHEL/CentOS Stream 9+</li>
+    <li>Amazon Linux 2/2023+</li>
+  </ul>
+);
+
+const macPrerequisites = () => (
+  <ul>
+    <li>
+      SSH access to the server, and root or sudo privileges to run the script.
+    </li>
+    <li>List of OS users you want to be able to connect as.</li>
+    <li>MacOS ?+</li>
   </ul>
 );
 
@@ -293,27 +300,45 @@ export const content: { [key in DiscoverGuideId]?: Overview } = {
   },
   [DiscoverGuideId.ServerLinuxAmazon]: {
     OverviewContent: () => serverOverview(),
-    PrerequisiteContent: () => serverPrerequisites(),
+    PrerequisiteContent: () => linuxPrerequisites(),
   },
   [DiscoverGuideId.ServerLinuxDebian]: {
     OverviewContent: () => serverOverview(),
-    PrerequisiteContent: () => serverPrerequisites(),
+    PrerequisiteContent: () => linuxPrerequisites(),
   },
   [DiscoverGuideId.ServerLinuxUbuntu]: {
     OverviewContent: () => serverOverview(),
-    PrerequisiteContent: () => serverPrerequisites(),
+    PrerequisiteContent: () => linuxPrerequisites(),
   },
   [DiscoverGuideId.ServerLinuxRhelCentos]: {
     OverviewContent: () => serverOverview(),
-    PrerequisiteContent: () => serverPrerequisites(),
+    PrerequisiteContent: () => linuxPrerequisites(),
   },
   [DiscoverGuideId.ServerMac]: {
     OverviewContent: () => serverOverview(),
-    PrerequisiteContent: () => serverPrerequisites(),
+    PrerequisiteContent: () => macPrerequisites(),
   },
   [DiscoverGuideId.ApplicationWebHttpProxy]: {
-    OverviewContent: () => <div></div>,
-    PrerequisiteContent: () => <div></div>,
+    OverviewContent: () => (
+      <p>
+        In this guide you will set up access to a http application by running a
+        script that installs an agent binary and a teleport.yaml config file. It
+        uses a short-lived join token with App permissions.
+      </p>
+    ),
+    PrerequisiteContent: () => (
+      <ul>
+        <li>
+          SSH access to the server, and root or sudo privileges to run the
+          script.
+        </li>
+        <li>
+          If teleport is already running to connect the node as a protected
+          resource, you will need to make manual changes: add “app” to token
+          roles, add the app config, and restart the teleport service.
+        </li>
+      </ul>
+    ),
   },
   [DiscoverGuideId.KubernetesAwsEks]: {
     OverviewContent: () => (
@@ -378,10 +403,6 @@ export const content: { [key in DiscoverGuideId]?: Overview } = {
           Systems/Fleet Manager in a single geographical region in your AWS
           account.
         </li>
-        <li>
-          If you have not already set up an OIDC connection to the AWS account
-          you want to use, you will be led through that process.
-        </li>
         {!cfg.isCloud ? (
           <li>
             If you have not done so previously, you will set up a server within
@@ -389,11 +410,6 @@ export const content: { [key in DiscoverGuideId]?: Overview } = {
             service.
           </li>
         ) : null}
-        <li>
-          You will run a script in AWS CloudShell to configure your OIDC policy
-          to allow EC2 Auto Discovery.
-        </li>
-        <li>You will test your connection.</li>
       </ul>
     ),
     PrerequisiteContent: () => (
@@ -413,10 +429,6 @@ export const content: { [key in DiscoverGuideId]?: Overview } = {
   [DiscoverGuideId.DatabaseAwsRdsAuroraMysql]: {
     OverviewContent: () => (
       <ul>
-        <li>
-          If you have not already set up an OIDC connection to the AWS account
-          you want to use, you will be led through that process.
-        </li>
         {rdsOverview()}
         <li>
           You will add the RDS authentication plugin to a database user, and
@@ -426,7 +438,6 @@ export const content: { [key in DiscoverGuideId]?: Overview } = {
           the database directly, doing it in a CloudShell instance running in a
           VPC is a good alternative.
         </li>
-        <li>You will test your connection.</li>
       </ul>
     ),
     PrerequisiteContent: () => <div>{rdsPrerequisites()}</div>,
@@ -434,10 +445,6 @@ export const content: { [key in DiscoverGuideId]?: Overview } = {
   [DiscoverGuideId.DatabaseAwsRdsAuroraPostgresSql]: {
     OverviewContent: () => (
       <ul>
-        <li>
-          If you have not already set up an OIDC connection to the AWS account
-          you want to use, you will be led through that process.
-        </li>
         {rdsOverview()}
         <li>
           You will grant the role rds_iam to a user in the database server. This
@@ -446,7 +453,6 @@ export const content: { [key in DiscoverGuideId]?: Overview } = {
           this step. If you cannot access the database directly, doing it in a
           CloudShell instance running in a VPC is a good alternative.
         </li>
-        <li>You will test your connection.</li>
       </ul>
     ),
     PrerequisiteContent: () => <div>{rdsPrerequisites()}</div>,
@@ -454,10 +460,6 @@ export const content: { [key in DiscoverGuideId]?: Overview } = {
   [DiscoverGuideId.DatabaseAwsRdsPostgresSql]: {
     OverviewContent: () => (
       <ul>
-        <li>
-          If you have not already set up an OIDC connection to the AWS account
-          you want to use, you will be led through that process.
-        </li>
         {rdsOverview()}
         <li>
           You will grant the role rds_iam to a user in the database server. This
@@ -466,7 +468,6 @@ export const content: { [key in DiscoverGuideId]?: Overview } = {
           this step. If you cannot access the database directly, doing it in a
           CloudShell instance running in a VPC is a good alternative.
         </li>
-        <li>You will test your connection.</li>
       </ul>
     ),
     PrerequisiteContent: () => <div>{rdsPrerequisites()}</div>,
@@ -474,10 +475,6 @@ export const content: { [key in DiscoverGuideId]?: Overview } = {
   [DiscoverGuideId.DatabaseAwsRdsMysqlMariaDb]: {
     OverviewContent: () => (
       <ul>
-        <li>
-          If you have not already set up an OIDC connection to the AWS account
-          you want to use, you will be led through that process.
-        </li>
         {rdsOverview()}
         <li>
           You will add the RDS authentication plugin to a database user, and
@@ -487,7 +484,6 @@ export const content: { [key in DiscoverGuideId]?: Overview } = {
           the database directly, doing it in a CloudShell instance running in a
           VPC is a good alternative.
         </li>
-        <li>You will test your connection.</li>
       </ul>
     ),
     PrerequisiteContent: () => <div>{rdsPrerequisites()}</div>,
