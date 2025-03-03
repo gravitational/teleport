@@ -316,15 +316,15 @@ querying the Docker Engine API for details about it.
 
 ### Granting Access to the Docker Engine API
 
-By default, `tbot` will attempt to connect to the Docker daemon via a unix
+By default, `tbot` will attempt to connect to the Docker daemon via a Unix
 domain socket located at `/var/run/docker.sock` as this is the standard location
 for "rootful" Docker deployments.
 
 Unless `tbot` is also running as root, you'll need to add its user to the docker
 group to grant it permission to access this socket:
 
-```shell
-sudo usermod -a -G docker <tbot user>
+```code
+$ sudo usermod -a -G docker <tbot user>
 ```
 
 ### Rootless Docker
@@ -353,7 +353,7 @@ by querying the [Podman API Service](https://docs.podman.io/en/latest/markdown/p
 for details about them.
 
 Podman differs from Docker in that it doesn't use a long-running daemon process.
-Instead, the API service is typically started on-demand using socket activation.
+Instead, the API service is typically started on demand using socket activation.
 
 Granting `tbot` access to the Podman API requires different steps depending on
 whether you're running "rootfully" or "rootlessly" - it is for this reason we
@@ -363,19 +363,17 @@ do not provide a default value for the `attr` config option.
 
 If you're running Podman as root, enable the API service by running:
 
-```shell
-sudo systemctl enable --now podman.socket
-```
+```code
+$ sudo systemctl enable --now podman.socket
 
 At this point, the service can be reached at `/run/podman/podman.sock` but **only
 by root**. If you do not want to run `tbot` as root, you can override the default
 systemd unit to make the socket owned by a group your tbot user belongs to:
 
-```shell
-sudo groupadd podman-root
-sudo usermod -a -G podman-root <tbot user>
-sudo systemctl edit podman.socket
-```
+```code
+$ sudo groupadd podman-root
+$ sudo usermod -a -G podman-root <tbot user>
+$ sudo systemctl edit podman.socket
 
 In the override file add:
 
@@ -386,20 +384,18 @@ SocketGroup=podman-root
 
 Reload the systemd daemon and restart the socket unit:
 
-```shell
-sudo systemctl daemon-reload
-sudo systemctl restart podman.socket
-```
+```code
+$ sudo systemctl daemon-reload
+$ sudo systemctl restart podman.socket
 
 ### Rootless Podman
 
 If you're running Podman as a non-root user, enable and start the API service by
 running:
 
-```shell
-sudo loginctl enable-linger <podman user>
-systemctl --user enable --now podman.socket
-```
+```code
+$ sudo loginctl enable-linger <podman user>
+$ systemctl --user enable --now podman.socket
 
 The service can now be reached at `$XDG_RUNTIME_DIR/podman/podman.sock`, but
 **only by your chosen podman user or root**. If you do not want to run `tbot`
@@ -407,10 +403,9 @@ as the same user or as root, you can override the default systemd unit to move
 the socket out of `$XDG_RUNTIME_DIR` and add your tbot user to the podman user's
 group:
 
-```shell
-sudo usermod -a -G <podman user group> <tbot user>
-systemctl --user edit podman.socket
-```
+```code
+$ sudo usermod -a -G <podman user group> <tbot user>
+$ systemctl --user edit podman.socket
 
 In the override file add:
 
@@ -421,10 +416,9 @@ ListenStream=/path/to/socket # Example: /srv/podman.<podman user>/podman.sock
 
 Reload the systemd daemon and restart the socket unit:
 
-```shell
-systemctl --user daemon-reload
-systemctl --user restart podman.socket
-```
+```code
+$ systemctl --user daemon-reload
+$ systemctl --user restart podman.socket
 
 ### Running `tbot` in a Podman Container
 
@@ -433,15 +427,14 @@ containers, it must have access to the host's PID namespace. Also, if you are
 using group permissions to grant `tbot` access to the Podman socket (see the
 above examples) you must set the `run.oci.keep_original_groups` annotation.
 
-```shell
-podman run \
+```code
+$ podman run \
   --pid=host \
   --annotation run.oci.keep_original_groups=1 \
   --volume /path/to/socket:/path/to/socket \
   --volume /path/to/config:/path/to/config \
   <tbot image> \
   start -c /path/to/config
-```
 
 ## Envoy SDS
 
