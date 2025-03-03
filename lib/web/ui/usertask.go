@@ -39,6 +39,8 @@ type UserTask struct {
 	State string `json:"state,omitempty"`
 	// IssueType identifies this task's issue type.
 	IssueType string `json:"issueType,omitempty"`
+	// Title is the issue title.
+	Title string `json:"title,omitempty"`
 	// Integration is the Integration Name this User Task refers to.
 	Integration string `json:"integration,omitempty"`
 	// LastStateChange indicates when the current's user task state was last changed.
@@ -49,8 +51,6 @@ type UserTask struct {
 type UserTaskDetail struct {
 	// UserTask has the basic fields that all tasks include.
 	UserTask
-	// Title is the issue title.
-	Title string `json:"title,omitempty"`
 	// Description is a markdown document that explains the issue and how to fix it.
 	Description string `json:"description,omitempty"`
 	// DiscoverEC2 contains the task details for the DiscoverEC2 tasks.
@@ -99,30 +99,25 @@ func MakeUserTasks(uts []*usertasksv1.UserTask) []UserTask {
 
 // MakeDetailedUserTask creates a UI UserTask representation containing all the details.
 func MakeDetailedUserTask(ut *usertasksv1.UserTask) UserTaskDetail {
-	var title string
-	var description string
-
 	var discoverEC2 *usertasks.UserTaskDiscoverEC2WithURLs
 	var discoverEKS *usertasks.UserTaskDiscoverEKSWithURLs
 	var discoverRDS *usertasks.UserTaskDiscoverRDSWithURLs
 
 	switch ut.GetSpec().GetTaskType() {
 	case apiusertasks.TaskTypeDiscoverEC2:
-		title, description = usertasks.DescriptionForDiscoverEC2Issue(ut.GetSpec().GetIssueType())
 		discoverEC2 = usertasks.EC2InstancesWithURLs(ut)
 
 	case apiusertasks.TaskTypeDiscoverEKS:
-		title, description = usertasks.DescriptionForDiscoverEKSIssue(ut.GetSpec().GetIssueType())
 		discoverEKS = usertasks.EKSClustersWithURLs(ut)
 
 	case apiusertasks.TaskTypeDiscoverRDS:
-		title, description = usertasks.DescriptionForDiscoverRDSIssue(ut.GetSpec().GetIssueType())
 		discoverRDS = usertasks.RDSDatabasesWithURLs(ut)
 	}
 
+	_, description := userTaskTitleAndDescription(ut)
+
 	return UserTaskDetail{
 		UserTask:    MakeUserTask(ut),
-		Title:       title,
 		Description: description,
 		DiscoverEC2: discoverEC2,
 		DiscoverEKS: discoverEKS,
@@ -130,13 +125,30 @@ func MakeDetailedUserTask(ut *usertasksv1.UserTask) UserTaskDetail {
 	}
 }
 
+func userTaskTitleAndDescription(ut *usertasksv1.UserTask) (string, string) {
+	switch ut.GetSpec().GetTaskType() {
+	case apiusertasks.TaskTypeDiscoverEC2:
+		return usertasks.DescriptionForDiscoverEC2Issue(ut.GetSpec().GetIssueType())
+
+	case apiusertasks.TaskTypeDiscoverEKS:
+		return usertasks.DescriptionForDiscoverEC2Issue(ut.GetSpec().GetIssueType())
+
+	case apiusertasks.TaskTypeDiscoverRDS:
+		return usertasks.DescriptionForDiscoverEC2Issue(ut.GetSpec().GetIssueType())
+	}
+
+	return "", ""
+}
+
 // MakeUserTask creates a UI UserTask representation.
 func MakeUserTask(ut *usertasksv1.UserTask) UserTask {
+	title, _ := userTaskTitleAndDescription(ut)
 	return UserTask{
 		Name:            ut.GetMetadata().GetName(),
 		TaskType:        ut.GetSpec().GetTaskType(),
 		State:           ut.GetSpec().GetState(),
 		IssueType:       ut.GetSpec().GetIssueType(),
+		Title:           title,
 		Integration:     ut.GetSpec().GetIntegration(),
 		LastStateChange: ut.GetStatus().GetLastStateChange().AsTime(),
 	}
