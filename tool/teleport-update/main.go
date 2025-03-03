@@ -61,10 +61,6 @@ const (
 var plog = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentUpdater)
 
 func main() {
-	// Set the umask to match the systemd umask that the teleport-update service will execute with.
-	// This ensures consistent file permissions.
-	// NOTE: This must be run before any goroutines that create files are started.
-	syscall.Umask(0o022)
 	if code := Run(os.Args[1:]); code != 0 {
 		os.Exit(code)
 	}
@@ -187,6 +183,9 @@ func Run(args []string) int {
 		plog.ErrorContext(ctx, "Failed to set up logger.", "error", err)
 		return 1
 	}
+
+	// Set required umask for all commands, and warn loudly if it changes.
+	autoupdate.SetRequiredUmask(ctx, plog)
 
 	switch command {
 	case enableCmd.FullCommand():
