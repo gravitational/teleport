@@ -24,14 +24,16 @@ reused for a short period of time without the need to prompt the user again in
 that period.
 
 In addition to expanding MFA functionalities, a new `tsh` command will be
-introduced to assist executing multiple database connections in a single command.
+introduced to assist executing queries on multiple database servers using a
+single CLI command.
 
 ## Details
 
 ### UX
-I would like to relax existing per-session MFA requirement and allow
-multi-session MFA. The Teleport role that grants database access can be updated
-as below:
+
+I want to execute a database query on multiple database services without being
+prompted by MFA for every database service. The Teleport role that grants
+database access can be updated as below:
 ```diff
 kind: role
 version: v7
@@ -40,6 +42,10 @@ metadata:
 spec:
   options:
 -   require_session_mfa: true
++   # "multi-session" allows reuse of the MFA response where applicable (e.g.
++   # a single WebAuthn prompt for `tsh db exec` on multiple databases), and
++   # fallbacks to per-session MFA in other places where multi-session is not
++   # supported.
 +   require_session_mfa: "multi-session"
   allow:
     db_labels:
@@ -47,9 +53,9 @@ spec:
     db_users: ["mysql"]
 ```
 
-I would like to execute the same query on multiple databases:
+To execute the same query on multiple databases:
 ```bash
-$ tsh db exec --db-user mysql --exec-query "select @@hostname" mysql-db1 mysql-db2
+$ tsh db exec "select @@hostname" --db-user mysql --dbs mysql-db1,mysql-db2
 MFA is required to execute database sessions
 Tap any security key
 Detected security key tap
@@ -65,7 +71,7 @@ mysql-db2-hostname
 
 I would like to search databases by labels, and run the sql script in parallel:
 ```bash
-$ tsh db exec --search-labels env=dev --db-user mysql --exec-query "source my_script.sql" --log-dir exec-logs --max-connections 3
+$ tsh db exec "source my_script.sql" --labels env=dev --db-user mysql --log-dir exec-logs --max-connections 3
 Found 5 databases:
 
 Name      Protocol Description Labels
@@ -76,8 +82,7 @@ mysql-db3 mysql    instance 3  env=dev
 mysql-db4 mysql    instance 4  env=dev
 mysql-db5 mysql    instance 5  env=dev
 
-Tip: use --skip-confirm to skip this confirmation.
-Do you want to continue? (Press <enter> to proceed or Ctrl+C/Command+C to exit): <enter>
+Do you want to continue?  [y/N]: y
 
 MFA is required to execute database sessions
 Tap any security key
@@ -136,14 +141,14 @@ with a new scope for executing database sessions:
 // webauthn.proto
 enum ChallengeScope {
 ...
-    // Used for 'tsh db exec' and allows reuse. 
-    SCOPE_DATABASE_MULTI_SESSION = 8;
++    // Used for 'tsh db exec' and allows reuse. 
++    SCOPE_DATABASE_MULTI_SESSION = 8;
 }
 ```
 
 Similar to `SCOPE_ADMIN_ACTION`, the new scope `SCOPE_DATABASE_MULTI_SESSION`
 will allow reuse of the MFA session data until it expires (5 minutes for
-WebAuthn).
+WebAuthn). Clients must go through MFA ceremony again if it expires.
 
 The MFA response will be checked upon auth call of `GenerateUserCerts` where
 user requests a TLS user cert with database route. New logic is added to
@@ -169,18 +174,40 @@ Here is a quick matrix:
 MFA requirement check is also updated to indicate whether the client can get
 away with reusing the MFA response.
 ```diff
-// IsMFARequiredResponse is a response for MFA requirement check.
-message IsMFARequiredResponse {
-// Required is a simplified view over [MFARequired].
-bool Required = 1;
-// MFARequired informs whether MFA is required to access the corresponding
+// MFARequired indicates if MFA is required to access a
 // resource.
-MFARequired MFARequired = 2;
-+// AllowReuse indicates whether an MFA challenge response can be used
-+// to authenticate the user more than once until the challenge expires.
-+bool allow_reuse = 3;
+enum MFARequired {
+  // Indicates the client/server are either old and don't support
+  // checking if MFA is required during the ceremony or that there
+  // was a catastrophic error checking RBAC to determine if completing
+  // an MFA ceremony will grant access to a resource.
+  MFA_REQUIRED_UNSPECIFIED = 0;
+  // Completing an MFA ceremony will grant access to a resource.
+  MFA_REQUIRED_YES = 1;
+  // Completing an MFA ceremony will not grant access to a resource.
+  MFA_REQUIRED_NO = 2;
++ // Completing an MFA ceremony or reusing the MFA response of the required
++ // scope will grant access to a resource.
++ MFA_REQUIRED_YES_ALLOW_REUSE = 3;
 }
 ```
+
+#### Compatibility
+
+First, it is assumed the new feature will only be enabled once the control plane
+has been upgraded to the new version.
+
+To maintain backwards compatibility, Auth will downgrade responses for calls to
+get `types.Role` and `types.IsMFARequiredResponse` for older clients:
+- `RequireMFAType` in role options will be downgraded from `MULTI_SESSION` to
+  `SESSION` to enforce the stricter per-session MFA.
+- `MFARequired` for MFA requirement check will be downgraded from
+  `MFA_REQUIRED_YES_ALLOW_REUSE` to `MFA_REQUIRED_YES` to enforce the stricter
+  per-session MFA.
+- The downgrade will be lifted in next major release version.
+
+Newer clients will not be able to set the new role option or request the new
+scope. They will continue use per-session MFA with older servers.
 
 ### The `tsh db exec` command
 
@@ -199,30 +226,58 @@ General flow of the command:
   - Execute the command.
  
 The command supports searching database by specifying one the following flags:
-- `--search-keywords`: List of comma separated search keywords or phrases enclosed in
+- `--search`: List of comma separated search keywords or phrases enclosed in
   quotations, e.g. `--search=foo,bar`.
-- `--search-labels`: List of comma separated labels to filter by labels, e.g.
+- `--labels`: List of comma separated labels to filter by labels, e.g.
   `key1=value1,key2=value2`.
-- `--search-query`: Query by predicate language enclosed in single quotes.
-
+- `--query` will NOT be supported for this command as it is harder to use than
+  the other options and the name `--query` may be confused with the database
+  query that needs to be executed.
 The command presents the search results then asks user to confirm before
 proceeding. `--skip-confirm` can be used to skip the confirmation.
 
-Some other details:
-- For MVP implementation, only PostgreSQL and MySQL databases will be supported.
-  And a warning will be printed if the target databases have different protocols
-  (e.g. `postgres` vs `mysql`).
-- For databases that require per-session MFA, a prompt will still be presented
-  per database.
+If no search parameters are used, a list of database names can be specified
+through `--dbs db1,db2,...`.
+
+For the MVP implementation, only PostgreSQL and MySQL databases will be
+supported. And a warning will be printed if the target databases have different
+protocols (e.g. `postgres` vs `mysql`).
+
+For databases that require per-session MFA, a prompt will still be presented
+per database.
  
 #### Possible future enhancements for `tsh db exec`
 - `tsh db exec --exec-config` to support a config file which allows specifying
   different flags like `--db-user`, `--db-name`, `--exec-query` per target
   database or per search.
-- `tsh db exec --exec-command` to support custom command template like `tsh
+- `tsh db exec --command-template` to support custom command template like `tsh
   db exec --exec-command "bash -c './my_script.sh {{.DB_SERVICE}} {{.DB_USER}}
   {{.DB_NAME}} {{.DB_LOCAL_PORT}}'"`. An env var `TSH_UNSTABLE_DB_EXEC_COMMAND`
   can be supported for the initial MVP.
+
+### Max connections
+
+The new `tsh db exec` command with the `--max-connections` flag makes it easier
+to for the client to flood the backend.
+
+A new role option is added to set a maximum number of in-flight connections:
+```diff
+kind: role
+version: v7
+spec:
+  options:
+    # limit number of concurrent Kubernetes sessions per user
+    max_kubernetes_connections: 1
++   # limit number of concurrent database sessions per user
++   max_db_connections: 5
+```
+
+The limit is enforced by Proxy using semaphore resources.
+
+`tsh db exec` will also ensure that value passed to `--max-connections` is
+smaller than the role option. If no value in the role set is specified, an
+arbitrary chosen value of 10 will be used as the max of the `--max-connections`
+flag.
 
 ### Security
 
@@ -245,3 +300,6 @@ Credentials](https://github.com/gravitational/teleport/blob/master/rfd/0155-scop
 
 However, the new scope `SCOPE_DATABASE_MULTI_SESSION` will be limited to only
 database sessions.
+
+In addition, `role.options.max_db_connections` is introduced to limit max
+in-flight database sessions.
