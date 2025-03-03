@@ -60,14 +60,11 @@ const (
 
 var plog = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentUpdater)
 
-func init() {
+func main() {
 	// Set the umask to match the systemd umask that the teleport-update service will execute with.
 	// This ensures consistent file permissions.
 	// NOTE: This must be run before any goroutines that create files are started.
-	syscall.Umask(0022)
-}
-
-func main() {
+	syscall.Umask(0o022)
 	if code := Run(os.Args[1:]); code != 0 {
 		os.Exit(code)
 	}
