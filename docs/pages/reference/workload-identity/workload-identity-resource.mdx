@@ -139,6 +139,10 @@ The following fields within the WorkloadIdentity resource support templating:
 You can find a full list of the supported attributes on the
 [Attributes reference](./attributes.mdx) page.
 
+The WorkloadIdentity resource's fields use Teleport's
+[Predicate Language](../predicate-language.mdx) for templating, allowing you to
+apply text manipulation functions like `strings.lower` and `regex.replace`.
+
 ## Rules
 
 By default, a WorkloadIdentity resource can be used to issue a credential by any
@@ -148,13 +152,29 @@ the labels on the WorkloadIdentity resource.
 However, you can further restrict the issuance of credentials based on the
 attributes of the workload using the rules mechanism.
 
-Each rule consists of a set of conditions, and all conditions within that rule
-must pass in order for the rule to be considered a pass. If you specify
-multiple rules, then at least one rule must pass in order for the
-WorkloadIdentity to be allowed to be issued.
+Each rule consists of either a [Predicate Language](../predicate-language.mdx)
+expression or a set of conditions. When using the conditions form, all
+conditions within that rule must pass in order for the rule to be considered a
+pass. If you specify multiple rules, then at least one rule must pass in order
+for the WorkloadIdentity to be allowed to be issued.
 
 For example, to restrict the issuance of a credential to only workloads running
 in the `default` namespace with the service account `foo`:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: rules-example
+spec:
+  spiffe:
+    id: /my-awesome-workload
+  rules:
+    allow:
+    - expression: workload.kubernetes.namespace == "default" && workload.kubernetes.service_account == "foo"
+```
+
+Here's the same rule expressed using the conditions form:
 
 ```yaml
 kind: workload_identity
@@ -175,7 +195,7 @@ spec:
           value: foo
 ```
 
-### Operators
+### Condition Operators
 
 #### `eq`
 
@@ -262,8 +282,12 @@ spec:
 
 ### Casting
 
-When comparing attributes which are not a string (e.g a boolean or number),
-the value in the attribute will be transferred to a string representation.
+When using the conditions form and comparing attributes which are not strings
+(e.g. a boolean or number), the attribute values will be converted to a string
+representation.
+
+When using the [Predicate Language](../predicate-language.mdx), the attribute
+values will be compared as-is.
 
 ## Infrastructure as Code
 
