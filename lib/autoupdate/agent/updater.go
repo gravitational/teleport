@@ -30,6 +30,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"syscall"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -46,6 +47,9 @@ import (
 const (
 	// BinaryName specifies the name of the updater binary.
 	BinaryName = "teleport-update"
+	// requiredUmask must be set before this package can be used.
+	// Use syscall.Umask to set when no other goroutines are running.
+	requiredUmask = 0o022
 )
 
 const (
@@ -67,10 +71,22 @@ const (
 	errorKey  = "error"
 )
 
+// SetRequiredUmask sets the umask to match the systemd umask that the teleport-update service will execute with.
+// This ensures consistent file permissions.
+// NOTE: This must be run in main.go before any goroutines that create files are started.
+func SetRequiredUmask(ctx context.Context, log *slog.Logger) {
+	old := syscall.Umask(requiredUmask)
+	if old != requiredUmask {
+		log.WarnContext(ctx, "Non-standard umask detected! Umask has been changed to 0022 for teleport-update and all child processes.")
+		log.WarnContext(ctx, "All files created by teleport-update will have permissions set according to this umask.")
+	}
+}
+
 // NewLocalUpdater returns a new Updater that auto-updates local
 // installations of the Teleport agent.
 // The AutoUpdater uses an HTTP client with sane defaults for downloads, and
 // will not fill disk to within 10 MB of available capacity.
+// SetRequiredUmask must be called before any methods are executed.
 func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 	certPool, err := x509.SystemCertPool()
 	if err != nil {
