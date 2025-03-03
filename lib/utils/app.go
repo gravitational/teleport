@@ -25,14 +25,15 @@ import (
 // AssembleAppFQDN returns the application's FQDN.
 //
 // If the application is running within the local cluster and it has a public
-// address specified, the application's public address is used.
+// address specified, the application's public address is used, unless it is specified
+// that the app should always use the proxy public addr.
 //
 // In all other cases, i.e. if the public address is not set or the application
 // is running in a remote cluster, the FQDN is formatted as
 // <appName>.<localProxyDNSName>
 func AssembleAppFQDN(localClusterName string, localProxyDNSName string, appClusterName string, app types.Application) string {
 	isLocalCluster := localClusterName == appClusterName
-	if isLocalCluster && app.GetPublicAddr() != "" {
+	if isLocalCluster && app.GetPublicAddr() != "" && !app.GetUseAnyProxyPublicAddr() {
 		return app.GetPublicAddr()
 	}
 	return DefaultAppPublicAddr(app.GetName(), localProxyDNSName)

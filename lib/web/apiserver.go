@@ -3194,6 +3194,8 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
 				LocalClusterName:      h.auth.clusterName,
 				LocalProxyDNSName:     h.proxyDNSName(),
+				ProxyPublicAddrs:      h.proxyDNSNames(),
+				RequestHost:           request.Host,
 				AppClusterName:        site.GetName(),
 				AllowedAWSRolesLookup: allowedAWSRolesLookup,
 				UserGroupLookup:       getUserGroupLookup(),
