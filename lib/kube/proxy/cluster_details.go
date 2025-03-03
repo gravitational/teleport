@@ -122,7 +122,7 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 			ctx,
 			&labels.DynamicConfig{
 				Labels: cfg.cluster.GetDynamicLabels(),
-				Log:    cfg.log,
+				// TODO: pass cfg.log through after it is converted to slog
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)
