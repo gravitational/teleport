@@ -72,7 +72,7 @@ func (r *IntegrationAWSOIDCSpec) CheckAndSetDefaults() error {
 type IntegrationWithSummary struct {
 	*Integration
 	// UnresolvedUserTasks contains the count of unresolved user tasks related to this integration.
-	UnresolvedUserTasks int `json:"unresolvedUserTasks,omitempty"`
+	UnresolvedUserTasks int `json:"unresolvedUserTasks"`
 	// AWSEC2 contains the summary for the AWS EC2 resources for this integration.
 	AWSEC2 ResourceTypeSummary `json:"awsec2,omitempty"`
 	// AWSRDS contains the summary for the AWS RDS resources and agents for this integration.
@@ -98,6 +98,8 @@ type ResourceTypeSummary struct {
 	ResourcesEnrollmentSuccess int `json:"resourcesEnrollmentSuccess,omitempty"`
 	// DiscoverLastSync contains the time when this integration tried to auto-enroll resources.
 	DiscoverLastSync *time.Time `json:"discoverLastSync,omitempty"`
+	// UnresolvedUserTasks contains the count of unresolved user tasks related to this integration and resource type.
+	UnresolvedUserTasks int `json:"unresolvedUserTasks"`
 	// ECSDatabaseServiceCount is the total number of DatabaseServices that were deployed into Amazon ECS.
 	// Only applicable for AWS RDS resource summary.
 	ECSDatabaseServiceCount int `json:"ecsDatabaseServiceCount,omitempty"`
