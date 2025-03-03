@@ -65,7 +65,7 @@ func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (typ
 		return c.Config.Users.GetUser(ctx, name, withSecrets)
 	}
 
-	rg, err := acquireReadGuard(c, c.collections.users.watch)
+	rg, err := acquireReadGuard(c, c.collections.users)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -76,7 +76,7 @@ func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (typ
 		return user, trace.Wrap(err)
 	}
 
-	u, err := c.collections.users.store.get("name", name)
+	u, err := rg.store.get("name", name)
 	if err != nil {
 		// release read lock early
 		rg.Release()
@@ -107,7 +107,7 @@ func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, e
 		return c.Config.Users.GetUsers(ctx, withSecrets)
 	}
 
-	rg, err := acquireReadGuard(c, c.collections.users.watch)
+	rg, err := acquireReadGuard(c, c.collections.users)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -119,7 +119,7 @@ func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, e
 	}
 
 	var users []types.User
-	for u := range c.collections.users.store.resources("name", "", "") {
+	for u := range rg.store.resources("name", "", "") {
 		if withSecrets {
 			users = append(users, u.Clone())
 		} else {
@@ -140,7 +140,7 @@ func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*
 		return rsp, trace.Wrap(err)
 	}
 
-	rg, err := acquireReadGuard(c, c.collections.users.watch)
+	rg, err := acquireReadGuard(c, c.collections.users)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -158,7 +158,7 @@ func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*
 	}
 
 	var resp userspb.ListUsersResponse
-	for u := range c.collections.users.store.resources("name", req.PageToken, "") {
+	for u := range rg.store.resources("name", req.PageToken, "") {
 		uv2, ok := u.(*types.UserV2)
 		if !ok {
 			continue
