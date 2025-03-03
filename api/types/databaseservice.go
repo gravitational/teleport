@@ -37,6 +37,8 @@ type DatabaseService interface {
 
 	// GetHostname returns the hostname where this Database Service is running.
 	GetHostname() string
+
+	Clone() DatabaseService
 }
 
 // NewDatabaseServiceV1 creates a new DatabaseService instance.
@@ -86,4 +88,9 @@ func (s *DatabaseServiceV1) GetNamespace() string {
 func (s *DatabaseServiceV1) MatchSearch(values []string) bool {
 	fieldVals := append(utils.MapToStrings(s.GetAllLabels()), s.GetName())
 	return MatchSearch(fieldVals, values, nil)
+}
+
+// Clone creates a clone of this Database Service.
+func (s *DatabaseServiceV1) Clone() DatabaseService {
+	return utils.CloneProtoMsg(s)
 }

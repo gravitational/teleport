@@ -22,16 +22,14 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func newNodeCollection(p services.Presence, w types.WatchKind) (*collection[types.Server], error) {
 	if p == nil {
-		return nil, trace.BadParameter("missing parameter UsersService")
+		return nil, trace.BadParameter("missing parameter Presence")
 	}
 
 	return &collection[types.Server]{
@@ -61,14 +59,14 @@ func (c *Cache) GetNode(ctx context.Context, namespace, name string) (types.Serv
 	ctx, span := c.Tracer.Start(ctx, "cache/GetNode")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.nodes.watch)
+	rg, err := acquireReadGuard(c, c.collections.nodes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if rg.ReadCache() {
-		n, err := c.collections.nodes.store.get("name", name)
+		n, err := rg.store.get("name", name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -91,7 +89,7 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string) ([]types.Server,
 	ctx, span := c.Tracer.Start(ctx, "cache/GetNodes")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.nodes.watch)
+	rg, err := acquireReadGuard(c, c.collections.nodes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -99,7 +97,7 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string) ([]types.Server,
 
 	if rg.ReadCache() {
 		var out []types.Server
-		for n := range c.collections.nodes.store.resources("name", "", "") {
+		for n := range rg.store.resources("name", "", "") {
 			out = append(out, n.DeepCopy())
 		}
 
@@ -111,104 +109,6 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string) ([]types.Server,
 		return nil, trace.Wrap(err)
 	}
 	return nodes, nil
-}
-
-type listNodesRequest struct {
-	Limit               int32
-	StartKey            string
-	Labels              map[string]string
-	PredicateExpression string
-	SearchKeywords      []string
-	SortBy              types.SortBy
-}
-
-func (c *Cache) listNodes(ctx context.Context, req listNodesRequest) ([]types.Server, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/listNodes")
-	defer span.End()
-
-	rg, err := acquireReadGuard(c, c.collections.nodes.watch)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	if rg.ReadCache() {
-		filter := services.MatchResourceFilter{
-			ResourceKind:   types.KindNode,
-			Labels:         req.Labels,
-			SearchKeywords: req.SearchKeywords,
-		}
-
-		if req.PredicateExpression != "" {
-			expression, err := services.NewResourceExpression(req.PredicateExpression)
-			if err != nil {
-				return nil, "", trace.Wrap(err)
-			}
-			filter.PredicateExpression = expression
-		}
-
-		// Adjust page size, so it can't be too large.
-		pageSize := int(req.Limit)
-		if pageSize <= 0 || pageSize > apidefaults.DefaultChunkSize {
-			pageSize = apidefaults.DefaultChunkSize
-		}
-
-		var out []types.Server
-		for n := range c.collections.nodes.store.resources("name", req.StartKey, "") {
-			switch match, err := services.MatchResourceByFilters(n, filter, nil /* ignore dup matches */); {
-			case err != nil:
-				return nil, "", trace.Wrap(err)
-			case match:
-				if len(out) == pageSize {
-					return out, n.GetName(), nil
-				}
-
-				out = append(out, n.DeepCopy())
-			}
-		}
-
-		return out, "", nil
-	}
-
-	cachedNodes, err := c.getNodesWithTTLCache(ctx)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	servers := types.Servers(cachedNodes)
-	// Since TTLCaching falls back to retrieving all resources upfront, we also support
-	// sorting.
-	if err := servers.SortByCustom(req.SortBy); err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	params := local.FakePaginateParams{
-		ResourceType:   types.KindNode,
-		Limit:          req.Limit,
-		Labels:         req.Labels,
-		SearchKeywords: req.SearchKeywords,
-		StartKey:       req.StartKey,
-	}
-
-	if req.PredicateExpression != "" {
-		expression, err := services.NewResourceExpression(req.PredicateExpression)
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		params.PredicateExpression = expression
-	}
-
-	resp, err := local.FakePaginate(servers.AsResources(), params)
-	if err != nil {
-		return nil, "", nil
-	}
-
-	out := make([]types.Server, 0, len(resp.Resources))
-	for _, r := range resp.Resources {
-		out = append(out, r.(types.Server))
-	}
-
-	return out, resp.NextKey, nil
 }
 
 // getNodesWithTTLCache implements TTL-based caching for the GetNodes endpoint.  All nodes that will be returned from the caching layer
