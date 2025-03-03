@@ -431,8 +431,8 @@ importers:
         specifier: ^1.3.1
         version: 1.3.1
       node-pty:
-        specifier: 1.1.0-beta14
-        version: 1.1.0-beta14
+        specifier: 1.1.0-beta30
+        version: 1.1.0-beta30
       ring-buffer-ts:
         specifier: ^1.2.0
         version: 1.2.0
@@ -1182,8 +1182,8 @@ packages:
   '@codemirror/view@6.36.2':
     resolution: {integrity: sha512-DZ6ONbs8qdJK0fdN7AB82CgI6tYXf4HWk1wSVa0+9bhVznCuuvhQtX8bFBoy3dv8rZSQqUd8GvhVAcielcidrA==}
 
-  '@codemirror/view@6.36.3':
-    resolution: {integrity: sha512-N2bilM47QWC8Hnx0rMdDxO2x2ImJ1FvZWXubwKgjeoOrWwEiFrtpA7SFHcuZ+o2Ze2VzbkgbzWVj4+V18LVkeg==}
+  '@codemirror/view@6.36.4':
+    resolution: {integrity: sha512-ZQ0V5ovw/miKEXTvjgzRyjnrk9TwriUB1k4R5p7uNnHR9Hus+D1SXHGdJshijEzPFjU25xea/7nhIeSqYFKdbA==}
 
   '@colors/colors@1.6.0':
     resolution: {integrity: sha512-Ir+AOibqzrIsL6ajt3Rz3LskB7OiMVHqltZmspbW/TJuTVuyOMirVqAkjfY6JISiLHgyNqicAC8AyHHGzNd/dA==}
@@ -5677,9 +5677,8 @@ packages:
   node-addon-api@1.7.2:
     resolution: {integrity: sha512-ibPK3iA+vaY1eEjESkQkM0BbCqFOaZMiXRTtdB0u7b4djtY6JnsjvPdUHVMg6xQt3B8fpTTWHI9A+ADjM9frzg==}
 
-  node-addon-api@7.1.0:
-    resolution: {integrity: sha512-mNcltoe1R8o7STTegSOHdnJNN7s5EUvhoS7ShnTHDyOSd+8H+UdWODq6qSv67PjC8Zc5JRT8+oLAMCr0SIXw7g==}
-    engines: {node: ^16 || ^18 || >= 20}
+  node-addon-api@7.1.1:
+    resolution: {integrity: sha512-5m3bsyrjFWE1xf7nz7YXdN4udnVtXK6/Yfgn5qnahL6bCkf2yKt4k3nuTKAtT4r3IG8JNR2ncsIMdZuAzJjHQQ==}
 
   node-api-version@0.2.0:
     resolution: {integrity: sha512-fthTTsi8CxaBXMaBAD7ST2uylwvsnYxh2PfaScwpMhos6KlSFajXQPcM4ogNE1q2s3Lbz9GCGqeIHC+C6OZnKg==}
@@ -5700,8 +5699,8 @@ packages:
     resolution: {integrity: sha512-RM5oyBy45cLEoHqCeh+MNuFAxO0vTFBLskvQbOKnEE7YTTSN4tbN8QWDIPQ6L+WvKsB/qLEGpYe2ZZ9d4W9OIQ==}
     engines: {node: '>=8'}
 
-  node-pty@1.1.0-beta14:
-    resolution: {integrity: sha512-w/o/q6UL95azHQhrKvMnIojs1AGiqxnjNgcH3138H/RIRkIpE8S5GvT4dpvQT+ZVbTJxoBFt/DnaBAT1PAN7WQ==}
+  node-pty@1.1.0-beta30:
+    resolution: {integrity: sha512-cmNYVWfbf961aOqnxIFXssvw6Fp6/78BQBNlwYRWUHBenJjUhCJ1wMZpJy+SegoLC07P9D6HTtq39Kd89rpv/w==}
 
   node-releases@2.0.19:
     resolution: {integrity: sha512-xxOWJsBKtzAq7DY0J+DTzuz58K8e7sJbdgwkbMWQe8UYB6ekmsQ45q0M/tJDsGaZmbC+l7n57UV8Hl5tHxO9uw==}
@@ -8082,7 +8081,7 @@ snapshots:
     dependencies:
       '@codemirror/language': 6.10.6
       '@codemirror/state': 6.5.2
-      '@codemirror/view': 6.36.3
+      '@codemirror/view': 6.36.4
       '@lezer/common': 1.2.3
 
   '@codemirror/commands@6.8.0':
@@ -8113,13 +8112,13 @@ snapshots:
   '@codemirror/lint@6.4.2':
     dependencies:
       '@codemirror/state': 6.5.2
-      '@codemirror/view': 6.36.3
+      '@codemirror/view': 6.36.4
       crelt: 1.0.6
 
   '@codemirror/search@6.5.3':
     dependencies:
       '@codemirror/state': 6.5.2
-      '@codemirror/view': 6.36.3
+      '@codemirror/view': 6.36.4
       crelt: 1.0.6
 
   '@codemirror/state@6.5.2':
@@ -8130,7 +8129,7 @@ snapshots:
     dependencies:
       '@codemirror/language': 6.10.6
       '@codemirror/state': 6.5.2
-      '@codemirror/view': 6.36.3
+      '@codemirror/view': 6.36.4
       '@lezer/highlight': 1.2.1
 
   '@codemirror/view@6.36.2':
@@ -8139,7 +8138,7 @@ snapshots:
       style-mod: 4.1.2
       w3c-keyname: 2.2.8
 
-  '@codemirror/view@6.36.3':
+  '@codemirror/view@6.36.4':
     dependencies:
       '@codemirror/state': 6.5.2
       style-mod: 4.1.2
@@ -10856,7 +10855,7 @@ snapshots:
       '@codemirror/lint': 6.4.2
       '@codemirror/search': 6.5.3
       '@codemirror/state': 6.5.2
-      '@codemirror/view': 6.36.3
+      '@codemirror/view': 6.36.4
 
   collect-v8-coverage@1.0.2: {}
 
@@ -13644,7 +13643,7 @@ snapshots:
   node-addon-api@1.7.2:
     optional: true
 
-  node-addon-api@7.1.0: {}
+  node-addon-api@7.1.1: {}
 
   node-api-version@0.2.0:
     dependencies:
@@ -13675,9 +13674,9 @@ snapshots:
     dependencies:
       process-on-spawn: 1.1.0
 
-  node-pty@1.1.0-beta14:
+  node-pty@1.1.0-beta30:
     dependencies:
-      node-addon-api: 7.1.0
+      node-addon-api: 7.1.1
 
   node-releases@2.0.19: {}
 
