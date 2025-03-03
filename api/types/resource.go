@@ -516,8 +516,7 @@ func MatchKinds(resource ResourceWithLabels, kinds []string) bool {
 	}
 }
 
-// IsValidLabelKey checks if the supplied string matches the
-// label key regexp.
+// IsValidLabelKey checks if the supplied string is a valid label key.
 func IsValidLabelKey(s string) bool {
 	return common.IsValidLabelKey(s)
 }
