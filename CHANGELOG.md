@@ -1,5 +1,13 @@
 # Changelog
 
+## 17.3.1 (03/03/25)
+
+* Fixes two issues in the 17.3.0 RPM causing package upgrades to fail and leading to teleport binaries not being symlinked in /usr/local/bin. [#52704](https://github.com/gravitational/teleport/pull/52704)
+* On RPM-based distros, 17.3.0 can lead to a failed installation without a working Teleport service. The 17.3.0 RPM was pulled from our CDN. 17.3.1 should be used instead. If you updated to 17.3.0, you should update to 17.3.1. [#52704](https://github.com/gravitational/teleport/pull/52704)
+* Escape user provided labels when creating the shell script that enrolls servers, applications and databases into Teleport. [#52698](https://github.com/gravitational/teleport/pull/52698)
+* Disable legacy `alpn` upgrade fallback during TLS routing connection upgrades. Now only WebSocket upgrade headers are sent by default. `TELEPORT_TLS_ROUTING_CONN_UPGRADE_MODE=legacy` can still be used to force legacy upgrades but it will be deprecated in v18. [#52620](https://github.com/gravitational/teleport/pull/52620)
+* Workload ID: Support for Teleport Predicate Language in Workload Identity templates and rules. [#52564](https://github.com/gravitational/teleport/pull/52564)
+
 ## 17.3.0
 
 ### Automatic Updates
@@ -174,6 +182,7 @@ Enterprise:
 * Fixed an issue with recreating Teleport resources for Okta applications with multiple embed links.
 * Fixed an issue in the Identity Center principal assignment service that incorrectly reported a successful permission assignment delete request as a failed one.
 * Fixed an issue in the Identity Center group import service which incorrectly handled import error event.
+* Added a preview of changes to access to resources in the role editor. This feature requires Teleport Identity Security.
 
 ## 17.2.1 (01/22/2025)
 
