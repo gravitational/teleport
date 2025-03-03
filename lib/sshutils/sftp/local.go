@@ -126,7 +126,7 @@ func (l localFS) Mkdir(ctx context.Context, path string) error {
 
 	err := os.MkdirAll(path, defaults.DirectoryPermissions)
 	if err != nil && !os.IsExist(err) {
-		return trace.ConvertSystemError(err)
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -145,14 +145,14 @@ func (l localFS) Chtimes(ctx context.Context, path string, atime, mtime time.Tim
 		return trace.Wrap(err)
 	}
 
-	return trace.ConvertSystemError(os.Chtimes(path, atime, mtime))
+	return trace.Wrap(os.Chtimes(path, atime, mtime))
 }
 
 func (l localFS) Rename(ctx context.Context, oldpath, newpath string) error {
 	if err := ctx.Err(); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.ConvertSystemError(os.Rename(oldpath, newpath))
+	return trace.Wrap(os.Rename(oldpath, newpath))
 }
 
 func (l localFS) Lstat(ctx context.Context, name string) (os.FileInfo, error) {
@@ -161,7 +161,7 @@ func (l localFS) Lstat(ctx context.Context, name string) (os.FileInfo, error) {
 	}
 	fi, err := os.Lstat(name)
 	if err != nil {
-		return nil, trace.ConvertSystemError(err)
+		return nil, trace.Wrap(err)
 	}
 	return fi, nil
 }
@@ -170,42 +170,42 @@ func (l localFS) RemoveAll(ctx context.Context, path string) error {
 	if err := ctx.Err(); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.ConvertSystemError(os.RemoveAll(path))
+	return trace.Wrap(os.RemoveAll(path))
 }
 
 func (l localFS) Link(ctx context.Context, oldname, newname string) error {
 	if err := ctx.Err(); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.ConvertSystemError(os.Link(oldname, newname))
+	return trace.Wrap(os.Link(oldname, newname))
 }
 
 func (l localFS) Symlink(ctx context.Context, oldname, newname string) error {
 	if err := ctx.Err(); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.ConvertSystemError(os.Symlink(oldname, newname))
+	return trace.Wrap(os.Symlink(oldname, newname))
 }
 
 func (l localFS) Remove(ctx context.Context, name string) error {
 	if err := ctx.Err(); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.ConvertSystemError(os.Remove(name))
+	return trace.Wrap(os.Remove(name))
 }
 
 func (l localFS) Chown(ctx context.Context, name string, uid, gid int) error {
 	if err := ctx.Err(); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.ConvertSystemError(os.Chown(name, uid, gid))
+	return trace.Wrap(os.Chown(name, uid, gid))
 }
 
 func (l localFS) Truncate(ctx context.Context, name string, size int64) error {
 	if err := ctx.Err(); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.ConvertSystemError(os.Truncate(name, size))
+	return trace.Wrap(os.Truncate(name, size))
 }
 
 func (l localFS) Readlink(ctx context.Context, name string) (string, error) {
@@ -214,7 +214,7 @@ func (l localFS) Readlink(ctx context.Context, name string) (string, error) {
 	}
 	dest, err := os.Readlink(name)
 	if err != nil {
-		return "", trace.ConvertSystemError(err)
+		return "", trace.Wrap(err)
 	}
 	return dest, nil
 }

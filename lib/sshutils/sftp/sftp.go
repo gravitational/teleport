@@ -728,32 +728,30 @@ func (n *NonRecursiveDirectoryTransferError) Error() string {
 func setstat(req *sftp.Request, fs FileSystem) error {
 	attrFlags := req.AttrFlags()
 	attrs := req.Attributes()
-	// Required for FileSystem interface, but does nothing.
-	ctx := context.Background()
 
 	if attrFlags.Acmodtime {
 		atime := time.Unix(int64(attrs.Atime), 0)
 		mtime := time.Unix(int64(attrs.Mtime), 0)
 
-		err := fs.Chtimes(ctx, req.Filepath, atime, mtime)
+		err := fs.Chtimes(req.Context(), req.Filepath, atime, mtime)
 		if err != nil {
 			return err
 		}
 	}
 	if attrFlags.Permissions {
-		err := fs.Chmod(ctx, req.Filepath, attrs.FileMode())
+		err := fs.Chmod(req.Context(), req.Filepath, attrs.FileMode())
 		if err != nil {
 			return err
 		}
 	}
 	if attrFlags.UidGid {
-		err := fs.Chown(ctx, req.Filepath, int(attrs.UID), int(attrs.GID))
+		err := fs.Chown(req.Context(), req.Filepath, int(attrs.UID), int(attrs.GID))
 		if err != nil {
 			return err
 		}
 	}
 	if attrFlags.Size {
-		err := fs.Truncate(ctx, req.Filepath, int64(attrs.Size))
+		err := fs.Truncate(req.Context(), req.Filepath, int64(attrs.Size))
 		if err != nil {
 			return err
 		}

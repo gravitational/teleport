@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	mathrand "math/rand/v2"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -34,9 +35,13 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/pkg/sftp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 const fileMaxSize = 1000
@@ -813,5 +818,190 @@ func compareFileInfos(t *testing.T, preserveAttrs bool, dstInfo, srcInfo os.File
 		require.True(t, dstInfo.ModTime().Equal(srcInfo.ModTime()), "%q and %q mod times not equal", dst, src)
 		// don't check access times, locally they line up but they are
 		// often different when run in CI
+	}
+}
+
+type mockCmdHandlers struct {
+	sftp.Handlers
+}
+
+func (m mockCmdHandlers) Filecmd(req *sftp.Request) error {
+	return trace.Wrap(HandleFilecmd(req, localFS{}))
+}
+
+func TestHandleFilecmd(t *testing.T) {
+	t.Parallel()
+	clientConn, serverConn := net.Pipe()
+	srv := sftp.NewRequestServer(serverConn, sftp.Handlers{
+		FileCmd: mockCmdHandlers{},
+	})
+
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
+	go srv.Serve()
+
+	clt, err := sftp.NewClientPipe(clientConn, clientConn)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
+
+	t.Run("rename", func(t *testing.T) {
+		root := t.TempDir()
+		initialFile := filepath.Join(root, "foo.txt")
+		finalFile := filepath.Join(root, "bar.txt")
+		require.NoError(t, os.WriteFile(initialFile, []byte("test"), 0o644))
+
+		assert.NoError(t, clt.Rename(initialFile, finalFile))
+		assert.NoFileExists(t, initialFile)
+		assert.FileExists(t, finalFile)
+	})
+
+	t.Run("rename missing target", func(t *testing.T) {
+		root := t.TempDir()
+		initialFile := filepath.Join(root, "foo.txt")
+		finalFile := filepath.Join(root, "bar.txt")
+		assert.Error(t, clt.Rename(initialFile, finalFile))
+		assert.NoFileExists(t, finalFile)
+	})
+
+	t.Run("rmdir", func(t *testing.T) {
+		root := t.TempDir()
+		dir := filepath.Join(root, "foo")
+		innerFile := filepath.Join(dir, "test.txt")
+		require.NoError(t, os.Mkdir(dir, defaults.DirectoryPermissions))
+		require.NoError(t, os.WriteFile(innerFile, []byte("test"), 0o644))
+
+		assert.NoError(t, clt.RemoveDirectory(dir))
+		assert.NoDirExists(t, dir)
+	})
+
+	t.Run("rmdir not found", func(t *testing.T) {
+		root := t.TempDir()
+		dir := filepath.Join(root, "foo")
+		assert.Error(t, clt.RemoveDirectory(dir))
+	})
+
+	t.Run("rmdir not a dir", func(t *testing.T) {
+		root := t.TempDir()
+		file := filepath.Join(root, "test.txt")
+		require.NoError(t, os.WriteFile(file, []byte("test"), 0o644))
+
+		assert.Error(t, clt.RemoveDirectory(file))
+		assert.FileExists(t, file)
+	})
+
+	t.Run("mkdir", func(t *testing.T) {
+		root := t.TempDir()
+		outer := filepath.Join(root, "a")
+		inner := filepath.Join(outer, "b/c")
+		require.NoError(t, os.Mkdir(outer, defaults.DirectoryPermissions))
+
+		assert.NoError(t, clt.Mkdir(inner))
+		assert.DirExists(t, inner)
+	})
+
+	t.Run("link", func(t *testing.T) {
+		root := t.TempDir()
+		file := filepath.Join(root, "foo.txt")
+		target := filepath.Join(root, "bar.txt")
+		require.NoError(t, os.WriteFile(file, []byte("test"), 0o644))
+
+		assert.NoError(t, clt.Link(target, file))
+		fi, err := os.Lstat(target)
+		if assert.NoError(t, err) {
+			assert.Zero(t, fi.Mode()&os.ModeSymlink)
+		}
+	})
+
+	t.Run("link missing target", func(t *testing.T) {
+		root := t.TempDir()
+		file := filepath.Join(root, "foo.txt")
+		target := filepath.Join(root, "bar.txt")
+
+		assert.Error(t, clt.Link(target, file))
+		assert.NoFileExists(t, target)
+	})
+
+	t.Run("link unset target", func(t *testing.T) {
+		root := t.TempDir()
+		file := filepath.Join(root, "foo.txt")
+		require.NoError(t, os.WriteFile(file, []byte("test"), 0o644))
+		assert.Error(t, clt.Link(file, ""))
+	})
+
+	t.Run("symlink", func(t *testing.T) {
+		root := t.TempDir()
+		file := filepath.Join(root, "foo.txt")
+		target := filepath.Join(root, "bar.txt")
+		require.NoError(t, os.WriteFile(file, []byte("test"), 0o644))
+
+		assert.NoError(t, clt.Symlink(target, file))
+		fi, err := os.Lstat(target)
+		assert.NoError(t, err)
+		assert.NotZero(t, fi.Mode()&os.ModeSymlink)
+	})
+
+	t.Run("symlink unset target", func(t *testing.T) {
+		root := t.TempDir()
+		file := filepath.Join(root, "foo.txt")
+		require.NoError(t, os.WriteFile(file, []byte("test"), 0o644))
+		assert.Error(t, clt.Symlink(file, ""))
+	})
+
+	t.Run("remove", func(t *testing.T) {
+		root := t.TempDir()
+		file := filepath.Join(root, "test.txt")
+		require.NoError(t, os.WriteFile(file, []byte("test"), 0o644))
+
+		assert.NoError(t, clt.Remove(file))
+		assert.NoFileExists(t, file)
+	})
+
+	t.Run("remove not found", func(t *testing.T) {
+		root := t.TempDir()
+		file := filepath.Join(root, "test.txt")
+
+		assert.Error(t, clt.Remove(file))
+	})
+
+	t.Run("remove directory", func(t *testing.T) {
+		root := t.TempDir()
+		dir := filepath.Join(root, "dir")
+		require.NoError(t, os.Mkdir(dir, defaults.DirectoryPermissions))
+
+		assert.NoError(t, clt.Remove(dir))
+		assert.NoDirExists(t, dir)
+	})
+
+	t.Run("unsupported operation", func(t *testing.T) {
+		root := t.TempDir()
+		file := filepath.Join(root, "test.txt")
+		require.NoError(t, os.WriteFile(file, []byte("foo"), 0o644))
+		req := sftp.NewRequest("Foo", file)
+		assert.Error(t, HandleFilecmd(req, localFS{}))
+	})
+}
+
+func TestHandleFilelist(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name           string
+		req            *sftp.Request
+		assert         assert.ErrorAssertionFunc
+		expectedOutput []os.FileInfo
+	}{}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			lister, err := HandleFilelist(tc.req, localFS{})
+			tc.assert(t, err)
+			if tc.expectedOutput == nil {
+				assert.Nil(t, lister)
+				return
+			}
+
+			list := make([]os.FileInfo, 0, len(tc.expectedOutput))
+			n, err := lister.ListAt(list, int64(len(tc.expectedOutput)))
+			assert.NoError(t, err)
+			assert.Equal(t, int64(len(tc.expectedOutput)), n)
+			assert.ElementsMatch(t, tc.expectedOutput, list)
+		})
 	}
 }
