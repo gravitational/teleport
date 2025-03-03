@@ -105,7 +105,7 @@ func TestEvaluateCondition(t *testing.T) {
 			description: "matches all requested roles",
 			condition: `
 				contains_all(set("dev", "stage", "prod"), access_request.spec.roles) &&
-				access_request.spec.roles.contains_all(set("dev", "stage", "prod"))`,
+				set("dev", "stage", "prod").contains_all(access_request.spec.roles)`,
 			env: AccessRequestExpressionEnv{
 				Roles: []string{"dev", "stage", "prod"},
 			},
