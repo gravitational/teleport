@@ -4,7 +4,7 @@
 
 set -eu
 
-if [ $# -ge 1 ] && [ -n "$1" ] && [ "$1" -e 1 ]; then
+if [ $# -ge 1 ] && [ "$1" = "1" ]; then
   echo "Skipping symlink removal as this is a package upgrade."
 else
   echo "Removing symlinks from Teleport system paths..."
