@@ -698,3 +698,25 @@ tests:
       - matchRegex:
           path: data.teleport\.yaml
           pattern: 'svc.test.com:3026'
+
+  - it: matches snapshot for auth-secondfactors-webauthn.yaml
+    values:
+      - ../.lint/auth-secondfactors-webauthn.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for auth-secondfactors-sso.yaml
+    values:
+      - ../.lint/auth-secondfactors-sso.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
