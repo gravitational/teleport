@@ -9,6 +9,22 @@ in a cluster, including nodes, users, tokens, certificates, and devices.
 `tctl` can also be used to modify the dynamic configuration of the cluster, such as
 creating new user roles or connecting to trusted clusters.
 
+## Resource kinds
+
+`tctl` commands execute some operation against a Teleport [dynamic
+resource](../../admin-guides/infrastructure-as-code/infrastructure-as-code.mdx).
+For example, the following command retrieves Teleport roles in a cluster:
+
+```code
+$ tctl get role
+```
+
+The following list includes all available Teleport resource kinds:
+
+<Details title="Available resource kinds">
+(!docs/pages/includes/resource_kinds.mdx!)
+</Details>
+
 ## Authentication
 
 Before running `tctl` commands, administrators must authenticate to a Teleport
