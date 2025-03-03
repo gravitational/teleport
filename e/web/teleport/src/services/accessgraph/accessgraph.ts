@@ -6,8 +6,8 @@ import { Role } from 'teleport/services/resources';
 import { QueryGraphResponse } from './types';
 
 export const accessGraphService = {
-  getRoleDiff(role: Role): Promise<AccessPathDiff> {
-    return api.post(cfg.api.accessGraphRoleTesterPath, role);
+  getRoleDiff(role: Role, abortSignal?: AbortSignal): Promise<AccessPathDiff> {
+    return api.post(cfg.api.accessGraphRoleTesterPath, role, abortSignal);
   },
   queryAccessGraph(query: string): Promise<QueryGraphResponse> {
     return api.get(

@@ -1,6 +1,6 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 
-import { useAsync } from 'shared/hooks/useAsync';
+import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 
 import { AccessGraphDiff, AccessPathDiff } from 'e-teleport/AccessGraph/Diff';
 import { accessGraphService } from 'e-teleport/services/accessgraph';
@@ -22,15 +22,26 @@ export const RolesE = () => {
     cfg.isPolicyRoleVisualizerEnabled &&
     storageService.getAccessGraphRoleTesterEnabled();
 
-  const [roleDiffAttempt, updateRoleDiff] = useAsync(
+  const abortControllerRef = useRef(new AbortController());
+
+  const [roleDiffAttempt, updateRoleDiff, updateAttempt] = useAsync(
     useCallback(async (role: Role) => {
       try {
-        return await accessGraphService.getRoleDiff(role);
+        return await accessGraphService.getRoleDiff(
+          role,
+          abortControllerRef.current?.signal
+        );
       } catch (err) {
         throw new Error(unableToUpdatePreviewMessage, { cause: err });
       }
     }, [])
   );
+
+  const clearRoleDiffAttempt = useCallback(() => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = new AbortController();
+    updateAttempt(makeEmptyAttempt());
+  }, [updateAttempt]);
 
   const roleDiffProps = useMemo(() => {
     if (!roleTesterEnabled) {
@@ -45,8 +56,14 @@ export const RolesE = () => {
       ),
       roleDiffAttempt,
       updateRoleDiff,
+      clearRoleDiffAttempt,
     };
-  }, [roleDiffAttempt, roleTesterEnabled, updateRoleDiff]);
+  }, [
+    roleDiffAttempt,
+    roleTesterEnabled,
+    updateRoleDiff,
+    clearRoleDiffAttempt,
+  ]);
 
   return <Roles roleDiffProps={roleDiffProps} />;
 };
