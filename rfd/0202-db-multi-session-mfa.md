@@ -204,7 +204,11 @@ get `types.Role` and `types.IsMFARequiredResponse` for older clients:
 - `MFARequired` for MFA requirement check will be downgraded from
   `MFA_REQUIRED_YES_ALLOW_REUSE` to `MFA_REQUIRED_YES` to enforce the stricter
   per-session MFA.
-- The downgrade will be lifted in next major release version.
+
+Same goes for watchers watching the roles. The downgrade logic can be added to:
+https://github.com/gravitational/teleport/blob/6cfeacb547d868be23c0320d1d000449f7c7960c/lib/auth/grpcserver.go#L2028-L2050
+
+The downgrade will be lifted in next major release version.
 
 Newer clients will not be able to set the new role option or request the new
 scope. They will continue use per-session MFA with older servers.
