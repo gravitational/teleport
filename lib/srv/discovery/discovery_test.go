@@ -1001,13 +1001,13 @@ func TestDiscoveryServer(t *testing.T) {
 
 func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTasks, minUserTaskResources int) []*usertasksv1.UserTask {
 	var existingTasks []*usertasksv1.UserTask
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		var allTasks []*usertasksv1.UserTask
 		var nextToken string
 		for {
 			var userTasks []*usertasksv1.UserTask
 			userTasks, nextTokenResp, err := userTasksClt.ListUserTasks(context.Background(), 0, nextToken, &usertasksv1.ListUserTasksFilters{})
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			allTasks = append(allTasks, userTasks...)
 			if nextTokenResp == "" {
 				break
@@ -1016,9 +1016,7 @@ func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTas
 		}
 		existingTasks = allTasks
 
-		if len(allTasks) < minUserTasks {
-			return false
-		}
+		assert.GreaterOrEqual(t, len(allTasks), minUserTasks)
 
 		gotResources := 0
 		for _, task := range allTasks {
@@ -1026,8 +1024,7 @@ func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTas
 			gotResources += len(task.GetSpec().GetDiscoverEks().GetClusters())
 			gotResources += len(task.GetSpec().GetDiscoverRds().GetDatabases())
 		}
-
-		return gotResources >= minUserTaskResources
+		assert.GreaterOrEqual(t, gotResources, minUserTaskResources)
 	}, 5*time.Second, 50*time.Millisecond)
 
 	return existingTasks
