@@ -50,7 +50,6 @@ export default function useTdpClientCanvas(props: Props) {
     desktopName,
     clusterId,
     setTdpConnection,
-    setWsConnection,
     clipboardSharingState,
   } = props;
   const [tdpClient, setTdpClient] = useState<TdpClient | null>(null);
@@ -100,14 +99,6 @@ export default function useTdpClientCanvas(props: Props) {
       let digest = await Sha256Digest(clipboardData.data, encoder.current);
       latestClipboardDigest.current = digest;
     }
-  };
-
-  const clientOnWsClose = (statusText: string) => {
-    setWsConnection({ status: 'closed', statusText });
-  };
-
-  const clientOnWsOpen = () => {
-    setWsConnection({ status: 'open' });
   };
 
   const canvasOnKeyDown = (e: React.KeyboardEvent) => {
@@ -209,8 +200,6 @@ export default function useTdpClientCanvas(props: Props) {
     clientScreenSpecToRequest: getDisplaySize(),
     setInitialTdpConnectionSucceeded,
     clientOnClipboardData,
-    clientOnWsClose,
-    clientOnWsOpen,
     canvasOnKeyDown,
     canvasOnKeyUp,
     canvasOnFocusOut,

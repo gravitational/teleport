@@ -67,8 +67,7 @@ export function DesktopSession(props: State) {
     setDirectorySharingState,
     setInitialTdpConnectionSucceeded,
     clientOnClipboardData,
-    clientOnWsClose,
-    clientOnWsOpen,
+    setWsConnection,
     canvasOnKeyDown,
     canvasOnKeyUp,
     canvasOnFocusOut,
@@ -135,8 +134,21 @@ export function DesktopSession(props: State) {
       [addAlert]
     )
   );
-  useListener(client?.onWsClose, clientOnWsClose);
-  useListener(client?.onWsOpen, clientOnWsOpen);
+  useListener(
+    client?.onWsClose,
+    useCallback(
+      statusText => {
+        setWsConnection({ status: 'closed', statusText });
+      },
+      [setWsConnection]
+    )
+  );
+  useListener(
+    client?.onWsOpen,
+    useCallback(() => {
+      setWsConnection({ status: 'open' });
+    }, [setWsConnection])
+  );
 
   const { shouldConnect } = screenState.canvasState;
   // Call connect after all listeners have been registered

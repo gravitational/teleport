@@ -220,6 +220,7 @@ export default function useDesktopSession() {
     alerts,
     onRemoveAlert,
     addAlert,
+    setWsConnection,
     ...clientCanvasProps,
   };
 }
