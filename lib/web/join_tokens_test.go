@@ -603,6 +603,7 @@ func toHex(s string) string { return hex.EncodeToString([]byte(s)) }
 
 func TestGetNodeJoinScript(t *testing.T) {
 	validToken := "f18da1c9f6630a51e8daf121e7451daa"
+	validTokenWithLabelsWithSpecialChars := "f18da1c9f6630a51e8daf121e7451dbb"
 	validIAMToken := "valid-iam-token"
 	internalResourceID := "967d38ff-7a61-4f42-bd2d-c61965b44db0"
 
@@ -618,19 +619,25 @@ func TestGetNodeJoinScript(t *testing.T) {
 			return &proto.GetClusterCACertResponse{TLSCA: fakeBytes}, nil
 		},
 		mockGetToken: func(_ context.Context, token string) (types.ProvisionToken, error) {
-			if token == validToken || token == validIAMToken {
-				return &types.ProvisionTokenV2{
-					Metadata: types.Metadata{
-						Name: token,
+			baseToken := &types.ProvisionTokenV2{
+				Metadata: types.Metadata{
+					Name: token,
+				},
+				Spec: types.ProvisionTokenSpecV2{
+					SuggestedLabels: types.Labels{
+						types.InternalResourceIDLabel: utils.Strings{internalResourceID},
 					},
-					Spec: types.ProvisionTokenSpecV2{
-						SuggestedLabels: types.Labels{
-							types.InternalResourceIDLabel: utils.Strings{internalResourceID},
-						},
-					},
-				}, nil
+				},
 			}
-			return nil, trace.NotFound("token does not exist")
+			switch token {
+			case validToken, validIAMToken:
+			case validTokenWithLabelsWithSpecialChars:
+				baseToken.Spec.SuggestedLabels["env"] = []string{"bad label value | ; & $ > < ' !"}
+				baseToken.Spec.SuggestedLabels["bad label key | ; & $ > < ' !"] = []string{"env"}
+			default:
+				return nil, trace.NotFound("token does not exist")
+			}
+			return baseToken, nil
 		},
 	}
 
@@ -638,7 +645,7 @@ func TestGetNodeJoinScript(t *testing.T) {
 		desc            string
 		settings        scriptSettings
 		errAssert       require.ErrorAssertionFunc
-		extraAssertions func(script string)
+		extraAssertions func(t *testing.T, script string)
 	}{
 		{
 			desc:      "zero value",
@@ -659,7 +666,7 @@ func TestGetNodeJoinScript(t *testing.T) {
 			desc:      "valid",
 			settings:  scriptSettings{token: validToken},
 			errAssert: require.NoError,
-			extraAssertions: func(script string) {
+			extraAssertions: func(t *testing.T, script string) {
 				require.Contains(t, script, validToken)
 				require.Contains(t, script, "test-host")
 				require.Contains(t, script, "12345678")
@@ -682,7 +689,7 @@ func TestGetNodeJoinScript(t *testing.T) {
 				joinMethod: string(types.JoinMethodIAM),
 			},
 			errAssert: require.NoError,
-			extraAssertions: func(script string) {
+			extraAssertions: func(t *testing.T, script string) {
 				require.Contains(t, script, "JOIN_METHOD='iam'")
 			},
 		},
@@ -690,9 +697,18 @@ func TestGetNodeJoinScript(t *testing.T) {
 			desc:      "internal resourceid label",
 			settings:  scriptSettings{token: validToken},
 			errAssert: require.NoError,
-			extraAssertions: func(script string) {
+			extraAssertions: func(t *testing.T, script string) {
 				require.Contains(t, script, "--labels ")
 				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
+			},
+		},
+		{
+			desc:      "attempt to shell injection using suggested labels",
+			settings:  scriptSettings{token: validTokenWithLabelsWithSpecialChars},
+			errAssert: require.NoError,
+			extraAssertions: func(t *testing.T, script string) {
+				require.Contains(t, script, `bad\ label\ key\ \|\ \;\ \&\ \$\ \>\ \<\ \'\ \!=env`)
+				require.Contains(t, script, `env=bad\ label\ value\ \|\ \;\ \&\ \$\ \>\ \<\ \'\ \!`)
 			},
 		},
 	} {
@@ -704,7 +720,7 @@ func TestGetNodeJoinScript(t *testing.T) {
 			}
 
 			if test.extraAssertions != nil {
-				test.extraAssertions(script)
+				test.extraAssertions(t, script)
 			}
 		})
 	}
@@ -899,6 +915,8 @@ func TestGetAppJoinScript(t *testing.T) {
 func TestGetDatabaseJoinScript(t *testing.T) {
 	validToken := "f18da1c9f6630a51e8daf121e7451daa"
 	emptySuggestedAgentMatcherLabelsToken := "f18da1c9f6630a51e8daf121e7451000"
+	wildcardLabelMatcherToken := "f18da1c9f6630a51e8daf121e7451001"
+	tokenWithSpecialChars := "f18da1c9f6630a51e8daf121e7451002"
 	internalResourceID := "967d38ff-7a61-4f42-bd2d-c61965b44db0"
 
 	m := &mockedNodeAPIGetter{
@@ -935,6 +953,22 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 				provisionToken.Spec.SuggestedAgentMatcherLabels = types.Labels{}
 				return provisionToken, nil
 			}
+			if token == wildcardLabelMatcherToken {
+				provisionToken.Spec.SuggestedAgentMatcherLabels = types.Labels{"*": []string{"*"}}
+				return provisionToken, nil
+			}
+			if token == tokenWithSpecialChars {
+				provisionToken.Spec.SuggestedAgentMatcherLabels = types.Labels{
+					"*":                             utils.Strings{"*"},
+					"spa ces":                       utils.Strings{"spa ces"},
+					"EOF":                           utils.Strings{"test heredoc"},
+					`"EOF"`:                         utils.Strings{"test quoted heredoc"},
+					"#'; <>\\#":                     utils.Strings{"try to escape yaml"},
+					"&<>'\"$A,./;'BCD ${ABCD}":      utils.Strings{"key with special characters"},
+					"value with special characters": utils.Strings{"&<>'\"$A,./;'BCD ${ABCD}", "#&<>'\"$A,./;'BCD ${ABCD}"},
+				}
+				return provisionToken, nil
+			}
 			return nil, trace.NotFound("token does not exist")
 		},
 	}
@@ -943,7 +977,7 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 		desc            string
 		settings        scriptSettings
 		errAssert       require.ErrorAssertionFunc
-		extraAssertions func(script string)
+		extraAssertions func(t *testing.T, script string)
 	}{
 		{
 			desc: "two installation methods",
@@ -961,16 +995,13 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 				token:               validToken,
 			},
 			errAssert: require.NoError,
-			extraAssertions: func(script string) {
+			extraAssertions: func(t *testing.T, script string) {
 				require.Contains(t, script, validToken)
 				require.Contains(t, script, "test-host")
 				require.Contains(t, script, "sha256:")
 				require.Contains(t, script, "--labels ")
 				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
 				require.Contains(t, script, `
-db_service:
-  enabled: "yes"
-  resources:
     - labels:
         env: prod
         os:
@@ -981,22 +1012,65 @@ db_service:
 			},
 		},
 		{
+			desc: "discover flow with wildcard label matcher",
+			settings: scriptSettings{
+				databaseInstallMode: true,
+				token:               wildcardLabelMatcherToken,
+			},
+			errAssert: require.NoError,
+			extraAssertions: func(t *testing.T, script string) {
+				require.Contains(t, script, wildcardLabelMatcherToken)
+				require.Contains(t, script, "test-host")
+				require.Contains(t, script, "sha256:")
+				require.Contains(t, script, "--labels ")
+				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
+				require.Contains(t, script, `
+    - labels:
+        '*': '*'
+`)
+			},
+		},
+		{
+			desc: "discover flow with shell injection attempt in resource matcher labels",
+			settings: scriptSettings{
+				databaseInstallMode: true,
+				token:               tokenWithSpecialChars,
+			},
+			errAssert: require.NoError,
+			extraAssertions: func(t *testing.T, script string) {
+				require.Contains(t, script, tokenWithSpecialChars)
+				require.Contains(t, script, "test-host")
+				require.Contains(t, script, "sha256:")
+				require.Contains(t, script, "--labels ")
+				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
+				require.Contains(t, script, `
+    - labels:
+        '"EOF"': test quoted heredoc
+        '#''; <>\#': try to escape yaml
+        '&<>''"$A,./;''BCD ${ABCD}': key with special characters
+        '*': '*'
+        EOF: test heredoc
+        spa ces: spa ces
+        value with special characters:
+          - '&<>''"$A,./;''BCD ${ABCD}'
+          - '#&<>''"$A,./;''BCD ${ABCD}'
+`)
+			},
+		},
+		{
 			desc: "empty suggestedAgentMatcherLabels",
 			settings: scriptSettings{
 				databaseInstallMode: true,
 				token:               emptySuggestedAgentMatcherLabelsToken,
 			},
 			errAssert: require.NoError,
-			extraAssertions: func(script string) {
+			extraAssertions: func(t *testing.T, script string) {
 				require.Contains(t, script, emptySuggestedAgentMatcherLabelsToken)
 				require.Contains(t, script, "test-host")
 				require.Contains(t, script, "sha256:")
 				require.Contains(t, script, "--labels ")
 				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
 				require.Contains(t, script, `
-db_service:
-  enabled: "yes"
-  resources:
     - labels:
         {}
 `)
@@ -1011,7 +1085,7 @@ db_service:
 			}
 
 			if test.extraAssertions != nil {
-				test.extraAssertions(script)
+				test.extraAssertions(t, script)
 			}
 		})
 	}
