@@ -73,13 +73,18 @@ const (
 
 // SetRequiredUmask sets the umask to match the systemd umask that the teleport-update service will execute with.
 // This ensures consistent file permissions.
+// If fail is true, SetRequiredUmask will fail if the overridden umask is more restrictive.
 // NOTE: This must be run in main.go before any goroutines that create files are started.
-func SetRequiredUmask(ctx context.Context, log *slog.Logger) {
+func SetRequiredUmask(ctx context.Context, log *slog.Logger, fail bool) error {
 	old := syscall.Umask(requiredUmask)
-	if old != requiredUmask {
-		log.WarnContext(ctx, "Non-standard umask detected! Umask has been changed to 0022 for teleport-update and all child processes.")
+	if old&requiredUmask > 0 {
+		if fail {
+			return trace.Errorf("refusing to make umask less restrictive")
+		}
+		log.WarnContext(ctx, "Restrictive umask detected. Umask has been changed to 0022 for teleport-update and all child processes.")
 		log.WarnContext(ctx, "All files created by teleport-update will have permissions set according to this umask.")
 	}
+	return nil
 }
 
 // NewLocalUpdater returns a new Updater that auto-updates local

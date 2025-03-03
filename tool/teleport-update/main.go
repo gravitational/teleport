@@ -54,6 +54,8 @@ const (
 	updateGroupEnvVar = "TELEPORT_UPDATE_GROUP"
 	// updateVersionEnvVar forces the version to specified value.
 	updateVersionEnvVar = "TELEPORT_UPDATE_VERSION"
+	// ignoreUmaskEnvVar allows teleport-update to ignore a restrictive umask.
+	ignoreUmaskEnvVar = "TELEPORT_UPDATE_IGNORE_UMASK"
 	// updateLockTimeout is the duration commands will wait for update to complete before failing.
 	updateLockTimeout = 10 * time.Minute
 )
@@ -91,6 +93,7 @@ type cliConfig struct {
 
 func Run(args []string) int {
 	var ccfg cliConfig
+	var ignoreUmask bool
 
 	ctx := context.Background()
 	ctx, _ = signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
@@ -106,6 +109,8 @@ func Run(args []string) int {
 		Hidden().StringVar(&ccfg.InstallDir)
 	app.Flag("insecure", "Insecure mode disables certificate verification. Do not use in production.").
 		BoolVar(&ccfg.Insecure)
+	app.Flag("ignore-umask", "Allow teleport-update to override a restrictive umask with 0022.").
+		Envar(ignoreUmaskEnvVar).BoolVar(&ignoreUmask)
 
 	app.HelpFlag.Short('h')
 
@@ -184,8 +189,17 @@ func Run(args []string) int {
 		return 1
 	}
 
-	// Set required umask for all commands, and warn loudly if it changes.
-	autoupdate.SetRequiredUmask(ctx, plog)
+	// Set required umask for most commands, and warn loudly if it changes.
+	switch command {
+	case statusCmd.FullCommand(), versionCmd.FullCommand():
+	default:
+		err := autoupdate.SetRequiredUmask(ctx, plog, !ignoreUmask)
+		if err != nil {
+			plog.ErrorContext(ctx, "Restrictive umask detected. The teleport-update command requires umask 0022 or less.", "error", err)
+			plog.ErrorContext(ctx, "Pass --ignore-umask to allow teleport-update to ignore your umask.")
+			return 1
+		}
+	}
 
 	switch command {
 	case enableCmd.FullCommand():
