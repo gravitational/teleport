@@ -7,8 +7,8 @@ should match the snapshot:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-mattermost
-        app.kubernetes.io/version: 17.3.0
-        helm.sh/chart: teleport-plugin-mattermost-17.3.0
+        app.kubernetes.io/version: 17.3.0-dev.hugoau.9
+        helm.sh/chart: teleport-plugin-mattermost-17.3.0-dev.hugoau.9
       name: RELEASE-NAME-teleport-plugin-mattermost
     spec:
       replicas: 1
@@ -22,8 +22,8 @@ should match the snapshot:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-plugin-mattermost
-            app.kubernetes.io/version: 17.3.0
-            helm.sh/chart: teleport-plugin-mattermost-17.3.0
+            app.kubernetes.io/version: 17.3.0-dev.hugoau.9
+            helm.sh/chart: teleport-plugin-mattermost-17.3.0-dev.hugoau.9
         spec:
           containers:
           - command:
@@ -75,8 +75,8 @@ should mount external secret:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-mattermost
-        app.kubernetes.io/version: 17.3.0
-        helm.sh/chart: teleport-plugin-mattermost-17.3.0
+        app.kubernetes.io/version: 17.3.0-dev.hugoau.9
+        helm.sh/chart: teleport-plugin-mattermost-17.3.0-dev.hugoau.9
       name: RELEASE-NAME-teleport-plugin-mattermost
     spec:
       replicas: 1
@@ -90,8 +90,8 @@ should mount external secret:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-plugin-mattermost
-            app.kubernetes.io/version: 17.3.0
-            helm.sh/chart: teleport-plugin-mattermost-17.3.0
+            app.kubernetes.io/version: 17.3.0-dev.hugoau.9
+            helm.sh/chart: teleport-plugin-mattermost-17.3.0-dev.hugoau.9
         spec:
           containers:
           - command:
@@ -102,7 +102,7 @@ should mount external secret:
             env:
             - name: TELEPORT_PLUGIN_FAIL_FAST
               value: "true"
-            image: public.ecr.aws/gravitational/teleport-plugin-mattermost:17.3.0
+            image: public.ecr.aws/gravitational/teleport-plugin-mattermost:17.3.0-dev.hugoau.9
             imagePullPolicy: IfNotPresent
             name: teleport-plugin-mattermost
             ports:
@@ -143,8 +143,8 @@ should override volume name:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-mattermost
-        app.kubernetes.io/version: 17.3.0
-        helm.sh/chart: teleport-plugin-mattermost-17.3.0
+        app.kubernetes.io/version: 17.3.0-dev.hugoau.9
+        helm.sh/chart: teleport-plugin-mattermost-17.3.0-dev.hugoau.9
       name: RELEASE-NAME-teleport-plugin-mattermost
     spec:
       replicas: 1
@@ -158,8 +158,8 @@ should override volume name:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-plugin-mattermost
-            app.kubernetes.io/version: 17.3.0
-            helm.sh/chart: teleport-plugin-mattermost-17.3.0
+            app.kubernetes.io/version: 17.3.0-dev.hugoau.9
+            helm.sh/chart: teleport-plugin-mattermost-17.3.0-dev.hugoau.9
         spec:
           containers:
           - command:
@@ -170,7 +170,7 @@ should override volume name:
             env:
             - name: TELEPORT_PLUGIN_FAIL_FAST
               value: "true"
-            image: public.ecr.aws/gravitational/teleport-plugin-mattermost:17.3.0
+            image: public.ecr.aws/gravitational/teleport-plugin-mattermost:17.3.0-dev.hugoau.9
             imagePullPolicy: IfNotPresent
             name: teleport-plugin-mattermost
             ports:
