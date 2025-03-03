@@ -115,8 +115,16 @@ for automatic approvals.
   field.
   - `Plugin Name` selects which plugin/service is responsible for handling the
     automatic approvals for matching access requests.
+- `Notifications` optionally configures `access_monitoring_rules.spec.notification`
+  field.
 
 ![create-amr](assets/0201-create-auto-approval.png)
+
+Note: We have considered using one single form for configuring both
+notification rules and automatic approval rules, but the match conditions for
+notification rules cannot be applied to automatic approval rules. Teleport must
+enforce a stricter match condition for automatic approval rules compared to
+notification rules.
 
 The submitted form will be converted into an access monitoring rule that would
 look like the following yaml. More details about the access monitoring rule
@@ -153,6 +161,9 @@ spec:
     contains_any(user.traits["location"], set("Seattle"))
   automatic_approval:
     name: teleport
+  notification:
+    name: slack
+    recipients: ["#dev-cloud"]
 ```
 
 The `Access Monitoring Rules` overview page will be modified to display both
